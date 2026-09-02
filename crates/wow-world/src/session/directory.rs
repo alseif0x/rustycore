@@ -1457,7 +1457,7 @@ impl PlayerRegistry {
         drop(entry);
         let has_vehicle_kit =
             self.canonical_at(guid, placement.map_id, placement.instance_id, |player| {
-                player.gameplay_state().has_vehicle_kit
+                player.gameplay_state().mount_vehicle_kit.is_some()
             })?;
         Some(PlayerVehicleInteractionSnapshot {
             map_id: placement.map_id,

@@ -44,9 +44,11 @@ pub struct PlayerGameplayState {
     pub pass_on_group_loot: bool,
     pub forced_reputation_ranks: Vec<(u32, u8)>,
     pub transport: Option<PlayerTransportState>,
-    pub in_vehicle: bool,
-    pub has_vehicle_kit: bool,
-    pub vehicle_seat: i32,
+    /// C++ `Unit::m_vehicleKit` for Player mount vehicles.
+    pub mount_vehicle_kit: Option<crate::Vehicle>,
+    /// Current C++ `VehicleSeatEntry::Flags` and `ID` for the Player passenger.
+    pub vehicle_seat_flags: Option<i32>,
+    pub vehicle_seat_id: Option<u32>,
     pub pet_guid: Option<ObjectGuid>,
     pub mails: Vec<PlayerMailRecord>,
     pub group: Option<PlayerGroupState>,

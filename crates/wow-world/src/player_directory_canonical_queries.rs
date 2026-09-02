@@ -75,8 +75,12 @@ impl PlayerRegistry {
         let (in_vehicle, seat, phase, auras, pet_guid) =
             self.canonical_at(guid, map_id, instance_id, |player| {
                 (
-                    player.gameplay_state().in_vehicle,
-                    player.gameplay_state().vehicle_seat,
+                    player.gameplay_state().vehicle_seat_flags.is_some(),
+                    player
+                        .gameplay_state()
+                        .vehicle_seat_id
+                        .and_then(|seat| i32::try_from(seat).ok())
+                        .unwrap_or(0),
                     player.unit().world().phase_shift().clone(),
                     canonical_unit_party_member_visible_auras_like_cpp(player.unit()),
                     player.gameplay_state().pet_guid,

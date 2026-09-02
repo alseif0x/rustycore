@@ -6168,7 +6168,8 @@ pub struct WorldSession {
     player_mount_display_id_like_cpp: i32,
     /// Represented vehicle id selected from mount creature template until VehicleKit exists.
     player_mount_vehicle_id_like_cpp: u32,
-    /// Represented C++ `Unit::m_vehicleKit` for player mounts until Unit owns live vehicle state.
+    /// Legacy handle-less test fixture for C++ `Unit::m_vehicleKit`.
+    #[cfg(test)]
     pub(crate) player_mount_vehicle_kit_like_cpp: Option<Vehicle>,
     /// Vehicle accessory rows selected by C++ `Vehicle::InstallAllAccessories(false)`.
     player_mount_vehicle_accessories_like_cpp: Vec<VehicleAccessory>,
@@ -6176,9 +6177,11 @@ pub struct WorldSession {
     player_mount_vehicle_seat_count_like_cpp: u8,
     /// Represented C++ `Vehicle::UsableSeatNum`.
     player_mount_vehicle_usable_seat_count_like_cpp: u8,
-    /// Represented current `VehicleSeatEntry::Flags` for C++ `HandleAttackSwingOpcode`.
+    /// Legacy handle-less test fixture for current `VehicleSeatEntry::Flags`.
+    #[cfg(test)]
     pub(crate) player_vehicle_seat_flags_like_cpp: Option<i32>,
-    /// Represented current `VehicleSeatEntry::ID` for C++ party-member stats.
+    /// Legacy handle-less test fixture for current `VehicleSeatEntry::ID`.
+    #[cfg(test)]
     pub(crate) player_vehicle_seat_id_like_cpp: Option<u32>,
     /// Represented `Player::ChangeSeat(seatId, next)` requests until live vehicle ownership exists.
     represented_vehicle_seat_change_requests_like_cpp:
@@ -6217,7 +6220,8 @@ pub struct WorldSession {
     represented_battlefield_ports_like_cpp: Vec<RepresentedBattlefieldPortLikeCpp>,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
     area_spirit_healer_guid_like_cpp: ObjectGuid,
-    /// Represented current pet GUID until player-owned pet runtime is canonical.
+    /// Legacy handle-less test fixture for the current Player-owned pet GUID.
+    #[cfg(test)]
     pub(crate) represented_pet_guid_like_cpp: Option<ObjectGuid>,
     /// C++ `Player::m_temporaryUnsummonedPetNumber`, represented until pet DB load/resummon is live.
     represented_temporary_unsummoned_pet_number_like_cpp: u32,
@@ -8263,11 +8267,14 @@ impl WorldSession {
             taxi_mounted_like_cpp: false,
             player_mount_display_id_like_cpp: 0,
             player_mount_vehicle_id_like_cpp: 0,
+            #[cfg(test)]
             player_mount_vehicle_kit_like_cpp: None,
             player_mount_vehicle_accessories_like_cpp: Vec::new(),
             player_mount_vehicle_seat_count_like_cpp: 0,
             player_mount_vehicle_usable_seat_count_like_cpp: 0,
+            #[cfg(test)]
             player_vehicle_seat_flags_like_cpp: None,
+            #[cfg(test)]
             player_vehicle_seat_id_like_cpp: None,
             represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
             represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
@@ -8286,6 +8293,7 @@ impl WorldSession {
             represented_battleground_queue_slots_like_cpp: Vec::new(),
             represented_battlefield_ports_like_cpp: Vec::new(),
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
+            #[cfg(test)]
             represented_pet_guid_like_cpp: None,
             represented_temporary_unsummoned_pet_number_like_cpp: 0,
             represented_old_pet_spell_like_cpp: 0,
@@ -10779,7 +10787,7 @@ impl WorldSession {
         status: &mut wow_packet::packets::movement::MovementInfo,
     ) -> bool {
         let vehicle_guid = self.represented_player_charmed_guid_like_cpp();
-        if vehicle_guid.is_empty() {
+        if vehicle_guid.is_empty() || self.player_vehicle_seat_state_like_cpp().is_none() {
             return false;
         }
 
@@ -10797,9 +10805,9 @@ impl WorldSession {
             },
         );
 
-        self.player_vehicle_seat_flags_like_cpp = None;
-        self.player_vehicle_seat_id_like_cpp = None;
-        self.publish_player_vehicle_state_to_owner_like_cpp();
+        if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
+            return false;
+        }
         self.sync_player_registry_state_like_cpp();
         true
     }
@@ -11494,32 +11502,101 @@ impl WorldSession {
     }
 
     fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {
-        match self.player_vehicle_seat_flags_like_cpp {
+        let Some((seat_flags, _)) = self.player_vehicle_seat_state_like_cpp() else {
+            return false;
+        };
+        match seat_flags {
             Some(flags) => flags & VEHICLE_SEAT_FLAG_CAN_ATTACK != 0,
             None => true,
         }
     }
 
-    fn publish_player_vehicle_state_to_owner_like_cpp(&self) {
-        let in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
-        let has_vehicle_kit = self.player_mount_vehicle_kit_like_cpp.is_some();
-        let vehicle_seat = self
-            .player_vehicle_seat_id_like_cpp
-            .and_then(|seat| i32::try_from(seat).ok())
-            .unwrap_or(0);
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            state.in_vehicle = in_vehicle;
-            state.has_vehicle_kit = has_vehicle_kit;
-            state.vehicle_seat = vehicle_seat;
+    fn player_vehicle_seat_state_like_cpp(&self) -> Option<(Option<i32>, Option<u32>)> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let state = player.gameplay_state();
+            (state.vehicle_seat_flags, state.vehicle_seat_id)
         });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some((
+                self.player_vehicle_seat_flags_like_cpp,
+                self.player_vehicle_seat_id_like_cpp,
+            ));
+        }
+        canonical
     }
 
-    fn publish_player_pet_guid_to_owner_like_cpp(&self) {
-        let pet_guid = self.represented_pet_guid_like_cpp;
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player.gameplay_state_mut().pet_guid = pet_guid;
+    fn set_player_vehicle_seat_state_like_cpp(
+        &mut self,
+        flags: Option<i32>,
+        seat_id: Option<u32>,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                let state = player.gameplay_state_mut();
+                state.vehicle_seat_flags = flags;
+                state.vehicle_seat_id = seat_id;
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_vehicle_seat_flags_like_cpp = flags;
+            self.player_vehicle_seat_id_like_cpp = seat_id;
+            return true;
+        }
+        canonical
+    }
+
+    fn player_mount_vehicle_kit_snapshot_like_cpp(&self) -> Option<Option<Vehicle>> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.gameplay_state().mount_vehicle_kit.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_mount_vehicle_kit_like_cpp.clone());
+        }
+        canonical
+    }
+
+    fn mutate_player_mount_vehicle_kit_like_cpp<R>(
+        &mut self,
+        update: impl FnOnce(&mut Option<Vehicle>) -> R,
+    ) -> Option<R> {
+        let mut update = Some(update);
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            update.take().expect("vehicle kit mutation runs once")(
+                &mut player.gameplay_state_mut().mount_vehicle_kit,
+            )
         });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(update.take().expect("vehicle kit mutation runs once")(
+                &mut self.player_mount_vehicle_kit_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    fn player_pet_guid_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
+        let canonical = self.with_owned_player_like_cpp(|player| player.gameplay_state().pet_guid);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_pet_guid_like_cpp);
+        }
+        canonical
+    }
+
+    fn set_player_pet_guid_like_cpp(&mut self, pet_guid: Option<ObjectGuid>) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().pet_guid = pet_guid;
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.represented_pet_guid_like_cpp = pet_guid;
+            return true;
+        }
+        canonical
     }
 
     fn add_canonical_attacker_like_cpp(&mut self, victim: ObjectGuid, attacker: ObjectGuid) {
@@ -27515,7 +27592,7 @@ impl WorldSession {
     fn represented_character_pet_aura_source_is_empty_like_cpp(&self) -> bool {
         self.represented_character_pet_rows_empty_authority_complete_like_cpp
             && self.represented_temporary_unsummoned_pet_number_like_cpp == 0
-            && self.represented_pet_guid_like_cpp.is_none()
+            && self.player_pet_guid_state_like_cpp() == Some(None)
             && self
                 .represented_pet_stable_like_cpp
                 .current_pet_index
@@ -36317,7 +36394,7 @@ impl WorldSession {
                 return false;
             }
             self.player_mount_vehicle_id_like_cpp = vehicle_id;
-            self.player_mount_vehicle_kit_like_cpp = None;
+            let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
             self.player_mount_vehicle_accessories_like_cpp = self
                 .vehicle_accessory_store
                 .as_ref()
@@ -36326,7 +36403,6 @@ impl WorldSession {
                 .unwrap_or_default();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
-            self.publish_player_vehicle_state_to_owner_like_cpp();
             return true;
         };
 
@@ -36360,14 +36436,13 @@ impl WorldSession {
         self.player_mount_vehicle_usable_seat_count_like_cpp =
             vehicle_kit.usable_seat_num().min(u32::from(u8::MAX)) as u8;
         self.player_mount_vehicle_accessories_like_cpp = accessory_plan.accessories;
-        self.player_mount_vehicle_kit_like_cpp = Some(vehicle_kit);
-        self.publish_player_vehicle_state_to_owner_like_cpp();
-        true
+        self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = Some(vehicle_kit))
+            .is_some()
     }
 
     #[allow(dead_code)]
     fn player_mount_vehicle_despawn_delay_ms_like_cpp(&self) -> i32 {
-        let Some(vehicle_kit) = self.player_mount_vehicle_kit_like_cpp.as_ref() else {
+        let Some(Some(vehicle_kit)) = self.player_mount_vehicle_kit_snapshot_like_cpp() else {
             return 1;
         };
 
@@ -36403,7 +36478,7 @@ impl WorldSession {
     }
 
     fn disable_pet_controls_on_mount_like_cpp(&mut self, react_state: u8, command_state: u8) {
-        let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
+        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
             return;
         };
 
@@ -36420,7 +36495,7 @@ impl WorldSession {
     }
 
     fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
-        if let Some(pet_guid) = self.represented_pet_guid_like_cpp {
+        if let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() {
             if let Some(react_state) = self.temporary_mount_pet_react_state_like_cpp {
                 self.represented_pet_react_state_like_cpp = react_state;
             }
@@ -36582,11 +36657,12 @@ impl WorldSession {
             let mount_capability_id = aura.represented_amount;
             self.player_mount_display_id_like_cpp = 0;
             self.player_mount_vehicle_id_like_cpp = 0;
-            if let Some(vehicle_kit) = self.player_mount_vehicle_kit_like_cpp.as_mut() {
-                vehicle_kit.uninstall();
-            }
-            self.player_mount_vehicle_kit_like_cpp = None;
-            self.publish_player_vehicle_state_to_owner_like_cpp();
+            let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| {
+                if let Some(vehicle_kit) = kit.as_mut() {
+                    vehicle_kit.uninstall();
+                }
+                *kit = None;
+            });
             self.player_mount_vehicle_accessories_like_cpp.clear();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
@@ -37485,13 +37561,17 @@ impl WorldSession {
     }
 
     fn exit_represented_vehicle_for_teleport_like_cpp(&mut self) -> bool {
-        if self.player_vehicle_seat_flags_like_cpp.is_none() {
+        if self
+            .player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+            .is_none()
+        {
             return false;
         }
 
-        self.player_vehicle_seat_flags_like_cpp = None;
-        self.player_vehicle_seat_id_like_cpp = None;
-        self.publish_player_vehicle_state_to_owner_like_cpp();
+        if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
+            return false;
+        }
         self.sync_player_registry_state_like_cpp();
         true
     }
@@ -37707,7 +37787,7 @@ impl WorldSession {
         if options & TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP != 0 {
             return;
         }
-        let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
+        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
             return;
         };
         let map_id = u32::from(self.player_map_id_like_cpp());
@@ -40010,9 +40090,10 @@ impl WorldSession {
         command_state: u8,
         created_by_spell: u32,
     ) {
+        if !self.set_player_pet_guid_like_cpp(pet_guid) {
+            return;
+        }
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        self.represented_pet_guid_like_cpp = pet_guid;
-        self.publish_player_pet_guid_to_owner_like_cpp();
         self.represented_pet_created_by_spell_like_cpp = created_by_spell;
         if pet_guid.is_none() {
             self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
@@ -40069,7 +40150,7 @@ impl WorldSession {
     /// remain owned by the future full pet/inventory persistence runtime.
     pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let pet_guid = self.represented_pet_guid_like_cpp;
+        let pet_guid = self.player_pet_guid_state_like_cpp().flatten();
         if let Some(pet_guid) = pet_guid
             && let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone)
             && let Ok(mut manager) = manager.lock()
@@ -40087,9 +40168,8 @@ impl WorldSession {
             });
         }
 
-        if self.represented_pet_guid_like_cpp.is_some() {
-            self.represented_pet_guid_like_cpp = None;
-            self.publish_player_pet_guid_to_owner_like_cpp();
+        if self.player_pet_guid_state_like_cpp().flatten().is_some() {
+            let _ = self.set_player_pet_guid_like_cpp(None);
             self.represented_pet_created_by_spell_like_cpp = 0;
             self.represented_pet_react_state_like_cpp =
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
@@ -40513,7 +40593,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.represented_pet_guid_like_cpp
+        self.player_pet_guid_state_like_cpp().flatten()
     }
 
     #[cfg(test)]
@@ -44608,7 +44688,7 @@ impl WorldSession {
     }
 
     fn unsummon_represented_pet_temporary_if_any_like_cpp(&mut self) {
-        let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
+        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
             return;
         };
 
@@ -44652,8 +44732,7 @@ impl WorldSession {
             }
         }
 
-        self.represented_pet_guid_like_cpp = None;
-        self.publish_player_pet_guid_to_owner_like_cpp();
+        let _ = self.set_player_pet_guid_like_cpp(None);
         self.represented_pet_created_by_spell_like_cpp = 0;
         self.represented_pet_react_state_like_cpp =
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
@@ -44744,7 +44823,7 @@ impl WorldSession {
         let pet_number = self.represented_temporary_unsummoned_pet_number_like_cpp;
         if pet_number == 0
             || self.is_pet_need_be_temporary_unsummoned_like_cpp()
-            || self.represented_pet_guid_like_cpp.is_some()
+            || self.player_pet_guid_state_like_cpp().flatten().is_some()
         {
             return;
         }
@@ -44986,8 +45065,7 @@ impl WorldSession {
 
         self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
         if let Some(pet_guid) = inserted_guid {
-            self.represented_pet_guid_like_cpp = Some(pet_guid);
-            self.publish_player_pet_guid_to_owner_like_cpp();
+            let _ = self.set_player_pet_guid_like_cpp(Some(pet_guid));
             if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {
                 self.represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
                 self.represented_pet_react_state_like_cpp = info.react_state as u8;
@@ -47655,9 +47733,10 @@ impl WorldSession {
         &mut self,
         creature_guid: ObjectGuid,
     ) {
-        let (Some(player_guid), Some(pet_guid)) =
-            (self.player_guid(), self.represented_pet_guid_like_cpp)
-        else {
+        let (Some(player_guid), Some(pet_guid)) = (
+            self.player_guid(),
+            self.player_pet_guid_state_like_cpp().flatten(),
+        ) else {
             return;
         };
         let tapper_has_current_player = self
@@ -47718,28 +47797,34 @@ impl WorldSession {
             return true;
         }
 
-        self.player_vehicle_seat_flags_like_cpp.is_some()
+        self.player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+            .is_some()
             || self.player_mounted_like_cpp
             || gameobject_usable_mounted
     }
 
     pub(crate) fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
-        let Some(seat_flags) = self.player_vehicle_seat_flags_like_cpp else {
+        let Some(seat_flags) = self
+            .player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+        else {
             return false;
         };
         if !wow_data::vehicle_seat_flags_can_enter_or_exit_like_cpp(seat_flags) {
             return false;
         }
 
-        self.player_vehicle_seat_flags_like_cpp = None;
-        self.player_vehicle_seat_id_like_cpp = None;
-        self.publish_player_vehicle_state_to_owner_like_cpp();
+        if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
+            return false;
+        }
         self.sync_player_registry_state_like_cpp();
         true
     }
 
     pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
-        self.player_vehicle_seat_flags_like_cpp
+        self.player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
             .is_some_and(wow_data::vehicle_seat_flags_can_switch_from_seat_like_cpp)
     }
 
@@ -47748,7 +47833,9 @@ impl WorldSession {
         next: bool,
     ) -> bool {
         match crate::handlers::vehicle::request_adjacent_vehicle_seat_action_like_cpp(
-            self.player_vehicle_seat_flags_like_cpp.is_some(),
+            self.player_vehicle_seat_state_like_cpp()
+                .and_then(|(flags, _)| flags)
+                .is_some(),
             self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
             next,
         ) {
@@ -47792,7 +47879,11 @@ impl WorldSession {
     }
 
     fn represented_vehicle_base_guid_for_switch_like_cpp(&self) -> Option<ObjectGuid> {
-        if self.player_vehicle_seat_flags_like_cpp.is_none() {
+        if self
+            .player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+            .is_none()
+        {
             return None;
         }
         (!self.player_moved_unit_guid_like_cpp.is_empty())
@@ -47990,31 +48081,33 @@ impl WorldSession {
             return false;
         }
 
-        let Some(vehicle_kit) = self.player_mount_vehicle_kit_like_cpp.as_mut() else {
-            return false;
-        };
-        let Some(seat_info) = vehicle_kit.seat_info_for_passenger_like_cpp(passenger_guid) else {
-            return false;
-        };
-        if !seat_info.ejectable {
-            return false;
-        }
-
         let passenger_type_id = if passenger_guid.is_player() {
             TypeId::Player
         } else {
             TypeId::Unit
         };
-        vehicle_kit
-            .remove_passenger_plan_like_cpp(
-                passenger_guid,
-                passenger_type_id,
-                false,
-                false,
-                false,
-                false,
-            )
-            .is_some()
+        self.mutate_player_mount_vehicle_kit_like_cpp(|kit| {
+            let Some(vehicle_kit) = kit.as_mut() else {
+                return false;
+            };
+            if !vehicle_kit
+                .seat_info_for_passenger_like_cpp(passenger_guid)
+                .is_some_and(|seat| seat.ejectable)
+            {
+                return false;
+            }
+            vehicle_kit
+                .remove_passenger_plan_like_cpp(
+                    passenger_guid,
+                    passenger_type_id,
+                    false,
+                    false,
+                    false,
+                    false,
+                )
+                .is_some()
+        })
+        .unwrap_or(false)
     }
 
     fn has_recently_dropped_flag_debuff_like_cpp(&self) -> bool {
@@ -49633,7 +49726,11 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        if self.player_vehicle_seat_flags_like_cpp.is_none() {
+        if self
+            .player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+            .is_none()
+        {
             return false;
         }
 
@@ -49766,8 +49863,7 @@ impl WorldSession {
             self.player_mounted_like_cpp = false;
             self.player_mount_display_id_like_cpp = 0;
             self.player_mount_vehicle_id_like_cpp = 0;
-            self.player_mount_vehicle_kit_like_cpp = None;
-            self.publish_player_vehicle_state_to_owner_like_cpp();
+            let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
             self.player_mount_vehicle_accessories_like_cpp.clear();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
@@ -55074,7 +55170,7 @@ impl WorldSession {
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
-        let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
+        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
             return;
         };
         if self.resolved_in_combat_like_cpp() != Some(false) {
@@ -56888,7 +56984,8 @@ impl WorldSession {
     }
 
     fn represented_player_has_active_vehicle_like_cpp(&self) -> bool {
-        self.player_mount_vehicle_kit_like_cpp
+        self.player_mount_vehicle_kit_snapshot_like_cpp()
+            .flatten()
             .as_ref()
             .is_some_and(|vehicle_kit| {
                 vehicle_kit.status() == wow_entities::VehicleStatus::Installed
@@ -68626,13 +68723,12 @@ impl WorldSession {
     /// pet runtime; this slice preserves the hit-target no-op semantics and
     /// clears the represented active pet state when the target is that pet.
     fn apply_dismiss_pet_effect_like_cpp(&mut self, target_guid: ObjectGuid) -> bool {
-        if self.represented_pet_guid_like_cpp != Some(target_guid) {
+        if self.player_pet_guid_state_like_cpp().flatten() != Some(target_guid) {
             return false;
         }
 
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        self.represented_pet_guid_like_cpp = None;
-        self.publish_player_pet_guid_to_owner_like_cpp();
+        let _ = self.set_player_pet_guid_like_cpp(None);
         self.represented_pet_react_state_like_cpp =
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
         self.represented_pet_command_state_like_cpp =

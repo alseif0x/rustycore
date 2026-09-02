@@ -2176,8 +2176,10 @@
           "name": "player_mount_vehicle_kit_like_cpp",
           "type": "Option < Vehicle >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_mount_vehicle_seat_count_like_cpp",
@@ -2460,15 +2462,19 @@
           "name": "player_vehicle_seat_flags_like_cpp",
           "type": "Option < i32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_vehicle_seat_id_like_cpp",
           "type": "Option < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_xp",
@@ -3819,8 +3825,10 @@
           "name": "represented_pet_guid_like_cpp",
           "type": "Option < ObjectGuid >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_pet_movement_speed_rates_like_cpp",
@@ -28590,6 +28598,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_mount_vehicle_kit_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_mount_vehicle_kit_like_cpp < R > (& mut self , update : impl FnOnce (& mut Option < Vehicle >) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_quest_gameplay_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_player_quest_gameplay_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut PlayerQuestGameplayState) -> R ,) -> Option < R >",
@@ -30103,6 +30122,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_mount_vehicle_kit_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_mount_vehicle_kit_snapshot_like_cpp (& self) -> Option < Option < Vehicle > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_mounted_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_mounted_like_cpp (& self) -> bool",
@@ -30262,6 +30292,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_pet_guid_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_pet_guid_state_like_cpp (& self) -> Option < Option < ObjectGuid > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -30665,6 +30706,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_vehicle_seat_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_vehicle_seat_state_like_cpp (& self) -> Option < (Option < i32 > , Option < u32 >) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_visible_aura_is_spell_hit_inert_like_cpp",
           "visibility": "private",
           "signature": "fn player_visible_aura_is_spell_hit_inert_like_cpp (& self , aura : & AuraApplication) -> bool",
@@ -30917,28 +30969,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_player_pet_guid_to_owner_like_cpp",
-          "visibility": "private",
-          "signature": "fn publish_player_pet_guid_to_owner_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_player_vehicle_state_to_owner_like_cpp",
-          "visibility": "private",
-          "signature": "fn publish_player_vehicle_state_to_owner_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -44390,6 +44420,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_player_pet_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_pet_guid_like_cpp (& mut self , pet_guid : Option < ObjectGuid >) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_player_position_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_player_position_like_cpp (& mut self , position : wow_core :: Position)",
@@ -44584,6 +44627,19 @@
           "guards": [
             "setter",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_player_vehicle_seat_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_vehicle_seat_state_like_cpp (& mut self , flags : Option < i32 > , seat_id : Option < u32 > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter"
           ]
         },
         {
@@ -75156,7 +75212,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:85e60470d2998fe5ab531074a295203a:len=93615|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3ce130cbab6fdab3aca9a50930d0f752:len=93630|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

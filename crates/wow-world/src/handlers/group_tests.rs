@@ -3387,8 +3387,8 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     player.set_primary_specialization(260);
     let pet_guid =
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 42_000, 100);
-    player.gameplay_state_mut().in_vehicle = true;
-    player.gameplay_state_mut().vehicle_seat = 1001;
+    player.gameplay_state_mut().vehicle_seat_flags = Some(0);
+    player.gameplay_state_mut().vehicle_seat_id = Some(1001);
     player.gameplay_state_mut().pet_guid = Some(pet_guid);
     {
         let phase = player.unit_mut().world_mut().phase_shift_mut();

@@ -60,12 +60,9 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
 #[cfg(test)]
 pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
     let known_spells = session.known_spells_fixture_like_cpp();
-    let in_vehicle = session.player_vehicle_seat_flags_like_cpp.is_some();
-    let has_vehicle_kit = session.player_mount_vehicle_kit_like_cpp.is_some();
-    let vehicle_seat = session
-        .player_vehicle_seat_id_like_cpp
-        .and_then(|seat| i32::try_from(seat).ok())
-        .unwrap_or(0);
+    let mount_vehicle_kit = session.player_mount_vehicle_kit_like_cpp.clone();
+    let vehicle_seat_flags = session.player_vehicle_seat_flags_like_cpp;
+    let vehicle_seat_id = session.player_vehicle_seat_id_like_cpp;
     let pet_guid = session.represented_pet_guid_like_cpp;
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
@@ -87,9 +84,9 @@ pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) 
                 )
             })
             .collect();
-        state.in_vehicle = in_vehicle;
-        state.has_vehicle_kit = has_vehicle_kit;
-        state.vehicle_seat = vehicle_seat;
+        state.mount_vehicle_kit = mount_vehicle_kit.clone();
+        state.vehicle_seat_flags = vehicle_seat_flags;
+        state.vehicle_seat_id = vehicle_seat_id;
         state.pet_guid = pet_guid;
     });
 }

@@ -31516,6 +31516,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         .expect("initial world map");
     let old_handle = session.player_handle_like_cpp.expect("canonical handle");
     let share_sender = ObjectGuid::create_player(1, 5_568);
+    let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 5_569, 10);
     let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 7_005);
     let transport_info = wow_packet::packets::movement::TransportInfo {
         guid: transport_guid,
@@ -31548,6 +31549,19 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             flags: 5,
         },
     )])));
+    assert!(session.set_player_pet_guid_like_cpp(Some(pet_guid)));
+    assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x10), Some(1001)));
+    assert!(
+        session
+            .mutate_player_mount_vehicle_kit_like_cpp(|kit| {
+                *kit = Some(represented_vehicle_kit_with_passenger_like_cpp(
+                    player_guid,
+                    test_creature_guid(5_570),
+                    true,
+                ));
+            })
+            .is_some()
+    );
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31618,6 +31632,8 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             flags: 6,
         },
     )])));
+    assert!(session.set_player_pet_guid_like_cpp(None));
+    assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x20), Some(1002)));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31684,6 +31700,15 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             flags: 9,
         },
     );
+    replacement.gameplay_state_mut().pet_guid = Some(pet_guid);
+    replacement.gameplay_state_mut().vehicle_seat_flags = Some(0x99);
+    replacement.gameplay_state_mut().vehicle_seat_id = Some(1999);
+    replacement.gameplay_state_mut().mount_vehicle_kit =
+        Some(represented_vehicle_kit_with_passenger_like_cpp(
+            player_guid,
+            test_creature_guid(5_571),
+            false,
+        ));
     assert!(replacement.set_quest_completed_bit_like_cpp(77, true));
     assert!(replacement.set_explored_zones_block_like_cpp(0, 0x400));
     let replacement_handle = canonical
@@ -31698,6 +31723,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.player_quest_gameplay_snapshot_like_cpp(), None);
     assert_eq!(session.player_transport_state_like_cpp(), None);
     assert_eq!(session.player_currencies_like_cpp(), None);
+    assert_eq!(session.player_pet_guid_state_like_cpp(), None);
+    assert_eq!(session.player_vehicle_seat_state_like_cpp(), None);
+    assert_eq!(session.player_mount_vehicle_kit_snapshot_like_cpp(), None);
     session.set_loaded_player_flags_like_cpp(0xdead);
     session.set_loaded_player_flags_ex_like_cpp(0xbeef);
     session.set_watched_faction_index_like_cpp(5);
@@ -31706,6 +31734,13 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_represented_pending_quest_sharing_like_cpp(share_sender, 0xdead);
     session.set_player_transport_info_like_cpp(None);
     assert!(!session.set_player_currencies_like_cpp(HashMap::new()));
+    assert!(!session.set_player_pet_guid_like_cpp(None));
+    assert!(!session.set_player_vehicle_seat_state_like_cpp(None, None));
+    assert!(
+        session
+            .mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None)
+            .is_none()
+    );
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31768,6 +31803,27 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                     flags: 9,
                 },
             )]),
+        ))
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().pet_guid,
+                player.gameplay_state().vehicle_seat_flags,
+                player.gameplay_state().vehicle_seat_id,
+                player
+                    .gameplay_state()
+                    .mount_vehicle_kit
+                    .as_ref()
+                    .map(|kit| (kit.vehicle_id(), kit.status())),
+            )),
+        Some((
+            Some(pet_guid),
+            Some(0x99),
+            Some(1999),
+            Some((77, wow_entities::VehicleStatus::Installed)),
         ))
     );
 }
@@ -38416,7 +38472,13 @@ fn insert_represented_vehicle_target_like_cpp(
     add_canonical_test_player_on_map(canonical, target_guid, position, 571, 0);
     assert!(
         with_canonical_player_at_mut_like_cpp(canonical, target_guid, 571, 0, |player| {
-            player.gameplay_state_mut().has_vehicle_kit = has_vehicle_kit_like_cpp;
+            player.gameplay_state_mut().mount_vehicle_kit = has_vehicle_kit_like_cpp.then(|| {
+                represented_vehicle_kit_with_passenger_like_cpp(
+                    target_guid,
+                    test_creature_guid(62_000),
+                    true,
+                )
+            });
         })
         .is_some()
     );
