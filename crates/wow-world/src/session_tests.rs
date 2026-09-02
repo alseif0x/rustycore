@@ -31206,10 +31206,14 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
     let mut owned = wow_entities::PlayerTalentRuntimeState {
         talents_loaded: true,
         glyphs_loaded: true,
+        active_group: 1,
+        bonus_groups: 1,
+        reset_talents_cost: 100_000,
+        reset_talents_time_secs: 12_345,
         ..Default::default()
     };
-    owned.talent_groups[0].insert(42, 1);
-    owned.glyph_groups[0][2] = 700;
+    owned.talent_groups[1].insert(42, 1);
+    owned.glyph_groups[1][2] = 700;
 
     assert!(session.replace_player_talent_runtime_like_cpp(owned.clone()));
     assert_eq!(
@@ -31232,10 +31236,14 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
     let mut replacement_state = wow_entities::PlayerTalentRuntimeState {
         talents_loaded: true,
         glyphs_loaded: true,
+        active_group: 0,
+        bonus_groups: 0,
+        reset_talents_cost: 500_000,
+        reset_talents_time_secs: 98_765,
         ..Default::default()
     };
-    replacement_state.talent_groups[1].insert(99, 2);
-    replacement_state.glyph_groups[1][3] = 900;
+    replacement_state.talent_groups[0].insert(99, 2);
+    replacement_state.glyph_groups[0][3] = 900;
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
         .unit_mut()
@@ -31251,6 +31259,9 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
 
     assert_eq!(session.player_talent_runtime_snapshot_like_cpp(), None);
     assert!(!session.replace_player_talent_runtime_like_cpp(owned));
+    assert!(!session.set_represented_active_talent_group_like_cpp(1));
+    assert!(!session.set_represented_bonus_talent_groups_like_cpp(1));
+    assert!(!session.set_represented_talent_reset_state_like_cpp(10_000, 1));
     assert_eq!(
         canonical
             .lock()
@@ -59107,7 +59118,9 @@ fn talent_reset_persistence_plan_carries_capped_fee_and_empty_retained_set() {
     let month = TALENT_RESET_MONTH_SECS_LIKE_CPP;
     let now = 10 * month;
     session.set_represented_talent_reset_state_like_cpp(500_000, now);
-    let cost = session.represented_next_reset_talents_cost_like_cpp(now);
+    let cost = session
+        .represented_next_reset_talents_cost_like_cpp(now)
+        .expect("fixture specialization owner");
     assert_eq!(cost, 500_000);
 
     let (_, request) = session

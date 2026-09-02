@@ -781,8 +781,14 @@ mod tests {
         );
         assert!(send_rx.try_recv().is_err());
         assert_eq!(session.player_gold_like_cpp(), 10_000);
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 10_000);
-        assert_ne!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(
+            session.represented_talent_reset_cost_like_cpp(),
+            Some(10_000)
+        );
+        assert_ne!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert_eq!(
             session.represented_talent_respec_criteria_events_like_cpp(),
             &[
@@ -856,12 +862,12 @@ mod tests {
         );
         assert_eq!(
             session.represented_talent_reset_cost_like_cpp(),
-            0,
+            Some(0),
             "C++ SetTalentResetCost receives the zero cost when NoResetTalentsCost bypasses the money gate"
         );
         assert_ne!(
             session.represented_talent_reset_time_secs_like_cpp(),
-            123,
+            Some(123),
             "C++ still updates TalentResetTime inside the final !noCost block"
         );
         assert_eq!(
@@ -951,8 +957,11 @@ mod tests {
             9_999,
             "C++ ResetTalents(true) skips ModifyMoney and criteria/accounting"
         );
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
-        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), Some(0));
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert!(
             session
                 .represented_talent_respec_criteria_events_like_cpp()
@@ -1797,8 +1806,11 @@ mod tests {
         );
         assert!(send_rx.try_recv().is_err());
         assert_eq!(session.player_gold_like_cpp(), 9_999);
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
-        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), Some(0));
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert_eq!(
             session.represented_talent_reset_script_hooks_like_cpp(),
             &[RepresentedTalentResetScriptHookLikeCpp { no_cost: false }],
@@ -1898,8 +1910,11 @@ mod tests {
             "a definite SQL rollback must not publish talent, spell, money, or visual packets"
         );
         assert_eq!(session.player_gold_like_cpp(), 20_000);
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
-        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), Some(0));
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert!(session.known_spells_like_cpp().contains(&50_101));
         assert_eq!(
             session
@@ -2047,43 +2062,43 @@ mod tests {
         session.set_represented_talent_reset_state_like_cpp(0, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            10_000
+            Some(10_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(10_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            50_000
+            Some(50_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(50_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            100_000
+            Some(100_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(100_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            150_000
+            Some(150_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(500_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            500_000
+            Some(500_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(500_000, now - month);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            450_000
+            Some(450_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(100_000, 0);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            100_000
+            Some(100_000)
         );
     }
 

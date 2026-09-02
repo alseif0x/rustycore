@@ -5778,9 +5778,11 @@ pub struct WorldSession {
     /// Production money lives exclusively in `Player::ActivePlayerData::Coinage`.
     #[cfg(test)]
     player_gold: u64,
-    /// C++ `Player::m_resetTalentsCost`, represented until character DB load/save owns it.
+    /// Handle-less test fallback for C++ `Player::_specializationInfo.ResetTalentsCost`.
+    #[cfg(test)]
     represented_talent_reset_cost_like_cpp: u32,
-    /// C++ `Player::m_resetTalentsTime`, represented as Unix seconds.
+    /// Handle-less test fallback for C++ `Player::_specializationInfo.ResetTalentsTime`.
+    #[cfg(test)]
     represented_talent_reset_time_secs_like_cpp: u64,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -6560,7 +6562,9 @@ pub struct WorldSession {
         BTreeMap<u32, Vec<RepresentedCharacterSpellChargeLikeCpp>>,
     #[cfg(test)]
     represented_character_spell_charges_loaded_like_cpp: bool,
+    #[cfg(test)]
     represented_active_talent_group_like_cpp: u8,
+    #[cfg(test)]
     represented_bonus_talent_groups_like_cpp: u8,
     #[cfg(test)]
     represented_talents_like_cpp: [BTreeMap<u32, u8>; MAX_SPECIALIZATIONS_LIKE_CPP],
@@ -7993,7 +7997,9 @@ impl WorldSession {
             rest_ingame_rate_like_cpp: 1.0,
             #[cfg(test)]
             player_gold: 0,
+            #[cfg(test)]
             represented_talent_reset_cost_like_cpp: 0,
+            #[cfg(test)]
             represented_talent_reset_time_secs_like_cpp: 0,
             #[cfg(test)]
             player_bank_bag_slot_count_like_cpp: 0,
@@ -8535,7 +8541,9 @@ impl WorldSession {
             represented_character_spell_charges_like_cpp: BTreeMap::new(),
             #[cfg(test)]
             represented_character_spell_charges_loaded_like_cpp: false,
+            #[cfg(test)]
             represented_active_talent_group_like_cpp: 0,
+            #[cfg(test)]
             represented_bonus_talent_groups_like_cpp: 0,
             #[cfg(test)]
             represented_talents_like_cpp: std::array::from_fn(|_| BTreeMap::new()),
@@ -27928,7 +27936,7 @@ impl WorldSession {
             .and_then(|runtime| {
                 runtime
                     .glyph_groups
-                    .get(usize::from(self.represented_active_talent_group_like_cpp))
+                    .get(usize::from(runtime.active_group))
                     .map(|glyphs| glyphs.iter().all(|glyph_id| *glyph_id == 0))
             })
             .unwrap_or(false)
@@ -31108,6 +31116,10 @@ impl WorldSession {
                 talents_loaded: self.represented_talents_loaded_like_cpp,
                 glyph_groups: self.represented_glyphs_like_cpp,
                 glyphs_loaded: self.represented_glyphs_loaded_like_cpp,
+                active_group: self.represented_active_talent_group_like_cpp,
+                bonus_groups: self.represented_bonus_talent_groups_like_cpp,
+                reset_talents_cost: self.represented_talent_reset_cost_like_cpp,
+                reset_talents_time_secs: self.represented_talent_reset_time_secs_like_cpp,
             });
         }
         canonical
@@ -31128,6 +31140,10 @@ impl WorldSession {
             self.represented_talents_loaded_like_cpp = runtime.talents_loaded;
             self.represented_glyphs_like_cpp = runtime.glyph_groups;
             self.represented_glyphs_loaded_like_cpp = runtime.glyphs_loaded;
+            self.represented_active_talent_group_like_cpp = runtime.active_group;
+            self.represented_bonus_talent_groups_like_cpp = runtime.bonus_groups;
+            self.represented_talent_reset_cost_like_cpp = runtime.reset_talents_cost;
+            self.represented_talent_reset_time_secs_like_cpp = runtime.reset_talents_time_secs;
             return true;
         }
         canonical
@@ -31158,27 +31174,36 @@ impl WorldSession {
         });
     }
 
-    pub(crate) fn set_represented_active_talent_group_like_cpp(&mut self, active_group: u8) {
+    pub(crate) fn set_represented_active_talent_group_like_cpp(
+        &mut self,
+        active_group: u8,
+    ) -> bool {
         let active_group = active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
-        if self.represented_active_talent_group_like_cpp != active_group {
+        if self.represented_active_talent_group_like_cpp() != Some(active_group) {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.represented_active_talent_group_like_cpp = active_group;
+        self.mutate_player_talent_runtime_like_cpp(|runtime| runtime.active_group = active_group)
+            .is_some()
     }
 
-    pub(crate) fn represented_active_talent_group_like_cpp(&self) -> u8 {
-        self.represented_active_talent_group_like_cpp
+    pub(crate) fn represented_active_talent_group_like_cpp(&self) -> Option<u8> {
+        self.player_talent_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.active_group)
     }
 
-    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> (u8, i32) {
+    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
         // Trait-config-specific action bars are not represented yet. Both load and save must use
         // the same C++ fallback context so an autosave cannot mutate rows it never loaded.
-        (self.represented_active_talent_group_like_cpp, 0)
+        Some((self.represented_active_talent_group_like_cpp()?, 0))
     }
 
-    pub(crate) fn set_represented_bonus_talent_groups_like_cpp(&mut self, bonus_groups: u8) {
-        self.represented_bonus_talent_groups_like_cpp =
-            bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+    pub(crate) fn set_represented_bonus_talent_groups_like_cpp(
+        &mut self,
+        bonus_groups: u8,
+    ) -> bool {
+        let bonus_groups = bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+        self.mutate_player_talent_runtime_like_cpp(|runtime| runtime.bonus_groups = bonus_groups)
+            .is_some()
     }
 
     pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
@@ -31203,7 +31228,9 @@ impl WorldSession {
     }
 
     pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
-        let talent_group = self.represented_active_talent_group_like_cpp;
+        let Some(talent_group) = self.represented_active_talent_group_like_cpp() else {
+            return false;
+        };
         let talent_group_index = usize::from(talent_group);
         if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
             return false;
@@ -31962,15 +31989,14 @@ impl WorldSession {
             return false;
         }
 
-        let talent_group = self.represented_active_talent_group_like_cpp;
-        let previous_rank = self
-            .player_talent_runtime_snapshot_like_cpp()
-            .and_then(|runtime| {
-                runtime
-                    .talent_groups
-                    .get(usize::from(talent_group))
-                    .and_then(|talents| talents.get(&talent_id).copied())
-            });
+        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
+            return false;
+        };
+        let talent_group = runtime.active_group;
+        let previous_rank = runtime
+            .talent_groups
+            .get(usize::from(talent_group))
+            .and_then(|talents| talents.get(&talent_id).copied());
         let learned = self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group);
         if learned {
             self.apply_represented_active_talent_spell_side_effects_like_cpp(
@@ -31993,7 +32019,10 @@ impl WorldSession {
             return false;
         }
 
-        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
+            return false;
+        };
+        let talent_group_index = usize::from(runtime.active_group);
         if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
             return false;
         }
@@ -32002,9 +32031,6 @@ impl WorldSession {
             return false;
         };
 
-        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
-            return false;
-        };
         let talents = &runtime.talent_groups[talent_group_index];
         if let Some(current_rank) = talents.get(&talent_id) {
             if *current_rank >= rank {
@@ -32068,10 +32094,10 @@ impl WorldSession {
     }
 
     fn represented_needed_talent_points_for_learn_like_cpp(&self, talent_id: u32, rank: u8) -> u32 {
-        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
         let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
             return u32::from(rank) + 1;
         };
+        let talent_group_index = usize::from(runtime.active_group);
         let Some(talents) = runtime.talent_groups.get(talent_group_index) else {
             return u32::from(rank) + 1;
         };
@@ -32083,9 +32109,10 @@ impl WorldSession {
     }
 
     fn represented_spent_talent_points_count_like_cpp(&self) -> Option<u32> {
-        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
+        let talent_group_index = usize::from(runtime.active_group);
         Some(
-            self.player_talent_runtime_snapshot_like_cpp()?
+            runtime
                 .talent_groups
                 .get(talent_group_index)
                 .into_iter()
@@ -32206,7 +32233,7 @@ impl WorldSession {
             return false;
         }
 
-        if self.represented_active_talent_group_like_cpp != talent_group {
+        if self.represented_active_talent_group_like_cpp() != Some(talent_group) {
             return true;
         }
 
@@ -32313,7 +32340,7 @@ impl WorldSession {
         rank: u8,
         talent_group: u8,
     ) {
-        if self.represented_active_talent_group_like_cpp != talent_group {
+        if self.represented_active_talent_group_like_cpp() != Some(talent_group) {
             return;
         }
 
@@ -32408,7 +32435,7 @@ impl WorldSession {
             return None;
         }
 
-        let active_group = self.represented_active_talent_group_like_cpp;
+        let active_group = runtime.active_group;
         let active_group_index = usize::from(active_group);
         let active_talents = runtime.talent_groups.get(active_group_index)?.clone();
         let mut post_talents = runtime.talent_groups;
@@ -32517,8 +32544,7 @@ impl WorldSession {
         character_points: i32,
     ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
         let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-        let group_count = (1 + usize::from(self.represented_bonus_talent_groups_like_cpp))
-            .min(MAX_SPECIALIZATIONS_LIKE_CPP);
+        let group_count = (1 + usize::from(runtime.bonus_groups)).min(MAX_SPECIALIZATIONS_LIKE_CPP);
         let mut groups = Vec::with_capacity(group_count);
         for (group_index, glyph_ids) in runtime
             .glyph_groups
@@ -32542,7 +32568,7 @@ impl WorldSession {
 
         Some(wow_packet::packets::misc::UpdateTalentData {
             unspent_talent_points: character_points.max(0) as u32,
-            active_group: self.represented_active_talent_group_like_cpp,
+            active_group: runtime.active_group,
             groups,
             is_pet_talents: false,
         })
@@ -34314,12 +34340,15 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn represented_next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
-        Self::next_reset_talents_cost_like_cpp(
-            self.represented_talent_reset_cost_like_cpp,
-            self.represented_talent_reset_time_secs_like_cpp,
+    pub(crate) fn represented_next_reset_talents_cost_like_cpp(
+        &self,
+        now_secs: u64,
+    ) -> Option<u32> {
+        Some(Self::next_reset_talents_cost_like_cpp(
+            self.represented_talent_reset_cost_like_cpp()?,
+            self.represented_talent_reset_time_secs_like_cpp()?,
             now_secs,
-        )
+        ))
     }
 
     pub(crate) async fn commit_represented_talent_reset_like_cpp(
@@ -34340,7 +34369,7 @@ impl WorldSession {
         let cost = if self.no_reset_talent_cost_like_cpp {
             0
         } else {
-            u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs))
+            u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs)?)
         };
 
         let money_persistence = self
@@ -34447,8 +34476,8 @@ impl WorldSession {
         self.record_represented_confirm_respec_wipe_like_cpp(request);
 
         debug_assert_eq!(
-            self.represented_active_talent_group_like_cpp,
-            state_plan.active_group
+            self.represented_active_talent_group_like_cpp(),
+            Some(state_plan.active_group)
         );
         for (talent_id, rank) in &state_plan.active_talents {
             self.remove_represented_active_talent_side_effects_like_cpp(*talent_id, *rank);
@@ -34468,8 +34497,16 @@ impl WorldSession {
             self.kick("canonical Player money owner became unavailable after talent-reset COMMIT");
             return;
         }
-        self.represented_talent_reset_cost_like_cpp = cost;
-        self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
+        if self
+            .mutate_player_talent_runtime_like_cpp(|runtime| {
+                runtime.reset_talents_cost = cost;
+                runtime.reset_talents_time_secs = reset_time_secs;
+            })
+            .is_none()
+        {
+            self.kick("canonical Player specialization owner became unavailable after talent-reset COMMIT");
+            return;
+        }
         self.record_represented_talent_respec_criteria_like_cpp(cost);
 
         if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
@@ -39857,9 +39894,12 @@ impl WorldSession {
         &mut self,
         reset_cost: u32,
         reset_time_secs: u64,
-    ) {
-        self.represented_talent_reset_cost_like_cpp = reset_cost;
-        self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
+    ) -> bool {
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.reset_talents_cost = reset_cost;
+            runtime.reset_talents_time_secs = reset_time_secs;
+        })
+        .is_some()
     }
 
     pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) -> bool {
@@ -43299,12 +43339,14 @@ impl WorldSession {
             .expect("test Player money owner must resolve")
     }
 
-    pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> u32 {
-        self.represented_talent_reset_cost_like_cpp
+    pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> Option<u32> {
+        self.player_talent_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.reset_talents_cost)
     }
 
-    pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> u64 {
-        self.represented_talent_reset_time_secs_like_cpp
+    pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> Option<u64> {
+        self.player_talent_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.reset_talents_time_secs)
     }
 
     pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {

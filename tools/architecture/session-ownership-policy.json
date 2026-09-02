@@ -2775,8 +2775,10 @@
           "name": "represented_active_talent_group_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_active_trade_partner_like_cpp",
@@ -3050,8 +3052,10 @@
           "name": "represented_bonus_talent_groups_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_calendar_add_events_like_cpp",
@@ -4355,8 +4359,10 @@
           "name": "represented_talent_reset_cost_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_talent_reset_script_hooks_like_cpp",
@@ -4369,8 +4375,10 @@
           "name": "represented_talent_reset_time_secs_like_cpp",
           "type": "u64",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_talent_respec_criteria_events_like_cpp",
@@ -33404,7 +33412,7 @@
           "kind": "method",
           "name": "represented_action_button_db_context_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_action_button_db_context_like_cpp (& self) -> (u8 , i32)",
+          "signature": "fn represented_action_button_db_context_like_cpp (& self) -> Option < (u8 , i32) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -33484,7 +33492,7 @@
           "kind": "method",
           "name": "represented_active_talent_group_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_active_talent_group_like_cpp (& self) -> u8",
+          "signature": "fn represented_active_talent_group_like_cpp (& self) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36183,7 +36191,7 @@
           "kind": "method",
           "name": "represented_next_reset_talents_cost_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_next_reset_talents_cost_like_cpp (& self , now_secs : u64) -> u32",
+          "signature": "fn represented_next_reset_talents_cost_like_cpp (& self , now_secs : u64 ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37641,7 +37649,7 @@
           "kind": "method",
           "name": "represented_talent_reset_cost_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_talent_reset_cost_like_cpp (& self) -> u32",
+          "signature": "fn represented_talent_reset_cost_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37691,7 +37699,7 @@
           "kind": "method",
           "name": "represented_talent_reset_time_secs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_talent_reset_time_secs_like_cpp (& self) -> u64",
+          "signature": "fn represented_talent_reset_time_secs_like_cpp (& self) -> Option < u64 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45147,7 +45155,7 @@
           "kind": "method",
           "name": "set_represented_active_talent_group_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_active_talent_group_like_cpp (& mut self , active_group : u8)",
+          "signature": "fn set_represented_active_talent_group_like_cpp (& mut self , active_group : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45259,7 +45267,7 @@
           "kind": "method",
           "name": "set_represented_bonus_talent_groups_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_bonus_talent_groups_like_cpp (& mut self , bonus_groups : u8)",
+          "signature": "fn set_represented_bonus_talent_groups_like_cpp (& mut self , bonus_groups : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45885,7 +45893,7 @@
           "kind": "method",
           "name": "set_represented_talent_reset_state_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_talent_reset_state_like_cpp (& mut self , reset_cost : u32 , reset_time_secs : u64 ,)",
+          "signature": "fn set_represented_talent_reset_state_like_cpp (& mut self , reset_cost : u32 , reset_time_secs : u64 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75315,7 +75323,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:30c0cc2195a868c5b6dcdda18d81d3b6:len=94171|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5ccb78b16984f283cf12581eb7337546:len=94248|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

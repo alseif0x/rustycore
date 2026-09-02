@@ -517,6 +517,11 @@ pub struct PlayerTalentRuntimeState {
     pub talents_loaded: bool,
     pub glyph_groups: [[u16; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP]; PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
     pub glyphs_loaded: bool,
+    /// C++ `Player::_specializationInfo.{ActiveGroup,BonusGroups,ResetTalentsCost,ResetTalentsTime}`.
+    pub active_group: u8,
+    pub bonus_groups: u8,
+    pub reset_talents_cost: u32,
+    pub reset_talents_time_secs: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

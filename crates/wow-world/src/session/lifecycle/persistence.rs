@@ -157,8 +157,8 @@ impl WorldSession {
             is_logout_resting: self.resolved_visible_resting_like_cpp()?,
             health: snapshot.health,
             powers,
-            talent_reset_cost: self.represented_talent_reset_cost_like_cpp,
-            talent_reset_time: self.represented_talent_reset_time_secs_like_cpp,
+            talent_reset_cost: self.represented_talent_reset_cost_like_cpp()?,
+            talent_reset_time: self.represented_talent_reset_time_secs_like_cpp()?,
             explored_zones: self.represented_explored_zones_db_string_like_cpp()?,
             dungeon_difficulty: self.resolved_dungeon_difficulty_id_like_cpp()?,
             raid_difficulty: self.resolved_raid_difficulty_id_like_cpp()?,
@@ -388,7 +388,7 @@ impl WorldSession {
         let action_buttons = if let Some(action_buttons) =
             self.loaded_action_buttons_snapshot_like_cpp()
         {
-            let (spec, trait_config_id) = self.represented_action_button_db_context_like_cpp();
+            let (spec, trait_config_id) = self.represented_action_button_db_context_like_cpp()?;
             Some(PlayerActionButtonsSaveLikeCpp {
                 spec,
                 trait_config_id,

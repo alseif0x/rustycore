@@ -493,16 +493,20 @@ impl WorldSession {
             return;
         }
         self.set_player_xp_like_cpp(base_row.xp.unwrap_or(0));
-        self.set_represented_talent_reset_state_like_cpp(
+        if !self.set_represented_talent_reset_state_like_cpp(
             base_row.talent_reset_cost.unwrap_or(0),
             base_row.talent_reset_time_secs.unwrap_or(0),
-        );
-        self.set_represented_active_talent_group_like_cpp(
-            base_row.active_talent_group.unwrap_or(0),
-        );
-        self.set_represented_bonus_talent_groups_like_cpp(
-            base_row.bonus_talent_groups.unwrap_or(0),
-        );
+        ) || !self
+            .set_represented_active_talent_group_like_cpp(base_row.active_talent_group.unwrap_or(0))
+            || !self.set_represented_bonus_talent_groups_like_cpp(
+                base_row.bonus_talent_groups.unwrap_or(0),
+            )
+        {
+            self.kick(
+                "WorldSession::HandlePlayerLogin canonical Player specialization hydration failed",
+            );
+            return;
+        }
         self.set_player_create_mode_like_cpp(create_mode);
         self.set_represented_at_login_flags_like_cpp(at_login_flags);
         let saved_rest_state = base_row.rest_state.unwrap_or(REST_STATE_NORMAL_LIKE_CPP);
@@ -1983,7 +1987,14 @@ impl WorldSession {
         let mut action_count = 0u32;
         self.reset_represented_action_buttons_like_cpp();
         // C++ loads the action-button map for GetActiveTalentGroup(), not always spec 0.
-        let (active_spec, trait_config_id) = self.represented_action_button_db_context_like_cpp();
+        let Some((active_spec, trait_config_id)) =
+            self.represented_action_button_db_context_like_cpp()
+        else {
+            self.kick(
+                "canonical Player specialization owner unavailable while loading action buttons",
+            );
+            return;
+        };
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::ActionButtons {

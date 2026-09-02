@@ -337,6 +337,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             glyph_groups: [[0; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP];
                 PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
             glyphs_loaded: true,
+            ..Default::default()
         },
         action_buttons: vec![PlayerActionButtonRecord {
             button: 1,
@@ -358,12 +359,14 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
         },
         mails: vec![PlayerMailRecord {
             mail_id: 55,
-            sender: ObjectGuid::create_player(1, 1003),
-            receiver: ObjectGuid::create_player(1, 42),
+            message_type: 0,
+            sender: 1003,
+            receiver: 42,
             template_id: Some(9),
             deliver_time: 1_700_000_000,
             expire_time: 1_700_086_400,
             checked_flags: 0x2,
+            stationery_id: 0,
         }],
         group: Some(PlayerGroupState {
             group_guid: ObjectGuid::new(1, 77),
