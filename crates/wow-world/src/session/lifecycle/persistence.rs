@@ -303,16 +303,27 @@ impl WorldSession {
             None
         };
 
-        let spell_cooldowns = if self.represented_character_spell_cooldowns_loaded_like_cpp {
+        let spell_history = self.player_spell_history_snapshot_like_cpp();
+        let spell_cooldowns = if spell_history
+            .as_ref()
+            .is_some_and(|history| history.cooldowns_loaded)
+        {
             Some(
-                self.represented_character_spell_cooldowns_like_cpp
+                spell_history
+                    .as_ref()
+                    .expect("loaded history resolved above")
+                    .cooldowns
                     .values()
                     .map(|cooldown| PlayerSpellCooldownSaveLikeCpp {
                         spell_id: cooldown.spell_id,
                         item_id: cooldown.item_id,
-                        cooldown_end_unix_secs: cooldown.cooldown_end_unix_secs,
+                        cooldown_end_unix_secs: (cooldown.cooldown_end_ms / 1_000)
+                            .min(i64::MAX as u64)
+                            as i64,
                         category_id: cooldown.category_id,
-                        category_end_unix_secs: cooldown.category_end_unix_secs,
+                        category_end_unix_secs: (cooldown.category_end_ms / 1_000)
+                            .min(i64::MAX as u64)
+                            as i64,
                     })
                     .collect(),
             )
@@ -325,15 +336,28 @@ impl WorldSession {
             None
         };
 
-        let spell_charges = if self.represented_character_spell_charges_loaded_like_cpp {
+        let spell_charges = if spell_history
+            .as_ref()
+            .is_some_and(|history| history.charges_loaded)
+        {
             Some(
-                self.represented_character_spell_charges_like_cpp
-                    .values()
-                    .flatten()
-                    .map(|charge| PlayerSpellChargeSaveLikeCpp {
-                        category_id: charge.category_id,
-                        recharge_start_unix_secs: charge.recharge_start_unix_secs,
-                        recharge_end_unix_secs: charge.recharge_end_unix_secs,
+                spell_history
+                    .as_ref()
+                    .expect("loaded history resolved above")
+                    .charges
+                    .iter()
+                    .flat_map(|(&category_id, charges)| {
+                        charges
+                            .iter()
+                            .map(move |charge| PlayerSpellChargeSaveLikeCpp {
+                                category_id,
+                                recharge_start_unix_secs: (charge.recharge_start_ms / 1_000)
+                                    .min(i64::MAX as u64)
+                                    as i64,
+                                recharge_end_unix_secs: (charge.recharge_end_ms / 1_000)
+                                    .min(i64::MAX as u64)
+                                    as i64,
+                            })
                     })
                     .collect(),
             )

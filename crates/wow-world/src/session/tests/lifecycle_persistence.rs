@@ -21,7 +21,8 @@ use wow_persistence::{
     PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
     PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
     PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerSpellCooldownSaveLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
     PlayerUncageItemStateLikeCpp, PlayerUncageItemStateLoadOutcomeLikeCpp,
     PlayerUncageItemStateRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
@@ -814,6 +815,10 @@ async fn character_save_reaches_the_sqlx_free_port_and_cleans_only_after_apply_l
         PersistenceOutcomeLikeCpp::Applied { rows: 12 },
         0x7500_0001,
     );
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session.record_loaded_character_spell_cooldown_like_cpp(635, 6948, 9_000, 12, 8_000);
+    session.mark_represented_character_spell_charges_loaded_like_cpp();
+    session.record_loaded_character_spell_charge_like_cpp(42, 7_000, 8_000);
 
     session.save_current_player_to_db_like_cpp().await;
 
@@ -821,6 +826,24 @@ async fn character_save_reaches_the_sqlx_free_port_and_cleans_only_after_apply_l
     assert_eq!(saves.len(), 1);
     assert!(saves[0].tutorials.is_some());
     assert_eq!(saves[0].player_guid, 0x7500_0001);
+    assert_eq!(
+        saves[0].spell_cooldowns,
+        Some(vec![PlayerSpellCooldownSaveLikeCpp {
+            spell_id: 635,
+            item_id: 6948,
+            cooldown_end_unix_secs: 9_000,
+            category_id: 12,
+            category_end_unix_secs: 8_000,
+        }])
+    );
+    assert_eq!(
+        saves[0].spell_charges,
+        Some(vec![PlayerSpellChargeSaveLikeCpp {
+            category_id: 42,
+            recharge_start_unix_secs: 7_000,
+            recharge_end_unix_secs: 8_000,
+        }])
+    );
     assert!(!session.tutorials_changed_like_cpp);
     assert!(session.tutorials_loaded_from_db_like_cpp);
 }

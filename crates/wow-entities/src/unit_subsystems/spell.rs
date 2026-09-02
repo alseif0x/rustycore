@@ -98,10 +98,12 @@ pub struct SpellChargeState {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SpellHistory {
     pub cooldowns: HashMap<u32, SpellCooldown>,
+    pub cooldowns_loaded: bool,
     pub cooldowns_before_duel: HashMap<u32, SpellCooldown>,
     pub category_cooldowns: HashMap<u32, u32>,
     pub school_lockouts: [u64; MAX_SPELL_SCHOOL],
     pub charges: HashMap<u32, VecDeque<SpellChargeState>>,
+    pub charges_loaded: bool,
     pub global_cooldowns: HashMap<u32, u64>,
 }
 

@@ -31166,6 +31166,18 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
         session.complete_represented_override_spells_like_cpp(),
         Some(HashMap::from([(600, BTreeSet::from([635]))]))
     );
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session.record_loaded_character_spell_cooldown_like_cpp(635, 6948, 9_000, 12, 8_000);
+    session.mark_represented_character_spell_charges_loaded_like_cpp();
+    session.record_loaded_character_spell_charge_like_cpp(42, 7_000, 8_000);
+    let owned_history = session
+        .player_spell_history_snapshot_like_cpp()
+        .expect("active canonical spell history");
+    assert!(owned_history.cooldowns_loaded);
+    assert!(owned_history.charges_loaded);
+    assert_eq!(owned_history.cooldowns[&635].item_id, 6948);
+    assert_eq!(owned_history.cooldowns[&635].cooldown_end_ms, 9_000_000);
+    assert_eq!(owned_history.charges[&42].len(), 1);
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
@@ -31179,6 +31191,10 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
     assert_eq!(
         session.complete_represented_spell_trait_definition_ids_like_cpp(),
         Some(HashMap::from([(635, 7)]))
+    );
+    assert_eq!(
+        session.player_spell_history_snapshot_like_cpp(),
+        Some(owned_history)
     );
 
     let replacement_row = wow_entities::PlayerKnownSpellRecord {
@@ -31206,6 +31222,23 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
         override_spells_complete: true,
         ..Default::default()
     });
+    let replacement_history = wow_entities::SpellHistory {
+        cooldowns: HashMap::from([(
+            900,
+            wow_entities::SpellCooldown {
+                spell_id: 900,
+                item_id: 0,
+                cooldown_end_ms: 90_000,
+                category_id: 90,
+                category_end_ms: 80_000,
+                on_hold: false,
+            },
+        )]),
+        cooldowns_loaded: true,
+        charges_loaded: true,
+        ..Default::default()
+    };
+    replacement.unit_mut().subsystems_mut().spells.history = replacement_history.clone();
     let replacement_handle = canonical
         .lock()
         .unwrap()
@@ -31225,7 +31258,9 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
         session.complete_represented_override_spells_like_cpp(),
         None
     );
+    assert_eq!(session.player_spell_history_snapshot_like_cpp(), None);
     assert!(!session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
+    assert!(!session.replace_player_spell_history_like_cpp(Default::default()));
     assert_eq!(
         canonical
             .lock()
@@ -31244,6 +31279,15 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
             override_spells_complete: true,
             ..Default::default()
         })
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.unit().subsystems().spells.history.clone()
+            }),
+        Some(replacement_history)
     );
 }
 

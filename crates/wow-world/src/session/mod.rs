@@ -6392,11 +6392,15 @@ pub struct WorldSession {
     /// Per-spell cooldown tracking: spell_id → last cast time.
     /// Used to enforce spell-specific cooldown timers.
     pub(crate) last_spell_cast_time_per_spell: HashMap<i32, Instant>,
+    #[cfg(test)]
     represented_character_spell_cooldowns_like_cpp:
         HashMap<u32, RepresentedCharacterSpellCooldownLikeCpp>,
+    #[cfg(test)]
     represented_character_spell_cooldowns_loaded_like_cpp: bool,
+    #[cfg(test)]
     represented_character_spell_charges_like_cpp:
         BTreeMap<u32, Vec<RepresentedCharacterSpellChargeLikeCpp>>,
+    #[cfg(test)]
     represented_character_spell_charges_loaded_like_cpp: bool,
     represented_active_talent_group_like_cpp: u8,
     represented_bonus_talent_groups_like_cpp: u8,
@@ -8398,9 +8402,13 @@ impl WorldSession {
             represented_pending_spell_cast_request_like_cpp: None,
             last_spell_cast_time: None,
             last_spell_cast_time_per_spell: HashMap::new(),
+            #[cfg(test)]
             represented_character_spell_cooldowns_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_character_spell_cooldowns_loaded_like_cpp: false,
+            #[cfg(test)]
             represented_character_spell_charges_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_character_spell_charges_loaded_like_cpp: false,
             represented_active_talent_group_like_cpp: 0,
             represented_bonus_talent_groups_like_cpp: 0,
@@ -19004,13 +19012,140 @@ impl WorldSession {
         (elapsed_ms < cooldown_ms).then_some(cooldown_ms - elapsed_ms)
     }
 
+    fn player_spell_history_snapshot_like_cpp(&self) -> Option<wow_entities::SpellHistory> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.unit().subsystems().spells.history.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let mut history = wow_entities::SpellHistory {
+                cooldowns_loaded: self.represented_character_spell_cooldowns_loaded_like_cpp,
+                charges_loaded: self.represented_character_spell_charges_loaded_like_cpp,
+                ..Default::default()
+            };
+            history.cooldowns = self
+                .represented_character_spell_cooldowns_like_cpp
+                .values()
+                .map(|row| {
+                    (
+                        row.spell_id,
+                        wow_entities::SpellCooldown {
+                            spell_id: row.spell_id,
+                            item_id: row.item_id,
+                            cooldown_end_ms: u64::try_from(row.cooldown_end_unix_secs)
+                                .unwrap_or(0)
+                                .saturating_mul(1_000),
+                            category_id: row.category_id,
+                            category_end_ms: u64::try_from(row.category_end_unix_secs)
+                                .unwrap_or(0)
+                                .saturating_mul(1_000),
+                            on_hold: false,
+                        },
+                    )
+                })
+                .collect();
+            history.charges = self
+                .represented_character_spell_charges_like_cpp
+                .iter()
+                .map(|(&category_id, rows)| {
+                    (
+                        category_id,
+                        rows.iter()
+                            .map(|row| wow_entities::SpellChargeState {
+                                recharge_start_ms: u64::try_from(row.recharge_start_unix_secs)
+                                    .unwrap_or(0)
+                                    .saturating_mul(1_000),
+                                recharge_end_ms: u64::try_from(row.recharge_end_unix_secs)
+                                    .unwrap_or(0)
+                                    .saturating_mul(1_000),
+                            })
+                            .collect(),
+                    )
+                })
+                .collect();
+            return Some(history);
+        }
+        canonical
+    }
+
+    fn replace_player_spell_history_like_cpp(
+        &mut self,
+        history: wow_entities::SpellHistory,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().subsystems_mut().spells.history = history.clone();
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_character_spell_cooldowns_loaded_like_cpp = history.cooldowns_loaded;
+            self.represented_character_spell_charges_loaded_like_cpp = history.charges_loaded;
+            self.represented_character_spell_cooldowns_like_cpp = history
+                .cooldowns
+                .values()
+                .map(|row| {
+                    (
+                        row.spell_id,
+                        RepresentedCharacterSpellCooldownLikeCpp {
+                            spell_id: row.spell_id,
+                            item_id: row.item_id,
+                            cooldown_end_unix_secs: (row.cooldown_end_ms / 1_000)
+                                .min(i64::MAX as u64)
+                                as i64,
+                            category_id: row.category_id,
+                            category_end_unix_secs: (row.category_end_ms / 1_000)
+                                .min(i64::MAX as u64)
+                                as i64,
+                        },
+                    )
+                })
+                .collect();
+            self.represented_character_spell_charges_like_cpp = history
+                .charges
+                .iter()
+                .map(|(&category_id, rows)| {
+                    (
+                        category_id,
+                        rows.iter()
+                            .map(|row| RepresentedCharacterSpellChargeLikeCpp {
+                                category_id,
+                                recharge_start_unix_secs: (row.recharge_start_ms / 1_000)
+                                    .min(i64::MAX as u64)
+                                    as i64,
+                                recharge_end_unix_secs: (row.recharge_end_ms / 1_000)
+                                    .min(i64::MAX as u64)
+                                    as i64,
+                            })
+                            .collect(),
+                    )
+                })
+                .collect();
+            return true;
+        }
+        canonical
+    }
+
+    fn mutate_player_spell_history_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::SpellHistory) -> R,
+    ) -> Option<R> {
+        let mut history = self.player_spell_history_snapshot_like_cpp()?;
+        let result = f(&mut history);
+        self.replace_player_spell_history_like_cpp(history)
+            .then_some(result)
+    }
+
     pub(crate) fn reset_represented_character_spell_cooldowns_like_cpp(&mut self) {
-        self.represented_character_spell_cooldowns_like_cpp.clear();
-        self.represented_character_spell_cooldowns_loaded_like_cpp = false;
+        let _ = self.mutate_player_spell_history_like_cpp(|history| {
+            history.cooldowns.clear();
+            history.cooldowns_loaded = false;
+        });
     }
 
     pub(crate) fn mark_represented_character_spell_cooldowns_loaded_like_cpp(&mut self) {
-        self.represented_character_spell_cooldowns_loaded_like_cpp = true;
+        let _ = self.mutate_player_spell_history_like_cpp(|history| {
+            history.cooldowns_loaded = true;
+        });
     }
 
     pub(crate) fn record_loaded_character_spell_cooldown_like_cpp(
@@ -19021,20 +19156,31 @@ impl WorldSession {
         category_id: u32,
         category_end_unix_secs: i64,
     ) {
-        self.represented_character_spell_cooldowns_like_cpp.insert(
-            spell_id,
-            RepresentedCharacterSpellCooldownLikeCpp {
+        let _ = self.mutate_player_spell_history_like_cpp(|history| {
+            history.cooldowns.insert(
                 spell_id,
-                item_id,
-                cooldown_end_unix_secs,
-                category_id,
-                category_end_unix_secs,
-            },
-        );
+                wow_entities::SpellCooldown {
+                    spell_id,
+                    item_id,
+                    cooldown_end_ms: u64::try_from(cooldown_end_unix_secs)
+                        .unwrap_or(0)
+                        .saturating_mul(1_000),
+                    category_id,
+                    category_end_ms: u64::try_from(category_end_unix_secs)
+                        .unwrap_or(0)
+                        .saturating_mul(1_000),
+                    on_hold: false,
+                },
+            );
+        });
     }
 
     fn record_cast_character_spell_cooldown_like_cpp(&mut self, spell_id: i32, cooldown_ms: u32) {
-        if !self.represented_character_spell_cooldowns_loaded_like_cpp || cooldown_ms == 0 {
+        if !self
+            .player_spell_history_snapshot_like_cpp()
+            .is_some_and(|history| history.cooldowns_loaded)
+            || cooldown_ms == 0
+        {
             return;
         }
         let Ok(spell_id) = u32::try_from(spell_id) else {
@@ -19054,12 +19200,16 @@ impl WorldSession {
     }
 
     pub(crate) fn reset_represented_character_spell_charges_like_cpp(&mut self) {
-        self.represented_character_spell_charges_like_cpp.clear();
-        self.represented_character_spell_charges_loaded_like_cpp = false;
+        let _ = self.mutate_player_spell_history_like_cpp(|history| {
+            history.charges.clear();
+            history.charges_loaded = false;
+        });
     }
 
     pub(crate) fn mark_represented_character_spell_charges_loaded_like_cpp(&mut self) {
-        self.represented_character_spell_charges_loaded_like_cpp = true;
+        let _ = self.mutate_player_spell_history_like_cpp(|history| {
+            history.charges_loaded = true;
+        });
     }
 
     pub(crate) fn record_loaded_character_spell_charge_like_cpp(
@@ -19068,34 +19218,37 @@ impl WorldSession {
         recharge_start_unix_secs: i64,
         recharge_end_unix_secs: i64,
     ) {
-        self.represented_character_spell_charges_like_cpp
-            .entry(category_id)
-            .or_default()
-            .push(RepresentedCharacterSpellChargeLikeCpp {
-                category_id,
-                recharge_start_unix_secs,
-                recharge_end_unix_secs,
-            });
+        let _ = self.mutate_player_spell_history_like_cpp(|history| {
+            history.charges.entry(category_id).or_default().push_back(
+                wow_entities::SpellChargeState {
+                    recharge_start_ms: u64::try_from(recharge_start_unix_secs)
+                        .unwrap_or(0)
+                        .saturating_mul(1_000),
+                    recharge_end_ms: u64::try_from(recharge_end_unix_secs)
+                        .unwrap_or(0)
+                        .saturating_mul(1_000),
+                },
+            );
+        });
     }
 
     fn restore_represented_character_spell_charge_like_cpp(&mut self, category_id: u32) -> bool {
-        if !self.represented_character_spell_charges_loaded_like_cpp {
-            return false;
-        }
-        let Some(charges) = self
-            .represented_character_spell_charges_like_cpp
-            .get_mut(&category_id)
-        else {
-            return false;
-        };
-        if charges.pop().is_none() {
-            return false;
-        }
-        if charges.is_empty() {
-            self.represented_character_spell_charges_like_cpp
-                .remove(&category_id);
-        }
-        true
+        self.mutate_player_spell_history_like_cpp(|history| {
+            if !history.charges_loaded {
+                return false;
+            }
+            let Some(charges) = history.charges.get_mut(&category_id) else {
+                return false;
+            };
+            if charges.pop_back().is_none() {
+                return false;
+            }
+            if charges.is_empty() {
+                history.charges.remove(&category_id);
+            }
+            true
+        })
+        .unwrap_or(false)
     }
 
     /// C++ `CollectionMgr::AddToy` / `UpdateAccountToys`.
