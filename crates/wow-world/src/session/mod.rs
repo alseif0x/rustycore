@@ -5688,20 +5688,28 @@ pub struct WorldSession {
     max_recruit_a_friend_bonus_player_level_like_cpp: u32,
     max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
     /// C++ `RestMgr::_restBonus[REST_TYPE_XP]`, loaded from `characters.rest_bonus`.
+    #[cfg(test)]
     represented_rest_bonus_xp_like_cpp: f32,
     /// C++ `UF::ActivePlayerData::RestInfo[REST_TYPE_XP].StateID`.
+    #[cfg(test)]
     represented_rest_state_xp_like_cpp: u8,
     /// C++ `RestMgr::_restFlagMask`.
+    #[cfg(test)]
     represented_rest_flag_mask_like_cpp: u32,
     /// Whether UpdateArea/UpdateZone has rebuilt the session-local RestMgr flags.
+    #[cfg(test)]
     represented_rest_location_initialized_like_cpp: bool,
     /// Coalesce UpdateArea + UpdateZone rest mutations into one visible field transition.
+    #[cfg(test)]
     represented_defer_rest_flag_sync_like_cpp: bool,
     /// A deferred RestMgr zero-boundary crossing marked PLAYER_FLAGS_RESTING dirty.
+    #[cfg(test)]
     represented_deferred_rest_flag_update_dirty_like_cpp: bool,
     /// C++ `RestMgr::_innAreaTriggerId`.
+    #[cfg(test)]
     represented_inn_area_trigger_id_like_cpp: u32,
     /// C++ `RestMgr::_restTime`, represented as Unix seconds.
+    #[cfg(test)]
     represented_rest_time_secs_like_cpp: u64,
     /// C++ `characters.playerFlags` as loaded by `Player::LoadFromDB`.
     represented_loaded_player_flags_like_cpp: Option<u32>,
@@ -7978,13 +7986,21 @@ impl WorldSession {
             is_ffa_pvp_realm_like_cpp: false,
             max_recruit_a_friend_bonus_player_level_like_cpp: 85,
             max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
+            #[cfg(test)]
             represented_rest_bonus_xp_like_cpp: 0.0,
+            #[cfg(test)]
             represented_rest_state_xp_like_cpp: REST_STATE_NORMAL_LIKE_CPP,
+            #[cfg(test)]
             represented_rest_flag_mask_like_cpp: 0,
+            #[cfg(test)]
             represented_rest_location_initialized_like_cpp: false,
+            #[cfg(test)]
             represented_defer_rest_flag_sync_like_cpp: false,
+            #[cfg(test)]
             represented_deferred_rest_flag_update_dirty_like_cpp: false,
+            #[cfg(test)]
             represented_inn_area_trigger_id_like_cpp: 0,
+            #[cfg(test)]
             represented_rest_time_secs_like_cpp: 0,
             represented_loaded_player_flags_like_cpp: None,
             represented_loaded_player_flags_ex_like_cpp: None,
@@ -10293,6 +10309,25 @@ impl WorldSession {
     /// that compatibility outside production; an existing stale handle never
     /// falls back to GUID lookup.
     fn with_owned_player_mut_for_power_like_cpp<R>(
+        &self,
+        f: impl FnOnce(&mut Player) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.mutate_canonical_player_like_cpp(f);
+        }
+        self.with_owned_player_mut_like_cpp(f)
+    }
+
+    fn with_owned_player_for_rest_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.canonical_player_snapshot_like_cpp(f);
+        }
+        self.with_owned_player_like_cpp(f)
+    }
+
+    fn with_owned_player_mut_for_rest_like_cpp<R>(
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
@@ -29408,6 +29443,72 @@ impl WorldSession {
         self.gets_recruit_a_friend_xp_bonus_like_cpp()
     }
 
+    pub(crate) fn player_rest_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerRestState> {
+        let canonical =
+            self.with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerRestState {
+                rest_bonus: self.represented_rest_bonus_xp_like_cpp,
+                rest_state: self.represented_rest_state_xp_like_cpp,
+                rest_flag_mask: self.represented_rest_flag_mask_like_cpp,
+                location_initialized: self.represented_rest_location_initialized_like_cpp,
+                defer_flag_sync: self.represented_defer_rest_flag_sync_like_cpp,
+                deferred_flag_update_dirty: self
+                    .represented_deferred_rest_flag_update_dirty_like_cpp,
+                inn_area_trigger_id: self.represented_inn_area_trigger_id_like_cpp,
+                rest_time_secs: self.represented_rest_time_secs_like_cpp,
+                ..Default::default()
+            });
+        }
+        canonical
+    }
+
+    fn replace_player_rest_state_like_cpp(&mut self, state: wow_entities::PlayerRestState) -> bool {
+        let canonical = self
+            .with_owned_player_mut_for_rest_like_cpp(|player| {
+                player.set_xp_rest_info_like_cpp(
+                    state.rest_bonus.clamp(0.0, u32::MAX as f32) as u32,
+                    state.rest_state,
+                );
+                if state.location_initialized {
+                    if state.rest_flag_mask != 0 {
+                        player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+                    } else {
+                        player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+                    }
+                }
+                player.replace_rest_state_like_cpp(state.clone());
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_rest_bonus_xp_like_cpp = state.rest_bonus;
+            self.represented_rest_state_xp_like_cpp = state.rest_state;
+            self.represented_rest_flag_mask_like_cpp = state.rest_flag_mask;
+            self.represented_rest_location_initialized_like_cpp = state.location_initialized;
+            self.represented_defer_rest_flag_sync_like_cpp = state.defer_flag_sync;
+            self.represented_deferred_rest_flag_update_dirty_like_cpp =
+                state.deferred_flag_update_dirty;
+            self.represented_inn_area_trigger_id_like_cpp = state.inn_area_trigger_id;
+            self.represented_rest_time_secs_like_cpp = state.rest_time_secs;
+            return true;
+        }
+        canonical
+    }
+
+    fn mutate_player_rest_state_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::PlayerRestState) -> R,
+    ) -> Option<R> {
+        let mut state = self.player_rest_state_snapshot_like_cpp()?;
+        let result = f(&mut state);
+        self.replace_player_rest_state_like_cpp(state)
+            .then_some(result)
+    }
+
     pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
         &mut self,
         rest_state: u8,
@@ -29420,38 +29521,54 @@ impl WorldSession {
         // C++-created rows only contain the declared PlayerRestState values.
         // Normalize legacy Rust rows that persisted the old invalid value 0,
         // while preserving every valid DB state verbatim like LoadRestBonus.
-        self.represented_rest_state_xp_like_cpp =
-            if Self::valid_player_rest_state_like_cpp(rest_state) {
-                rest_state
-            } else {
-                REST_STATE_NORMAL_LIKE_CPP
-            };
-        self.represented_rest_bonus_xp_like_cpp = rest_bonus;
-        self.sync_represented_rest_info_to_canonical_player_like_cpp();
+        let rest_state = if Self::valid_player_rest_state_like_cpp(rest_state) {
+            rest_state
+        } else {
+            REST_STATE_NORMAL_LIKE_CPP
+        };
+        let _ = self.mutate_player_rest_state_like_cpp(|state| {
+            state.rest_state = rest_state;
+            state.rest_bonus = rest_bonus;
+        });
     }
 
     fn clear_represented_rest_flags_for_character_load_like_cpp(&mut self) {
-        self.represented_rest_flag_mask_like_cpp = 0;
-        self.represented_rest_location_initialized_like_cpp = false;
-        self.represented_defer_rest_flag_sync_like_cpp = false;
-        self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
-        self.represented_inn_area_trigger_id_like_cpp = 0;
-        self.represented_rest_time_secs_like_cpp = 0;
         let loaded_resting = self
             .represented_loaded_player_flags_like_cpp
             .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _canonical = self.with_owned_player_mut_for_rest_like_cpp(|player| {
+            let mut state = player.rest_state_like_cpp().clone();
+            state.rest_flag_mask = 0;
+            state.location_initialized = false;
+            state.defer_flag_sync = false;
+            state.deferred_flag_update_dirty = false;
+            state.inn_area_trigger_id = 0;
+            state.rest_time_secs = 0;
+            player.replace_rest_state_like_cpp(state);
             if loaded_resting {
                 player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
             } else {
                 player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
             }
         });
+        #[cfg(test)]
+        if _canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            self.represented_rest_flag_mask_like_cpp = 0;
+            self.represented_rest_location_initialized_like_cpp = false;
+            self.represented_defer_rest_flag_sync_like_cpp = false;
+            self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
+            self.represented_inn_area_trigger_id_like_cpp = 0;
+            self.represented_rest_time_secs_like_cpp = 0;
+        }
     }
 
     fn set_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
-        let old_threshold = self.represented_xp_rest_threshold_like_cpp();
-        let old_state = self.represented_xp_rest_state_like_cpp();
+        let Some(old_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
+            return 0;
+        };
+        let Some(old_state) = self.resolved_xp_rest_state_like_cpp() else {
+            return 0;
+        };
         let mut rest_bonus = Self::sanitize_rest_bonus_like_cpp(rest_bonus);
         let Some(can_gain) = self.can_gain_represented_xp_rest_bonus_like_cpp() else {
             return 0;
@@ -29465,20 +29582,29 @@ impl WorldSession {
         };
         rest_bonus = rest_bonus.clamp(0.0, rest_bonus_cap);
         let is_raf_linked = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.represented_rest_bonus_xp_like_cpp = rest_bonus;
-        // The older legacy2 snapshot uses a `rest_bonus > 10` deadband here.
-        // Current legacy1 uses `rest_bonus >= 1` with multi-type RestInfo and
-        // is the selected port target; the divergence is retained as evidence
-        // that matching one C++ tree alone is not proof that behavior is sound.
-        self.represented_rest_state_xp_like_cpp = if is_raf_linked {
+        let new_state = if is_raf_linked {
             REST_STATE_RAF_LINKED_LIKE_CPP
         } else if rest_bonus >= 1.0 {
             REST_STATE_RESTED_LIKE_CPP
         } else {
             REST_STATE_NORMAL_LIKE_CPP
         };
-        let new_threshold = self.represented_xp_rest_threshold_like_cpp();
-        let new_state = self.represented_xp_rest_state_like_cpp();
+        // The older legacy2 snapshot uses a `rest_bonus > 10` deadband here.
+        // Current legacy1 uses `rest_bonus >= 1` with multi-type RestInfo and
+        // is the selected port target; the divergence is retained as evidence
+        // that matching one C++ tree alone is not proof that behavior is sound.
+        let Some(()) = self.mutate_player_rest_state_like_cpp(|state| {
+            state.rest_bonus = rest_bonus;
+            state.rest_state = new_state;
+        }) else {
+            return 0;
+        };
+        let Some(new_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
+            return 0;
+        };
+        let Some(new_state) = self.resolved_xp_rest_state_like_cpp() else {
+            return 0;
+        };
         // C++ writes both RestInfo fields after this combined early-return,
         // and `ModifyValue` marks both nested bits even if one value stayed
         // equal. Therefore every emitted SetRestBonus delta carries 0x07.
@@ -29487,14 +29613,14 @@ impl WorldSession {
         } else {
             0
         };
-        if nested_mask != 0 {
-            self.sync_represented_rest_info_to_canonical_player_like_cpp();
-        }
         nested_mask
     }
 
     pub(crate) fn add_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
-        let total = self.represented_rest_bonus_xp_like_cpp + rest_bonus;
+        let Some(current) = self.resolved_xp_rest_bonus_like_cpp() else {
+            return 0;
+        };
+        let total = current + rest_bonus;
         self.set_represented_xp_rest_bonus_like_cpp(total)
     }
 
@@ -29541,7 +29667,12 @@ impl WorldSession {
     }
 
     fn update_represented_online_xp_rest_bonus_like_cpp(&mut self, now_secs: u64) -> (f32, u8) {
-        let rest_time = self.represented_rest_time_secs_like_cpp;
+        let Some(rest_time) = self
+            .player_rest_state_snapshot_like_cpp()
+            .map(|state| state.rest_time_secs)
+        else {
+            return (0.0, 0);
+        };
         if rest_time == 0 {
             return (0.0, 0);
         }
@@ -29552,7 +29683,12 @@ impl WorldSession {
             return (0.0, 0);
         }
 
-        self.represented_rest_time_secs_like_cpp = now_secs;
+        if self
+            .mutate_player_rest_state_like_cpp(|state| state.rest_time_secs = now_secs)
+            .is_none()
+        {
+            return (0.0, 0);
+        }
         let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * self.rest_ingame_rate_like_cpp;
         let Some(extra_per_sec) = self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble)
         else {
@@ -29586,12 +29722,15 @@ impl WorldSession {
     }
 
     fn revalidate_represented_tavern_resting_like_cpp(&mut self) {
-        if (self.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0 {
+        let Some(rest) = self.player_rest_state_snapshot_like_cpp() else {
+            return;
+        };
+        if (rest.rest_flag_mask & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0 {
             return;
         }
 
         let Some(at_entry) = self
-            .area_trigger_db2_entry_like_cpp(self.represented_inn_area_trigger_id_like_cpp)
+            .area_trigger_db2_entry_like_cpp(rest.inn_area_trigger_id)
             .cloned()
         else {
             if self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
@@ -29703,7 +29842,10 @@ impl WorldSession {
             return (0, 0);
         }
 
-        let rested_bonus = (self.represented_xp_rest_bonus_like_cpp() as u32).min(xp);
+        let Some(current_rest_bonus) = self.resolved_xp_rest_bonus_like_cpp() else {
+            return (0, 0);
+        };
+        let rested_bonus = (current_rest_bonus as u32).min(xp);
         let rested_loss = Self::apply_represented_pct_modifier_to_u32_like_cpp(
             rested_bonus,
             self.total_represented_aura_modifier_like_cpp(
@@ -29714,23 +29856,44 @@ impl WorldSession {
         // including when the float bonus truncates to a zero integer award.
         // That call normalizes a verbatim loaded RestState against the current
         // bonus even though no rested XP is awarded or consumed.
-        let nested_mask = self.set_represented_xp_rest_bonus_like_cpp(
-            self.represented_xp_rest_bonus_like_cpp() - rested_loss as f32,
-        );
+        let nested_mask =
+            self.set_represented_xp_rest_bonus_like_cpp(current_rest_bonus - rested_loss as f32);
         (rested_bonus, nested_mask)
     }
 
+    pub(crate) fn resolved_xp_rest_bonus_like_cpp(&self) -> Option<f32> {
+        self.player_rest_state_snapshot_like_cpp()
+            .map(|state| state.rest_bonus)
+    }
+
+    pub(crate) fn resolved_xp_rest_state_like_cpp(&self) -> Option<u8> {
+        self.player_rest_state_snapshot_like_cpp()
+            .map(|state| state.rest_state)
+    }
+
+    pub(crate) fn resolved_xp_rest_threshold_like_cpp(&self) -> Option<u32> {
+        Some(
+            self.resolved_xp_rest_bonus_like_cpp()?
+                .clamp(0.0, u32::MAX as f32) as u32,
+        )
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_xp_rest_bonus_like_cpp(&self) -> f32 {
-        self.represented_rest_bonus_xp_like_cpp
+        self.resolved_xp_rest_bonus_like_cpp()
+            .expect("test Player rest owner must resolve")
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_xp_rest_state_like_cpp(&self) -> u8 {
-        self.represented_rest_state_xp_like_cpp
+        self.resolved_xp_rest_state_like_cpp()
+            .expect("test Player rest owner must resolve")
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_xp_rest_threshold_like_cpp(&self) -> u32 {
-        self.represented_rest_bonus_xp_like_cpp
-            .clamp(0.0, u32::MAX as f32) as u32
+        self.resolved_xp_rest_threshold_like_cpp()
+            .expect("test Player rest owner must resolve")
     }
 
     fn update_represented_hostile_area_state_like_cpp(&mut self, zone: &wow_data::AreaTableEntry) {
@@ -29773,40 +29936,41 @@ impl WorldSession {
         self.player_pvp_hostile_like_cpp = zone_hostile || war_mode_active;
     }
 
-    pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
-        self.represented_rest_flag_mask_like_cpp != 0
+    pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
+        self.player_rest_state_snapshot_like_cpp()
+            .map(|state| state.rest_flag_mask != 0)
     }
 
-    pub(crate) fn represented_visible_resting_like_cpp(&self) -> bool {
-        if self.represented_rest_location_initialized_like_cpp {
-            return self.represented_is_resting_like_cpp();
+    #[cfg(test)]
+    pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
+        self.resolved_is_resting_like_cpp()
+            .expect("test Player rest owner must resolve")
+    }
+
+    pub(crate) fn resolved_visible_resting_like_cpp(&self) -> Option<bool> {
+        let rest = self.player_rest_state_snapshot_like_cpp()?;
+        if rest.location_initialized {
+            return Some(rest.rest_flag_mask != 0);
         }
 
-        self.canonical_player_snapshot_like_cpp(|player| {
+        let canonical = self.with_owned_player_for_rest_like_cpp(|player| {
             (player.data().player_flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0
-        })
-        .or_else(|| {
-            self.represented_loaded_player_flags_like_cpp
-                .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
-        })
-        .unwrap_or(false)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.represented_loaded_player_flags_like_cpp
+                    .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
+                    .unwrap_or(rest.rest_flag_mask != 0),
+            );
+        }
+        canonical
     }
 
-    fn sync_represented_rest_info_to_canonical_player_like_cpp(&mut self) {
-        let rest_state = self.represented_xp_rest_state_like_cpp();
-        let rest_threshold = self.represented_xp_rest_threshold_like_cpp();
-        let is_resting = self.represented_is_resting_like_cpp();
-        let location_initialized = self.represented_rest_location_initialized_like_cpp;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.set_xp_rest_info_like_cpp(rest_threshold, rest_state);
-            if location_initialized {
-                if is_resting {
-                    player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-                } else {
-                    player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-                }
-            }
-        });
+    #[cfg(test)]
+    pub(crate) fn represented_visible_resting_like_cpp(&self) -> bool {
+        self.resolved_visible_resting_like_cpp()
+            .expect("test Player rest owner must resolve")
     }
 
     pub(crate) fn set_represented_rest_flag_like_cpp(
@@ -29814,49 +29978,47 @@ impl WorldSession {
         rest_flag: u32,
         trigger_id: u32,
     ) -> bool {
-        let old_mask = self.represented_rest_flag_mask_like_cpp;
-        self.represented_rest_location_initialized_like_cpp = true;
-        self.represented_rest_flag_mask_like_cpp |= rest_flag;
-        let crossed_zero = old_mask == 0 && self.represented_rest_flag_mask_like_cpp != 0;
-        if crossed_zero {
-            self.represented_rest_time_secs_like_cpp = Self::current_game_time_secs_like_cpp();
-        }
-        if trigger_id != 0 {
-            self.represented_inn_area_trigger_id_like_cpp = trigger_id;
-        }
-        if crossed_zero {
-            if self.represented_defer_rest_flag_sync_like_cpp {
-                self.represented_deferred_rest_flag_update_dirty_like_cpp = true;
-            } else {
-                self.sync_represented_rest_info_to_canonical_player_like_cpp();
+        self.mutate_player_rest_state_like_cpp(|state| {
+            let old_mask = state.rest_flag_mask;
+            state.location_initialized = true;
+            state.rest_flag_mask |= rest_flag;
+            let crossed_zero = old_mask == 0 && state.rest_flag_mask != 0;
+            if crossed_zero {
+                state.rest_time_secs = Self::current_game_time_secs_like_cpp();
             }
-        }
-        crossed_zero
+            if trigger_id != 0 {
+                state.inn_area_trigger_id = trigger_id;
+            }
+            if crossed_zero && state.defer_flag_sync {
+                state.deferred_flag_update_dirty = true;
+            }
+            crossed_zero
+        })
+        .unwrap_or(false)
     }
 
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
-        let old_mask = self.represented_rest_flag_mask_like_cpp;
-        self.represented_rest_flag_mask_like_cpp &= !rest_flag;
-        if old_mask != self.represented_rest_flag_mask_like_cpp {
-            self.represented_rest_location_initialized_like_cpp = true;
-        }
-        if (rest_flag & REST_FLAG_IN_TAVERN_LIKE_CPP) != 0
-            && (self.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0
-        {
-            self.represented_inn_area_trigger_id_like_cpp = 0;
-        }
-        let crossed_zero = old_mask != 0 && self.represented_rest_flag_mask_like_cpp == 0;
-        if crossed_zero {
-            self.represented_rest_time_secs_like_cpp = 0;
-        }
-        if crossed_zero {
-            if self.represented_defer_rest_flag_sync_like_cpp {
-                self.represented_deferred_rest_flag_update_dirty_like_cpp = true;
-            } else {
-                self.sync_represented_rest_info_to_canonical_player_like_cpp();
+        self.mutate_player_rest_state_like_cpp(|state| {
+            let old_mask = state.rest_flag_mask;
+            state.rest_flag_mask &= !rest_flag;
+            if old_mask != state.rest_flag_mask {
+                state.location_initialized = true;
             }
-        }
-        crossed_zero
+            if (rest_flag & REST_FLAG_IN_TAVERN_LIKE_CPP) != 0
+                && (state.rest_flag_mask & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0
+            {
+                state.inn_area_trigger_id = 0;
+            }
+            let crossed_zero = old_mask != 0 && state.rest_flag_mask == 0;
+            if crossed_zero {
+                state.rest_time_secs = 0;
+                if state.defer_flag_sync {
+                    state.deferred_flag_update_dirty = true;
+                }
+            }
+            crossed_zero
+        })
+        .unwrap_or(false)
     }
 
     fn update_represented_rest_flag_like_cpp(&mut self, rest_flag: u32, active: bool) -> bool {
@@ -29926,7 +30088,7 @@ impl WorldSession {
     fn apply_represented_ffa_pvp_login_state_like_cpp(&mut self) -> bool {
         if !self.is_ffa_pvp_realm_like_cpp
             || self.player_is_game_master_like_cpp()
-            || self.represented_visible_resting_like_cpp()
+            || self.resolved_visible_resting_like_cpp() != Some(false)
         {
             return false;
         }
@@ -29967,7 +30129,10 @@ impl WorldSession {
         let canonical_flags = self
             .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
             .unwrap_or_default();
-        if self.represented_is_resting_like_cpp() {
+        let Some(is_resting) = self.resolved_is_resting_like_cpp() else {
+            return;
+        };
+        if is_resting {
             player.replace_all_player_flags(canonical_flags & !PLAYER_FLAGS_RESTING_LIKE_CPP);
             player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
         } else {
@@ -29987,12 +30152,13 @@ impl WorldSession {
             return;
         };
         let mut player = Player::new(None, false);
-        player.prepare_rest_info_values_update_like_cpp(
-            0,
-            self.represented_xp_rest_threshold_like_cpp(),
-            self.represented_xp_rest_state_like_cpp(),
-            nested_mask,
-        );
+        let Some(rest_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
+            return;
+        };
+        let Some(rest_state) = self.resolved_xp_rest_state_like_cpp() else {
+            return;
+        };
+        player.prepare_rest_info_values_update_like_cpp(0, rest_threshold, rest_state, nested_mask);
         let update = player.values_update(true);
         if let Some(packet) =
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
@@ -30001,9 +30167,9 @@ impl WorldSession {
         }
     }
 
-    fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {
+    fn resolved_player_flags_for_rest_state_save_like_cpp(&self) -> Option<u32> {
         let canonical_flags =
-            self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
+            self.with_owned_player_for_rest_like_cpp(|player| player.data().player_flags);
         let mut player_flags = match (
             canonical_flags,
             self.represented_loaded_player_flags_like_cpp,
@@ -30011,22 +30177,32 @@ impl WorldSession {
         ) {
             (Some(flags), Some(_), true) | (Some(flags), None, _) => flags,
             (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => loaded_flags,
-            (None, None, _) => 0,
+            (None, None, _) => {
+                #[cfg(test)]
+                if self.player_handle_like_cpp.is_none() {
+                    0
+                } else {
+                    return None;
+                }
+                #[cfg(not(test))]
+                return None;
+            }
         };
-        if self.represented_rest_location_initialized_like_cpp {
-            if self.represented_is_resting_like_cpp() {
+        let rest = self.player_rest_state_snapshot_like_cpp()?;
+        if rest.location_initialized {
+            if rest.rest_flag_mask != 0 {
                 player_flags |= PLAYER_FLAGS_RESTING_LIKE_CPP;
             } else {
                 player_flags &= !PLAYER_FLAGS_RESTING_LIKE_CPP;
             }
         }
-        player_flags
+        Some(player_flags)
     }
 
-    pub(crate) fn represented_player_flags_for_create_like_cpp(&self) -> (u32, u32) {
-        let player_flags = self.represented_player_flags_for_rest_state_save_like_cpp();
+    pub(crate) fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {
+        let player_flags = self.resolved_player_flags_for_rest_state_save_like_cpp()?;
         let canonical_flags_ex =
-            self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags_ex);
+            self.with_owned_player_for_rest_like_cpp(|player| player.data().player_flags_ex);
         let player_flags_ex = match (
             canonical_flags_ex,
             self.represented_loaded_player_flags_ex_like_cpp,
@@ -30034,9 +30210,36 @@ impl WorldSession {
         ) {
             (Some(flags), Some(_), true) | (Some(flags), None, _) => flags,
             (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => loaded_flags,
-            (None, None, _) => 0,
+            (None, None, _) => {
+                #[cfg(test)]
+                if self.player_handle_like_cpp.is_none() {
+                    0
+                } else {
+                    return None;
+                }
+                #[cfg(not(test))]
+                return None;
+            }
         };
-        (player_flags, player_flags_ex)
+        Some((player_flags, player_flags_ex))
+    }
+
+    #[cfg(test)]
+    fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {
+        self.resolved_player_flags_for_rest_state_save_like_cpp()
+            .unwrap_or_else(|| self.represented_loaded_player_flags_like_cpp.unwrap_or(0))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_player_flags_for_create_like_cpp(&self) -> (u32, u32) {
+        self.resolved_player_flags_for_create_like_cpp()
+            .unwrap_or_else(|| {
+                (
+                    self.represented_loaded_player_flags_like_cpp.unwrap_or(0),
+                    self.represented_loaded_player_flags_ex_like_cpp
+                        .unwrap_or(0),
+                )
+            })
     }
 
     fn resolved_current_player_xp_persistence_request_like_cpp(
@@ -30045,18 +30248,23 @@ impl WorldSession {
         rest_info_changed: bool,
         guid_counter: u64,
     ) -> Option<wow_persistence::PlayerXpPersistenceRequestLikeCpp> {
+        let rest = if rest_info_changed {
+            Some(wow_persistence::PlayerXpRestStateSaveLikeCpp {
+                rest_state: self.resolved_xp_rest_state_like_cpp()?,
+                player_flags: self.resolved_player_flags_for_rest_state_save_like_cpp()?,
+                rest_bonus: Self::sanitize_rest_bonus_like_cpp(
+                    self.resolved_xp_rest_bonus_like_cpp()?,
+                ),
+            })
+        } else {
+            None
+        };
         Some(wow_persistence::PlayerXpPersistenceRequestLikeCpp {
             player_guid: guid_counter,
             level_changed,
             level: self.player_level_like_cpp(),
             xp: self.resolved_player_xp_like_cpp()?,
-            rest: rest_info_changed.then(|| wow_persistence::PlayerXpRestStateSaveLikeCpp {
-                rest_state: self.represented_xp_rest_state_like_cpp(),
-                player_flags: self.represented_player_flags_for_rest_state_save_like_cpp(),
-                rest_bonus: Self::sanitize_rest_bonus_like_cpp(
-                    self.represented_xp_rest_bonus_like_cpp(),
-                ),
-            }),
+            rest,
         })
     }
 
@@ -30087,8 +30295,11 @@ impl WorldSession {
         old_rest_bonus: f32,
         old_rest_state: u8,
     ) -> bool {
-        self.represented_xp_rest_bonus_like_cpp().to_bits() != old_rest_bonus.to_bits()
-            || self.represented_xp_rest_state_like_cpp() != old_rest_state
+        self.resolved_xp_rest_bonus_like_cpp()
+            .zip(self.resolved_xp_rest_state_like_cpp())
+            .is_some_and(|(bonus, state)| {
+                bonus.to_bits() != old_rest_bonus.to_bits() || state != old_rest_state
+            })
     }
 
     pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
@@ -30396,7 +30607,10 @@ impl WorldSession {
     }
 
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
-        std::mem::take(&mut self.represented_deferred_rest_flag_update_dirty_like_cpp)
+        self.mutate_player_rest_state_like_cpp(|state| {
+            std::mem::take(&mut state.deferred_flag_update_dirty)
+        })
+        .unwrap_or(false)
     }
 
     fn update_zone_represented_with_rest_update_like_cpp(
@@ -30415,8 +30629,15 @@ impl WorldSession {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.player_zone_id_like_cpp = new_zone;
-        self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
-        self.represented_defer_rest_flag_sync_like_cpp = true;
+        if self
+            .mutate_player_rest_state_like_cpp(|state| {
+                state.deferred_flag_update_dirty = false;
+                state.defer_flag_sync = true;
+            })
+            .is_none()
+        {
+            return false;
+        }
         self.update_area_represented_with_rest_update_like_cpp(new_area, false);
 
         let zone_entry = self
@@ -30424,14 +30645,17 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.get(new_zone).copied());
         let Some(zone) = zone_entry else {
-            self.represented_defer_rest_flag_sync_like_cpp = false;
-            let rest_flag_update_dirty = self.represented_deferred_rest_flag_update_dirty_like_cpp;
-            if rest_flag_update_dirty {
-                self.sync_represented_rest_info_to_canonical_player_like_cpp();
-            }
+            let rest_flag_update_dirty = self
+                .mutate_player_rest_state_like_cpp(|state| {
+                    state.defer_flag_sync = false;
+                    state.deferred_flag_update_dirty
+                })
+                .unwrap_or(false);
             if send_rest_update && rest_flag_update_dirty {
                 self.send_represented_resting_player_flag_update_like_cpp();
-                self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
+                let _ = self.mutate_player_rest_state_like_cpp(|state| {
+                    state.deferred_flag_update_dirty = false;
+                });
             }
             return true;
         };
@@ -30447,14 +30671,17 @@ impl WorldSession {
         } else {
             self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP);
         }
-        self.represented_defer_rest_flag_sync_like_cpp = false;
-        let rest_flag_update_dirty = self.represented_deferred_rest_flag_update_dirty_like_cpp;
-        if rest_flag_update_dirty {
-            self.sync_represented_rest_info_to_canonical_player_like_cpp();
-        }
+        let rest_flag_update_dirty = self
+            .mutate_player_rest_state_like_cpp(|state| {
+                state.defer_flag_sync = false;
+                state.deferred_flag_update_dirty
+            })
+            .unwrap_or(false);
         if send_rest_update && rest_flag_update_dirty {
             self.send_represented_resting_player_flag_update_like_cpp();
-            self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
+            let _ = self.mutate_player_rest_state_like_cpp(|state| {
+                state.deferred_flag_update_dirty = false;
+            });
         }
 
         if old_zone == new_zone {
@@ -31720,10 +31947,16 @@ impl WorldSession {
         delta.set_scaling_player_level_delta_like_cpp(scaling_player_level_delta);
         delta.mark_scaling_player_level_delta_changed_like_cpp();
         if rest_info_mask != 0 {
+            let (Some(rest_threshold), Some(rest_state)) = (
+                self.resolved_xp_rest_threshold_like_cpp(),
+                self.resolved_xp_rest_state_like_cpp(),
+            ) else {
+                return;
+            };
             delta.prepare_rest_info_values_update_like_cpp(
                 0,
-                self.represented_xp_rest_threshold_like_cpp(),
-                self.represented_xp_rest_state_like_cpp(),
+                rest_threshold,
+                rest_state,
                 rest_info_mask,
             );
         }
@@ -31735,8 +31968,12 @@ impl WorldSession {
     /// C++ `Player::GiveXP(xp, victim, group_rate)`.
     pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
         let old_level = self.player_level_like_cpp();
-        let old_rest_bonus = self.represented_xp_rest_bonus_like_cpp();
-        let old_rest_state = self.represented_xp_rest_state_like_cpp();
+        let (Some(old_rest_bonus), Some(old_rest_state)) = (
+            self.resolved_xp_rest_bonus_like_cpp(),
+            self.resolved_xp_rest_state_like_cpp(),
+        ) else {
+            return;
+        };
         if !self.give_xp_runtime_like_cpp(xp, victim, group_rate) {
             return;
         }

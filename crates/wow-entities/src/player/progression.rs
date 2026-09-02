@@ -32,6 +32,14 @@ impl Player {
         self.gameplay_state_mut().taxi = state;
     }
 
+    pub fn rest_state_like_cpp(&self) -> &PlayerRestState {
+        &self.gameplay_state().rest
+    }
+
+    pub fn replace_rest_state_like_cpp(&mut self, state: PlayerRestState) {
+        self.gameplay_state_mut().rest = state;
+    }
+
     pub fn create_mode_like_cpp(&self) -> u8 {
         self.gameplay_state().create_mode
     }

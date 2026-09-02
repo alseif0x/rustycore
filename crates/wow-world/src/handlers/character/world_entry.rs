@@ -856,8 +856,8 @@ impl WorldSession {
                 saved_logout_time_secs,
                 saved_logout_was_resting,
                 applied_rest_bonus,
-                rest_bonus = self.represented_xp_rest_bonus_like_cpp(),
-                rest_state = self.represented_xp_rest_state_like_cpp(),
+                rest_bonus = self.resolved_xp_rest_bonus_like_cpp(),
+                rest_state = self.resolved_xp_rest_state_like_cpp(),
                 "RUST_PLAYER_REST_LOAD"
             );
         }

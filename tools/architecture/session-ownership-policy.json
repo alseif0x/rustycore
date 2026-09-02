@@ -3181,15 +3181,19 @@
           "name": "represented_defer_rest_flag_sync_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_deferred_rest_flag_update_dirty_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_delayed_resurrection_after_teleport_like_cpp",
@@ -3496,8 +3500,10 @@
           "name": "represented_inn_area_trigger_id_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_instance_reset_times_like_cpp",
@@ -4040,36 +4046,46 @@
           "name": "represented_rest_bonus_xp_like_cpp",
           "type": "f32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_rest_flag_mask_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_rest_location_initialized_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_rest_state_xp_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_rest_time_secs_like_cpp",
           "type": "u64",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_resurrection_request_like_cpp",
@@ -28453,6 +28469,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_rest_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_rest_state_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerRestState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_spell_history_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_spell_history_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: SpellHistory) -> R ,) -> Option < R >",
@@ -30120,6 +30147,19 @@
           "name": "player_registry",
           "visibility": "pub",
           "signature": "fn player_registry (& self) -> Option < & Arc < PlayerRegistry > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_rest_state_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_rest_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerRestState >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32845,6 +32885,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "replace_player_rest_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn replace_player_rest_state_like_cpp (& mut self , state : wow_entities :: PlayerRestState) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "replace_player_skill_records_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn replace_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool ,)",
@@ -35213,8 +35264,10 @@
           "name": "represented_is_resting_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_is_resting_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -35962,8 +36015,10 @@
           "name": "represented_player_flags_for_create_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_player_flags_for_create_like_cpp (& self) -> (u32 , u32)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -35975,8 +36030,10 @@
           "name": "represented_player_flags_for_rest_state_save_like_cpp",
           "visibility": "private",
           "signature": "fn represented_player_flags_for_rest_state_save_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -37799,8 +37856,10 @@
           "name": "represented_visible_resting_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_visible_resting_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37951,8 +38010,10 @@
           "name": "represented_xp_rest_bonus_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_xp_rest_bonus_like_cpp (& self) -> f32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37975,8 +38036,10 @@
           "name": "represented_xp_rest_state_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_xp_rest_state_like_cpp (& self) -> u8",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37988,8 +38051,10 @@
           "name": "represented_xp_rest_threshold_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_xp_rest_threshold_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38636,6 +38701,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_is_resting_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_is_resting_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_known_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_known_spells_like_cpp (& self) -> Option < Vec < i32 > >",
@@ -38678,6 +38756,30 @@
           "name": "resolved_player_emote_state_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_player_emote_state_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_flags_for_create_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_flags_for_create_like_cpp (& self) -> Option < (u32 , u32) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_flags_for_rest_state_save_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_flags_for_rest_state_save_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -38848,6 +38950,58 @@
           "name": "resolved_update_talent_data_packet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_update_talent_data_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: UpdateTalentData >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_visible_resting_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_visible_resting_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_xp_rest_bonus_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_xp_rest_bonus_like_cpp (& self) -> Option < f32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_xp_rest_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_xp_rest_state_like_cpp (& self) -> Option < u8 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_xp_rest_threshold_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_xp_rest_threshold_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -47590,17 +47744,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "sync_represented_rest_info_to_canonical_player_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_represented_rest_info_to_canonical_player_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "sync_represented_xp_level_to_canonical_and_client_like_cpp",
           "visibility": "private",
           "signature": "fn sync_represented_xp_level_to_canonical_and_client_like_cpp (& mut self , level_changed : bool , rest_info_mask : u8 ,)",
@@ -49418,6 +49561,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "with_owned_player_for_rest_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_player_for_rest_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "with_owned_player_like_cpp",
           "visibility": "private",
           "signature": "fn with_owned_player_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
@@ -49432,6 +49586,17 @@
           "name": "with_owned_player_mut_for_power_like_cpp",
           "visibility": "private",
           "signature": "fn with_owned_player_mut_for_power_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_owned_player_mut_for_rest_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_player_mut_for_rest_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -74739,7 +74904,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b5116e7a3c26f9f9c08a4543ea088eea:len=93107|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:44634829c96a7aefe205424a933e7f50:len=93227|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

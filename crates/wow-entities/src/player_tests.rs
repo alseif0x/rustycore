@@ -425,6 +425,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             logout_time: Some(1_699_999_999),
             logout_was_resting: true,
             is_resting_now: true,
+            ..Default::default()
         },
         ..Default::default()
     }

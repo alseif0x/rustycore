@@ -2408,8 +2408,11 @@ impl WorldSession {
                 quest_log,
                 self.party_member_party_type_like_cpp(),
             );
-            let (player_flags, player_flags_ex) =
-                self.represented_player_flags_for_create_like_cpp();
+            let Some((player_flags, player_flags_ex)) =
+                self.resolved_player_flags_for_create_like_cpp()
+            else {
+                return false;
+            };
             player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
             player_pkt.set_player_current_power0_like_cpp(current_power0);
             player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
@@ -2418,11 +2421,13 @@ impl WorldSession {
             player_pkt
                 .set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
             player_pkt.set_player_scaling_level_delta_like_cpp(scaling_level_delta);
-            player_pkt.set_player_rest_info_like_cpp(
-                0,
-                self.represented_xp_rest_threshold_like_cpp(),
-                self.represented_xp_rest_state_like_cpp(),
-            );
+            let (Some(rest_threshold), Some(rest_state)) = (
+                self.resolved_xp_rest_threshold_like_cpp(),
+                self.resolved_xp_rest_state_like_cpp(),
+            ) else {
+                return false;
+            };
+            player_pkt.set_player_rest_info_like_cpp(0, rest_threshold, rest_state);
             if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
                 info!(
                     guid = ?guid,

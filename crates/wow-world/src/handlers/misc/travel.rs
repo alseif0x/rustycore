@@ -224,18 +224,24 @@ impl crate::session::WorldSession {
             quest_log,
             party_type,
         );
-        let (player_flags, player_flags_ex) = self.represented_player_flags_for_create_like_cpp();
+        let Some((player_flags, player_flags_ex)) =
+            self.resolved_player_flags_for_create_like_cpp()
+        else {
+            return;
+        };
         player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
         player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
         player_pkt
             .set_player_next_level_xp_like_cpp(player_next_level_xp.min(i32::MAX as u32) as i32);
         player_pkt.set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
         player_pkt.set_player_scaling_level_delta_like_cpp(scaling_level_delta);
-        player_pkt.set_player_rest_info_like_cpp(
-            0,
-            self.represented_xp_rest_threshold_like_cpp(),
-            self.represented_xp_rest_state_like_cpp(),
-        );
+        let (Some(rest_threshold), Some(rest_state)) = (
+            self.resolved_xp_rest_threshold_like_cpp(),
+            self.resolved_xp_rest_state_like_cpp(),
+        ) else {
+            return;
+        };
+        player_pkt.set_player_rest_info_like_cpp(0, rest_threshold, rest_state);
         player_pkt.set_player_account_guids_like_cpp(
             ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
             ObjectGuid::create_global(HighGuid::BNetAccount, 0, self.battlenet_account_id() as i64),
