@@ -85,6 +85,7 @@ pub struct PlayerGameplayState {
     pub trade: Option<PlayerTradeStateLikeCpp>,
     pub persistent_capabilities: PlayerPersistentCapabilityStateLikeCpp,
     pub battleground: PlayerBattlegroundState,
+    pub movement_control: PlayerMovementControlStateLikeCpp,
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
     pub menu: PlayerMenuStateLikeCpp,
@@ -157,6 +158,17 @@ pub struct PlayerGossipOptionLikeCpp {
 pub struct PlayerMenuStateLikeCpp {
     pub interaction: PlayerInteractionDataLikeCpp,
     pub gossip_options: Vec<PlayerGossipOptionLikeCpp>,
+}
+
+/// Player-owned movement acknowledgement and fall bookkeeping from C++
+/// `Player` (`m_forced_speed_changes`,
+/// `m_movementForceModMagnitudeChanges`, `m_lastFallTime`, `m_lastFallZ`).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PlayerMovementControlStateLikeCpp {
+    pub forced_speed_changes: [u8; 9],
+    pub movement_force_mod_magnitude_changes: u8,
+    pub last_fall_time: u32,
+    pub last_fall_z: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

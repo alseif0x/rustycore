@@ -14,6 +14,7 @@ mod identity;
 mod items;
 mod location;
 mod menu;
+mod movement_control;
 mod progression;
 mod social;
 mod spellbook;

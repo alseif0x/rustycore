@@ -268,7 +268,7 @@ pub use player::{
 };
 pub use player_gameplay_state::{
     PlayerCurrency, PlayerCurrencyState, PlayerGameplayState, PlayerGossipOptionLikeCpp,
-    PlayerInteractionDataLikeCpp, PlayerMenuStateLikeCpp,
+    PlayerInteractionDataLikeCpp, PlayerMenuStateLikeCpp, PlayerMovementControlStateLikeCpp,
 };
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,
