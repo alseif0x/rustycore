@@ -1770,7 +1770,9 @@ impl WorldSession {
         self.send_packet(&SetupCurrency::empty());
 
         // 18. LoadEquipmentSet
-        self.send_packet(&self.represented_load_equipment_set_packet_like_cpp());
+        if let Some(packet) = self.represented_load_equipment_set_packet_like_cpp() {
+            self.send_packet(&packet);
+        }
 
         // 19. AllAchievementData — C++ `AchievementMgr::SendAllData`.
         // `QuestObjectiveCriteriaMgr::SendAllData` does not emit

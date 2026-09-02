@@ -59326,6 +59326,147 @@ fn canonical_player_cuf_profiles_follow_active_detached_and_stale_handle_ownersh
 }
 
 #[test]
+fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 59_199);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    install_stackable_test_item_template(&mut session, 19_019, 1);
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "StorageOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    session.clear_represented_equipment_sets_like_cpp();
+    assert!(session.load_represented_equipment_set_row_like_cpp(
+        700,
+        7,
+        "Tank".to_string(),
+        "INV_Shield".to_string(),
+        0,
+        1,
+        [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    ));
+    session.mark_represented_equipment_sets_loaded_like_cpp();
+    session.clear_represented_void_storage_like_cpp();
+    assert!(session.load_represented_void_storage_row_like_cpp(
+        3,
+        RepresentedVoidStorageItemLikeCpp {
+            item_id: 900,
+            item_entry: 19_019,
+            creator_guid: player_guid,
+            fixed_scaling_level: 80,
+            random_properties_id: 0,
+            random_properties_seed: 0,
+            context: 0,
+        },
+    ));
+    session.mark_represented_void_storage_loaded_like_cpp();
+    assert_eq!(
+        session
+            .represented_load_equipment_set_packet_like_cpp()
+            .expect("active canonical Player")
+            .sets[0]
+            .set_name,
+        "Tank"
+    );
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(159)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .represented_void_storage_item_by_id_like_cpp(900)
+            .map(|(slot, item)| (slot, item.item_entry)),
+        Some((3, 19_019))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().equipment_sets.insert(
+        701,
+        RepresentedEquipmentSetLikeCpp::equipment(
+            8,
+            0,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        ),
+    );
+    replacement.gameplay_state_mut().equipment_sets_loaded = true;
+    replacement.gameplay_state_mut().void_storage_items =
+        vec![None; wow_entities::PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP];
+    replacement.gameplay_state_mut().void_storage_items[4] =
+        Some(RepresentedVoidStorageItemLikeCpp {
+            item_id: 901,
+            item_entry: 19_019,
+            creator_guid: player_guid,
+            fixed_scaling_level: 70,
+            random_properties_id: 0,
+            random_properties_seed: 0,
+            context: 0,
+        });
+    replacement.gameplay_state_mut().void_storage_loaded = true;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .represented_load_equipment_set_packet_like_cpp()
+            .is_none()
+    );
+    assert!(
+        session
+            .represented_void_storage_free_slots_like_cpp()
+            .is_none()
+    );
+    assert!(!session.delete_represented_equipment_set_like_cpp(701));
+    assert!(
+        session
+            .delete_represented_void_storage_item_like_cpp(4)
+            .is_none()
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().equipment_sets.contains_key(&701),
+                player.gameplay_state().void_storage_items[4]
+                    .as_ref()
+                    .map(|item| item.item_id),
+            ),),
+        Some((true, Some(901)))
+    );
+}
+
+#[test]
 fn tutorial_flags_default_to_zeroes_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_tutorials_data_values_like_cpp(None);

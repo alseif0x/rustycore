@@ -626,6 +626,111 @@ pub struct PlayerCufProfile {
     pub bool_options: u32,
 }
 
+pub const PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
+pub const PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP: usize = 160;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerEquipmentSetTypeLikeCpp {
+    Equipment = 0,
+    Transmog = 1,
+}
+
+impl PlayerEquipmentSetTypeLikeCpp {
+    pub fn handler_branch_from_i32_like_cpp(value: i32) -> Option<Self> {
+        if value > Self::Transmog.as_i32_like_cpp() {
+            return None;
+        }
+        if value == Self::Equipment.as_i32_like_cpp() {
+            Some(Self::Equipment)
+        } else {
+            Some(Self::Transmog)
+        }
+    }
+
+    pub const fn as_i32_like_cpp(self) -> i32 {
+        self as i32
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerEquipmentSetUpdateStateLikeCpp {
+    Unchanged = 0,
+    Changed = 1,
+    New = 2,
+    Deleted = 3,
+}
+
+/// C++ `EquipmentSetInfo`, owned by `Player::_equipmentSets`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerEquipmentSetLikeCpp {
+    pub raw_set_type: i32,
+    pub set_type: PlayerEquipmentSetTypeLikeCpp,
+    pub guid: u64,
+    pub set_id: u32,
+    pub ignore_mask: u32,
+    pub pieces: [ObjectGuid; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    pub appearances: [i32; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    pub enchants: [i32; 2],
+    pub secondary_shoulder_appearance_id: i32,
+    pub secondary_shoulder_slot: i32,
+    pub secondary_weapon_appearance_id: i32,
+    pub secondary_weapon_slot: i32,
+    pub assigned_spec_index: i32,
+    pub set_name: String,
+    pub set_icon: String,
+    pub state: PlayerEquipmentSetUpdateStateLikeCpp,
+}
+
+impl PlayerEquipmentSetLikeCpp {
+    pub fn equipment(
+        set_id: u32,
+        assigned_spec_index: i32,
+        state: PlayerEquipmentSetUpdateStateLikeCpp,
+    ) -> Self {
+        Self {
+            raw_set_type: 0,
+            set_type: PlayerEquipmentSetTypeLikeCpp::Equipment,
+            guid: 0,
+            set_id,
+            ignore_mask: 0,
+            pieces: [ObjectGuid::EMPTY; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            appearances: [0; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            enchants: [0; 2],
+            secondary_shoulder_appearance_id: 0,
+            secondary_shoulder_slot: 0,
+            secondary_weapon_appearance_id: 0,
+            secondary_weapon_slot: 0,
+            assigned_spec_index,
+            set_name: String::new(),
+            set_icon: String::new(),
+            state,
+        }
+    }
+
+    pub fn transmog(
+        set_id: u32,
+        assigned_spec_index: i32,
+        state: PlayerEquipmentSetUpdateStateLikeCpp,
+    ) -> Self {
+        let mut set = Self::equipment(set_id, assigned_spec_index, state);
+        set.raw_set_type = 1;
+        set.set_type = PlayerEquipmentSetTypeLikeCpp::Transmog;
+        set
+    }
+}
+
+/// C++ `VoidStorageItem`, owned by `Player::_voidStorageItems`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerVoidStorageItemLikeCpp {
+    pub item_id: u64,
+    pub item_entry: u32,
+    pub creator_guid: ObjectGuid,
+    pub fixed_scaling_level: u32,
+    pub random_properties_id: i32,
+    pub random_properties_seed: i32,
+    pub context: u8,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerGroupState {
     pub group_guid: ObjectGuid,

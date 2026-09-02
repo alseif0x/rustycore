@@ -674,13 +674,17 @@ impl WorldSession {
             )
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || !self.represented_void_storage_loaded_like_cpp()
+            || self.represented_void_storage_loaded_like_cpp() != Some(true)
         {
             self.send_packet(&VoidStorageFailed::default());
             return;
         }
 
-        self.send_packet(&self.represented_void_storage_contents_like_cpp());
+        let Some(contents) = self.represented_void_storage_contents_like_cpp() else {
+            self.send_packet(&VoidStorageFailed::default());
+            return;
+        };
+        self.send_packet(&contents);
     }
 
     pub async fn handle_void_storage_transfer(&mut self, mut pkt: WorldPacket) {
@@ -695,14 +699,17 @@ impl WorldSession {
             )
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || !self.represented_void_storage_loaded_like_cpp()
+            || self.represented_void_storage_loaded_like_cpp() != Some(true)
         {
             return;
         }
 
         // These three admission checks intentionally use the request lengths,
         // before invalid GUIDs are skipped, exactly like C++.
-        if transfer.deposits.len() > self.represented_void_storage_free_slots_like_cpp() {
+        let Some(free_void_slots) = self.represented_void_storage_free_slots_like_cpp() else {
+            return;
+        };
+        if transfer.deposits.len() > free_void_slots {
             self.send_void_storage_transfer_result_like_cpp(VoidTransferErrorLikeCpp::Full);
             return;
         }
@@ -1551,7 +1558,7 @@ impl WorldSession {
             .represented_npc_can_interact_with_like_cpp(swap.npc, NPCFlags1::VAULT_KEEPER.bits(), 0)
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || !self.represented_void_storage_loaded_like_cpp()
+            || self.represented_void_storage_loaded_like_cpp() != Some(true)
         {
             return;
         }

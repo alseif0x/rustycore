@@ -416,10 +416,11 @@ impl WorldSession {
             None
         };
 
-        let equipment_sets = if self.represented_equipment_sets_loaded_like_cpp {
-            Some(
-                self.represented_equipment_sets_like_cpp
-                    .values()
+        let equipment_sets = match self
+            .with_owned_equipment_sets_like_cpp(|sets, loaded| (sets.clone(), loaded))
+        {
+            Some((sets, true)) => Some(
+                sets.values()
                     .map(|equipment_set| PlayerEquipmentSetSaveLikeCpp {
                         set_guid: equipment_set.guid,
                         set_id: equipment_set.set_id,
@@ -458,19 +459,22 @@ impl WorldSession {
                         enchants: equipment_set.enchants,
                     })
                     .collect(),
-            )
-        } else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented equipment-set save because character_equipmentsets/character_transmog_outfits were not loaded coherently"
-            );
-            None
+            ),
+            _ => {
+                warn!(
+                    account = self.account_id,
+                    player_guid = ?self.player_guid(),
+                    "Skipping represented equipment-set save because canonical Player authority was unavailable or character_equipmentsets/character_transmog_outfits were not loaded coherently"
+                );
+                None
+            }
         };
 
-        let void_storage = if self.represented_void_storage_loaded_like_cpp {
-            Some(
-                self.represented_void_storage_items_like_cpp
+        let void_storage = match self
+            .with_owned_void_storage_like_cpp(|items, loaded| (items.to_vec(), loaded))
+        {
+            Some((items, true)) => Some(
+                items
                     .iter()
                     .enumerate()
                     .map(|(slot, item)| PlayerVoidStorageSlotSaveLikeCpp {
@@ -486,14 +490,15 @@ impl WorldSession {
                         }),
                     })
                     .collect(),
-            )
-        } else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented void-storage save because character_void_storage was not loaded coherently"
-            );
-            None
+            ),
+            _ => {
+                warn!(
+                    account = self.account_id,
+                    player_guid = ?self.player_guid(),
+                    "Skipping represented void-storage save because canonical Player authority was unavailable or character_void_storage was not loaded coherently"
+                );
+                None
+            }
         };
 
         // C++ `_SaveQuestStatus` only consumes entries present in `m_QuestStatusSave`; it does

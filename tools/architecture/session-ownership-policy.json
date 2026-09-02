@@ -3370,15 +3370,19 @@
           "name": "represented_equipment_sets_like_cpp",
           "type": "BTreeMap < u64 , RepresentedEquipmentSetLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_equipment_sets_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_explored_zones_like_cpp",
@@ -4581,15 +4585,19 @@
           "name": "represented_void_storage_items_like_cpp",
           "type": "[Option < RepresentedVoidStorageItemLikeCpp > ; wow_packet :: packets :: void_storage :: VOID_STORAGE_MAX_SLOT_LIKE_CPP]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_void_storage_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_wargame_invite_acceptances_like_cpp",
@@ -35925,7 +35933,7 @@
           "kind": "method",
           "name": "represented_load_equipment_set_packet_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_load_equipment_set_packet_like_cpp (& self ,) -> wow_packet :: packets :: misc :: LoadEquipmentSet",
+          "signature": "fn represented_load_equipment_set_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: LoadEquipmentSet >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38298,7 +38306,7 @@
           "kind": "method",
           "name": "represented_void_storage_contents_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_contents_like_cpp (& self ,) -> wow_packet :: packets :: void_storage :: VoidStorageContents",
+          "signature": "fn represented_void_storage_contents_like_cpp (& self ,) -> Option < wow_packet :: packets :: void_storage :: VoidStorageContents >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38311,7 +38319,7 @@
           "kind": "method",
           "name": "represented_void_storage_free_slots_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_free_slots_like_cpp (& self) -> usize",
+          "signature": "fn represented_void_storage_free_slots_like_cpp (& self) -> Option < usize >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38363,7 +38371,7 @@
           "kind": "method",
           "name": "represented_void_storage_loaded_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_loaded_like_cpp (& self) -> bool",
+          "signature": "fn represented_void_storage_loaded_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -50038,6 +50046,28 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "with_owned_equipment_sets_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_equipment_sets_like_cpp < R > (& self , mut f : impl FnMut (& BTreeMap < u64 , RepresentedEquipmentSetLikeCpp > , bool) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_owned_equipment_sets_mut_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_equipment_sets_mut_like_cpp < R > (& mut self , mut f : impl FnMut (& mut BTreeMap < u64 , RepresentedEquipmentSetLikeCpp > , & mut bool) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "with_owned_player_for_rest_like_cpp",
           "visibility": "private",
           "signature": "fn with_owned_player_for_rest_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
@@ -50085,6 +50115,28 @@
           "name": "with_owned_player_mut_like_cpp",
           "visibility": "private",
           "signature": "fn with_owned_player_mut_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_owned_void_storage_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_void_storage_like_cpp < R > (& self , mut f : impl FnMut (& [Option < RepresentedVoidStorageItemLikeCpp >] , bool) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_owned_void_storage_mut_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_void_storage_mut_like_cpp < R > (& mut self , mut f : impl FnMut (& mut Vec < Option < RepresentedVoidStorageItemLikeCpp > > , & mut bool) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -75263,7 +75315,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0e94d53286d270282301e787b063a1f3:len=94072|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:30c0cc2195a868c5b6dcdda18d81d3b6:len=94171|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

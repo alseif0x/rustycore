@@ -6197,12 +6197,16 @@ pub struct WorldSession {
     /// Represented `CriteriaType::MoneySpentOnRespecs` / `TotalRespecs` events.
     represented_talent_respec_criteria_events_like_cpp:
         Vec<RepresentedTalentRespecCriteriaEventLikeCpp>,
-    /// C++ `Player::_equipmentSets`, represented until DB-backed save/load is canonical.
+    /// Handle-less test fallback; production C++ `Player::_equipmentSets` lives on canonical Player.
+    #[cfg(test)]
     represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
+    #[cfg(test)]
     represented_equipment_sets_loaded_like_cpp: bool,
-    /// C++ `Player::_voidStorageItems`, indexed by stable void-storage slot.
+    /// Handle-less test fallback; production C++ `Player::_voidStorageItems` lives on canonical Player.
+    #[cfg(test)]
     represented_void_storage_items_like_cpp: [Option<RepresentedVoidStorageItemLikeCpp>;
         wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP],
+    #[cfg(test)]
     represented_void_storage_loaded_like_cpp: bool,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
     represented_adventure_map_start_quest_requests_like_cpp:
@@ -7066,156 +7070,38 @@ pub(crate) struct RepresentedAutoUnequipOffhandLikeCpp {
 
 pub(crate) const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub(crate) enum RepresentedEquipmentSetTypeLikeCpp {
-    Equipment = 0,
-    Transmog = 1,
-}
+pub(crate) use wow_entities::{
+    PlayerEquipmentSetLikeCpp as RepresentedEquipmentSetLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp as RepresentedEquipmentSetTypeLikeCpp,
+    PlayerEquipmentSetUpdateStateLikeCpp as RepresentedEquipmentSetUpdateStateLikeCpp,
+    PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp,
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub(crate) enum RepresentedEquipmentSetUpdateStateLikeCpp {
-    Unchanged = 0,
-    Changed = 1,
-    New = 2,
-    Deleted = 3,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedEquipmentSetLikeCpp {
-    pub(crate) raw_set_type: i32,
-    pub(crate) set_type: RepresentedEquipmentSetTypeLikeCpp,
-    pub(crate) guid: u64,
-    pub(crate) set_id: u32,
-    pub(crate) ignore_mask: u32,
-    pub(crate) pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-    pub(crate) appearances: [i32; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-    pub(crate) enchants: [i32; 2],
-    pub(crate) secondary_shoulder_appearance_id: i32,
-    pub(crate) secondary_shoulder_slot: i32,
-    pub(crate) secondary_weapon_appearance_id: i32,
-    pub(crate) secondary_weapon_slot: i32,
-    pub(crate) assigned_spec_index: i32,
-    pub(crate) set_name: String,
-    pub(crate) set_icon: String,
-    pub(crate) state: RepresentedEquipmentSetUpdateStateLikeCpp,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedVoidStorageItemLikeCpp {
-    // Exact C++ `VoidStorageItem` durable fields for this 3.4.3 source tree.
-    // Despite stale SQL comments in `Player.cpp`, the struct and prepared
-    // statement contain no bonus-list or artifact-knowledge fields.
-    pub(crate) item_id: u64,
-    pub(crate) item_entry: u32,
-    pub(crate) creator_guid: ObjectGuid,
-    pub(crate) fixed_scaling_level: u32,
-    pub(crate) random_properties_id: i32,
-    pub(crate) random_properties_seed: i32,
-    pub(crate) context: u8,
-}
-
-impl RepresentedEquipmentSetLikeCpp {
-    fn from_equipment_set_data_like_cpp(
-        set: wow_packet::packets::misc::EquipmentSetDataLikeCpp,
-        guid: u64,
-        state: RepresentedEquipmentSetUpdateStateLikeCpp,
-    ) -> Option<Self> {
-        let set_type =
-            RepresentedEquipmentSetTypeLikeCpp::handler_branch_from_i32_like_cpp(set.set_type)?;
-        Some(Self {
-            raw_set_type: set.set_type,
-            set_type,
-            guid,
-            set_id: set.set_id,
-            ignore_mask: set.ignore_mask,
-            pieces: set.pieces,
-            appearances: set.appearances,
-            enchants: set.enchants,
-            secondary_shoulder_appearance_id: set.secondary_shoulder_appearance_id,
-            secondary_shoulder_slot: set.secondary_shoulder_slot,
-            secondary_weapon_appearance_id: set.secondary_weapon_appearance_id,
-            secondary_weapon_slot: set.secondary_weapon_slot,
-            assigned_spec_index: set.assigned_spec_index,
-            set_name: set.set_name,
-            set_icon: set.set_icon,
-            state,
-        })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn equipment(
-        set_id: u32,
-        assigned_spec_index: i32,
-        state: RepresentedEquipmentSetUpdateStateLikeCpp,
-    ) -> Self {
-        Self {
-            raw_set_type: 0,
-            set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment,
-            guid: 0,
-            set_id,
-            ignore_mask: 0,
-            pieces: [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            appearances: [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            enchants: [0; 2],
-            secondary_shoulder_appearance_id: 0,
-            secondary_shoulder_slot: 0,
-            secondary_weapon_appearance_id: 0,
-            secondary_weapon_slot: 0,
-            assigned_spec_index,
-            set_name: String::new(),
-            set_icon: String::new(),
-            state,
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn transmog(
-        set_id: u32,
-        assigned_spec_index: i32,
-        state: RepresentedEquipmentSetUpdateStateLikeCpp,
-    ) -> Self {
-        Self {
-            raw_set_type: 1,
-            set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog,
-            guid: 0,
-            set_id,
-            ignore_mask: 0,
-            pieces: [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            appearances: [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            enchants: [0; 2],
-            secondary_shoulder_appearance_id: 0,
-            secondary_shoulder_slot: 0,
-            secondary_weapon_appearance_id: 0,
-            secondary_weapon_slot: 0,
-            assigned_spec_index,
-            set_name: String::new(),
-            set_icon: String::new(),
-            state,
-        }
-    }
-}
-
-impl RepresentedEquipmentSetTypeLikeCpp {
-    fn handler_branch_from_i32_like_cpp(value: i32) -> Option<Self> {
-        if value > Self::Transmog.as_i32_like_cpp() {
-            return None;
-        }
-
-        if value == Self::Equipment.as_i32_like_cpp() {
-            Some(Self::Equipment)
-        } else {
-            Some(Self::Transmog)
-        }
-    }
-
-    pub(crate) fn as_i32_like_cpp(self) -> i32 {
-        match self {
-            Self::Equipment => 0,
-            Self::Transmog => 1,
-        }
-    }
+fn represented_equipment_set_from_packet_like_cpp(
+    set: wow_packet::packets::misc::EquipmentSetDataLikeCpp,
+    guid: u64,
+    state: RepresentedEquipmentSetUpdateStateLikeCpp,
+) -> Option<RepresentedEquipmentSetLikeCpp> {
+    let set_type =
+        RepresentedEquipmentSetTypeLikeCpp::handler_branch_from_i32_like_cpp(set.set_type)?;
+    Some(RepresentedEquipmentSetLikeCpp {
+        raw_set_type: set.set_type,
+        set_type,
+        guid,
+        set_id: set.set_id,
+        ignore_mask: set.ignore_mask,
+        pieces: set.pieces,
+        appearances: set.appearances,
+        enchants: set.enchants,
+        secondary_shoulder_appearance_id: set.secondary_shoulder_appearance_id,
+        secondary_shoulder_slot: set.secondary_shoulder_slot,
+        secondary_weapon_appearance_id: set.secondary_weapon_appearance_id,
+        secondary_weapon_slot: set.secondary_weapon_slot,
+        assigned_spec_index: set.assigned_spec_index,
+        set_name: set.set_name,
+        set_icon: set.set_icon,
+        state,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8342,9 +8228,13 @@ impl WorldSession {
             represented_at_login_flag_removals_like_cpp: Vec::new(),
             represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_equipment_sets_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_equipment_sets_loaded_like_cpp: false,
+            #[cfg(test)]
             represented_void_storage_items_like_cpp: std::array::from_fn(|_| None),
+            #[cfg(test)]
             represented_void_storage_loaded_like_cpp: false,
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
@@ -8761,28 +8651,131 @@ impl WorldSession {
         StdRng::seed_from_u64(self.represented_runtime_rng_like_cpp.next_u64())
     }
 
+    fn with_owned_equipment_sets_like_cpp<R>(
+        &self,
+        mut f: impl FnMut(&BTreeMap<u64, RepresentedEquipmentSetLikeCpp>, bool) -> R,
+    ) -> Option<R> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let state = player.gameplay_state();
+            f(&state.equipment_sets, state.equipment_sets_loaded)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(f(
+                &self.represented_equipment_sets_like_cpp,
+                self.represented_equipment_sets_loaded_like_cpp,
+            ));
+        }
+        None
+    }
+
+    fn with_owned_equipment_sets_mut_like_cpp<R>(
+        &mut self,
+        mut f: impl FnMut(&mut BTreeMap<u64, RepresentedEquipmentSetLikeCpp>, &mut bool) -> R,
+    ) -> Option<R> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let state = player.gameplay_state_mut();
+            f(&mut state.equipment_sets, &mut state.equipment_sets_loaded)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(f(
+                &mut self.represented_equipment_sets_like_cpp,
+                &mut self.represented_equipment_sets_loaded_like_cpp,
+            ));
+        }
+        None
+    }
+
+    fn with_owned_void_storage_like_cpp<R>(
+        &self,
+        mut f: impl FnMut(&[Option<RepresentedVoidStorageItemLikeCpp>], bool) -> R,
+    ) -> Option<R> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let state = player.gameplay_state();
+            f(&state.void_storage_items, state.void_storage_loaded)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(f(
+                &self.represented_void_storage_items_like_cpp,
+                self.represented_void_storage_loaded_like_cpp,
+            ));
+        }
+        None
+    }
+
+    fn with_owned_void_storage_mut_like_cpp<R>(
+        &mut self,
+        mut f: impl FnMut(&mut Vec<Option<RepresentedVoidStorageItemLikeCpp>>, &mut bool) -> R,
+    ) -> Option<R> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let state = player.gameplay_state_mut();
+            if state.void_storage_items.len()
+                != wow_entities::PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP
+            {
+                state.void_storage_items =
+                    vec![None; wow_entities::PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP];
+            }
+            f(
+                &mut state.void_storage_items,
+                &mut state.void_storage_loaded,
+            )
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut fixture = self.represented_void_storage_items_like_cpp.to_vec();
+            let result = f(
+                &mut fixture,
+                &mut self.represented_void_storage_loaded_like_cpp,
+            );
+            self.represented_void_storage_items_like_cpp = fixture
+                .try_into()
+                .expect("void-storage fixture preserves its fixed slot count");
+            return Some(result);
+        }
+        None
+    }
+
     #[cfg(test)]
     pub(crate) fn insert_represented_equipment_set_like_cpp(
         &mut self,
         guid: u64,
         equipment_set: RepresentedEquipmentSetLikeCpp,
     ) {
-        self.represented_equipment_sets_like_cpp
-            .insert(guid, equipment_set);
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
+            sets.insert(guid, equipment_set.clone());
+        });
     }
 
     pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
-        self.represented_equipment_sets_like_cpp.clear();
-        self.represented_equipment_sets_loaded_like_cpp = false;
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets, loaded| {
+            sets.clear();
+            *loaded = false;
+        });
     }
 
     pub(crate) fn clear_represented_void_storage_like_cpp(&mut self) {
-        self.represented_void_storage_items_like_cpp = std::array::from_fn(|_| None);
-        self.represented_void_storage_loaded_like_cpp = false;
+        let _ = self.with_owned_void_storage_mut_like_cpp(|items, loaded| {
+            items.fill(None);
+            *loaded = false;
+        });
     }
 
     pub(crate) fn mark_represented_void_storage_loaded_like_cpp(&mut self) {
-        self.represented_void_storage_loaded_like_cpp = true;
+        let _ = self.with_owned_void_storage_mut_like_cpp(|_, loaded| *loaded = true);
     }
 
     /// Match C++ `Player::LoadFromDB`: locked characters do not consume the
@@ -8806,17 +8799,27 @@ impl WorldSession {
         if item.item_id == 0
             || slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
             || self.item_storage_template(item.item_entry).is_none()
-            || self.represented_void_storage_items_like_cpp[slot].is_some()
-            || self
-                .represented_void_storage_items_like_cpp
-                .iter()
-                .flatten()
-                .any(|loaded| loaded.item_id == item.item_id)
         {
             return false;
         }
         let item_entry = item.item_entry;
-        self.represented_void_storage_items_like_cpp[slot] = Some(item);
+        let inserted = self
+            .with_owned_void_storage_mut_like_cpp(|items, _| {
+                if items[slot].is_some()
+                    || items
+                        .iter()
+                        .flatten()
+                        .any(|loaded| loaded.item_id == item.item_id)
+                {
+                    return false;
+                }
+                items[slot] = Some(item.clone());
+                true
+            })
+            .unwrap_or(false);
+        if !inserted {
+            return false;
+        }
         // C++ `_LoadVoidStorage` initializes `BonusData` from the void item
         // instance and calls `CollectionMgr::AddItemAppearance`; this DB shape
         // only carries the fixed-level modifier, so the effective appearance
@@ -8825,32 +8828,31 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> bool {
-        self.represented_void_storage_loaded_like_cpp
+    pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> Option<bool> {
+        self.with_owned_void_storage_like_cpp(|_, loaded| loaded)
     }
 
-    pub(crate) fn represented_void_storage_free_slots_like_cpp(&self) -> usize {
-        self.represented_void_storage_items_like_cpp
-            .iter()
-            .filter(|item| item.is_none())
-            .count()
+    pub(crate) fn represented_void_storage_free_slots_like_cpp(&self) -> Option<usize> {
+        self.with_owned_void_storage_like_cpp(|items, _| {
+            items.iter().filter(|item| item.is_none()).count()
+        })
     }
 
     pub(crate) fn represented_void_storage_next_free_slot_like_cpp(&self) -> Option<u8> {
-        self.represented_void_storage_items_like_cpp
-            .iter()
-            .position(Option::is_none)
-            .and_then(|slot| u8::try_from(slot).ok())
+        self.with_owned_void_storage_like_cpp(|items, _| {
+            items
+                .iter()
+                .position(Option::is_none)
+                .and_then(|slot| u8::try_from(slot).ok())
+        })?
     }
 
     pub(crate) fn represented_void_storage_item_by_id_like_cpp(
         &self,
         item_id: u64,
     ) -> Option<(u8, RepresentedVoidStorageItemLikeCpp)> {
-        self.represented_void_storage_items_like_cpp
-            .iter()
-            .enumerate()
-            .find_map(|(slot, item)| {
+        self.with_owned_void_storage_like_cpp(|items, _| {
+            items.iter().enumerate().find_map(|(slot, item)| {
                 let item = item.as_ref()?;
                 (item.item_id == item_id).then(|| {
                     (
@@ -8859,15 +8861,16 @@ impl WorldSession {
                     )
                 })
             })
+        })?
     }
 
     pub(crate) fn represented_void_storage_item_at_like_cpp(
         &self,
         slot: u8,
     ) -> Option<RepresentedVoidStorageItemLikeCpp> {
-        self.represented_void_storage_items_like_cpp
-            .get(usize::from(slot))?
-            .clone()
+        self.with_owned_void_storage_like_cpp(|items, _| {
+            items.get(usize::from(slot)).cloned().flatten()
+        })?
     }
 
     pub(crate) fn add_represented_void_storage_item_like_cpp(
@@ -8875,7 +8878,9 @@ impl WorldSession {
         item: RepresentedVoidStorageItemLikeCpp,
     ) -> Option<u8> {
         let slot = self.represented_void_storage_next_free_slot_like_cpp()?;
-        self.represented_void_storage_items_like_cpp[usize::from(slot)] = Some(item);
+        self.with_owned_void_storage_mut_like_cpp(|items, _| {
+            items[usize::from(slot)] = Some(item.clone());
+        })?;
         Some(slot)
     }
 
@@ -8883,9 +8888,9 @@ impl WorldSession {
         &mut self,
         slot: u8,
     ) -> Option<RepresentedVoidStorageItemLikeCpp> {
-        self.represented_void_storage_items_like_cpp
-            .get_mut(usize::from(slot))?
-            .take()
+        self.with_owned_void_storage_mut_like_cpp(|items, _| {
+            items.get_mut(usize::from(slot)).and_then(Option::take)
+        })?
     }
 
     pub(crate) fn swap_represented_void_storage_item_like_cpp(
@@ -8901,9 +8906,10 @@ impl WorldSession {
         {
             return false;
         }
-        self.represented_void_storage_items_like_cpp
-            .swap(old_slot, new_slot);
-        true
+        self.with_owned_void_storage_mut_like_cpp(|items, _| {
+            items.swap(old_slot, new_slot);
+        })
+        .is_some()
     }
 
     pub(crate) fn next_represented_void_storage_item_id_like_cpp(&self) -> Option<u64> {
@@ -8946,21 +8952,22 @@ impl WorldSession {
 
     pub(crate) fn represented_void_storage_contents_like_cpp(
         &self,
-    ) -> wow_packet::packets::void_storage::VoidStorageContents {
-        let items = self
-            .represented_void_storage_items_like_cpp
-            .iter()
-            .enumerate()
-            .filter_map(|(slot, item)| {
-                let item = item.as_ref()?;
-                Some(self.represented_void_storage_item_packet_like_cpp(slot as u8, item))
-            })
-            .collect();
-        wow_packet::packets::void_storage::VoidStorageContents { items }
+    ) -> Option<wow_packet::packets::void_storage::VoidStorageContents> {
+        self.with_owned_void_storage_like_cpp(|stored, _| {
+            let items = stored
+                .iter()
+                .enumerate()
+                .filter_map(|(slot, item)| {
+                    let item = item.as_ref()?;
+                    Some(self.represented_void_storage_item_packet_like_cpp(slot as u8, item))
+                })
+                .collect();
+            wow_packet::packets::void_storage::VoidStorageContents { items }
+        })
     }
 
     pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
-        self.represented_equipment_sets_loaded_like_cpp = true;
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|_, loaded| *loaded = true);
     }
 
     pub(crate) fn load_represented_equipment_set_row_like_cpp(
@@ -8995,9 +9002,10 @@ impl WorldSession {
             set_icon,
             state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
         };
-        self.represented_equipment_sets_like_cpp
-            .insert(guid, equipment_set);
-        true
+        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
+            sets.insert(guid, equipment_set.clone());
+        })
+        .is_some()
     }
 
     pub(crate) fn load_represented_transmog_outfit_row_like_cpp(
@@ -9032,41 +9040,44 @@ impl WorldSession {
             set_icon,
             state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
         };
-        self.represented_equipment_sets_like_cpp
-            .insert(guid, equipment_set);
-        true
+        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
+            sets.insert(guid, equipment_set.clone());
+        })
+        .is_some()
     }
 
     pub(crate) fn represented_load_equipment_set_packet_like_cpp(
         &self,
-    ) -> wow_packet::packets::misc::LoadEquipmentSet {
-        let sets = self
-            .represented_equipment_sets_like_cpp
-            .values()
-            .filter(|equipment_set| {
-                equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::Deleted
-            })
-            .map(
-                |equipment_set| wow_packet::packets::misc::EquipmentSetDataLikeCpp {
-                    set_type: equipment_set.raw_set_type,
-                    guid: equipment_set.guid,
-                    set_id: equipment_set.set_id,
-                    ignore_mask: equipment_set.ignore_mask,
-                    pieces: equipment_set.pieces,
-                    appearances: equipment_set.appearances,
-                    enchants: equipment_set.enchants,
-                    secondary_shoulder_appearance_id: equipment_set
-                        .secondary_shoulder_appearance_id,
-                    secondary_shoulder_slot: equipment_set.secondary_shoulder_slot,
-                    secondary_weapon_appearance_id: equipment_set.secondary_weapon_appearance_id,
-                    secondary_weapon_slot: equipment_set.secondary_weapon_slot,
-                    assigned_spec_index: equipment_set.assigned_spec_index,
-                    set_name: equipment_set.set_name.clone(),
-                    set_icon: equipment_set.set_icon.clone(),
-                },
-            )
-            .collect();
-        wow_packet::packets::misc::LoadEquipmentSet { sets }
+    ) -> Option<wow_packet::packets::misc::LoadEquipmentSet> {
+        self.with_owned_equipment_sets_like_cpp(|stored, _| {
+            let sets = stored
+                .values()
+                .filter(|equipment_set| {
+                    equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::Deleted
+                })
+                .map(
+                    |equipment_set| wow_packet::packets::misc::EquipmentSetDataLikeCpp {
+                        set_type: equipment_set.raw_set_type,
+                        guid: equipment_set.guid,
+                        set_id: equipment_set.set_id,
+                        ignore_mask: equipment_set.ignore_mask,
+                        pieces: equipment_set.pieces,
+                        appearances: equipment_set.appearances,
+                        enchants: equipment_set.enchants,
+                        secondary_shoulder_appearance_id: equipment_set
+                            .secondary_shoulder_appearance_id,
+                        secondary_shoulder_slot: equipment_set.secondary_shoulder_slot,
+                        secondary_weapon_appearance_id: equipment_set
+                            .secondary_weapon_appearance_id,
+                        secondary_weapon_slot: equipment_set.secondary_weapon_slot,
+                        assigned_spec_index: equipment_set.assigned_spec_index,
+                        set_name: equipment_set.set_name.clone(),
+                        set_icon: equipment_set.set_icon.clone(),
+                    },
+                )
+                .collect();
+            wow_packet::packets::misc::LoadEquipmentSet { sets }
+        })
     }
 
     #[cfg(test)]
@@ -9074,7 +9085,7 @@ impl WorldSession {
         &self,
         guid: u64,
     ) -> Option<RepresentedEquipmentSetLikeCpp> {
-        self.represented_equipment_sets_like_cpp.get(&guid).cloned()
+        self.with_owned_equipment_sets_like_cpp(|sets, _| sets.get(&guid).cloned())?
     }
 
     fn next_represented_equipment_set_guid_like_cpp(&self) -> Option<u64> {
@@ -9156,11 +9167,10 @@ impl WorldSession {
             }
         }
 
-        if set.guid != 0
-            && !self
-                .represented_equipment_sets_like_cpp
-                .contains_key(&set.guid)
-        {
+        let existing_state = self.with_owned_equipment_sets_like_cpp(|sets, _| {
+            sets.get(&set.guid).map(|equipment_set| equipment_set.state)
+        })?;
+        if set.guid != 0 && existing_state.is_none() {
             return None;
         }
 
@@ -9172,11 +9182,9 @@ impl WorldSession {
         };
         set.guid = guid;
 
-        let next_state = self
-            .represented_equipment_sets_like_cpp
-            .get(&guid)
-            .map(|equipment_set| {
-                if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::New {
+        let next_state = existing_state
+            .map(|state| {
+                if state == RepresentedEquipmentSetUpdateStateLikeCpp::New {
                     RepresentedEquipmentSetUpdateStateLikeCpp::New
                 } else {
                     RepresentedEquipmentSetUpdateStateLikeCpp::Changed
@@ -9184,24 +9192,18 @@ impl WorldSession {
             })
             .unwrap_or(RepresentedEquipmentSetUpdateStateLikeCpp::New);
 
-        let saved = RepresentedEquipmentSetLikeCpp::from_equipment_set_data_like_cpp(
-            set, guid, next_state,
-        )?;
-        self.represented_equipment_sets_like_cpp.insert(guid, saved);
+        let saved = represented_equipment_set_from_packet_like_cpp(set, guid, next_state)?;
+        let saved_raw_type = saved.raw_set_type;
+        let saved_set_id = saved.set_id;
+        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
+            sets.insert(guid, saved.clone());
+        })?;
 
         Some(RepresentedEquipmentSetSavedLikeCpp {
             guid,
             set_type,
-            raw_set_type: self
-                .represented_equipment_sets_like_cpp
-                .get(&guid)
-                .map(|equipment_set| equipment_set.raw_set_type)
-                .unwrap_or(set_type.as_i32_like_cpp()),
-            set_id: self
-                .represented_equipment_sets_like_cpp
-                .get(&guid)
-                .map(|equipment_set| equipment_set.set_id)
-                .unwrap_or(0),
+            raw_set_type: saved_raw_type,
+            set_id: saved_set_id,
             generated_new_guid,
         })
     }
@@ -9215,35 +9217,36 @@ impl WorldSession {
             return false;
         }
 
-        let Some((_, equipment_set)) =
-            self.represented_equipment_sets_like_cpp
-                .iter_mut()
-                .find(|(_, equipment_set)| {
-                    equipment_set.set_id == set_id
-                        && equipment_set.set_type == RepresentedEquipmentSetTypeLikeCpp::Equipment
-                })
-        else {
-            return false;
-        };
+        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
+            let Some((_, equipment_set)) = sets.iter_mut().find(|(_, equipment_set)| {
+                equipment_set.set_id == set_id
+                    && equipment_set.set_type == RepresentedEquipmentSetTypeLikeCpp::Equipment
+            }) else {
+                return false;
+            };
 
-        equipment_set.assigned_spec_index = spec_index as i32;
-        if equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::New {
-            equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Changed;
-        }
-        true
+            equipment_set.assigned_spec_index = spec_index as i32;
+            if equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::New {
+                equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Changed;
+            }
+            true
+        })
+        .unwrap_or(false)
     }
 
     pub(crate) fn delete_represented_equipment_set_like_cpp(&mut self, id: u64) -> bool {
-        let Some(equipment_set) = self.represented_equipment_sets_like_cpp.get_mut(&id) else {
-            return false;
-        };
-
-        if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::New {
-            self.represented_equipment_sets_like_cpp.remove(&id);
-        } else {
-            equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Deleted;
-        }
-        true
+        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
+            let Some(equipment_set) = sets.get_mut(&id) else {
+                return false;
+            };
+            if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::New {
+                sets.remove(&id);
+            } else {
+                equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Deleted;
+            }
+            true
+        })
+        .unwrap_or(false)
     }
 
     fn ignored_equipment_set_item_guid_like_cpp() -> ObjectGuid {
@@ -10096,6 +10099,20 @@ impl WorldSession {
                     override_spells_complete: self.represented_override_spells_complete_like_cpp,
                 },
             ));
+            player.gameplay_state_mut().cuf_profiles = self
+                .cuf_profiles_like_cpp
+                .iter()
+                .map(|profile| profile.clone().map(player_cuf_profile_from_packet_like_cpp))
+                .collect();
+            player.gameplay_state_mut().cuf_profiles_loaded = self.cuf_profiles_loaded_like_cpp;
+            player.gameplay_state_mut().equipment_sets =
+                self.represented_equipment_sets_like_cpp.clone();
+            player.gameplay_state_mut().equipment_sets_loaded =
+                self.represented_equipment_sets_loaded_like_cpp;
+            player.gameplay_state_mut().void_storage_items =
+                self.represented_void_storage_items_like_cpp.to_vec();
+            player.gameplay_state_mut().void_storage_loaded =
+                self.represented_void_storage_loaded_like_cpp;
         }
         player
             .unit_mut()
@@ -32562,14 +32579,15 @@ impl WorldSession {
     /// clear disabled. Favorites are deliberately untouched because learning
     /// preserves them and the incomplete runtime cannot reconstruct them.
     fn mark_equipment_sets_saved_like_cpp(&mut self) {
-        self.represented_equipment_sets_like_cpp
-            .retain(|_, equipment_set| {
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
+            sets.retain(|_, equipment_set| {
                 if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::Deleted {
                     return false;
                 }
                 equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged;
                 true
             });
+        });
     }
 
     /// Apply XP to the live session state, leveling up if threshold reached.
