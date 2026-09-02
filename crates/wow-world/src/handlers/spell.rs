@@ -1642,12 +1642,15 @@ impl WorldSession {
             return false;
         }
 
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
         let start_quest_id = self.item_template_start_quest_id(item_id).unwrap_or(0);
         let has_non_none_start_quest_status =
             u32::try_from(start_quest_id).ok().is_some_and(|quest_id| {
                 quest_id != 0
-                    && (self.player_quests.contains_key(&quest_id)
-                        || self.rewarded_quests.contains(&quest_id))
+                    && (quests.statuses.contains_key(&quest_id)
+                        || quests.rewarded_quest_ids.contains(&quest_id))
             });
 
         let has_quest_for_item = self
@@ -1696,8 +1699,11 @@ impl WorldSession {
         let Some(quest_store) = &self.quest_store else {
             return false;
         };
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
-        self.player_quests.values().any(|status| {
+        quests.statuses.values().any(|status| {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
@@ -1732,8 +1738,11 @@ impl WorldSession {
         let Some(quest_store) = &self.quest_store else {
             return false;
         };
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
-        self.player_quests.values().any(|status| {
+        quests.statuses.values().any(|status| {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
@@ -1800,6 +1809,7 @@ impl WorldSession {
         &self,
         condition: &LootConditionRowLikeCpp,
     ) -> Option<bool> {
+        let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
         match condition.condition_type_or_reference {
             0 => Some(true),
             2 => {
@@ -1815,15 +1825,16 @@ impl WorldSession {
                 player_team_for_race_cpp_representable(self.player_race_like_cpp())
                     == condition.value1,
             ),
-            8 => Some(self.rewarded_quests.contains(&condition.value1)),
+            8 => Some(quests.rewarded_quest_ids.contains(&condition.value1)),
             9 => Some(
-                self.player_quests
+                quests
+                    .statuses
                     .get(&condition.value1)
                     .is_some_and(|status| status.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP),
             ),
             14 => Some(
-                !self.player_quests.contains_key(&condition.value1)
-                    && !self.rewarded_quests.contains(&condition.value1),
+                !quests.statuses.contains_key(&condition.value1)
+                    && !quests.rewarded_quest_ids.contains(&condition.value1),
             ),
             15 => Some(
                 player_class_mask_like_cpp(self.player_class_like_cpp())
@@ -1843,17 +1854,19 @@ impl WorldSession {
                 condition.value1,
             ),
             28 => Some(
-                self.player_quests
+                quests
+                    .statuses
                     .get(&condition.value1)
                     .is_some_and(|status| status.status == 2)
-                    && !self.rewarded_quests.contains(&condition.value1),
+                    && !quests.rewarded_quest_ids.contains(&condition.value1),
             ),
             47 => Some(
                 player_quest_status_mask_like_cpp(
-                    self.player_quests
+                    quests
+                        .statuses
                         .get(&condition.value1)
                         .map(|status| status.status),
-                    self.rewarded_quests.contains(&condition.value1),
+                    quests.rewarded_quest_ids.contains(&condition.value1),
                 ) & condition.value2
                     != 0,
             ),
@@ -1874,8 +1887,9 @@ impl WorldSession {
         objective_id: u32,
     ) -> Option<i32> {
         let quest_store = self.quest_store.as_ref()?;
+        let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
 
-        for status in self.player_quests.values() {
+        for status in quests.statuses.values() {
             let Some(quest) = quest_store.get(status.quest_id) else {
                 continue;
             };

@@ -2063,9 +2063,18 @@ impl WorldSession {
         let rewarded_slot = self.find_quest_slot_like_cpp(quest_id);
 
         self.invalidate_player_quest_status_authority_like_cpp();
-        self.player_quests.remove(&quest_id);
+        if self
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.statuses.remove(&quest_id);
+                if !quest.is_repeatable() {
+                    state.rewarded_quest_ids.insert(quest_id);
+                }
+            })
+            .is_none()
+        {
+            return false;
+        }
         if !quest.is_repeatable() {
-            self.rewarded_quests.insert(quest_id);
             self.save_quest_to_db(quest_id, QUEST_STATUS_REWARDED_LIKE_CPP)
                 .await;
         } else {

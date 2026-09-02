@@ -1056,18 +1056,30 @@ fn add_active_quest_in_slot_with_status(
     slot: u8,
     status: u8,
 ) {
-    session.player_quests.insert(
-        quest_id,
-        PlayerQuestStatus {
-            quest_id,
-            status,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot,
-        },
-    );
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.statuses.insert(
+                quest_id,
+                PlayerQuestStatus {
+                    quest_id,
+                    status,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: Vec::new(),
+                    slot,
+                },
+            );
+        })
+        .expect("test Player quest owner");
+}
+
+fn add_rewarded_quest(session: &mut WorldSession, quest_id: u32) {
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.rewarded_quest_ids.insert(quest_id);
+        })
+        .expect("test Player quest owner");
 }
 
 #[test]
@@ -4328,10 +4340,11 @@ fn install_confirm_accept_sender_snapshot(
     sender_session.set_player_guid(Some(sender_guid));
     sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
     sender_session.set_player_registry(player_registry);
+    sender_session.register_in_player_registry();
+    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
     if let Some(status) = sender_active_status {
         add_active_quest_in_slot_with_status(&mut sender_session, quest_id, 0, status);
     }
-    sender_session.register_in_player_registry();
     sender_session.sync_player_registry_state_like_cpp();
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -5548,13 +5561,14 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     sender_session.set_player_guid(Some(sender_guid));
     sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
     sender_session.set_player_registry(Arc::clone(&player_registry));
+    sender_session.register_in_player_registry();
+    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
     add_active_quest_in_slot_with_status(
         &mut sender_session,
         quest_id,
         0,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
-    sender_session.register_in_player_registry();
     sender_session.sync_player_registry_state_like_cpp();
 
     let (mut other_session, other_rx) = make_session();
@@ -5645,13 +5659,14 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     sender_session.set_player_guid(Some(sender_guid));
     sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
     sender_session.set_player_registry(Arc::clone(&player_registry));
+    sender_session.register_in_player_registry();
+    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
     add_active_quest_in_slot_with_status(
         &mut sender_session,
         quest_id,
         0,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
-    sender_session.register_in_player_registry();
     sender_session.sync_player_registry_state_like_cpp();
 
     let (mut other_session, other_rx) = make_session();
@@ -6756,6 +6771,9 @@ fn insert_canonical_party_player_like_cpp(
         .unwrap();
     player.unit_mut().world_mut().relocate(position);
     player.unit_mut().world_mut().object_mut().add_to_world();
+    player.unit_mut().set_max_health(100);
+    player.unit_mut().set_health(100);
+    player.unit_mut().set_faction(1);
     canonical
         .lock()
         .unwrap()
@@ -6825,6 +6843,7 @@ fn install_represented_party(
     session.set_canonical_map_manager(Arc::clone(&canonical));
 
     receiver_session.register_in_player_registry();
+    assert!(receiver_session.adopt_registered_canonical_player_fixture_like_cpp());
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(sender_guid);
@@ -6894,7 +6913,7 @@ async fn push_quest_to_party_grouped_receiver_rewarded_emits_already_done_pair_l
     add_active_quest(&mut session, 7112);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.rewarded_quests.insert(7112);
+    add_rewarded_quest(&mut receiver_session, 7112);
     receiver_session.sync_player_registry_state_like_cpp();
 
     run_push_quest_to_party(&mut session, 7112).await;
@@ -7631,7 +7650,7 @@ async fn push_quest_to_party_positive_prev_rewarded_passes_to_unrepresented_boun
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.rewarded_quests.insert(9002);
+    add_rewarded_quest(&mut receiver_session, 9002);
     receiver_session.sync_player_registry_state_like_cpp();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -7779,7 +7798,7 @@ async fn push_quest_to_party_dependent_previous_rewarded_nonnegative_group_passe
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.rewarded_quests.insert(prev_id);
+    add_rewarded_quest(&mut receiver_session, prev_id);
     receiver_session.sync_player_registry_state_like_cpp();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -7820,7 +7839,7 @@ async fn push_quest_to_party_dependent_previous_negative_exclusive_group_require
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.rewarded_quests.insert(prev_id);
+    add_rewarded_quest(&mut receiver_session, prev_id);
     receiver_session.sync_player_registry_state_like_cpp();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -7860,8 +7879,8 @@ async fn push_quest_to_party_dependent_previous_negative_exclusive_group_require
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.rewarded_quests.insert(prev_id);
-    receiver_session.rewarded_quests.insert(sibling_id);
+    add_rewarded_quest(&mut receiver_session, prev_id);
+    add_rewarded_quest(&mut receiver_session, sibling_id);
     receiver_session.sync_player_registry_state_like_cpp();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;

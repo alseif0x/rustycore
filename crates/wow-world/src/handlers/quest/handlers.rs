@@ -477,18 +477,23 @@ impl WorldSession {
 
         // Add to local state
         self.invalidate_player_quest_status_authority_like_cpp();
-        self.player_quests.insert(
+        let status = PlayerQuestStatus {
             quest_id,
-            PlayerQuestStatus {
-                quest_id,
-                status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-                explored: false,
-                accept_time_secs,
-                end_time_secs,
-                objective_counts: vec![0; obj_count],
-                slot,
-            },
-        );
+            status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            explored: false,
+            accept_time_secs,
+            end_time_secs,
+            objective_counts: vec![0; obj_count],
+            slot,
+        };
+        if self
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.statuses.insert(quest_id, status);
+            })
+            .is_none()
+        {
+            return;
+        }
 
         self.complete_represented_quest_after_add_if_ready_like_cpp(quest)
             .await;
@@ -496,9 +501,8 @@ impl WorldSession {
         // Save to DB after AddQuestAndCheckCompletion-style completion, unless
         // RewardQuest already removed/rewarded the quest.
         if let Some(status) = self
-            .player_quests
-            .get(&quest_id)
-            .map(|status| status.status)
+            .player_quest_gameplay_snapshot_like_cpp()
+            .and_then(|state| state.statuses.get(&quest_id).map(|status| status.status))
         {
             self.save_quest_to_db(quest_id, status).await;
         }
@@ -1274,7 +1278,7 @@ impl WorldSession {
 
             // C++ `Player::SatisfyQuestLog(false)` checks `FindQuestSlot(0) <
             // MAX_QUEST_LOG_SIZE`; this represented cross-session seam uses
-            // the receiver snapshot derived from `WorldSession.player_quests`
+            // the receiver snapshot derived from the canonical Player quest
             // slots via `sync_player_registry_state_like_cpp()`.
             if receiver.active_quest_statuses.len() >= MAX_QUEST_LOG_SIZE_LIKE_CPP as usize {
                 let Some(sender_guid_for_receiver_packet) = sender_guid else {
@@ -2000,7 +2004,9 @@ impl WorldSession {
         };
 
         self.invalidate_player_quest_status_authority_like_cpp();
-        self.player_quests.remove(&qid);
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.statuses.remove(&qid);
+        });
         self.delete_quest_from_db(qid).await;
         self.sync_player_registry_state_like_cpp();
         self.send_represented_quest_log_slot_update_like_cpp(slot);
@@ -2208,14 +2214,17 @@ impl WorldSession {
         }
 
         // C++: if (_player->CanCompleteQuest(questID)) _player->CompleteQuest(questID)
-        let can_complete_now = self.player_quests.get(&quest_id).is_some_and(|status| {
-            Self::represented_can_complete_quest_after_objective_like_cpp(
-                status,
-                &quest,
-                0,
-                self.rewarded_quests.contains(&quest_id),
-            )
-        });
+        let can_complete_now = self
+            .player_quest_gameplay_snapshot_like_cpp()
+            .and_then(|state| {
+                let rewarded = state.rewarded_quest_ids.contains(&quest_id);
+                state.statuses.get(&quest_id).map(|status| {
+                    Self::represented_can_complete_quest_after_objective_like_cpp(
+                        status, &quest, 0, rewarded,
+                    )
+                })
+            })
+            .unwrap_or(false);
         if can_complete_now {
             let completion_evidence_start = self
                 .represented_quest_complete_status_updates_like_cpp
@@ -2229,9 +2238,9 @@ impl WorldSession {
         }
 
         let is_complete = self
-            .player_quests
-            .get(&quest_id)
-            .is_some_and(|qs| qs.status == QUEST_STATUS_COMPLETE_LIKE_CPP);
+            .player_quest_gameplay_snapshot_like_cpp()
+            .and_then(|state| state.statuses.get(&quest_id).map(|qs| qs.status))
+            == Some(QUEST_STATUS_COMPLETE_LIKE_CPP);
 
         if !is_complete {
             // Objectives not finished — silently ignore
@@ -2379,9 +2388,9 @@ impl WorldSession {
 
         // Check if all objectives are done — C++ GetQuestStatus == QUEST_STATUS_COMPLETE.
         let is_complete = self
-            .player_quests
-            .get(&quest_id)
-            .is_some_and(|qs| qs.status == QUEST_STATUS_COMPLETE_LIKE_CPP);
+            .player_quest_gameplay_snapshot_like_cpp()
+            .and_then(|state| state.statuses.get(&quest_id).map(|qs| qs.status))
+            == Some(QUEST_STATUS_COMPLETE_LIKE_CPP);
 
         if !is_complete {
             // Not all objectives done — send "you still need X" dialog
@@ -2477,7 +2486,9 @@ impl WorldSession {
         }
 
         // C++ `Player::CanRewardQuest`: player must have the quest active and COMPLETE.
-        let quest_status = self.player_quests.get(&quest_id).map(|qs| qs.status);
+        let quest_status = self
+            .player_quest_gameplay_snapshot_like_cpp()
+            .and_then(|state| state.statuses.get(&quest_id).map(|qs| qs.status));
         match quest_status {
             Some(QUEST_STATUS_COMPLETE_LIKE_CPP) => {}
             Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP) => {

@@ -228,42 +228,46 @@ impl WorldSession {
             return false;
         };
 
-        self.player_quests.values().any(|status| {
-            if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                return false;
-            }
-
-            let Some(quest) = quest_store.get(status.quest_id) else {
-                return false;
-            };
-
-            quest
-                .item_drop
-                .iter()
-                .enumerate()
-                .any(|(index, drop_item_id)| {
-                    if *drop_item_id != item_id {
+        self.player_quest_gameplay_snapshot_like_cpp()
+            .is_some_and(|state| {
+                state.statuses.into_values().any(|status| {
+                    if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                         return false;
                     }
 
-                    let Some(template) = self.item_storage_template(item_id) else {
+                    let Some(quest) = quest_store.get(status.quest_id) else {
                         return false;
                     };
 
-                    let quantity = quest.item_drop_quantity[index];
-                    let mut max_allowed_count = if quantity != 0 {
-                        quantity
-                    } else {
-                        template.max_stack_size
-                    };
-                    if template.max_count > 0 {
-                        max_allowed_count = max_allowed_count.min(template.max_count as u32);
-                    }
+                    quest
+                        .item_drop
+                        .iter()
+                        .enumerate()
+                        .any(|(index, drop_item_id)| {
+                            if *drop_item_id != item_id {
+                                return false;
+                            }
 
-                    self.direct_inventory_item_count_like_cpp(item_id)
-                        .is_some_and(|count| count < max_allowed_count)
+                            let Some(template) = self.item_storage_template(item_id) else {
+                                return false;
+                            };
+
+                            let quantity = quest.item_drop_quantity[index];
+                            let mut max_allowed_count = if quantity != 0 {
+                                quantity
+                            } else {
+                                template.max_stack_size
+                            };
+                            if template.max_count > 0 {
+                                max_allowed_count =
+                                    max_allowed_count.min(template.max_count as u32);
+                            }
+
+                            self.direct_inventory_item_count_like_cpp(item_id)
+                                .is_some_and(|count| count < max_allowed_count)
+                        })
                 })
-        })
+            })
     }
 
     pub(super) fn remote_has_incomplete_quest_item_drop_for_item_like_cpp(

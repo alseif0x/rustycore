@@ -31494,6 +31494,15 @@ fn canonical_player_difficulty_and_loot_preferences_follow_detached_and_stale_ow
 
 #[test]
 fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_like_cpp() {
+    let quest_status = |quest_id, status| wow_entities::PlayerQuestStatusRecord {
+        quest_id,
+        status,
+        explored: false,
+        accept_time_secs: 0,
+        end_time_secs: 0,
+        objective_counts: Vec::new(),
+        slot: 0,
+    };
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 5_567);
@@ -31525,6 +31534,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             .mutate_player_quest_gameplay_like_cpp(|state| {
                 state.daily_quest_ids.insert(100);
                 state.last_daily_quest_time_secs = 10;
+                state.statuses.insert(
+                    200,
+                    quest_status(200, crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+                );
+                state.rewarded_quest_ids.insert(300);
             })
             .is_some()
     );
@@ -31558,6 +31572,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             .mutate_player_quest_gameplay_like_cpp(|state| {
                 state.daily_quest_ids.insert(101);
                 state.last_daily_quest_time_secs = 20;
+                state.statuses.insert(
+                    201,
+                    quest_status(201, crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP),
+                );
+                state.rewarded_quest_ids.insert(301);
             })
             .is_some()
     );
@@ -31581,6 +31600,15 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         .quests
         .daily_quest_ids
         .insert(999);
+    replacement.gameplay_state_mut().quests.statuses.insert(
+        9_999,
+        quest_status(9_999, crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP),
+    );
+    replacement
+        .gameplay_state_mut()
+        .quests
+        .rewarded_quest_ids
+        .insert(9_998);
     assert!(replacement.set_quest_completed_bit_like_cpp(77, true));
     assert!(replacement.set_explored_zones_block_like_cpp(0, 0x400));
     let replacement_handle = canonical
@@ -31602,6 +31630,8 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
                 state.daily_quest_ids.insert(0xdead);
+                state.statuses.remove(&9_999);
+                state.rewarded_quest_ids.insert(0xbeef);
             })
             .is_none()
     );
@@ -31616,6 +31646,8 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 player.quest_completed_block_like_cpp(1),
                 player.explored_zones_block_like_cpp(0),
                 player.gameplay_state().quests.daily_quest_ids.clone(),
+                player.gameplay_state().quests.statuses.clone(),
+                player.gameplay_state().quests.rewarded_quest_ids.clone(),
             )),
         Some((
             0x100,
@@ -31624,6 +31656,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             Some(1 << 12),
             Some(0x400),
             BTreeSet::from([999]),
+            BTreeMap::from([(
+                9_999,
+                quest_status(9_999, crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP),
+            )]),
+            BTreeSet::from([9_998]),
         ))
     );
 }
@@ -78722,6 +78759,14 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.unit_mut().set_faction(1);
+        })
+        .expect("live canonical Player fixture");
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -78735,18 +78780,22 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
     quest_store.ender_quests.insert(792, vec![9_223]);
     session.quest_store = Some(Arc::new(quest_store));
     session.set_player_gold_like_cpp(5);
-    session.player_quests.insert(
-        9_223,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_223,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.statuses.insert(
+                9_223,
+                crate::handlers::quest::PlayerQuestStatus {
+                    quest_id: 9_223,
+                    status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: Vec::new(),
+                    slot: 0,
+                },
+            );
+        })
+        .expect("canonical Player quest owner");
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -78757,8 +78806,11 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
         ))
         .await;
 
-    assert!(!session.player_quests.contains_key(&9_223));
-    assert!(session.rewarded_quests.contains(&9_223));
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest owner after reward");
+    assert!(!quests.statuses.contains_key(&9_223));
+    assert!(quests.rewarded_quest_ids.contains(&9_223));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(
         drain_server_opcodes(&send_rx),

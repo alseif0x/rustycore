@@ -13,7 +13,9 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         quest.flags & QUEST_FLAGS_SHARABLE_LIKE_CPP != 0
-            && self.player_quests.contains_key(&quest.id)
+            && self
+                .represented_player_quest_status_like_cpp(quest.id)
+                .is_some_and(|status| status.is_some())
     }
 
     pub(super) fn send_push_quest_result_to_sender_if_available_like_cpp(

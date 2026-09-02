@@ -226,13 +226,17 @@ impl crate::session::WorldSession {
             match crate::session::player_team_for_race_cpp(self.player_race_like_cpp()) {
                 Team::Alliance
                     if requirement.quest_done_a != 0
-                        && !self.rewarded_quests.contains(&requirement.quest_done_a) =>
+                        && !self.player_quest_gameplay_snapshot_like_cpp().is_some_and(
+                            |state| state.rewarded_quest_ids.contains(&requirement.quest_done_a),
+                        ) =>
                 {
                     return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
                 }
                 Team::Horde
                     if requirement.quest_done_h != 0
-                        && !self.rewarded_quests.contains(&requirement.quest_done_h) =>
+                        && !self.player_quest_gameplay_snapshot_like_cpp().is_some_and(
+                            |state| state.rewarded_quest_ids.contains(&requirement.quest_done_h),
+                        ) =>
                 {
                     return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
                 }
@@ -366,7 +370,7 @@ impl crate::session::WorldSession {
         };
         if !quest.is_df_quest_like_cpp()
             && !quest.is_turn_in_like_cpp()
-            && self.player_quests.get(&quest.id).is_none_or(|status| {
+            && recurrence.statuses.get(&quest.id).is_none_or(|status| {
                 status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
             })
         {
@@ -393,7 +397,7 @@ impl crate::session::WorldSession {
             return false;
         }
 
-        !self.rewarded_quests.contains(&quest.id)
+        !recurrence.rewarded_quest_ids.contains(&quest.id)
     }
 
     pub async fn handle_df_get_join_status(&mut self, mut pkt: wow_packet::WorldPacket) {

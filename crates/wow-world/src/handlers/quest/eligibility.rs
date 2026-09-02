@@ -60,7 +60,10 @@ impl WorldSession {
         let mut result = quest_giver_status::NONE;
 
         for quest in turn_in_quests {
-            match self.quest_status_like_cpp(quest.id) {
+            let Some(status) = self.quest_status_like_cpp(quest.id) else {
+                return quest_giver_status::NONE;
+            };
+            match status {
                 QUEST_STATUS_COMPLETE_LIKE_CPP => {
                     result |= self.represented_quest_reward_complete_status_like_cpp(quest);
                 }
@@ -98,7 +101,7 @@ impl WorldSession {
                 continue;
             }
 
-            if self.quest_status_like_cpp(quest.id) != QUEST_STATUS_NONE_LIKE_CPP {
+            if self.quest_status_like_cpp(quest.id) != Some(QUEST_STATUS_NONE_LIKE_CPP) {
                 continue;
             }
 
@@ -139,9 +142,12 @@ impl WorldSession {
         let Some(player_object) = self.build_condition_player_object_like_cpp() else {
             return false;
         };
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
-        let quest_statuses: Vec<_> = self
-            .player_quests
+        let quest_statuses: Vec<_> = recurrence
+            .statuses
             .iter()
             .map(
                 |(&quest_id, status)| crate::conditions::ConditionQuestStatusSnapshot {
@@ -154,7 +160,8 @@ impl WorldSession {
             .quest_store
             .as_ref()
             .map(|store| {
-                self.player_quests
+                recurrence
+                    .statuses
                     .iter()
                     .filter_map(|(&quest_id, status)| {
                         store.get(quest_id).map(|quest| {
@@ -178,10 +185,7 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default();
-        let rewarded_quest_ids: Vec<_> = self.rewarded_quests.iter().copied().collect();
-        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return false;
-        };
+        let rewarded_quest_ids: Vec<_> = recurrence.rewarded_quest_ids.iter().copied().collect();
         let daily_quest_ids: Vec<_> = recurrence.daily_quest_ids.iter().copied().collect();
         let quest_snapshot = crate::conditions::ConditionPlayerQuestSnapshot {
             statuses: &quest_statuses,
@@ -229,15 +233,19 @@ impl WorldSession {
         )
     }
 
-    fn quest_status_like_cpp(&self, quest_id: u32) -> u8 {
-        if self.rewarded_quests.contains(&quest_id) {
-            return QUEST_STATUS_REWARDED_LIKE_CPP;
+    fn quest_status_like_cpp(&self, quest_id: u32) -> Option<u8> {
+        let state = self.player_quest_gameplay_snapshot_like_cpp()?;
+        if state.rewarded_quest_ids.contains(&quest_id) {
+            return Some(QUEST_STATUS_REWARDED_LIKE_CPP);
         }
 
-        self.player_quests
-            .get(&quest_id)
-            .map(|quest| quest.status)
-            .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
+        Some(
+            state
+                .statuses
+                .get(&quest_id)
+                .map(|quest| quest.status)
+                .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP),
+        )
     }
 
     // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
@@ -367,11 +375,11 @@ impl WorldSession {
             //   Term 1: peer is currently active in player_quests (Incomplete/Complete/Failed).
             //   Term 2: peer was rewarded AND not both quests are repeatable (matching the
             //           C++ second OR operand: GetQuestRewardStatus + !IsRepeatable pair).
-            if self.player_quests.contains_key(&peer.id) {
+            if recurrence.statuses.contains_key(&peer.id) {
                 return false;
             }
             if !(quest.is_repeatable() && peer.is_repeatable())
-                && self.rewarded_quests.contains(&peer.id)
+                && recurrence.rewarded_quest_ids.contains(&peer.id)
             {
                 return false;
             }
@@ -542,24 +550,18 @@ impl WorldSession {
             return false;
         }
 
-        if self.quest_status_like_cpp(quest.id) != QUEST_STATUS_NONE_LIKE_CPP {
+        if self.quest_status_like_cpp(quest.id) != Some(QUEST_STATUS_NONE_LIKE_CPP) {
             return false;
         }
 
-        let recurrence = self.player_quest_gameplay_snapshot_like_cpp();
-        if quest.is_seasonal_like_cpp() && recurrence.is_none() {
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return false;
-        }
-        if quest.is_seasonal_like_cpp()
-            && recurrence
-                .as_ref()
-                .is_some_and(|state| !state.seasonal_quests.is_empty())
-        {
-            if let Some(bucket) = recurrence.as_ref().and_then(|state| {
-                state
-                    .seasonal_quests
-                    .get(&quest.event_id_for_quest_like_cpp())
-            }) {
+        };
+        if quest.is_seasonal_like_cpp() && !recurrence.seasonal_quests.is_empty() {
+            if let Some(bucket) = recurrence
+                .seasonal_quests
+                .get(&quest.event_id_for_quest_like_cpp())
+            {
                 if !bucket.is_empty() && bucket.contains_key(&quest.id) {
                     return false;
                 }
@@ -569,11 +571,11 @@ impl WorldSession {
         if quest.prev_quest_id != 0 {
             let prev_id = quest.prev_quest_id.unsigned_abs();
             if quest.prev_quest_id > 0 {
-                if !self.rewarded_quests.contains(&prev_id) {
+                if !recurrence.rewarded_quest_ids.contains(&prev_id) {
                     return false;
                 }
-            } else if !self
-                .player_quests
+            } else if !recurrence
+                .statuses
                 .get(&prev_id)
                 .is_some_and(|qs| qs.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP)
             {
@@ -589,7 +591,8 @@ impl WorldSession {
 
     /// Check if the player currently has an active quest with the given ID.
     pub fn has_quest(&self, quest_id: u32) -> bool {
-        self.player_quests.contains_key(&quest_id)
+        self.player_quest_gameplay_snapshot_like_cpp()
+            .is_some_and(|state| state.statuses.contains_key(&quest_id))
     }
 
     /// Full eligibility check before accepting a quest.
@@ -609,7 +612,7 @@ impl WorldSession {
 
         // SatisfyQuestStatus — C# lines 1624-1654
         // If quest is already rewarded (non-repeatable), cannot take again.
-        if self.rewarded_quests.contains(&quest.id) && !quest.is_repeatable() {
+        if recurrence.rewarded_quest_ids.contains(&quest.id) && !quest.is_repeatable() {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -618,7 +621,7 @@ impl WorldSession {
             return false;
         }
         // If quest is already active, cannot accept again.
-        if self.player_quests.contains_key(&quest.id) {
+        if recurrence.statuses.contains_key(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -673,7 +676,7 @@ impl WorldSession {
         if quest.prev_quest_id != 0 {
             let prev_id = quest.prev_quest_id.unsigned_abs();
             if quest.prev_quest_id > 0 {
-                if !self.rewarded_quests.contains(&prev_id) {
+                if !recurrence.rewarded_quest_ids.contains(&prev_id) {
                     debug!(
                         account = self.account_id,
                         quest_id = quest.id,
@@ -684,8 +687,8 @@ impl WorldSession {
                 }
             } else {
                 // negative: prev quest must be active
-                let active = self
-                    .player_quests
+                let active = recurrence
+                    .statuses
                     .get(&prev_id)
                     .is_some_and(|qs| qs.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP);
                 if !active {
@@ -708,7 +711,7 @@ impl WorldSession {
             if represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
                 quest_store,
                 quest,
-                &self.rewarded_quests,
+                &recurrence.rewarded_quest_ids.iter().copied().collect(),
             ) {
                 debug!(
                     account = self.account_id,
@@ -725,8 +728,8 @@ impl WorldSession {
         // Note: BreadcrumbQuest (recursive single breadcrumb, Player.cpp:15179-15202) remains
         // unimplemented here without falsing.
         {
-            let statuses: std::collections::HashMap<u32, u8> = self
-                .player_quests
+            let statuses: std::collections::HashMap<u32, u8> = recurrence
+                .statuses
                 .iter()
                 .map(|(&qid, qs)| (qid, qs.status))
                 .collect();

@@ -560,23 +560,24 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> Option<RepresentedLootPlayerContext> {
         if Some(player_guid) == self.player_guid() {
+            let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
             return Some(RepresentedLootPlayerContext {
                 race: self.player_race_like_cpp(),
                 class: self.player_class_like_cpp(),
                 gender: self.player_gender_like_cpp(),
                 level: self.player_level_like_cpp(),
                 known_spells: self.known_spells_like_cpp().to_vec(),
-                active_quest_statuses: self
-                    .player_quests
+                active_quest_statuses: quests
+                    .statuses
                     .iter()
                     .map(|(quest_id, status)| (*quest_id, status.status))
                     .collect(),
-                active_quest_objective_counts: self
-                    .player_quests
+                active_quest_objective_counts: quests
+                    .statuses
                     .iter()
                     .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
                     .collect(),
-                rewarded_quests: self.rewarded_quests.clone(),
+                rewarded_quests: quests.rewarded_quest_ids.into_iter().collect(),
                 inventory_item_counts: self.represented_inventory_item_counts_like_cpp()?,
                 is_current: true,
             });
@@ -610,11 +611,14 @@ impl WorldSession {
         addon_metadata: ItemTemplateAddonLootMetadataLikeCpp,
     ) -> bool {
         let start_quest_id = self.item_template_start_quest_id(item_id).unwrap_or(0);
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
         let has_non_none_start_quest_status =
             u32::try_from(start_quest_id).ok().is_some_and(|quest_id| {
                 quest_id != 0
-                    && (self.player_quests.contains_key(&quest_id)
-                        || self.rewarded_quests.contains(&quest_id))
+                    && (quests.statuses.contains_key(&quest_id)
+                        || quests.rewarded_quest_ids.contains(&quest_id))
             });
         let has_quest_for_item = self.has_incomplete_quest_objective_for_item_like_cpp(item_id)
             || (addon_metadata.quest_log_item_id != 0
@@ -639,35 +643,38 @@ impl WorldSession {
             return false;
         };
 
-        self.player_quests.values().any(|status| {
-            if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                return false;
-            }
-
-            let Some(quest) = quest_store.get(status.quest_id) else {
-                return false;
-            };
-
-            quest
-                .objectives
-                .iter()
-                .enumerate()
-                .any(|(fallback_index, objective)| {
-                    if objective.obj_type != 1 || objective.object_id != item_object_id {
+        self.player_quest_gameplay_snapshot_like_cpp()
+            .is_some_and(|state| {
+                state.statuses.into_values().any(|status| {
+                    if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                         return false;
                     }
 
-                    let storage_index = usize::try_from(objective.storage_index)
-                        .ok()
-                        .unwrap_or(fallback_index);
-                    let current = status
-                        .objective_counts
-                        .get(storage_index)
-                        .copied()
-                        .unwrap_or(0);
-                    current < objective.amount.max(1)
+                    let Some(quest) = quest_store.get(status.quest_id) else {
+                        return false;
+                    };
+
+                    quest
+                        .objectives
+                        .iter()
+                        .enumerate()
+                        .any(|(fallback_index, objective)| {
+                            if objective.obj_type != 1 || objective.object_id != item_object_id {
+                                return false;
+                            }
+
+                            let storage_index = usize::try_from(objective.storage_index)
+                                .ok()
+                                .unwrap_or(fallback_index);
+                            let current = status
+                                .objective_counts
+                                .get(storage_index)
+                                .copied()
+                                .unwrap_or(0);
+                            current < objective.amount.max(1)
+                        })
                 })
-        })
+            })
     }
 
     fn represented_has_quest_for_item_like_cpp(
@@ -753,7 +760,11 @@ impl WorldSession {
     ) -> Option<i32> {
         let quest_store = self.quest_store.as_ref()?;
 
-        for status in self.player_quests.values() {
+        for status in self
+            .player_quest_gameplay_snapshot_like_cpp()?
+            .statuses
+            .into_values()
+        {
             let Some(quest) = quest_store.get(status.quest_id) else {
                 continue;
             };
@@ -1825,14 +1836,16 @@ impl WorldSession {
                 )
                 .await;
             if !applied.as_ref().is_some_and(|result| result.no_grant)
-                || !bound_objective_plan.statuses.iter().all(|planned| {
-                    self.player_quests
-                        .get(&planned.quest_id)
-                        .is_some_and(|actual| {
-                            actual.status == planned.status
-                                && actual.objective_counts == planned.objective_counts
+                || !self
+                    .player_quest_gameplay_snapshot_like_cpp()
+                    .is_some_and(|state| {
+                        bound_objective_plan.statuses.iter().all(|planned| {
+                            state.statuses.get(&planned.quest_id).is_some_and(|actual| {
+                                actual.status == planned.status
+                                    && actual.objective_counts == planned.objective_counts
+                            })
                         })
-                })
+                    })
             {
                 self.kick("durable quest-bound loot state diverged; relog required");
                 return true;

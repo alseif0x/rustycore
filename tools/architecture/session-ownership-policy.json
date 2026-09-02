@@ -2310,15 +2310,19 @@
           "name": "player_quest_status_authority_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_quests",
           "type": "HashMap < u32 , crate :: handlers :: quest :: PlayerQuestStatus >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_race",
@@ -4131,8 +4135,10 @@
           "name": "represented_rewarded_quest_rows_like_cpp",
           "type": "BTreeSet < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_runtime_rng_like_cpp",
@@ -4577,8 +4583,10 @@
           "name": "rewarded_quests",
           "type": "std :: collections :: HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "scaling_stat_distribution_store",
@@ -15389,7 +15397,7 @@
           "kind": "method",
           "name": "quest_status_like_cpp",
           "visibility": "private",
-          "signature": "fn quest_status_like_cpp (& self , quest_id : u32) -> u8",
+          "signature": "fn quest_status_like_cpp (& self , quest_id : u32) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19051,6 +19059,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "adopt_registered_canonical_player_fixture_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn adopt_registered_canonical_player_fixture_like_cpp (& mut self) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "advance_buyback_slot_cpp",
           "visibility": "pub (crate)",
           "signature": "fn advance_buyback_slot_cpp (& mut self)",
@@ -20175,8 +20198,10 @@
           "name": "apply_player_quest_core_compatibility_like_cpp",
           "visibility": "private",
           "signature": "fn apply_player_quest_core_compatibility_like_cpp (& mut self , state : & PlayerQuestGameplayState)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -36274,6 +36299,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "represented_player_has_rewarded_quest_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_player_has_rewarded_quest_like_cpp (& self , quest_id : u32 ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "represented_player_is_same_raid_with_like_cpp",
           "visibility": "private",
           "signature": "fn represented_player_is_same_raid_with_like_cpp (& self , player_guid : ObjectGuid , owner_guid : ObjectGuid ,) -> bool",
@@ -36352,6 +36390,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_player_quest_status_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_player_quest_status_like_cpp (& self , quest_id : u32 ,) -> Option < Option < u8 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -75138,7 +75189,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b46e638cd9f82a73d39caddeb41bbc3e:len=93482|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5512cccdc6233445bbef5e1109a43e80:len=93542|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
