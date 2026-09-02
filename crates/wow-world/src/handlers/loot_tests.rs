@@ -2940,6 +2940,12 @@ fn vehicle_corpse_money_shares_and_pool_allowed_looters_control_membership_like_
     session.set_player_position_like_cpp(Position::ZERO);
     install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
+    let (player_tx, _player_rx) = flume::bounded(1);
+    registry.register_or_replace(
+        player_guid,
+        broadcast_info(player_guid, player_tx),
+        Default::default(),
+    );
     let (member_tx, _member_rx) = flume::bounded(1);
     registry.register_or_replace(
         member_guid,

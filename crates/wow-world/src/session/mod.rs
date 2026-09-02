@@ -1325,6 +1325,7 @@ pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
 }
 
 /// Evidence for C++ `sScriptMgr->OnPlayerTalentsReset(this, noCost)`.
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedTalentResetScriptHookLikeCpp {
     pub no_cost: bool,
@@ -1334,6 +1335,7 @@ pub(crate) struct RepresentedTalentResetScriptHookLikeCpp {
 ///
 /// Non-persistent at-login removals intentionally mutate only the represented
 /// in-memory flag field and do not push this boundary record.
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedAtLoginFlagRemovalLikeCpp {
     pub flags: u16,
@@ -1352,6 +1354,7 @@ pub(crate) struct RepresentedTalentRespecVisualSpellCastLikeCpp {
 }
 
 /// Evidence for the two C++ `Player::ResetTalents` achievement criteria updates.
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedTalentRespecCriteriaEventLikeCpp {
     MoneySpentOnRespecs { amount: u32 },
@@ -2392,12 +2395,14 @@ pub(crate) struct RepresentedSpellClickExecutionOutcomeLikeCpp {
     pub failed_casts: usize,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedVehicleSeatChangeRequestLikeCpp {
     pub seat_id: i8,
     pub next: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedVehicleSeatSpellClickRequestLikeCpp {
     pub vehicle_guid: ObjectGuid,
@@ -2406,11 +2411,13 @@ pub(crate) struct RepresentedVehicleSeatSpellClickRequestLikeCpp {
     pub exact_context_unrepresented: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedVehicleEnterRequestLikeCpp {
     pub vehicle_guid: ObjectGuid,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedVehicleDismissMovementLikeCpp {
     pub vehicle_guid: ObjectGuid,
@@ -2419,6 +2426,7 @@ pub(crate) struct RepresentedVehicleDismissMovementLikeCpp {
     pub time: u32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedVehicleBaseMovementLikeCpp {
     pub vehicle_guid: ObjectGuid,
@@ -6169,6 +6177,7 @@ pub struct WorldSession {
     #[cfg(test)]
     player_out_of_bounds_like_cpp: bool,
     /// Recorded `DAMAGE_FALL_TO_VOID` events until environmental damage packets are complete.
+    #[cfg(test)]
     under_map_damage_events_like_cpp: Vec<MovementUnderMapDamageEvent>,
     /// Represented stand state used by movement side effects until UnitData owns it.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
@@ -6221,6 +6230,7 @@ pub struct WorldSession {
     #[cfg(test)]
     taxi_destinations_like_cpp: Vec<u32>,
     /// Represented accepted `CMSG_ACTIVATE_TAXI` requests until TaxiPathGraph/MotionMaster are canonical.
+    #[cfg(test)]
     represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
     /// Represented accepted barber-shop requests until ChrCustomization DB2/cost/update runtime is canonical.
     #[cfg(test)]
@@ -6230,18 +6240,23 @@ pub struct WorldSession {
     represented_confirm_barbers_choice_requests_like_cpp:
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
+    #[cfg(test)]
     represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
     /// C++ `Player::m_atLoginFlags`, represented for reset-on-login side effects.
     #[cfg(test)]
     represented_at_login_flags_like_cpp: u16,
     /// Represented `sScriptMgr->OnPlayerTalentsReset` calls until ScriptMgr is live.
+    #[cfg(test)]
     represented_talent_reset_script_hooks_like_cpp: Vec<RepresentedTalentResetScriptHookLikeCpp>,
     /// Represented persistent `RemoveAtLoginFlag` calls until direct character DB execution is live.
+    #[cfg(test)]
     represented_at_login_flag_removals_like_cpp: Vec<RepresentedAtLoginFlagRemovalLikeCpp>,
     /// Represented `unit->CastSpell(_player, 14867, true)` after successful talent reset.
+    #[cfg(test)]
     represented_talent_respec_visual_spell_casts_like_cpp:
         Vec<RepresentedTalentRespecVisualSpellCastLikeCpp>,
     /// Represented `CriteriaType::MoneySpentOnRespecs` / `TotalRespecs` events.
+    #[cfg(test)]
     represented_talent_respec_criteria_events_like_cpp:
         Vec<RepresentedTalentRespecCriteriaEventLikeCpp>,
     /// Handle-less test fallback; production C++ `Player::_equipmentSets` lives on canonical Player.
@@ -6256,6 +6271,7 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_void_storage_loaded_like_cpp: bool,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
+    #[cfg(test)]
     represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
     /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
@@ -6290,16 +6306,21 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) player_vehicle_seat_id_like_cpp: Option<u32>,
     /// Represented `Player::ChangeSeat(seatId, next)` requests until live vehicle ownership exists.
+    #[cfg(test)]
     represented_vehicle_seat_change_requests_like_cpp:
         Vec<RepresentedVehicleSeatChangeRequestLikeCpp>,
     /// Represented cross-vehicle `HandleSpellClick(player, seatId)` requests from vehicle switching.
+    #[cfg(test)]
     represented_vehicle_seat_spell_click_requests_like_cpp:
         Vec<RepresentedVehicleSeatSpellClickRequestLikeCpp>,
     /// Represented `Player::EnterVehicle(targetPlayer)` requests from `CMSG_RIDE_VEHICLE_INTERACT`.
+    #[cfg(test)]
     represented_vehicle_enter_requests_like_cpp: Vec<RepresentedVehicleEnterRequestLikeCpp>,
     /// Represented `m_movementInfo = MoveDismissVehicle.Status` before live `ExitVehicle`.
+    #[cfg(test)]
     represented_vehicle_dismiss_movements_like_cpp: Vec<RepresentedVehicleDismissMovementLikeCpp>,
     /// Represented `vehicle_base->m_movementInfo = MoveChangeVehicleSeats.Status`.
+    #[cfg(test)]
     represented_vehicle_base_movements_like_cpp: Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     #[cfg(test)]
@@ -8286,6 +8307,7 @@ impl WorldSession {
             fall_damage_events_like_cpp: Vec::new(),
             #[cfg(test)]
             player_out_of_bounds_like_cpp: false,
+            #[cfg(test)]
             under_map_damage_events_like_cpp: Vec::new(),
             #[cfg(test)]
             player_stand_state_like_cpp: UnitStandStateType::Stand,
@@ -8315,17 +8337,23 @@ impl WorldSession {
             movement_ack_events_like_cpp: Vec::new(),
             #[cfg(test)]
             taxi_destinations_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_activate_taxi_requests_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_alter_appearance_requests_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_at_login_flags_like_cpp: 0,
+            #[cfg(test)]
             represented_talent_reset_script_hooks_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_at_login_flag_removals_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_equipment_sets_like_cpp: BTreeMap::new(),
@@ -8335,6 +8363,7 @@ impl WorldSession {
             represented_void_storage_items_like_cpp: std::array::from_fn(|_| None),
             #[cfg(test)]
             represented_void_storage_loaded_like_cpp: false,
+            #[cfg(test)]
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
             #[cfg(test)]
@@ -8355,10 +8384,15 @@ impl WorldSession {
             player_vehicle_seat_flags_like_cpp: None,
             #[cfg(test)]
             player_vehicle_seat_id_like_cpp: None,
+            #[cfg(test)]
             represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_vehicle_enter_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_vehicle_base_movements_like_cpp: Vec::new(),
             #[cfg(test)]
             player_battleground_type_id_like_cpp: None,
@@ -11360,6 +11394,7 @@ impl WorldSession {
         self.set_player_movement_flags_like_cpp(status.flags);
         self.set_player_position_like_cpp(status.position);
         self.update_registry_position();
+        #[cfg(test)]
         self.represented_vehicle_dismiss_movements_like_cpp.push(
             RepresentedVehicleDismissMovementLikeCpp {
                 vehicle_guid,
@@ -35025,12 +35060,16 @@ impl WorldSession {
     }
 
     fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
+        #[cfg(test)]
         self.represented_talent_respec_criteria_events_like_cpp
             .push(
                 RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: cost },
             );
+        #[cfg(test)]
         self.represented_talent_respec_criteria_events_like_cpp
             .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
+        #[cfg(not(test))]
+        let _ = cost;
     }
 
     fn next_reset_talents_cost_like_cpp(
@@ -48036,6 +48075,7 @@ impl WorldSession {
             min_height,
             damage,
         };
+        #[cfg(test)]
         self.under_map_damage_events_like_cpp.push(event);
         Some(event)
     }
@@ -50065,38 +50105,46 @@ impl WorldSession {
             next,
         ) {
             crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
+                #[cfg(test)]
                 self.represented_vehicle_seat_change_requests_like_cpp
                     .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
+                #[cfg(not(test))]
+                let _ = (seat_id, next);
                 true
             }
             _ => false,
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_vehicle_seat_change_requests_like_cpp(
         &self,
     ) -> &[RepresentedVehicleSeatChangeRequestLikeCpp] {
         &self.represented_vehicle_seat_change_requests_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_vehicle_seat_spell_click_requests_like_cpp(
         &self,
     ) -> &[RepresentedVehicleSeatSpellClickRequestLikeCpp] {
         &self.represented_vehicle_seat_spell_click_requests_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_vehicle_enter_requests_like_cpp(
         &self,
     ) -> &[RepresentedVehicleEnterRequestLikeCpp] {
         &self.represented_vehicle_enter_requests_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_vehicle_dismiss_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleDismissMovementLikeCpp] {
         &self.represented_vehicle_dismiss_movements_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_vehicle_base_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleBaseMovementLikeCpp] {
@@ -50131,15 +50179,21 @@ impl WorldSession {
     ) -> bool {
         match action {
             crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
+                #[cfg(test)]
                 self.represented_vehicle_seat_change_requests_like_cpp
                     .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
+                #[cfg(not(test))]
+                let _ = (seat_id, next);
                 true
             }
             crate::handlers::vehicle::VehicleHandlerAction::ValidateMovementAndChangeSeat {
                 next,
             } => {
+                #[cfg(test)]
                 self.represented_vehicle_seat_change_requests_like_cpp
                     .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id: -1, next });
+                #[cfg(not(test))]
+                let _ = next;
                 true
             }
             crate::handlers::vehicle::VehicleHandlerAction::HandleSpellClick {
@@ -50151,6 +50205,7 @@ impl WorldSession {
                 if plan.casts.is_empty() {
                     return false;
                 }
+                #[cfg(test)]
                 self.represented_vehicle_seat_spell_click_requests_like_cpp
                     .push(RepresentedVehicleSeatSpellClickRequestLikeCpp {
                         vehicle_guid: vehicle,
@@ -50199,6 +50254,7 @@ impl WorldSession {
             dst_vehicle_exists_with_empty_seat,
         );
 
+        #[cfg(test)]
         self.represented_vehicle_base_movements_like_cpp.push(
             RepresentedVehicleBaseMovementLikeCpp {
                 vehicle_guid: vehicle_base_guid,
@@ -50286,11 +50342,14 @@ impl WorldSession {
         );
         match action {
             crate::handlers::vehicle::VehicleHandlerAction::EnterVehicle { vehicle } => {
+                #[cfg(test)]
                 self.represented_vehicle_enter_requests_like_cpp.push(
                     RepresentedVehicleEnterRequestLikeCpp {
                         vehicle_guid: vehicle,
                     },
                 );
+                #[cfg(not(test))]
+                let _ = vehicle;
                 true
             }
             _ => false,
@@ -57120,10 +57179,12 @@ impl WorldSession {
             .expect("test Player taxi owner must resolve")
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_activate_taxi_like_cpp(
         &mut self,
         request: RepresentedActivateTaxiLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_activate_taxi_requests_like_cpp
             .push(request);
     }
@@ -57173,15 +57234,19 @@ impl WorldSession {
         &self.represented_confirm_barbers_choice_requests_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_confirm_respec_wipe_like_cpp(
         &mut self,
         request: RepresentedConfirmRespecWipeLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_confirm_respec_wipe_requests_like_cpp
             .push(request);
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
+        #[cfg(test)]
         self.represented_talent_reset_script_hooks_like_cpp
             .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
     }
@@ -57239,6 +57304,7 @@ impl WorldSession {
             return false;
         }
         if persist {
+            #[cfg(test)]
             self.represented_at_login_flag_removals_like_cpp.push(
                 RepresentedAtLoginFlagRemovalLikeCpp {
                     flags,
@@ -57289,10 +57355,12 @@ impl WorldSession {
         &self.represented_confirm_respec_wipe_requests_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_talent_respec_visual_spell_cast_like_cpp(
         &mut self,
         cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_talent_respec_visual_spell_casts_like_cpp
             .push(cast);
     }
@@ -57311,10 +57379,12 @@ impl WorldSession {
         &self.represented_talent_respec_criteria_events_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_adventure_map_start_quest_like_cpp(
         &mut self,
         request: RepresentedAdventureMapStartQuestLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_adventure_map_start_quest_requests_like_cpp
             .push(request);
     }

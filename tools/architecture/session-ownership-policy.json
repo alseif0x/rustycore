@@ -2815,8 +2815,10 @@
           "name": "represented_activate_taxi_requests_like_cpp",
           "type": "Vec < RepresentedActivateTaxiLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_active_talent_group_like_cpp",
@@ -2840,8 +2842,10 @@
           "name": "represented_adventure_map_start_quest_requests_like_cpp",
           "type": "Vec < RepresentedAdventureMapStartQuestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_alter_appearance_requests_like_cpp",
@@ -2881,8 +2885,10 @@
           "name": "represented_at_login_flag_removals_like_cpp",
           "type": "Vec < RepresentedAtLoginFlagRemovalLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_at_login_flags_like_cpp",
@@ -3358,8 +3364,10 @@
           "name": "represented_confirm_respec_wipe_requests_like_cpp",
           "type": "Vec < RepresentedConfirmRespecWipeLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_confirmed_pending_binds",
@@ -4537,8 +4545,10 @@
           "name": "represented_talent_reset_script_hooks_like_cpp",
           "type": "Vec < RepresentedTalentResetScriptHookLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_talent_reset_time_secs_like_cpp",
@@ -4553,15 +4563,19 @@
           "name": "represented_talent_respec_criteria_events_like_cpp",
           "type": "Vec < RepresentedTalentRespecCriteriaEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_talent_respec_visual_spell_casts_like_cpp",
           "type": "Vec < RepresentedTalentRespecVisualSpellCastLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_talents_like_cpp",
@@ -4747,36 +4761,46 @@
           "name": "represented_vehicle_base_movements_like_cpp",
           "type": "Vec < RepresentedVehicleBaseMovementLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_vehicle_dismiss_movements_like_cpp",
           "type": "Vec < RepresentedVehicleDismissMovementLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_vehicle_enter_requests_like_cpp",
           "type": "Vec < RepresentedVehicleEnterRequestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_vehicle_seat_change_requests_like_cpp",
           "type": "Vec < RepresentedVehicleSeatChangeRequestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_vehicle_seat_spell_click_requests_like_cpp",
           "type": "Vec < RepresentedVehicleSeatSpellClickRequestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_void_storage_items_like_cpp",
@@ -5521,8 +5545,10 @@
           "name": "under_map_damage_events_like_cpp",
           "type": "Vec < MovementUnderMapDamageEvent >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "vehicle_accessory_store",
@@ -32250,7 +32276,9 @@
           "name": "record_represented_activate_taxi_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_activate_taxi_like_cpp (& mut self , request : RepresentedActivateTaxiLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32274,7 +32302,9 @@
           "name": "record_represented_adventure_map_start_quest_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_adventure_map_start_quest_like_cpp (& mut self , request : RepresentedAdventureMapStartQuestLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32442,7 +32472,9 @@
           "name": "record_represented_confirm_respec_wipe_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_confirm_respec_wipe_like_cpp (& mut self , request : RepresentedConfirmRespecWipeLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32871,7 +32903,9 @@
           "name": "record_represented_talent_reset_script_hook_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_talent_reset_script_hook_like_cpp (& mut self , no_cost : bool)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32895,7 +32929,9 @@
           "name": "record_represented_talent_respec_visual_spell_cast_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_talent_respec_visual_spell_cast_like_cpp (& mut self , cast : RepresentedTalentRespecVisualSpellCastLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -38763,8 +38799,10 @@
           "name": "represented_vehicle_base_movements_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_vehicle_base_movements_like_cpp (& self ,) -> & [RepresentedVehicleBaseMovementLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38776,8 +38814,10 @@
           "name": "represented_vehicle_dismiss_movements_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_vehicle_dismiss_movements_like_cpp (& self ,) -> & [RepresentedVehicleDismissMovementLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38789,8 +38829,10 @@
           "name": "represented_vehicle_enter_requests_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_vehicle_enter_requests_like_cpp (& self ,) -> & [RepresentedVehicleEnterRequestLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38802,8 +38844,10 @@
           "name": "represented_vehicle_seat_change_requests_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_vehicle_seat_change_requests_like_cpp (& self ,) -> & [RepresentedVehicleSeatChangeRequestLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38826,8 +38870,10 @@
           "name": "represented_vehicle_seat_spell_click_requests_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_vehicle_seat_spell_click_requests_like_cpp (& self ,) -> & [RepresentedVehicleSeatSpellClickRequestLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -76364,7 +76410,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:2796f9747a5a5720c6ff3eeb50e0170b:len=94982|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:35ac12fa25494aca7bc5157cdc2b9f0d:len=95177|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
