@@ -31117,7 +31117,7 @@ fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership
 }
 
 #[test]
-fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp() {
+fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 5_563);
@@ -31178,6 +31178,17 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
     assert_eq!(owned_history.cooldowns[&635].item_id, 6948);
     assert_eq!(owned_history.cooldowns[&635].cooldown_end_ms, 9_000_000);
     assert_eq!(owned_history.charges[&42].len(), 1);
+    session.set_loaded_player_customizations_like_cpp(vec![
+        wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+            option_id: 50,
+            choice_id: 60,
+        },
+    ]);
+    assert!(session.replace_completed_achievement_ids_like_cpp([100, 200]));
+    assert_eq!(
+        session.completed_achievement_ids_snapshot_like_cpp(),
+        Some(HashSet::from([100, 200]))
+    );
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
@@ -31195,6 +31206,10 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
     assert_eq!(
         session.player_spell_history_snapshot_like_cpp(),
         Some(owned_history)
+    );
+    assert_eq!(
+        session.completed_achievement_ids_snapshot_like_cpp(),
+        Some(HashSet::from([100, 200]))
     );
 
     let replacement_row = wow_entities::PlayerKnownSpellRecord {
@@ -31239,6 +31254,15 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
         ..Default::default()
     };
     replacement.unit_mut().subsystems_mut().spells.history = replacement_history.clone();
+    replacement.gameplay_state_mut().customizations =
+        vec![wow_entities::PlayerCustomizationChoice {
+            option_id: 70,
+            choice_id: 80,
+        }];
+    replacement.gameplay_state_mut().achievements = vec![wow_entities::PlayerAchievementRecord {
+        achievement_id: 900,
+        completed_at: None,
+    }];
     let replacement_handle = canonical
         .lock()
         .unwrap()
@@ -31259,8 +31283,16 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
         None
     );
     assert_eq!(session.player_spell_history_snapshot_like_cpp(), None);
+    assert_eq!(session.completed_achievement_ids_snapshot_like_cpp(), None);
     assert!(!session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
     assert!(!session.replace_player_spell_history_like_cpp(Default::default()));
+    assert!(!session.replace_completed_achievement_ids_like_cpp([100]));
+    session.set_loaded_player_customizations_like_cpp(vec![
+        wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+            option_id: 50,
+            choice_id: 60,
+        },
+    ]);
     assert_eq!(
         canonical
             .lock()
@@ -31288,6 +31320,25 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
                 player.unit().subsystems().spells.history.clone()
             }),
         Some(replacement_history)
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().customizations.clone(),
+                player.gameplay_state().achievements.clone(),
+            )),
+        Some((
+            vec![wow_entities::PlayerCustomizationChoice {
+                option_id: 70,
+                choice_id: 80,
+            }],
+            vec![wow_entities::PlayerAchievementRecord {
+                achievement_id: 900,
+                completed_at: None,
+            }],
+        ))
     );
 }
 

@@ -1280,8 +1280,10 @@
           "name": "loaded_player_customizations_like_cpp",
           "type": "Box < Vec < wow_packet :: packets :: update :: ChrCustomizationChoiceValuesUpdate > >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "locale",
@@ -3119,8 +3121,10 @@
           "name": "represented_completed_achievements_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_confirm_barbers_choice_requests_like_cpp",
@@ -23331,6 +23335,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "completed_achievement_ids_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn completed_achievement_ids_snapshot_like_cpp (& self) -> Option < HashSet < u32 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "compute_new_clock_delta_like_cpp",
           "visibility": "private",
           "signature": "fn compute_new_clock_delta_like_cpp (& mut self)",
@@ -32731,6 +32746,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_completed_achievement_ids_like_cpp",
+          "visibility": "private",
+          "signature": "fn replace_completed_achievement_ids_like_cpp (& mut self , achievement_ids : impl IntoIterator < Item = u32 > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -74602,7 +74628,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:8d60976c0a544609b785eeab22edf18a:len=92927|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:bbc3d493f292e41974cd05cffe2ce77e:len=92957|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

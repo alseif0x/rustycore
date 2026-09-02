@@ -11,14 +11,17 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
         .unit_mut()
         .world_mut()
         .set_zone_and_area(zone_id, area_id);
-    player.gameplay_state_mut().customizations = session
-        .loaded_player_customizations_like_cpp
-        .iter()
-        .map(|choice| wow_entities::PlayerCustomizationChoice {
-            option_id: choice.option_id,
-            choice_id: choice.choice_id,
-        })
-        .collect();
+    #[cfg(test)]
+    {
+        player.gameplay_state_mut().customizations = session
+            .loaded_player_customizations_like_cpp
+            .iter()
+            .map(|choice| wow_entities::PlayerCustomizationChoice {
+                option_id: choice.option_id,
+                choice_id: choice.choice_id,
+            })
+            .collect();
+    }
     player.gameplay_state_mut().gray_level = session.gray_level(session.player_level_like_cpp());
     for (slot, values) in session
         .loaded_player_visible_items_for_create_like_cpp()?
@@ -82,15 +85,6 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
         .copied()
         .collect();
     let df = session.df_quests_like_cpp.iter().copied().collect();
-    let achievements = session
-        .represented_completed_achievements_like_cpp
-        .iter()
-        .copied()
-        .map(|achievement_id| wow_entities::PlayerAchievementRecord {
-            achievement_id,
-            completed_at: None,
-        })
-        .collect();
     let Some(inventory_item_counts) = session.represented_inventory_item_counts_like_cpp() else {
         return;
     };
@@ -153,7 +147,6 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
         state.quests.daily_quest_ids = daily;
         state.quests.df_quest_ids = df;
         state.quests.pending_share = pending_share;
-        state.achievements = achievements;
         state.inventory_item_counts = inventory_item_counts;
         state.forced_reputation_ranks = forced_reputation_ranks;
         state.pass_on_group_loot = session.pass_on_group_loot;

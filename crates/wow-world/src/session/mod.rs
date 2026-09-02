@@ -6442,6 +6442,7 @@ pub struct WorldSession {
     /// applying their login reward-spell side effects.
     represented_rewarded_quest_rows_like_cpp: BTreeSet<u32>,
     /// C++ `Player::HasAchieved`, represented per-session until character achievements are fully loaded.
+    #[cfg(test)]
     pub(crate) represented_completed_achievements_like_cpp: HashSet<u32>,
     /// C++ `Player::_instanceResetTimes`: instance id -> release time.
     pub(crate) represented_instance_reset_times_like_cpp: BTreeMap<u32, u64>,
@@ -6724,6 +6725,7 @@ pub struct WorldSession {
     pub(crate) client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
     /// C++ `PlayerData::Customizations` loaded before the self CREATE and
     /// retained for non-owner visibility CREATE blocks.
+    #[cfg(test)]
     pub(crate) loaded_player_customizations_like_cpp:
         Box<Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>>,
     /// C++ `Player::m_visibleTransports`, maintained by `Map::SendInitTransports`.
@@ -8342,6 +8344,7 @@ impl WorldSession {
             rewarded_quests: std::collections::HashSet::new(),
             player_quest_status_authority_complete_like_cpp: false,
             represented_rewarded_quest_rows_like_cpp: BTreeSet::new(),
+            #[cfg(test)]
             represented_completed_achievements_like_cpp: HashSet::new(),
             represented_instance_reset_times_like_cpp: BTreeMap::new(),
             daily_quests_completed_like_cpp: HashSet::new(),
@@ -8481,6 +8484,7 @@ impl WorldSession {
             represented_personal_loot_money: std::collections::HashMap::new(),
             represented_personal_loot_owners: std::collections::HashSet::new(),
             client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
+            #[cfg(test)]
             loaded_player_customizations_like_cpp: Box::default(),
             client_visible_transports_like_cpp: std::collections::HashSet::new(),
             player_transport_login_state_like_cpp: None,
@@ -12245,15 +12249,56 @@ impl WorldSession {
 
     #[cfg(test)]
     fn load_completed_achievement_rows_like_cpp(&mut self, rows: impl IntoIterator<Item = u32>) {
-        self.represented_completed_achievements_like_cpp.clear();
-        self.represented_completed_achievements_like_cpp.extend(
-            rows.into_iter()
-                .filter(|achievement_id| *achievement_id != 0),
-        );
+        let _ = self.replace_completed_achievement_ids_like_cpp(rows);
+    }
+
+    fn completed_achievement_ids_snapshot_like_cpp(&self) -> Option<HashSet<u32>> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .achievements
+                .iter()
+                .map(|achievement| achievement.achievement_id)
+                .collect()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_completed_achievements_like_cpp.clone());
+        }
+        canonical
+    }
+
+    fn replace_completed_achievement_ids_like_cpp(
+        &mut self,
+        achievement_ids: impl IntoIterator<Item = u32>,
+    ) -> bool {
+        let achievement_ids: HashSet<_> = achievement_ids
+            .into_iter()
+            .filter(|achievement_id| *achievement_id != 0)
+            .collect();
+        let achievements = achievement_ids
+            .iter()
+            .copied()
+            .map(|achievement_id| wow_entities::PlayerAchievementRecord {
+                achievement_id,
+                completed_at: None,
+            })
+            .collect::<Vec<_>>();
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().achievements = achievements;
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_completed_achievements_like_cpp = achievement_ids;
+            return true;
+        }
+        canonical
     }
 
     pub async fn load_completed_achievements_like_cpp(&mut self) {
-        self.represented_completed_achievements_like_cpp.clear();
+        let _ = self.replace_completed_achievement_ids_like_cpp([]);
 
         let Some(player_guid) = self.player_guid() else {
             warn!(
@@ -12300,12 +12345,7 @@ impl WorldSession {
             }
         };
 
-        for achievement_id in rows {
-            if achievement_id != 0 {
-                self.represented_completed_achievements_like_cpp
-                    .insert(achievement_id);
-            }
-        }
+        let _ = self.replace_completed_achievement_ids_like_cpp(rows);
     }
 
     pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
@@ -12539,8 +12579,8 @@ impl WorldSession {
             .unwrap_or(player_guid);
         if leader_guid == player_guid {
             return self
-                .represented_completed_achievements_like_cpp
-                .contains(&achievement_id);
+                .completed_achievement_ids_snapshot_like_cpp()
+                .is_some_and(|achievements| achievements.contains(&achievement_id));
         }
 
         self.player_registry.as_ref().is_some_and(|registry| {
@@ -54400,17 +54440,20 @@ impl WorldSession {
         &mut self,
         customizations: Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>,
     ) {
-        self.loaded_player_customizations_like_cpp = Box::new(customizations);
-        let choices = self.loaded_player_customizations_like_cpp.clone();
+        let choices = customizations
+            .iter()
+            .map(|choice| wow_entities::PlayerCustomizationChoice {
+                option_id: choice.option_id,
+                choice_id: choice.choice_id,
+            })
+            .collect();
         let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.gameplay_state_mut().customizations = choices
-                .iter()
-                .map(|choice| wow_entities::PlayerCustomizationChoice {
-                    option_id: choice.option_id,
-                    choice_id: choice.choice_id,
-                })
-                .collect();
+            player.gameplay_state_mut().customizations = choices;
         });
+        #[cfg(test)]
+        {
+            self.loaded_player_customizations_like_cpp = Box::new(customizations);
+        }
     }
 
     pub(crate) fn should_send_init_transport_like_cpp(
