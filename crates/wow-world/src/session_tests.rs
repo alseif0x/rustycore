@@ -67824,6 +67824,57 @@ fn battle_pet_update_notify_sets_canonical_player_pet_data_like_cpp() {
 }
 
 #[test]
+fn battle_pet_query_companion_reads_canonical_map_unitdata_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let unit_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 42);
+    let owner_guid = ObjectGuid::create_player(1, 42);
+    let battle_pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 43);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        unit_guid,
+        777,
+        Position::default(),
+        571,
+        0,
+        1,
+    );
+    {
+        let mut manager = canonical.lock().unwrap();
+        let creature = manager
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_creature_mut(unit_guid)
+            .unwrap();
+        creature.set_summon_like_cpp(true);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_owner_guid(Some(owner_guid));
+        creature
+            .unit_mut()
+            .set_battle_pet_companion_guid_like_cpp(Some(battle_pet_guid));
+        creature
+            .unit_mut()
+            .set_battle_pet_companion_name_timestamp_like_cpp(1234);
+    }
+
+    assert_eq!(
+        session.represented_battle_pet_query_companion_like_cpp(unit_guid),
+        Some(RepresentedBattlePetQueryCompanionLikeCpp {
+            creature_id: 777,
+            name_timestamp: 1234,
+            is_summon: true,
+            owner_is_player: true,
+            battle_pet_companion_guid: Some(battle_pet_guid),
+        })
+    );
+}
+
+#[test]
 fn toy_set_favorite_toggles_known_toy_only_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_represented_account_toys_like_cpp([(30_000, false, true)]);

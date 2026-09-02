@@ -6708,6 +6708,7 @@ pub struct WorldSession {
     /// Evidence for represented `TempSummon::UnSummon` from `CMSG_DISMISS_CRITTER`.
     pub(crate) represented_dismissed_critter_guids_like_cpp: Vec<ObjectGuid>,
     /// C++ ObjectAccessor/TempSummon query state for `CMSG_QUERY_BATTLE_PET_NAME`.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_query_companions_like_cpp:
         HashMap<ObjectGuid, RepresentedBattlePetQueryCompanionLikeCpp>,
     /// Represented caged-item creations from C++ `BattlePetMgr::CageBattlePet`.
@@ -8512,6 +8513,7 @@ impl WorldSession {
             #[cfg(test)]
             represented_critter_guid_like_cpp: None,
             represented_dismissed_critter_guids_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_battle_pet_query_companions_like_cpp: HashMap::new(),
             represented_battle_pet_cage_items_like_cpp: Vec::new(),
             represented_battle_pet_xp_per_level_like_cpp: BTreeMap::new(),
@@ -51654,6 +51656,7 @@ impl WorldSession {
         &self.represented_battle_pet_cage_items_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn set_represented_battle_pet_query_companion_like_cpp(
         &mut self,
         unit_guid: ObjectGuid,
@@ -51667,9 +51670,44 @@ impl WorldSession {
         &self,
         unit_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetQueryCompanionLikeCpp> {
-        self.represented_battle_pet_query_companions_like_cpp
-            .get(&unit_guid)
-            .copied()
+        if let Some(manager) = self.canonical_map_manager.as_ref()
+            && let Ok(manager) = manager.lock()
+        {
+            let mut snapshot = None;
+            manager.do_for_all_maps(|managed| {
+                if snapshot.is_some() {
+                    return;
+                }
+                let Some(creature) = managed.map().get_typed_creature(unit_guid) else {
+                    return;
+                };
+                let unit = creature.unit();
+                snapshot = Some(RepresentedBattlePetQueryCompanionLikeCpp {
+                    creature_id: i32::try_from(creature.entry()).unwrap_or(i32::MAX),
+                    name_timestamp: i64::from(unit.battle_pet_companion_name_timestamp_like_cpp()),
+                    is_summon: creature.is_summon_like_cpp(),
+                    owner_is_player: unit
+                        .subsystems()
+                        .control
+                        .owner_guid
+                        .is_some_and(|guid| guid.is_player()),
+                    battle_pet_companion_guid: unit.battle_pet_companion_guid_like_cpp(),
+                });
+            });
+            if snapshot.is_some() {
+                return snapshot;
+            }
+        }
+        #[cfg(test)]
+        {
+            self.represented_battle_pet_query_companions_like_cpp
+                .get(&unit_guid)
+                .copied()
+        }
+        #[cfg(not(test))]
+        {
+            None
+        }
     }
 
     pub(crate) fn set_represented_critter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {

@@ -3002,8 +3002,10 @@
           "name": "represented_battle_pet_query_companions_like_cpp",
           "type": "HashMap < ObjectGuid , RepresentedBattlePetQueryCompanionLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_slots_authority_complete_like_cpp",
@@ -45836,8 +45838,10 @@
           "name": "set_represented_battle_pet_query_companion_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_battle_pet_query_companion_like_cpp (& mut self , unit_guid : ObjectGuid , companion : RepresentedBattlePetQueryCompanionLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -76064,7 +76068,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:74d690ca6a6ef314f0c84ba51f8a674f:len=94157|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5fd977d86bc7dbb8a0a8465267f870c3:len=94172|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

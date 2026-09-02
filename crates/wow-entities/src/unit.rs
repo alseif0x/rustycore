@@ -61,6 +61,8 @@ pub const UNIT_DATA_PVP_FLAGS_BIT: usize = 78;
 pub const UNIT_DATA_PET_FLAGS_BIT: usize = 79;
 pub const UNIT_DATA_SHAPESHIFT_FORM_BIT: usize = 80;
 pub const UNIT_DATA_CRITTER_BIT: usize = 13;
+pub const UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT: usize = 20;
+pub const UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT: usize = 100;
 pub const UNIT_DATA_TARGET_BIT: usize = 19;
 pub const UNIT_DATA_RACE_BIT: usize = 24;
 pub const UNIT_DATA_CLASS_ID_BIT: usize = 25;
@@ -94,6 +96,8 @@ pub struct UnitDataValues {
     pub max_health: u64,
     pub display_id: i32,
     pub critter: ObjectGuid,
+    pub battle_pet_companion_guid: ObjectGuid,
+    pub battle_pet_companion_name_timestamp: u32,
     pub target: ObjectGuid,
     pub race: u8,
     pub class_id: u8,
@@ -141,6 +145,8 @@ impl Default for UnitDataValues {
             max_health: 0,
             display_id: 0,
             critter: ObjectGuid::EMPTY,
+            battle_pet_companion_guid: ObjectGuid::EMPTY,
+            battle_pet_companion_name_timestamp: 0,
             target: ObjectGuid::EMPTY,
             race: 0,
             class_id: 0,
@@ -1848,6 +1854,31 @@ impl Unit {
         );
     }
 
+    pub fn battle_pet_companion_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.data.battle_pet_companion_guid.is_empty())
+            .then_some(self.data.battle_pet_companion_guid)
+    }
+
+    pub fn set_battle_pet_companion_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        self.set_guid_field(
+            UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT,
+            guid.unwrap_or(ObjectGuid::EMPTY),
+            |data| &mut data.battle_pet_companion_guid,
+        );
+    }
+
+    pub const fn battle_pet_companion_name_timestamp_like_cpp(&self) -> u32 {
+        self.data.battle_pet_companion_name_timestamp
+    }
+
+    pub fn set_battle_pet_companion_name_timestamp_like_cpp(&mut self, timestamp: u32) {
+        self.set_u32_field(
+            UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT,
+            timestamp,
+            |data| &mut data.battle_pet_companion_name_timestamp,
+        );
+    }
+
     pub fn set_unit_flags_like_cpp(&mut self, flags: UnitFlags) {
         if self.data.flags != flags.bits() {
             self.data.flags = flags.bits();
@@ -2290,6 +2321,19 @@ impl Unit {
         bit: usize,
         value: i32,
         field: impl FnOnce(&mut UnitDataValues) -> &mut i32,
+    ) {
+        let target = field(&mut self.data);
+        if *target != value {
+            *target = value;
+            self.mark_unit_data(bit);
+        }
+    }
+
+    fn set_u32_field(
+        &mut self,
+        bit: usize,
+        value: u32,
+        field: impl FnOnce(&mut UnitDataValues) -> &mut u32,
     ) {
         let target = field(&mut self.data);
         if *target != value {
@@ -4105,16 +4149,31 @@ mod tests {
     fn critter_guid_uses_canonical_unitdata_and_change_bit_like_cpp() {
         let mut unit = Unit::new(true);
         let critter = ObjectGuid::new(7, 12);
+        let battle_pet = ObjectGuid::new(7, 13);
         unit.clear_unit_data_changes();
 
         unit.set_critter_guid_like_cpp(Some(critter));
+        unit.set_battle_pet_companion_guid_like_cpp(Some(battle_pet));
+        unit.set_battle_pet_companion_name_timestamp_like_cpp(1234);
 
         assert_eq!(unit.critter_guid_like_cpp(), Some(critter));
+        assert_eq!(unit.battle_pet_companion_guid_like_cpp(), Some(battle_pet));
+        assert_eq!(unit.battle_pet_companion_name_timestamp_like_cpp(), 1234);
         assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_PARENT_BIT));
         assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_CRITTER_BIT));
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT)
+        );
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT)
+        );
 
         unit.set_critter_guid_like_cpp(None);
+        unit.set_battle_pet_companion_guid_like_cpp(None);
         assert_eq!(unit.critter_guid_like_cpp(), None);
+        assert_eq!(unit.battle_pet_companion_guid_like_cpp(), None);
     }
 
     #[test]

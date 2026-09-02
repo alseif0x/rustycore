@@ -560,6 +560,9 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.max_health = update.values.max_health.min(i64::MAX as u64) as i64;
     packet_update.display_id = update.values.display_id;
     packet_update.critter = update.values.critter;
+    packet_update.battle_pet_companion_guid = update.values.battle_pet_companion_guid;
+    packet_update.battle_pet_companion_name_timestamp =
+        update.values.battle_pet_companion_name_timestamp;
     packet_update.target = update.values.target;
     packet_update.race = update.values.race;
     packet_update.class_id = update.values.class_id;
@@ -2041,8 +2044,15 @@ mod tests {
     fn bridges_canonical_unit_critter_guid_like_cpp() {
         let mut player = Player::new(Some(7), false);
         let critter = ObjectGuid::new(7, 12);
+        let battle_pet = ObjectGuid::new(7, 13);
         player.clear_data_changes();
         player.unit_mut().set_critter_guid_like_cpp(Some(critter));
+        player
+            .unit_mut()
+            .set_battle_pet_companion_guid_like_cpp(Some(battle_pet));
+        player
+            .unit_mut()
+            .set_battle_pet_companion_name_timestamp_like_cpp(1234);
 
         let update = player.values_update(true);
         let packet_update = player_values_update_to_packet(&update).unwrap();
@@ -2053,6 +2063,16 @@ mod tests {
             wow_entities::UNIT_DATA_CRITTER_BIT
         ));
         assert_eq!(unit.critter, critter);
+        assert!(mask_has(
+            &unit.unit_data_mask,
+            wow_entities::UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT
+        ));
+        assert!(mask_has(
+            &unit.unit_data_mask,
+            wow_entities::UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT
+        ));
+        assert_eq!(unit.battle_pet_companion_guid, battle_pet);
+        assert_eq!(unit.battle_pet_companion_name_timestamp, 1234);
     }
 
     #[test]
