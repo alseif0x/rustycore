@@ -639,6 +639,7 @@ async fn auction_place_bid_marks_copper_amount_rejected_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_auctioneer_for_misc_test(
         &canonical,
         auctioneer,

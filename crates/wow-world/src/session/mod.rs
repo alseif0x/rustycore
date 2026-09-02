@@ -5802,9 +5802,13 @@ pub struct WorldSession {
     represented_guild_bank_list_requests_like_cpp: Vec<RepresentedGuildBankListRequestLikeCpp>,
     represented_guild_bank_money_moves_like_cpp: Vec<RepresentedGuildBankMoneyMoveLikeCpp>,
     represented_guild_bank_tab_actions_like_cpp: Vec<RepresentedGuildBankTabActionLikeCpp>,
+    #[cfg(test)]
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
+    #[cfg(test)]
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
+    #[cfg(test)]
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
+    #[cfg(test)]
     represented_auction_sell_items_like_cpp: Vec<RepresentedAuctionSellItemLikeCpp>,
     represented_auto_unequip_offhand_requests_like_cpp: Vec<RepresentedAutoUnequipOffhandLikeCpp>,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
@@ -5880,11 +5884,15 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
+    #[cfg(test)]
     represented_calendar_community_invites_like_cpp: Vec<RepresentedCalendarCommunityInviteLikeCpp>,
+    #[cfg(test)]
     represented_calendar_add_events_like_cpp: Vec<RepresentedCalendarAddEventLikeCpp>,
+    #[cfg(test)]
     represented_calendar_remove_events_like_cpp: Vec<RepresentedCalendarRemoveEventLikeCpp>,
     #[cfg(test)]
     represented_arena_team_id_invited_like_cpp: u32,
+    #[cfg(test)]
     represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
     #[cfg(test)]
     represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
@@ -5905,8 +5913,11 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_trade_spell_cast_item_like_cpp: Option<ObjectGuid>,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
+    #[cfg(test)]
     represented_sign_petitions_like_cpp: Vec<RepresentedSignPetitionLikeCpp>,
+    #[cfg(test)]
     represented_decline_petitions_like_cpp: Vec<RepresentedDeclinePetitionLikeCpp>,
+    #[cfg(test)]
     represented_query_petitions_like_cpp: Vec<RepresentedQueryPetitionLikeCpp>,
     represented_silence_party_talker_like_cpp: Vec<RepresentedSilencePartyTalkerLikeCpp>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
@@ -8032,9 +8043,13 @@ impl WorldSession {
             represented_guild_bank_list_requests_like_cpp: Vec::new(),
             represented_guild_bank_money_moves_like_cpp: Vec::new(),
             represented_guild_bank_tab_actions_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_auction_replicate_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_auction_place_bids_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_auction_remove_items_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_auction_sell_items_like_cpp: Vec::new(),
             represented_auto_unequip_offhand_requests_like_cpp: Vec::new(),
             #[cfg(test)]
@@ -8091,11 +8106,15 @@ impl WorldSession {
             #[cfg(test)]
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_calendar_community_invites_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_calendar_add_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_calendar_remove_events_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_arena_team_id_invited_like_cpp: 0,
+            #[cfg(test)]
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_active_trade_partner_like_cpp: None,
@@ -8116,8 +8135,11 @@ impl WorldSession {
             #[cfg(test)]
             represented_trade_spell_cast_item_like_cpp: None,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_sign_petitions_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_decline_petitions_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_query_petitions_like_cpp: Vec::new(),
             represented_silence_party_talker_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
@@ -40881,53 +40903,65 @@ impl WorldSession {
         &self.represented_guild_bank_tab_actions_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_replicate_request_like_cpp(
         &mut self,
         request: RepresentedAuctionReplicateRequestLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_auction_replicate_requests_like_cpp
             .push(request);
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_auction_replicate_requests_like_cpp(
         &self,
     ) -> &[RepresentedAuctionReplicateRequestLikeCpp] {
         &self.represented_auction_replicate_requests_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_place_bid_like_cpp(
         &mut self,
         bid: RepresentedAuctionPlaceBidLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_auction_place_bids_like_cpp.push(bid);
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_auction_place_bids_like_cpp(
         &self,
     ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
         &self.represented_auction_place_bids_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_remove_item_like_cpp(
         &mut self,
         remove: RepresentedAuctionRemoveItemLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_auction_remove_items_like_cpp.push(remove);
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_auction_remove_items_like_cpp(
         &self,
     ) -> &[RepresentedAuctionRemoveItemLikeCpp] {
         &self.represented_auction_remove_items_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_sell_item_like_cpp(
         &mut self,
         sell: RepresentedAuctionSellItemLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_auction_sell_items_like_cpp.push(sell);
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_auction_sell_items_like_cpp(
         &self,
     ) -> &[RepresentedAuctionSellItemLikeCpp] {
@@ -47074,6 +47108,7 @@ impl WorldSession {
         &self.represented_battlefield_ports_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn accept_represented_wargame_invite_like_cpp(&mut self, inviter_name: &str) {
         let (
             Some(player_guid),
@@ -47118,6 +47153,7 @@ impl WorldSession {
             return;
         }
 
+        #[cfg(test)]
         self.represented_wargame_invite_acceptances_like_cpp.push(
             RepresentedWargameInviteAcceptanceLikeCpp {
                 inviter_name: inviter_name.to_string(),
@@ -48571,6 +48607,7 @@ impl WorldSession {
             .expect("test Player guild owner must resolve")
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn calendar_community_invite_like_cpp(
         &mut self,
         min_level: u8,
@@ -48584,6 +48621,7 @@ impl WorldSession {
             return false;
         }
 
+        #[cfg(test)]
         self.represented_calendar_community_invites_like_cpp.push(
             RepresentedCalendarCommunityInviteLikeCpp {
                 guild_id,
@@ -48602,6 +48640,7 @@ impl WorldSession {
         &self.represented_calendar_community_invites_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn calendar_add_event_like_cpp(
         &mut self,
         club_id: u64,
@@ -48632,6 +48671,7 @@ impl WorldSession {
             None
         };
 
+        #[cfg(test)]
         self.represented_calendar_add_events_like_cpp
             .push(RepresentedCalendarAddEventLikeCpp {
                 guild_id,
@@ -48655,7 +48695,9 @@ impl WorldSession {
         &self.represented_calendar_add_events_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn calendar_remove_event_like_cpp(&mut self, event_id: u64) {
+        #[cfg(test)]
         self.represented_calendar_remove_events_like_cpp
             .push(RepresentedCalendarRemoveEventLikeCpp { event_id });
     }
@@ -48909,11 +48951,13 @@ impl WorldSession {
             .and_then(|state| state.spell_cast_item_guid)
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_sign_petition_like_cpp(
         &mut self,
         petition_guid: ObjectGuid,
         choice: u8,
     ) {
+        #[cfg(test)]
         self.represented_sign_petitions_like_cpp
             .push(RepresentedSignPetitionLikeCpp {
                 petition_guid,
@@ -48926,10 +48970,12 @@ impl WorldSession {
         &self.represented_sign_petitions_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_decline_petition_like_cpp(
         &mut self,
         petition_guid: ObjectGuid,
     ) {
+        #[cfg(test)]
         self.represented_decline_petitions_like_cpp
             .push(RepresentedDeclinePetitionLikeCpp { petition_guid });
     }
@@ -48941,11 +48987,13 @@ impl WorldSession {
         &self.represented_decline_petitions_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_query_petition_like_cpp(
         &mut self,
         petition_id: u32,
         item_guid: ObjectGuid,
     ) {
+        #[cfg(test)]
         self.represented_query_petitions_like_cpp
             .push(RepresentedQueryPetitionLikeCpp {
                 petition_id,

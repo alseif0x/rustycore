@@ -2897,29 +2897,37 @@
           "name": "represented_auction_place_bids_like_cpp",
           "type": "Vec < RepresentedAuctionPlaceBidLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_auction_remove_items_like_cpp",
           "type": "Vec < RepresentedAuctionRemoveItemLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_auction_replicate_requests_like_cpp",
           "type": "Vec < RepresentedAuctionReplicateRequestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_auction_sell_items_like_cpp",
           "type": "Vec < RepresentedAuctionSellItemLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_auto_accept_acknowledged_quests_like_cpp",
@@ -3146,22 +3154,28 @@
           "name": "represented_calendar_add_events_like_cpp",
           "type": "Vec < RepresentedCalendarAddEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_calendar_community_invites_like_cpp",
           "type": "Vec < RepresentedCalendarCommunityInviteLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_calendar_remove_events_like_cpp",
           "type": "Vec < RepresentedCalendarRemoveEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_can_delay_teleport_like_cpp",
@@ -3363,8 +3377,10 @@
           "name": "represented_decline_petitions_like_cpp",
           "type": "Vec < RepresentedDeclinePetitionLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_defer_rest_flag_sync_like_cpp",
@@ -4136,8 +4152,10 @@
           "name": "represented_query_petitions_like_cpp",
           "type": "Vec < RepresentedQueryPetitionLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_quest_complete_status_updates_like_cpp",
@@ -4375,8 +4393,10 @@
           "name": "represented_sign_petitions_like_cpp",
           "type": "Vec < RepresentedSignPetitionLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_silence_party_talker_like_cpp",
@@ -4748,8 +4768,10 @@
           "name": "represented_wargame_invite_acceptances_like_cpp",
           "type": "Vec < RepresentedWargameInviteAcceptanceLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_weapon_proficiency_like_cpp",
@@ -18563,7 +18585,9 @@
           "name": "accept_represented_wargame_invite_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn accept_represented_wargame_invite_like_cpp (& mut self , inviter_name : & str)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -22354,7 +22378,9 @@
           "name": "calendar_add_event_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn calendar_add_event_like_cpp (& mut self , club_id : u64 , event_type : u8 , texture_id : i32 , time_packed : u32 , flags : u32 , invite_count : usize , title : String , description : String , max_size : u32 ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -22367,7 +22393,9 @@
           "name": "calendar_community_invite_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn calendar_community_invite_like_cpp (& mut self , min_level : u8 , max_level : u8 , max_rank_order : u8 ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -22380,7 +22408,9 @@
           "name": "calendar_remove_event_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn calendar_remove_event_like_cpp (& mut self , event_id : u64)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32227,7 +32257,9 @@
           "name": "record_represented_auction_place_bid_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_auction_place_bid_like_cpp (& mut self , bid : RepresentedAuctionPlaceBidLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32240,7 +32272,9 @@
           "name": "record_represented_auction_remove_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_auction_remove_item_like_cpp (& mut self , remove : RepresentedAuctionRemoveItemLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32253,7 +32287,9 @@
           "name": "record_represented_auction_replicate_request_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_auction_replicate_request_like_cpp (& mut self , request : RepresentedAuctionReplicateRequestLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32266,7 +32302,9 @@
           "name": "record_represented_auction_sell_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_auction_sell_item_like_cpp (& mut self , sell : RepresentedAuctionSellItemLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32368,7 +32406,9 @@
           "name": "record_represented_decline_petition_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_decline_petition_like_cpp (& mut self , petition_guid : ObjectGuid ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32652,7 +32692,9 @@
           "name": "record_represented_query_petition_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_query_petition_like_cpp (& mut self , petition_id : u32 , item_guid : ObjectGuid ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32741,7 +32783,9 @@
           "name": "record_represented_sign_petition_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_sign_petition_like_cpp (& mut self , petition_guid : ObjectGuid , choice : u8 ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -34061,8 +34105,10 @@
           "name": "represented_auction_place_bids_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_auction_place_bids_like_cpp (& self ,) -> & [RepresentedAuctionPlaceBidLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34074,8 +34120,10 @@
           "name": "represented_auction_remove_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_auction_remove_items_like_cpp (& self ,) -> & [RepresentedAuctionRemoveItemLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34087,8 +34135,10 @@
           "name": "represented_auction_replicate_requests_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_auction_replicate_requests_like_cpp (& self ,) -> & [RepresentedAuctionReplicateRequestLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34100,8 +34150,10 @@
           "name": "represented_auction_sell_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_auction_sell_items_like_cpp (& self ,) -> & [RepresentedAuctionSellItemLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -63925,7 +63977,9 @@
           "operation": "member",
           "symbol": "player_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "self . player_registry",
           "count": 1
         },
@@ -63938,7 +63992,9 @@
           "operation": "local_alias",
           "symbol": "group_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "group_registry:PlayerRegistry",
           "count": 1
         },
@@ -63951,7 +64007,9 @@
           "operation": "local_alias",
           "symbol": "player_group_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_group_guid:PlayerRegistry",
           "count": 1
         },
@@ -63964,7 +64022,9 @@
           "operation": "local_alias",
           "symbol": "player_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_guid:PlayerRegistry",
           "count": 1
         },
@@ -63977,7 +64037,9 @@
           "operation": "local_alias",
           "symbol": "player_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_registry:PlayerRegistry",
           "count": 1
         },
@@ -63990,7 +64052,9 @@
           "operation": "member",
           "symbol": "group_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "self . group_registry",
           "count": 1
         },
@@ -64003,7 +64067,9 @@
           "operation": "local_alias",
           "symbol": "group_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "group_registry:GroupRegistry",
           "count": 1
         },
@@ -64016,7 +64082,9 @@
           "operation": "local_alias",
           "symbol": "player_group_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_group_guid:GroupRegistry",
           "count": 1
         },
@@ -64029,7 +64097,9 @@
           "operation": "local_alias",
           "symbol": "player_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_guid:GroupRegistry",
           "count": 1
         },
@@ -64042,7 +64112,9 @@
           "operation": "local_alias",
           "symbol": "player_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_registry:GroupRegistry",
           "count": 1
         },
@@ -64055,7 +64127,9 @@
           "operation": "get",
           "symbol": "get",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "get(& player_group_guid)",
           "count": 1
         },
@@ -76206,7 +76280,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e742d74116e0ea38b6b447c4818fee3b:len=94577|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b0db236be9e32db85375c822c5e9f533:len=94742|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

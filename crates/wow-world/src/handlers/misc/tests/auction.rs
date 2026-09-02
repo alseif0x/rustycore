@@ -83,6 +83,7 @@ async fn auction_place_bid_records_request_after_auctioneer_gate_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_auctioneer_for_misc_test(
         &canonical,
         auctioneer,
@@ -143,6 +144,7 @@ async fn auction_place_bid_rejects_missing_auctioneer_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     session
         .handle_auction_place_bid(AuctionPlaceBid {
@@ -182,6 +184,7 @@ async fn auction_remove_item_records_request_after_auctioneer_gate_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_auctioneer_for_misc_test(
         &canonical,
         auctioneer,
@@ -241,6 +244,7 @@ async fn auction_remove_item_rejects_missing_auctioneer_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     session
         .handle_auction_remove_item(AuctionRemoveItem {
@@ -285,6 +289,7 @@ async fn auction_sell_item_records_request_after_available_gates_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_auctioneer_for_misc_test(
         &canonical,
         auctioneer,
@@ -398,6 +403,7 @@ async fn auction_sell_item_marks_invalid_runtime_after_auctioneer_gate_like_cpp(
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_auctioneer_for_misc_test(
         &canonical,
         auctioneer,
@@ -466,6 +472,7 @@ async fn auction_replicate_items_records_request_after_auctioneer_gate_like_cpp(
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_auctioneer_for_misc_test(
         &canonical,
         auctioneer,
@@ -529,6 +536,7 @@ async fn auction_replicate_items_rejects_missing_auctioneer_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     session
         .handle_auction_replicate_items(AuctionReplicateItems {
