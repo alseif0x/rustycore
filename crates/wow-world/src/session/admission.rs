@@ -334,7 +334,12 @@ impl super::WorldSession {
         let Some(plan) = self.pending_packet_spoof_ban_like_cpp.take() else {
             return;
         };
-        let Some(port) = self.persistence_ports_like_cpp.packet_spoof_ban.clone() else {
+        let Some(port) = self
+            .persistence_ports_like_cpp
+            .admission
+            .packet_spoof_ban
+            .clone()
+        else {
             warn!(
                 account = self.account_id,
                 "AntiDOS: PacketSpoof ban requested but login DB is unavailable"

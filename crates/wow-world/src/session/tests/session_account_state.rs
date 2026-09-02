@@ -199,7 +199,10 @@ async fn account_data_save_updates_memory_only_after_applied_but_keeps_missing_p
     assert_eq!(session.account_data_like_cpp[0].time, 42);
     assert_eq!(applied.saves.lock().unwrap().len(), 1);
 
-    session.persistence_ports_like_cpp.session_account_state = None;
+    session
+        .persistence_ports_like_cpp
+        .admission
+        .session_account_state = None;
     assert!(
         session
             .set_account_data_persisted_like_cpp(0, 43, "fallback".to_owned())

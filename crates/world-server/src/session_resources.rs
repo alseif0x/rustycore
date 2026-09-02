@@ -23,69 +23,9 @@ pub(super) struct SessionResources {
     /// Required immutable ObjectMgr-style query capability. Construction is
     /// infallible only after every startup catalog loaded successfully.
     pub(super) object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>,
-    pub(super) stored_item_persistence_port:
-        Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
-    pub(super) player_inventory_persistence_port:
-        Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
-    pub(super) player_quest_persistence_port:
-        Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>>,
-    pub(super) vendor_trade_persistence_port:
-        Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
-    pub(super) character_administration_persistence_port:
-        Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
-    /// Player lifecycle capability (#200); Session never depends on its handles.
-    pub(super) player_lifecycle_port: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
-    pub(super) character_enumeration_persistence_port:
-        Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
-    pub(super) item_template_addon_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
-    pub(super) loot_template_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>>,
-    pub(super) vendor_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>>,
-    pub(super) visibility_spawn_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
-    pub(super) gossip_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
-    pub(super) player_name_query_persistence_port:
-        Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>>,
-    /// Characters capability for session-owned account data and tutorials.
-    pub(super) session_account_state_port:
-        Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
-    /// Login-database capability for PacketSpoof admission bans.
-    pub(super) packet_spoof_ban_persistence_port:
-        Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
-    /// Characters-database capability for bounded void-storage writes.
-    pub(super) void_storage_persistence_port:
-        Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
-    /// Characters-database capability for Player social-list reads and writes.
-    pub(super) social_persistence_port:
-        Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>>,
-    /// Characters-database adapter for canonical `Map::LoadCorpseData`.
-    pub(super) map_corpse_persistence_port:
-        Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
-    /// World-database capability for the represented quest POI cache.
-    pub(super) quest_poi_persistence_port:
-        Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
-    /// Characters-database capability for atomic stored Item loot money.
-    pub(super) stored_item_money_persistence_port:
-        Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
-    /// Characters-database capability for atomic multi-recipient loot money.
-    pub(super) group_loot_money_persistence_port:
-        Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
-    /// Characters-database adapter for ordered represented C++ Group intents.
-    pub(super) represented_group_persistence_port:
-        Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
-    /// Characters-database capability for legacy `CMSG_BUG_REPORT` writes.
-    pub(super) support_bug_report_persistence_port:
-        Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
-    pub(super) player_spell_acquisition_persistence_port:
-        Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
-    pub(super) instance_lock_persistence_port:
-        Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>>,
-    /// Characters-database durability for the recoverable battle-pet purchase saga.
-    pub(super) battle_pet_purchase_persistence_port:
-        Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>>,
+    /// Complete production persistence graph. Its four nested capabilities
+    /// encode the C++ owner boundary and replace the optional resource slots.
+    pub(super) persistence: wow_world::session::SessionPersistencePortsLikeCpp,
     /// Process-wide C++ trainer/default-trainer snapshot.
     pub(super) trainer_store: Option<Arc<wow_data::TrainerStoreLikeCpp>>,
     pub(super) guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,

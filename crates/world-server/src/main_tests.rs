@@ -3478,6 +3478,48 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
 }
 
 #[test]
+fn production_persistence_capabilities_are_required_and_installed_atomically() {
+    let composition_source =
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
+            .expect("world-server composition source should be readable");
+    let resources_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
+    )
+    .expect("SessionResources source should be readable");
+    let session_factory_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_factory.rs"),
+    )
+    .expect("world-server session factory source should be readable");
+
+    for constructor in [
+        "SessionAdmissionPersistenceLikeCpp::required_like_cpp(",
+        "PlayerPersistenceCapabilitiesLikeCpp::required_like_cpp(",
+        "WorldPersistenceCapabilitiesLikeCpp::required_like_cpp(",
+        "CatalogPersistenceCapabilitiesLikeCpp::required_like_cpp(",
+    ] {
+        assert!(
+            composition_source.contains(constructor),
+            "the composition root must construct required capability {constructor}"
+        );
+    }
+    assert!(
+        resources_source
+            .contains("persistence: wow_world::session::SessionPersistencePortsLikeCpp"),
+        "SessionResources must carry one complete persistence graph"
+    );
+    assert!(
+        session_factory_source.contains(
+            "session.set_required_persistence_capabilities_like_cpp(resources.persistence.clone())"
+        ),
+        "create_session must install the complete graph atomically"
+    );
+    assert!(
+        !session_factory_source.contains("if let Some(ref port) = resources."),
+        "production session construction must not silently omit persistence capabilities"
+    );
+}
+
+#[test]
 fn realm_id_config_is_required_and_non_zero_like_cpp() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
     wow_config::load_config_from_str("").expect("config should load");
