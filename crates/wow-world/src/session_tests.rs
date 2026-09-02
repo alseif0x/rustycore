@@ -31745,8 +31745,10 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
 
     assert!(session.set_player_battleground_context_like_cpp(3, 529));
     assert!(session.set_represented_arena_team_id_invited_like_cpp(77));
+    session.set_represented_battleground_status_like_cpp(Some(4));
     session.add_represented_battleground_queue_slot_like_cpp(1, queue_type, 88);
     assert!(session.player_in_represented_battleground_like_cpp());
+    assert!(session.represented_battleground_status_is_wait_leave_like_cpp());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
         canonical
@@ -31756,11 +31758,13 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
     assert!(session.player_in_represented_battleground_like_cpp());
+    assert!(session.represented_battleground_status_is_wait_leave_like_cpp());
     assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 77);
 
     let replacement_state = wow_entities::PlayerBattlegroundState {
         represented_type_id: Some(7),
         represented_map_id: Some(30),
+        represented_status: Some(3),
         represented_queue_slots: vec![wow_entities::PlayerBattlegroundQueueSlotLikeCpp {
             slot: 2,
             queue_type_id: queue_type,
@@ -31785,6 +31789,8 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
     assert!(!session.player_in_represented_battleground_like_cpp());
     assert!(!session.set_player_battleground_context_like_cpp(1, 489));
     assert!(!session.set_represented_arena_team_id_invited_like_cpp(101));
+    session.set_represented_battleground_status_like_cpp(Some(4));
+    assert!(!session.represented_battleground_status_is_wait_leave_like_cpp());
     assert_eq!(
         canonical
             .lock()

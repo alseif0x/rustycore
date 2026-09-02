@@ -3080,22 +3080,28 @@
           "name": "represented_battlefield_lists_like_cpp",
           "type": "Vec < RepresentedBattlefieldListLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battlefield_ports_like_cpp",
           "type": "Vec < RepresentedBattlefieldPortLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battleground_leave_requests_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battleground_queue_slots_like_cpp",
@@ -3110,36 +3116,46 @@
           "name": "represented_battleground_status_like_cpp",
           "type": "Option < u8 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battlemaster_hellos_like_cpp",
           "type": "Vec < RepresentedBattlemasterHelloLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battlemaster_join_arenas_like_cpp",
           "type": "Vec < RepresentedBattlemasterJoinArenaLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battlemaster_join_skirmishes_like_cpp",
           "type": "Vec < RepresentedBattlemasterJoinSkirmishLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battlemaster_joins_like_cpp",
           "type": "Vec < RepresentedBattlemasterJoinLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_bonus_talent_groups_like_cpp",
@@ -21900,7 +21916,9 @@
           "name": "battlefield_list_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battlefield_list_like_cpp (& mut self , list_id : i32) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -21913,7 +21931,9 @@
           "name": "battlefield_port_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battlefield_port_like_cpp (& mut self , ticket : wow_packet :: packets :: misc :: LfgRideTicket , accepted_invite : bool ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -21926,7 +21946,9 @@
           "name": "battlemaster_hello_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battlemaster_hello_like_cpp (& mut self , unit : ObjectGuid) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -21939,7 +21961,9 @@
           "name": "battlemaster_join_arena_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battlemaster_join_arena_like_cpp (& mut self , team_size_index : u8 , roles : u8 ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -21952,7 +21976,9 @@
           "name": "battlemaster_join_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battlemaster_join_like_cpp (& mut self , queue_ids : & [u64] , roles : u8 , blacklist_map : [i32 ; 2] ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -21965,7 +21991,9 @@
           "name": "battlemaster_join_skirmish_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battlemaster_join_skirmish_like_cpp (& mut self , bg_type_id : u32 , bracket_id : u32 , as_group : u8 , is_rated : u8 ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -64285,7 +64313,9 @@
           "operation": "member",
           "symbol": "group_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "self . group_registry",
           "count": 1
         },
@@ -64298,7 +64328,9 @@
           "operation": "local_alias",
           "symbol": "group_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "group_guid:GroupRegistry",
           "count": 1
         },
@@ -64311,7 +64343,9 @@
           "operation": "local_alias",
           "symbol": "group_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "group_registry:GroupRegistry",
           "count": 1
         },
@@ -64324,7 +64358,9 @@
           "operation": "local_alias",
           "symbol": "player_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_guid:GroupRegistry",
           "count": 1
         },
@@ -64337,7 +64373,9 @@
           "operation": "get",
           "symbol": "get",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "get(& group_guid)",
           "count": 1
         },
@@ -64350,7 +64388,9 @@
           "operation": "member",
           "symbol": "group_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "self . group_registry",
           "count": 1
         },
@@ -64363,7 +64403,9 @@
           "operation": "local_alias",
           "symbol": "group_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "group_guid:GroupRegistry",
           "count": 1
         },
@@ -64376,7 +64418,9 @@
           "operation": "local_alias",
           "symbol": "group_registry",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "group_registry:GroupRegistry",
           "count": 1
         },
@@ -64389,7 +64433,9 @@
           "operation": "local_alias",
           "symbol": "player_guid",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "player_guid:GroupRegistry",
           "count": 1
         },
@@ -64402,7 +64448,9 @@
           "operation": "get",
           "symbol": "get",
           "visibility": "pub (crate)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "fingerprint": "get(& group_guid)",
           "count": 1
         },
@@ -76280,7 +76328,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b0db236be9e32db85375c822c5e9f533:len=94742|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3095d1f7a56669c824b84a4b24bb17d3:len=94862|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

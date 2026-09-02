@@ -816,6 +816,8 @@ pub struct PlayerBattlegroundState {
     pub represented_type_id: Option<u32>,
     /// Represented current battleground map/instance map used by teleport leave gates.
     pub represented_map_id: Option<u32>,
+    /// Represented `Battleground::GetStatus()` until live Battleground ownership exists.
+    pub represented_status: Option<u8>,
     /// C++ `Player::m_bgData.bgBattlegroundQueueID` slots.
     pub represented_queue_slots: Vec<PlayerBattlegroundQueueSlotLikeCpp>,
     /// C++ `Player::m_ArenaTeamIdInvited`.
