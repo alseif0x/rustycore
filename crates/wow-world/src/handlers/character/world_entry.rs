@@ -530,7 +530,10 @@ impl WorldSession {
             position: login_homebind.position,
         });
         if let Some(guild_id) = loaded_guild_id_like_cpp {
-            self.set_represented_guild_id_like_cpp(guild_id);
+            if !self.set_represented_guild_id_like_cpp(guild_id) {
+                self.kick("canonical Player guild owner unavailable during login hydration");
+                return;
+            }
         }
         self.load_represented_player_difficulties_like_cpp(
             base_row.dungeon_difficulty.unwrap_or(0),

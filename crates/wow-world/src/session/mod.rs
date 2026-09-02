@@ -5875,11 +5875,14 @@ pub struct WorldSession {
     represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
     represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
     represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
+    #[cfg(test)]
     represented_guild_id_like_cpp: u64,
     /// True once the active Player's character/guild membership source was
     /// loaded or explicitly replaced. A numeric zero alone is only the
     /// session default and cannot prove that Guild::SendLoginInfo is skipped.
+    #[cfg(test)]
     represented_guild_id_authority_complete_like_cpp: bool,
+    #[cfg(test)]
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
     represented_calendar_community_invites_like_cpp: Vec<RepresentedCalendarCommunityInviteLikeCpp>,
@@ -8068,8 +8071,11 @@ impl WorldSession {
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_guild_id_like_cpp: 0,
+            #[cfg(test)]
             represented_guild_id_authority_complete_like_cpp: false,
+            #[cfg(test)]
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
             represented_calendar_community_invites_like_cpp: Vec::new(),
@@ -28222,8 +28228,9 @@ impl WorldSession {
             || self.player_spell_hit_aura_authority_tombstoned_like_cpp
             || !self.player_aura_authority_complete_like_cpp
             || !self.player_equipment_inventory_authority_complete_like_cpp
-            || !self.represented_guild_id_authority_complete_like_cpp
-            || self.represented_guild_id_like_cpp != 0
+            || self
+                .resolved_represented_guild_id_like_cpp()
+                .is_none_or(|guild_id| guild_id != 0)
             || self.complete_player_skill_records_like_cpp().is_none()
             || self
                 .complete_represented_player_spell_rows_like_cpp()
@@ -39183,8 +39190,11 @@ impl WorldSession {
                 self.represented_loaded_player_flags_ex_like_cpp = None;
                 self.represented_loaded_player_flags_applied_like_cpp = false;
             }
-            self.represented_guild_id_like_cpp = 0;
-            self.represented_guild_id_authority_complete_like_cpp = false;
+            #[cfg(test)]
+            {
+                self.represented_guild_id_like_cpp = 0;
+                self.represented_guild_id_authority_complete_like_cpp = false;
+            }
             self.represented_trait_config_rows_like_cpp.clear();
             self.represented_trait_config_rows_complete_like_cpp = false;
             self.represented_trait_entry_rows_complete_like_cpp = false;
@@ -40043,7 +40053,7 @@ impl WorldSession {
         banker: ObjectGuid,
     ) -> Option<u64> {
         self.represented_guild_bank_gameobject_can_interact_like_cpp(banker)?;
-        let guild_id = self.represented_guild_id_like_cpp;
+        let guild_id = self.resolved_represented_guild_id_like_cpp()?;
         (guild_id != 0).then_some(guild_id)
     }
 
@@ -40158,7 +40168,9 @@ impl WorldSession {
             return false;
         }
 
-        let guild_id = self.represented_guild_id_like_cpp;
+        let Some(guild_id) = self.resolved_represented_guild_id_like_cpp() else {
+            return false;
+        };
         if guild_id == 0 {
             return false;
         }
@@ -40226,7 +40238,9 @@ impl WorldSession {
         tab: i32,
         action: RepresentedGuildBankTabActionKindLikeCpp,
     ) -> bool {
-        let guild_id = self.represented_guild_id_like_cpp;
+        let Some(guild_id) = self.resolved_represented_guild_id_like_cpp() else {
+            return false;
+        };
         if guild_id == 0 {
             return false;
         }
@@ -47399,14 +47413,64 @@ impl WorldSession {
         &self.represented_avg_equipped_item_level_updates_like_cpp
     }
 
-    pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.represented_guild_id_like_cpp = guild_id;
-        self.represented_guild_id_authority_complete_like_cpp = true;
+    fn player_guild_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerGuildState> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.gameplay_state().guild.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerGuildState {
+                guild_id: (self.represented_guild_id_like_cpp != 0)
+                    .then_some(self.represented_guild_id_like_cpp),
+                invited_guild_id: (self.represented_guild_id_invited_like_cpp != 0)
+                    .then_some(self.represented_guild_id_invited_like_cpp),
+                rank_id: None,
+                authority_complete: self.represented_guild_id_authority_complete_like_cpp,
+            });
+        }
+        canonical
     }
 
+    fn mutate_player_guild_state_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::PlayerGuildState) -> R,
+    ) -> Option<R> {
+        let mut state = self.player_guild_state_snapshot_like_cpp()?;
+        let result = f(&mut state);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().guild = state.clone()
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
+            self.represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
+            self.represented_guild_id_authority_complete_like_cpp = state.authority_complete;
+            return Some(result);
+        }
+        canonical.then_some(result)
+    }
+
+    pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
+        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.mutate_player_guild_state_like_cpp(|state| {
+            state.guild_id = (guild_id != 0).then_some(guild_id);
+            state.authority_complete = true;
+        })
+        .is_some()
+    }
+
+    pub(crate) fn resolved_represented_guild_id_like_cpp(&self) -> Option<u64> {
+        let state = self.player_guild_state_snapshot_like_cpp()?;
+        state
+            .authority_complete
+            .then_some(state.guild_id.unwrap_or(0))
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_guild_id_like_cpp(&self) -> u64 {
-        self.represented_guild_id_like_cpp
+        self.resolved_represented_guild_id_like_cpp()
+            .expect("test Player guild owner must resolve")
     }
 
     pub(crate) fn calendar_community_invite_like_cpp(
@@ -47415,7 +47479,9 @@ impl WorldSession {
         max_level: u8,
         max_rank_order: u8,
     ) -> bool {
-        let guild_id = self.represented_guild_id_like_cpp;
+        let Some(guild_id) = self.resolved_represented_guild_id_like_cpp() else {
+            return false;
+        };
         if guild_id == 0 {
             return false;
         }
@@ -47457,10 +47523,13 @@ impl WorldSession {
             & (CALENDAR_FLAG_GUILD_EVENT_LIKE_CPP | CALENDAR_FLAG_WITHOUT_INVITES_LIKE_CPP))
             != 0;
         let guild_id = if guild_scoped {
-            if self.represented_guild_id_like_cpp == 0 {
+            let Some(resolved_guild_id) = self.resolved_represented_guild_id_like_cpp() else {
+                return false;
+            };
+            if resolved_guild_id == 0 {
                 return false;
             }
-            Some(self.represented_guild_id_like_cpp)
+            Some(resolved_guild_id)
         } else {
             None
         };
@@ -47501,13 +47570,18 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_represented_guild_id_invited_like_cpp(&mut self, guild_id: u64) {
-        self.represented_guild_id_invited_like_cpp = guild_id;
+    pub(crate) fn set_represented_guild_id_invited_like_cpp(&mut self, guild_id: u64) -> bool {
+        self.mutate_player_guild_state_like_cpp(|state| {
+            state.invited_guild_id = (guild_id != 0).then_some(guild_id);
+        })
+        .is_some()
     }
 
     #[cfg(test)]
     pub(crate) fn represented_guild_id_invited_like_cpp(&self) -> u64 {
-        self.represented_guild_id_invited_like_cpp
+        self.player_guild_state_snapshot_like_cpp()
+            .and_then(|state| state.invited_guild_id)
+            .unwrap_or(0)
     }
 
     pub(crate) fn set_represented_arena_team_id_invited_like_cpp(&mut self, arena_team_id: u32) {
@@ -48342,14 +48416,16 @@ impl WorldSession {
     }
 
     pub(crate) fn accept_guild_invitation_like_cpp(&mut self) -> bool {
-        if self.represented_guild_id_like_cpp != 0 {
+        let Some(state) = self.player_guild_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if !state.authority_complete || state.guild_id.is_some() {
             return false;
         }
 
-        let guild_id = self.represented_guild_id_invited_like_cpp;
-        if guild_id == 0 {
+        let Some(guild_id) = state.invited_guild_id else {
             return false;
-        }
+        };
 
         self.represented_guild_accept_invites_like_cpp
             .push(guild_id);
@@ -48362,12 +48438,15 @@ impl WorldSession {
     }
 
     pub(crate) fn decline_guild_invitation_like_cpp(&mut self) -> bool {
-        if self.represented_guild_id_like_cpp != 0 {
+        let Some(state) = self.player_guild_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if !state.authority_complete || state.guild_id.is_some() {
             return false;
         }
 
-        self.represented_guild_id_invited_like_cpp = 0;
-        true
+        self.mutate_player_guild_state_like_cpp(|state| state.invited_guild_id = None)
+            .is_some()
     }
 
     #[cfg(test)]

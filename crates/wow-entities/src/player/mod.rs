@@ -749,6 +749,8 @@ pub struct PlayerGuildState {
     pub guild_id: Option<u64>,
     pub invited_guild_id: Option<u64>,
     pub rank_id: Option<u32>,
+    /// True after C++ `_LoadGuild` resolved membership, including no guild.
+    pub authority_complete: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

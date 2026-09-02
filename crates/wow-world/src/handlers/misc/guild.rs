@@ -289,9 +289,13 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if self.represented_guild_id_like_cpp() == 0 {
-            self.send_packet(&GuildCommandResult::player_not_in_guild_view_tab_like_cpp());
-            return;
+        match self.resolved_represented_guild_id_like_cpp() {
+            Some(0) => {
+                self.send_packet(&GuildCommandResult::player_not_in_guild_view_tab_like_cpp());
+                return;
+            }
+            Some(_) => {}
+            None => return,
         }
 
         let _accepted =
@@ -321,7 +325,10 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if self.represented_guild_id_like_cpp() == 0 {
+        if self
+            .resolved_represented_guild_id_like_cpp()
+            .is_none_or(|guild_id| guild_id == 0)
+        {
             return;
         }
 

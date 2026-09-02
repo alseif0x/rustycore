@@ -378,6 +378,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             guild_id: Some(12),
             invited_guild_id: Some(13),
             rank_id: Some(4),
+            authority_complete: true,
         },
         battleground: PlayerBattlegroundState {
             queues: vec![PlayerBattlegroundQueueRecord {

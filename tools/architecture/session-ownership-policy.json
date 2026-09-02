@@ -3551,22 +3551,28 @@
           "name": "represented_guild_id_authority_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_id_invited_like_cpp",
           "type": "u64",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_id_like_cpp",
           "type": "u64",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_repair_bank_state_like_cpp",
@@ -28671,6 +28677,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_guild_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_guild_state_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerGuildState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_inventory_runtime_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_player_inventory_runtime_like_cpp < R > (& mut self , update : impl FnOnce (& mut PlayerInventoryRuntime) -> R ,) -> Option < R >",
@@ -29841,6 +29858,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_guild_state_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_guild_state_snapshot_like_cpp (& self) -> Option < wow_entities :: PlayerGuildState >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -35466,8 +35494,10 @@
           "name": "represented_guild_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_guild_id_like_cpp (& self) -> u64",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -39532,6 +39562,19 @@
           "name": "resolved_raid_difficulty_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_raid_difficulty_id_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_represented_guild_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_represented_guild_id_like_cpp (& self) -> Option < u64 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45592,7 +45635,7 @@
           "kind": "method",
           "name": "set_represented_guild_id_invited_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_guild_id_invited_like_cpp (& mut self , guild_id : u64)",
+          "signature": "fn set_represented_guild_id_invited_like_cpp (& mut self , guild_id : u64) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -45608,7 +45651,7 @@
           "kind": "method",
           "name": "set_represented_guild_id_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_guild_id_like_cpp (& mut self , guild_id : u64)",
+          "signature": "fn set_represented_guild_id_like_cpp (& mut self , guild_id : u64) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75411,7 +75454,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:161637d4d1b74297d2c55d8422145236:len=94338|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:05fe65c919ae36dffbc8f8c9e81965bc:len=94293|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
