@@ -3671,15 +3671,19 @@
           "name": "represented_override_spells_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_override_spells_like_cpp",
           "type": "HashMap < i32 , BTreeSet < i32 > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_partner_trade_server_state_index_like_cpp",
@@ -4130,15 +4134,19 @@
           "name": "represented_spell_trait_definition_ids_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_spell_trait_definition_ids_like_cpp",
           "type": "HashMap < i32 , i32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_subgroup_like_cpp",
@@ -23265,7 +23273,7 @@
           "kind": "method",
           "name": "complete_represented_override_spells_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn complete_represented_override_spells_like_cpp (& self ,) -> Option < & HashMap < i32 , BTreeSet < i32 > > >",
+          "signature": "fn complete_represented_override_spells_like_cpp (& self ,) -> Option < HashMap < i32 , BTreeSet < i32 > > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23291,7 +23299,7 @@
           "kind": "method",
           "name": "complete_represented_spell_trait_definition_ids_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn complete_represented_spell_trait_definition_ids_like_cpp (& self ,) -> Option < & HashMap < i32 , i32 > >",
+          "signature": "fn complete_represented_spell_trait_definition_ids_like_cpp (& self ,) -> Option < HashMap < i32 , i32 > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -35608,7 +35616,7 @@
           "kind": "method",
           "name": "represented_override_spells_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_override_spells_like_cpp (& self) -> & HashMap < i32 , BTreeSet < i32 > >",
+          "signature": "fn represented_override_spells_like_cpp (& self) -> HashMap < i32 , BTreeSet < i32 > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36768,7 +36776,7 @@
           "kind": "method",
           "name": "represented_spell_trait_definition_ids_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_spell_trait_definition_ids_like_cpp (& self) -> & HashMap < i32 , i32 >",
+          "signature": "fn represented_spell_trait_definition_ids_like_cpp (& self) -> HashMap < i32 , i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -74553,7 +74561,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:1852f77ed5e64f311434816cadd1c9a2:len=92807|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:307c1091b98c9b2189dcf93de0731e02:len=92867|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

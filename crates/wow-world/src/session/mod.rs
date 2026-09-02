@@ -4717,6 +4717,10 @@ struct RepresentedPlayerSpellRuntimeLikeCpp {
     dependent_known_spells: HashSet<i32>,
     removed_known_spells: HashSet<i32>,
     favorite_known_spells: HashSet<i32>,
+    trait_definition_ids: HashMap<i32, i32>,
+    trait_definition_ids_complete: bool,
+    override_spells: HashMap<i32, BTreeSet<i32>>,
+    override_spells_complete: bool,
 }
 
 fn canonical_player_spell_record_like_cpp(
@@ -4793,6 +4797,10 @@ fn canonical_player_spell_runtime_like_cpp(
         dependent_known_spells: runtime.dependent_known_spells.into_iter().collect(),
         removed_known_spells: runtime.removed_known_spells.into_iter().collect(),
         favorite_known_spells: runtime.favorite_known_spells.into_iter().collect(),
+        trait_definition_ids: runtime.trait_definition_ids.into_iter().collect(),
+        trait_definition_ids_complete: runtime.trait_definition_ids_complete,
+        override_spells: runtime.override_spells.into_iter().collect(),
+        override_spells_complete: runtime.override_spells_complete,
     }
 }
 
@@ -4816,6 +4824,18 @@ fn represented_player_spell_runtime_like_cpp(
         dependent_known_spells: runtime.dependent_known_spells.iter().copied().collect(),
         removed_known_spells: runtime.removed_known_spells.iter().copied().collect(),
         favorite_known_spells: runtime.favorite_known_spells.iter().copied().collect(),
+        trait_definition_ids: runtime
+            .trait_definition_ids
+            .iter()
+            .map(|(&spell_id, &trait_definition_id)| (spell_id, trait_definition_id))
+            .collect(),
+        trait_definition_ids_complete: runtime.trait_definition_ids_complete,
+        override_spells: runtime
+            .override_spells
+            .iter()
+            .map(|(&spell_id, overrides)| (spell_id, overrides.clone()))
+            .collect(),
+        override_spells_complete: runtime.override_spells_complete,
     }
 }
 
@@ -5848,9 +5868,11 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_favorite_known_spells_like_cpp: HashSet<i32>,
     /// Represented C++ `PlayerSpell::TraitDefinitionId`, keyed by learned spell id.
+    #[cfg(test)]
     represented_spell_trait_definition_ids_like_cpp: HashMap<i32, i32>,
     /// True only when trait-definition IDs were replaced from a complete source.
     /// An empty represented map is otherwise indistinguishable from an unloaded one.
+    #[cfg(test)]
     represented_spell_trait_definition_ids_complete_like_cpp: bool,
     /// Exact persisted C++ `TraitConfig` headers, keyed by config ID. The
     /// narrow aura proof needs type/spec/flags independently from the derived
@@ -6244,9 +6266,11 @@ pub struct WorldSession {
     represented_self_res_spells_like_cpp: BTreeSet<i32>,
     /// C++ `Player::m_overrideSpells`, represented until active player spell
     /// cast resolution owns override lookup.
+    #[cfg(test)]
     represented_override_spells_like_cpp: HashMap<i32, BTreeSet<i32>>,
     /// True only when all C++ `Player::m_overrideSpells` edges were replaced
     /// from a complete source rather than accumulated opportunistically.
+    #[cfg(test)]
     represented_override_spells_complete_like_cpp: bool,
     /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
     represented_cast_unstuck_enabled_like_cpp: bool,
@@ -8040,7 +8064,9 @@ impl WorldSession {
             represented_removed_known_spells_like_cpp: HashSet::new(),
             #[cfg(test)]
             represented_favorite_known_spells_like_cpp: HashSet::new(),
+            #[cfg(test)]
             represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_spell_trait_definition_ids_complete_like_cpp: false,
             represented_trait_config_rows_like_cpp: BTreeMap::new(),
             represented_trait_config_rows_complete_like_cpp: false,
@@ -8216,7 +8242,9 @@ impl WorldSession {
             represented_resurrection_request_like_cpp: None,
             represented_delayed_resurrection_after_teleport_like_cpp: None,
             represented_self_res_spells_like_cpp: BTreeSet::new(),
+            #[cfg(test)]
             represented_override_spells_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_override_spells_complete_like_cpp: false,
             represented_cast_unstuck_enabled_like_cpp: true,
             represented_death_timer_active_like_cpp: false,
@@ -9770,6 +9798,13 @@ impl WorldSession {
                         .clone(),
                     removed_known_spells: self.represented_removed_known_spells_like_cpp.clone(),
                     favorite_known_spells: self.represented_favorite_known_spells_like_cpp.clone(),
+                    trait_definition_ids: self
+                        .represented_spell_trait_definition_ids_like_cpp
+                        .clone(),
+                    trait_definition_ids_complete: self
+                        .represented_spell_trait_definition_ids_complete_like_cpp,
+                    override_spells: self.represented_override_spells_like_cpp.clone(),
+                    override_spells_complete: self.represented_override_spells_complete_like_cpp,
                 },
             ));
         }
@@ -26680,8 +26715,10 @@ impl WorldSession {
         self.represented_trait_config_rows_complete_like_cpp = false;
         self.represented_trait_entry_rows_complete_like_cpp = false;
         self.represented_trait_entry_rows_empty_like_cpp = false;
-        self.represented_spell_trait_definition_ids_like_cpp.clear();
-        self.represented_spell_trait_definition_ids_complete_like_cpp = false;
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.trait_definition_ids.clear();
+            runtime.trait_definition_ids_complete = false;
+        });
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
 
@@ -27114,10 +27151,9 @@ impl WorldSession {
             || self
                 .complete_represented_player_spell_rows_like_cpp()
                 .is_none()
-            || !self.represented_spell_trait_definition_ids_complete_like_cpp
-            || !self
-                .represented_spell_trait_definition_ids_like_cpp
-                .is_empty()
+            || self
+                .complete_represented_spell_trait_definition_ids_like_cpp()
+                .is_none_or(|traits| !traits.is_empty())
             || !self.represented_trait_config_aura_source_is_empty_like_cpp()
             || !self.represented_active_glyph_aura_source_is_empty_like_cpp()
             || !self.represented_battle_pet_login_spell_source_is_empty_like_cpp()
@@ -29855,8 +29891,10 @@ impl WorldSession {
         // Login reconstructs a fresh C++ Player after this reset. Retaining the
         // previous character's runtime edges would affect GetCastSpellInfo, and
         // retaining per-spell traits could contaminate a coincident spell ID.
-        self.represented_override_spells_like_cpp.clear();
-        self.represented_spell_trait_definition_ids_like_cpp.clear();
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.override_spells.clear();
+            runtime.trait_definition_ids.clear();
+        });
         self.represented_trait_config_rows_like_cpp.clear();
         self.represented_trait_config_rows_complete_like_cpp = false;
         self.represented_trait_entry_rows_complete_like_cpp = false;
@@ -38696,8 +38734,11 @@ impl WorldSession {
                 .favorite_known_spells
                 .retain(|spell_id| known_spells.contains(spell_id));
         });
-        self.represented_spell_trait_definition_ids_like_cpp
-            .retain(|spell_id, _| known_spells.contains(spell_id));
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime
+                .trait_definition_ids
+                .retain(|spell_id, _| known_spells.contains(spell_id));
+        });
         self.learn_account_mount_spells_like_cpp();
     }
 
@@ -38712,8 +38753,10 @@ impl WorldSession {
 
     fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(&mut self) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.represented_spell_trait_definition_ids_complete_like_cpp = false;
-        self.represented_override_spells_complete_like_cpp = false;
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.trait_definition_ids_complete = false;
+            runtime.override_spells_complete = false;
+        });
     }
 
     pub(crate) fn set_complete_represented_player_spell_rows_like_cpp(
@@ -38792,7 +38835,9 @@ impl WorldSession {
     /// coherent acquisition snapshot. Call only after all represented `AddSpell`
     /// work for character login has completed.
     pub(crate) fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
-        self.represented_override_spells_complete_like_cpp = true;
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.override_spells_complete = true;
+        });
     }
 
     pub(crate) fn set_account_mounts_like_cpp(&mut self, mounts: Vec<AccountMount>) {
@@ -40082,15 +40127,18 @@ impl WorldSession {
     ) {
         if self.known_spells_like_cpp().contains(&spell_id) && trait_definition_id > 0 {
             if self
-                .represented_spell_trait_definition_ids_like_cpp
+                .represented_spell_trait_definition_ids_like_cpp()
                 .get(&spell_id)
                 .copied()
                 != Some(trait_definition_id)
             {
                 self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
             }
-            self.represented_spell_trait_definition_ids_like_cpp
-                .insert(spell_id, trait_definition_id);
+            let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                runtime
+                    .trait_definition_ids
+                    .insert(spell_id, trait_definition_id);
+            });
         }
     }
 
@@ -40262,10 +40310,13 @@ impl WorldSession {
             }
         }
 
-        if let Some(trait_definition_id) = self
-            .represented_spell_trait_definition_ids_like_cpp
-            .remove(&spell_id)
-        {
+        let trait_definition_id = self
+            .mutate_player_spell_runtime_like_cpp(|runtime| {
+                runtime.override_spells.remove(&spell_id);
+                runtime.trait_definition_ids.remove(&spell_id)
+            })
+            .flatten();
+        if let Some(trait_definition_id) = trait_definition_id {
             if let Ok(trait_definition_id) = u32::try_from(trait_definition_id) {
                 let override_spell_id = self
                     .trait_definition_store()
@@ -40277,8 +40328,6 @@ impl WorldSession {
                 }
             }
         }
-        self.represented_override_spells_like_cpp.remove(&spell_id);
-
         self.cleanup_removed_spell_titan_grip_like_cpp(spell_id);
         self.cleanup_removed_spell_dual_wield_like_cpp(spell_id);
         if self.represented_offhand_check_at_spell_unlearn_like_cpp {
@@ -41068,10 +41117,13 @@ impl WorldSession {
         if overriden_spell_id <= 0 || new_spell_id <= 0 {
             return;
         }
-        self.represented_override_spells_like_cpp
-            .entry(overriden_spell_id)
-            .or_default()
-            .insert(new_spell_id);
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime
+                .override_spells
+                .entry(overriden_spell_id)
+                .or_default()
+                .insert(new_spell_id);
+        });
     }
 
     pub(crate) fn remove_represented_override_spell_like_cpp(
@@ -41079,26 +41131,22 @@ impl WorldSession {
         overriden_spell_id: i32,
         new_spell_id: i32,
     ) {
-        if let Some(overrides) = self
-            .represented_override_spells_like_cpp
-            .get_mut(&overriden_spell_id)
-        {
-            overrides.remove(&new_spell_id);
-            if overrides.is_empty() {
-                self.represented_override_spells_like_cpp
-                    .remove(&overriden_spell_id);
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            if let Some(overrides) = runtime.override_spells.get_mut(&overriden_spell_id) {
+                overrides.remove(&new_spell_id);
+                if overrides.is_empty() {
+                    runtime.override_spells.remove(&overriden_spell_id);
+                }
             }
-        }
+        });
     }
 
     pub(crate) fn represented_cast_spell_info_like_cpp(
         &self,
         spell_info: &wow_data::SpellInfo,
     ) -> wow_data::SpellInfo {
-        if let Some(overrides) = self
-            .represented_override_spells_like_cpp
-            .get(&spell_info.spell_id)
-        {
+        let override_spells = self.represented_override_spells_like_cpp();
+        if let Some(overrides) = override_spells.get(&spell_info.spell_id) {
             if let Some(store) = self.spell_store() {
                 for new_spell_id in overrides {
                     if let Some(new_info) = store.get(*new_spell_id) {
@@ -41111,26 +41159,32 @@ impl WorldSession {
         spell_info.clone()
     }
 
-    pub(crate) fn represented_override_spells_like_cpp(&self) -> &HashMap<i32, BTreeSet<i32>> {
-        &self.represented_override_spells_like_cpp
+    pub(crate) fn represented_override_spells_like_cpp(&self) -> HashMap<i32, BTreeSet<i32>> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.override_spells)
+            .unwrap_or_default()
     }
 
-    pub(crate) fn represented_spell_trait_definition_ids_like_cpp(&self) -> &HashMap<i32, i32> {
-        &self.represented_spell_trait_definition_ids_like_cpp
+    pub(crate) fn represented_spell_trait_definition_ids_like_cpp(&self) -> HashMap<i32, i32> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.trait_definition_ids)
+            .unwrap_or_default()
     }
 
     pub(crate) fn complete_represented_override_spells_like_cpp(
         &self,
-    ) -> Option<&HashMap<i32, BTreeSet<i32>>> {
-        self.represented_override_spells_complete_like_cpp
-            .then_some(&self.represented_override_spells_like_cpp)
+    ) -> Option<HashMap<i32, BTreeSet<i32>>> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .filter(|runtime| runtime.override_spells_complete)
+            .map(|runtime| runtime.override_spells)
     }
 
     pub(crate) fn complete_represented_spell_trait_definition_ids_like_cpp(
         &self,
-    ) -> Option<&HashMap<i32, i32>> {
-        self.represented_spell_trait_definition_ids_complete_like_cpp
-            .then_some(&self.represented_spell_trait_definition_ids_like_cpp)
+    ) -> Option<HashMap<i32, i32>> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .filter(|runtime| runtime.trait_definition_ids_complete)
+            .map(|runtime| runtime.trait_definition_ids)
     }
 
     pub(crate) fn set_complete_represented_spell_trait_definition_ids_like_cpp(
@@ -41144,15 +41198,19 @@ impl WorldSession {
                 || trait_definition_id <= 0
                 || exact_traits.insert(spell_id, trait_definition_id).is_some()
             {
-                self.represented_spell_trait_definition_ids_like_cpp.clear();
-                self.represented_spell_trait_definition_ids_complete_like_cpp = false;
+                let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                    runtime.trait_definition_ids.clear();
+                    runtime.trait_definition_ids_complete = false;
+                });
                 return false;
             }
         }
 
-        self.represented_spell_trait_definition_ids_like_cpp = exact_traits;
-        self.represented_spell_trait_definition_ids_complete_like_cpp = true;
-        true
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.trait_definition_ids = exact_traits;
+            runtime.trait_definition_ids_complete = true;
+        })
+        .is_some()
     }
 
     pub(crate) fn set_complete_represented_override_spells_like_cpp(
@@ -41162,8 +41220,10 @@ impl WorldSession {
         let mut exact_overrides = HashMap::<i32, BTreeSet<i32>>::new();
         for (overridden_spell_id, overriding_spell_id) in overrides {
             if overridden_spell_id <= 0 || overriding_spell_id <= 0 {
-                self.represented_override_spells_like_cpp.clear();
-                self.represented_override_spells_complete_like_cpp = false;
+                let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                    runtime.override_spells.clear();
+                    runtime.override_spells_complete = false;
+                });
                 return false;
             }
             exact_overrides
@@ -41172,9 +41232,11 @@ impl WorldSession {
                 .insert(overriding_spell_id);
         }
 
-        self.represented_override_spells_like_cpp = exact_overrides;
-        self.represented_override_spells_complete_like_cpp = true;
-        true
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.override_spells = exact_overrides;
+            runtime.override_spells_complete = true;
+        })
+        .is_some()
     }
 
     /// Installs one validated spell-acquisition snapshot without an await or a
@@ -41283,13 +41345,13 @@ impl WorldSession {
             dependent_known_spells: dependent_spells,
             removed_known_spells: removed_spells,
             favorite_known_spells: favorite_spells,
+            trait_definition_ids: exact_traits,
+            trait_definition_ids_complete: true,
+            override_spells: exact_overrides,
+            override_spells_complete: true,
         }) {
             return false;
         }
-        self.represented_spell_trait_definition_ids_like_cpp = exact_traits;
-        self.represented_spell_trait_definition_ids_complete_like_cpp = true;
-        self.represented_override_spells_like_cpp = exact_overrides;
-        self.represented_override_spells_complete_like_cpp = true;
         if !self.replace_player_skill_runtime_exact_like_cpp(
             skill_records,
             true,
@@ -41712,6 +41774,11 @@ impl WorldSession {
                 dependent_known_spells: self.represented_dependent_known_spells_like_cpp.clone(),
                 removed_known_spells: self.represented_removed_known_spells_like_cpp.clone(),
                 favorite_known_spells: self.represented_favorite_known_spells_like_cpp.clone(),
+                trait_definition_ids: self.represented_spell_trait_definition_ids_like_cpp.clone(),
+                trait_definition_ids_complete: self
+                    .represented_spell_trait_definition_ids_complete_like_cpp,
+                override_spells: self.represented_override_spells_like_cpp.clone(),
+                override_spells_complete: self.represented_override_spells_complete_like_cpp,
             });
         }
         canonical
@@ -41737,6 +41804,11 @@ impl WorldSession {
             self.represented_dependent_known_spells_like_cpp = runtime.dependent_known_spells;
             self.represented_removed_known_spells_like_cpp = runtime.removed_known_spells;
             self.represented_favorite_known_spells_like_cpp = runtime.favorite_known_spells;
+            self.represented_spell_trait_definition_ids_like_cpp = runtime.trait_definition_ids;
+            self.represented_spell_trait_definition_ids_complete_like_cpp =
+                runtime.trait_definition_ids_complete;
+            self.represented_override_spells_like_cpp = runtime.override_spells;
+            self.represented_override_spells_complete_like_cpp = runtime.override_spells_complete;
             return true;
         }
         canonical
@@ -66988,16 +67060,11 @@ impl WorldSession {
         // OverridesSpell edge before reactivation. Require the two complete
         // mirrors up front so a recursive disabled-spell closure cannot fail
         // after an earlier row has already been exposed.
-        if !self.represented_spell_trait_definition_ids_complete_like_cpp
-            || !self.represented_override_spells_complete_like_cpp
-        {
+        if !spell_runtime.trait_definition_ids_complete || !spell_runtime.override_spells_complete {
             visiting.remove(&trigger_spell);
             return false;
         }
-        if let Some(&trait_definition_id) = self
-            .represented_spell_trait_definition_ids_like_cpp
-            .get(&trigger_spell)
-        {
+        if let Some(&trait_definition_id) = spell_runtime.trait_definition_ids.get(&trigger_spell) {
             let Some(definition) = u32::try_from(trait_definition_id).ok().and_then(|id| {
                 self.trait_definition_store()
                     .and_then(|store| store.get(id))
@@ -67123,8 +67190,10 @@ impl WorldSession {
         }
         if requires_learn {
             if let Some(trait_definition_id) = self
-                .represented_spell_trait_definition_ids_like_cpp
-                .remove(&trigger_spell)
+                .mutate_player_spell_runtime_like_cpp(|runtime| {
+                    runtime.trait_definition_ids.remove(&trigger_spell)
+                })
+                .flatten()
                 && let Some(overridden_spell_id) = u32::try_from(trait_definition_id)
                     .ok()
                     .and_then(|id| {

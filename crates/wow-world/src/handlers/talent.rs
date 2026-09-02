@@ -1579,8 +1579,8 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_ok());
-        let overrides = session
-            .represented_override_spells_like_cpp()
+        let override_spells = session.represented_override_spells_like_cpp();
+        let overrides = override_spells
             .get(&60_101)
             .expect("C++ Player::AddTalent calls AddOverrideSpell when OverridesSpellID is set");
         assert!(

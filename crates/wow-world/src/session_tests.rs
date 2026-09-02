@@ -2627,7 +2627,7 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
     assert_eq!(known_spells, vec![10, 20]);
     assert_eq!(
         session.represented_override_spells_like_cpp(),
-        &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),]),
+        HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),]),
         "C++ AddSpell rebuilds active OverridesSpell edges outside the AutoLearned branch"
     );
 
@@ -2641,7 +2641,7 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
     assert_eq!(active_projection, vec![20]);
     assert_eq!(
         session.represented_override_spells_like_cpp(),
-        &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
+        HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
     );
 }
 
@@ -31149,12 +31149,22 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
 
     session.set_known_spells_like_cpp(vec![635]);
     assert!(session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
+    assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([(635, 7)]));
+    assert!(session.set_complete_represented_override_spells_like_cpp([(600, 635)]));
     assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
     assert_eq!(
         session
             .complete_represented_player_spell_rows_like_cpp()
             .and_then(|rows| rows.get(&635).copied()),
         Some(owned_row)
+    );
+    assert_eq!(
+        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        Some(HashMap::from([(635, 7)]))
+    );
+    assert_eq!(
+        session.complete_represented_override_spells_like_cpp(),
+        Some(HashMap::from([(600, BTreeSet::from([635]))]))
     );
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -31166,6 +31176,10 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
     assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
+    assert_eq!(
+        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        Some(HashMap::from([(635, 7)]))
+    );
 
     let replacement_row = wow_entities::PlayerKnownSpellRecord {
         spell_id: 900,
@@ -31186,6 +31200,10 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
         rows: BTreeMap::from([(900, replacement_row.clone())]),
         rows_loaded: true,
         rows_complete: true,
+        trait_definition_ids: BTreeMap::from([(900, 11)]),
+        trait_definition_ids_complete: true,
+        override_spells: BTreeMap::from([(800, BTreeSet::from([900]))]),
+        override_spells_complete: true,
         ..Default::default()
     });
     let replacement_handle = canonical
@@ -31197,6 +31215,14 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
     assert_eq!(session.resolved_known_spells_like_cpp(), None);
     assert_eq!(
         session.complete_represented_player_spell_rows_like_cpp(),
+        None
+    );
+    assert_eq!(
+        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        None
+    );
+    assert_eq!(
+        session.complete_represented_override_spells_like_cpp(),
         None
     );
     assert!(!session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
@@ -31212,6 +31238,10 @@ fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp()
             rows: BTreeMap::from([(900, replacement_row)]),
             rows_loaded: true,
             rows_complete: true,
+            trait_definition_ids: BTreeMap::from([(900, 11)]),
+            trait_definition_ids_complete: true,
+            override_spells: BTreeMap::from([(800, BTreeSet::from([900]))]),
+            override_spells_complete: true,
             ..Default::default()
         })
     );

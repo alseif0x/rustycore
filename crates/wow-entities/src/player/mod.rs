@@ -489,6 +489,10 @@ pub struct PlayerSpellRuntimeState {
     pub dependent_known_spells: BTreeSet<i32>,
     pub removed_known_spells: BTreeSet<i32>,
     pub favorite_known_spells: BTreeSet<i32>,
+    pub trait_definition_ids: BTreeMap<i32, i32>,
+    pub trait_definition_ids_complete: bool,
+    pub override_spells: BTreeMap<i32, BTreeSet<i32>>,
+    pub override_spells_complete: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

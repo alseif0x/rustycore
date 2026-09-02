@@ -2570,8 +2570,8 @@ mod tests {
         assert_eq!(
             session
                 .complete_represented_spell_trait_definition_ids_like_cpp()
-                .and_then(|traits| traits.get(&100)),
-            Some(&7)
+                .and_then(|traits| traits.get(&100).copied()),
+            Some(7)
         );
         assert_eq!(
             session.represented_spell_acquisition_post_commit_actions_like_cpp(),

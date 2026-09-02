@@ -580,7 +580,8 @@ impl WorldSession {
             true
         });
         runtime.removed_known_spells.clear();
-        self.represented_spell_trait_definition_ids_like_cpp
+        runtime
+            .trait_definition_ids
             .retain(|spell_id, _| runtime.rows.contains_key(spell_id));
         runtime.dependent_known_spells = runtime
             .rows
