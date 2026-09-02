@@ -13,3 +13,6 @@ mod cleanup;
 mod login;
 mod logout;
 mod persistence;
+mod pet_load;
+
+pub(super) use pet_load::PetLoadQueryHolderRowsLikeCpp;

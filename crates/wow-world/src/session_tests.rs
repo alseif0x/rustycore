@@ -44452,7 +44452,10 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
     assert!(session.apply_represented_login_pet_talent_reset_like_cpp());
 
     assert!(
-        session.represented_pet_spells_like_cpp.is_empty(),
+        session
+            .pet_load_query_holder_rows_like_cpp
+            .spells
+            .is_empty(),
         "C++ deletes pet_spell rows for all pets owned by the player"
     );
     assert_eq!(
@@ -44472,11 +44475,17 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
         0
     );
     assert!(
-        !session.represented_pet_spell_cooldowns_like_cpp.is_empty(),
+        !session
+            .pet_load_query_holder_rows_like_cpp
+            .spell_cooldowns
+            .is_empty(),
         "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_cooldown rows in this block"
     );
     assert!(
-        !session.represented_pet_spell_charges_like_cpp.is_empty(),
+        !session
+            .pet_load_query_holder_rows_like_cpp
+            .spell_charges
+            .is_empty(),
         "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_charges rows in this block"
     );
     assert_eq!(
@@ -44934,7 +44943,8 @@ fn load_represented_pet_spell_rows_filters_zero_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_spells_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .spells
             .get(&42)
             .and_then(|spells| spells.first())
             .map(|spell| spell.spell_id),
@@ -44979,7 +44989,8 @@ fn load_represented_pet_spell_cooldown_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_spell_cooldowns_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .spell_cooldowns
             .get(&42)
             .and_then(|cooldowns| cooldowns.first())
             .map(|cooldown| cooldown.spell_id),
@@ -45030,7 +45041,8 @@ fn load_represented_pet_spell_charge_rows_preserves_db_order_like_cpp() {
 
     assert_eq!(loaded, 2);
     let rows = session
-        .represented_pet_spell_charges_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .spell_charges
         .get(&42)
         .expect("represented pet charge rows");
     assert_eq!(rows[0].recharge_end_unix_secs, 4);
@@ -45089,7 +45101,8 @@ fn load_represented_pet_aura_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_auras_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .auras
             .get(&42)
             .and_then(|auras| auras.first())
             .map(|aura| aura.spell_id),
@@ -45217,7 +45230,8 @@ fn load_represented_pet_aura_rows_ticks_attr4_offline_auras_like_cpp() {
 
     assert_eq!(loaded, 2);
     let auras = session
-        .represented_pet_auras_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .auras
         .get(&42)
         .expect("represented pet auras");
     assert_eq!(auras[0].spell_id, 7_701);
@@ -45308,7 +45322,8 @@ fn load_represented_pet_aura_rows_normalizes_proc_charges_like_cpp() {
 
     assert_eq!(loaded, 3);
     let auras = session
-        .represented_pet_auras_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .auras
         .get(&42)
         .expect("represented pet auras");
     assert_eq!(
@@ -45379,7 +45394,8 @@ fn load_represented_pet_aura_rows_filters_unknown_difficulty_like_cpp() {
 
     assert_eq!(loaded, 2);
     let loaded_spell_ids: Vec<_> = session
-        .represented_pet_auras_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .auras
         .get(&42)
         .expect("represented pet auras")
         .iter()
@@ -45421,7 +45437,8 @@ fn load_represented_pet_aura_effect_rows_filters_bad_effect_index_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_aura_effects_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .aura_effects
             .get(&42)
             .and_then(|effects| effects.first())
             .map(|effect| effect.effect_index),
@@ -45438,15 +45455,96 @@ fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
 
     assert!(session.load_represented_pet_declined_names_like_cpp(42, Some(row.clone())));
     assert_eq!(
-        session.represented_pet_declined_names_like_cpp.get(&42),
+        session
+            .pet_load_query_holder_rows_like_cpp
+            .declined_names
+            .get(&42),
         Some(&row)
     );
     assert!(session.load_represented_pet_declined_names_like_cpp(42, None));
     assert!(
         !session
-            .represented_pet_declined_names_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .declined_names
             .contains_key(&42)
     );
+}
+
+#[test]
+fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
+    let (mut session, _, _send_rx) = make_session();
+
+    session.load_represented_pet_spell_rows_like_cpp(
+        42,
+        [CharacterPetSpellRowLikeCpp {
+            spell_id: 123,
+            active: ActiveState::Enabled as u8,
+        }],
+    );
+    session.load_represented_pet_spell_cooldown_rows_like_cpp(
+        42,
+        [CharacterPetSpellCooldownRowLikeCpp {
+            spell_id: 123,
+            cooldown_end_unix_secs: 1,
+            category_id: 7,
+            category_end_unix_secs: 2,
+        }],
+    );
+    session.load_represented_pet_spell_charge_rows_like_cpp(
+        42,
+        [CharacterPetSpellChargeRowLikeCpp {
+            category_id: 7,
+            recharge_start_unix_secs: 1,
+            recharge_end_unix_secs: 2,
+        }],
+    );
+    session.load_represented_pet_aura_rows_like_cpp(
+        42,
+        [CharacterPetAuraRowLikeCpp {
+            caster_guid: ObjectGuid::EMPTY,
+            spell_id: 123,
+            effect_mask: 1,
+            recalculate_mask: 0,
+            difficulty: 0,
+            stack_count: 1,
+            max_duration_ms: 10,
+            remain_time_ms: 10,
+            remain_charges: 0,
+        }],
+    );
+    session.load_represented_pet_aura_effect_rows_like_cpp(
+        42,
+        [CharacterPetAuraEffectRowLikeCpp {
+            caster_guid: ObjectGuid::EMPTY,
+            spell_id: 123,
+            effect_mask: 1,
+            effect_index: 0,
+            amount: 3,
+            base_amount: 3,
+        }],
+    );
+    session.load_represented_pet_declined_names_like_cpp(
+        42,
+        Some(CharacterPetDeclinedNamesRowLikeCpp {
+            names: ["a", "b", "c", "d", "e"].map(str::to_string),
+        }),
+    );
+    assert!(
+        !session
+            .pet_load_query_holder_rows_like_cpp
+            .spells
+            .is_empty()
+    );
+
+    session.begin_represented_character_pet_authority_load_like_cpp();
+
+    let holder = &session.pet_load_query_holder_rows_like_cpp;
+    assert!(holder.spells.is_empty());
+    assert!(holder.spell_cooldowns.is_empty());
+    assert!(holder.spell_charges.is_empty());
+    assert!(holder.auras.is_empty());
+    assert!(holder.aura_effects.is_empty());
+    assert!(holder.declined_names.is_empty());
 }
 
 #[test]

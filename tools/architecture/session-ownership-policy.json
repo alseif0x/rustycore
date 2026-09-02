@@ -1909,6 +1909,13 @@
           "source_class": "production"
         },
         {
+          "name": "pet_load_query_holder_rows_like_cpp",
+          "type": "lifecycle :: PetLoadQueryHolderRowsLikeCpp",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "phase_group_store",
           "type": "Option < Arc < PhaseGroupStore > >",
           "visibility": "private",
@@ -3935,20 +3942,6 @@
           "source_class": "production"
         },
         {
-          "name": "represented_pet_aura_effects_like_cpp",
-          "type": "HashMap < u32 , Vec < CharacterPetAuraEffectRowLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_pet_auras_like_cpp",
-          "type": "HashMap < u32 , Vec < CharacterPetAuraRowLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "represented_pet_command_state_like_cpp",
           "type": "u8",
           "visibility": "private",
@@ -3965,13 +3958,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_declined_names_like_cpp",
-          "type": "HashMap < u32 , CharacterPetDeclinedNamesRowLikeCpp >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "represented_pet_guid_like_cpp",
@@ -4008,27 +3994,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_spell_charges_like_cpp",
-          "type": "HashMap < u32 , Vec < CharacterPetSpellChargeRowLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_pet_spell_cooldowns_like_cpp",
-          "type": "HashMap < u32 , Vec < CharacterPetSpellCooldownRowLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_pet_spells_like_cpp",
-          "type": "HashMap < u32 , Vec < CharacterPetSpellRowLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "represented_pet_stable_like_cpp",
@@ -76082,7 +76047,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5db311bdd026ad97603c667d3af61c5c:len=95175|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4d8adbc84b2cb880eb0f4f086edac983:len=94130|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

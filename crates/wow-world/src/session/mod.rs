@@ -6298,19 +6298,8 @@ pub struct WorldSession {
     /// narrow proof instead of attempting to model pet-to-owner aura casts.
     #[cfg(test)]
     represented_character_pet_rows_empty_authority_complete_like_cpp: bool,
-    /// Represented `pet_spell` rows keyed by pet number until `PetLoadQueryHolder` is live.
-    represented_pet_spells_like_cpp: HashMap<u32, Vec<CharacterPetSpellRowLikeCpp>>,
-    /// Represented `pet_spell_cooldown` rows keyed by pet number until `PetLoadQueryHolder` is live.
-    represented_pet_spell_cooldowns_like_cpp:
-        HashMap<u32, Vec<CharacterPetSpellCooldownRowLikeCpp>>,
-    /// Represented `pet_spell_charges` rows keyed by pet number until `PetLoadQueryHolder` is live.
-    represented_pet_spell_charges_like_cpp: HashMap<u32, Vec<CharacterPetSpellChargeRowLikeCpp>>,
-    /// Represented `pet_aura` rows keyed by pet number until `Aura::LoadFromDB` is live.
-    represented_pet_auras_like_cpp: HashMap<u32, Vec<CharacterPetAuraRowLikeCpp>>,
-    /// Represented `pet_aura_effect` rows keyed by pet number until `Aura::LoadFromDB` is live.
-    represented_pet_aura_effects_like_cpp: HashMap<u32, Vec<CharacterPetAuraEffectRowLikeCpp>>,
-    /// Represented `character_pet_declinedname` rows keyed by pet number until `PetLoadQueryHolder` is live.
-    represented_pet_declined_names_like_cpp: HashMap<u32, CharacterPetDeclinedNamesRowLikeCpp>,
+    /// Per-character asynchronous C++ `PetLoadQueryHolder` result lifetime.
+    pet_load_query_holder_rows_like_cpp: lifecycle::PetLoadQueryHolderRowsLikeCpp,
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
     #[cfg(test)]
     represented_pet_created_by_spell_like_cpp: u32,
@@ -8290,12 +8279,8 @@ impl WorldSession {
             represented_pet_stable_like_cpp: PetStable::default(),
             #[cfg(test)]
             represented_character_pet_rows_empty_authority_complete_like_cpp: false,
-            represented_pet_spells_like_cpp: HashMap::new(),
-            represented_pet_spell_cooldowns_like_cpp: HashMap::new(),
-            represented_pet_spell_charges_like_cpp: HashMap::new(),
-            represented_pet_auras_like_cpp: HashMap::new(),
-            represented_pet_aura_effects_like_cpp: HashMap::new(),
-            represented_pet_declined_names_like_cpp: HashMap::new(),
+            pet_load_query_holder_rows_like_cpp: lifecycle::PetLoadQueryHolderRowsLikeCpp::default(
+            ),
             #[cfg(test)]
             represented_pet_created_by_spell_like_cpp: 0,
             #[cfg(test)]
@@ -41331,6 +41316,7 @@ impl WorldSession {
     }
 
     pub(crate) fn begin_represented_character_pet_authority_load_like_cpp(&mut self) {
+        self.pet_load_query_holder_rows_like_cpp.reset();
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
     }
 
@@ -41436,7 +41422,7 @@ impl WorldSession {
         }) {
             return false;
         }
-        self.represented_pet_spells_like_cpp.clear();
+        self.pet_load_query_holder_rows_like_cpp.spells.clear();
         true
     }
 
@@ -41584,9 +41570,12 @@ impl WorldSession {
         let spells: Vec<_> = rows.into_iter().filter(|row| row.spell_id != 0).collect();
         let loaded = spells.len();
         if loaded == 0 {
-            self.represented_pet_spells_like_cpp.remove(&pet_number);
+            self.pet_load_query_holder_rows_like_cpp
+                .spells
+                .remove(&pet_number);
         } else {
-            self.represented_pet_spells_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .spells
                 .insert(pet_number, spells);
         }
         loaded
@@ -41610,10 +41599,12 @@ impl WorldSession {
             .collect();
         let loaded = cooldowns.len();
         if loaded == 0 {
-            self.represented_pet_spell_cooldowns_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .spell_cooldowns
                 .remove(&pet_number);
         } else {
-            self.represented_pet_spell_cooldowns_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .spell_cooldowns
                 .insert(pet_number, cooldowns);
         }
         loaded
@@ -41637,10 +41628,12 @@ impl WorldSession {
             .collect();
         let loaded = charges.len();
         if loaded == 0 {
-            self.represented_pet_spell_charges_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .spell_charges
                 .remove(&pet_number);
         } else {
-            self.represented_pet_spell_charges_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .spell_charges
                 .insert(pet_number, charges);
         }
         loaded
@@ -41712,9 +41705,12 @@ impl WorldSession {
             .collect();
         let loaded = auras.len();
         if loaded == 0 {
-            self.represented_pet_auras_like_cpp.remove(&pet_number);
+            self.pet_load_query_holder_rows_like_cpp
+                .auras
+                .remove(&pet_number);
         } else {
-            self.represented_pet_auras_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .auras
                 .insert(pet_number, auras);
         }
         loaded
@@ -41736,10 +41732,12 @@ impl WorldSession {
             .collect();
         let loaded = effects.len();
         if loaded == 0 {
-            self.represented_pet_aura_effects_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .aura_effects
                 .remove(&pet_number);
         } else {
-            self.represented_pet_aura_effects_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .aura_effects
                 .insert(pet_number, effects);
         }
         loaded
@@ -41896,11 +41894,13 @@ impl WorldSession {
     ) -> bool {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         if let Some(row) = row {
-            self.represented_pet_declined_names_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .declined_names
                 .insert(pet_number, row);
             true
         } else {
-            self.represented_pet_declined_names_like_cpp
+            self.pet_load_query_holder_rows_like_cpp
+                .declined_names
                 .remove(&pet_number)
                 .is_some()
         }
@@ -46418,7 +46418,11 @@ impl WorldSession {
             charm_info.command_state = wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
             charm_info.load_pet_action_bar_like_cpp(&info.action_bar);
             self.validate_represented_pet_action_bar_like_cpp(charm_info);
-            if let Some(spells) = self.represented_pet_spells_like_cpp.get(&pet_number) {
+            if let Some(spells) = self
+                .pet_load_query_holder_rows_like_cpp
+                .spells
+                .get(&pet_number)
+            {
                 for spell in spells {
                     pet.add_spell(
                         spell.spell_id,
@@ -46435,7 +46439,8 @@ impl WorldSession {
                 .spells
                 .history;
             if let Some(cooldowns) = self
-                .represented_pet_spell_cooldowns_like_cpp
+                .pet_load_query_holder_rows_like_cpp
+                .spell_cooldowns
                 .get(&pet_number)
             {
                 for cooldown in cooldowns {
@@ -46449,7 +46454,11 @@ impl WorldSession {
                     );
                 }
             }
-            if let Some(charges) = self.represented_pet_spell_charges_like_cpp.get(&pet_number) {
+            if let Some(charges) = self
+                .pet_load_query_holder_rows_like_cpp
+                .spell_charges
+                .get(&pet_number)
+            {
                 for charge in charges {
                     spell_history.add_charge_state_like_cpp(
                         charge.category_id,
@@ -46459,11 +46468,16 @@ impl WorldSession {
                 }
             }
             let pet_aura_effects = self
-                .represented_pet_aura_effects_like_cpp
+                .pet_load_query_holder_rows_like_cpp
+                .aura_effects
                 .get(&pet_number)
                 .cloned()
                 .unwrap_or_default();
-            if let Some(auras) = self.represented_pet_auras_like_cpp.get(&pet_number) {
+            if let Some(auras) = self
+                .pet_load_query_holder_rows_like_cpp
+                .auras
+                .get(&pet_number)
+            {
                 let aura_subsystem = &mut pet.creature_mut().unit_mut().subsystems_mut().auras;
                 for (index, aura) in auras.iter().enumerate() {
                     let Some(slot) = represented_pet_aura_slot_like_cpp(index) else {
@@ -46538,7 +46552,8 @@ impl WorldSession {
             }
             if info.pet_type == PetType::Hunter
                 && let Some(declined_names) = self
-                    .represented_pet_declined_names_like_cpp
+                    .pet_load_query_holder_rows_like_cpp
+                    .declined_names
                     .get(&pet_number)
             {
                 pet.set_declined_names(Some(PetDeclinedNamesLikeCpp {
