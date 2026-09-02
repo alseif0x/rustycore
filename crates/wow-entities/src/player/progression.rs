@@ -16,6 +16,14 @@ impl Player {
         self.gameplay_state_mut().spells = state;
     }
 
+    pub fn talent_runtime_like_cpp(&self) -> &PlayerTalentRuntimeState {
+        &self.gameplay_state().talents
+    }
+
+    pub fn replace_talent_runtime_like_cpp(&mut self, state: PlayerTalentRuntimeState) {
+        self.gameplay_state_mut().talents = state;
+    }
+
     pub fn create_mode_like_cpp(&self) -> u8 {
         self.gameplay_state().create_mode
     }

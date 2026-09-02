@@ -320,13 +320,18 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             rows_complete: true,
             ..Default::default()
         },
-        talents: vec![PlayerTalentRecord {
-            talent_id: 42,
-            spell_id: 20165,
-            rank: 1,
-            talent_group: 0,
-            specialization_id: Some(65),
-        }],
+        talents: PlayerTalentRuntimeState {
+            talent_groups: [
+                std::collections::BTreeMap::from([(42, 1)]),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ],
+            talents_loaded: true,
+            glyph_groups: [[0; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP];
+                PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
+            glyphs_loaded: true,
+        },
         action_buttons: vec![PlayerActionButtonRecord {
             button: 1,
             action_id: 635,

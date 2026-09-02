@@ -250,9 +250,16 @@ impl WorldSession {
             None
         };
 
-        let glyphs = if self.represented_glyphs_loaded_like_cpp {
+        let talent_runtime = self.player_talent_runtime_snapshot_like_cpp();
+        let glyphs = if talent_runtime
+            .as_ref()
+            .is_some_and(|runtime| runtime.glyphs_loaded)
+        {
             Some(
-                self.represented_glyphs_like_cpp
+                talent_runtime
+                    .as_ref()
+                    .expect("checked canonical glyph authority")
+                    .glyph_groups
                     .iter()
                     .enumerate()
                     .flat_map(|(talent_group, glyphs)| {
@@ -277,9 +284,18 @@ impl WorldSession {
             None
         };
 
-        let talents = if self.represented_talents_loaded_like_cpp {
+        let talents = if talent_runtime
+            .as_ref()
+            .is_some_and(|runtime| runtime.talents_loaded)
+        {
             let mut rows = Vec::new();
-            for (talent_group, talents) in self.represented_talents_like_cpp.iter().enumerate() {
+            for (talent_group, talents) in talent_runtime
+                .as_ref()
+                .expect("checked canonical talent authority")
+                .talent_groups
+                .iter()
+                .enumerate()
+            {
                 for (talent_id, rank) in talents {
                     if self
                         .represented_talent_info_like_cpp(*talent_id, *rank)

@@ -7,7 +7,7 @@ use crate::{
     PlayerBattlegroundState, PlayerCurrencyRecord, PlayerCustomizationChoice, PlayerGroupState,
     PlayerGuildState, PlayerMailRecord, PlayerQuestGameplayState, PlayerReputationRecord,
     PlayerRestState, PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord,
-    PlayerSpellCooldownRecord, PlayerSpellRuntimeState, PlayerTalentRecord, PlayerTaxiState,
+    PlayerSpellCooldownRecord, PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState,
     PlayerTransportState,
 };
 
@@ -26,7 +26,7 @@ pub struct PlayerGameplayState {
     pub occupied_skill_slots: Option<u16>,
     pub non_durable_skill_tombstones: BTreeSet<u16>,
     pub spells: PlayerSpellRuntimeState,
-    pub talents: Vec<PlayerTalentRecord>,
+    pub talents: PlayerTalentRuntimeState,
     pub action_buttons: Vec<PlayerActionButtonRecord>,
     /// C++ `Player::m_actionButtons` has been hydrated from its authoritative
     /// Character DB query. An empty button list is valid and must remain

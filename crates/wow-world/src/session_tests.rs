@@ -31117,6 +31117,87 @@ fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership
 }
 
 #[test]
+fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_562);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TalentOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let mut owned = wow_entities::PlayerTalentRuntimeState {
+        talents_loaded: true,
+        glyphs_loaded: true,
+        ..Default::default()
+    };
+    owned.talent_groups[0].insert(42, 1);
+    owned.glyph_groups[0][2] = 700;
+
+    assert!(session.replace_player_talent_runtime_like_cpp(owned.clone()));
+    assert_eq!(
+        session.player_talent_runtime_snapshot_like_cpp(),
+        Some(owned.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_talent_runtime_snapshot_like_cpp(),
+        Some(owned.clone())
+    );
+
+    let mut replacement_state = wow_entities::PlayerTalentRuntimeState {
+        talents_loaded: true,
+        glyphs_loaded: true,
+        ..Default::default()
+    };
+    replacement_state.talent_groups[1].insert(99, 2);
+    replacement_state.glyph_groups[1][3] = 900;
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_talent_runtime_like_cpp(replacement_state.clone());
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_talent_runtime_snapshot_like_cpp(), None);
+    assert!(!session.replace_player_talent_runtime_like_cpp(owned));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.talent_runtime_like_cpp().clone()
+            }),
+        Some(replacement_state)
+    );
+}
+
+#[test]
 fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

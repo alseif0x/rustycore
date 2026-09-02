@@ -495,13 +495,21 @@ pub struct PlayerSpellRuntimeState {
     pub override_spells_complete: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerTalentRecord {
-    pub talent_id: u32,
-    pub spell_id: u32,
-    pub rank: u8,
-    pub talent_group: u8,
-    pub specialization_id: Option<u32>,
+pub const PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
+pub const PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP: usize = 6;
+
+/// Exact mutable owner for C++ `Player::_specializationInfo.Talents` and
+/// `Player::_specializationInfo.Glyphs` (`Player.h:1039-1040`).
+///
+/// The load flags preserve the distinction between an authoritative empty DB
+/// result and state that has not been hydrated, so persistence never fabricates
+/// an empty replacement when the canonical owner is unavailable.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerTalentRuntimeState {
+    pub talent_groups: [BTreeMap<u32, u8>; PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
+    pub talents_loaded: bool,
+    pub glyph_groups: [[u16; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP]; PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
+    pub glyphs_loaded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

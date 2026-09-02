@@ -683,6 +683,7 @@ mod tests {
         creature.unit_mut().set_level(80);
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(100);
+        creature.unit_mut().set_faction(35);
         creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
         creature.set_trainer_class_runtime_like_cpp(trainer_class);
         creature.unit_mut().world_mut().object_mut().add_to_world();
@@ -1690,6 +1691,7 @@ mod tests {
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        session.set_player_faction_template_like_cpp(35);
         add_canonical_test_trainer_like_cpp(
             &canonical,
             trainer,
@@ -1971,11 +1973,12 @@ mod tests {
             80,
             0,
         ));
-        session.mark_represented_talents_loaded_like_cpp();
-        session.set_player_gold_like_cpp(9_999);
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        session.set_player_faction_template_like_cpp(35);
+        session.set_player_gold_like_cpp(9_999);
+        session.mark_represented_talents_loaded_like_cpp();
         add_canonical_test_trainer_like_cpp(
             &canonical,
             trainer,

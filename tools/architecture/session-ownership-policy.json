@@ -3378,15 +3378,19 @@
           "name": "represented_glyphs_like_cpp",
           "type": "[[u16 ; wow_packet :: packets :: misc :: MAX_GLYPH_SLOT_INDEX_LIKE_CPP] ; MAX_SPECIALIZATIONS_LIKE_CPP]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_glyphs_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_gray_level_script_overrides_like_cpp",
@@ -4248,15 +4252,19 @@
           "name": "represented_talents_like_cpp",
           "type": "[BTreeMap < u32 , u8 > ; MAX_SPECIALIZATIONS_LIKE_CPP]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_talents_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_temporary_item_appearances_like_cpp",
@@ -21799,7 +21807,7 @@
           "kind": "method",
           "name": "build_update_talent_data_packet_like_cpp",
           "visibility": "private",
-          "signature": "fn build_update_talent_data_packet_like_cpp (& self , character_points : i32 ,) -> wow_packet :: packets :: misc :: UpdateTalentData",
+          "signature": "fn build_update_talent_data_packet_like_cpp (& self , character_points : i32 ,) -> Option < wow_packet :: packets :: misc :: UpdateTalentData >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -28453,6 +28461,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_talent_runtime_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_talent_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerTalentRuntimeState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_world_creature",
           "visibility": "pub (crate)",
           "signature": "fn mutate_world_creature < F , R > (& mut self , guid : ObjectGuid , f : F) -> Option < R > where F : FnOnce (& mut crate :: map_manager :: WorldCreature) -> R ,",
@@ -30239,6 +30258,19 @@
           "name": "player_stats",
           "visibility": "pub",
           "signature": "fn player_stats (& self) -> Option < & Arc < PlayerStatsStore > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_talent_runtime_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_talent_runtime_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerTalentRuntimeState >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32816,6 +32848,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_player_talent_runtime_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn replace_player_talent_runtime_like_cpp (& mut self , runtime : wow_entities :: PlayerTalentRuntimeState ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36889,7 +36934,7 @@
           "kind": "method",
           "name": "represented_spent_talent_points_count_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_spent_talent_points_count_like_cpp (& self) -> u32",
+          "signature": "fn represented_spent_talent_points_count_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -74628,7 +74673,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:bbc3d493f292e41974cd05cffe2ce77e:len=92957|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:703cba4b524456b5d8611e37bbe70d32:len=93017|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
