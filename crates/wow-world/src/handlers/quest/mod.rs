@@ -79,14 +79,14 @@ use crate::session::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
     RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
-    RepresentedQuestRewardReputationSourceLikeCpp, RepresentedQuestRewardTalentPointsLikeCpp,
-    ReputationGainSourceLikeCpp, SeasonalQuestStatusDbRowLikeCpp, WorldSession,
+    RepresentedQuestRewardReputationSourceLikeCpp, ReputationGainSourceLikeCpp,
+    SeasonalQuestStatusDbRowLikeCpp, WorldSession,
 };
 #[cfg(test)]
 use crate::session::{
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
-    RepresentedQuestRewardTitleLikeCpp,
+    RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
 
 fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {

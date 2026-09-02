@@ -2853,8 +2853,10 @@
           "name": "represented_area_zone_criteria_like_cpp",
           "type": "Vec < RepresentedAreaZoneCriteriaLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_arena_team_id_invited_like_cpp",
@@ -2932,8 +2934,10 @@
           "name": "represented_auto_accept_acknowledged_quests_like_cpp",
           "type": "Vec < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_auto_unequip_offhand_requests_like_cpp",
@@ -4196,8 +4200,10 @@
           "name": "represented_push_quest_to_party_outcomes_like_cpp",
           "type": "Vec < RepresentedPushQuestToPartyOutcomeLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_query_petitions_like_cpp",
@@ -4228,8 +4234,10 @@
           "name": "represented_quest_confirm_accepts_like_cpp",
           "type": "Vec < RepresentedQuestConfirmAcceptLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_quest_objective_progress_draining_like_cpp",
@@ -4249,15 +4257,19 @@
           "name": "represented_quest_push_result_responses_like_cpp",
           "type": "Vec < RepresentedQuestPushResultResponseLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_quest_push_result_sender_mismatch_count_like_cpp",
           "type": "u32",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_quest_reward_mails_like_cpp",
@@ -4299,8 +4311,10 @@
           "name": "represented_quest_reward_talent_points_like_cpp",
           "type": "Vec < RepresentedQuestRewardTalentPointsLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_quest_reward_titles_like_cpp",
@@ -4396,8 +4410,10 @@
           "name": "represented_reveal_world_map_overlay_criteria_like_cpp",
           "type": "Vec < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_rewarded_quest_rows_like_cpp",
@@ -19310,6 +19326,19 @@
           "name": "add_represented_override_spell_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn add_represented_override_spell_like_cpp (& mut self , overriden_spell_id : i32 , new_spell_id : i32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "add_represented_quest_reward_talent_points_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn add_represented_quest_reward_talent_points_like_cpp (& mut self , quest_id : u32 , points : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -34802,7 +34831,7 @@
           "kind": "method",
           "name": "represented_calculate_talents_points_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_calculate_talents_points_like_cpp (& self) -> u32",
+          "signature": "fn represented_calculate_talents_points_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -37346,8 +37375,10 @@
           "name": "represented_push_quest_to_party_outcomes_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_push_quest_to_party_outcomes_like_cpp (& self ,) -> & [RepresentedPushQuestToPartyOutcomeLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37411,8 +37442,10 @@
           "name": "represented_quest_confirm_accepts_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_quest_confirm_accepts_like_cpp (& self ,) -> & [RepresentedQuestConfirmAcceptLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37494,8 +37527,10 @@
           "name": "represented_quest_push_result_responses_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_quest_push_result_responses_like_cpp (& self ,) -> & [RepresentedQuestPushResultResponseLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37507,8 +37542,10 @@
           "name": "represented_quest_push_result_sender_mismatch_count_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_quest_push_result_sender_mismatch_count_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37580,8 +37617,10 @@
           "name": "represented_quest_reward_talent_points_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_quest_reward_talent_points_like_cpp (& self ,) -> & [RepresentedQuestRewardTalentPointsLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37618,7 +37657,7 @@
           "kind": "method",
           "name": "represented_quest_rewarded_talent_points_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_quest_rewarded_talent_points_like_cpp (& self) -> u32",
+          "signature": "fn represented_quest_rewarded_talent_points_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -76115,7 +76154,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a4d9833e51af13fdfc8a42945a4eceb0:len=95412|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f7025e0ce7994a8d1dc0143b50ab9534:len=95488|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

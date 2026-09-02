@@ -1469,6 +1469,7 @@ pub(crate) struct RepresentedQuestRewardTitleLikeCpp {
     pub set_title_runtime_unrepresented: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardTalentPointsLikeCpp {
     pub quest_id: u32,
@@ -3032,6 +3033,7 @@ pub(crate) struct MoveTeleportAckEventLikeCpp {
     pub delayed_operations_processed: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
     EnterArea(u32),
@@ -6881,6 +6883,7 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_chosen_title_like_cpp: i32,
     /// Session-local evidence for represented quest reward talent point grants.
+    #[cfg(test)]
     pub(crate) represented_quest_reward_talent_points_like_cpp:
         Vec<RepresentedQuestRewardTalentPointsLikeCpp>,
     /// Session-local evidence for represented quest reward mail.
@@ -6897,29 +6900,34 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_explored_zones_like_cpp: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
     /// Represented `CriteriaType::RevealWorldMapOverlay` events from area discovery.
-    #[allow(dead_code)]
+    #[cfg(test)]
     represented_reveal_world_map_overlay_criteria_like_cpp: Vec<u32>,
     /// Represented `Player::UpdateArea` / `Player::UpdateZone` criteria side effects.
-    #[allow(dead_code)]
+    #[cfg(test)]
     represented_area_zone_criteria_like_cpp: Vec<RepresentedAreaZoneCriteriaLikeCpp>,
     /// Session-local evidence for represented `ScriptMgr::OnQuestAcknowledgeAutoAccept` calls.
+    #[cfg(test)]
     pub(crate) represented_auto_accept_acknowledged_quests_like_cpp: Vec<u32>,
     /// Session-local representation of C++ pending shared quest sender + quest id.
     #[cfg(test)]
     pub(crate) represented_pending_quest_sharing_like_cpp:
         Option<RepresentedPendingQuestSharingLikeCpp>,
     /// Evidence-only replacement for sender `SendPushToPartyResponse` until safe cross-session fanout exists.
+    #[cfg(test)]
     pub(crate) represented_quest_push_result_responses_like_cpp:
         Vec<RepresentedQuestPushResultResponseLikeCpp>,
     /// Explicit mismatch counter: C++ still clears pending sharing when sender GUID differs.
+    #[cfg(test)]
     pub(crate) represented_quest_push_result_sender_mismatch_count_like_cpp: u32,
     /// Evidence for represented `HandleQuestConfirmAccept` after clear + template lookup.
+    #[cfg(test)]
     pub(crate) represented_quest_confirm_accepts_like_cpp:
         Vec<RepresentedQuestConfirmAcceptLikeCpp>,
     /// Evidence for represented `Player::CompleteQuest` status-update side effects.
     pub(crate) represented_quest_complete_status_updates_like_cpp:
         Vec<RepresentedQuestCompleteStatusUpdateLikeCpp>,
     /// Session-local evidence for represented sender-side `HandlePushQuestToParty` preflight.
+    #[cfg(test)]
     pub(crate) represented_push_quest_to_party_outcomes_like_cpp:
         Vec<RepresentedPushQuestToPartyOutcomeLikeCpp>,
 
@@ -8746,6 +8754,7 @@ impl WorldSession {
             represented_known_titles_like_cpp: HashSet::new(),
             #[cfg(test)]
             represented_chosen_title_like_cpp: 0,
+            #[cfg(test)]
             represented_quest_reward_talent_points_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_quest_reward_mails_like_cpp: Vec::new(),
@@ -8755,15 +8764,22 @@ impl WorldSession {
             represented_quest_completed_bits_like_cpp: BTreeSet::new(),
             #[cfg(test)]
             represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+            #[cfg(test)]
             represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_area_zone_criteria_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_auto_accept_acknowledged_quests_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_pending_quest_sharing_like_cpp: None,
+            #[cfg(test)]
             represented_quest_push_result_responses_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_quest_push_result_sender_mismatch_count_like_cpp: 0,
+            #[cfg(test)]
             represented_quest_confirm_accepts_like_cpp: Vec::new(),
             represented_quest_complete_status_updates_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_push_quest_to_party_outcomes_like_cpp: Vec::new(),
             active_spell_cast: None,
             represented_pending_spell_cast_request_like_cpp: None,
@@ -28380,6 +28396,11 @@ impl WorldSession {
 
     #[cfg(test)]
     fn player_quest_gameplay_fixture_like_cpp(&self) -> PlayerQuestGameplayState {
+        let objective_counts_by_quest = self
+            .player_quests
+            .values()
+            .map(|status| (status.quest_id, status.objective_counts.clone()))
+            .collect();
         PlayerQuestGameplayState {
             statuses: self
                 .player_quests
@@ -28408,6 +28429,7 @@ impl WorldSession {
             seasonal_quest_changed: self.seasonal_quest_changed_like_cpp,
             status_authority_complete: self.player_quest_status_authority_complete_like_cpp,
             rewarded_quest_rows: self.represented_rewarded_quest_rows_like_cpp.clone(),
+            objective_counts_by_quest,
             ..Default::default()
         }
     }
@@ -32120,10 +32142,13 @@ impl WorldSession {
             return false;
         }
 
-        self.represented_area_zone_criteria_like_cpp
-            .push(RepresentedAreaZoneCriteriaLikeCpp::EnterArea(new_area));
-        self.represented_area_zone_criteria_like_cpp
-            .push(RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(old_area));
+        #[cfg(test)]
+        {
+            self.represented_area_zone_criteria_like_cpp
+                .push(RepresentedAreaZoneCriteriaLikeCpp::EnterArea(new_area));
+            self.represented_area_zone_criteria_like_cpp
+                .push(RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(old_area));
+        }
         true
     }
 
@@ -32253,12 +32278,15 @@ impl WorldSession {
             return false;
         }
 
-        self.represented_area_zone_criteria_like_cpp.push(
-            RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(new_zone),
-        );
-        self.represented_area_zone_criteria_like_cpp.push(
-            RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(old_zone),
-        );
+        #[cfg(test)]
+        {
+            self.represented_area_zone_criteria_like_cpp.push(
+                RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(new_zone),
+            );
+            self.represented_area_zone_criteria_like_cpp.push(
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(old_zone),
+            );
+        }
         true
     }
 
@@ -32309,6 +32337,7 @@ impl WorldSession {
             return false;
         }
 
+        #[cfg(test)]
         self.represented_reveal_world_map_overlay_criteria_like_cpp
             .push(area_id);
 
@@ -32834,14 +32863,23 @@ impl WorldSession {
         )
     }
 
-    fn represented_quest_rewarded_talent_points_like_cpp(&self) -> u32 {
-        self.represented_quest_reward_talent_points_like_cpp
-            .iter()
-            .map(|reward| reward.points)
-            .sum()
+    fn represented_quest_rewarded_talent_points_like_cpp(&self) -> Option<u32> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.gameplay_state().quest_rewarded_talent_points
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.represented_quest_reward_talent_points_like_cpp
+                    .iter()
+                    .map(|reward| reward.points)
+                    .sum(),
+            );
+        }
+        canonical
     }
 
-    fn represented_calculate_talents_points_like_cpp(&self) -> u32 {
+    fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
         let base_points = self
             .num_talents_at_level_store()
             .map(|store| {
@@ -32851,17 +32889,49 @@ impl WorldSession {
                 )
             })
             .unwrap_or(0);
-        base_points + self.represented_quest_rewarded_talent_points_like_cpp()
+        Some(base_points + self.represented_quest_rewarded_talent_points_like_cpp()?)
     }
 
     pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
         let Some(spent) = self.represented_spent_talent_points_count_like_cpp() else {
             return;
         };
-        let available = self
+        let Some(available) = self
             .represented_calculate_talents_points_like_cpp()
-            .saturating_sub(spent);
+            .map(|points| points.saturating_sub(spent))
+        else {
+            return;
+        };
         self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
+    }
+
+    pub(crate) fn add_represented_quest_reward_talent_points_like_cpp(
+        &mut self,
+        quest_id: u32,
+        points: u32,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                let rewarded = &mut player.gameplay_state_mut().quest_rewarded_talent_points;
+                *rewarded = rewarded.saturating_add(points);
+            })
+            .is_some();
+        if canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_quest_reward_talent_points_like_cpp.push(
+                RepresentedQuestRewardTalentPointsLikeCpp {
+                    quest_id,
+                    points,
+                    init_talent_for_level_unrepresented: true,
+                },
+            );
+            return true;
+        }
+        let _ = quest_id;
+        false
     }
 
     pub(crate) fn load_represented_talent_row_like_cpp(
@@ -59556,6 +59626,7 @@ impl WorldSession {
         canonical.expect("test Player title owner must resolve")
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_reward_talent_points_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardTalentPointsLikeCpp] {
@@ -59576,12 +59647,14 @@ impl WorldSession {
         &self.represented_quest_reward_reputations_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_push_result_responses_like_cpp(
         &self,
     ) -> &[RepresentedQuestPushResultResponseLikeCpp] {
         &self.represented_quest_push_result_responses_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_push_result_sender_mismatch_count_like_cpp(&self) -> u32 {
         self.represented_quest_push_result_sender_mismatch_count_like_cpp
     }
@@ -59590,16 +59663,23 @@ impl WorldSession {
         &mut self,
         response: RepresentedQuestPushResultResponseLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_quest_push_result_responses_like_cpp
             .push(response);
+        #[cfg(not(test))]
+        let _ = response;
     }
 
     pub(crate) fn record_represented_quest_push_result_sender_mismatch_like_cpp(&mut self) {
-        self.represented_quest_push_result_sender_mismatch_count_like_cpp = self
-            .represented_quest_push_result_sender_mismatch_count_like_cpp
-            .saturating_add(1);
+        #[cfg(test)]
+        {
+            self.represented_quest_push_result_sender_mismatch_count_like_cpp = self
+                .represented_quest_push_result_sender_mismatch_count_like_cpp
+                .saturating_add(1);
+        }
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_confirm_accepts_like_cpp(
         &self,
     ) -> &[RepresentedQuestConfirmAcceptLikeCpp] {
@@ -59610,8 +59690,11 @@ impl WorldSession {
         &mut self,
         evidence: RepresentedQuestConfirmAcceptLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_quest_confirm_accepts_like_cpp
             .push(evidence);
+        #[cfg(not(test))]
+        let _ = evidence;
     }
 
     pub(crate) fn represented_quest_complete_status_updates_like_cpp(
@@ -59628,6 +59711,7 @@ impl WorldSession {
             .push(evidence);
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_push_quest_to_party_outcomes_like_cpp(
         &self,
     ) -> &[RepresentedPushQuestToPartyOutcomeLikeCpp] {
@@ -59638,8 +59722,11 @@ impl WorldSession {
         &mut self,
         outcome: RepresentedPushQuestToPartyOutcomeLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_push_quest_to_party_outcomes_like_cpp
             .push(outcome);
+        #[cfg(not(test))]
+        let _ = outcome;
     }
 
     /// Get the logged-in player GUID.

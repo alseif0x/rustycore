@@ -33989,6 +33989,77 @@ fn canonical_player_pvp_item_level_mode_follows_detached_and_stale_handle_owners
 }
 
 #[test]
+fn canonical_player_quest_rewarded_talent_points_follow_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_568);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "QuestTalentOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.add_represented_quest_reward_talent_points_like_cpp(10_001, 2));
+    assert_eq!(
+        session.represented_quest_rewarded_talent_points_like_cpp(),
+        Some(2)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.add_represented_quest_reward_talent_points_like_cpp(10_002, 3));
+    assert_eq!(
+        session.represented_quest_rewarded_talent_points_like_cpp(),
+        Some(5)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.represented_quest_rewarded_talent_points_like_cpp(),
+        None
+    );
+    assert!(!session.add_represented_quest_reward_talent_points_like_cpp(10_003, 7));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().quest_rewarded_talent_points
+            }),
+        Some(0)
+    );
+}
+
+#[test]
 fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -59684,6 +59755,7 @@ async fn check_area_explore_marks_block_sends_update_and_records_criteria_like_c
     let canonical = shared_canonical_map_manager();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     assert!(
         session

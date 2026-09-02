@@ -193,6 +193,7 @@ impl WorldSession {
             return false;
         }
 
+        #[cfg(test)]
         self.represented_auto_accept_acknowledged_quests_like_cpp
             .push(quest_id);
         true

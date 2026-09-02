@@ -30,6 +30,8 @@ pub struct PlayerGameplayState {
     pub non_durable_skill_tombstones: BTreeSet<u16>,
     pub spells: PlayerSpellRuntimeState,
     pub talents: PlayerTalentRuntimeState,
+    /// C++ `Player::_questRewardedTalentPoints`.
+    pub quest_rewarded_talent_points: u32,
     pub action_buttons: Vec<PlayerActionButtonRecord>,
     /// C++ `Player::m_actionButtons` has been hydrated from its authoritative
     /// Character DB query. An empty button list is valid and must remain

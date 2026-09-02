@@ -1301,12 +1301,9 @@ impl WorldSession {
             );
         }
         if quest.reward_skill_points != 0 {
-            self.represented_quest_reward_talent_points_like_cpp.push(
-                RepresentedQuestRewardTalentPointsLikeCpp {
-                    quest_id: quest.id,
-                    points: quest.reward_skill_points,
-                    init_talent_for_level_unrepresented: true,
-                },
+            let _ = self.add_represented_quest_reward_talent_points_like_cpp(
+                quest.id,
+                quest.reward_skill_points,
             );
         }
     }
