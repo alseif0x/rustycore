@@ -5210,6 +5210,7 @@ fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
     output
 }
 
+#[cfg(test)]
 struct PlayerTransportLoginStateLikeCpp {
     info: wow_packet::packets::movement::TransportInfo,
 }
@@ -6359,6 +6360,7 @@ pub struct WorldSession {
     /// Count of represented player speed changes propagated to the active pet.
     represented_pet_speed_propagations_like_cpp: u32,
     /// Represented transport guard for speed ACK anticheat; C++ skips speed mismatch while on transport.
+    #[cfg(test)]
     player_on_transport_like_cpp: bool,
     /// C++ `Player::m_movementForceModMagnitudeChanges` represented state.
     movement_force_mod_magnitude_changes_like_cpp: u8,
@@ -6652,6 +6654,7 @@ pub struct WorldSession {
     /// Session-local evidence for represented `ScriptMgr::OnQuestAcknowledgeAutoAccept` calls.
     pub(crate) represented_auto_accept_acknowledged_quests_like_cpp: Vec<u32>,
     /// Session-local representation of C++ pending shared quest sender + quest id.
+    #[cfg(test)]
     pub(crate) represented_pending_quest_sharing_like_cpp:
         Option<RepresentedPendingQuestSharingLikeCpp>,
     /// Evidence-only replacement for sender `SendPushToPartyResponse` until safe cross-session fanout exists.
@@ -6819,6 +6822,7 @@ pub struct WorldSession {
     pub(crate) client_visible_transports_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
     /// Current C++ `m_movementInfo.transport.guid`, used to exclude the
     /// player's own transport from `Map::SendInitTransports`.
+    #[cfg(test)]
     player_transport_login_state_like_cpp: Option<Box<PlayerTransportLoginStateLikeCpp>>,
     /// Login-start delivery guard for creature movement packets.
     ///
@@ -8368,6 +8372,7 @@ impl WorldSession {
             movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
             represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
             represented_pet_speed_propagations_like_cpp: 0,
+            #[cfg(test)]
             player_on_transport_like_cpp: false,
             movement_force_mod_magnitude_changes_like_cpp: 0,
             movement_force_mod_magnitude_like_cpp: 1.0,
@@ -8516,6 +8521,7 @@ impl WorldSession {
             represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
             represented_area_zone_criteria_like_cpp: Vec::new(),
             represented_auto_accept_acknowledged_quests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_pending_quest_sharing_like_cpp: None,
             represented_quest_push_result_responses_like_cpp: Vec::new(),
             represented_quest_push_result_sender_mismatch_count_like_cpp: 0,
@@ -8613,6 +8619,7 @@ impl WorldSession {
             #[cfg(test)]
             loaded_player_customizations_like_cpp: Box::default(),
             client_visible_transports_like_cpp: std::collections::HashSet::new(),
+            #[cfg(test)]
             player_transport_login_state_like_cpp: None,
             suppress_creature_movement_queued_at_or_before_like_cpp: None,
             represented_seer_guid_like_cpp: None,
@@ -10809,6 +10816,7 @@ impl WorldSession {
 
         self.player_vehicle_seat_flags_like_cpp = None;
         self.player_vehicle_seat_id_like_cpp = None;
+        self.publish_player_vehicle_state_to_owner_like_cpp();
         self.sync_player_registry_state_like_cpp();
         true
     }
@@ -11507,6 +11515,28 @@ impl WorldSession {
             Some(flags) => flags & VEHICLE_SEAT_FLAG_CAN_ATTACK != 0,
             None => true,
         }
+    }
+
+    fn publish_player_vehicle_state_to_owner_like_cpp(&self) {
+        let in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
+        let has_vehicle_kit = self.player_mount_vehicle_kit_like_cpp.is_some();
+        let vehicle_seat = self
+            .player_vehicle_seat_id_like_cpp
+            .and_then(|seat| i32::try_from(seat).ok())
+            .unwrap_or(0);
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            let state = player.gameplay_state_mut();
+            state.in_vehicle = in_vehicle;
+            state.has_vehicle_kit = has_vehicle_kit;
+            state.vehicle_seat = vehicle_seat;
+        });
+    }
+
+    fn publish_player_pet_guid_to_owner_like_cpp(&self) {
+        let pet_guid = self.represented_pet_guid_like_cpp;
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().pet_guid = pet_guid;
+        });
     }
 
     fn add_canonical_attacker_like_cpp(&mut self, victim: ObjectGuid, attacker: ObjectGuid) {
@@ -22978,16 +23008,6 @@ impl WorldSession {
             )
         })
         .unwrap_or((false, false))
-    }
-
-    pub(crate) fn player_forced_reputation_ranks_snapshot_like_cpp(
-        &self,
-    ) -> Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)> {
-        self.reputation_mgr_like_cpp()
-            .forced_reactions()
-            .iter()
-            .map(|(faction_id, rank)| (*faction_id, *rank))
-            .collect()
     }
 
     fn reset_contested_pvp_like_cpp(&mut self) {
@@ -34607,7 +34627,8 @@ impl WorldSession {
     /// Register this session in the player registry.
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {
-        crate::canonical_player_sync::sync_player_directory_gameplay_to_canonical_like_cpp(self);
+        #[cfg(test)]
+        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
         let (Some(guid), Some(pos), Some(name), Some(reg)) = (
             self.player_guid(),
             self.player_position_like_cpp(),
@@ -34675,7 +34696,8 @@ impl WorldSession {
         // Production already has the canonical Player before publication. The
         // explicit owner-installing test harness creates it while registering,
         // so repeat the one-way hydration after that seam as well.
-        crate::canonical_player_sync::sync_player_directory_gameplay_to_canonical_like_cpp(self);
+        #[cfg(test)]
+        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
         self.sync_player_registry_party_member_party_type_like_cpp();
         debug!(
             "Registered player {:?} ({}) in broadcast registry (map {})",
@@ -34688,7 +34710,8 @@ impl WorldSession {
             return;
         };
         self.update_registry_position();
-        crate::canonical_player_sync::sync_player_directory_gameplay_to_canonical_like_cpp(self);
+        #[cfg(test)]
+        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
         registry.replace_loot_rolls_for_control_channel(
             guid,
             &self.session_command_tx,
@@ -36294,6 +36317,7 @@ impl WorldSession {
                 .unwrap_or_default();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+            self.publish_player_vehicle_state_to_owner_like_cpp();
             return true;
         };
 
@@ -36328,6 +36352,7 @@ impl WorldSession {
             vehicle_kit.usable_seat_num().min(u32::from(u8::MAX)) as u8;
         self.player_mount_vehicle_accessories_like_cpp = accessory_plan.accessories;
         self.player_mount_vehicle_kit_like_cpp = Some(vehicle_kit);
+        self.publish_player_vehicle_state_to_owner_like_cpp();
         true
     }
 
@@ -36552,6 +36577,7 @@ impl WorldSession {
                 vehicle_kit.uninstall();
             }
             self.player_mount_vehicle_kit_like_cpp = None;
+            self.publish_player_vehicle_state_to_owner_like_cpp();
             self.player_mount_vehicle_accessories_like_cpp.clear();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
@@ -37456,6 +37482,7 @@ impl WorldSession {
 
         self.player_vehicle_seat_flags_like_cpp = None;
         self.player_vehicle_seat_id_like_cpp = None;
+        self.publish_player_vehicle_state_to_owner_like_cpp();
         self.sync_player_registry_state_like_cpp();
         true
     }
@@ -39976,6 +40003,7 @@ impl WorldSession {
     ) {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         self.represented_pet_guid_like_cpp = pet_guid;
+        self.publish_player_pet_guid_to_owner_like_cpp();
         self.represented_pet_created_by_spell_like_cpp = created_by_spell;
         if pet_guid.is_none() {
             self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
@@ -40052,6 +40080,7 @@ impl WorldSession {
 
         if self.represented_pet_guid_like_cpp.is_some() {
             self.represented_pet_guid_like_cpp = None;
+            self.publish_player_pet_guid_to_owner_like_cpp();
             self.represented_pet_created_by_spell_like_cpp = 0;
             self.represented_pet_react_state_like_cpp =
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
@@ -42827,6 +42856,11 @@ impl WorldSession {
         self.resolved_known_spells_like_cpp().unwrap_or_default()
     }
 
+    #[cfg(test)]
+    pub(crate) fn known_spells_fixture_like_cpp(&self) -> Vec<i32> {
+        self.known_spells.clone()
+    }
+
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
         self.player_spell_runtime_snapshot_like_cpp()
             .map(|runtime| runtime.dependent_known_spells)
@@ -44594,6 +44628,7 @@ impl WorldSession {
         }
 
         self.represented_pet_guid_like_cpp = None;
+        self.publish_player_pet_guid_to_owner_like_cpp();
         self.represented_pet_created_by_spell_like_cpp = 0;
         self.represented_pet_react_state_like_cpp =
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
@@ -44927,6 +44962,7 @@ impl WorldSession {
         self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
         if let Some(pet_guid) = inserted_guid {
             self.represented_pet_guid_like_cpp = Some(pet_guid);
+            self.publish_player_pet_guid_to_owner_like_cpp();
             if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {
                 self.represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
                 self.represented_pet_react_state_like_cpp = info.react_state as u8;
@@ -47672,6 +47708,7 @@ impl WorldSession {
 
         self.player_vehicle_seat_flags_like_cpp = None;
         self.player_vehicle_seat_id_like_cpp = None;
+        self.publish_player_vehicle_state_to_owner_like_cpp();
         self.sync_player_registry_state_like_cpp();
         true
     }
@@ -49705,6 +49742,7 @@ impl WorldSession {
             self.player_mount_display_id_like_cpp = 0;
             self.player_mount_vehicle_id_like_cpp = 0;
             self.player_mount_vehicle_kit_like_cpp = None;
+            self.publish_player_vehicle_state_to_owner_like_cpp();
             self.player_mount_vehicle_accessories_like_cpp.clear();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
@@ -55160,8 +55198,10 @@ impl WorldSession {
         }
 
         let expected_speed = self.player_movement_speed_like_cpp(move_type);
-        let action = if !self.player_on_transport_like_cpp && (expected_speed - speed).abs() > 0.01
-        {
+        let Some(player_on_transport) = self.player_on_transport_state_like_cpp() else {
+            return false;
+        };
+        let action = if !player_on_transport && (expected_speed - speed).abs() > 0.01 {
             if expected_speed > speed {
                 // C++ calls SetSpeedRate(GetSpeedRate()) to force the client back to the server value.
                 self.trace_anticheat_violation_like_cpp(
@@ -55311,41 +55351,116 @@ impl WorldSession {
         &mut self,
         info: Option<wow_packet::packets::movement::TransportInfo>,
     ) {
-        self.player_transport_login_state_like_cpp = info
-            .filter(|info| !info.guid.is_empty())
-            .map(|info| Box::new(PlayerTransportLoginStateLikeCpp { info }));
-        self.player_on_transport_like_cpp = self.player_transport_login_state_like_cpp.is_some();
+        let info = info.filter(|info| !info.guid.is_empty());
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.player_on_transport_like_cpp = info.is_some();
+            self.player_transport_login_state_like_cpp =
+                info.map(|info| Box::new(PlayerTransportLoginStateLikeCpp { info }));
+            return;
+        }
+        let transport = info.map(|info| wow_entities::PlayerTransportState {
+            guid: info.guid,
+            x: info.x,
+            y: info.y,
+            z: info.z,
+            orientation: info.o,
+            seat: info.seat,
+            time: info.time,
+            prev_time: info.prev_time,
+            vehicle_id: info.vehicle_id,
+        });
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().transport = transport;
+        });
     }
 
     pub(crate) fn player_transport_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.player_transport_login_state_like_cpp
-            .as_ref()
-            .map(|state| state.info.guid)
+        self.player_transport_state_like_cpp()
+            .flatten()
+            .map(|state| state.guid)
     }
 
     pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
-        if let Some(state) = self.player_transport_login_state_like_cpp.as_mut() {
-            if let Some(position) = position {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            if let (Some(state), Some(position)) = (
+                self.player_transport_login_state_like_cpp.as_mut(),
+                position,
+            ) {
                 state.info.x = position.x;
                 state.info.y = position.y;
                 state.info.z = position.z;
                 state.info.o = position.orientation;
             }
+            return;
         }
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            if let (Some(transport), Some(position)) =
+                (player.gameplay_state_mut().transport.as_mut(), position)
+            {
+                transport.x = position.x;
+                transport.y = position.y;
+                transport.z = position.z;
+                transport.orientation = position.orientation;
+            }
+        });
     }
 
     pub(crate) fn player_transport_position_like_cpp(&self) -> Option<Position> {
-        self.player_transport_login_state_like_cpp
-            .as_ref()
-            .map(|state| Position::new(state.info.x, state.info.y, state.info.z, state.info.o))
+        self.player_transport_state_like_cpp()
+            .flatten()
+            .map(|state| Position::new(state.x, state.y, state.z, state.orientation))
     }
 
     pub(crate) fn player_transport_info_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::movement::TransportInfo> {
-        self.player_transport_login_state_like_cpp
-            .as_ref()
-            .map(|state| state.info.clone())
+        self.player_transport_state_like_cpp()
+            .flatten()
+            .map(|state| wow_packet::packets::movement::TransportInfo {
+                guid: state.guid,
+                x: state.x,
+                y: state.y,
+                z: state.z,
+                o: state.orientation,
+                seat: state.seat,
+                time: state.time,
+                prev_time: state.prev_time,
+                vehicle_id: state.vehicle_id,
+            })
+    }
+
+    fn player_transport_state_like_cpp(
+        &self,
+    ) -> Option<Option<wow_entities::PlayerTransportState>> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.player_transport_login_state_like_cpp
+                    .as_ref()
+                    .map(|state| wow_entities::PlayerTransportState {
+                        guid: state.info.guid,
+                        x: state.info.x,
+                        y: state.info.y,
+                        z: state.info.z,
+                        orientation: state.info.o,
+                        seat: state.info.seat,
+                        time: state.info.time,
+                        prev_time: state.info.prev_time,
+                        vehicle_id: state.info.vehicle_id,
+                    }),
+            );
+        }
+        self.with_owned_player_like_cpp(|player| player.gameplay_state().transport.clone())
+    }
+
+    fn player_on_transport_state_like_cpp(&self) -> Option<bool> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(self.player_on_transport_like_cpp);
+        }
+        self.with_owned_player_like_cpp(|player| player.gameplay_state().transport.is_some())
     }
 
     pub(crate) fn set_loaded_player_customizations_like_cpp(
@@ -55721,23 +55836,50 @@ impl WorldSession {
         sender_guid: ObjectGuid,
         quest_id: u32,
     ) {
-        self.represented_pending_quest_sharing_like_cpp =
-            Some(RepresentedPendingQuestSharingLikeCpp {
-                sender_guid,
-                quest_id,
-            });
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_pending_quest_sharing_like_cpp =
+                Some(RepresentedPendingQuestSharingLikeCpp {
+                    sender_guid,
+                    quest_id,
+                });
+            self.sync_player_registry_state_like_cpp();
+            return;
+        }
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.pending_share = Some((sender_guid, quest_id));
+        });
         self.sync_player_registry_state_like_cpp();
     }
 
     pub(crate) fn clear_represented_pending_quest_sharing_like_cpp(&mut self) {
-        self.represented_pending_quest_sharing_like_cpp = None;
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_pending_quest_sharing_like_cpp = None;
+            self.sync_player_registry_state_like_cpp();
+            return;
+        }
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.pending_share = None;
+        });
         self.sync_player_registry_state_like_cpp();
     }
 
     pub(crate) fn represented_pending_quest_sharing_like_cpp(
         &self,
     ) -> Option<RepresentedPendingQuestSharingLikeCpp> {
-        self.represented_pending_quest_sharing_like_cpp
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.represented_pending_quest_sharing_like_cpp;
+        }
+        self.player_quest_gameplay_snapshot_like_cpp()
+            .and_then(|state| state.pending_share)
+            .map(
+                |(sender_guid, quest_id)| RepresentedPendingQuestSharingLikeCpp {
+                    sender_guid,
+                    quest_id,
+                },
+            )
     }
 
     pub(crate) fn set_represented_daily_quest_completed_like_cpp_for_test(
@@ -68465,6 +68607,7 @@ impl WorldSession {
 
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         self.represented_pet_guid_like_cpp = None;
+        self.publish_player_pet_guid_to_owner_like_cpp();
         self.represented_pet_react_state_like_cpp =
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
         self.represented_pet_command_state_like_cpp =

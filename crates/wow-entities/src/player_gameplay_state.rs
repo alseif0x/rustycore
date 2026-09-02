@@ -43,7 +43,6 @@ pub struct PlayerGameplayState {
     pub raid_difficulty_id: u32,
     pub legacy_raid_difficulty_id: u32,
     pub pass_on_group_loot: bool,
-    pub inventory_item_counts: Vec<(u32, u32)>,
     pub forced_reputation_ranks: Vec<(u32, u8)>,
     pub transport: Option<PlayerTransportState>,
     pub in_vehicle: bool,

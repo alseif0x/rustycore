@@ -31515,12 +31515,27 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
     let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let share_sender = ObjectGuid::create_player(1, 5_568);
+    let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 7_005);
+    let transport_info = wow_packet::packets::movement::TransportInfo {
+        guid: transport_guid,
+        x: 1.0,
+        y: 2.0,
+        z: 3.0,
+        o: 0.5,
+        seat: 4,
+        time: 123,
+        prev_time: Some(122),
+        vehicle_id: Some(99),
+    };
 
     session.set_loaded_player_flags_like_cpp(0x10);
     session.set_loaded_player_flags_ex_like_cpp(0x20);
     session.set_watched_faction_index_like_cpp(42);
     assert!(session.set_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("1 0"), 1);
+    session.set_represented_pending_quest_sharing_like_cpp(share_sender, 400);
+    session.set_player_transport_info_like_cpp(Some(transport_info.clone()));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31542,8 +31557,26 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(
         session
             .player_quest_gameplay_snapshot_like_cpp()
-            .map(|state| (state.daily_quest_ids, state.last_daily_quest_time_secs)),
-        Some((BTreeSet::from([100]), 10))
+            .map(|state| (
+                state.daily_quest_ids,
+                state.last_daily_quest_time_secs,
+                state.pending_share,
+            )),
+        Some((BTreeSet::from([100]), 10, Some((share_sender, 400))))
+    );
+    assert_eq!(
+        session.player_transport_state_like_cpp(),
+        Some(Some(wow_entities::PlayerTransportState {
+            guid: transport_guid,
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+            orientation: 0.5,
+            seat: 4,
+            time: 123,
+            prev_time: Some(122),
+            vehicle_id: Some(99),
+        }))
     );
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -31559,6 +31592,8 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_watched_faction_index_like_cpp(43);
     assert!(session.clear_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("2 0"), 1);
+    session.clear_represented_pending_quest_sharing_like_cpp();
+    session.set_player_transport_position_like_cpp(Some(Position::new(4.0, 5.0, 6.0, 0.75)));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31601,6 +31636,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         .quests
         .rewarded_quest_ids
         .insert(9_998);
+    replacement.gameplay_state_mut().quests.pending_share = Some((share_sender, 999));
+    replacement.gameplay_state_mut().transport = Some(wow_entities::PlayerTransportState {
+        guid: transport_guid,
+        x: 10.0,
+        y: 20.0,
+        z: 30.0,
+        orientation: 1.5,
+        seat: 2,
+        time: 456,
+        prev_time: Some(455),
+        vehicle_id: Some(100),
+    });
     assert!(replacement.set_quest_completed_bit_like_cpp(77, true));
     assert!(replacement.set_explored_zones_block_like_cpp(0, 0x400));
     let replacement_handle = canonical
@@ -31613,11 +31660,14 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.player_explored_zones_snapshot_like_cpp(), None);
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), None);
     assert_eq!(session.player_quest_gameplay_snapshot_like_cpp(), None);
+    assert_eq!(session.player_transport_state_like_cpp(), None);
     session.set_loaded_player_flags_like_cpp(0xdead);
     session.set_loaded_player_flags_ex_like_cpp(0xbeef);
     session.set_watched_faction_index_like_cpp(5);
     assert!(!session.set_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("4 0"), 0);
+    session.set_represented_pending_quest_sharing_like_cpp(share_sender, 0xdead);
+    session.set_player_transport_info_like_cpp(None);
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31640,6 +31690,8 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 player.gameplay_state().quests.daily_quest_ids.clone(),
                 player.gameplay_state().quests.statuses.clone(),
                 player.gameplay_state().quests.rewarded_quest_ids.clone(),
+                player.gameplay_state().quests.pending_share,
+                player.gameplay_state().transport.clone(),
             )),
         Some((
             0x100,
@@ -31653,6 +31705,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 quest_status(9_999, crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP),
             )]),
             BTreeSet::from([9_998]),
+            Some((share_sender, 999)),
+            Some(wow_entities::PlayerTransportState {
+                guid: transport_guid,
+                x: 10.0,
+                y: 20.0,
+                z: 30.0,
+                orientation: 1.5,
+                seat: 2,
+                time: 456,
+                prev_time: Some(455),
+                vehicle_id: Some(100),
+            }),
         ))
     );
 }
@@ -37706,6 +37770,9 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 42);
     let registry = Arc::new(PlayerRegistry::default());
+    session.set_player_guid(Some(guid));
+    session.player_position = Some(Position::ZERO);
+    session.current_map_id = 0;
     bind_canonical_test_player_to_registry_like_cpp(
         &mut session,
         &registry,
@@ -37713,25 +37780,27 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
         Position::ZERO,
         0,
     );
-    session.set_player_guid(Some(guid));
-    session.player_position = Some(Position::ZERO);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.player_name = Some("Tester".to_string());
     session.known_spells = vec![12_345];
-    session.player_quests.insert(
-        100,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 100,
-            status: 1,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![2, 3],
-            slot: 0,
-        },
-    );
-    session.rewarded_quests.insert(200);
+    session.mutate_player_quest_gameplay_like_cpp(|state| {
+        state.statuses.insert(
+            100,
+            wow_entities::PlayerQuestStatusRecord {
+                quest_id: 100,
+                status: 1,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![2, 3],
+                slot: 0,
+            },
+        );
+        state.objective_counts_by_quest = vec![(100, vec![2, 3])];
+        state.rewarded_quest_ids.insert(200);
+    });
     let item_guid = ObjectGuid::create_item(1, 500);
-    session.inventory_items.insert(
+    session.insert_inventory_item_like_cpp(
         0,
         InventoryItem {
             guid: item_guid,
@@ -37750,7 +37819,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
         0,
     ));
     let bag_guid = ObjectGuid::create_item(1, 501);
-    session.inventory_items.insert(
+    session.insert_inventory_item_like_cpp(
         1,
         InventoryItem {
             guid: bag_guid,
@@ -37791,22 +37860,23 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     }
 
     session.known_spells.push(54_321);
-    session.player_quests.insert(
-        300,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 300,
-            status: 2,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![7],
-            slot: 1,
-        },
-    );
-    session.rewarded_quests.insert(400);
-    if let Some(item) = session.inventory_item_objects.get_mut(&item_guid) {
-        item.set_count(6);
-    }
+    session.mutate_player_quest_gameplay_like_cpp(|state| {
+        state.statuses.insert(
+            300,
+            wow_entities::PlayerQuestStatusRecord {
+                quest_id: 300,
+                status: 2,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![7],
+                slot: 1,
+            },
+        );
+        state.objective_counts_by_quest.push((300, vec![7]));
+        state.rewarded_quest_ids.insert(400);
+    });
+    assert!(session.update_inventory_item_object_like_cpp(item_guid, |item| item.set_count(6)));
     session.sync_player_registry_state_like_cpp();
 
     let info = registry.loot_player_context(guid).expect("synced player");
@@ -71619,13 +71689,6 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-    session
-        .reputation_mgr_like_cpp_mut()
-        .apply_force_reaction_like_cpp(
-            87,
-            wow_data::reputation::ReputationRankLikeCpp::Hostile,
-            true,
-        );
     session.mutate_canonical_player_like_cpp(|player| {
         player
             .gameplay_state_mut()
@@ -71674,13 +71737,6 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-    session
-        .reputation_mgr_like_cpp_mut()
-        .apply_force_reaction_like_cpp(
-            87,
-            wow_data::reputation::ReputationRankLikeCpp::Hostile,
-            true,
-        );
     session.mutate_canonical_player_like_cpp(|player| {
         player
             .gameplay_state_mut()
@@ -71691,6 +71747,10 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
                 flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
             });
         player.set_forced_reputation_rank_like_cpp(87, true);
+        player.gameplay_state_mut().forced_reputation_ranks = vec![(
+            87,
+            wow_data::reputation::ReputationRankLikeCpp::Hostile.as_u8(),
+        )];
         player
             .unit_mut()
             .set_unit_flags2_like_cpp(UnitFlags2::IGNORE_REPUTATION);

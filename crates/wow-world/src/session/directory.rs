@@ -1155,7 +1155,7 @@ impl PlayerRegistry {
                     .cloned()
                     .collect(),
                 rewarded_quests: state.quests.rewarded_quest_ids.iter().copied().collect(),
-                inventory_item_counts: state.inventory_item_counts.iter().copied().collect(),
+                inventory_item_counts: player.inventory_item_counts_like_cpp(),
             }
         })
     }

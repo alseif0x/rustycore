@@ -20,6 +20,29 @@ impl Player {
         &mut self.inventory_runtime
     }
 
+    /// C++ `Player::GetItemCount`: summarize the canonical carried/bank item
+    /// topology without publishing a second mutable count cache.
+    pub fn inventory_item_counts_like_cpp(&self) -> HashMap<u32, u32> {
+        let inventory_items = self.inventory_runtime.inventory_items();
+        let item_objects = self.inventory_runtime.item_objects();
+        inventory_items
+            .values()
+            .filter_map(|inventory_item| item_objects.get(&inventory_item.guid))
+            .chain(item_objects.values().filter(|item| {
+                !item.container_guid().is_empty()
+                    && item_objects.contains_key(&item.container_guid())
+            }))
+            .filter(|item| !item.is_in_trade())
+            .fold(HashMap::new(), |mut counts, item| {
+                let entry_id = item.object().entry();
+                counts
+                    .entry(entry_id)
+                    .and_modify(|count| *count = count.saturating_add(item.count()))
+                    .or_insert(item.count());
+                counts
+            })
+    }
+
     /// C++ `Player::GetBankBagSlotCount` (`Player.h:1334`).
     pub const fn bank_bag_slot_count(&self) -> u8 {
         self.data.num_bank_slots

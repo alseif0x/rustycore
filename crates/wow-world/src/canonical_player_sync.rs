@@ -57,34 +57,9 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
     });
 }
 
-pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &WorldSession) {
-    #[cfg(test)]
-    let known_spells = session.known_spells_like_cpp();
-    let Some(inventory_item_counts) = session.represented_inventory_item_counts_like_cpp() else {
-        return;
-    };
-    let inventory_item_counts = inventory_item_counts.into_iter().collect();
-    let forced_reputation_ranks = session
-        .player_forced_reputation_ranks_snapshot_like_cpp()
-        .into_iter()
-        .map(|(faction, rank)| (faction, rank.as_u8()))
-        .collect();
-    let pending_share = session
-        .represented_pending_quest_sharing_like_cpp
-        .map(|pending| (pending.sender_guid, pending.quest_id));
-    let transport = session.player_transport_info_like_cpp().map(|transport| {
-        wow_entities::PlayerTransportState {
-            guid: transport.guid,
-            x: transport.x,
-            y: transport.y,
-            z: transport.z,
-            orientation: transport.o,
-            seat: transport.seat,
-            time: transport.time,
-            prev_time: transport.prev_time,
-            vehicle_id: transport.vehicle_id,
-        }
-    });
+#[cfg(test)]
+pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
+    let known_spells = session.known_spells_fixture_like_cpp();
     let in_vehicle = session.player_vehicle_seat_flags_like_cpp.is_some();
     let has_vehicle_kit = session.player_mount_vehicle_kit_like_cpp.is_some();
     let vehicle_seat = session
@@ -94,31 +69,24 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
     let pet_guid = session.represented_pet_guid_like_cpp;
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
-        #[cfg(test)]
-        {
-            state.spells.known_spells = known_spells.clone();
-            state.spells.rows = known_spells
-                .iter()
-                .copied()
-                .map(|spell_id| {
-                    (
+        state.spells.known_spells = known_spells.clone();
+        state.spells.rows = known_spells
+            .iter()
+            .copied()
+            .map(|spell_id| {
+                (
+                    spell_id,
+                    wow_entities::PlayerKnownSpellRecord {
                         spell_id,
-                        wow_entities::PlayerKnownSpellRecord {
-                            spell_id,
-                            state: wow_entities::PlayerSpellLoadState::Unchanged,
-                            active: true,
-                            disabled: false,
-                            favorite: false,
-                            dependent: false,
-                        },
-                    )
-                })
-                .collect();
-        }
-        state.quests.pending_share = pending_share;
-        state.inventory_item_counts = inventory_item_counts;
-        state.forced_reputation_ranks = forced_reputation_ranks;
-        state.transport = transport;
+                        state: wow_entities::PlayerSpellLoadState::Unchanged,
+                        active: true,
+                        disabled: false,
+                        favorite: false,
+                        dependent: false,
+                    },
+                )
+            })
+            .collect();
         state.in_vehicle = in_vehicle;
         state.has_vehicle_kit = has_vehicle_kit;
         state.vehicle_seat = vehicle_seat;

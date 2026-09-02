@@ -2266,8 +2266,10 @@
           "name": "player_on_transport_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_out_of_bounds_like_cpp",
@@ -2440,8 +2442,10 @@
           "name": "player_transport_login_state_like_cpp",
           "type": "Option < Box < PlayerTransportLoginStateLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_unit_flags_like_cpp",
@@ -3748,8 +3752,10 @@
           "name": "represented_pending_quest_sharing_like_cpp",
           "type": "Option < RepresentedPendingQuestSharingLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_pending_spell_cast_request_like_cpp",
@@ -27120,6 +27126,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "known_spells_fixture_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn known_spells_fixture_like_cpp (& self) -> Vec < i32 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "known_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn known_spells_like_cpp (& self) -> Vec < i32 >",
@@ -29655,19 +29676,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "player_forced_reputation_ranks_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn player_forced_reputation_ranks_snapshot_like_cpp (& self ,) -> Vec < (u32 , wow_data :: reputation :: ReputationRankLikeCpp) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "player_gender_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_gender_like_cpp (& self) -> u8",
@@ -30231,6 +30239,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_on_transport_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_on_transport_state_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_out_of_bounds_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_out_of_bounds_like_cpp (& self) -> bool",
@@ -30611,6 +30630,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_transport_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_transport_state_like_cpp (& self ,) -> Option < Option < wow_entities :: PlayerTransportState > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_values_update_snapshot",
           "visibility": "private",
           "signature": "fn player_values_update_snapshot (& self) -> Option < Player >",
@@ -30885,6 +30915,28 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "publish_player_pet_guid_to_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn publish_player_pet_guid_to_owner_like_cpp (& self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "publish_player_vehicle_state_to_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn publish_player_vehicle_state_to_owner_like_cpp (& self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -75102,7 +75154,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5512cccdc6233445bbef5e1109a43e80:len=93542|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c79eb62e47e6e6dff547382bf045d27c:len=93587|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
