@@ -6950,8 +6950,9 @@ pub struct WorldSession {
     /// gameobjects until canonical gameobject map ownership lands.
     pub(crate) represented_gameobject_phase_shifts:
         std::collections::HashMap<wow_core::ObjectGuid, PhaseShift>,
-    /// Represented C++ `Player::GetPhaseShift()` for session DB visibility
-    /// filtering until canonical player `WorldObject` phase ownership lands.
+    /// Test-only C++ `Player::GetPhaseShift()` fixture used before a canonical
+    /// player handle is installed.
+    #[cfg(test)]
     pub(crate) represented_player_phase_shift: PhaseShift,
     /// Position at which visibility was last fully recalculated.
     pub(crate) last_visibility_pos: Option<wow_core::Position>,
@@ -8662,6 +8663,7 @@ impl WorldSession {
                 std::collections::HashSet::new(),
             represented_capture_point_removed_delivered_like_cpp: std::collections::HashSet::new(),
             represented_gameobject_phase_shifts: std::collections::HashMap::new(),
+            #[cfg(test)]
             represented_player_phase_shift: PhaseShift::default(),
             last_visibility_pos: None,
             player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
@@ -9952,8 +9954,14 @@ impl WorldSession {
             .set_map(key.map_id, key.instance_id)
             .ok()?;
         player.unit_mut().world_mut().relocate(position);
-        *player.unit_mut().world_mut().phase_shift_mut() =
-            self.represented_player_phase_shift.clone();
+        // Before the first canonical owner exists production has no phase
+        // authority to read. The pre-load bootstrap has always been the C++
+        // default empty PhaseShift; tests may provide an explicit fixture.
+        #[cfg(not(test))]
+        let bootstrap_phase_shift = PhaseShift::default();
+        #[cfg(test)]
+        let bootstrap_phase_shift = self.represented_player_phase_shift.clone();
+        *player.unit_mut().world_mut().phase_shift_mut() = bootstrap_phase_shift;
         player.unit_mut().world_mut().object_mut().add_to_world();
         player.set_race_class_gender(
             self.player_race_like_cpp(),
@@ -11797,6 +11805,7 @@ impl WorldSession {
         // visibility checks below run while that same manager is borrowed.
         let moved_unit_guid = self.player_moved_unit_guid_like_cpp();
         let current_group_guid = self.resolved_group_guid_like_cpp();
+        let player_phase_shift = self.represented_player_phase_shift_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return (
                 true,
@@ -11820,8 +11829,9 @@ impl WorldSession {
         };
         if let Some(player) = map.map().get_typed_player(guid) {
             let pvp_flags = player.unit().pvp_flags_like_cpp();
-            let attacker_can_see_or_detect_target = self
-                .can_see_phase_shift_like_cpp(player.unit().world().phase_shift())
+            let attacker_can_see_or_detect_target = player_phase_shift
+                .as_ref()
+                .is_some_and(|phase| phase.can_see(player.unit().world().phase_shift()))
                 && self
                     .player_guid()
                     .and_then(|attacker_guid| map.map().get_typed_player(attacker_guid))
@@ -11856,8 +11866,9 @@ impl WorldSession {
             );
         }
         if let Some(creature) = map.map().get_typed_creature(guid) {
-            let attacker_can_see_or_detect_target = self
-                .can_see_phase_shift_like_cpp(creature.unit().world().phase_shift())
+            let attacker_can_see_or_detect_target = player_phase_shift
+                .as_ref()
+                .is_some_and(|phase| phase.can_see(creature.unit().world().phase_shift()))
                 && self
                     .player_guid()
                     .and_then(|attacker_guid| map.map().get_typed_player(attacker_guid))
@@ -16281,6 +16292,9 @@ impl WorldSession {
         let Some(manager) = &self.map_manager else {
             return Vec::new();
         };
+        let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
+            return Vec::new();
+        };
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         manager
             .read()
@@ -16289,7 +16303,7 @@ impl WorldSession {
                 map_id,
                 instance_id,
                 player_position,
-                self.represented_player_phase_shift_like_cpp(),
+                &player_phase_shift,
             )
     }
 
@@ -16353,6 +16367,9 @@ impl WorldSession {
         let mut creatures = Vec::new();
         let mut seen = std::collections::HashSet::new();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
+            return Vec::new();
+        };
 
         if let Some(manager) = &self.map_manager {
             let (_, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
@@ -16377,7 +16394,7 @@ impl WorldSession {
                         // cell keeps borderline target centers in the legacy
                         // candidate set before the exact check below.
                         visibility_range + source_combat_reach + SIZE_OF_GRID_CELL,
-                        Some(&self.represented_player_phase_shift),
+                        Some(&player_phase_shift),
                     )
             };
             creatures.extend(
@@ -16425,6 +16442,7 @@ impl WorldSession {
         }
         let source_combat_reach =
             self.with_owned_player_like_cpp(|player| player.unit().world().combat_reach())?;
+        let player_phase_shift = self.represented_player_phase_shift_like_cpp()?;
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -16461,9 +16479,7 @@ impl WorldSession {
                     world.combat_reach(),
                     visibility_range,
                 )
-                || !self
-                    .represented_player_phase_shift
-                    .can_see(world.phase_shift())
+                || !player_phase_shift.can_see(world.phase_shift())
             {
                 continue;
             }
@@ -16680,6 +16696,9 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
+        let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
+            return false;
+        };
 
         Self::creature_message_to_set_target_allows_like_cpp(
             creature,
@@ -16688,7 +16707,7 @@ impl WorldSession {
             player_map_id,
             player_instance_id,
             &player_position,
-            self.represented_player_phase_shift_like_cpp(),
+            &player_phase_shift,
             required_3d,
         )
     }
@@ -17259,14 +17278,14 @@ impl WorldSession {
         instance_id: u32,
         target_guid: ObjectGuid,
     ) -> Option<bool> {
+        // Resolve the viewer before taking the map lock; the handle resolver
+        // takes the same manager and must not recurse into that mutex.
+        let player_phase_shift = self.represented_player_phase_shift_like_cpp()?;
         let manager = self.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let map = manager.find_map(u32::from(map_id), instance_id)?;
         let target = map.map().get_typed_player(target_guid)?;
-        Some(
-            self.represented_player_phase_shift_like_cpp()
-                .can_see(target.unit().world().phase_shift()),
-        )
+        Some(player_phase_shift.can_see(target.unit().world().phase_shift()))
     }
 
     pub fn set_realm_id(&mut self, realm_id: u16) {
@@ -26737,10 +26756,11 @@ impl WorldSession {
         let Some(trigger_map_id) = u16::try_from(trigger.continent_id).ok() else {
             return false;
         };
+        let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
+            return false;
+        };
         if self.player_map_id_like_cpp() != trigger_map_id
-            && !self
-                .represented_player_phase_shift_like_cpp()
-                .has_visible_map_id_like_cpp(u32::from(trigger_map_id))
+            && !player_phase_shift.has_visible_map_id_like_cpp(u32::from(trigger_map_id))
         {
             return false;
         }
@@ -27487,18 +27507,42 @@ impl WorldSession {
         (phase_shift, validated_terrain_swap_map)
     }
 
-    pub(crate) fn represented_player_phase_shift_like_cpp(&self) -> &PhaseShift {
-        &self.represented_player_phase_shift
+    pub(crate) fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().world().phase_shift().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_player_phase_shift.clone());
+        }
+        canonical
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_represented_player_phase_shift_like_cpp(&mut self, phase_shift: PhaseShift) {
-        self.represented_player_phase_shift = phase_shift;
+    pub(crate) fn set_represented_player_phase_shift_like_cpp(
+        &mut self,
+        phase_shift: PhaseShift,
+    ) -> bool {
+        let mut phase_shift = Some(phase_shift);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                *player.unit_mut().world_mut().phase_shift_mut() =
+                    phase_shift.take().expect("phase mutation runs once");
+            })
+            .is_some();
+        if canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_player_phase_shift =
+                phase_shift.take().expect("fixture phase remains available");
+            return true;
+        }
+        false
     }
 
     pub(crate) fn can_see_phase_shift_like_cpp(&self, other: &PhaseShift) -> bool {
         self.represented_player_phase_shift_like_cpp()
-            .can_see(other)
+            .is_some_and(|phase_shift| phase_shift.can_see(other))
     }
 
     pub(crate) fn map_difficulty_store(&self) -> Option<&Arc<MapDifficultyStore>> {
@@ -65443,6 +65487,9 @@ impl WorldSession {
     /// converted to `output.packets.push` at the same relative position.
     pub(crate) fn run_creatures_tick(&mut self) -> RuntimeOutput {
         let mut output = RuntimeOutput::new();
+        let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
+            return output;
+        };
 
         // Collect movement packets (avoids borrow conflict with send_packet)
         let mut to_send: Vec<Vec<u8>> = Vec::new();
@@ -65592,7 +65639,6 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let player_phase_shift = self.represented_player_phase_shift_like_cpp().clone();
         let monster_move_trace = std::env::var_os("RUSTYCORE_MONSTER_MOVE_TRACE").is_some();
         for guid in guids {
             let _ = self.mutate_world_creature(guid, |creature| {

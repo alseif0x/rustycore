@@ -26844,6 +26844,8 @@ fn gameobject_interaction_resolves_canonical_map_object_like_cpp() {
 fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 26_820);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let visible_guid = test_creature_guid(20);
     let far_guid = test_creature_guid(21);
@@ -26851,6 +26853,21 @@ fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
     let far_pos = Position::new(5000.0, 5000.0, 0.0, 0.0);
 
     session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "VisibilityOwner".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     for (guid, position) in [(visible_guid, visible_pos), (far_guid, far_pos)] {
         let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
         manager.write().unwrap().add_creature(
@@ -31892,6 +31909,75 @@ fn canonical_player_reputation_follows_active_detached_and_stale_ownership_like_
                 ..Default::default()
             }]
         ))
+    );
+}
+
+#[test]
+fn canonical_player_phase_shift_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_573);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PhaseOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    let active_phase = PhaseShift::from_phases([10]);
+    assert!(session.set_represented_player_phase_shift_like_cpp(active_phase.clone()));
+    assert_eq!(
+        session.represented_player_phase_shift_like_cpp(),
+        Some(active_phase.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.represented_player_phase_shift_like_cpp(),
+        Some(active_phase)
+    );
+
+    let replacement_phase = PhaseShift::from_phases([20]);
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    *replacement.unit_mut().world_mut().phase_shift_mut() = replacement_phase.clone();
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_player_phase_shift_like_cpp(), None);
+    assert!(!session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([30])));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.unit().world().phase_shift().clone()
+            }),
+        Some(replacement_phase)
     );
 }
 

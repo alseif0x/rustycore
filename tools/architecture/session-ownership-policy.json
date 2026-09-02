@@ -4003,8 +4003,10 @@
           "name": "represented_player_phase_shift",
           "type": "PhaseShift",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_powers_like_cpp",
@@ -36745,7 +36747,7 @@
           "kind": "method",
           "name": "represented_player_phase_shift_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_player_phase_shift_like_cpp (& self) -> & PhaseShift",
+          "signature": "fn represented_player_phase_shift_like_cpp (& self) -> Option < PhaseShift >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46031,11 +46033,9 @@
           "kind": "method",
           "name": "set_represented_player_phase_shift_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_player_phase_shift_like_cpp (& mut self , phase_shift : PhaseShift)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
+          "signature": "fn set_represented_player_phase_shift_like_cpp (& mut self , phase_shift : PhaseShift ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -73079,7 +73079,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:0c7087b3df70184d4de6b84ab210e2de:len=1871|evidence=fnv1a64x2:318d7e7cae4d36b7317c8cb6cb234820:len=3869",
+          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:cbefe3266bba9d022210e4bd762891fd:len=1931|evidence=fnv1a64x2:318d7e7cae4d36b7317c8cb6cb234820:len=3869",
           "cfg": [],
           "multiplicity": 1
         },
@@ -75725,7 +75725,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7e8509928924a6df9e978cd2d9a7a68e:len=94698|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5f5cfb7f8a5a91ed7d69154130d72212:len=94675|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
