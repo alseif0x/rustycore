@@ -4638,6 +4638,54 @@ pub(crate) struct RepresentedPlayerSkillLikeCpp {
     pub state: RepresentedPlayerSkillStateLikeCpp,
 }
 
+fn canonical_player_skill_record_like_cpp(
+    skill: RepresentedPlayerSkillLikeCpp,
+) -> wow_entities::PlayerSkillRecord {
+    wow_entities::PlayerSkillRecord {
+        skill_line_id: u32::from(skill.skill_id),
+        current_value: skill.value,
+        max_value: skill.max,
+        step: skill.step,
+        profession_slot: skill.profession_slot,
+        state: match skill.state {
+            RepresentedPlayerSkillStateLikeCpp::Unchanged => {
+                wow_entities::PlayerSkillLoadState::Unchanged
+            }
+            RepresentedPlayerSkillStateLikeCpp::Changed => {
+                wow_entities::PlayerSkillLoadState::Changed
+            }
+            RepresentedPlayerSkillStateLikeCpp::New => wow_entities::PlayerSkillLoadState::New,
+            RepresentedPlayerSkillStateLikeCpp::Deleted => {
+                wow_entities::PlayerSkillLoadState::Deleted
+            }
+        },
+    }
+}
+
+fn represented_player_skill_record_like_cpp(
+    skill: &wow_entities::PlayerSkillRecord,
+) -> Option<RepresentedPlayerSkillLikeCpp> {
+    Some(RepresentedPlayerSkillLikeCpp {
+        skill_id: u16::try_from(skill.skill_line_id).ok()?,
+        step: skill.step,
+        value: skill.current_value,
+        max: skill.max_value,
+        profession_slot: skill.profession_slot,
+        state: match skill.state {
+            wow_entities::PlayerSkillLoadState::Unchanged => {
+                RepresentedPlayerSkillStateLikeCpp::Unchanged
+            }
+            wow_entities::PlayerSkillLoadState::Changed => {
+                RepresentedPlayerSkillStateLikeCpp::Changed
+            }
+            wow_entities::PlayerSkillLoadState::New => RepresentedPlayerSkillStateLikeCpp::New,
+            wow_entities::PlayerSkillLoadState::Deleted => {
+                RepresentedPlayerSkillStateLikeCpp::Deleted
+            }
+        },
+    })
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedPlayerSpellStateLikeCpp {
@@ -5365,16 +5413,23 @@ pub struct WorldSession {
     represented_group_update_sequences_like_cpp: [RepresentedGroupUpdateSequenceLikeCpp;
         wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
     pub(crate) pass_on_group_loot: bool,
+    #[cfg(test)]
     pub(crate) represented_enchanting_skill: u16,
+    #[cfg(test)]
     player_skill_values_like_cpp: HashMap<u16, u16>,
+    #[cfg(test)]
     player_skill_records_like_cpp: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
     // C++ `_SaveSkills` keeps deleted update-field slots as UNCHANGED
     // tombstones after deleting their Character DB rows. Rust's represented
     // full-save path rewrites the table, so retain their non-durable identity
     // explicitly and never manufacture zero-valued DB rows on a later save.
+    #[cfg(test)]
     player_skill_non_durable_tombstones_like_cpp: BTreeSet<u16>,
+    #[cfg(test)]
     player_skill_records_loaded_like_cpp: bool,
+    #[cfg(test)]
     player_skill_records_complete_like_cpp: bool,
+    #[cfg(test)]
     player_skill_occupied_slots_like_cpp: Option<u16>,
     represented_gray_level_script_overrides_like_cpp: HashMap<u8, u8>,
 
@@ -7660,12 +7715,19 @@ impl WorldSession {
             represented_subgroup_like_cpp: None,
             represented_group_update_sequences_like_cpp: default_group_update_sequences_like_cpp(),
             pass_on_group_loot: false,
+            #[cfg(test)]
             represented_enchanting_skill: 0,
+            #[cfg(test)]
             player_skill_values_like_cpp: HashMap::new(),
+            #[cfg(test)]
             player_skill_records_like_cpp: HashMap::new(),
+            #[cfg(test)]
             player_skill_non_durable_tombstones_like_cpp: BTreeSet::new(),
+            #[cfg(test)]
             player_skill_records_loaded_like_cpp: false,
+            #[cfg(test)]
             player_skill_records_complete_like_cpp: false,
+            #[cfg(test)]
             player_skill_occupied_slots_like_cpp: None,
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
@@ -9938,14 +10000,20 @@ impl WorldSession {
     fn with_owned_player_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let handle = self.player_handle_like_cpp?;
-        manager.lock().ok()?.with_player_like_cpp(handle, f)
+        let manager = manager.lock().ok()?;
+        let result = manager.with_player_like_cpp(handle, f);
+        drop(manager);
+        result
     }
 
     /// Mutating counterpart to `with_owned_player_like_cpp`.
     fn with_owned_player_mut_like_cpp<R>(&self, f: impl FnOnce(&mut Player) -> R) -> Option<R> {
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let handle = self.player_handle_like_cpp?;
-        manager.lock().ok()?.with_player_mut_like_cpp(handle, f)
+        let mut manager = manager.lock().ok()?;
+        let result = manager.with_player_mut_like_cpp(handle, f);
+        drop(manager);
+        result
     }
 
     /// Test fixtures created before #578 may inject a typed Player directly
@@ -14645,6 +14713,7 @@ impl WorldSession {
                 PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
             )
             .unwrap_or(false);
+        let player_faction_template_id = self.player_faction_template_id_like_cpp();
         let player_interaction_combat_reach = self.player_interaction_combat_reach_like_cpp();
         if self.taxi_flight_state_like_cpp.is_some() {
             return None;
@@ -14661,6 +14730,12 @@ impl WorldSession {
                 return None;
             };
             let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
+            let target_player_faction_template_id = player_faction_template_id.or_else(|| {
+                map.map()
+                    .get_typed_player(player_guid)
+                    .and_then(|player| u32::try_from(player.unit().data().faction_template).ok())
+                    .filter(|faction| *faction != 0)
+            });
             let player_is_alive = if let Some(canonical_player) =
                 map.map().get_typed_player(player_guid)
             {
@@ -14727,9 +14802,7 @@ impl WorldSession {
                     self.represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
                         self_faction_template_id: creature.unit().data().faction_template.max(0)
                             as u32,
-                        target_faction_template_id: self
-                            .player_faction_template_id_like_cpp()
-                            .unwrap_or(0),
+                        target_faction_template_id: target_player_faction_template_id?,
                         same_object: false,
                         attackable_by_summoner: false,
                         same_charmer_or_owner_or_self: false,
@@ -23036,10 +23109,8 @@ impl WorldSession {
         ) else {
             return;
         };
-        let mut records = self
-            .player_skill_records_like_cpp()
-            .values()
-            .collect::<Vec<_>>();
+        let player_skill_records = self.player_skill_records_like_cpp();
+        let mut records = player_skill_records.values().collect::<Vec<_>>();
         records.sort_by_key(|record| record.skill_id);
         if records.len() > 256 {
             return;
@@ -37254,7 +37325,7 @@ impl WorldSession {
             // `_SaveSkills` tombstones belong to the current C++ Player's
             // update-field slots, not to the authenticated WorldSession.
             if previous_player_guid.is_some() {
-                self.player_skill_non_durable_tombstones_like_cpp.clear();
+                self.clear_player_skill_tombstones_like_cpp();
             }
         }
         if let Some(guid) = guid {
@@ -39340,33 +39411,114 @@ impl WorldSession {
                         && skill.max == 0
                         && skill.profession_slot == -1))
         });
-        self.player_skill_non_durable_tombstones_like_cpp
-            .retain(|skill_id| {
-                skill_records
-                    .get(skill_id)
-                    .is_some_and(Self::is_non_durable_skill_tombstone_like_cpp)
-            });
-        self.player_skill_non_durable_tombstones_like_cpp.extend(
+        let mut tombstones = self.player_skill_non_durable_tombstones_like_cpp();
+        tombstones.retain(|skill_id| {
+            skill_records
+                .get(skill_id)
+                .is_some_and(Self::is_non_durable_skill_tombstone_like_cpp)
+        });
+        tombstones.extend(
             skill_records
                 .values()
                 .filter(|skill| skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted)
                 .map(|skill| skill.skill_id),
         );
-        self.player_skill_values_like_cpp =
-            represented_skill_values_from_records_like_cpp(&skill_records);
-        self.represented_enchanting_skill = skill_records
-            .get(&SKILL_ENCHANTING_LIKE_CPP)
-            .map(|skill| skill.value)
-            .unwrap_or(0);
-        self.player_skill_records_like_cpp = skill_records.clone();
-        self.player_skill_records_loaded_like_cpp = loaded;
-        self.player_skill_records_complete_like_cpp =
-            loaded && complete && rows_are_structurally_complete;
-        self.player_skill_occupied_slots_like_cpp = None;
+        let complete = loaded && complete && rows_are_structurally_complete;
+        let canonical_records = skill_records
+            .values()
+            .copied()
+            .map(canonical_player_skill_record_like_cpp)
+            .collect();
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.replace_skill_records_like_cpp(
+                    canonical_records,
+                    loaded,
+                    complete,
+                    None,
+                    tombstones.clone(),
+                );
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.player_skill_values_like_cpp =
+                represented_skill_values_from_records_like_cpp(&skill_records);
+            self.represented_enchanting_skill = skill_records
+                .get(&SKILL_ENCHANTING_LIKE_CPP)
+                .map(|skill| skill.value)
+                .unwrap_or(0);
+            self.player_skill_records_like_cpp = skill_records;
+            self.player_skill_non_durable_tombstones_like_cpp = tombstones;
+            self.player_skill_records_loaded_like_cpp = loaded;
+            self.player_skill_records_complete_like_cpp = complete;
+            self.player_skill_occupied_slots_like_cpp = None;
+        }
     }
 
     pub(crate) fn player_skill_records_loaded_like_cpp(&self) -> bool {
-        self.player_skill_records_loaded_like_cpp
+        let canonical = self.with_owned_player_like_cpp(Player::skill_records_loaded_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.player_skill_records_loaded_like_cpp;
+        }
+        canonical.unwrap_or(false)
+    }
+
+    fn replace_player_skill_runtime_exact_like_cpp(
+        &mut self,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        loaded: bool,
+        complete: bool,
+        occupied_slots: Option<u16>,
+        tombstones: BTreeSet<u16>,
+    ) -> bool {
+        let canonical_records = skill_records
+            .values()
+            .copied()
+            .map(canonical_player_skill_record_like_cpp)
+            .collect();
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.replace_skill_records_like_cpp(
+                    canonical_records,
+                    loaded,
+                    complete,
+                    occupied_slots,
+                    tombstones.clone(),
+                );
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.player_skill_values_like_cpp =
+                represented_skill_values_from_records_like_cpp(&skill_records);
+            self.represented_enchanting_skill = skill_records
+                .get(&SKILL_ENCHANTING_LIKE_CPP)
+                .map(|skill| skill.value)
+                .unwrap_or(0);
+            self.player_skill_records_like_cpp = skill_records;
+            self.player_skill_non_durable_tombstones_like_cpp = tombstones;
+            self.player_skill_records_loaded_like_cpp = loaded;
+            self.player_skill_records_complete_like_cpp = loaded && complete;
+            self.player_skill_occupied_slots_like_cpp = occupied_slots;
+            return true;
+        }
+        canonical
+    }
+
+    fn clear_player_skill_tombstones_like_cpp(&mut self) {
+        let records = self.player_skill_records_like_cpp();
+        let loaded = self.player_skill_records_loaded_like_cpp();
+        let complete = self.complete_player_skill_records_like_cpp().is_some();
+        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
+        let _ = self.replace_player_skill_runtime_exact_like_cpp(
+            records,
+            loaded,
+            complete,
+            occupied,
+            BTreeSet::new(),
+        );
     }
 
     pub(crate) fn set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
@@ -39374,29 +39526,83 @@ impl WorldSession {
         // C++ `SetSkill(..., 0)` clears step/rank/max but retains the
         // SkillLineID in its update-field slot until that slot is explicitly
         // reused. A represented SKILL_DELETED row therefore still counts.
-        let exact = self.player_skill_records_like_cpp.len();
-        if !self.player_skill_records_complete_like_cpp
-            || usize::from(occupied_slots) != exact
-            || usize::from(occupied_slots) > 256
-        {
-            self.player_skill_occupied_slots_like_cpp = None;
+        let skill_records = self.player_skill_records_like_cpp();
+        let canonical_complete =
+            self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
+        #[cfg(test)]
+        let canonical_complete = canonical_complete.or_else(|| {
+            self.player_handle_like_cpp
+                .is_none()
+                .then_some(self.player_skill_records_complete_like_cpp)
+        });
+        let complete = canonical_complete.unwrap_or(false);
+        let exact = skill_records.len();
+        if !complete || usize::from(occupied_slots) != exact || usize::from(occupied_slots) > 256 {
+            let _ = self.with_owned_player_mut_like_cpp(|player| {
+                let records = player.skill_records_like_cpp().to_vec();
+                let loaded = player.skill_records_loaded_like_cpp();
+                let complete = player.skill_records_complete_like_cpp();
+                let tombstones = player.non_durable_skill_tombstones_like_cpp().clone();
+                player.replace_skill_records_like_cpp(records, loaded, complete, None, tombstones);
+            });
+            #[cfg(test)]
+            if self.player_handle_like_cpp.is_none() {
+                self.player_skill_occupied_slots_like_cpp = None;
+            }
             return false;
         }
-        self.player_skill_occupied_slots_like_cpp = Some(occupied_slots);
-        true
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                let records = player.skill_records_like_cpp().to_vec();
+                let loaded = player.skill_records_loaded_like_cpp();
+                let complete = player.skill_records_complete_like_cpp();
+                let tombstones = player.non_durable_skill_tombstones_like_cpp().clone();
+                player.replace_skill_records_like_cpp(
+                    records,
+                    loaded,
+                    complete,
+                    Some(occupied_slots),
+                    tombstones,
+                );
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.player_skill_occupied_slots_like_cpp = Some(occupied_slots);
+            return true;
+        }
+        canonical
     }
 
     pub(crate) fn complete_player_skill_occupied_slots_like_cpp(&self) -> Option<u16> {
-        self.player_skill_records_complete_like_cpp
-            .then_some(self.player_skill_occupied_slots_like_cpp)
-            .flatten()
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .skill_records_complete_like_cpp()
+                .then(|| player.occupied_skill_slots_like_cpp())
+                .flatten()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self
+                .player_skill_records_complete_like_cpp
+                .then_some(self.player_skill_occupied_slots_like_cpp)
+                .flatten();
+        }
+        canonical.flatten()
     }
 
     pub(crate) fn complete_player_skill_records_like_cpp(
         &self,
-    ) -> Option<&HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        self.player_skill_records_complete_like_cpp
-            .then(|| self.player_skill_records_like_cpp())
+    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
+        let records = self.player_skill_records_like_cpp();
+        let complete = self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
+        #[cfg(test)]
+        let complete = complete.or_else(|| {
+            self.player_handle_like_cpp
+                .is_none()
+                .then_some(self.player_skill_records_complete_like_cpp)
+        });
+        complete.unwrap_or(false).then_some(records)
     }
 
     fn has_complete_player_skill_save_authority_like_cpp(&self) -> bool {
@@ -39448,7 +39654,7 @@ impl WorldSession {
             }
             Some(previous) => previous.state,
         };
-        let mut skill_records = self.player_skill_records_like_cpp().clone();
+        let mut skill_records = self.player_skill_records_like_cpp();
         skill_records.insert(
             skill_id,
             RepresentedPlayerSkillLikeCpp {
@@ -40888,17 +41094,15 @@ impl WorldSession {
         self.represented_spell_trait_definition_ids_complete_like_cpp = true;
         self.represented_override_spells_like_cpp = exact_overrides;
         self.represented_override_spells_complete_like_cpp = true;
-        self.player_skill_values_like_cpp =
-            represented_skill_values_from_records_like_cpp(&skill_records);
-        self.represented_enchanting_skill = skill_records
-            .get(&SKILL_ENCHANTING_LIKE_CPP)
-            .map(|skill| skill.value)
-            .unwrap_or(0);
-        self.player_skill_records_like_cpp = skill_records.clone();
-        self.player_skill_non_durable_tombstones_like_cpp = non_durable_skill_tombstones;
-        self.player_skill_records_loaded_like_cpp = true;
-        self.player_skill_records_complete_like_cpp = true;
-        self.player_skill_occupied_slots_like_cpp = Some(occupied_skill_slots);
+        if !self.replace_player_skill_runtime_exact_like_cpp(
+            skill_records,
+            true,
+            true,
+            Some(occupied_skill_slots),
+            non_durable_skill_tombstones,
+        ) {
+            return false;
+        }
         // Cross-session consumers (notably disenchant roll eligibility) read
         // known spells and enchanting rank from the player registry. Publish
         // the committed snapshot there before any acquisition action packet.
@@ -41330,18 +41534,37 @@ impl WorldSession {
         &self.represented_favorite_known_spells_like_cpp
     }
 
-    pub(crate) fn player_skill_values_like_cpp(&self) -> &HashMap<u16, u16> {
-        &self.player_skill_values_like_cpp
+    pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
+        represented_skill_values_from_records_like_cpp(&self.player_skill_records_like_cpp())
     }
 
     pub(crate) fn player_skill_records_like_cpp(
         &self,
-    ) -> &HashMap<u16, RepresentedPlayerSkillLikeCpp> {
-        &self.player_skill_records_like_cpp
+    ) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .skill_records_like_cpp()
+                .iter()
+                .filter_map(represented_player_skill_record_like_cpp)
+                .map(|skill| (skill.skill_id, skill))
+                .collect()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.player_skill_records_like_cpp.clone();
+        }
+        canonical.unwrap_or_default()
     }
 
-    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> &BTreeSet<u16> {
-        &self.player_skill_non_durable_tombstones_like_cpp
+    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> BTreeSet<u16> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.non_durable_skill_tombstones_like_cpp().clone()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.player_skill_non_durable_tombstones_like_cpp.clone();
+        }
+        canonical.unwrap_or_default()
     }
 
     pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
@@ -41349,6 +41572,17 @@ impl WorldSession {
             .get(&skill_id)
             .copied()
             .unwrap_or(0)
+    }
+
+    pub(crate) fn resolved_enchanting_skill_like_cpp(&self) -> Option<u16> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.enchanting_skill_value_like_cpp(SKILL_ENCHANTING_LIKE_CPP)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_enchanting_skill);
+        }
+        canonical
     }
 
     pub(crate) fn player_currencies_like_cpp(&self) -> &HashMap<u32, PlayerCurrency> {

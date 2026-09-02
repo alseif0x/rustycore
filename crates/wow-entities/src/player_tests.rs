@@ -300,6 +300,8 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             current_value: 225,
             max_value: 300,
             step: 2,
+            profession_slot: -1,
+            state: PlayerSkillLoadState::Unchanged,
         }],
         spells: vec![PlayerKnownSpellRecord {
             spell_id: 635,
@@ -450,6 +452,38 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
     player.reset_action_buttons_for_load_like_cpp();
     assert!(!player.action_buttons_loaded_like_cpp());
     assert_eq!(player.action_button_like_cpp(1), Some(0));
+}
+
+#[test]
+fn player_owns_exact_skill_rows_and_persistence_authority_like_cpp() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(
+        vec![PlayerSkillRecord {
+            skill_line_id: 333,
+            current_value: 150,
+            max_value: 225,
+            step: 2,
+            profession_slot: 0,
+            state: PlayerSkillLoadState::Changed,
+        }],
+        true,
+        true,
+        Some(1),
+        BTreeSet::from([755]),
+    );
+
+    assert!(player.skill_records_loaded_like_cpp());
+    assert!(player.skill_records_complete_like_cpp());
+    assert_eq!(player.occupied_skill_slots_like_cpp(), Some(1));
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([755])
+    );
+    assert_eq!(player.skill_records_like_cpp()[0].profession_slot, 0);
+    assert_eq!(
+        player.skill_records_like_cpp()[0].state,
+        PlayerSkillLoadState::Changed
+    );
 }
 
 #[test]

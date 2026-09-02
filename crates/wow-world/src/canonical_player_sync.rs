@@ -1,6 +1,6 @@
 //! One-way compatibility hydration into the canonical Player owner.
 
-use crate::session::{SKILL_ENCHANTING_LIKE_CPP, WorldSession};
+use crate::session::WorldSession;
 
 pub(crate) fn hydrate_player_presentation_like_cpp(
     session: &WorldSession,
@@ -63,7 +63,6 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
 
 pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &WorldSession) {
     let difficulty = session.represented_dungeon_difficulty_id_like_cpp;
-    let enchanting = session.represented_enchanting_skill;
     let known_spells = session.known_spells_like_cpp().to_vec();
     let quest_statuses = session
         .player_quests
@@ -159,19 +158,5 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
         state.has_vehicle_kit = has_vehicle_kit;
         state.vehicle_seat = vehicle_seat;
         state.pet_guid = pet_guid;
-        if let Some(skill) = state
-            .skills
-            .iter_mut()
-            .find(|skill| skill.skill_line_id == u32::from(SKILL_ENCHANTING_LIKE_CPP))
-        {
-            skill.current_value = enchanting;
-        } else if enchanting != 0 {
-            state.skills.push(wow_entities::PlayerSkillRecord {
-                skill_line_id: u32::from(SKILL_ENCHANTING_LIKE_CPP),
-                current_value: enchanting,
-                max_value: enchanting,
-                step: 0,
-            });
-        }
     });
 }

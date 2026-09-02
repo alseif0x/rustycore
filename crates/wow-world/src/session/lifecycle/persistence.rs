@@ -222,14 +222,13 @@ impl WorldSession {
         };
 
         let skills = if self.has_complete_player_skill_save_authority_like_cpp() {
+            let tombstones = self.player_skill_non_durable_tombstones_like_cpp();
             Some(
                 self.player_skill_records_like_cpp()
                     .values()
                     .filter(|skill| {
                         skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
-                            && !self
-                                .player_skill_non_durable_tombstones_like_cpp
-                                .contains(&skill.skill_id)
+                            && !tombstones.contains(&skill.skill_id)
                     })
                     .map(|skill| PlayerSkillSaveLikeCpp {
                         skill_id: skill.skill_id,
@@ -603,13 +602,22 @@ impl WorldSession {
     }
 
     fn mark_player_skills_saved_like_cpp(&mut self) {
-        for skill in self.player_skill_records_like_cpp.values_mut() {
+        let mut records = self.player_skill_records_like_cpp();
+        let mut tombstones = self.player_skill_non_durable_tombstones_like_cpp();
+        for skill in records.values_mut() {
             if skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
-                self.player_skill_non_durable_tombstones_like_cpp
-                    .insert(skill.skill_id);
+                tombstones.insert(skill.skill_id);
             }
             skill.state = RepresentedPlayerSkillStateLikeCpp::Unchanged;
         }
+        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
+        let _ = self.replace_player_skill_runtime_exact_like_cpp(
+            records,
+            true,
+            occupied.is_some(),
+            occupied,
+            tombstones,
+        );
         self.sync_player_registry_state_like_cpp();
     }
 

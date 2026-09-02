@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use wow_core::ObjectGuid;
 
 use crate::{
@@ -13,6 +15,10 @@ use crate::{
 pub struct PlayerGameplayState {
     pub quests: PlayerQuestGameplayState,
     pub skills: Vec<PlayerSkillRecord>,
+    pub skills_loaded: bool,
+    pub skills_complete: bool,
+    pub occupied_skill_slots: Option<u16>,
+    pub non_durable_skill_tombstones: BTreeSet<u16>,
     pub spells: Vec<PlayerKnownSpellRecord>,
     pub talents: Vec<PlayerTalentRecord>,
     pub action_buttons: Vec<PlayerActionButtonRecord>,

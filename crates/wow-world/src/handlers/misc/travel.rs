@@ -172,8 +172,8 @@ impl crate::session::WorldSession {
                 self.skill_line_store(),
                 self.skill_tiers_store(),
             ) {
-                let mut skill_records: Vec<_> =
-                    self.player_skill_records_like_cpp().values().collect();
+                let player_skill_records = self.player_skill_records_like_cpp();
+                let mut skill_records: Vec<_> = player_skill_records.values().collect();
                 skill_records.sort_by_key(|skill| skill.skill_id);
                 skill_records
                     .into_iter()

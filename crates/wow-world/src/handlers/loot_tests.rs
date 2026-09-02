@@ -9580,6 +9580,8 @@ async fn loot_unit_group_loot_disenchant_mask_uses_cpp_skill_required_gate() {
             current_value: 175,
             max_value: 225,
             step: 0,
+            profession_slot: -1,
+            state: wow_entities::PlayerSkillLoadState::Unchanged,
         });
     canonical
         .lock()

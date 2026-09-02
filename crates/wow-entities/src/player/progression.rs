@@ -8,6 +8,51 @@
 use super::*;
 
 impl Player {
+    pub fn replace_skill_records_like_cpp(
+        &mut self,
+        mut records: Vec<PlayerSkillRecord>,
+        loaded: bool,
+        complete: bool,
+        occupied_slots: Option<u16>,
+        non_durable_tombstones: BTreeSet<u16>,
+    ) {
+        records.sort_unstable_by_key(|record| record.skill_line_id);
+        self.gameplay_state.skills = records;
+        self.gameplay_state.skills_loaded = loaded;
+        self.gameplay_state.skills_complete = loaded && complete;
+        self.gameplay_state.occupied_skill_slots = occupied_slots;
+        self.gameplay_state.non_durable_skill_tombstones = non_durable_tombstones;
+    }
+
+    pub fn skill_records_like_cpp(&self) -> &[PlayerSkillRecord] {
+        &self.gameplay_state.skills
+    }
+
+    pub fn skill_records_loaded_like_cpp(&self) -> bool {
+        self.gameplay_state.skills_loaded
+    }
+
+    pub fn skill_records_complete_like_cpp(&self) -> bool {
+        self.gameplay_state.skills_complete
+    }
+
+    pub fn occupied_skill_slots_like_cpp(&self) -> Option<u16> {
+        self.gameplay_state.occupied_skill_slots
+    }
+
+    pub fn non_durable_skill_tombstones_like_cpp(&self) -> &BTreeSet<u16> {
+        &self.gameplay_state.non_durable_skill_tombstones
+    }
+
+    pub fn enchanting_skill_value_like_cpp(&self, enchanting_skill_id: u16) -> u16 {
+        self.gameplay_state
+            .skills
+            .iter()
+            .find(|record| record.skill_line_id == u32::from(enchanting_skill_id))
+            .map(|record| record.current_value)
+            .unwrap_or(0)
+    }
+
     pub fn set_forced_reputation_rank_like_cpp(&mut self, faction_id: u32, forced: bool) {
         if forced {
             self.forced_reaction_faction_ids.insert(faction_id);

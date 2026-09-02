@@ -845,6 +845,7 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default();
+        let current_player_enchanting_skill = self.resolved_enchanting_skill_like_cpp();
 
         if let Some(loot) = self.loot_table.get_mut(&owner_guid) {
             for entry in &mut loot.items {
@@ -921,7 +922,7 @@ impl WorldSession {
                 let max_enchanting_skill = represented_max_enchanting_skill_like_cpp(
                     &eligible_looters,
                     player_guid,
-                    self.represented_enchanting_skill,
+                    current_player_enchanting_skill,
                     player_registry.as_deref(),
                 );
                 let (item_flags2, disenchant_skill_required) = item_flags2_by_item_id

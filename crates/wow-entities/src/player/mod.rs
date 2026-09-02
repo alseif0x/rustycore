@@ -19,7 +19,7 @@ mod spellbook;
 mod visibility;
 mod vitals;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::PlayerGameplayState;
 use bitflags::bitflags;
@@ -441,6 +441,17 @@ pub struct PlayerSkillRecord {
     pub current_value: u16,
     pub max_value: u16,
     pub step: u16,
+    pub profession_slot: i8,
+    pub state: PlayerSkillLoadState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlayerSkillLoadState {
+    #[default]
+    Unchanged,
+    Changed,
+    New,
+    Deleted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

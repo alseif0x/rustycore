@@ -2334,43 +2334,55 @@
           "name": "player_skill_non_durable_tombstones_like_cpp",
           "type": "BTreeSet < u16 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_skill_occupied_slots_like_cpp",
           "type": "Option < u16 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_skill_records_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_skill_records_like_cpp",
           "type": "HashMap < u16 , RepresentedPlayerSkillLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_skill_records_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_skill_values_like_cpp",
           "type": "HashMap < u16 , u16 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_spell_hit_aura_authority_tombstoned_like_cpp",
@@ -3233,8 +3245,10 @@
           "name": "represented_enchanting_skill",
           "type": "u16",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_equipment_sets_like_cpp",
@@ -22875,6 +22889,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "clear_player_skill_tombstones_like_cpp",
+          "visibility": "private",
+          "signature": "fn clear_player_skill_tombstones_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "clear_realm_packet_rx",
           "visibility": "pub (crate)",
           "signature": "fn clear_realm_packet_rx (& mut self)",
@@ -23153,7 +23178,7 @@
           "kind": "method",
           "name": "complete_player_skill_records_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn complete_player_skill_records_like_cpp (& self ,) -> Option < & HashMap < u16 , RepresentedPlayerSkillLikeCpp > >",
+          "signature": "fn complete_player_skill_records_like_cpp (& self ,) -> Option < HashMap < u16 , RepresentedPlayerSkillLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30023,7 +30048,7 @@
           "kind": "method",
           "name": "player_skill_non_durable_tombstones_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_skill_non_durable_tombstones_like_cpp (& self) -> & BTreeSet < u16 >",
+          "signature": "fn player_skill_non_durable_tombstones_like_cpp (& self) -> BTreeSet < u16 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30036,7 +30061,7 @@
           "kind": "method",
           "name": "player_skill_records_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_skill_records_like_cpp (& self ,) -> & HashMap < u16 , RepresentedPlayerSkillLikeCpp >",
+          "signature": "fn player_skill_records_like_cpp (& self ,) -> HashMap < u16 , RepresentedPlayerSkillLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30075,7 +30100,7 @@
           "kind": "method",
           "name": "player_skill_values_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_skill_values_like_cpp (& self) -> & HashMap < u16 , u16 >",
+          "signature": "fn player_skill_values_like_cpp (& self) -> HashMap < u16 , u16 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32648,6 +32673,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_player_skill_runtime_exact_like_cpp",
+          "visibility": "private",
+          "signature": "fn replace_player_skill_runtime_exact_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool , occupied_slots : Option < u16 > , tombstones : BTreeSet < u16 > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -38274,6 +38310,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_enchanting_skill_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_enchanting_skill_like_cpp (& self) -> Option < u16 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -60803,19 +60852,6 @@
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot/mod.rs",
-          "enclosing": "fn represented_max_enchanting_skill_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "max",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry . and_then (| registry | registry . loot_enchanting_skill (* looter)) . unwrap_or (0)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot",
-          "source": "crates/wow-world/src/handlers/loot/mod.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
@@ -74447,7 +74483,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3bfd79c656b3eaf36fd4e9d0af99e30a:len=92522|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6e4704b7ae73f3f39f4c2040fbd4e8d0:len=92627|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

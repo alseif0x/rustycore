@@ -56952,7 +56952,8 @@ fn set_player_skill_values_builds_represented_skill_records_for_tests_like_cpp()
         session.complete_player_skill_records_like_cpp().is_none(),
         "an active-only value map has no authority for C++ step or SkillUpdateState"
     );
-    let riding = session.player_skill_records_like_cpp().get(&762).unwrap();
+    let skill_records = session.player_skill_records_like_cpp();
+    let riding = skill_records.get(&762).unwrap();
     assert_eq!(
         *riding,
         RepresentedPlayerSkillLikeCpp {

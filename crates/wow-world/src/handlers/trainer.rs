@@ -1319,10 +1319,14 @@ mod tests {
         );
         assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
         assert!(session.set_complete_represented_override_spells_like_cpp([]));
-        assert!(session.set_complete_player_skill_records_like_cpp(HashMap::new(), 0));
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        // The production login path hydrates `Player::SetFactionForRace`
+        // before publishing the Player. This synthetic fixture has no
+        // ChrRaces store, so install the exact canonical prerequisite here.
+        session.set_player_faction_template_like_cpp(1);
+        assert!(session.set_complete_player_skill_records_like_cpp(HashMap::new(), 0));
         insert_canonical_creature(&canonical, trainer, 1.0, TRAINER_BUY_NPC_FLAGS_LIKE_CPP);
         insert_canonical_creature(
             &canonical,
