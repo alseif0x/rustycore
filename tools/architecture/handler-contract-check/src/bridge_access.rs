@@ -113,18 +113,6 @@ const CURATED_ANCHORS: &[CuratedAnchor] = &[
         name: "run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
         direction: BridgeDirection::LegacyToCanonical,
     },
-    CuratedAnchor {
-        package: "wow-world",
-        module: "crate::session",
-        name: "canonical_player_entity_snapshot_like_cpp",
-        direction: BridgeDirection::RepresentedSessionToCanonical,
-    },
-    CuratedAnchor {
-        package: "wow-world",
-        module: "crate::session",
-        name: "canonical_player_entity_snapshot_for_map_like_cpp",
-        direction: BridgeDirection::RepresentedSessionToCanonical,
-    },
 ];
 
 /// One authority surface referenced by a bridge item.
@@ -2042,33 +2030,31 @@ mod tests {
     }
 
     #[test]
-    fn curated_anchor_is_recorded_even_when_session_side_is_implicit() {
+    fn curated_anchor_records_its_declared_direction() {
         let baseline = inventory_bridge_accesses(&[BridgeSource {
-            package: "wow-world",
-            module: "crate::session",
+            package: "world-server",
+            module: "crate::runtime::game_events",
             source_path: "src/session.rs",
             inherited_cfg: &[],
             source: r#"
-                struct WorldSession;
-                impl WorldSession {
-                    fn canonical_player_entity_snapshot_like_cpp(&self) -> wow_entities::Player {
-                        wow_entities::Player::default()
-                    }
-                }
+                fn mirror_loaded_grid_creature_to_legacy_like_cpp(
+                    canonical: &wow_map::MapManager,
+                    legacy: &wow_world::MapManager,
+                ) {}
             "#,
         }])
         .expect("curated method parses");
         assert_eq!(baseline.bridges.len(), 1);
         assert_eq!(
             baseline.bridges[0].direction_markers,
-            vec![BridgeDirection::RepresentedSessionToCanonical]
+            vec![BridgeDirection::CanonicalToLegacy]
         );
         let sides: BTreeSet<_> = baseline.bridges[0]
             .evidence
             .iter()
             .map(|marker| marker.side)
             .collect();
-        assert!(sides.contains(&BridgeSide::RepresentedSession));
+        assert!(sides.contains(&BridgeSide::Legacy));
         assert!(sides.contains(&BridgeSide::Canonical));
     }
 

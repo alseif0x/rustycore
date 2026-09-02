@@ -9767,36 +9767,24 @@ impl WorldSession {
         }
     }
 
-    fn canonical_player_entity_snapshot_like_cpp(&self) -> Option<Player> {
-        self.canonical_player_entity_snapshot_for_map_like_cpp(wow_map::MapKey::new(
-            u32::from(self.player_map_id_like_cpp()),
-            0,
-        ))
+    #[cfg(test)]
+    fn initial_player_fixture_like_cpp(&self) -> Option<Player> {
+        self.build_initial_player_for_owner_like_cpp(
+            wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0),
+            None,
+        )
     }
 
-    fn canonical_player_entity_snapshot_for_map_like_cpp(
-        &self,
-        key: wow_map::MapKey,
-    ) -> Option<Player> {
-        self.canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp(key, None)
-    }
-
-    fn canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp(
+    /// Build the initial canonical Player value before a generation-checked
+    /// owner exists. This is construction input only: once a handle has been
+    /// installed, callers must query or mutate that exact owner in place.
+    fn build_initial_player_for_owner_like_cpp(
         &self,
         key: wow_map::MapKey,
         bootstrap_position: Option<Position>,
     ) -> Option<Player> {
-        if let (Some(manager), Some(handle)) = (
-            self.canonical_map_manager.as_ref(),
-            self.player_handle_like_cpp,
-        ) {
-            let manager = manager.lock().ok()?;
-            if manager.player_residence_like_cpp(handle)
-                != Some(wow_map::PlayerResidenceLikeCpp::Active(key))
-            {
-                return None;
-            }
-            return manager.with_player_like_cpp(handle, Clone::clone);
+        if self.player_handle_like_cpp.is_some() {
+            return None;
         }
 
         let guid = self.player_guid()?;
@@ -10180,109 +10168,6 @@ impl WorldSession {
             self.represented_player_powers_like_cpp = snapshot.powers;
         }
         Some(snapshot)
-    }
-
-    fn sync_canonical_player_entity_like_cpp(
-        &self,
-        managed: &mut wow_map::ManagedMap,
-        mut player: Player,
-    ) {
-        let guid = player.guid();
-        let never_visible_for_seer = self.player_session_never_visible_for_seer_like_cpp(guid);
-        let seer_can_never_see_target = self.player_can_never_see_target_like_cpp();
-        Self::apply_player_session_visibility_detection_like_cpp(
-            &mut player,
-            never_visible_for_seer,
-            seer_can_never_see_target,
-        );
-        let map = managed.map_mut();
-        if let Some(existing) = map.get_typed_player_mut(guid) {
-            // Existing map health/death is canonical. The session-built Player
-            // is a whole-entity transport snapshot and may have been created
-            // before a map-owned melee hit, heal, death, or resurrection.
-            player
-                .unit_mut()
-                .preserve_authoritative_health_state_for_snapshot_like_cpp(existing.unit());
-            let attacking = existing.unit().attacking();
-            let target = existing.unit().data().target;
-            let unit_state = existing.unit().unit_state();
-            let pvp_flags = existing.unit().pvp_flags_like_cpp();
-            let player_flags = existing.data().player_flags;
-            let player_flags_ex = existing.data().player_flags_ex;
-            let farsight_object = existing.active_data().farsight_object;
-            let duel = existing.duel_info_like_cpp();
-            let gameplay_state = existing.gameplay_state().clone();
-            let visibility_detection = existing.unit().visibility_detection_like_cpp().clone();
-            let forced_reaction_faction_ids =
-                existing.forced_reputation_faction_ids_like_cpp().clone();
-            player.replace_all_player_flags(player_flags);
-            player.replace_all_player_flags_ex(player_flags_ex);
-            player.set_duel_info_like_cpp(duel);
-            *player.gameplay_state_mut() = gameplay_state;
-            player.replace_forced_reputation_faction_ids_like_cpp(forced_reaction_faction_ids);
-            *existing = player;
-            existing.unit_mut().set_attacking(attacking);
-            existing.unit_mut().set_target(target);
-            existing.unit_mut().add_unit_state(unit_state);
-            existing
-                .unit_mut()
-                .replace_all_pvp_flags_like_cpp(pvp_flags);
-            existing
-                .unit_mut()
-                .replace_visibility_detection_like_cpp(visibility_detection);
-            existing.set_farsight_object_like_cpp(farsight_object);
-            Self::apply_player_session_visibility_detection_like_cpp(
-                existing,
-                never_visible_for_seer,
-                seer_can_never_see_target,
-            );
-            return;
-        }
-
-        let Ok(record) = wow_entities::MapObjectRecord::new_player(player) else {
-            return;
-        };
-        let _ = map.insert_map_object_record(record);
-    }
-
-    fn sync_canonical_player_entity_for_map_like_cpp(
-        &self,
-        manager: &mut wow_map::MapManager,
-        key: wow_map::MapKey,
-        mut player: Player,
-    ) {
-        let guid = player.guid();
-        let mut authoritative_unit = None;
-        manager.do_for_all_maps(|managed| {
-            if authoritative_unit.is_none() {
-                authoritative_unit = managed
-                    .map()
-                    .get_typed_player(guid)
-                    .map(|existing| existing.unit().clone());
-            }
-        });
-        if let Some(authoritative_unit) = authoritative_unit.as_ref() {
-            // A map transfer changes containment, not the same character's
-            // health timeline. Carry the canonical tuple and its shared
-            // revision allocator across remove/insert.
-            player
-                .unit_mut()
-                .preserve_authoritative_health_state_for_snapshot_like_cpp(authoritative_unit);
-        }
-        manager.do_for_all_maps_mut(|managed| {
-            if managed.map_id() == key.map_id && managed.instance_id() == key.instance_id {
-                return;
-            }
-
-            match managed.map_mut().remove_from_map_like_cpp(guid, false) {
-                Ok(_) | Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => {}
-                Err(_) => {}
-            }
-        });
-
-        if let Some(managed) = manager.find_map_mut(key.map_id, key.instance_id) {
-            self.sync_canonical_player_entity_like_cpp(managed, player);
-        }
     }
 
     fn remove_current_player_from_canonical_current_map_like_cpp(&mut self) -> bool {
@@ -12261,9 +12146,9 @@ impl WorldSession {
             match adopted {
                 Ok(handle) => self.player_handle_like_cpp = Some(handle),
                 Err(wow_map::PlayerOwnerError::ActivePlayerMissing { .. }) => {
-                    // Snapshot construction resolves map difficulty through
+                    // Initial Player construction resolves map difficulty through
                     // MapManager, so it must run outside the manager lock.
-                    let Some(player) = self.transitional_initial_player_box_like_cpp(key) else {
+                    let Some(player) = self.initial_player_box_like_cpp(key) else {
                         return false;
                     };
                     let Ok(mut manager) = manager.lock() else {
@@ -12321,12 +12206,9 @@ impl WorldSession {
     }
 
     #[inline(never)]
-    fn transitional_initial_player_box_like_cpp(
-        &self,
-        key: wow_map::MapKey,
-    ) -> Option<Box<Player>> {
+    fn initial_player_box_like_cpp(&self, key: wow_map::MapKey) -> Option<Box<Player>> {
         Some(Box::new(
-            self.canonical_player_entity_snapshot_for_map_like_cpp(key)?,
+            self.build_initial_player_for_owner_like_cpp(key, None)?,
         ))
     }
 
@@ -16023,25 +15905,21 @@ impl WorldSession {
         if player_map_key.map_id != requested_map_id {
             return Some(Vec::new());
         }
-        // Build the session-derived snapshot before holding MapManager. Its
-        // spell-hit authority proof resolves the current map difficulty and
-        // therefore may briefly read the same manager; doing so under the
-        // guard would recursively lock the non-reentrant mutex.
-        let player = self.canonical_player_entity_snapshot_for_map_like_cpp(player_map_key)?;
+        let source_combat_reach =
+            self.with_owned_player_like_cpp(|player| player.unit().world().combat_reach())?;
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
         let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
         let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
-        let source_combat_reach = player.unit().world().combat_reach();
         let nearby = map.map().nearby_cell_guids_like_cpp(
             position.x,
             position.y,
             visibility_range + source_combat_reach,
         );
 
-        let mut creatures = Vec::new();
+        let mut candidates = Vec::new();
         for guid in nearby
             .world
             .creatures
@@ -16068,25 +15946,33 @@ impl WorldSession {
                 || !self
                     .represented_player_phase_shift
                     .can_see(world.phase_shift())
-                || !player.unit().can_see_or_detect_unit_like_cpp(
-                    creature.unit(),
-                    false,
-                    true,
-                    false,
-                )
             {
                 continue;
             }
-
-            let create_data =
-                crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(creature);
-            creatures.push(crate::map_manager::WorldCreature::from_canonical(
-                creature.clone(),
-                create_data,
-            ));
+            candidates.push(creature.clone());
         }
+        drop(manager);
 
-        Some(creatures)
+        self.with_owned_player_like_cpp(move |player| {
+            candidates
+                .into_iter()
+                .filter(|creature| {
+                    player.unit().can_see_or_detect_unit_like_cpp(
+                        creature.unit(),
+                        false,
+                        true,
+                        false,
+                    )
+                })
+                .map(|creature| {
+                    let create_data =
+                        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
+                            &creature,
+                        );
+                    crate::map_manager::WorldCreature::from_canonical(creature, create_data)
+                })
+                .collect()
+        })
     }
 
     pub(crate) fn send_initial_visible_packets_for_creature_like_cpp(
@@ -16240,18 +16126,22 @@ impl WorldSession {
         &self,
         creature: &crate::map_manager::WorldCreature,
     ) -> bool {
-        let Some(player) =
-            self.canonical_player_entity_snapshot_for_map_like_cpp(wow_map::MapKey::new(
-                u32::from(self.player_map_id_like_cpp()),
-                creature.instance_id(),
-            ))
-        else {
-            return true;
-        };
-
-        player
-            .unit()
-            .can_see_or_detect_unit_like_cpp(creature.creature.unit(), false, true, false)
+        let expected = wow_map::MapKey::new(
+            u32::from(self.player_map_id_like_cpp()),
+            creature.instance_id(),
+        );
+        if self.current_canonical_player_map_key_like_cpp() != Some(expected) {
+            return false;
+        }
+        self.with_owned_player_like_cpp(|player| {
+            player.unit().can_see_or_detect_unit_like_cpp(
+                creature.creature.unit(),
+                false,
+                true,
+                false,
+            )
+        })
+        .unwrap_or(false)
     }
 
     fn represented_can_receive_creature_message_to_set_like_cpp(
@@ -39135,10 +39025,7 @@ impl WorldSession {
         };
         let key = wow_map::MapKey::new(u32::from(self.current_map_id), 0);
         let Some(player) = self
-            .canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp(
-                key,
-                Some(bootstrap_position),
-            )
+            .build_initial_player_for_owner_like_cpp(key, Some(bootstrap_position))
             .map(Box::new)
         else {
             return false;

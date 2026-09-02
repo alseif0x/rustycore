@@ -14119,7 +14119,7 @@ fn load_seasonal_quest_status_repeated_bit_counts_no_change_like_cpp() {
 }
 
 #[test]
-fn canonical_player_entity_snapshot_preserves_loaded_seasonal_unique_bit_like_cpp() {
+fn initial_canonical_player_preserves_loaded_seasonal_unique_bit_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 12_345)));
     session.set_loaded_player_name_like_cpp("SeasonalBit".to_string());
@@ -14139,7 +14139,7 @@ fn canonical_player_entity_snapshot_preserves_loaded_seasonal_unique_bit_like_cp
 
     assert_eq!(outcome.completed_bit_set, 1);
     let player = session
-        .canonical_player_entity_snapshot_like_cpp()
+        .initial_player_fixture_like_cpp()
         .expect("canonical player snapshot");
     assert_eq!(player.quest_completed_block_like_cpp(1), Some(1));
 }
@@ -27064,6 +27064,7 @@ fn visible_creatures_skip_not_in_world_canonical_objects_like_cpp() {
     ));
     session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_test_creature_indexed_on_map_with_level(
         &canonical,
         in_world_guid,
@@ -30667,16 +30668,7 @@ fn canonical_player_map_transfer_sync_removes_stale_old_map_like_cpp() {
     other_session.player_name = Some("TransferOther".into());
     other_session.player_position = Some(Position::new(3710.0, 1510.0, 120.0, 0.0));
     other_session.current_map_id = 571;
-    {
-        let other_player = other_session
-            .canonical_player_entity_snapshot_like_cpp()
-            .unwrap();
-        let mut manager = canonical.lock().unwrap();
-        other_session.sync_canonical_player_entity_like_cpp(
-            manager.find_map_mut(571, 0).unwrap(),
-            other_player,
-        );
-    }
+    insert_session_player_into_canonical_map_like_cpp(&other_session, &canonical, 571, 0);
     add_canonical_test_creature(
         &canonical,
         creature_guid,
@@ -34085,7 +34077,7 @@ fn canonical_player_dungeon_create_map_regenerates_conflicting_encounter_lock_in
 }
 
 #[test]
-fn canonical_player_snapshot_syncs_display_mount_collision_shape_like_cpp() {
+fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let guid = ObjectGuid::create_player(1, 42);
@@ -56800,7 +56792,7 @@ fn represented_explored_zones_load_preserves_canonical_snapshot_like_cpp() {
         0,
     );
 
-    let player = session.canonical_player_entity_snapshot_like_cpp().unwrap();
+    let player = session.initial_player_fixture_like_cpp().unwrap();
     assert_eq!(
         player.explored_zones_block_like_cpp(0),
         Some(0x0000_0002_0000_0001)
@@ -71790,14 +71782,16 @@ fn insert_session_player_into_canonical_map_like_cpp(
     }
 
     let player = session
-        .canonical_player_entity_snapshot_for_map_like_cpp(wow_map::MapKey::new(
-            map_id,
-            instance_id,
-        ))
+        .build_initial_player_for_owner_like_cpp(wow_map::MapKey::new(map_id, instance_id), None)
         .expect("complete canonical player fixture");
+    let record =
+        wow_entities::MapObjectRecord::new_player(player).expect("canonical Player fixture record");
     let mut manager = canonical.lock().unwrap();
-    let managed = manager.create_world_map(map_id, instance_id);
-    session.sync_canonical_player_entity_like_cpp(managed, player);
+    manager
+        .create_world_map(map_id, instance_id)
+        .map_mut()
+        .insert_map_object_record(record)
+        .expect("insert canonical Player fixture");
 }
 
 fn session_with_canonical_player_for_away_like_cpp()
@@ -72514,16 +72508,7 @@ fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
         other_session.current_map_id = 571;
 
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-        let other_player = other_session
-            .canonical_player_entity_snapshot_like_cpp()
-            .unwrap();
-        {
-            let mut manager = canonical.lock().unwrap();
-            other_session.sync_canonical_player_entity_like_cpp(
-                manager.find_map_mut(571, 0).unwrap(),
-                other_player,
-            );
-        }
+        insert_session_player_into_canonical_map_like_cpp(&other_session, &canonical, 571, 0);
         add_canonical_test_creature(
             &canonical,
             creature_guid,
@@ -89521,153 +89506,6 @@ fn legacy_creature_victim_sync_cas_rejects_stale_aba_health_state_like_cpp() {
             .creature
             .loot_authority_like_cpp()
             .shares_storage_like_cpp(&sync.identity.authority)
-    );
-}
-
-#[test]
-fn same_map_player_snapshot_preserves_newer_canonical_health_timeline_like_cpp() {
-    let (session, _, _) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let guid = ObjectGuid::create_player(1, 91_047);
-    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
-    let stale = {
-        let mut guard = canonical.lock().unwrap();
-        let player = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_player_mut(guid)
-            .unwrap();
-        player.unit_mut().set_max_health(100);
-        player.unit_mut().set_health(100);
-        player.clone()
-    };
-    let expected = {
-        let mut guard = canonical.lock().unwrap();
-        let player = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_player_mut(guid)
-            .unwrap();
-        player.unit_mut().set_health(90);
-        (
-            player.unit().data().health,
-            player.unit().data().max_health,
-            player.unit().death_state(),
-            player.unit().health_state_revision_like_cpp(),
-            player.unit().health_state_revision_authority_like_cpp(),
-        )
-    };
-
-    {
-        let mut guard = canonical.lock().unwrap();
-        let managed = guard.find_map_mut(0, 0).unwrap();
-        session.sync_canonical_player_entity_like_cpp(managed, stale);
-    }
-
-    let guard = canonical.lock().unwrap();
-    let player = guard
-        .find_map(0, 0)
-        .unwrap()
-        .map()
-        .get_typed_player(guid)
-        .unwrap();
-    assert_eq!(
-        (
-            player.unit().data().health,
-            player.unit().data().max_health,
-            player.unit().death_state(),
-            player.unit().health_state_revision_like_cpp(),
-        ),
-        (expected.0, expected.1, expected.2, expected.3)
-    );
-    assert!(
-        player
-            .unit()
-            .shares_health_state_revision_authority_like_cpp(&expected.4)
-    );
-}
-
-#[test]
-fn player_map_transfer_preserves_revision_and_next_hit_clears_presentation_high_water_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let guid = ObjectGuid::create_player(1, 91_048);
-    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
-    let old_revision = {
-        let mut guard = canonical.lock().unwrap();
-        guard.create_world_map(1, 0);
-        let player = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_player_mut(guid)
-            .unwrap();
-        player.unit_mut().set_max_health(100);
-        player.unit_mut().set_health(90);
-        player.unit().health_state_revision_like_cpp()
-    };
-    let mut transfer_snapshot = Player::new(Some(1), false);
-    transfer_snapshot
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(guid);
-    transfer_snapshot
-        .unit_mut()
-        .world_mut()
-        .set_map(1, 0)
-        .unwrap();
-    transfer_snapshot.unit_mut().set_max_health(100);
-    transfer_snapshot.unit_mut().set_health(100);
-    {
-        let mut guard = canonical.lock().unwrap();
-        session.sync_canonical_player_entity_for_map_like_cpp(
-            &mut guard,
-            wow_map::MapKey::new(1, 0),
-            transfer_snapshot,
-        );
-    }
-
-    session.state = SessionState::LoggedIn;
-    session.set_player_guid(Some(guid));
-    session.set_player_map_position_like_cpp(1, Position::ZERO);
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.last_presented_creature_melee_health_state_revision_like_cpp = old_revision;
-    let new_revision = session
-        .mutate_canonical_player_like_cpp(|player| {
-            assert_eq!(player.unit().data().health, 90);
-            assert_eq!(player.unit().health_state_revision_like_cpp(), old_revision);
-            player.unit_mut().set_health(80);
-            player.unit().health_state_revision_like_cpp()
-        })
-        .unwrap();
-
-    assert!(new_revision > old_revision);
-    assert_eq!(
-        session.present_committed_creature_melee_health_like_cpp(new_revision),
-        Some(80)
-    );
-    let guard = canonical.lock().unwrap();
-    assert!(
-        guard
-            .find_map(0, 0)
-            .unwrap()
-            .map()
-            .get_typed_player(guid)
-            .is_none()
-    );
-    assert_eq!(
-        guard
-            .find_map(1, 0)
-            .unwrap()
-            .map()
-            .get_typed_player(guid)
-            .unwrap()
-            .unit()
-            .health_state_revision_like_cpp(),
-        new_revision
     );
 }
 

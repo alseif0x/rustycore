@@ -33,7 +33,7 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("one dispatch mechanism"), "{report}");
-    assert!(report.contains("25 #[path] modules verified"), "{report}");
+    assert!(report.contains("27 #[path] modules verified"), "{report}");
 }
 
 #[test]

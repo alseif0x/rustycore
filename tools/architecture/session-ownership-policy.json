@@ -21918,6 +21918,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "build_initial_player_for_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn build_initial_player_for_owner_like_cpp (& self , key : wow_map :: MapKey , bootstrap_position : Option < Position > ,) -> Option < Player >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "build_update_talent_data_packet_like_cpp",
           "visibility": "private",
           "signature": "fn build_update_talent_data_packet_like_cpp (& self , character_points : i32 ,) -> Option < wow_packet :: packets :: misc :: UpdateTalentData >",
@@ -22434,39 +22445,6 @@
           "name": "canonical_player_duel_in_progress_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_player_duel_in_progress_like_cpp (& self , guid : ObjectGuid , opponent : ObjectGuid ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_player_entity_snapshot_for_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp (& self , key : wow_map :: MapKey , bootstrap_position : Option < Position > ,) -> Option < Player >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_player_entity_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_player_entity_snapshot_like_cpp (& self) -> Option < Player >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -25760,6 +25738,30 @@
           "signature": "fn initial_loaded_item_mods_can_apply_like_cpp (& self , item_guid : ObjectGuid) -> bool",
           "cfg": [],
           "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "initial_player_box_like_cpp",
+          "visibility": "private",
+          "signature": "fn initial_player_box_like_cpp (& self , key : wow_map :: MapKey) -> Option < Box < Player > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "initial_player_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn initial_player_fixture_like_cpp (& self) -> Option < Player >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -47855,28 +47857,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "sync_canonical_player_entity_for_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_canonical_player_entity_for_map_like_cpp (& self , manager : & mut wow_map :: MapManager , key : wow_map :: MapKey , mut player : Player ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "sync_canonical_player_entity_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_canonical_player_entity_like_cpp (& self , managed : & mut wow_map :: ManagedMap , mut player : Player ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "sync_canonical_player_health_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn sync_canonical_player_health_like_cpp (& mut self , health : u32 , max_health : u32 ,) -> Option < (u32 , u32) >",
@@ -48617,17 +48597,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "transitional_initial_player_box_like_cpp",
-          "visibility": "private",
-          "signature": "fn transitional_initial_player_box_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Box < Player > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -57378,17 +57347,17 @@
       },
       {
         "module": "crate::session",
-        "target": "WorldSession::record_driver_phase_like_cpp",
+        "target": "WorldSession::initial_player_box_like_cpp",
         "kind": "attribute",
-        "fingerprint": "inline",
+        "fingerprint": "inline (never)",
         "cfg": [],
         "source_class": "production"
       },
       {
         "module": "crate::session",
-        "target": "WorldSession::transitional_initial_player_box_like_cpp",
+        "target": "WorldSession::record_driver_phase_like_cpp",
         "kind": "attribute",
-        "fingerprint": "inline (never)",
+        "fingerprint": "inline",
         "cfg": [],
         "source_class": "production"
       },
@@ -71431,62 +71400,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "path": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "WorldSession::canonical_player_entity_snapshot_for_map_like_cpp",
-          "direction_markers": [
-            "represented_session_to_canonical"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "curated_anchor_definition",
-              "symbol": "canonical_player_entity_snapshot_for_map_like_cpp",
-              "fingerprint": "fnv1a64x2:238a4e7073f264a0f43ad76fcbb235a3:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "represented_session",
-              "kind": "curated_anchor_definition",
-              "symbol": "canonical_player_entity_snapshot_for_map_like_cpp",
-              "fingerprint": "fnv1a64x2:238a4e7073f264a0f43ad76fcbb235a3:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:e433846d710f95b36e908287da82f316:len=88|evidence=fnv1a64x2:fd1c66c6ca8702bf6ce0c877be67e40a:len=276",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "path": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "WorldSession::canonical_player_entity_snapshot_like_cpp",
-          "direction_markers": [
-            "represented_session_to_canonical"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "curated_anchor_definition",
-              "symbol": "canonical_player_entity_snapshot_like_cpp",
-              "fingerprint": "fnv1a64x2:2bb19c2356c434aac95f8396317ab67d:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "represented_session",
-              "kind": "curated_anchor_definition",
-              "symbol": "canonical_player_entity_snapshot_like_cpp",
-              "fingerprint": "fnv1a64x2:2bb19c2356c434aac95f8396317ab67d:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_like_cpp (& self) -> Option < Player >|body=fnv1a64x2:44857bfee6825d7809da394e0ad69c33:len=142|evidence=fnv1a64x2:2fa387a25656ef47692906f4188b1d02:len=260",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "path": "crates/wow-world/src/session/mod.rs",
           "enclosing": "WorldSession::register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -72322,15 +72235,15 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "creature",
-              "fingerprint": "fnv1a64x2:3496cf4d5706fc58f55d4eabf35b6d53:len=195",
-              "multiplicity": 4
+              "fingerprint": "fnv1a64x2:1aa3b2a786205c6cf44773082455862f:len=244",
+              "multiplicity": 5
             },
             {
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:3157af3d909b7290a752fa79f461dce3:len=146",
+              "multiplicity": 3
             },
             {
               "side": "canonical",
@@ -72532,18 +72445,18 @@
               "side": "legacy",
               "kind": "function_call",
               "symbol": "create_data_from_canonical_like_cpp",
-              "fingerprint": "fnv1a64x2:5c3651efddf0510f4d72804ecb37ddec:len=49",
+              "fingerprint": "fnv1a64x2:cd4c65df26933d405e6a494aa536999b:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "function_call",
               "symbol": "from_canonical",
-              "fingerprint": "fnv1a64x2:362e5e802b4597741a56d6b64371a307:len=49",
+              "fingerprint": "fnv1a64x2:4bbd23b943ec45473d34deff3b72661c:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:e331604899844757e2a48a3a8a0d6864:len=1757|evidence=fnv1a64x2:36cc9b97c430c8936ec7ac9be8b8cc1e:len=3704",
+          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:0c7087b3df70184d4de6b84ab210e2de:len=1871|evidence=fnv1a64x2:318d7e7cae4d36b7317c8cb6cb234820:len=3869",
           "cfg": [],
           "multiplicity": 1
         },

@@ -1514,7 +1514,7 @@
           "crates/wow-world/src/map_manager.rs",
           "crates/wow-world/src/handlers/loot.rs"
         ],
-        "discovery_rule": "AST function/call names containing canonical+legacy, mirror_, canonical_player_entity_snapshot_, or run_legacy_creature_*_and_deliver_once_like_cpp, plus explicit bridge markers maintained by #188",
+        "discovery_rule": "AST function/call names containing canonical+legacy, mirror_, or run_legacy_creature_*_and_deliver_once_like_cpp, plus explicit bridge markers maintained by #188",
         "default_entry": "unclassified_bridge_site"
       },
       "entries": [
@@ -1545,19 +1545,6 @@
             153
           ],
           "retirement_condition": "Each method executes directly under canonical Map authority and the corresponding legacy function, write-back, and delivery compatibility rail are deleted."
-        },
-        {
-          "id": "represented_session_player_to_canonical_snapshot",
-          "anchors": [
-            "wow-world::WorldSession::canonical_player_entity_snapshot_like_cpp",
-            "wow-world::WorldSession::canonical_player_entity_snapshot_for_map_like_cpp"
-          ],
-          "direction": "represented WorldSession player fields -> rebuilt wow_entities::Player snapshot -> canonical map",
-          "owner": "WorldSession remains the current mutable represented-player writer; the snapshot is not an independent writer.",
-          "open_retirement_issues": [
-            153
-          ],
-          "retirement_condition": "Map stores the one canonical mutable Player and Session retains only a generation-checked PlayerHandle."
         },
         {
           "id": "loot_dual_map_compatibility",
