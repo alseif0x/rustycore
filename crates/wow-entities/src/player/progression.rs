@@ -24,6 +24,14 @@ impl Player {
         self.gameplay_state_mut().talents = state;
     }
 
+    pub fn taxi_state_like_cpp(&self) -> &PlayerTaxiState {
+        &self.gameplay_state().taxi
+    }
+
+    pub fn replace_taxi_state_like_cpp(&mut self, state: PlayerTaxiState) {
+        self.gameplay_state_mut().taxi = state;
+    }
+
     pub fn create_mode_like_cpp(&self) -> u8 {
         self.gameplay_state().create_mode
     }

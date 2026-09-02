@@ -3072,8 +3072,10 @@
           "name": "represented_chosen_title_like_cpp",
           "type": "i32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_cinematic_camera_ids_like_cpp",
@@ -3578,8 +3580,10 @@
           "name": "represented_known_titles_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_legacy_raid_difficulty_id_like_cpp",
@@ -4981,22 +4985,28 @@
           "name": "taxi_destinations_like_cpp",
           "type": "Vec < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "taxi_flight_state_like_cpp",
           "type": "Option < RepresentedTaxiFlightStateLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "taxi_mounted_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "taxi_node_map_ids_like_cpp",
@@ -5009,8 +5019,10 @@
           "name": "taxi_unit_flags_like_cpp",
           "type": "UnitFlags",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "temporary_mount_pet_react_state_like_cpp",
@@ -26118,8 +26130,10 @@
           "name": "is_in_taxi_flight_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn is_in_taxi_flight_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -28472,6 +28486,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_taxi_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_taxi_state_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerTaxiState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_world_creature",
           "visibility": "pub (crate)",
           "signature": "fn mutate_world_creature < F , R > (& mut self , guid : ObjectGuid , f : F) -> Option < R > where F : FnOnce (& mut crate :: map_manager :: WorldCreature) -> R ,",
@@ -30298,6 +30323,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_taxi_state_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_taxi_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerTaxiState >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32866,6 +32904,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "replace_player_taxi_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn replace_player_taxi_state_like_cpp (& mut self , state : wow_entities :: PlayerTaxiState ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "replay_rewarded_quest_direct_item_appearances_like_cpp",
           "visibility": "pub",
           "signature": "fn replay_rewarded_quest_direct_item_appearances_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < wow_entities :: PlayerValuesUpdate >",
@@ -33867,8 +33918,10 @@
           "name": "represented_chosen_title_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_chosen_title_like_cpp (& self) -> i32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38560,6 +38613,19 @@
           "name": "resolved_inventory_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_inventory_items_like_cpp (& self) -> Option < HashMap < u8 , InventoryItem > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_is_in_taxi_flight_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_is_in_taxi_flight_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -47700,7 +47766,7 @@
           "kind": "method",
           "name": "taxi_destinations_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn taxi_destinations_like_cpp (& self) -> & [u32]",
+          "signature": "fn taxi_destinations_like_cpp (& self) -> Vec < u32 >",
           "cfg": [
             "cfg (test)"
           ],
@@ -74673,7 +74739,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:703cba4b524456b5d8611e37bbe70d32:len=93017|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b5116e7a3c26f9f9c08a4543ea088eea:len=93107|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

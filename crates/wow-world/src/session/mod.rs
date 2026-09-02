@@ -2963,6 +2963,7 @@ pub(crate) enum MoveSplineDoneTaxiActionLikeCpp {
     IgnoredUnexpectedFinalPath,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedTaxiFlightNodeLikeCpp {
     pub map_id: u16,
@@ -3015,10 +3016,57 @@ pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
     LeaveTopLevelArea(u32),
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct RepresentedTaxiFlightStateLikeCpp {
     current_node: RepresentedTaxiFlightNodeLikeCpp,
     node_after_teleport: Option<RepresentedTaxiFlightNodeLikeCpp>,
+}
+
+#[cfg(test)]
+fn canonical_taxi_flight_node_like_cpp(
+    node: RepresentedTaxiFlightNodeLikeCpp,
+) -> wow_entities::PlayerTaxiFlightNodeLikeCpp {
+    wow_entities::PlayerTaxiFlightNodeLikeCpp {
+        map_id: node.map_id,
+        position: node.position,
+        teleport_flag: node.teleport_flag,
+    }
+}
+
+#[cfg(test)]
+fn represented_taxi_flight_node_like_cpp(
+    node: wow_entities::PlayerTaxiFlightNodeLikeCpp,
+) -> RepresentedTaxiFlightNodeLikeCpp {
+    RepresentedTaxiFlightNodeLikeCpp {
+        map_id: node.map_id,
+        position: node.position,
+        teleport_flag: node.teleport_flag,
+    }
+}
+
+#[cfg(test)]
+fn canonical_taxi_flight_state_like_cpp(
+    flight: RepresentedTaxiFlightStateLikeCpp,
+) -> wow_entities::PlayerTaxiFlightStateLikeCpp {
+    wow_entities::PlayerTaxiFlightStateLikeCpp {
+        current_node: canonical_taxi_flight_node_like_cpp(flight.current_node),
+        node_after_teleport: flight
+            .node_after_teleport
+            .map(canonical_taxi_flight_node_like_cpp),
+    }
+}
+
+#[cfg(test)]
+fn represented_taxi_flight_state_like_cpp(
+    flight: wow_entities::PlayerTaxiFlightStateLikeCpp,
+) -> RepresentedTaxiFlightStateLikeCpp {
+    RepresentedTaxiFlightStateLikeCpp {
+        current_node: represented_taxi_flight_node_like_cpp(flight.current_node),
+        node_after_teleport: flight
+            .node_after_teleport
+            .map(represented_taxi_flight_node_like_cpp),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6054,6 +6102,7 @@ pub struct WorldSession {
     #[cfg(test)]
     movement_ack_events_like_cpp: Vec<MovementAckEventLikeCpp>,
     /// Represented `PlayerTaxi::m_TaxiDestinations` until PlayerTaxi/MotionMaster runtime is canonical.
+    #[cfg(test)]
     taxi_destinations_like_cpp: Vec<u32>,
     /// Represented accepted `CMSG_ACTIVATE_TAXI` requests until TaxiPathGraph/MotionMaster are canonical.
     represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
@@ -6089,10 +6138,13 @@ pub struct WorldSession {
     /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
     taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
     /// Represented active `FlightPathMovementGenerator`, if any.
+    #[cfg(test)]
     taxi_flight_state_like_cpp: Option<RepresentedTaxiFlightStateLikeCpp>,
     /// Represented unit flags touched by `CleanupAfterTaxiFlight`.
+    #[cfg(test)]
     taxi_unit_flags_like_cpp: UnitFlags,
     /// Represented mount state touched by `CleanupAfterTaxiFlight`.
+    #[cfg(test)]
     taxi_mounted_like_cpp: bool,
     /// Represented `Unit::SetMountDisplayId` until UnitData owns live player fields.
     player_mount_display_id_like_cpp: i32,
@@ -6546,8 +6598,10 @@ pub struct WorldSession {
     /// Session-local evidence for represented quest reward `SetTitle` calls.
     pub(crate) represented_quest_reward_titles_like_cpp: Vec<RepresentedQuestRewardTitleLikeCpp>,
     /// C++ `ActivePlayerData::KnownTitles` represented as title bit indexes.
+    #[cfg(test)]
     represented_known_titles_like_cpp: HashSet<u32>,
     /// C++ `PlayerData::PlayerTitle` represented chosen title id.
+    #[cfg(test)]
     represented_chosen_title_like_cpp: i32,
     /// Session-local evidence for represented quest reward talent point grants.
     pub(crate) represented_quest_reward_talent_points_like_cpp:
@@ -8153,6 +8207,7 @@ impl WorldSession {
             movement_visibility_refresh_requests_like_cpp: 0,
             #[cfg(test)]
             movement_ack_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             taxi_destinations_like_cpp: Vec::new(),
             represented_activate_taxi_requests_like_cpp: Vec::new(),
             represented_alter_appearance_requests_like_cpp: Vec::new(),
@@ -8169,8 +8224,11 @@ impl WorldSession {
             represented_void_storage_loaded_like_cpp: false,
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
+            #[cfg(test)]
             taxi_flight_state_like_cpp: None,
+            #[cfg(test)]
             taxi_unit_flags_like_cpp: UnitFlags::empty(),
+            #[cfg(test)]
             taxi_mounted_like_cpp: false,
             player_mount_display_id_like_cpp: 0,
             player_mount_vehicle_id_like_cpp: 0,
@@ -8389,7 +8447,9 @@ impl WorldSession {
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
             represented_quest_reward_titles_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_known_titles_like_cpp: HashSet::new(),
+            #[cfg(test)]
             represented_chosen_title_like_cpp: 0,
             represented_quest_reward_talent_points_like_cpp: Vec::new(),
             represented_quest_reward_mails_like_cpp: Vec::new(),
@@ -14963,7 +15023,7 @@ impl WorldSession {
             .unwrap_or(false);
         let player_faction_template_id = self.player_faction_template_id_like_cpp();
         let player_interaction_combat_reach = self.player_interaction_combat_reach_like_cpp();
-        if self.taxi_flight_state_like_cpp.is_some() {
+        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return None;
         }
 
@@ -30425,7 +30485,7 @@ impl WorldSession {
             return false;
         }
 
-        if self.taxi_flight_state_like_cpp.is_some() {
+        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return false;
         }
 
@@ -53104,6 +53164,57 @@ impl WorldSession {
         accepted
     }
 
+    pub(crate) fn player_taxi_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerTaxiState> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.taxi_state_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerTaxiState {
+                destinations: self.taxi_destinations_like_cpp.clone(),
+                flight: self
+                    .taxi_flight_state_like_cpp
+                    .map(canonical_taxi_flight_state_like_cpp),
+                unit_flags: self.taxi_unit_flags_like_cpp.bits(),
+                mounted: self.taxi_mounted_like_cpp,
+                ..Default::default()
+            });
+        }
+        canonical
+    }
+
+    pub(crate) fn replace_player_taxi_state_like_cpp(
+        &mut self,
+        state: wow_entities::PlayerTaxiState,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.replace_taxi_state_like_cpp(state.clone())
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.taxi_destinations_like_cpp = state.destinations;
+            self.taxi_flight_state_like_cpp =
+                state.flight.map(represented_taxi_flight_state_like_cpp);
+            self.taxi_unit_flags_like_cpp = UnitFlags::from_bits_retain(state.unit_flags);
+            self.taxi_mounted_like_cpp = state.mounted;
+            return true;
+        }
+        canonical
+    }
+
+    fn mutate_player_taxi_state_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::PlayerTaxiState) -> R,
+    ) -> Option<R> {
+        let mut state = self.player_taxi_state_snapshot_like_cpp()?;
+        let result = f(&mut state);
+        self.replace_player_taxi_state_like_cpp(state)
+            .then_some(result)
+    }
+
     pub(crate) fn handle_move_spline_done_taxi_like_cpp(
         &mut self,
         status: &mut wow_packet::packets::movement::MovementInfo,
@@ -53120,9 +53231,19 @@ impl WorldSession {
             );
         }
 
-        let current_destination = self.taxi_destinations_like_cpp.get(1).copied();
+        let Some(taxi_state) = self.player_taxi_state_snapshot_like_cpp() else {
+            return self.record_move_spline_done_taxi_event_like_cpp(
+                spline_id,
+                MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
+                None,
+                None,
+                None,
+                false,
+            );
+        };
+        let current_destination = taxi_state.destinations.get(1).copied();
         if let Some(destination_node_id) = current_destination {
-            let Some(flight) = self.taxi_flight_state_like_cpp else {
+            let Some(flight) = taxi_state.flight else {
                 return self.record_move_spline_done_taxi_event_like_cpp(
                     spline_id,
                     MoveSplineDoneTaxiActionLikeCpp::InProgressNoFlightGenerator,
@@ -53145,10 +53266,24 @@ impl WorldSession {
             if should_teleport {
                 if let (Some(map_id), Some(node)) = (destination_map_id, flight.node_after_teleport)
                 {
-                    self.taxi_flight_state_like_cpp = Some(RepresentedTaxiFlightStateLikeCpp {
-                        current_node: node,
-                        node_after_teleport: None,
-                    });
+                    if self
+                        .mutate_player_taxi_state_like_cpp(|taxi| {
+                            taxi.flight = Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
+                                current_node: node,
+                                node_after_teleport: None,
+                            });
+                        })
+                        .is_none()
+                    {
+                        return self.record_move_spline_done_taxi_event_like_cpp(
+                            spline_id,
+                            MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
+                            Some(destination_node_id),
+                            None,
+                            None,
+                            false,
+                        );
+                    }
                     self.set_player_map_position_like_cpp(map_id, node.position);
                     return self.record_move_spline_done_taxi_event_like_cpp(
                         spline_id,
@@ -53171,7 +53306,7 @@ impl WorldSession {
             );
         }
 
-        if self.taxi_destinations_like_cpp.len() != 1 {
+        if taxi_state.destinations.len() != 1 {
             return self.record_move_spline_done_taxi_event_like_cpp(
                 spline_id,
                 MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
@@ -53182,11 +53317,24 @@ impl WorldSession {
             );
         }
 
-        self.taxi_destinations_like_cpp.clear();
-        self.taxi_flight_state_like_cpp = None;
-        self.taxi_mounted_like_cpp = false;
-        self.taxi_unit_flags_like_cpp
-            .remove(UnitFlags::REMOVE_CLIENT_CONTROL | UnitFlags::ON_TAXI);
+        if self
+            .mutate_player_taxi_state_like_cpp(|taxi| {
+                taxi.destinations.clear();
+                taxi.flight = None;
+                taxi.mounted = false;
+                taxi.unit_flags &= !(UnitFlags::REMOVE_CLIENT_CONTROL | UnitFlags::ON_TAXI).bits();
+            })
+            .is_none()
+        {
+            return self.record_move_spline_done_taxi_event_like_cpp(
+                spline_id,
+                MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
+                None,
+                None,
+                None,
+                false,
+            );
+        }
         let current_z = self
             .player_position_like_cpp()
             .map(|position| position.z)
@@ -53419,12 +53567,16 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_taxi_destinations_like_cpp(&mut self, destinations: Vec<u32>) {
-        self.taxi_destinations_like_cpp = destinations;
+        let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
+            taxi.destinations = destinations;
+        });
     }
 
     #[cfg(test)]
-    pub(crate) fn taxi_destinations_like_cpp(&self) -> &[u32] {
-        &self.taxi_destinations_like_cpp
+    pub(crate) fn taxi_destinations_like_cpp(&self) -> Vec<u32> {
+        self.player_taxi_state_snapshot_like_cpp()
+            .map(|taxi| taxi.destinations)
+            .expect("test Player taxi owner must resolve")
     }
 
     pub(crate) fn record_represented_activate_taxi_like_cpp(
@@ -53573,8 +53725,15 @@ impl WorldSession {
         &self.represented_adventure_map_start_quest_requests_like_cpp
     }
 
+    pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {
+        self.player_taxi_state_snapshot_like_cpp()
+            .map(|taxi| taxi.flight.is_some())
+    }
+
+    #[cfg(test)]
     pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
-        self.taxi_flight_state_like_cpp.is_some()
+        self.resolved_is_in_taxi_flight_like_cpp()
+            .expect("test Player taxi owner must resolve")
     }
 
     #[cfg(test)]
@@ -53588,26 +53747,34 @@ impl WorldSession {
         current_node: RepresentedTaxiFlightNodeLikeCpp,
         node_after_teleport: Option<RepresentedTaxiFlightNodeLikeCpp>,
     ) {
-        self.taxi_flight_state_like_cpp = Some(RepresentedTaxiFlightStateLikeCpp {
-            current_node,
-            node_after_teleport,
+        let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
+            taxi.flight = Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
+                current_node: canonical_taxi_flight_node_like_cpp(current_node),
+                node_after_teleport: node_after_teleport.map(canonical_taxi_flight_node_like_cpp),
+            });
         });
     }
 
     #[cfg(test)]
     pub(crate) fn set_taxi_cleanup_state_like_cpp(&mut self, unit_flags: UnitFlags, mounted: bool) {
-        self.taxi_unit_flags_like_cpp = unit_flags;
-        self.taxi_mounted_like_cpp = mounted;
+        let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
+            taxi.unit_flags = unit_flags.bits();
+            taxi.mounted = mounted;
+        });
     }
 
     #[cfg(test)]
     pub(crate) fn taxi_unit_flags_like_cpp(&self) -> UnitFlags {
-        self.taxi_unit_flags_like_cpp
+        self.player_taxi_state_snapshot_like_cpp()
+            .map(|taxi| UnitFlags::from_bits_retain(taxi.unit_flags))
+            .expect("test Player taxi owner must resolve")
     }
 
     #[cfg(test)]
     pub(crate) fn taxi_mounted_like_cpp(&self) -> bool {
-        self.taxi_mounted_like_cpp
+        self.player_taxi_state_snapshot_like_cpp()
+            .map(|taxi| taxi.mounted)
+            .expect("test Player taxi owner must resolve")
     }
 
     #[cfg(test)]
@@ -54981,7 +55148,13 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_learn_title_like_cpp(&mut self, title_id: u32) {
-        self.represented_known_titles_like_cpp.insert(title_id);
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.learn_title_like_cpp(title_id))
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            self.represented_known_titles_like_cpp.insert(title_id);
+        }
     }
 
     /// C++ `Player::LoadFromDB` parses `knownTitles` as 32-bit words and
@@ -54991,41 +55164,62 @@ impl WorldSession {
         known_titles: &str,
         chosen_title: u32,
     ) {
-        self.represented_known_titles_like_cpp.clear();
-
+        let mut known_title_ids = BTreeSet::new();
         for (word_index, token) in known_titles.split_whitespace().enumerate() {
             let word = token.parse::<u64>().unwrap_or(0) & u64::from(u32::MAX);
             for bit_index in 0..32_u32 {
                 if (word & (1_u64 << bit_index)) != 0 {
-                    self.represented_known_titles_like_cpp
-                        .insert((word_index as u32) * 32 + bit_index);
+                    known_title_ids.insert((word_index as u32) * 32 + bit_index);
                 }
             }
         }
 
-        let chosen_title =
-            if chosen_title != 0 && !self.represented_has_title_like_cpp(chosen_title) {
-                0
-            } else {
-                chosen_title
-            };
+        let chosen_title = if chosen_title != 0 && !known_title_ids.contains(&chosen_title) {
+            0
+        } else {
+            chosen_title
+        };
         let chosen_title = i32::try_from(chosen_title).unwrap_or(0);
-        self.represented_set_chosen_title_like_cpp(chosen_title);
-        self.mutate_canonical_player_like_cpp(|player| {
-            player.set_chosen_title_like_cpp(chosen_title)
-        });
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.replace_known_titles_like_cpp(known_title_ids.clone());
+                player.set_chosen_title_like_cpp(chosen_title);
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            self.represented_known_titles_like_cpp = known_title_ids.into_iter().collect();
+            self.represented_chosen_title_like_cpp = chosen_title;
+        }
     }
 
     pub(crate) fn represented_has_title_like_cpp(&self, title_id: u32) -> bool {
-        self.represented_known_titles_like_cpp.contains(&title_id)
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.has_title_like_cpp(title_id));
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.represented_known_titles_like_cpp.contains(&title_id);
+        }
+        canonical.unwrap_or(false)
     }
 
     pub(crate) fn represented_set_chosen_title_like_cpp(&mut self, title_id: i32) {
-        self.represented_chosen_title_like_cpp = title_id;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_chosen_title_like_cpp(title_id))
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            self.represented_chosen_title_like_cpp = title_id;
+        }
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_chosen_title_like_cpp(&self) -> i32 {
-        self.represented_chosen_title_like_cpp
+        let canonical = self.with_owned_player_like_cpp(|player| player.data().player_title);
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.represented_chosen_title_like_cpp;
+        }
+        canonical.expect("test Player title owner must resolve")
     }
 
     pub(crate) fn represented_quest_reward_talent_points_like_cpp(
@@ -68662,7 +68856,7 @@ impl WorldSession {
         if !self.represented_cast_unstuck_enabled_like_cpp {
             return;
         }
-        if self.is_in_taxi_flight_like_cpp() {
+        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return;
         }
 

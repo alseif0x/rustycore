@@ -561,7 +561,7 @@ impl WorldSession {
             return;
         }
 
-        if self.is_in_taxi_flight_like_cpp() {
+        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return;
         }
 

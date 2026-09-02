@@ -34,6 +34,8 @@ pub struct PlayerGameplayState {
     pub action_buttons_loaded: bool,
     pub taxi: PlayerTaxiState,
     pub social: PlayerSocialState,
+    /// C++ `UF::ActivePlayerData::KnownTitles`, represented as bit indices.
+    pub known_title_ids: BTreeSet<u32>,
     pub customizations: Vec<PlayerCustomizationChoice>,
     pub gray_level: u8,
     pub liquid_status: u32,

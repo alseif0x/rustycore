@@ -519,13 +519,29 @@ pub struct PlayerActionButtonRecord {
     pub action_type: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerTaxiFlightNodeLikeCpp {
+    pub map_id: u16,
+    pub position: Position,
+    pub teleport_flag: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerTaxiFlightStateLikeCpp {
+    pub current_node: PlayerTaxiFlightNodeLikeCpp,
+    pub node_after_teleport: Option<PlayerTaxiFlightNodeLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerTaxiState {
     pub known_node_mask: Vec<u8>,
     pub known_node_mask_text: Option<String>,
     pub source_node_id: Option<u32>,
     pub destination_node_id: Option<u32>,
     pub destinations: Vec<u32>,
+    pub flight: Option<PlayerTaxiFlightStateLikeCpp>,
+    pub unit_flags: u32,
+    pub mounted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

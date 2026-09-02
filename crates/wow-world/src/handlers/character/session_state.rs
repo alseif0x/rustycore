@@ -743,7 +743,9 @@ impl WorldSession {
             can_be_game_master: false,
             is_game_master: false,
             pet_type: None,
-            is_in_flight: self.is_in_taxi_flight_like_cpp(),
+            // A missing generation-checked Player cannot prove the negative;
+            // keep condition evaluation fail-closed as if travel were active.
+            is_in_flight: self.resolved_is_in_taxi_flight_like_cpp().unwrap_or(true),
         }
     }
 

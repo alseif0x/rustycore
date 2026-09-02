@@ -567,7 +567,7 @@ impl crate::session::WorldSession {
         // represented GameObject half; constructing full scripted GO gossip
         // menus remains an explicit runtime boundary.
         if !gameobject_guid.is_game_object()
-            || self.is_in_taxi_flight_like_cpp()
+            || self.resolved_is_in_taxi_flight_like_cpp() != Some(false)
             || !self.player_is_strictly_in_world_like_cpp()
         {
             return None;

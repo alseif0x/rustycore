@@ -438,7 +438,7 @@ impl crate::session::WorldSession {
             self.account_id, trigger_id, entered
         );
 
-        if self.is_in_taxi_flight_like_cpp() {
+        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             debug!(
                 "Area trigger {} ignored because player is in taxi flight",
                 trigger_id

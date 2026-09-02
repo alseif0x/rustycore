@@ -343,6 +343,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             source_node_id: Some(1),
             destination_node_id: Some(2),
             destinations: vec![1, 2, 3],
+            ..Default::default()
         },
         social: PlayerSocialState {
             friend_guids: vec![ObjectGuid::create_player(1, 1001)],

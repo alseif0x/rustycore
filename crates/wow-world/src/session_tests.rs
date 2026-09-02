@@ -31198,6 +31198,105 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
 }
 
 #[test]
+fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_564);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TravelOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let owned_taxi = wow_entities::PlayerTaxiState {
+        destinations: vec![10, 20],
+        flight: Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
+            current_node: wow_entities::PlayerTaxiFlightNodeLikeCpp {
+                map_id: 571,
+                position: Position::new(1.0, 2.0, 3.0, 0.0),
+                teleport_flag: false,
+            },
+            node_after_teleport: None,
+        }),
+        unit_flags: UnitFlags::ON_TAXI.bits(),
+        mounted: true,
+        ..Default::default()
+    };
+
+    assert!(session.replace_player_taxi_state_like_cpp(owned_taxi.clone()));
+    session.represented_learn_title_like_cpp(42);
+    session.represented_set_chosen_title_like_cpp(42);
+    assert_eq!(
+        session.player_taxi_state_snapshot_like_cpp(),
+        Some(owned_taxi.clone())
+    );
+    assert!(session.represented_has_title_like_cpp(42));
+    assert_eq!(session.represented_chosen_title_like_cpp(), 42);
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_taxi_state_snapshot_like_cpp(),
+        Some(owned_taxi.clone())
+    );
+    assert!(session.represented_has_title_like_cpp(42));
+
+    let replacement_taxi = wow_entities::PlayerTaxiState {
+        destinations: vec![90],
+        mounted: false,
+        ..Default::default()
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_taxi_state_like_cpp(replacement_taxi.clone());
+    replacement.learn_title_like_cpp(99);
+    replacement.set_chosen_title_like_cpp(99);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_taxi_state_snapshot_like_cpp(), None);
+    assert!(!session.represented_has_title_like_cpp(42));
+    assert!(!session.replace_player_taxi_state_like_cpp(owned_taxi));
+    session.represented_learn_title_like_cpp(42);
+    session.represented_set_chosen_title_like_cpp(42);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.taxi_state_like_cpp().clone(),
+                player.has_title_like_cpp(99),
+                player.has_title_like_cpp(42),
+                player.data().player_title,
+            )),
+        Some((replacement_taxi, true, false, 99))
+    );
+}
+
+#[test]
 fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -65524,15 +65623,20 @@ fn load_character_titles_sets_canonical_player_title_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 31_100);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.set_player_guid(Some(player_guid));
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    add_canonical_test_player_on_map(
-        &canonical,
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
+        "TitleOwner".to_string(),
         Position::new(10.0, 10.0, 0.0, 0.0),
         571,
+        1,
+        1,
+        80,
         0,
-    );
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical title owner");
 
     session.load_represented_character_titles_like_cpp("4", 2);
 
