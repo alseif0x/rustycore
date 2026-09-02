@@ -5537,8 +5537,11 @@ pub struct WorldSession {
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
     lfg_dungeon_store_like_cpp: Option<Arc<LfgDungeonStoreLikeCpp>>,
     battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
+    #[cfg(test)]
     pub(crate) represented_dungeon_difficulty_id_like_cpp: u32,
+    #[cfg(test)]
     represented_raid_difficulty_id_like_cpp: u32,
+    #[cfg(test)]
     represented_legacy_raid_difficulty_id_like_cpp: u32,
     represented_player_recent_instances_like_cpp: HashMap<u32, u32>,
     faction_store: Option<Arc<FactionStore>>,
@@ -5592,6 +5595,7 @@ pub struct WorldSession {
     represented_subgroup_like_cpp: Option<u8>,
     represented_group_update_sequences_like_cpp: [RepresentedGroupUpdateSequenceLikeCpp;
         wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
+    #[cfg(test)]
     pub(crate) pass_on_group_loot: bool,
     #[cfg(test)]
     pub(crate) represented_enchanting_skill: u16,
@@ -7890,8 +7894,11 @@ impl WorldSession {
             lfg_dungeons_store: None,
             lfg_dungeon_store_like_cpp: None,
             battlemaster_list_store: None,
+            #[cfg(test)]
             represented_dungeon_difficulty_id_like_cpp: DIFFICULTY_NORMAL_LIKE_CPP,
+            #[cfg(test)]
             represented_raid_difficulty_id_like_cpp: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            #[cfg(test)]
             represented_legacy_raid_difficulty_id_like_cpp: DIFFICULTY_10_N_LIKE_CPP,
             represented_player_recent_instances_like_cpp: HashMap::new(),
             faction_store: None,
@@ -7934,6 +7941,7 @@ impl WorldSession {
             group_guid: None,
             represented_subgroup_like_cpp: None,
             represented_group_update_sequences_like_cpp: default_group_update_sequences_like_cpp(),
+            #[cfg(test)]
             pass_on_group_loot: false,
             #[cfg(test)]
             represented_enchanting_skill: 0,
@@ -11976,7 +11984,7 @@ impl WorldSession {
         }
 
         let player_guid = self.player_guid?;
-        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid);
+        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid)?;
         let is_dungeon = map_entry.is_dungeon();
         let requested_difficulty = player
             .group
@@ -12849,9 +12857,9 @@ impl WorldSession {
         map_id: u32,
         map_entry: wow_data::map::MapEntry,
         player_guid: ObjectGuid,
-    ) -> wow_map::CreateMapPlayerContext {
+    ) -> Option<wow_map::CreateMapPlayerContext> {
         let player_difficulty_id =
-            self.represented_player_difficulty_id_for_map_entry_like_cpp(map_id, map_entry);
+            self.represented_player_difficulty_id_for_map_entry_like_cpp(map_id, map_entry)?;
 
         let group = self
             .group_guid
@@ -12869,7 +12877,7 @@ impl WorldSession {
                 }
             });
 
-        wow_map::CreateMapPlayerContext {
+        Some(wow_map::CreateMapPlayerContext {
             guid_counter: player_guid.counter() as u64,
             team_id: player_team_id_for_race_cpp(self.player_race_like_cpp()),
             battleground_id: 0,
@@ -12877,7 +12885,7 @@ impl WorldSession {
             player_difficulty_id,
             player_recent_instance_id: self.represented_player_recent_instance_id_like_cpp(map_id),
             group,
-        }
+        })
     }
 
     pub(crate) fn create_map_difficulty_context_like_cpp(
@@ -12961,18 +12969,22 @@ impl WorldSession {
         &self,
         map_id: u32,
         map_entry: wow_data::map::MapEntry,
-    ) -> wow_map::Difficulty {
-        (match map_entry.instance_type {
-            wow_data::map::MAP_INSTANCE => self.represented_dungeon_difficulty_id_like_cpp,
-            wow_data::map::MAP_RAID => {
-                if self.map_uses_legacy_raid_difficulty_like_cpp(map_id) {
-                    self.represented_legacy_raid_difficulty_id_like_cpp
-                } else {
-                    self.represented_raid_difficulty_id_like_cpp
+    ) -> Option<wow_map::Difficulty> {
+        let (dungeon, raid, legacy_raid) =
+            self.player_difficulty_preferences_snapshot_like_cpp()?;
+        Some(
+            (match map_entry.instance_type {
+                wow_data::map::MAP_INSTANCE => dungeon,
+                wow_data::map::MAP_RAID => {
+                    if self.map_uses_legacy_raid_difficulty_like_cpp(map_id) {
+                        legacy_raid
+                    } else {
+                        raid
+                    }
                 }
-            }
-            _ => 0,
-        }) as wow_map::Difficulty
+                _ => 0,
+            }) as wow_map::Difficulty,
+        )
     }
 
     fn represented_group_difficulty_id_for_map_entry_like_cpp(
@@ -12990,9 +13002,7 @@ impl WorldSession {
                     group.raid_difficulty_id
                 }
             }
-            _ => u32::from(
-                self.represented_player_difficulty_id_for_map_entry_like_cpp(map_id, map_entry),
-            ),
+            _ => 0,
         }) as wow_map::Difficulty
     }
 
@@ -24570,8 +24580,73 @@ impl WorldSession {
         self.difficulty_store.as_ref()
     }
 
+    pub(crate) fn player_difficulty_preferences_snapshot_like_cpp(
+        &self,
+    ) -> Option<(u32, u32, u32)> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.difficulty_preferences_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some((
+                self.represented_dungeon_difficulty_id_like_cpp,
+                self.represented_raid_difficulty_id_like_cpp,
+                self.represented_legacy_raid_difficulty_id_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    fn replace_player_difficulty_preferences_like_cpp(
+        &mut self,
+        dungeon: u32,
+        raid: u32,
+        legacy_raid: u32,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.replace_difficulty_preferences_like_cpp(dungeon, raid, legacy_raid);
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_dungeon_difficulty_id_like_cpp = dungeon;
+            self.represented_raid_difficulty_id_like_cpp = raid;
+            self.represented_legacy_raid_difficulty_id_like_cpp = legacy_raid;
+            return true;
+        }
+        canonical
+    }
+
+    fn mutate_player_difficulty_preferences_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut u32, &mut u32, &mut u32) -> R,
+    ) -> Option<R> {
+        let (mut dungeon, mut raid, mut legacy_raid) =
+            self.player_difficulty_preferences_snapshot_like_cpp()?;
+        let result = f(&mut dungeon, &mut raid, &mut legacy_raid);
+        self.replace_player_difficulty_preferences_like_cpp(dungeon, raid, legacy_raid)
+            .then_some(result)
+    }
+
+    pub(crate) fn resolved_dungeon_difficulty_id_like_cpp(&self) -> Option<u32> {
+        self.player_difficulty_preferences_snapshot_like_cpp()
+            .map(|preferences| preferences.0)
+    }
+
+    pub(crate) fn resolved_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
+        self.player_difficulty_preferences_snapshot_like_cpp()
+            .map(|preferences| preferences.1)
+    }
+
+    pub(crate) fn resolved_legacy_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
+        self.player_difficulty_preferences_snapshot_like_cpp()
+            .map(|preferences| preferences.2)
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_dungeon_difficulty_id_like_cpp(&self) -> u32 {
-        self.represented_dungeon_difficulty_id_like_cpp
+        self.resolved_dungeon_difficulty_id_like_cpp()
+            .expect("test Player difficulty owner must resolve")
     }
 
     #[cfg(test)]
@@ -24579,17 +24654,49 @@ impl WorldSession {
         &mut self,
         difficulty_id: u32,
     ) {
-        self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
+        let _ = self.mutate_player_difficulty_preferences_like_cpp(|dungeon, _, _| {
+            *dungeon = difficulty_id;
+        });
     }
 
     #[cfg(test)]
     pub(crate) fn represented_raid_difficulty_id_like_cpp(&self) -> u32 {
-        self.represented_raid_difficulty_id_like_cpp
+        self.resolved_raid_difficulty_id_like_cpp()
+            .expect("test Player raid difficulty owner must resolve")
     }
 
     #[cfg(test)]
     pub(crate) fn represented_legacy_raid_difficulty_id_like_cpp(&self) -> u32 {
-        self.represented_legacy_raid_difficulty_id_like_cpp
+        self.resolved_legacy_raid_difficulty_id_like_cpp()
+            .expect("test Player legacy raid difficulty owner must resolve")
+    }
+
+    pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.pass_on_group_loot_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.pass_on_group_loot);
+        }
+        canonical
+    }
+
+    pub(crate) fn set_pass_on_group_loot_like_cpp(&mut self, value: bool) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_pass_on_group_loot_like_cpp(value))
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.pass_on_group_loot = value;
+            return true;
+        }
+        canonical
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pass_on_group_loot_like_cpp(&self) -> bool {
+        self.resolved_pass_on_group_loot_like_cpp()
+            .expect("test Player loot preference owner must resolve")
     }
 
     /// C++ `Player::GetRecentInstanceId`.
@@ -24642,10 +24749,11 @@ impl WorldSession {
 
     pub(crate) fn represented_toggle_difficulty_target_like_cpp(&self) -> Option<u32> {
         let store = self.difficulty_store()?;
-        let raid_entry = store.get(self.represented_raid_difficulty_id_like_cpp);
+        let (dungeon, raid, _) = self.player_difficulty_preferences_snapshot_like_cpp()?;
+        let raid_entry = store.get(raid);
         let entry = match raid_entry {
             Some(entry) if entry.toggle_difficulty_id != 0 => entry,
-            _ => store.get(self.represented_dungeon_difficulty_id_like_cpp)?,
+            _ => store.get(dungeon)?,
         };
 
         (entry.toggle_difficulty_id != 0).then_some(u32::from(entry.toggle_difficulty_id))
@@ -24660,9 +24768,11 @@ impl WorldSession {
         legacy_raid_difficulty_id: u32,
     ) {
         let Some(store) = self.difficulty_store() else {
-            self.represented_dungeon_difficulty_id_like_cpp = DIFFICULTY_NORMAL_LIKE_CPP;
-            self.represented_raid_difficulty_id_like_cpp = DIFFICULTY_NORMAL_RAID_LIKE_CPP;
-            self.represented_legacy_raid_difficulty_id_like_cpp = DIFFICULTY_10_N_LIKE_CPP;
+            let _ = self.replace_player_difficulty_preferences_like_cpp(
+                DIFFICULTY_NORMAL_LIKE_CPP,
+                DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                DIFFICULTY_10_N_LIKE_CPP,
+            );
             return;
         };
 
@@ -24672,9 +24782,11 @@ impl WorldSession {
         let legacy_raid_difficulty_id =
             store.check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id);
 
-        self.represented_dungeon_difficulty_id_like_cpp = dungeon_difficulty_id;
-        self.represented_raid_difficulty_id_like_cpp = raid_difficulty_id;
-        self.represented_legacy_raid_difficulty_id_like_cpp = legacy_raid_difficulty_id;
+        let _ = self.replace_player_difficulty_preferences_like_cpp(
+            dungeon_difficulty_id,
+            raid_difficulty_id,
+            legacy_raid_difficulty_id,
+        );
     }
 
     /// C++ `Player::_LoadGroup` overwrites the loaded player difficulties with
@@ -24687,14 +24799,22 @@ impl WorldSession {
             return false;
         };
 
-        let Some(group) = group_registry.get(&group_guid) else {
-            return false;
+        let preferences = {
+            let Some(group) = group_registry.get(&group_guid) else {
+                return false;
+            };
+            (
+                group.dungeon_difficulty_id,
+                group.raid_difficulty_id,
+                group.legacy_raid_difficulty_id,
+            )
         };
 
-        self.represented_dungeon_difficulty_id_like_cpp = group.dungeon_difficulty_id;
-        self.represented_raid_difficulty_id_like_cpp = group.raid_difficulty_id;
-        self.represented_legacy_raid_difficulty_id_like_cpp = group.legacy_raid_difficulty_id;
-        true
+        self.replace_player_difficulty_preferences_like_cpp(
+            preferences.0,
+            preferences.1,
+            preferences.2,
+        )
     }
 
     /// C++ `Player::SetGroup(group, subgroup)` stores the subgroup on the
@@ -24879,11 +24999,13 @@ impl WorldSession {
         updated
     }
 
-    pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(&self) -> DungeonDifficultySet {
-        DungeonDifficultySet {
-            difficulty_id: i32::try_from(self.represented_dungeon_difficulty_id_like_cpp)
+    pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(
+        &self,
+    ) -> Option<DungeonDifficultySet> {
+        Some(DungeonDifficultySet {
+            difficulty_id: i32::try_from(self.resolved_dungeon_difficulty_id_like_cpp()?)
                 .unwrap_or(i32::MAX),
-        }
+        })
     }
 
     pub(crate) fn apply_group_difficulty_like_cpp(
@@ -24896,22 +25018,38 @@ impl WorldSession {
             return;
         }
 
+        if self
+            .mutate_player_difficulty_preferences_like_cpp(
+                |dungeon, raid, legacy_raid| match kind {
+                    wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
+                        *dungeon = difficulty_id;
+                    }
+                    wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
+                        *raid = difficulty_id;
+                    }
+                    wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                        *legacy_raid = difficulty_id;
+                    }
+                },
+            )
+            .is_none()
+        {
+            return;
+        }
+
         match kind {
             wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
-                self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
                 self.send_packet(&DungeonDifficultySet {
                     difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                 });
             }
             wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
-                self.represented_raid_difficulty_id_like_cpp = difficulty_id;
                 self.send_packet(&RaidDifficultySet {
                     difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                     legacy: false,
                 });
             }
             wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                self.represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
                 self.send_packet(&RaidDifficultySet {
                     difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                     legacy: true,
@@ -24940,6 +25078,11 @@ impl WorldSession {
         &mut self,
         difficulty_id: u32,
     ) -> Vec<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
+        let Some((current_dungeon, current_raid, current_legacy_raid)) =
+            self.player_difficulty_preferences_snapshot_like_cpp()
+        else {
+            return Vec::new();
+        };
         let Some(entry) = self
             .difficulty_store()
             .and_then(|store| store.get(difficulty_id))
@@ -24964,13 +25107,18 @@ impl WorldSession {
             ) {
                 return vec![statement];
             }
-            if self.group_guid.is_some()
-                || difficulty_id == self.represented_dungeon_difficulty_id_like_cpp
-            {
+            if self.group_guid.is_some() || difficulty_id == current_dungeon {
                 return Vec::new();
             }
 
-            self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
+            if self
+                .mutate_player_difficulty_preferences_like_cpp(|dungeon, _, _| {
+                    *dungeon = difficulty_id;
+                })
+                .is_none()
+            {
+                return Vec::new();
+            }
             self.send_packet(&DungeonDifficultySet {
                 difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
             });
@@ -24991,18 +25139,25 @@ impl WorldSession {
                 return Vec::new();
             }
             let current = if legacy {
-                self.represented_legacy_raid_difficulty_id_like_cpp
+                current_legacy_raid
             } else {
-                self.represented_raid_difficulty_id_like_cpp
+                current_raid
             };
             if difficulty_id == current {
                 return Vec::new();
             }
 
-            if legacy {
-                self.represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
-            } else {
-                self.represented_raid_difficulty_id_like_cpp = difficulty_id;
+            if self
+                .mutate_player_difficulty_preferences_like_cpp(|_, raid, legacy_raid| {
+                    if legacy {
+                        *legacy_raid = difficulty_id;
+                    } else {
+                        *raid = difficulty_id;
+                    }
+                })
+                .is_none()
+            {
+                return Vec::new();
             }
 
             self.send_packet(&RaidDifficultySet {
@@ -25116,13 +25271,15 @@ impl WorldSession {
             return (current != difficulty_id).then_some(group.leader_guid);
         }
 
+        let (dungeon, raid, legacy_raid) =
+            self.player_difficulty_preferences_snapshot_like_cpp()?;
         let current = if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
-            self.represented_dungeon_difficulty_id_like_cpp
+            dungeon
         } else if entry.instance_type == MAP_RAID_LIKE_CPP {
             if flags.contains(DifficultyFlags::LEGACY) {
-                self.represented_legacy_raid_difficulty_id_like_cpp
+                legacy_raid
             } else {
-                self.represented_raid_difficulty_id_like_cpp
+                raid
             }
         } else {
             return None;
@@ -37434,7 +37591,7 @@ impl WorldSession {
         }
 
         let player_guid = self.player_guid?;
-        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid);
+        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid)?;
         let requested_difficulty = player
             .group
             .map(|group| group.difficulty_id)

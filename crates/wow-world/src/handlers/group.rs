@@ -1207,12 +1207,15 @@ impl WorldSession {
             return;
         }
 
-        if target_snapshot.instance_id != 0
-            && target_snapshot.dungeon_difficulty_id
-                != self.represented_dungeon_difficulty_id_like_cpp()
-        {
-            send_result!(party_result::IGNORING_YOU);
-            return;
+        if target_snapshot.instance_id != 0 {
+            let Some(inviter_difficulty_id) = self.resolved_dungeon_difficulty_id_like_cpp() else {
+                send_result!(party_result::IGNORING_YOU);
+                return;
+            };
+            if target_snapshot.dungeon_difficulty_id != inviter_difficulty_id {
+                send_result!(party_result::IGNORING_YOU);
+                return;
+            }
         }
 
         let social_port = self.social_persistence_port_like_cpp();
@@ -2762,7 +2765,7 @@ impl WorldSession {
             return;
         }
 
-        self.pass_on_group_loot = opt_out.pass_on_loot;
+        let _ = self.set_pass_on_group_loot_like_cpp(opt_out.pass_on_loot);
     }
 
     /// CMSG_LOW_LEVEL_RAID1 — no-op, C++ only logs at DEBUG level.

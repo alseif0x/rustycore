@@ -58,7 +58,6 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
 }
 
 pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &WorldSession) {
-    let difficulty = session.represented_dungeon_difficulty_id_like_cpp;
     #[cfg(test)]
     let known_spells = session.known_spells_like_cpp();
     let quest_statuses = session
@@ -119,7 +118,6 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
     let pet_guid = session.represented_pet_guid_like_cpp;
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
-        state.dungeon_difficulty_id = difficulty;
         #[cfg(test)]
         {
             state.spells.known_spells = known_spells.clone();
@@ -149,7 +147,6 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
         state.quests.pending_share = pending_share;
         state.inventory_item_counts = inventory_item_counts;
         state.forced_reputation_ranks = forced_reputation_ranks;
-        state.pass_on_group_loot = session.pass_on_group_loot;
         state.transport = transport;
         state.in_vehicle = in_vehicle;
         state.has_vehicle_kit = has_vehicle_kit;

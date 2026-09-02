@@ -7882,7 +7882,9 @@ fn create_map_player_context_uses_solo_recent_instance_like_cpp() {
     session.represented_dungeon_difficulty_id_like_cpp = 2;
     session.set_represented_player_recent_instance_like_cpp(631, 9001);
 
-    let context = session.create_map_player_context_like_cpp(631, map_entry, player_guid);
+    let context = session
+        .create_map_player_context_like_cpp(631, map_entry, player_guid)
+        .expect("test Player difficulty owner resolves");
 
     assert_eq!(context.guid_counter, player_guid.counter() as u64);
     assert_eq!(context.player_difficulty_id, 2);
@@ -7909,7 +7911,9 @@ fn create_map_player_context_uses_group_recent_instance_like_cpp() {
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    let context = session.create_map_player_context_like_cpp(631, map_entry, member);
+    let context = session
+        .create_map_player_context_like_cpp(631, map_entry, member)
+        .expect("test Player difficulty owner resolves");
     let group = context.group.unwrap();
 
     assert_eq!(context.guid_counter, member.counter() as u64);
@@ -7943,7 +7947,9 @@ fn create_map_player_context_group_owner_falls_back_to_leader_like_cpp() {
         DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT,
     );
 
-    let context = session.create_map_player_context_like_cpp(631, map_entry, leader);
+    let context = session
+        .create_map_player_context_like_cpp(631, map_entry, leader)
+        .expect("test Player difficulty owner resolves");
     let group = context.group.unwrap();
 
     assert_eq!(group.difficulty_id, 15);
@@ -7970,7 +7976,9 @@ fn create_map_player_context_uses_legacy_raid_difficulty_like_cpp() {
         DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT | DifficultyFlags::LEGACY,
     );
 
-    let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
+    let context = session
+        .create_map_player_context_like_cpp(249, map_entry, player_guid)
+        .expect("test Player difficulty owner resolves");
 
     assert_eq!(context.player_difficulty_id, 4);
 }
@@ -7985,7 +7993,9 @@ fn create_map_player_context_missing_default_raid_metadata_falls_back_to_legacy_
     session.represented_raid_difficulty_id_like_cpp = 15;
     session.represented_legacy_raid_difficulty_id_like_cpp = 4;
 
-    let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
+    let context = session
+        .create_map_player_context_like_cpp(249, map_entry, player_guid)
+        .expect("test Player difficulty owner resolves");
 
     assert_eq!(context.player_difficulty_id, 4);
 }
@@ -8491,6 +8501,7 @@ fn load_represented_player_difficulties_accepts_selectable_cpp_types() {
     assert_eq!(
         session
             .represented_dungeon_difficulty_packet_like_cpp()
+            .expect("test Player difficulty owner resolves")
             .difficulty_id,
         2
     );
@@ -31380,6 +31391,94 @@ fn canonical_player_rest_manager_follows_active_detached_and_stale_ownership_lik
                 player.rest_state_like_cpp().clone()
             }),
         Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_difficulty_and_loot_preferences_follow_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_566);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PreferenceOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.replace_player_difficulty_preferences_like_cpp(2, 15, 4));
+    assert!(session.set_pass_on_group_loot_like_cpp(true));
+    assert_eq!(
+        session.player_difficulty_preferences_snapshot_like_cpp(),
+        Some((2, 15, 4))
+    );
+    assert_eq!(session.resolved_pass_on_group_loot_like_cpp(), Some(true));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(
+        session
+            .mutate_player_difficulty_preferences_like_cpp(|dungeon, raid, legacy_raid| {
+                *dungeon = 1;
+                *raid = 14;
+                *legacy_raid = 3;
+            })
+            .is_some()
+    );
+    assert!(session.set_pass_on_group_loot_like_cpp(false));
+    assert_eq!(
+        session.player_difficulty_preferences_snapshot_like_cpp(),
+        Some((1, 14, 3))
+    );
+    assert_eq!(session.resolved_pass_on_group_loot_like_cpp(), Some(false));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_difficulty_preferences_like_cpp(9, 8, 7);
+    replacement.set_pass_on_group_loot_like_cpp(true);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.player_difficulty_preferences_snapshot_like_cpp(),
+        None
+    );
+    assert_eq!(session.resolved_pass_on_group_loot_like_cpp(), None);
+    assert!(!session.replace_player_difficulty_preferences_like_cpp(2, 15, 4));
+    assert!(!session.set_pass_on_group_loot_like_cpp(false));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.difficulty_preferences_like_cpp(),
+                player.pass_on_group_loot_like_cpp(),
+            )),
+        Some(((9, 8, 7), true))
     );
 }
 

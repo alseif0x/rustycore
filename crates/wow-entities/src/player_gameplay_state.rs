@@ -40,6 +40,8 @@ pub struct PlayerGameplayState {
     pub gray_level: u8,
     pub liquid_status: u32,
     pub dungeon_difficulty_id: u32,
+    pub raid_difficulty_id: u32,
+    pub legacy_raid_difficulty_id: u32,
     pub pass_on_group_loot: bool,
     pub inventory_item_counts: Vec<(u32, u32)>,
     pub forced_reputation_ranks: Vec<(u32, u8)>,

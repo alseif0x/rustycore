@@ -161,9 +161,9 @@ impl WorldSession {
             talent_reset_cost: self.represented_talent_reset_cost_like_cpp,
             talent_reset_time: self.represented_talent_reset_time_secs_like_cpp,
             explored_zones: self.represented_explored_zones_db_string_like_cpp(),
-            dungeon_difficulty: self.represented_dungeon_difficulty_id_like_cpp,
-            raid_difficulty: self.represented_raid_difficulty_id_like_cpp,
-            legacy_raid_difficulty: self.represented_legacy_raid_difficulty_id_like_cpp,
+            dungeon_difficulty: self.resolved_dungeon_difficulty_id_like_cpp()?,
+            raid_difficulty: self.resolved_raid_difficulty_id_like_cpp()?,
+            legacy_raid_difficulty: self.resolved_legacy_raid_difficulty_id_like_cpp()?,
         };
 
         let spell_runtime = self.player_spell_runtime_snapshot_like_cpp();

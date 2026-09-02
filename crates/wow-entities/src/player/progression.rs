@@ -40,6 +40,35 @@ impl Player {
         self.gameplay_state_mut().rest = state;
     }
 
+    pub fn difficulty_preferences_like_cpp(&self) -> (u32, u32, u32) {
+        let state = self.gameplay_state();
+        (
+            state.dungeon_difficulty_id,
+            state.raid_difficulty_id,
+            state.legacy_raid_difficulty_id,
+        )
+    }
+
+    pub fn replace_difficulty_preferences_like_cpp(
+        &mut self,
+        dungeon: u32,
+        raid: u32,
+        legacy_raid: u32,
+    ) {
+        let state = self.gameplay_state_mut();
+        state.dungeon_difficulty_id = dungeon;
+        state.raid_difficulty_id = raid;
+        state.legacy_raid_difficulty_id = legacy_raid;
+    }
+
+    pub fn pass_on_group_loot_like_cpp(&self) -> bool {
+        self.gameplay_state().pass_on_group_loot
+    }
+
+    pub fn set_pass_on_group_loot_like_cpp(&mut self, pass_on_group_loot: bool) {
+        self.gameplay_state_mut().pass_on_group_loot = pass_on_group_loot;
+    }
+
     pub fn create_mode_like_cpp(&self) -> u8 {
         self.gameplay_state().create_mode
     }

@@ -2620,7 +2620,10 @@ impl WorldSession {
         );
         self.send_packet_realm(&self.tutorial_flags_packet_like_cpp());
 
-        self.send_packet_realm(&self.represented_dungeon_difficulty_packet_like_cpp());
+        let Some(dungeon_difficulty) = self.represented_dungeon_difficulty_packet_like_cpp() else {
+            return false;
+        };
+        self.send_packet_realm(&dungeon_difficulty);
         if !self
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await

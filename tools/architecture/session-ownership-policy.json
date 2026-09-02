@@ -1748,8 +1748,10 @@
           "name": "pass_on_group_loot",
           "type": "bool",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "pending_bind",
@@ -3257,8 +3259,10 @@
           "name": "represented_dungeon_difficulty_id_like_cpp",
           "type": "u32",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_dynamic_object_values_updates_delivered_like_cpp",
@@ -3595,8 +3599,10 @@
           "name": "represented_legacy_raid_difficulty_id_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_live_applications_like_cpp",
@@ -4023,8 +4029,10 @@
           "name": "represented_raid_difficulty_id_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_removed_known_spells_like_cpp",
@@ -23508,7 +23516,7 @@
           "kind": "method",
           "name": "create_map_player_context_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn create_map_player_context_like_cpp (& self , map_id : u32 , map_entry : wow_data :: map :: MapEntry , player_guid : ObjectGuid ,) -> wow_map :: CreateMapPlayerContext",
+          "signature": "fn create_map_player_context_like_cpp (& self , map_id : u32 , map_entry : wow_data :: map :: MapEntry , player_guid : ObjectGuid ,) -> Option < wow_map :: CreateMapPlayerContext >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28456,6 +28464,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_difficulty_preferences_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_difficulty_preferences_like_cpp < R > (& mut self , f : impl FnOnce (& mut u32 , & mut u32 , & mut u32) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_inventory_runtime_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_player_inventory_runtime_like_cpp < R > (& mut self , update : impl FnOnce (& mut PlayerInventoryRuntime) -> R ,) -> Option < R >",
@@ -28933,6 +28952,21 @@
           "signature": "fn party_raid_warnings_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "pass_on_group_loot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn pass_on_group_loot_like_cpp (& self) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29441,6 +29475,19 @@
           "name": "player_current_map_instanceable_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_current_map_instanceable_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_difficulty_preferences_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_difficulty_preferences_snapshot_like_cpp (& self ,) -> Option < (u32 , u32 , u32) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32885,6 +32932,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "replace_player_difficulty_preferences_like_cpp",
+          "visibility": "private",
+          "signature": "fn replace_player_difficulty_preferences_like_cpp (& mut self , dungeon : u32 , raid : u32 , legacy_raid : u32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "replace_player_rest_state_like_cpp",
           "visibility": "private",
           "signature": "fn replace_player_rest_state_like_cpp (& mut self , state : wow_entities :: PlayerRestState) -> bool",
@@ -34445,8 +34503,10 @@
           "name": "represented_dungeon_difficulty_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_dungeon_difficulty_id_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34457,7 +34517,7 @@
           "kind": "method",
           "name": "represented_dungeon_difficulty_packet_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_dungeon_difficulty_packet_like_cpp (& self) -> DungeonDifficultySet",
+          "signature": "fn represented_dungeon_difficulty_packet_like_cpp (& self ,) -> Option < DungeonDifficultySet >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36003,7 +36063,7 @@
           "kind": "method",
           "name": "represented_player_difficulty_id_for_map_entry_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_player_difficulty_id_for_map_entry_like_cpp (& self , map_id : u32 , map_entry : wow_data :: map :: MapEntry ,) -> wow_map :: Difficulty",
+          "signature": "fn represented_player_difficulty_id_for_map_entry_like_cpp (& self , map_id : u32 , map_entry : wow_data :: map :: MapEntry ,) -> Option < wow_map :: Difficulty >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -38610,6 +38670,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_dungeon_difficulty_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_dungeon_difficulty_id_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_enchanting_skill_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_enchanting_skill_like_cpp (& self) -> Option < u16 >",
@@ -38717,6 +38790,32 @@
           "name": "resolved_known_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_known_spells_like_cpp (& self) -> Option < Vec < i32 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_legacy_raid_difficulty_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_legacy_raid_difficulty_id_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_pass_on_group_loot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_pass_on_group_loot_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38937,6 +39036,19 @@
           "name": "resolved_player_xp_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_xp_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_raid_difficulty_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_raid_difficulty_id_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43309,6 +43421,20 @@
           "name": "set_party_raid_warnings_like_cpp",
           "visibility": "pub",
           "signature": "fn set_party_raid_warnings_like_cpp (& mut self , enabled : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_pass_on_group_loot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_pass_on_group_loot_like_cpp (& mut self , value : bool) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -74904,7 +75030,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:44634829c96a7aefe205424a933e7f50:len=93227|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:41d04fc6b94aea53dfb63676b99bec0c:len=93287|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -16,6 +16,9 @@ impl WorldSession {
         let Some(registry) = self.player_registry() else {
             return false;
         };
+        let Some(pass_on_group_loot) = self.resolved_pass_on_group_loot_like_cpp() else {
+            return false;
+        };
 
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()
@@ -39,7 +42,7 @@ impl WorldSession {
                     loot_obj: roll.loot_obj,
                     loot_list_id: roll.loot_list_id,
                     roll_type: roll.roll_type,
-                    pass_on_group_loot: self.pass_on_group_loot,
+                    pass_on_group_loot,
                     roll_identity,
                 }),
             )
@@ -51,10 +54,13 @@ impl WorldSession {
         roll: &LootRoll,
         player_guid: ObjectGuid,
     ) -> bool {
+        let Some(pass_on_group_loot) = self.resolved_pass_on_group_loot_like_cpp() else {
+            return false;
+        };
         self.represented_player_vote_on_loot_roll_with_pass_state_like_cpp(
             roll,
             player_guid,
-            self.pass_on_group_loot,
+            pass_on_group_loot,
         )
         .await
     }
@@ -846,6 +852,9 @@ impl WorldSession {
             })
             .unwrap_or_default();
         let current_player_enchanting_skill = self.resolved_enchanting_skill_like_cpp();
+        let Some(pass_on_group_loot) = self.resolved_pass_on_group_loot_like_cpp() else {
+            return;
+        };
 
         if let Some(loot) = self.loot_table.get_mut(&owner_guid) {
             for entry in &mut loot.items {
@@ -870,7 +879,7 @@ impl WorldSession {
                 let mut voters = HashMap::new();
                 for looter in &entry.allowed_looters {
                     let vote = if *looter == player_guid {
-                        if self.pass_on_group_loot {
+                        if pass_on_group_loot {
                             ROLL_VOTE_PASS_LIKE_CPP
                         } else {
                             ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP
