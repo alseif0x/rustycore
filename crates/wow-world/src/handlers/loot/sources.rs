@@ -2907,7 +2907,7 @@ impl WorldSession {
             }
 
             for spell_id in self.known_spells_like_cpp() {
-                let Some(spell) = self.spell_store().and_then(|store| store.get(*spell_id)) else {
+                let Some(spell) = self.spell_store().and_then(|store| store.get(spell_id)) else {
                     continue;
                 };
                 let can_open_lock = spell.effects().iter().any(|effect| {
@@ -2916,7 +2916,7 @@ impl WorldSession {
                         && effect.effect_base_points >= i32::from(lock.skill[i])
                 });
                 if can_open_lock {
-                    if let Some(range) = self.represented_spell_max_range_like_cpp(*spell_id) {
+                    if let Some(range) = self.represented_spell_max_range_like_cpp(spell_id) {
                         return Some(range);
                     }
                 }

@@ -1141,11 +1141,7 @@ impl PlayerRegistry {
                 class,
                 sex,
                 level: placement.level,
-                known_spells: state
-                    .spells
-                    .iter()
-                    .filter_map(|spell| i32::try_from(spell.spell_id).ok())
-                    .collect(),
+                known_spells: state.spells.known_spells.iter().copied().collect(),
                 active_quest_statuses: state
                     .quests
                     .statuses

@@ -166,6 +166,7 @@ impl WorldSession {
             legacy_raid_difficulty: self.represented_legacy_raid_difficulty_id_like_cpp,
         };
 
+        let spell_runtime = self.player_spell_runtime_snapshot_like_cpp();
         let spells = if let Some(spells) = self.complete_represented_player_spell_rows_like_cpp() {
             Some(PlayerSpellSaveGroupLikeCpp::Complete {
                 rows: spells
@@ -193,17 +194,19 @@ impl WorldSession {
                         },
                     })
                     .collect(),
-                fallback_rows_were_present: !self
-                    .represented_fallback_player_spell_rows_like_cpp
-                    .is_empty(),
+                fallback_rows_were_present: spell_runtime
+                    .as_ref()
+                    .is_some_and(|runtime| !runtime.fallback_rows.is_empty()),
             })
-        } else if !self
-            .represented_fallback_player_spell_rows_like_cpp
-            .is_empty()
+        } else if spell_runtime
+            .as_ref()
+            .is_some_and(|runtime| !runtime.fallback_rows.is_empty())
         {
             Some(PlayerSpellSaveGroupLikeCpp::Fallback {
-                rows: self
-                    .represented_fallback_player_spell_rows_like_cpp
+                rows: spell_runtime
+                    .as_ref()
+                    .expect("non-empty fallback spell runtime")
+                    .fallback_rows
                     .values()
                     .map(|spell| PlayerFallbackSpellSaveLikeCpp {
                         spell_id: spell.spell_id,
@@ -564,40 +567,40 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn mark_player_spells_saved_like_cpp(&mut self) {
-        self.represented_player_spell_rows_like_cpp
-            .retain(|_, spell| {
-                if spell.state == RepresentedPlayerSpellStateLikeCpp::Removed {
-                    return false;
-                }
-                if spell.state != RepresentedPlayerSpellStateLikeCpp::Temporary {
-                    spell.state = RepresentedPlayerSpellStateLikeCpp::Unchanged;
-                }
-                true
-            });
-        self.represented_removed_known_spells_like_cpp.clear();
+        let Some(mut runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+            return;
+        };
+        runtime.rows.retain(|_, spell| {
+            if spell.state == RepresentedPlayerSpellStateLikeCpp::Removed {
+                return false;
+            }
+            if spell.state != RepresentedPlayerSpellStateLikeCpp::Temporary {
+                spell.state = RepresentedPlayerSpellStateLikeCpp::Unchanged;
+            }
+            true
+        });
+        runtime.removed_known_spells.clear();
         self.represented_spell_trait_definition_ids_like_cpp
-            .retain(|spell_id, _| {
-                self.represented_player_spell_rows_like_cpp
-                    .contains_key(spell_id)
-            });
-        self.represented_dependent_known_spells_like_cpp = self
-            .represented_player_spell_rows_like_cpp
+            .retain(|spell_id, _| runtime.rows.contains_key(spell_id));
+        runtime.dependent_known_spells = runtime
+            .rows
             .values()
             .filter(|spell| spell.dependent)
             .map(|spell| spell.spell_id)
             .collect();
-        self.represented_favorite_known_spells_like_cpp = self
-            .represented_player_spell_rows_like_cpp
+        runtime.favorite_known_spells = runtime
+            .rows
             .values()
             .filter(|spell| spell.favorite)
             .map(|spell| spell.spell_id)
             .collect();
-        self.known_spells = self
-            .represented_player_spell_rows_like_cpp
+        runtime.known_spells = runtime
+            .rows
             .values()
             .filter(|spell| !spell.disabled)
             .map(|spell| spell.spell_id)
             .collect();
+        let _ = self.replace_player_spell_runtime_like_cpp(runtime);
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -629,7 +632,9 @@ impl WorldSession {
             self.mark_player_spells_saved_like_cpp();
         }
         if committed.fallback_player_spells {
-            self.represented_fallback_player_spell_rows_like_cpp.clear();
+            let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                runtime.fallback_rows.clear();
+            });
         }
         if committed.player_skills {
             self.mark_player_skills_saved_like_cpp();

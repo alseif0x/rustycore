@@ -8,6 +8,14 @@
 use super::*;
 
 impl Player {
+    pub fn spell_runtime_like_cpp(&self) -> &PlayerSpellRuntimeState {
+        &self.gameplay_state().spells
+    }
+
+    pub fn replace_spell_runtime_like_cpp(&mut self, state: PlayerSpellRuntimeState) {
+        self.gameplay_state_mut().spells = state;
+    }
+
     pub fn create_mode_like_cpp(&self) -> u8 {
         self.gameplay_state().create_mode
     }

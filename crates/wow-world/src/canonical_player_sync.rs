@@ -56,7 +56,8 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
 
 pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &WorldSession) {
     let difficulty = session.represented_dungeon_difficulty_id_like_cpp;
-    let known_spells = session.known_spells_like_cpp().to_vec();
+    #[cfg(test)]
+    let known_spells = session.known_spells_like_cpp();
     let quest_statuses = session
         .player_quests
         .iter()
@@ -125,17 +126,27 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
         state.dungeon_difficulty_id = difficulty;
-        state.spells = known_spells
-            .into_iter()
-            .filter_map(|spell_id| u32::try_from(spell_id).ok())
-            .map(|spell_id| wow_entities::PlayerKnownSpellRecord {
-                spell_id,
-                state: wow_entities::PlayerSpellLoadState::Unchanged,
-                active: true,
-                favorite: false,
-                dependent: false,
-            })
-            .collect();
+        #[cfg(test)]
+        {
+            state.spells.known_spells = known_spells.clone();
+            state.spells.rows = known_spells
+                .iter()
+                .copied()
+                .map(|spell_id| {
+                    (
+                        spell_id,
+                        wow_entities::PlayerKnownSpellRecord {
+                            spell_id,
+                            state: wow_entities::PlayerSpellLoadState::Unchanged,
+                            active: true,
+                            disabled: false,
+                            favorite: false,
+                            dependent: false,
+                        },
+                    )
+                })
+                .collect();
+        }
         state.quests.statuses = quest_statuses;
         state.quests.objective_counts_by_quest = objective_counts;
         state.quests.rewarded_quest_ids = rewarded;

@@ -4707,6 +4707,118 @@ pub(crate) struct RepresentedPlayerSpellLikeCpp {
     pub state: RepresentedPlayerSpellStateLikeCpp,
 }
 
+#[derive(Debug, Clone, Default)]
+struct RepresentedPlayerSpellRuntimeLikeCpp {
+    known_spells: Vec<i32>,
+    rows: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
+    rows_loaded: bool,
+    rows_complete: bool,
+    fallback_rows: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
+    dependent_known_spells: HashSet<i32>,
+    removed_known_spells: HashSet<i32>,
+    favorite_known_spells: HashSet<i32>,
+}
+
+fn canonical_player_spell_record_like_cpp(
+    row: RepresentedPlayerSpellLikeCpp,
+) -> wow_entities::PlayerKnownSpellRecord {
+    wow_entities::PlayerKnownSpellRecord {
+        spell_id: row.spell_id,
+        state: match row.state {
+            RepresentedPlayerSpellStateLikeCpp::Unchanged => {
+                wow_entities::PlayerSpellLoadState::Unchanged
+            }
+            RepresentedPlayerSpellStateLikeCpp::Changed => {
+                wow_entities::PlayerSpellLoadState::Changed
+            }
+            RepresentedPlayerSpellStateLikeCpp::New => wow_entities::PlayerSpellLoadState::New,
+            RepresentedPlayerSpellStateLikeCpp::Removed => {
+                wow_entities::PlayerSpellLoadState::Removed
+            }
+            RepresentedPlayerSpellStateLikeCpp::Temporary => {
+                wow_entities::PlayerSpellLoadState::Temporary
+            }
+        },
+        active: row.active,
+        disabled: row.disabled,
+        favorite: row.favorite,
+        dependent: row.dependent,
+    }
+}
+
+fn represented_player_spell_record_like_cpp(
+    row: &wow_entities::PlayerKnownSpellRecord,
+) -> RepresentedPlayerSpellLikeCpp {
+    RepresentedPlayerSpellLikeCpp {
+        spell_id: row.spell_id,
+        active: row.active,
+        disabled: row.disabled,
+        dependent: row.dependent,
+        favorite: row.favorite,
+        state: match row.state {
+            wow_entities::PlayerSpellLoadState::Unchanged => {
+                RepresentedPlayerSpellStateLikeCpp::Unchanged
+            }
+            wow_entities::PlayerSpellLoadState::Changed => {
+                RepresentedPlayerSpellStateLikeCpp::Changed
+            }
+            wow_entities::PlayerSpellLoadState::New => RepresentedPlayerSpellStateLikeCpp::New,
+            wow_entities::PlayerSpellLoadState::Removed => {
+                RepresentedPlayerSpellStateLikeCpp::Removed
+            }
+            wow_entities::PlayerSpellLoadState::Temporary => {
+                RepresentedPlayerSpellStateLikeCpp::Temporary
+            }
+        },
+    }
+}
+
+fn canonical_player_spell_runtime_like_cpp(
+    runtime: RepresentedPlayerSpellRuntimeLikeCpp,
+) -> wow_entities::PlayerSpellRuntimeState {
+    wow_entities::PlayerSpellRuntimeState {
+        known_spells: runtime.known_spells,
+        rows: runtime
+            .rows
+            .into_iter()
+            .map(|(spell_id, row)| (spell_id, canonical_player_spell_record_like_cpp(row)))
+            .collect(),
+        rows_loaded: runtime.rows_loaded,
+        rows_complete: runtime.rows_complete,
+        fallback_rows: runtime
+            .fallback_rows
+            .into_iter()
+            .map(|(spell_id, row)| (spell_id, canonical_player_spell_record_like_cpp(row)))
+            .collect(),
+        dependent_known_spells: runtime.dependent_known_spells.into_iter().collect(),
+        removed_known_spells: runtime.removed_known_spells.into_iter().collect(),
+        favorite_known_spells: runtime.favorite_known_spells.into_iter().collect(),
+    }
+}
+
+fn represented_player_spell_runtime_like_cpp(
+    runtime: &wow_entities::PlayerSpellRuntimeState,
+) -> RepresentedPlayerSpellRuntimeLikeCpp {
+    RepresentedPlayerSpellRuntimeLikeCpp {
+        known_spells: runtime.known_spells.clone(),
+        rows: runtime
+            .rows
+            .iter()
+            .map(|(&spell_id, row)| (spell_id, represented_player_spell_record_like_cpp(row)))
+            .collect(),
+        rows_loaded: runtime.rows_loaded,
+        rows_complete: runtime.rows_complete,
+        fallback_rows: runtime
+            .fallback_rows
+            .iter()
+            .map(|(&spell_id, row)| (spell_id, represented_player_spell_record_like_cpp(row)))
+            .collect(),
+        dependent_known_spells: runtime.dependent_known_spells.iter().copied().collect(),
+        removed_known_spells: runtime.removed_known_spells.iter().copied().collect(),
+        favorite_known_spells: runtime.favorite_known_spells.iter().copied().collect(),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCharacterSpellCooldownLikeCpp {
     pub spell_id: u32,
@@ -5703,29 +5815,37 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) represented_primary_specialization_id_like_cpp: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
+    #[cfg(test)]
     known_spells: Vec<i32>,
     /// Complete represented C++ `PlayerSpellMap`, retained independently from
     /// the `known_spells` `Player::HasSpell` mirror, including active/persistence flags.
+    #[cfg(test)]
     represented_player_spell_rows_like_cpp: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
     /// True when the backing spell queries or another explicit row source
     /// were retained losslessly.
+    #[cfg(test)]
     represented_player_spell_rows_loaded_like_cpp: bool,
     /// True only when the retained rows represent the final post-`AddSpell`
     /// logical map, not merely the raw DB rows.
+    #[cfg(test)]
     represented_player_spell_rows_complete_like_cpp: bool,
     /// Dirty `EffectLearnSpell` base rows retained when ancillary projection
     /// authority is incomplete. Unlike the complete map replacement, these
     /// rows can be persisted independently without claiming that untouched
     /// spell rows are authoritative.
+    #[cfg(test)]
     represented_fallback_player_spell_rows_like_cpp: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
     /// Represented C++ `PlayerSpell::dependent` for known spells that must not
     /// be persisted by `_SaveSpells`.
+    #[cfg(test)]
     represented_dependent_known_spells_like_cpp: HashSet<i32>,
     /// Represented C++ `PLAYERSPELL_REMOVED` rows for known spells removed
     /// after a coherent character spell load.
+    #[cfg(test)]
     represented_removed_known_spells_like_cpp: HashSet<i32>,
     /// Represented C++ `PlayerSpell::favorite` rows loaded from
     /// `character_spell_favorite`.
+    #[cfg(test)]
     represented_favorite_known_spells_like_cpp: HashSet<i32>,
     /// Represented C++ `PlayerSpell::TraitDefinitionId`, keyed by learned spell id.
     represented_spell_trait_definition_ids_like_cpp: HashMap<i32, i32>,
@@ -7904,13 +8024,21 @@ impl WorldSession {
             loot_specialization_id: 0,
             #[cfg(test)]
             represented_primary_specialization_id_like_cpp: 0,
+            #[cfg(test)]
             known_spells: Vec::new(),
+            #[cfg(test)]
             represented_player_spell_rows_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_player_spell_rows_loaded_like_cpp: false,
+            #[cfg(test)]
             represented_player_spell_rows_complete_like_cpp: false,
+            #[cfg(test)]
             represented_fallback_player_spell_rows_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_dependent_known_spells_like_cpp: HashSet::new(),
+            #[cfg(test)]
             represented_removed_known_spells_like_cpp: HashSet::new(),
+            #[cfg(test)]
             represented_favorite_known_spells_like_cpp: HashSet::new(),
             represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
             represented_spell_trait_definition_ids_complete_like_cpp: false,
@@ -9630,6 +9758,20 @@ impl WorldSession {
             player.set_shapeshift_form_id_like_cpp(self.represented_shapeshift_form_like_cpp);
             player.set_loot_specialization_id_like_cpp(self.loot_specialization_id);
             player.set_primary_specialization(self.represented_primary_specialization_id_like_cpp);
+            player.replace_spell_runtime_like_cpp(canonical_player_spell_runtime_like_cpp(
+                RepresentedPlayerSpellRuntimeLikeCpp {
+                    known_spells: self.known_spells.clone(),
+                    rows: self.represented_player_spell_rows_like_cpp.clone(),
+                    rows_loaded: self.represented_player_spell_rows_loaded_like_cpp,
+                    rows_complete: self.represented_player_spell_rows_complete_like_cpp,
+                    fallback_rows: self.represented_fallback_player_spell_rows_like_cpp.clone(),
+                    dependent_known_spells: self
+                        .represented_dependent_known_spells_like_cpp
+                        .clone(),
+                    removed_known_spells: self.represented_removed_known_spells_like_cpp.clone(),
+                    favorite_known_spells: self.represented_favorite_known_spells_like_cpp.clone(),
+                },
+            ));
         }
         player
             .unit_mut()
@@ -26969,7 +27111,9 @@ impl WorldSession {
             || !self.represented_guild_id_authority_complete_like_cpp
             || self.represented_guild_id_like_cpp != 0
             || self.complete_player_skill_records_like_cpp().is_none()
-            || !self.represented_player_spell_rows_complete_like_cpp
+            || self
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_none()
             || !self.represented_spell_trait_definition_ids_complete_like_cpp
             || !self
                 .represented_spell_trait_definition_ids_like_cpp
@@ -30168,8 +30312,9 @@ impl WorldSession {
                 known_spells.push(spell_id);
                 applied += 1;
             }
-            self.represented_dependent_known_spells_like_cpp
-                .insert(spell_id);
+            let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                runtime.dependent_known_spells.insert(spell_id);
+            });
         }
 
         applied
@@ -34325,10 +34470,10 @@ impl WorldSession {
                     continue;
                 };
                 if !learned_spell.auto_learned && learned_spell.active {
-                    self.represented_dependent_known_spells_like_cpp
-                        .insert(learned_spell_id);
-                    self.represented_favorite_known_spells_like_cpp
-                        .remove(&learned_spell_id);
+                    let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                        runtime.dependent_known_spells.insert(learned_spell_id);
+                        runtime.favorite_known_spells.remove(&learned_spell_id);
+                    });
                     if !known_spells.contains(&learned_spell_id) {
                         known_spells.push(learned_spell_id);
                         pending.push(learned_spell_id);
@@ -37339,7 +37484,9 @@ impl WorldSession {
             self.represented_spell_acquisition_post_commit_actions_like_cpp
                 .clear();
             if previous_player_guid.is_some() {
-                self.represented_fallback_player_spell_rows_like_cpp.clear();
+                let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                    runtime.fallback_rows.clear();
+                });
             }
             // `_SaveSkills` tombstones belong to the current C++ Player's
             // update-field slots, not to the authenticated WorldSession.
@@ -38538,21 +38685,28 @@ impl WorldSession {
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.invalidate_represented_player_spell_rows_like_cpp();
-        self.known_spells = spells;
-        self.represented_removed_known_spells_like_cpp.clear();
-        self.represented_dependent_known_spells_like_cpp
-            .retain(|spell_id| self.known_spells.contains(spell_id));
-        self.represented_favorite_known_spells_like_cpp
-            .retain(|spell_id| self.known_spells.contains(spell_id));
+        let known_spells = spells.clone();
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.known_spells = spells;
+            runtime.removed_known_spells.clear();
+            runtime
+                .dependent_known_spells
+                .retain(|spell_id| known_spells.contains(spell_id));
+            runtime
+                .favorite_known_spells
+                .retain(|spell_id| known_spells.contains(spell_id));
+        });
         self.represented_spell_trait_definition_ids_like_cpp
-            .retain(|spell_id, _| self.known_spells.contains(spell_id));
+            .retain(|spell_id, _| known_spells.contains(spell_id));
         self.learn_account_mount_spells_like_cpp();
     }
 
     fn invalidate_represented_player_spell_rows_like_cpp(&mut self) {
-        self.represented_player_spell_rows_like_cpp.clear();
-        self.represented_player_spell_rows_loaded_like_cpp = false;
-        self.represented_player_spell_rows_complete_like_cpp = false;
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.rows.clear();
+            runtime.rows_loaded = false;
+            runtime.rows_complete = false;
+        });
         self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
     }
 
@@ -38591,7 +38745,11 @@ impl WorldSession {
         // unavailable. Reconcile it against the newly authoritative row using
         // C++ `Player::LearnSpell`: disabled rows preserve active, other rows
         // become active, and favorite/dependent state comes from the load.
-        for (&spell_id, &fallback) in &self.represented_fallback_player_spell_rows_like_cpp {
+        let fallback_rows = self
+            .player_spell_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.fallback_rows)
+            .unwrap_or_default();
+        for (&spell_id, &fallback) in &fallback_rows {
             let reconciled = if let Some(loaded) = exact_rows.get(&spell_id).copied() {
                 let active = if loaded.disabled { loaded.active } else { true };
                 let dependent_promoted = fallback.dependent && !loaded.dependent;
@@ -38622,10 +38780,12 @@ impl WorldSession {
             exact_rows.insert(spell_id, reconciled);
         }
 
-        self.represented_player_spell_rows_like_cpp = exact_rows;
-        self.represented_player_spell_rows_loaded_like_cpp = true;
-        self.represented_player_spell_rows_complete_like_cpp = complete;
-        true
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.rows = exact_rows;
+            runtime.rows_loaded = true;
+            runtime.rows_complete = complete;
+        })
+        .is_some()
     }
 
     /// Authorizes the current post-login spell, trait and override mirrors as one
@@ -38732,9 +38892,9 @@ impl WorldSession {
             }) {
                 continue;
             }
-            let before = self.known_spells.len();
+            let before = self.known_spells_like_cpp().len();
             self.learn_dependent_known_spell_like_cpp(spell_id);
-            learned += usize::from(self.known_spells.len() != before);
+            learned += usize::from(self.known_spells_like_cpp().len() != before);
         }
         learned
     }
@@ -39886,34 +40046,33 @@ impl WorldSession {
     }
 
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
-        if !self.known_spells.contains(&spell_id) {
+        if !self.known_spells_like_cpp().contains(&spell_id) {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         // This low-level helper does not run the complete C++ AddSpell closure
         // (ranks, dependencies, skills, traits and overrides). Retaining exact
         // acquisition authority after it would make those mirrors stale.
         self.invalidate_represented_player_spell_rows_like_cpp();
-        if !self.known_spells.contains(&spell_id) {
-            self.known_spells.push(spell_id);
-        }
-        self.represented_removed_known_spells_like_cpp
-            .remove(&spell_id);
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            if !runtime.known_spells.contains(&spell_id) {
+                runtime.known_spells.push(spell_id);
+            }
+            runtime.removed_known_spells.remove(&spell_id);
+        });
     }
 
     pub(crate) fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
         self.learn_known_spell_like_cpp(spell_id);
-        self.represented_dependent_known_spells_like_cpp
-            .insert(spell_id);
-        self.represented_favorite_known_spells_like_cpp
-            .remove(&spell_id);
-        if self.represented_player_spell_rows_complete_like_cpp
-            && let Some(row) = self
-                .represented_player_spell_rows_like_cpp
-                .get_mut(&spell_id)
-        {
-            row.dependent = true;
-            row.favorite = false;
-        }
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.dependent_known_spells.insert(spell_id);
+            runtime.favorite_known_spells.remove(&spell_id);
+            if runtime.rows_complete
+                && let Some(row) = runtime.rows.get_mut(&spell_id)
+            {
+                row.dependent = true;
+                row.favorite = false;
+            }
+        });
     }
 
     pub(crate) fn set_represented_spell_trait_definition_id_like_cpp(
@@ -39921,7 +40080,7 @@ impl WorldSession {
         spell_id: i32,
         trait_definition_id: i32,
     ) {
-        if self.known_spells.contains(&spell_id) && trait_definition_id > 0 {
+        if self.known_spells_like_cpp().contains(&spell_id) && trait_definition_id > 0 {
             if self
                 .represented_spell_trait_definition_ids_like_cpp
                 .get(&spell_id)
@@ -39944,7 +40103,7 @@ impl WorldSession {
         spell_id: i32,
         suppress_messaging: bool,
     ) {
-        if self.known_spells.contains(&spell_id) {
+        if self.known_spells_like_cpp().contains(&spell_id) {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         let mut seen = HashSet::new();
@@ -39958,11 +40117,13 @@ impl WorldSession {
         suppress_messaging: bool,
         seen: &mut HashSet<i32>,
     ) {
-        if !self.known_spells.contains(&spell_id) {
+        if !self.known_spells_like_cpp().contains(&spell_id) {
             return;
         }
 
-        let preserve_complete = self.represented_player_spell_rows_complete_like_cpp;
+        let preserve_complete = self
+            .player_spell_runtime_snapshot_like_cpp()
+            .is_some_and(|runtime| runtime.rows_complete);
         if !preserve_complete {
             self.invalidate_represented_player_spell_rows_like_cpp();
         }
@@ -39979,7 +40140,9 @@ impl WorldSession {
                         .spell_custom_attributes_for_difficulty_like_cpp(next_spell_id, 0)
                         & wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP
                         != 0;
-                    if self.known_spells.contains(&next_known_spell_id) && !next_spell_is_talent {
+                    if self.known_spells_like_cpp().contains(&next_known_spell_id)
+                        && !next_spell_is_talent
+                    {
                         self.remove_known_spell_with_seen_like_cpp(
                             next_known_spell_id,
                             false,
@@ -39996,7 +40159,7 @@ impl WorldSession {
                 .filter_map(|spell| i32::try_from(*spell).ok())
                 .collect();
             for requiring_spell_id in spells_requiring_removed {
-                if self.known_spells.contains(&requiring_spell_id) {
+                if self.known_spells_like_cpp().contains(&requiring_spell_id) {
                     self.remove_known_spell_with_seen_like_cpp(
                         requiring_spell_id,
                         true,
@@ -40007,34 +40170,30 @@ impl WorldSession {
             }
         }
 
-        let was_known = self.known_spells.contains(&spell_id);
-        let was_dependent = self
-            .represented_dependent_known_spells_like_cpp
-            .contains(&spell_id);
-        self.known_spells.retain(|known| *known != spell_id);
-        self.represented_dependent_known_spells_like_cpp
-            .remove(&spell_id);
-        self.represented_favorite_known_spells_like_cpp
-            .remove(&spell_id);
-        if was_known && !was_dependent {
-            self.represented_removed_known_spells_like_cpp
-                .insert(spell_id);
-        }
-        if preserve_complete {
-            if was_dependent {
-                self.represented_player_spell_rows_like_cpp
-                    .remove(&spell_id);
-            } else if let Some(row) = self
-                .represented_player_spell_rows_like_cpp
-                .get_mut(&spell_id)
-            {
-                row.active = false;
-                row.disabled = false;
-                row.dependent = false;
-                row.favorite = false;
-                row.state = RepresentedPlayerSpellStateLikeCpp::Removed;
+        let Some(was_dependent) = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            let was_known = runtime.known_spells.contains(&spell_id);
+            let was_dependent = runtime.dependent_known_spells.contains(&spell_id);
+            runtime.known_spells.retain(|known| *known != spell_id);
+            runtime.dependent_known_spells.remove(&spell_id);
+            runtime.favorite_known_spells.remove(&spell_id);
+            if was_known && !was_dependent {
+                runtime.removed_known_spells.insert(spell_id);
             }
-        }
+            if preserve_complete {
+                if was_dependent {
+                    runtime.rows.remove(&spell_id);
+                } else if let Some(row) = runtime.rows.get_mut(&spell_id) {
+                    row.active = false;
+                    row.disabled = false;
+                    row.dependent = false;
+                    row.favorite = false;
+                    row.state = RepresentedPlayerSpellStateLikeCpp::Removed;
+                }
+            }
+            was_dependent
+        }) else {
+            return;
+        };
 
         let mut unlearned_spells_packet_like_cpp = None;
 
@@ -40076,14 +40235,15 @@ impl WorldSession {
                             .and_then(|store| store.spell_chain_node_like_cpp(current_spell_id))
                             .is_some();
                         if current_spell_is_ranked
-                            && self.known_spells.contains(&prev_known_spell_id)
+                            && self.known_spells_like_cpp().contains(&prev_known_spell_id)
                         {
                             if was_dependent {
                                 self.learn_dependent_known_spell_like_cpp(prev_known_spell_id);
                             } else {
                                 self.learn_known_spell_like_cpp(prev_known_spell_id);
-                                self.represented_dependent_known_spells_like_cpp
-                                    .remove(&prev_known_spell_id);
+                                let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                                    runtime.dependent_known_spells.remove(&prev_known_spell_id);
+                                });
                             }
                             self.send_packet(
                                 &wow_packet::packets::trainer::SupercededSpells::single(
@@ -41110,13 +41270,22 @@ impl WorldSession {
             .collect();
 
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.known_spells = known_spells.clone();
-        self.represented_player_spell_rows_like_cpp = exact_spells;
-        self.represented_player_spell_rows_loaded_like_cpp = true;
-        self.represented_player_spell_rows_complete_like_cpp = true;
-        self.represented_dependent_known_spells_like_cpp = dependent_spells;
-        self.represented_removed_known_spells_like_cpp = removed_spells;
-        self.represented_favorite_known_spells_like_cpp = favorite_spells;
+        let fallback_rows = self
+            .player_spell_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.fallback_rows)
+            .unwrap_or_default();
+        if !self.replace_player_spell_runtime_like_cpp(RepresentedPlayerSpellRuntimeLikeCpp {
+            known_spells: known_spells.clone(),
+            rows: exact_spells,
+            rows_loaded: true,
+            rows_complete: true,
+            fallback_rows,
+            dependent_known_spells: dependent_spells,
+            removed_known_spells: removed_spells,
+            favorite_known_spells: favorite_spells,
+        }) {
+            return false;
+        }
         self.represented_spell_trait_definition_ids_like_cpp = exact_traits;
         self.represented_spell_trait_definition_ids_complete_like_cpp = true;
         self.represented_override_spells_like_cpp = exact_overrides;
@@ -41526,59 +41695,125 @@ impl WorldSession {
         canonical.filter(|guid| !guid.is_empty())
     }
 
-    pub(crate) fn known_spells_like_cpp(&self) -> &[i32] {
-        &self.known_spells
+    fn player_spell_runtime_snapshot_like_cpp(
+        &self,
+    ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            represented_player_spell_runtime_like_cpp(player.spell_runtime_like_cpp())
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(RepresentedPlayerSpellRuntimeLikeCpp {
+                known_spells: self.known_spells.clone(),
+                rows: self.represented_player_spell_rows_like_cpp.clone(),
+                rows_loaded: self.represented_player_spell_rows_loaded_like_cpp,
+                rows_complete: self.represented_player_spell_rows_complete_like_cpp,
+                fallback_rows: self.represented_fallback_player_spell_rows_like_cpp.clone(),
+                dependent_known_spells: self.represented_dependent_known_spells_like_cpp.clone(),
+                removed_known_spells: self.represented_removed_known_spells_like_cpp.clone(),
+                favorite_known_spells: self.represented_favorite_known_spells_like_cpp.clone(),
+            });
+        }
+        canonical
     }
 
-    pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> &HashSet<i32> {
-        &self.represented_dependent_known_spells_like_cpp
+    fn replace_player_spell_runtime_like_cpp(
+        &mut self,
+        runtime: RepresentedPlayerSpellRuntimeLikeCpp,
+    ) -> bool {
+        let canonical_runtime = canonical_player_spell_runtime_like_cpp(runtime.clone());
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.replace_spell_runtime_like_cpp(canonical_runtime)
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.known_spells = runtime.known_spells;
+            self.represented_player_spell_rows_like_cpp = runtime.rows;
+            self.represented_player_spell_rows_loaded_like_cpp = runtime.rows_loaded;
+            self.represented_player_spell_rows_complete_like_cpp = runtime.rows_complete;
+            self.represented_fallback_player_spell_rows_like_cpp = runtime.fallback_rows;
+            self.represented_dependent_known_spells_like_cpp = runtime.dependent_known_spells;
+            self.represented_removed_known_spells_like_cpp = runtime.removed_known_spells;
+            self.represented_favorite_known_spells_like_cpp = runtime.favorite_known_spells;
+            return true;
+        }
+        canonical
+    }
+
+    fn mutate_player_spell_runtime_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut RepresentedPlayerSpellRuntimeLikeCpp) -> R,
+    ) -> Option<R> {
+        let mut runtime = self.player_spell_runtime_snapshot_like_cpp()?;
+        let result = f(&mut runtime);
+        self.replace_player_spell_runtime_like_cpp(runtime)
+            .then_some(result)
+    }
+
+    pub(crate) fn resolved_known_spells_like_cpp(&self) -> Option<Vec<i32>> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.known_spells)
+    }
+
+    pub(crate) fn known_spells_like_cpp(&self) -> Vec<i32> {
+        self.resolved_known_spells_like_cpp().unwrap_or_default()
+    }
+
+    pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.dependent_known_spells)
+            .unwrap_or_default()
     }
 
     pub(crate) fn set_represented_favorite_known_spells_like_cpp(
         &mut self,
         favorite_spells: HashSet<i32>,
     ) {
-        let preserve_complete = self.represented_player_spell_rows_complete_like_cpp;
+        let preserve_complete = self
+            .player_spell_runtime_snapshot_like_cpp()
+            .is_some_and(|runtime| runtime.rows_complete);
         if !preserve_complete {
             self.invalidate_represented_player_spell_rows_like_cpp();
         }
-        self.represented_favorite_known_spells_like_cpp = favorite_spells
-            .into_iter()
-            .filter(|spell_id| self.known_spells.contains(spell_id))
-            .collect();
-        if preserve_complete {
-            for row in self.represented_player_spell_rows_like_cpp.values_mut() {
-                row.favorite = self
-                    .represented_favorite_known_spells_like_cpp
-                    .contains(&row.spell_id);
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.favorite_known_spells = favorite_spells
+                .into_iter()
+                .filter(|spell_id| runtime.known_spells.contains(spell_id))
+                .collect();
+            if preserve_complete {
+                for row in runtime.rows.values_mut() {
+                    row.favorite = runtime.favorite_known_spells.contains(&row.spell_id);
+                }
             }
-        }
+        });
     }
 
     #[allow(dead_code)]
     pub(crate) fn represented_player_spell_rows_like_cpp(
         &self,
     ) -> Vec<RepresentedPlayerSpellLikeCpp> {
-        let mut rows = self
-            .known_spells_like_cpp()
+        let Some(runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+            return Vec::new();
+        };
+        let mut rows = runtime
+            .known_spells
             .iter()
             .copied()
             .map(|spell_id| RepresentedPlayerSpellLikeCpp {
                 spell_id,
                 active: true,
                 disabled: false,
-                dependent: self
-                    .represented_dependent_known_spells_like_cpp
-                    .contains(&spell_id),
-                favorite: self
-                    .represented_favorite_known_spells_like_cpp
-                    .contains(&spell_id),
+                dependent: runtime.dependent_known_spells.contains(&spell_id),
+                favorite: runtime.favorite_known_spells.contains(&spell_id),
                 state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
             })
             .collect::<Vec<_>>();
 
         rows.extend(
-            self.represented_removed_known_spells_like_cpp
+            runtime
+                .removed_known_spells
                 .iter()
                 .copied()
                 .map(|spell_id| RepresentedPlayerSpellLikeCpp {
@@ -41596,19 +41831,22 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_player_spell_rows_loaded_like_cpp(&self) -> bool {
-        self.represented_player_spell_rows_loaded_like_cpp
+        self.player_spell_runtime_snapshot_like_cpp()
+            .is_some_and(|runtime| runtime.rows_loaded)
     }
 
     pub(crate) fn complete_represented_player_spell_rows_like_cpp(
         &self,
-    ) -> Option<&BTreeMap<i32, RepresentedPlayerSpellLikeCpp>> {
-        (self.represented_player_spell_rows_loaded_like_cpp
-            && self.represented_player_spell_rows_complete_like_cpp)
-            .then_some(&self.represented_player_spell_rows_like_cpp)
+    ) -> Option<BTreeMap<i32, RepresentedPlayerSpellLikeCpp>> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .filter(|runtime| runtime.rows_loaded && runtime.rows_complete)
+            .map(|runtime| runtime.rows)
     }
 
-    pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> &HashSet<i32> {
-        &self.represented_favorite_known_spells_like_cpp
+    pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> HashSet<i32> {
+        self.player_spell_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.favorite_known_spells)
+            .unwrap_or_default()
     }
 
     pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
@@ -66687,19 +66925,19 @@ impl WorldSession {
         // Without that authority a targeted UPSERT cannot distinguish a new
         // spell from a disabled durable row whose active bit must be
         // preserved, so publication must wait for hydration.
-        if !self.represented_player_spell_rows_complete_like_cpp {
+        let Some(spell_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+            return false;
+        };
+        if !spell_runtime.rows_complete {
             return false;
         }
         let Some(spell_chains) = self.spell_chain_store.as_ref() else {
             return false;
         };
-        let previous = self
-            .represented_player_spell_rows_like_cpp
+        let previous = spell_runtime
+            .rows
             .get(&trigger_spell)
-            .or_else(|| {
-                self.represented_fallback_player_spell_rows_like_cpp
-                    .get(&trigger_spell)
-            });
+            .or_else(|| spell_runtime.fallback_rows.get(&trigger_spell));
         match spell_chains.spell_chain_lookup_like_cpp(trigger_spell_id) {
             wow_data::SpellChainLookupLikeCpp::Indeterminate(_) => return false,
             wow_data::SpellChainLookupLikeCpp::Node(node)
@@ -66737,11 +66975,11 @@ impl WorldSession {
         if !visiting.insert(trigger_spell) {
             return true;
         }
-        let Some(previous) = self
-            .represented_player_spell_rows_like_cpp
-            .get(&trigger_spell)
-            .copied()
-        else {
+        let Some(spell_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+            visiting.remove(&trigger_spell);
+            return false;
+        };
+        let Some(previous) = spell_runtime.rows.get(&trigger_spell).copied() else {
             visiting.remove(&trigger_spell);
             return true;
         };
@@ -66783,8 +67021,8 @@ impl WorldSession {
                 .map(|spell_id| self.next_spell_in_chain_like_cpp(spell_id))
                 .filter(|spell_id| *spell_id != 0)
                 .and_then(|spell_id| i32::try_from(spell_id).ok())
-                && self
-                    .represented_player_spell_rows_like_cpp
+                && spell_runtime
+                    .rows
                     .get(&next_spell)
                     .is_some_and(|row| row.disabled)
                 && !self.validate_base_learn_spell_fallback_like_cpp(next_spell, visiting)
@@ -66798,8 +67036,8 @@ impl WorldSession {
                     .iter()
                     .filter_map(|spell_id| i32::try_from(*spell_id).ok())
                 {
-                    if self
-                        .represented_player_spell_rows_like_cpp
+                    if spell_runtime
+                        .rows
                         .get(&requiring_spell)
                         .is_some_and(|row| row.disabled)
                         && !self
@@ -66824,17 +67062,18 @@ impl WorldSession {
         if !visiting.insert(trigger_spell) {
             return true;
         }
-        let previous = self
-            .represented_player_spell_rows_like_cpp
+        let Some(spell_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+            visiting.remove(&trigger_spell);
+            return false;
+        };
+        let previous = spell_runtime
+            .rows
             .get(&trigger_spell)
-            .or_else(|| {
-                self.represented_fallback_player_spell_rows_like_cpp
-                    .get(&trigger_spell)
-            })
+            .or_else(|| spell_runtime.fallback_rows.get(&trigger_spell))
             .copied();
         let was_disabled = previous.is_some_and(|row| row.disabled);
         if was_disabled
-            && (!self.represented_player_spell_rows_complete_like_cpp
+            && (!spell_runtime.rows_complete
                 || self.spell_chain_store.is_none()
                 || self.spell_required_store.is_none())
         {
@@ -66897,9 +67136,9 @@ impl WorldSession {
             {
                 self.remove_represented_override_spell_like_cpp(overridden_spell_id, trigger_spell);
             }
-            let complete_spell_rows = self
-                .represented_player_spell_rows_complete_like_cpp
-                .then(|| self.represented_player_spell_rows_like_cpp.clone());
+            let complete_spell_rows = spell_runtime
+                .rows_complete
+                .then(|| spell_runtime.rows.clone());
             let favorite = previous.is_some_and(|row| row.favorite);
             let dirty_row = RepresentedPlayerSpellLikeCpp {
                 spell_id: trigger_spell,
@@ -66918,15 +67157,16 @@ impl WorldSession {
                 },
             };
             self.learn_known_spell_like_cpp(trigger_spell);
-            if let Some(mut rows) = complete_spell_rows {
-                rows.insert(trigger_spell, dirty_row);
-                self.represented_player_spell_rows_like_cpp = rows;
-                self.represented_player_spell_rows_loaded_like_cpp = true;
-                self.represented_player_spell_rows_complete_like_cpp = true;
-            } else {
-                self.represented_fallback_player_spell_rows_like_cpp
-                    .insert(trigger_spell, dirty_row);
-            }
+            let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                if let Some(mut rows) = complete_spell_rows {
+                    rows.insert(trigger_spell, dirty_row);
+                    runtime.rows = rows;
+                    runtime.rows_loaded = true;
+                    runtime.rows_complete = true;
+                } else {
+                    runtime.fallback_rows.insert(trigger_spell, dirty_row);
+                }
+            });
             self.sync_player_registry_state_like_cpp();
             if desired_active {
                 self.record_spell_acquisition_post_commit_action_like_cpp(
@@ -66951,13 +67191,15 @@ impl WorldSession {
 
         if was_disabled {
             let mut disabled_dependents = Vec::new();
+            let spell_runtime = self.player_spell_runtime_snapshot_like_cpp();
             if let Some(next_spell) = next_spell
-                && self
-                    .represented_player_spell_rows_like_cpp
-                    .get(&next_spell)
-                    .or_else(|| {
-                        self.represented_fallback_player_spell_rows_like_cpp
+                && spell_runtime
+                    .as_ref()
+                    .and_then(|runtime| {
+                        runtime
+                            .rows
                             .get(&next_spell)
+                            .or_else(|| runtime.fallback_rows.get(&next_spell))
                     })
                     .is_some_and(|row| row.disabled)
             {
@@ -66969,12 +67211,13 @@ impl WorldSession {
                     .iter()
                     .filter_map(|spell_id| i32::try_from(*spell_id).ok())
                 {
-                    if self
-                        .represented_player_spell_rows_like_cpp
-                        .get(&requiring_spell)
-                        .or_else(|| {
-                            self.represented_fallback_player_spell_rows_like_cpp
+                    if spell_runtime
+                        .as_ref()
+                        .and_then(|runtime| {
+                            runtime
+                                .rows
                                 .get(&requiring_spell)
+                                .or_else(|| runtime.fallback_rows.get(&requiring_spell))
                         })
                         .is_some_and(|row| row.disabled)
                         && !disabled_dependents.contains(&requiring_spell)

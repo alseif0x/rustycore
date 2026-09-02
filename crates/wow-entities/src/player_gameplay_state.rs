@@ -5,9 +5,9 @@ use wow_core::ObjectGuid;
 use crate::{
     PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
     PlayerBattlegroundState, PlayerCurrencyRecord, PlayerCustomizationChoice, PlayerGroupState,
-    PlayerGuildState, PlayerKnownSpellRecord, PlayerMailRecord, PlayerQuestGameplayState,
-    PlayerReputationRecord, PlayerRestState, PlayerSkillRecord, PlayerSocialState,
-    PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerTalentRecord, PlayerTaxiState,
+    PlayerGuildState, PlayerMailRecord, PlayerQuestGameplayState, PlayerReputationRecord,
+    PlayerRestState, PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord,
+    PlayerSpellCooldownRecord, PlayerSpellRuntimeState, PlayerTalentRecord, PlayerTaxiState,
     PlayerTransportState,
 };
 
@@ -25,7 +25,7 @@ pub struct PlayerGameplayState {
     pub skills_complete: bool,
     pub occupied_skill_slots: Option<u16>,
     pub non_durable_skill_tombstones: BTreeSet<u16>,
-    pub spells: Vec<PlayerKnownSpellRecord>,
+    pub spells: PlayerSpellRuntimeState,
     pub talents: Vec<PlayerTalentRecord>,
     pub action_buttons: Vec<PlayerActionButtonRecord>,
     /// C++ `Player::m_actionButtons` has been hydrated from its authoritative

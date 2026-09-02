@@ -1173,8 +1173,10 @@
           "name": "known_spells",
           "type": "Vec < i32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "last_daily_quest_time_like_cpp",
@@ -3193,8 +3195,10 @@
           "name": "represented_dependent_known_spells_like_cpp",
           "type": "HashSet < i32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_dismissed_critter_guids_like_cpp",
@@ -3279,8 +3283,10 @@
           "name": "represented_fallback_player_spell_rows_like_cpp",
           "type": "BTreeMap < i32 , RepresentedPlayerSpellLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_far_teleport_pending_like_cpp",
@@ -3300,8 +3306,10 @@
           "name": "represented_favorite_known_spells_like_cpp",
           "type": "HashSet < i32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_force_deselects_like_cpp",
@@ -3844,22 +3852,28 @@
           "name": "represented_player_spell_rows_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_spell_rows_like_cpp",
           "type": "BTreeMap < i32 , RepresentedPlayerSpellLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_spell_rows_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_primary_specialization_id_like_cpp",
@@ -3986,8 +4000,10 @@
           "name": "represented_removed_known_spells_like_cpp",
           "type": "HashSet < i32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_repop_at_graveyard_count",
@@ -23262,7 +23278,7 @@
           "kind": "method",
           "name": "complete_represented_player_spell_rows_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn complete_represented_player_spell_rows_like_cpp (& self ,) -> Option < & BTreeMap < i32 , RepresentedPlayerSpellLikeCpp > >",
+          "signature": "fn complete_represented_player_spell_rows_like_cpp (& self ,) -> Option < BTreeMap < i32 , RepresentedPlayerSpellLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26950,7 +26966,7 @@
           "kind": "method",
           "name": "known_spells_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn known_spells_like_cpp (& self) -> & [i32]",
+          "signature": "fn known_spells_like_cpp (& self) -> Vec < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28379,6 +28395,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mutate_player_spell_runtime_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_spell_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut RepresentedPlayerSpellRuntimeLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -30122,6 +30149,17 @@
           "name": "player_spell_hit_source_identity_complete_like_cpp",
           "visibility": "private",
           "signature": "fn player_spell_hit_source_identity_complete_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_spell_runtime_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_spell_runtime_snapshot_like_cpp (& self ,) -> Option < RepresentedPlayerSpellRuntimeLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -32697,6 +32735,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "replace_player_spell_runtime_like_cpp",
+          "visibility": "private",
+          "signature": "fn replace_player_spell_runtime_like_cpp (& mut self , runtime : RepresentedPlayerSpellRuntimeLikeCpp ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "replay_rewarded_quest_direct_item_appearances_like_cpp",
           "visibility": "pub",
           "signature": "fn replay_rewarded_quest_direct_item_appearances_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < wow_entities :: PlayerValuesUpdate >",
@@ -34041,7 +34090,7 @@
           "kind": "method",
           "name": "represented_dependent_known_spells_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_dependent_known_spells_like_cpp (& self) -> & HashSet < i32 >",
+          "signature": "fn represented_dependent_known_spells_like_cpp (& self) -> HashSet < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -34349,7 +34398,7 @@
           "kind": "method",
           "name": "represented_favorite_known_spells_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_favorite_known_spells_like_cpp (& self) -> & HashSet < i32 >",
+          "signature": "fn represented_favorite_known_spells_like_cpp (& self) -> HashSet < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38391,6 +38440,19 @@
           "name": "resolved_inventory_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_inventory_items_like_cpp (& self) -> Option < HashMap < u8 , InventoryItem > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_known_spells_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_known_spells_like_cpp (& self) -> Option < Vec < i32 > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -74491,7 +74553,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:01ed5b552a46d6a54e548fd06bc14916:len=92687|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:1852f77ed5e64f311434816cadd1c9a2:len=92807|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

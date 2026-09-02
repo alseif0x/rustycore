@@ -31116,6 +31116,107 @@ fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership
     );
 }
 
+#[test]
+fn canonical_player_spells_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_563);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "SpellOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let owned_row = RepresentedPlayerSpellLikeCpp {
+        spell_id: 635,
+        active: true,
+        disabled: false,
+        dependent: false,
+        favorite: true,
+        state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+    };
+
+    session.set_known_spells_like_cpp(vec![635]);
+    assert!(session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
+    assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
+    assert_eq!(
+        session
+            .complete_represented_player_spell_rows_like_cpp()
+            .and_then(|rows| rows.get(&635).copied()),
+        Some(owned_row)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
+
+    let replacement_row = wow_entities::PlayerKnownSpellRecord {
+        spell_id: 900,
+        state: wow_entities::PlayerSpellLoadState::Unchanged,
+        active: true,
+        disabled: false,
+        favorite: false,
+        dependent: false,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_spell_runtime_like_cpp(wow_entities::PlayerSpellRuntimeState {
+        known_spells: vec![900],
+        rows: BTreeMap::from([(900, replacement_row.clone())]),
+        rows_loaded: true,
+        rows_complete: true,
+        ..Default::default()
+    });
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_known_spells_like_cpp(), None);
+    assert_eq!(
+        session.complete_represented_player_spell_rows_like_cpp(),
+        None
+    );
+    assert!(!session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.spell_runtime_like_cpp().clone()
+            }),
+        Some(wow_entities::PlayerSpellRuntimeState {
+            known_spells: vec![900],
+            rows: BTreeMap::from([(900, replacement_row)]),
+            rows_loaded: true,
+            rows_complete: true,
+            ..Default::default()
+        })
+    );
+}
+
 #[tokio::test]
 async fn canonical_player_money_follows_active_detached_and_stale_handle_ownership_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
@@ -53879,7 +53980,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
     assert_eq!(
         session
             .complete_represented_player_spell_rows_like_cpp()
-            .and_then(|rows| rows.get(&13_337))
+            .and_then(|rows| rows.get(&13_337).copied())
             .map(|spell| spell.state),
         Some(RepresentedPlayerSpellStateLikeCpp::New),
         "a failed full-save transaction must leave _SaveSpells state dirty for retry"
@@ -53907,7 +54008,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
     assert_eq!(
         session
             .complete_represented_player_spell_rows_like_cpp()
-            .and_then(|rows| rows.get(&13_337))
+            .and_then(|rows| rows.get(&13_337).copied())
             .map(|spell| spell.state),
         Some(RepresentedPlayerSpellStateLikeCpp::Unchanged),
         "successful Player::SaveToDB consumes the same dirty state as C++ _SaveSpells"
@@ -57599,7 +57700,7 @@ fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp
 
     assert_eq!(
         session.represented_favorite_known_spells_like_cpp(),
-        &HashSet::from([100])
+        HashSet::from([100])
     );
 
     session.remove_known_spell_like_cpp(100);

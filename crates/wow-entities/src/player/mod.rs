@@ -19,7 +19,7 @@ mod spellbook;
 mod visibility;
 mod vitals;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::PlayerGameplayState;
 use bitflags::bitflags;
@@ -471,11 +471,24 @@ impl Default for PlayerSpellLoadState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerKnownSpellRecord {
-    pub spell_id: u32,
+    pub spell_id: i32,
     pub state: PlayerSpellLoadState,
     pub active: bool,
+    pub disabled: bool,
     pub favorite: bool,
     pub dependent: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerSpellRuntimeState {
+    pub known_spells: Vec<i32>,
+    pub rows: BTreeMap<i32, PlayerKnownSpellRecord>,
+    pub rows_loaded: bool,
+    pub rows_complete: bool,
+    pub fallback_rows: BTreeMap<i32, PlayerKnownSpellRecord>,
+    pub dependent_known_spells: BTreeSet<i32>,
+    pub removed_known_spells: BTreeSet<i32>,
+    pub favorite_known_spells: BTreeSet<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

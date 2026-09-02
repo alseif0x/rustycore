@@ -303,13 +303,23 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             profession_slot: -1,
             state: PlayerSkillLoadState::Unchanged,
         }],
-        spells: vec![PlayerKnownSpellRecord {
-            spell_id: 635,
-            state: PlayerSpellLoadState::Unchanged,
-            active: true,
-            favorite: false,
-            dependent: false,
-        }],
+        spells: PlayerSpellRuntimeState {
+            known_spells: vec![635],
+            rows: std::collections::BTreeMap::from([(
+                635,
+                PlayerKnownSpellRecord {
+                    spell_id: 635,
+                    state: PlayerSpellLoadState::Unchanged,
+                    active: true,
+                    disabled: false,
+                    favorite: false,
+                    dependent: false,
+                },
+            )]),
+            rows_loaded: true,
+            rows_complete: true,
+            ..Default::default()
+        },
         talents: vec![PlayerTalentRecord {
             talent_id: 42,
             spell_id: 20165,

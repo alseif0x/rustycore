@@ -2552,7 +2552,7 @@ mod tests {
         assert_eq!(
             pre_save_session
                 .complete_represented_player_spell_rows_like_cpp()
-                .and_then(|rows| rows.get(&100))
+                .and_then(|rows| rows.get(&100).copied())
                 .map(|row| row.state),
             Some(crate::session::RepresentedPlayerSpellStateLikeCpp::New),
             "EffectLearnSpell must publish immediately while leaving _SaveSpells dirty"
