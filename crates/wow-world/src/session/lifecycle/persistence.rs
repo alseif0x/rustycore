@@ -224,22 +224,23 @@ impl WorldSession {
         };
 
         let skills = if self.has_complete_player_skill_save_authority_like_cpp() {
-            let tombstones = self.player_skill_non_durable_tombstones_like_cpp();
-            Some(
-                self.player_skill_records_like_cpp()
-                    .values()
-                    .filter(|skill| {
-                        skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
-                            && !tombstones.contains(&skill.skill_id)
-                    })
-                    .map(|skill| PlayerSkillSaveLikeCpp {
-                        skill_id: skill.skill_id,
-                        value: skill.value,
-                        max: skill.max,
-                        profession_slot: skill.profession_slot,
-                    })
-                    .collect(),
-            )
+            self.resolved_player_skill_non_durable_tombstones_like_cpp()
+                .zip(self.resolved_player_skill_records_like_cpp())
+                .map(|(tombstones, records)| {
+                    records
+                        .values()
+                        .filter(|skill| {
+                            skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
+                                && !tombstones.contains(&skill.skill_id)
+                        })
+                        .map(|skill| PlayerSkillSaveLikeCpp {
+                            skill_id: skill.skill_id,
+                            value: skill.value,
+                            max: skill.max,
+                            profession_slot: skill.profession_slot,
+                        })
+                        .collect()
+                })
         } else {
             warn!(
                 account = self.account_id,
@@ -649,8 +650,13 @@ impl WorldSession {
     }
 
     fn mark_player_skills_saved_like_cpp(&mut self) {
-        let mut records = self.player_skill_records_like_cpp();
-        let mut tombstones = self.player_skill_non_durable_tombstones_like_cpp();
+        let Some(mut records) = self.resolved_player_skill_records_like_cpp() else {
+            return;
+        };
+        let Some(mut tombstones) = self.resolved_player_skill_non_durable_tombstones_like_cpp()
+        else {
+            return;
+        };
         for skill in records.values_mut() {
             if skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
                 tombstones.insert(skill.skill_id);

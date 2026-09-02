@@ -20693,11 +20693,15 @@ impl WorldSession {
         item_guid: ObjectGuid,
         item_set: &wow_data::ItemSetEntry,
     ) -> bool {
-        if item_set.required_skill != 0
-            && self.player_skill_value_like_cpp(item_set.required_skill as u16)
-                < item_set.required_skill_rank
-        {
-            return false;
+        if item_set.required_skill != 0 {
+            let Some(skill_value) =
+                self.resolved_player_skill_value_like_cpp(item_set.required_skill as u16)
+            else {
+                return false;
+            };
+            if skill_value < item_set.required_skill_rank {
+                return false;
+            }
         }
         if item_set.set_flags & ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP != 0 {
             return false;
@@ -23670,10 +23674,15 @@ impl WorldSession {
             .unwrap_or(true);
         let required_skill = search.map_or(0, |entry| u32::from(entry.required_skill));
         let required_skill_rank = search.map_or(0, |entry| u32::from(entry.required_skill_rank));
-        let required_skill_value = u16::try_from(required_skill)
-            .ok()
-            .map(|skill| u32::from(self.player_skill_value_like_cpp(skill)))
-            .unwrap_or(0);
+        let required_skill_value = match u16::try_from(required_skill).ok() {
+            Some(skill) => {
+                let Some(value) = self.resolved_player_skill_value_like_cpp(skill) else {
+                    return InventoryResult::ItemNotFound;
+                };
+                u32::from(value)
+            }
+            None => 0,
+        };
         let required_spell = search.map_or(0, |entry| entry.required_ability);
         let has_required_spell = required_spell == 0
             || i32::try_from(required_spell)
@@ -24081,7 +24090,9 @@ impl WorldSession {
         ) else {
             return;
         };
-        let player_skill_records = self.player_skill_records_like_cpp();
+        let Some(player_skill_records) = self.resolved_player_skill_records_like_cpp() else {
+            return;
+        };
         let mut records = player_skill_records.values().collect::<Vec<_>>();
         records.sort_by_key(|record| record.skill_id);
         if records.len() > 256 {
@@ -26005,12 +26016,12 @@ impl WorldSession {
             .get(socket_index)
             .and_then(|gem| u32::try_from(gem.item_id).ok())
             .and_then(|gem_item_id| self.item_stats_store.as_ref()?.socket_template(gem_item_id))
-            .map(|gem_template| {
-                ApplyEnchantmentGemRequirementRef::new(
+            .and_then(|gem_template| {
+                Some(ApplyEnchantmentGemRequirementRef::new(
                     u32::from(gem_template.required_skill_id),
                     gem_template.required_skill_rank,
-                    self.player_skill_value_like_cpp(gem_template.required_skill_id),
-                )
+                    self.resolved_player_skill_value_like_cpp(gem_template.required_skill_id)?,
+                ))
             });
 
         if socket_color != 0 {
@@ -26024,11 +26035,12 @@ impl WorldSession {
             item.data().enchantments[EnchantmentSlot::EnhancementSocketPrismatic as usize].id;
         let prismatic_enchantment = self
             .apply_enchantment_template_ref(prismatic_enchantment_id, 0, true)
-            .map(|mut template| {
+            .and_then(|mut template| {
                 if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
-                    template.required_skill_value = self.player_skill_value_like_cpp(skill_id);
+                    template.required_skill_value =
+                        self.resolved_player_skill_value_like_cpp(skill_id)?;
                 }
-                template
+                Some(template)
             });
         Some(ApplyEnchantmentSocketContext::prismatic(
             prismatic_enchantment,
@@ -26068,7 +26080,8 @@ impl WorldSession {
         let mut template = self.apply_enchantment_template_ref(enchantment_id, 0, condition_fits);
         if let Some(template) = &mut template {
             if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
-                template.required_skill_value = self.player_skill_value_like_cpp(skill_id);
+                template.required_skill_value =
+                    self.resolved_player_skill_value_like_cpp(skill_id)?;
             }
         }
 
@@ -36638,12 +36651,17 @@ impl WorldSession {
         }
 
         if mount_type_id != 0 {
+            let Some(riding_skill) =
+                self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)
+            else {
+                return effect.effect_base_points;
+            };
             if let Some((is_submerged, is_in_water)) =
                 self.represented_player_mount_liquid_state_like_cpp()
                 && let Ok(capability) = self
                     .represented_mount_capability_selection_for_type_like_cpp(
                         mount_type_id,
-                        u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                        u32::from(riding_skill),
                         None,
                         is_submerged,
                         is_in_water,
@@ -41287,19 +41305,22 @@ impl WorldSession {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn set_player_skill_values_like_cpp(&mut self, skill_values: HashMap<u16, u16>) {
+    pub(crate) fn set_player_skill_values_like_cpp(
+        &mut self,
+        skill_values: HashMap<u16, u16>,
+    ) -> bool {
         let skill_records = represented_skill_records_from_values_like_cpp(&skill_values);
-        self.replace_player_skill_records_like_cpp(skill_records, true, false);
+        self.replace_player_skill_records_like_cpp(skill_records, true, false)
     }
 
     pub(crate) fn set_player_skill_records_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-    ) {
+    ) -> bool {
         // This represented runtime map does not expose the exact occupied
         // ActivePlayerData::Skill slots. Never infer that authority from the
         // number of map rows.
-        self.replace_player_skill_records_like_cpp(skill_records, true, false);
+        self.replace_player_skill_records_like_cpp(skill_records, true, false)
     }
 
     pub(crate) fn set_complete_player_skill_records_like_cpp(
@@ -41307,8 +41328,8 @@ impl WorldSession {
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
         occupied_slots: u16,
     ) -> bool {
-        self.replace_player_skill_records_like_cpp(skill_records, true, true);
-        self.set_player_skill_occupied_slots_like_cpp(occupied_slots)
+        self.replace_player_skill_records_like_cpp(skill_records, true, true)
+            && self.set_player_skill_occupied_slots_like_cpp(occupied_slots)
     }
 
     pub(crate) fn replace_player_skill_records_like_cpp(
@@ -41316,7 +41337,7 @@ impl WorldSession {
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
         loaded: bool,
         complete: bool,
-    ) {
+    ) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let rows_are_structurally_complete = skill_records.iter().all(|(skill_id, skill)| {
             *skill_id == skill.skill_id
@@ -41326,7 +41347,10 @@ impl WorldSession {
                         && skill.max == 0
                         && skill.profession_slot == -1))
         });
-        let mut tombstones = self.player_skill_non_durable_tombstones_like_cpp();
+        let Some(mut tombstones) = self.resolved_player_skill_non_durable_tombstones_like_cpp()
+        else {
+            return false;
+        };
         tombstones.retain(|skill_id| {
             skill_records
                 .get(skill_id)
@@ -41368,16 +41392,24 @@ impl WorldSession {
             self.player_skill_records_loaded_like_cpp = loaded;
             self.player_skill_records_complete_like_cpp = complete;
             self.player_skill_occupied_slots_like_cpp = None;
+            return true;
         }
+        _canonical
     }
 
-    pub(crate) fn player_skill_records_loaded_like_cpp(&self) -> bool {
+    pub(crate) fn resolved_player_skill_records_loaded_like_cpp(&self) -> Option<bool> {
         let canonical = self.with_owned_player_like_cpp(Player::skill_records_loaded_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.player_skill_records_loaded_like_cpp;
+            return Some(self.player_skill_records_loaded_like_cpp);
         }
-        canonical.unwrap_or(false)
+        canonical
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_skill_records_loaded_like_cpp(&self) -> bool {
+        self.resolved_player_skill_records_loaded_like_cpp()
+            .expect("test Player skill owner must resolve")
     }
 
     fn replace_player_skill_runtime_exact_like_cpp(
@@ -41423,8 +41455,12 @@ impl WorldSession {
     }
 
     fn clear_player_skill_tombstones_like_cpp(&mut self) {
-        let records = self.player_skill_records_like_cpp();
-        let loaded = self.player_skill_records_loaded_like_cpp();
+        let Some(records) = self.resolved_player_skill_records_like_cpp() else {
+            return;
+        };
+        let Some(loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {
+            return;
+        };
         let complete = self.complete_player_skill_records_like_cpp().is_some();
         let occupied = self.complete_player_skill_occupied_slots_like_cpp();
         let _ = self.replace_player_skill_runtime_exact_like_cpp(
@@ -41441,7 +41477,9 @@ impl WorldSession {
         // C++ `SetSkill(..., 0)` clears step/rank/max but retains the
         // SkillLineID in its update-field slot until that slot is explicitly
         // reused. A represented SKILL_DELETED row therefore still counts.
-        let skill_records = self.player_skill_records_like_cpp();
+        let Some(skill_records) = self.resolved_player_skill_records_like_cpp() else {
+            return false;
+        };
         let canonical_complete =
             self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
         #[cfg(test)]
@@ -41509,7 +41547,7 @@ impl WorldSession {
     pub(crate) fn complete_player_skill_records_like_cpp(
         &self,
     ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        let records = self.player_skill_records_like_cpp();
+        let records = self.resolved_player_skill_records_like_cpp()?;
         let complete = self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
         #[cfg(test)]
         let complete = complete.or_else(|| {
@@ -41534,7 +41572,10 @@ impl WorldSession {
         max: u16,
     ) {
         let step = if value == 0 { 0 } else { step };
-        let previous = self.player_skill_records_like_cpp().get(&skill_id).copied();
+        let Some(mut skill_records) = self.resolved_player_skill_records_like_cpp() else {
+            return;
+        };
+        let previous = skill_records.get(&skill_id).copied();
         let complete_occupied_slots = self.complete_player_skill_occupied_slots_like_cpp();
         // Preserve the existing DB-facing profession association exactly as
         // the former active-only representation did. Persistence still
@@ -41569,7 +41610,6 @@ impl WorldSession {
             }
             Some(previous) => previous.state,
         };
-        let mut skill_records = self.player_skill_records_like_cpp();
         skill_records.insert(
             skill_id,
             RepresentedPlayerSkillLikeCpp {
@@ -41585,18 +41625,28 @@ impl WorldSession {
         // ownership: existing/tombstone rows retain their slot and a genuinely
         // new row consumes one. Incomplete sources remain fail-closed.
         let preserve_complete = complete_occupied_slots.is_some();
-        self.replace_player_skill_records_like_cpp(skill_records, true, preserve_complete);
+        if !self.replace_player_skill_records_like_cpp(skill_records, true, preserve_complete) {
+            return;
+        }
         if let Some(occupied_slots) = complete_occupied_slots {
             let occupied_slots = occupied_slots.saturating_add(u16::from(previous.is_none()));
             let _ = self.set_player_skill_occupied_slots_like_cpp(occupied_slots);
         }
     }
 
+    fn resolved_player_skill_max_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
+        Some(
+            self.resolved_player_skill_records_like_cpp()?
+                .get(&skill_id)
+                .map(|skill| skill.max)
+                .unwrap_or(0),
+        )
+    }
+
+    #[cfg(test)]
     fn player_skill_max_value_like_cpp(&self, skill_id: u16) -> u16 {
-        self.player_skill_records_like_cpp()
-            .get(&skill_id)
-            .map(|skill| skill.max)
-            .unwrap_or(0)
+        self.resolved_player_skill_max_value_like_cpp(skill_id)
+            .expect("test Player skill owner must resolve")
     }
 
     fn max_skill_value_for_level_like_cpp(&self) -> u16 {
@@ -41614,10 +41664,16 @@ impl WorldSession {
                 SpellLearnSkillLookupLikeCpp::Indeterminate(_)
                 | SpellLearnSkillLookupLikeCpp::MissingCoverage => return false,
             };
-            let mut value = self
-                .player_skill_value_like_cpp(learned_skill.skill)
-                .max(learned_skill.value);
-            let current_max = self.player_skill_max_value_like_cpp(learned_skill.skill);
+            let Some(mut value) = self.resolved_player_skill_value_like_cpp(learned_skill.skill)
+            else {
+                return false;
+            };
+            value = value.max(learned_skill.value);
+            let Some(current_max) =
+                self.resolved_player_skill_max_value_like_cpp(learned_skill.skill)
+            else {
+                return false;
+            };
             let mut new_max = learned_skill.maxvalue;
             if new_max == 0 {
                 let (Some(skills), Some(lines), Some(tiers)) = (
@@ -41702,8 +41758,15 @@ impl WorldSession {
             return;
         };
 
-        let mut skill_value = self.player_skill_value_like_cpp(prev_skill.skill);
-        let mut skill_max_value = self.player_skill_max_value_like_cpp(prev_skill.skill);
+        let Some(mut skill_value) = self.resolved_player_skill_value_like_cpp(prev_skill.skill)
+        else {
+            return;
+        };
+        let Some(mut skill_max_value) =
+            self.resolved_player_skill_max_value_like_cpp(prev_skill.skill)
+        else {
+            return;
+        };
         let mut new_skill_max_value = prev_skill.maxvalue;
 
         if new_skill_max_value == 0 {
@@ -43621,13 +43684,15 @@ impl WorldSession {
             .unwrap_or_default()
     }
 
-    pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
-        represented_skill_values_from_records_like_cpp(&self.player_skill_records_like_cpp())
+    pub(crate) fn resolved_player_skill_values_like_cpp(&self) -> Option<HashMap<u16, u16>> {
+        Some(represented_skill_values_from_records_like_cpp(
+            &self.resolved_player_skill_records_like_cpp()?,
+        ))
     }
 
-    pub(crate) fn player_skill_records_like_cpp(
+    pub(crate) fn resolved_player_skill_records_like_cpp(
         &self,
-    ) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             player
                 .skill_records_like_cpp()
@@ -43638,27 +43703,57 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.player_skill_records_like_cpp.clone();
+            return Some(self.player_skill_records_like_cpp.clone());
         }
-        canonical.unwrap_or_default()
+        canonical
     }
 
-    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> BTreeSet<u16> {
+    pub(crate) fn resolved_player_skill_non_durable_tombstones_like_cpp(
+        &self,
+    ) -> Option<BTreeSet<u16>> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             player.non_durable_skill_tombstones_like_cpp().clone()
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.player_skill_non_durable_tombstones_like_cpp.clone();
+            return Some(self.player_skill_non_durable_tombstones_like_cpp.clone());
         }
-        canonical.unwrap_or_default()
+        canonical
     }
 
+    pub(crate) fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
+        Some(
+            self.resolved_player_skill_values_like_cpp()?
+                .get(&skill_id)
+                .copied()
+                .unwrap_or(0),
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
+        self.resolved_player_skill_values_like_cpp()
+            .expect("test Player skill owner must resolve")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_skill_records_like_cpp(
+        &self,
+    ) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+        self.resolved_player_skill_records_like_cpp()
+            .expect("test Player skill owner must resolve")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> BTreeSet<u16> {
+        self.resolved_player_skill_non_durable_tombstones_like_cpp()
+            .expect("test Player skill owner must resolve")
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
-        self.player_skill_values_like_cpp()
-            .get(&skill_id)
-            .copied()
-            .unwrap_or(0)
+        self.resolved_player_skill_value_like_cpp(skill_id)
+            .expect("test Player skill owner must resolve")
     }
 
     pub(crate) fn resolved_enchanting_skill_like_cpp(&self) -> Option<u16> {
@@ -43733,7 +43828,7 @@ impl WorldSession {
             })
             .collect();
         let skills = self
-            .player_skill_values_like_cpp()
+            .resolved_player_skill_values_like_cpp()?
             .iter()
             .map(|(&id, &value)| PlayerConditionSkillLikeCpp { id, value })
             .collect();
@@ -44844,7 +44939,7 @@ impl WorldSession {
         let (is_submerged, is_in_water) = self.represented_player_mount_liquid_state_like_cpp()?;
         self.represented_mount_capability_for_type_like_cpp(
             mount_type_id,
-            u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+            u32::from(self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?),
             mount_restriction_flags,
             is_submerged,
             is_in_water,
@@ -52643,7 +52738,8 @@ impl WorldSession {
         }
         u16::try_from(resolved_skill_id)
             .ok()
-            .map(|skill_id| i32::from(self.player_skill_value_like_cpp(skill_id)))
+            .and_then(|skill_id| self.resolved_player_skill_value_like_cpp(skill_id))
+            .map(i32::from)
             .unwrap_or(0)
     }
 
@@ -67069,11 +67165,13 @@ impl WorldSession {
                 }) {
                     let (is_submerged, is_in_water) =
                         self.represented_player_mount_liquid_state_like_cpp()?;
+                    let riding_skill =
+                        self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
                     if form.mount_type_id != 0
                         && let Err(reject_reason) = self
                             .represented_mount_capability_selection_for_type_like_cpp(
                                 form.mount_type_id,
-                                u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                                u32::from(riding_skill),
                                 None,
                                 is_submerged,
                                 is_in_water,
@@ -67084,7 +67182,7 @@ impl WorldSession {
                             spell_id = spell_info.spell_id,
                             form_id = effect.effect_misc_value_1,
                             mount_type_id = form.mount_type_id,
-                            riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                            riding_skill,
                             map_id = self.player_map_id_like_cpp(),
                             ?reject_reason,
                             "Rejecting represented shapeshift mount form cast: no mount capability"
@@ -67142,10 +67240,12 @@ impl WorldSession {
                 let current_area_id = self.player_zone_area_like_cpp()?.1;
                 let (is_submerged, is_in_water) =
                     self.represented_player_mount_liquid_state_like_cpp()?;
+                let riding_skill =
+                    self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
                 if let Err(reject_reason) = self
                     .represented_mount_capability_selection_for_type_like_cpp(
                         mount_type_id,
-                        u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                        u32::from(riding_skill),
                         None,
                         is_submerged,
                         is_in_water,
@@ -67155,7 +67255,7 @@ impl WorldSession {
                         account = self.account_id,
                         spell_id = spell_info.spell_id,
                         mount_type_id,
-                        riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                        riding_skill,
                         map_id = self.player_map_id_like_cpp(),
                         area_id = current_area_id,
                         is_submerged,
@@ -67171,7 +67271,7 @@ impl WorldSession {
                     account = self.account_id,
                     spell_id = spell_info.spell_id,
                     mount_type_id,
-                    riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                    riding_skill,
                     map_id = self.player_map_id_like_cpp(),
                     area_id = current_area_id,
                     is_submerged,

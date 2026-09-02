@@ -30547,8 +30547,10 @@
           "name": "player_skill_max_value_like_cpp",
           "visibility": "private",
           "signature": "fn player_skill_max_value_like_cpp (& self , skill_id : u16) -> u16",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -30558,8 +30560,10 @@
           "name": "player_skill_non_durable_tombstones_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_skill_non_durable_tombstones_like_cpp (& self) -> BTreeSet < u16 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30571,8 +30575,10 @@
           "name": "player_skill_records_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_skill_records_like_cpp (& self ,) -> HashMap < u16 , RepresentedPlayerSkillLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30584,8 +30590,10 @@
           "name": "player_skill_records_loaded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_skill_records_loaded_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30597,8 +30605,10 @@
           "name": "player_skill_value_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_skill_value_like_cpp (& self , skill_id : u16) -> u16",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30610,8 +30620,10 @@
           "name": "player_skill_values_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_skill_values_like_cpp (& self) -> HashMap < u16 , u16 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -33314,7 +33326,7 @@
           "kind": "method",
           "name": "replace_player_skill_records_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn replace_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool ,)",
+          "signature": "fn replace_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39404,6 +39416,82 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_skill_max_value_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_skill_max_value_like_cpp (& self , skill_id : u16) -> Option < u16 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_skill_non_durable_tombstones_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_skill_non_durable_tombstones_like_cpp (& self ,) -> Option < BTreeSet < u16 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_skill_records_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_skill_records_like_cpp (& self ,) -> Option < HashMap < u16 , RepresentedPlayerSkillLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_skill_records_loaded_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_skill_records_loaded_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_skill_value_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_skill_value_like_cpp (& self , skill_id : u16) -> Option < u16 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_skill_values_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_skill_values_like_cpp (& self) -> Option < HashMap < u16 , u16 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_stand_state_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_player_stand_state_like_cpp (& self) -> Option < UnitStandStateType >",
@@ -44652,7 +44740,7 @@
           "kind": "method",
           "name": "set_player_skill_records_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > ,)",
+          "signature": "fn set_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44666,7 +44754,7 @@
           "kind": "method",
           "name": "set_player_skill_values_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_skill_values_like_cpp (& mut self , skill_values : HashMap < u16 , u16 >)",
+          "signature": "fn set_player_skill_values_like_cpp (& mut self , skill_values : HashMap < u16 , u16 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75323,7 +75411,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5ccb78b16984f283cf12581eb7337546:len=94248|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:161637d4d1b74297d2c55d8422145236:len=94338|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

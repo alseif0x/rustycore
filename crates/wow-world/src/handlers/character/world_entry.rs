@@ -1775,8 +1775,11 @@ impl WorldSession {
             );
         }
 
-        if loaded_skill_records_like_cpp {
-            self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
+        if loaded_skill_records_like_cpp
+            && !self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false)
+        {
+            self.kick("canonical Player skill owner unavailable while loading skills");
+            return;
         }
         for entry in skill_info_by_id.values() {
             let mut changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
@@ -2204,7 +2207,10 @@ impl WorldSession {
                 skill_info_by_id.insert(entry.skill_id, entry);
                 default_skill_entries.push(entry);
             }
-            self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
+            if !self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false) {
+                self.kick("canonical Player skill owner unavailable while applying default skills");
+                return;
+            }
         }
 
         for entry in &default_skill_entries {
@@ -2234,7 +2240,12 @@ impl WorldSession {
                 &mut loaded_spell_side_effect_spells,
             );
         if loaded_skill_records_like_cpp && loaded_spell_skills_complete_like_cpp {
-            skill_records = self.player_skill_records_like_cpp().clone();
+            let Some(canonical_skill_records) = self.resolved_player_skill_records_like_cpp()
+            else {
+                self.kick("canonical Player skill owner unavailable during login finalization");
+                return;
+            };
+            skill_records = canonical_skill_records;
             let occupied_slots = u16::try_from(skill_records.len()).unwrap_or(u16::MAX);
             if !self
                 .set_complete_player_skill_records_like_cpp(skill_records.clone(), occupied_slots)

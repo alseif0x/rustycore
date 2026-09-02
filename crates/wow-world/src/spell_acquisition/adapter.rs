@@ -695,7 +695,8 @@ impl crate::session::WorldSession {
             .collect::<Vec<_>>();
         primary_profession_skill_ids.sort_unstable();
         let non_durable_skill_tombstone_ids = self
-            .player_skill_non_durable_tombstones_like_cpp()
+            .resolved_player_skill_non_durable_tombstones_like_cpp()
+            .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSkillRows)?
             .iter()
             .map(|skill_id| u32::from(*skill_id))
             .collect();

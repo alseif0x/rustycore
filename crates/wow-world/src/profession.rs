@@ -345,10 +345,15 @@ impl WorldSession {
         let Some(skill_lines) = self.skill_line_store() else {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingSkillLineStore);
         };
-        if !self.player_skill_records_loaded_like_cpp() {
+        let Some(skills_loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {
+            return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
+        };
+        if !skills_loaded {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
         }
-        let skill_records = self.player_skill_records_like_cpp();
+        let Some(skill_records) = self.resolved_player_skill_records_like_cpp() else {
+            return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
+        };
         let current_skills =
             skill_records
                 .values()

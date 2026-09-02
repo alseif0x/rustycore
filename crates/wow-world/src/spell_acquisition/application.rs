@@ -1719,8 +1719,8 @@ where
         .collect::<std::collections::HashMap<_, _>>();
 
     let mut non_durable_skill_tombstone_ids = session
-        .player_skill_non_durable_tombstones_like_cpp()
-        .clone();
+        .resolved_player_skill_non_durable_tombstones_like_cpp()
+        .ok_or(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime)?;
     // C++ `Player::SetSkill` reactivates a `SKILL_DELETED` entry as
     // `SKILL_CHANGED`. A saved, non-durable tombstone therefore survives only
     // while the resulting row is still the zero-valued deleted shape.

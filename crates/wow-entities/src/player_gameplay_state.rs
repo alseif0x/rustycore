@@ -21,6 +21,7 @@ pub struct PlayerGameplayState {
     /// C++ `UF::ActivePlayerData::LootSpecID`.
     pub loot_specialization_id: u32,
     pub quests: PlayerQuestGameplayState,
+    /// C++ `Player::mSkillStatus` and its corresponding ActivePlayerData skill slots.
     pub skills: Vec<PlayerSkillRecord>,
     pub skills_loaded: bool,
     pub skills_complete: bool,

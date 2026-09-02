@@ -258,7 +258,8 @@ impl WorldSession {
         let Ok(skill_u16) = u16::try_from(quest.required_skill_id) else {
             return true;
         };
-        u32::from(self.player_skill_value_like_cpp(skill_u16)) >= quest.required_skill_points
+        self.resolved_player_skill_value_like_cpp(skill_u16)
+            .is_some_and(|value| u32::from(value) >= quest.required_skill_points)
     }
 
     // SatisfyQuestReputation — Player.cpp:14098, 15262-15289

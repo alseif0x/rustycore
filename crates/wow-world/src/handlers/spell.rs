@@ -565,7 +565,7 @@ impl WorldSession {
                     .iter()
                     .any(|mount| mount.spell_id == original_spell_id),
                 riding_skill =
-                    self.player_skill_value_like_cpp(crate::session::SKILL_RIDING_LIKE_CPP),
+                    ?self.resolved_player_skill_value_like_cpp(crate::session::SKILL_RIDING_LIKE_CPP),
                 "Cast attempt for unknown spell"
             );
             self.send_packet(&CastFailed {
