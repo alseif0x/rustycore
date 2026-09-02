@@ -619,6 +619,8 @@ pub struct Pet {
     pet_next_level_experience: u32,
     group_update_mask: u32,
     pet_specialization: u16,
+    /// C++ `UF::UnitData::CreatedBySpell` for the live Pet.
+    created_by_spell_id: u32,
     declined_name: Option<String>,
     declined_names: Option<PetDeclinedNamesLikeCpp>,
     spells: BTreeMap<u32, PetSpell>,
@@ -652,6 +654,7 @@ impl Pet {
             pet_next_level_experience: 0,
             group_update_mask: 0,
             pet_specialization: 0,
+            created_by_spell_id: 0,
             declined_name: None,
             declined_names: None,
             spells: BTreeMap::new(),
@@ -677,6 +680,14 @@ impl Pet {
 
     pub const fn owner_guid(&self) -> ObjectGuid {
         self.owner_guid
+    }
+
+    pub const fn created_by_spell_id_like_cpp(&self) -> u32 {
+        self.created_by_spell_id
+    }
+
+    pub fn set_created_by_spell_id_like_cpp(&mut self, spell_id: u32) {
+        self.created_by_spell_id = spell_id;
     }
 
     pub fn add_to_world_like_cpp(&mut self) -> PetAddToWorldOutcomeLikeCpp {

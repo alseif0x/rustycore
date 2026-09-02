@@ -19535,6 +19535,87 @@ fn represented_player_speed_change_propagates_to_active_pet_like_cpp() {
 }
 
 #[test]
+fn canonical_pet_owns_live_mode_spell_and_speed_state_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_582);
+    let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 7_001, 5_582);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CanonicalPetOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    add_canonical_test_pet_with_number(
+        &canonical,
+        pet_guid,
+        player_guid,
+        7_001,
+        position,
+        42,
+        9_001,
+        0,
+    );
+    session.client_visible_guids_like_cpp.insert(pet_guid);
+    session.set_represented_pet_mode_state_with_spell_like_cpp(
+        Some(pet_guid),
+        wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP,
+        wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP,
+        9_002,
+    );
+
+    session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+    let manager = canonical.lock().unwrap();
+    let pet = manager
+        .find_map(571, 0)
+        .unwrap()
+        .map()
+        .get_typed_pet(pet_guid)
+        .expect("canonical pet");
+    assert_eq!(pet.created_by_spell_id_like_cpp(), 9_002);
+    assert_eq!(
+        pet.creature().react_state(),
+        wow_entities::ReactState::Passive
+    );
+    assert_eq!(
+        pet.creature()
+            .unit()
+            .subsystems()
+            .control
+            .charm_info
+            .as_ref()
+            .unwrap()
+            .command_state,
+        wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP
+    );
+    assert_eq!(
+        pet.creature()
+            .unit()
+            .speed_rate_at_like_cpp(UnitMoveTypeLikeCpp::Run.index()),
+        Some(2.0)
+    );
+    drop(manager);
+
+    assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 1);
+    assert!(
+        drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSplineSetRunSpeed),
+        "C++ Pet::SetSpeedRate publishes the canonical Pet speed after mutation"
+    );
+}
+
+#[test]
 fn represented_player_speed_change_does_not_propagate_to_pet_in_combat_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
@@ -22247,9 +22328,11 @@ fn add_canonical_test_pet_with_number(
     entry: u32,
     position: Position,
     pet_number: u32,
+    created_by_spell_id: u32,
     duration_ms: i32,
 ) {
     let mut pet = wow_entities::Pet::new(owner_guid, wow_entities::PetType::Hunter);
+    pet.set_created_by_spell_id_like_cpp(created_by_spell_id);
     pet.creature_mut()
         .unit_mut()
         .world_mut()
@@ -44071,7 +44154,16 @@ async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
-    add_canonical_test_pet_with_number(&canonical, pet_guid, player_guid, 500, source, 42, 0);
+    add_canonical_test_pet_with_number(
+        &canonical,
+        pet_guid,
+        player_guid,
+        500,
+        source,
+        42,
+        6_889,
+        0,
+    );
 
     session.teleport_to(0, destination).await;
 
@@ -44152,7 +44244,16 @@ async fn teleport_to_far_map_removes_temporary_pet_without_storing_pet_number_li
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
-    add_canonical_test_pet_with_number(&canonical, pet_guid, player_guid, 500, source, 43, 10_000);
+    add_canonical_test_pet_with_number(
+        &canonical,
+        pet_guid,
+        player_guid,
+        500,
+        source,
+        43,
+        6_890,
+        10_000,
+    );
 
     session.teleport_to(0, destination).await;
 

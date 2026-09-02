@@ -6312,10 +6312,13 @@ pub struct WorldSession {
     /// Represented `character_pet_declinedname` rows keyed by pet number until `PetLoadQueryHolder` is live.
     represented_pet_declined_names_like_cpp: HashMap<u32, CharacterPetDeclinedNamesRowLikeCpp>,
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
+    #[cfg(test)]
     represented_pet_created_by_spell_like_cpp: u32,
     /// Represented current pet react state for C++ mount/dismount PetMode side effects.
+    #[cfg(test)]
     represented_pet_react_state_like_cpp: u8,
     /// Represented current pet command state for C++ mount/dismount PetMode side effects.
+    #[cfg(test)]
     represented_pet_command_state_like_cpp: u8,
     /// C++ `Player::m_temporaryPetReactState` saved by `DisablePetControlsOnMount`.
     #[cfg(test)]
@@ -6462,6 +6465,7 @@ pub struct WorldSession {
     #[cfg(test)]
     movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
     /// C++ `Player::GetPet()->SetSpeedRate` propagation represented until pet Unit runtime owns it.
+    #[cfg(test)]
     represented_pet_movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
     /// Count of represented player speed changes propagated to the active pet.
     #[cfg(test)]
@@ -8292,9 +8296,12 @@ impl WorldSession {
             represented_pet_auras_like_cpp: HashMap::new(),
             represented_pet_aura_effects_like_cpp: HashMap::new(),
             represented_pet_declined_names_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_pet_created_by_spell_like_cpp: 0,
+            #[cfg(test)]
             represented_pet_react_state_like_cpp:
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            #[cfg(test)]
             represented_pet_command_state_like_cpp:
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
             #[cfg(test)]
@@ -8383,6 +8390,7 @@ impl WorldSession {
             forced_speed_changes_like_cpp: [0; UnitMoveTypeLikeCpp::COUNT],
             #[cfg(test)]
             movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
+            #[cfg(test)]
             represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
             #[cfg(test)]
             represented_pet_speed_propagations_like_cpp: 0,
@@ -37375,14 +37383,17 @@ impl WorldSession {
             return;
         };
 
-        let previous_react_state = self.represented_pet_react_state_like_cpp;
+        let Some((previous_react_state, _)) = self.canonical_pet_mode_state_like_cpp() else {
+            return;
+        };
         if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
             state.temporary_mount_react_state = Some(previous_react_state);
         }) {
             return;
         }
-        self.represented_pet_react_state_like_cpp = react_state;
-        self.represented_pet_command_state_like_cpp = command_state;
+        if !self.update_canonical_pet_mode_state_like_cpp(react_state, command_state) {
+            return;
+        }
         self.send_packet(&wow_packet::packets::pet::PetMode {
             pet_guid,
             react_state,
@@ -37393,18 +37404,22 @@ impl WorldSession {
 
     fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
         if let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() {
-            if let Some(react_state) = self
-                .player_pet_lifecycle_state_snapshot_like_cpp()
-                .and_then(|state| state.temporary_mount_react_state)
+            if let Some((current_react_state, command_state)) =
+                self.canonical_pet_mode_state_like_cpp()
             {
-                self.represented_pet_react_state_like_cpp = react_state;
+                let react_state = self
+                    .player_pet_lifecycle_state_snapshot_like_cpp()
+                    .and_then(|state| state.temporary_mount_react_state)
+                    .unwrap_or(current_react_state);
+                if self.update_canonical_pet_mode_state_like_cpp(react_state, command_state) {
+                    self.send_packet(&wow_packet::packets::pet::PetMode {
+                        pet_guid,
+                        react_state,
+                        command_state,
+                        flag: 0,
+                    });
+                }
             }
-            self.send_packet(&wow_packet::packets::pet::PetMode {
-                pet_guid,
-                react_state: self.represented_pet_react_state_like_cpp,
-                command_state: self.represented_pet_command_state_like_cpp,
-                flag: 0,
-            });
         }
 
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
@@ -41169,6 +41184,99 @@ impl WorldSession {
         true
     }
 
+    fn with_canonical_pet_like_cpp<R>(
+        &self,
+        pet_guid: ObjectGuid,
+        inspect: impl FnOnce(&Pet) -> R,
+    ) -> Option<R> {
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut inspect = Some(inspect);
+        let mut result = None;
+        manager.do_for_all_maps(|managed| {
+            if result.is_some() {
+                return;
+            }
+            if let Some(pet) = managed.map().get_typed_pet(pet_guid) {
+                result = Some(inspect.take().expect("pet inspector consumed once")(pet));
+            }
+        });
+        result
+    }
+
+    fn with_canonical_pet_mut_like_cpp<R>(
+        &self,
+        pet_guid: ObjectGuid,
+        mutate: impl FnOnce(&mut Pet) -> R,
+    ) -> Option<R> {
+        let mut manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut mutate = Some(mutate);
+        let mut result = None;
+        manager.do_for_all_maps_mut(|managed| {
+            if result.is_some() {
+                return;
+            }
+            if let Some(pet) = managed.map_mut().get_typed_pet_mut(pet_guid) {
+                result = Some(mutate.take().expect("pet mutation consumed once")(pet));
+            }
+        });
+        result
+    }
+
+    fn canonical_pet_mode_state_like_cpp(&self) -> Option<(u8, u8)> {
+        let pet_guid = self.player_pet_guid_state_like_cpp().flatten()?;
+        let canonical = self.with_canonical_pet_like_cpp(pet_guid, |pet| {
+            let react_state = pet.creature().react_state() as u8;
+            let command_state = pet
+                .creature()
+                .unit()
+                .subsystems()
+                .control
+                .charm_info
+                .as_ref()
+                .map_or(wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP, |info| {
+                    info.command_state
+                });
+            (react_state, command_state)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some((
+                self.represented_pet_react_state_like_cpp,
+                self.represented_pet_command_state_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    fn update_canonical_pet_mode_state_like_cpp(
+        &mut self,
+        react_state: u8,
+        command_state: u8,
+    ) -> bool {
+        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
+            return false;
+        };
+        let canonical = self
+            .with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
+                pet.creature_mut()
+                    .set_react_state(react_state_from_db_like_cpp(react_state));
+                pet.creature_mut()
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .init_charm_info()
+                    .command_state = command_state;
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            self.represented_pet_react_state_like_cpp = react_state;
+            self.represented_pet_command_state_like_cpp = command_state;
+            return true;
+        }
+        canonical
+    }
+
     fn player_pet_lifecycle_state_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerPetLifecycleStateLikeCpp> {
@@ -41260,16 +41368,39 @@ impl WorldSession {
             return;
         }
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        self.represented_pet_created_by_spell_like_cpp = created_by_spell;
+        let canonical = pet_guid.is_some_and(|pet_guid| {
+            self.with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
+                pet.set_created_by_spell_id_like_cpp(created_by_spell);
+                pet.creature_mut()
+                    .set_react_state(react_state_from_db_like_cpp(react_state));
+                pet.creature_mut()
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .init_charm_info()
+                    .command_state = command_state;
+            })
+            .is_some()
+        });
+        #[cfg(test)]
+        if !canonical {
+            self.represented_pet_created_by_spell_like_cpp = created_by_spell;
+            self.represented_pet_react_state_like_cpp = react_state;
+            self.represented_pet_command_state_like_cpp = command_state;
+        }
+        #[cfg(not(test))]
+        let _ = canonical;
         if pet_guid.is_none() {
             let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
                 state.temporary_unsummoned_pet_number = 0;
                 state.old_pet_spell = 0;
             });
-            self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
+            #[cfg(test)]
+            {
+                self.represented_pet_movement_speed_rates_like_cpp =
+                    [1.0; UnitMoveTypeLikeCpp::COUNT];
+            }
         }
-        self.represented_pet_react_state_like_cpp = react_state;
-        self.represented_pet_command_state_like_cpp = command_state;
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
             state.temporary_mount_react_state = None;
         });
@@ -41337,15 +41468,22 @@ impl WorldSession {
 
         if self.player_pet_guid_state_like_cpp().flatten().is_some() {
             let _ = self.set_player_pet_guid_like_cpp(None);
-            self.represented_pet_created_by_spell_like_cpp = 0;
-            self.represented_pet_react_state_like_cpp =
-                wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-            self.represented_pet_command_state_like_cpp =
-                wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+            #[cfg(test)]
+            {
+                self.represented_pet_created_by_spell_like_cpp = 0;
+                self.represented_pet_react_state_like_cpp =
+                    wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
+                self.represented_pet_command_state_like_cpp =
+                    wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+            }
             let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
                 state.temporary_mount_react_state = None;
             });
-            self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
+            #[cfg(test)]
+            {
+                self.represented_pet_movement_speed_rates_like_cpp =
+                    [1.0; UnitMoveTypeLikeCpp::COUNT];
+            }
         }
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
             state.stable.current_pet_index = None;
@@ -46039,6 +46177,7 @@ impl WorldSession {
         {
             let mut removed = false;
             let mut temporary_pet_number = None;
+            let mut temporary_pet_created_by_spell = 0;
             manager.do_for_all_maps_mut(|managed| {
                 if removed {
                     return;
@@ -46058,6 +46197,7 @@ impl WorldSession {
                         .charm_info
                         .as_ref()
                         .map(|charm_info| charm_info.pet_number);
+                    temporary_pet_created_by_spell = pet.created_by_spell_id_like_cpp();
                 }
                 match managed.map_mut().remove_from_map_like_cpp(pet_guid, false) {
                     Ok(_) => removed = true,
@@ -46066,20 +46206,22 @@ impl WorldSession {
                 }
             });
             if let Some(pet_number) = temporary_pet_number.filter(|pet_number| *pet_number != 0) {
-                let old_pet_spell = self.represented_pet_created_by_spell_like_cpp;
                 let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
                     state.temporary_unsummoned_pet_number = pet_number;
-                    state.old_pet_spell = old_pet_spell;
+                    state.old_pet_spell = temporary_pet_created_by_spell;
                 });
             }
         }
 
         let _ = self.set_player_pet_guid_like_cpp(None);
-        self.represented_pet_created_by_spell_like_cpp = 0;
-        self.represented_pet_react_state_like_cpp =
-            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-        self.represented_pet_command_state_like_cpp =
-            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+        #[cfg(test)]
+        {
+            self.represented_pet_created_by_spell_like_cpp = 0;
+            self.represented_pet_react_state_like_cpp =
+                wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
+            self.represented_pet_command_state_like_cpp =
+                wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+        }
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
             state.temporary_mount_react_state = None;
         });
@@ -46208,6 +46350,7 @@ impl WorldSession {
             );
 
             let mut pet = Pet::new(owner_guid, info.pet_type);
+            pet.set_created_by_spell_id_like_cpp(info.created_by_spell_id);
             pet.set_specialization(info.specialization_id);
             pet.creature_mut()
                 .unit_mut()
@@ -46272,6 +46415,7 @@ impl WorldSession {
                 .control
                 .init_charm_info();
             charm_info.pet_number = pet_number;
+            charm_info.command_state = wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
             charm_info.load_pet_action_bar_like_cpp(&info.action_bar);
             self.validate_represented_pet_action_bar_like_cpp(charm_info);
             if let Some(spells) = self.represented_pet_spells_like_cpp.get(&pet_number) {
@@ -46422,6 +46566,7 @@ impl WorldSession {
         }
         if let Some(pet_guid) = inserted_guid {
             let _ = self.set_player_pet_guid_like_cpp(Some(pet_guid));
+            #[cfg(test)]
             if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {
                 self.represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
                 self.represented_pet_react_state_like_cpp = info.react_state as u8;
@@ -57495,11 +57640,37 @@ impl WorldSession {
 
         let rate = rate.max(0.01);
         let index = move_type.index();
-        if self.represented_pet_movement_speed_rates_like_cpp[index] == rate {
+        let canonical_changed = self.with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
+            let unit = pet.creature_mut().unit_mut();
+            if unit.speed_rate_at_like_cpp(index) == Some(rate) {
+                return false;
+            }
+            unit.set_speed_rate_at_like_cpp(index, rate)
+        });
+        let changed = match canonical_changed {
+            Some(changed) => changed,
+            None => {
+                #[cfg(test)]
+                {
+                    if self.player_handle_like_cpp.is_none() {
+                        if self.represented_pet_movement_speed_rates_like_cpp[index] == rate {
+                            return;
+                        }
+                        self.represented_pet_movement_speed_rates_like_cpp[index] = rate;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                #[cfg(not(test))]
+                {
+                    false
+                }
+            }
+        };
+        if !changed {
             return;
         }
-
-        self.represented_pet_movement_speed_rates_like_cpp[index] = rate;
         #[cfg(test)]
         {
             self.represented_pet_speed_propagations_like_cpp = self
@@ -57890,7 +58061,18 @@ impl WorldSession {
         &self,
         move_type: UnitMoveTypeLikeCpp,
     ) -> f32 {
-        self.represented_pet_movement_speed_rates_like_cpp[move_type.index()]
+        let canonical = self
+            .player_pet_guid_state_like_cpp()
+            .flatten()
+            .and_then(|pet_guid| {
+                self.with_canonical_pet_like_cpp(pet_guid, |pet| {
+                    pet.creature()
+                        .unit()
+                        .speed_rate_at_like_cpp(move_type.index())
+                })
+                .flatten()
+            });
+        canonical.unwrap_or(self.represented_pet_movement_speed_rates_like_cpp[move_type.index()])
     }
 
     #[cfg(test)]
@@ -71218,10 +71400,13 @@ impl WorldSession {
 
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         let _ = self.set_player_pet_guid_like_cpp(None);
-        self.represented_pet_react_state_like_cpp =
-            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-        self.represented_pet_command_state_like_cpp =
-            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+        #[cfg(test)]
+        {
+            self.represented_pet_react_state_like_cpp =
+                wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
+            self.represented_pet_command_state_like_cpp =
+                wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+        }
         true
     }
 
