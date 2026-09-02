@@ -87,6 +87,7 @@ pub struct PlayerGameplayState {
     pub battleground: PlayerBattlegroundState,
     pub movement_control: PlayerMovementControlStateLikeCpp,
     pub damage_control: PlayerDamageControlStateLikeCpp,
+    pub resurrection: PlayerResurrectionStateLikeCpp,
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
     pub menu: PlayerMenuStateLikeCpp,
@@ -180,6 +181,27 @@ pub struct PlayerDamageControlStateLikeCpp {
     pub cheat_god: bool,
     pub normal_damage_immune: bool,
     pub environmental_damage_immune: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerResurrectionRequestLikeCpp {
+    pub resurrecter: ObjectGuid,
+    pub map_id: u32,
+    pub position: wow_core::Position,
+    pub health: u32,
+    pub mana: u32,
+    pub aura: u32,
+}
+
+/// C++ Player-owned resurrection lifecycle state: `_resurrectionData`,
+/// `SelfResSpells`, `m_deathTimer`, delayed resurrection and spirit-healer queue.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PlayerResurrectionStateLikeCpp {
+    pub request: Option<PlayerResurrectionRequestLikeCpp>,
+    pub delayed_after_teleport: Option<PlayerResurrectionRequestLikeCpp>,
+    pub self_res_spells: BTreeSet<i32>,
+    pub death_timer_active: bool,
+    pub area_spirit_healer_guid: ObjectGuid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -7519,7 +7519,7 @@ async fn area_spirit_healer_queue_records_valid_healer_like_cpp() {
 
     session.handle_area_spirit_healer_queue(request).await;
 
-    assert_eq!(session.area_spirit_healer_guid_like_cpp(), healer);
+    assert_eq!(session.area_spirit_healer_guid_like_cpp(), Some(healer));
     assert!(send_rx.try_recv().is_err());
 }
 

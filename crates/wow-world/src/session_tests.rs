@@ -32278,6 +32278,128 @@ fn canonical_player_damage_control_follows_active_detached_and_stale_ownership_l
 }
 
 #[test]
+fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_577);
+    let resurrecter = ObjectGuid::create_player(1, 5_578);
+    let healer_guid = test_creature_guid(578);
+    let request = wow_entities::PlayerResurrectionRequestLikeCpp {
+        resurrecter,
+        map_id: 571,
+        position: Position::new(3701.0, 1501.0, 121.0, 0.5),
+        health: 450,
+        mana: 120,
+        aura: 0,
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ResurrectionOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_resurrection_request_like_cpp(request));
+    assert!(session.schedule_represented_resurrection_after_teleport_like_cpp(request));
+    session.add_represented_self_res_spell_like_cpp(21169);
+    assert!(session.set_area_spirit_healer_guid_like_cpp(healer_guid));
+    assert!(
+        session
+            .with_owned_player_mut_like_cpp(|player| {
+                player.resurrection_state_mut_like_cpp().death_timer_active = true;
+            })
+            .is_some()
+    );
+    assert_eq!(
+        session.player_resurrection_state_snapshot_like_cpp(),
+        Some(wow_entities::PlayerResurrectionStateLikeCpp {
+            request: Some(request),
+            delayed_after_teleport: Some(request),
+            self_res_spells: BTreeSet::from([21169]),
+            death_timer_active: true,
+            area_spirit_healer_guid: healer_guid,
+        })
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.represented_resurrection_requested_by_like_cpp(resurrecter));
+    assert!(session.has_represented_self_res_spell_like_cpp(21169));
+    assert_eq!(
+        session.area_spirit_healer_guid_like_cpp(),
+        Some(healer_guid)
+    );
+
+    let replacement_resurrecter = ObjectGuid::create_player(1, 5_579);
+    let replacement_healer = test_creature_guid(579);
+    let replacement_request = wow_entities::PlayerResurrectionRequestLikeCpp {
+        resurrecter: replacement_resurrecter,
+        map_id: 1,
+        position: Position::new(1.0, 2.0, 3.0, 0.0),
+        health: 99,
+        mana: 33,
+        aura: 7,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_resurrection_request_like_cpp(replacement_request);
+    replacement
+        .resurrection_state_mut_like_cpp()
+        .self_res_spells
+        .insert(20608);
+    replacement
+        .resurrection_state_mut_like_cpp()
+        .area_spirit_healer_guid = replacement_healer;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_resurrection_state_snapshot_like_cpp(), None);
+    assert!(!session.set_represented_resurrection_request_like_cpp(request));
+    assert!(!session.schedule_represented_resurrection_after_teleport_like_cpp(request));
+    session.add_represented_self_res_spell_like_cpp(21169);
+    assert!(!session.set_area_spirit_healer_guid_like_cpp(healer_guid));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .resurrection_state_like_cpp()
+                .clone()),
+        Some(wow_entities::PlayerResurrectionStateLikeCpp {
+            request: Some(replacement_request),
+            delayed_after_teleport: None,
+            self_res_spells: BTreeSet::from([20608]),
+            death_timer_active: false,
+            area_spirit_healer_guid: replacement_healer,
+        })
+    );
+}
+
+#[test]
 fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

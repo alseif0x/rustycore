@@ -161,8 +161,10 @@
           "name": "area_spirit_healer_guid_like_cpp",
           "type": "ObjectGuid",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "area_table_store",
@@ -3301,8 +3303,10 @@
           "name": "represented_death_timer_active_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_decline_petitions_like_cpp",
@@ -3331,10 +3335,12 @@
         },
         {
           "name": "represented_delayed_resurrection_after_teleport_like_cpp",
-          "type": "Option < RepresentedResurrectionRequestLikeCpp >",
+          "type": "Option < PlayerResurrectionRequestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_delayed_teleport_like_cpp",
@@ -4213,8 +4219,10 @@
           "name": "represented_repop_at_graveyard_count",
           "type": "u32",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_rest_bonus_xp_like_cpp",
@@ -4263,10 +4271,12 @@
         },
         {
           "name": "represented_resurrection_request_like_cpp",
-          "type": "Option < RepresentedResurrectionRequestLikeCpp >",
+          "type": "Option < PlayerResurrectionRequestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_reveal_world_map_overlay_criteria_like_cpp",
@@ -4302,8 +4312,10 @@
           "name": "represented_self_res_spells_like_cpp",
           "type": "BTreeSet < i32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_shapeshift_form_like_cpp",
@@ -21113,7 +21125,7 @@
           "kind": "method",
           "name": "area_spirit_healer_guid_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn area_spirit_healer_guid_like_cpp (& self) -> ObjectGuid",
+          "signature": "fn area_spirit_healer_guid_like_cpp (& self) -> Option < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23358,7 +23370,7 @@
           "kind": "method",
           "name": "clear_represented_resurrection_request_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn clear_represented_resurrection_request_like_cpp (& mut self)",
+          "signature": "fn clear_represented_resurrection_request_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30745,6 +30757,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_resurrection_state_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_resurrection_state_snapshot_like_cpp (& self ,) -> Option < PlayerResurrectionStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_scaling_level_delta_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_scaling_level_delta_like_cpp (& self) -> i32",
@@ -34967,7 +34990,7 @@
           "kind": "method",
           "name": "represented_delayed_resurrection_after_teleport_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_delayed_resurrection_after_teleport_like_cpp (& self ,) -> Option < RepresentedResurrectionRequestLikeCpp >",
+          "signature": "fn represented_delayed_resurrection_after_teleport_like_cpp (& self ,) -> Option < PlayerResurrectionRequestLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -37338,7 +37361,7 @@
           "kind": "method",
           "name": "represented_resurrection_request_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_resurrection_request_like_cpp (& self ,) -> Option < RepresentedResurrectionRequestLikeCpp >",
+          "signature": "fn represented_resurrection_request_like_cpp (& self ,) -> Option < PlayerResurrectionRequestLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -40315,7 +40338,7 @@
           "kind": "method",
           "name": "schedule_represented_resurrection_after_teleport_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn schedule_represented_resurrection_after_teleport_like_cpp (& mut self , request : RepresentedResurrectionRequestLikeCpp ,)",
+          "signature": "fn schedule_represented_resurrection_after_teleport_like_cpp (& mut self , request : PlayerResurrectionRequestLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41722,7 +41745,7 @@
           "kind": "method",
           "name": "set_area_spirit_healer_guid_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_area_spirit_healer_guid_like_cpp (& mut self , healer_guid : ObjectGuid)",
+          "signature": "fn set_area_spirit_healer_guid_like_cpp (& mut self , healer_guid : ObjectGuid) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46332,7 +46355,7 @@
           "kind": "method",
           "name": "set_represented_resurrection_request_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_resurrection_request_like_cpp (& mut self , request : RepresentedResurrectionRequestLikeCpp ,)",
+          "signature": "fn set_represented_resurrection_request_like_cpp (& mut self , request : PlayerResurrectionRequestLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -48886,7 +48909,7 @@
           "kind": "method",
           "name": "take_represented_resurrection_request_if_requested_by_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn take_represented_resurrection_request_if_requested_by_like_cpp (& mut self , resurrecter : ObjectGuid ,) -> Option < RepresentedResurrectionRequestLikeCpp >",
+          "signature": "fn take_represented_resurrection_request_if_requested_by_like_cpp (& mut self , resurrecter : ObjectGuid ,) -> Option < PlayerResurrectionRequestLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75939,7 +75962,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c5940641abf2e4572a971de68bce2ef0:len=94855|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:36bcc1f131b8f6df7834f3117bb1f520:len=94935|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

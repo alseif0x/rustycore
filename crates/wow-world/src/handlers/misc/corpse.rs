@@ -279,8 +279,11 @@ impl crate::session::WorldSession {
         // seam here; full corpse/graveyard runtime remains open.
         self.set_player_alive_like_cpp(false);
         self.set_player_ghost_flag_like_cpp(true);
-        self.represented_repop_at_graveyard_count =
-            self.represented_repop_at_graveyard_count.saturating_add(1);
+        #[cfg(test)]
+        {
+            self.represented_repop_at_graveyard_count =
+                self.represented_repop_at_graveyard_count.saturating_add(1);
+        }
     }
 
     /// CMSG_CLIENT_PORT_GRAVEYARD — manually teleport ghost to graveyard.
@@ -302,8 +305,11 @@ impl crate::session::WorldSession {
         // C++ calls `Player::RepopAtGraveyard()`. Rust still represents the
         // graveyard selection/teleport runtime as a counter seam shared with
         // release and instance-lock decline paths.
-        self.represented_repop_at_graveyard_count =
-            self.represented_repop_at_graveyard_count.saturating_add(1);
+        #[cfg(test)]
+        {
+            self.represented_repop_at_graveyard_count =
+                self.represented_repop_at_graveyard_count.saturating_add(1);
+        }
         true
     }
 

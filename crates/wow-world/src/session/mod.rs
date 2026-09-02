@@ -188,6 +188,7 @@ use wow_entities::{
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
     PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerQuestGameplayState,
+    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery, SendNewItemDisplayText,
     SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem, SwapItemPreflightPlan,
@@ -2233,16 +2234,6 @@ struct HomebindPersistenceJobLikeCpp {
     port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
     request: wow_persistence::PlayerHomebindPersistenceRequestLikeCpp,
     guid_counter: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedResurrectionRequestLikeCpp {
-    pub resurrecter: wow_core::ObjectGuid,
-    pub map_id: u32,
-    pub position: wow_core::Position,
-    pub health: u32,
-    pub mana: u32,
-    pub aura: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -6288,6 +6279,7 @@ pub struct WorldSession {
     /// Represented accepted/leave requests from CMSG_BATTLEFIELD_PORT before live BattlegroundMgr.
     represented_battlefield_ports_like_cpp: Vec<RepresentedBattlefieldPortLikeCpp>,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
+    #[cfg(test)]
     area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Legacy handle-less test fixture for the current Player-owned pet GUID.
     #[cfg(test)]
@@ -6418,13 +6410,16 @@ pub struct WorldSession {
     represented_homebind_like_cpp: Option<RepresentedHomebindLikeCpp>,
     /// C++ `Player::_resurrectionData`, represented until real Player/Spell
     /// resurrection request ownership exists.
-    represented_resurrection_request_like_cpp: Option<RepresentedResurrectionRequestLikeCpp>,
+    #[cfg(test)]
+    represented_resurrection_request_like_cpp: Option<PlayerResurrectionRequestLikeCpp>,
     /// C++ `DELAYED_RESURRECT_PLAYER`, represented for resurrection requests
     /// that initiate teleport and must apply after WorldPortResponse.
+    #[cfg(test)]
     represented_delayed_resurrection_after_teleport_like_cpp:
-        Option<RepresentedResurrectionRequestLikeCpp>,
+        Option<PlayerResurrectionRequestLikeCpp>,
     /// C++ `ActivePlayerData::SelfResSpells`, represented until update-field
     /// ownership is canonical.
+    #[cfg(test)]
     represented_self_res_spells_like_cpp: BTreeSet<i32>,
     /// C++ `Player::m_overrideSpells`, represented until active player spell
     /// cast resolution owns override lookup.
@@ -6437,6 +6432,7 @@ pub struct WorldSession {
     /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
     represented_cast_unstuck_enabled_like_cpp: bool,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
+    #[cfg(test)]
     represented_death_timer_active_like_cpp: bool,
     /// Near teleport ACK side-effect audit events.
     #[cfg(test)]
@@ -6904,6 +6900,7 @@ pub struct WorldSession {
     /// Confirmed pending bind ids, used by represented `CMSG_INSTANCE_LOCK_RESPONSE`.
     pub(crate) represented_confirmed_pending_binds: Vec<u32>,
     /// Count of represented `Player::RepopAtGraveyard` calls from rejected pending binds.
+    #[cfg(test)]
     pub(crate) represented_repop_at_graveyard_count: u32,
     /// Session-local representation of `GameObject::m_tapList` for personal encounter loot.
     pub(crate) represented_gameobject_tap_lists:
@@ -8265,6 +8262,7 @@ impl WorldSession {
             #[cfg(test)]
             represented_battleground_queue_slots_like_cpp: Vec::new(),
             represented_battlefield_ports_like_cpp: Vec::new(),
+            #[cfg(test)]
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             #[cfg(test)]
             represented_pet_guid_like_cpp: None,
@@ -8338,14 +8336,18 @@ impl WorldSession {
             represented_delayed_teleport_like_cpp: None,
             near_teleport_destination_zone_area_like_cpp: None,
             represented_homebind_like_cpp: None,
+            #[cfg(test)]
             represented_resurrection_request_like_cpp: None,
+            #[cfg(test)]
             represented_delayed_resurrection_after_teleport_like_cpp: None,
+            #[cfg(test)]
             represented_self_res_spells_like_cpp: BTreeSet::new(),
             #[cfg(test)]
             represented_override_spells_like_cpp: HashMap::new(),
             #[cfg(test)]
             represented_override_spells_complete_like_cpp: false,
             represented_cast_unstuck_enabled_like_cpp: true,
+            #[cfg(test)]
             represented_death_timer_active_like_cpp: false,
             #[cfg(test)]
             move_teleport_ack_events_like_cpp: Vec::new(),
@@ -8606,6 +8608,7 @@ impl WorldSession {
             represented_gameobject_use_states: std::collections::BTreeMap::new(),
             pending_bind: None,
             represented_confirmed_pending_binds: Vec::new(),
+            #[cfg(test)]
             represented_repop_at_graveyard_count: 0,
             represented_gameobject_tap_lists: std::collections::HashMap::new(),
             represented_locked_dungeon_encounters: std::collections::HashSet::new(),
@@ -10088,6 +10091,14 @@ impl WorldSession {
             player.set_environmental_damage_immune_like_cpp(
                 self.player_environmental_damage_immune_like_cpp,
             );
+            *player.resurrection_state_mut_like_cpp() = PlayerResurrectionStateLikeCpp {
+                request: self.represented_resurrection_request_like_cpp,
+                delayed_after_teleport: self
+                    .represented_delayed_resurrection_after_teleport_like_cpp,
+                self_res_spells: self.represented_self_res_spells_like_cpp.clone(),
+                death_timer_active: self.represented_death_timer_active_like_cpp,
+                area_spirit_healer_guid: self.area_spirit_healer_guid_like_cpp,
+            };
         }
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
         #[cfg(test)]
@@ -46686,12 +46697,30 @@ impl WorldSession {
         &self.represented_wargame_invite_acceptances_like_cpp
     }
 
-    pub(crate) fn set_area_spirit_healer_guid_like_cpp(&mut self, healer_guid: ObjectGuid) {
-        self.area_spirit_healer_guid_like_cpp = healer_guid;
+    pub(crate) fn set_area_spirit_healer_guid_like_cpp(&mut self, healer_guid: ObjectGuid) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .resurrection_state_mut_like_cpp()
+                    .area_spirit_healer_guid = healer_guid;
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.area_spirit_healer_guid_like_cpp = healer_guid;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
-    pub(crate) fn area_spirit_healer_guid_like_cpp(&self) -> ObjectGuid {
-        self.area_spirit_healer_guid_like_cpp
+    pub(crate) fn area_spirit_healer_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.resurrection_state_like_cpp().area_spirit_healer_guid
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.area_spirit_healer_guid_like_cpp);
+        }
+        canonical
     }
 
     #[cfg(test)]
@@ -46887,20 +46916,37 @@ impl WorldSession {
 
     pub(crate) fn set_represented_resurrection_request_like_cpp(
         &mut self,
-        request: RepresentedResurrectionRequestLikeCpp,
-    ) {
-        self.represented_resurrection_request_like_cpp = Some(request);
+        request: PlayerResurrectionRequestLikeCpp,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_resurrection_request_like_cpp(request)
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.represented_resurrection_request_like_cpp = Some(request);
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
-    pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) {
-        self.represented_resurrection_request_like_cpp = None;
+    pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(Player::clear_resurrection_request_like_cpp)
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.represented_resurrection_request_like_cpp = None;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn represented_resurrection_requested_by_like_cpp(
         &self,
         resurrecter: ObjectGuid,
     ) -> bool {
-        self.represented_resurrection_request_like_cpp
+        self.player_resurrection_state_snapshot_like_cpp()
+            .and_then(|state| state.request)
             .is_some_and(|request| {
                 request.resurrecter != ObjectGuid::EMPTY && request.resurrecter == resurrecter
             })
@@ -46909,12 +46955,20 @@ impl WorldSession {
     pub(crate) fn take_represented_resurrection_request_if_requested_by_like_cpp(
         &mut self,
         resurrecter: ObjectGuid,
-    ) -> Option<RepresentedResurrectionRequestLikeCpp> {
-        if !self.represented_resurrection_requested_by_like_cpp(resurrecter) {
-            return None;
+    ) -> Option<PlayerResurrectionRequestLikeCpp> {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.take_resurrection_request_if_requested_by_like_cpp(resurrecter)
+            })
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            if !self.represented_resurrection_requested_by_like_cpp(resurrecter) {
+                return None;
+            }
+            return self.represented_resurrection_request_like_cpp.take();
         }
-
-        self.represented_resurrection_request_like_cpp.take()
+        canonical
     }
 
     pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
@@ -46935,16 +46989,43 @@ impl WorldSession {
 
     pub(crate) fn schedule_represented_resurrection_after_teleport_like_cpp(
         &mut self,
-        request: RepresentedResurrectionRequestLikeCpp,
-    ) {
-        self.represented_delayed_resurrection_after_teleport_like_cpp = Some(request);
+        request: PlayerResurrectionRequestLikeCpp,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .resurrection_state_mut_like_cpp()
+                    .delayed_after_teleport = Some(request);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.represented_delayed_resurrection_after_teleport_like_cpp = Some(request);
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn process_represented_delayed_resurrection_after_teleport_like_cpp(&mut self) {
-        let Some(request) = self
-            .represented_delayed_resurrection_after_teleport_like_cpp
-            .take()
-        else {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .resurrection_state_mut_like_cpp()
+                    .delayed_after_teleport
+                    .take()
+            })
+            .flatten();
+        #[cfg(test)]
+        let request = canonical.or_else(|| {
+            (self.player_handle_like_cpp.is_none())
+                .then(|| {
+                    self.represented_delayed_resurrection_after_teleport_like_cpp
+                        .take()
+                })
+                .flatten()
+        });
+        #[cfg(not(test))]
+        let request = canonical;
+        let Some(request) = request else {
             return;
         };
 
@@ -46952,32 +47033,75 @@ impl WorldSession {
     }
 
     pub(crate) fn add_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) {
-        if spell_id != 0 {
+        if spell_id == 0 {
+            return;
+        }
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .resurrection_state_mut_like_cpp()
+                    .self_res_spells
+                    .insert(spell_id)
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
             self.represented_self_res_spells_like_cpp.insert(spell_id);
         }
     }
 
     pub(crate) fn remove_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) -> bool {
-        self.represented_self_res_spells_like_cpp.remove(&spell_id)
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player
+                .resurrection_state_mut_like_cpp()
+                .self_res_spells
+                .remove(&spell_id)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.represented_self_res_spells_like_cpp.remove(&spell_id);
+        }
+        canonical.unwrap_or(false)
     }
 
     pub(crate) fn has_represented_self_res_spell_like_cpp(&self, spell_id: i32) -> bool {
-        self.represented_self_res_spells_like_cpp
-            .contains(&spell_id)
+        self.player_resurrection_state_snapshot_like_cpp()
+            .is_some_and(|state| state.self_res_spells.contains(&spell_id))
+    }
+
+    fn player_resurrection_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<PlayerResurrectionStateLikeCpp> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.resurrection_state_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(PlayerResurrectionStateLikeCpp {
+                request: self.represented_resurrection_request_like_cpp,
+                delayed_after_teleport: self
+                    .represented_delayed_resurrection_after_teleport_like_cpp,
+                self_res_spells: self.represented_self_res_spells_like_cpp.clone(),
+                death_timer_active: self.represented_death_timer_active_like_cpp,
+                area_spirit_healer_guid: self.area_spirit_healer_guid_like_cpp,
+            });
+        }
+        canonical
     }
 
     #[cfg(test)]
     pub(crate) fn represented_resurrection_request_like_cpp(
         &self,
-    ) -> Option<RepresentedResurrectionRequestLikeCpp> {
-        self.represented_resurrection_request_like_cpp
+    ) -> Option<PlayerResurrectionRequestLikeCpp> {
+        self.player_resurrection_state_snapshot_like_cpp()
+            .and_then(|state| state.request)
     }
 
     #[cfg(test)]
     pub(crate) fn represented_delayed_resurrection_after_teleport_like_cpp(
         &self,
-    ) -> Option<RepresentedResurrectionRequestLikeCpp> {
-        self.represented_delayed_resurrection_after_teleport_like_cpp
+    ) -> Option<PlayerResurrectionRequestLikeCpp> {
+        self.player_resurrection_state_snapshot_like_cpp()
+            .and_then(|state| state.delayed_after_teleport)
     }
 
     fn resolved_fall_information_like_cpp(&self) -> Option<(u32, f32)> {
@@ -71876,10 +72000,16 @@ impl WorldSession {
         match self.resolved_player_is_alive_like_cpp() {
             None => return,
             Some(false) => {
-                if !self.represented_death_timer_active_like_cpp {
+                let Some(resurrection) = self.player_resurrection_state_snapshot_like_cpp() else {
+                    return;
+                };
+                if !resurrection.death_timer_active {
                     self.set_player_ghost_flag_like_cpp(true);
-                    self.represented_repop_at_graveyard_count =
-                        self.represented_repop_at_graveyard_count.saturating_add(1);
+                    #[cfg(test)]
+                    {
+                        self.represented_repop_at_graveyard_count =
+                            self.represented_repop_at_graveyard_count.saturating_add(1);
+                    }
                 }
                 return;
             }

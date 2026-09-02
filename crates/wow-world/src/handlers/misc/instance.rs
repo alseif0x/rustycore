@@ -263,8 +263,11 @@ impl crate::session::WorldSession {
                     .push(pending_bind.instance_id);
             }
         } else {
-            self.represented_repop_at_graveyard_count =
-                self.represented_repop_at_graveyard_count.saturating_add(1);
+            #[cfg(test)]
+            {
+                self.represented_repop_at_graveyard_count =
+                    self.represented_repop_at_graveyard_count.saturating_add(1);
+            }
         }
     }
 

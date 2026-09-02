@@ -17,6 +17,7 @@ mod location;
 mod menu;
 mod movement_control;
 mod progression;
+mod resurrection;
 mod social;
 mod spellbook;
 mod visibility;
