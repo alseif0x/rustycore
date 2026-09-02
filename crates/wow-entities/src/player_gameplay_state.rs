@@ -88,6 +88,7 @@ pub struct PlayerGameplayState {
     pub movement_control: PlayerMovementControlStateLikeCpp,
     pub damage_control: PlayerDamageControlStateLikeCpp,
     pub resurrection: PlayerResurrectionStateLikeCpp,
+    pub teleport: PlayerTeleportStateLikeCpp,
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
     pub menu: PlayerMenuStateLikeCpp,
@@ -202,6 +203,21 @@ pub struct PlayerResurrectionStateLikeCpp {
     pub self_res_spells: BTreeSet<i32>,
     pub death_timer_active: bool,
     pub area_spirit_healer_guid: ObjectGuid,
+}
+
+/// C++ `Player` teleport bookkeeping (`m_teleport_dest`, teleport options,
+/// near/far semaphores and delayed-teleport flags). The state remains owned by
+/// the same canonical Player while MapManager marks it detached during a far
+/// teleport.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PlayerTeleportStateLikeCpp {
+    pub can_delay: bool,
+    pub has_delayed: bool,
+    pub near_pending: bool,
+    pub far_pending: bool,
+    pub near_destination: Option<(u16, wow_core::Position)>,
+    pub delayed: Option<(u32, wow_core::Position, u32)>,
+    pub near_destination_zone_area: Option<(u32, u32)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

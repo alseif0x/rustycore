@@ -1715,22 +1715,28 @@
           "name": "near_teleport_destination_like_cpp",
           "type": "Option < (u16 , wow_core :: Position) >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "near_teleport_destination_zone_area_like_cpp",
           "type": "Option < (u32 , u32) >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "near_teleport_pending_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "next_player_save_ms_like_cpp",
@@ -3126,8 +3132,10 @@
           "name": "represented_can_delay_teleport_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_can_duel_spell_casts_like_cpp",
@@ -3346,8 +3354,10 @@
           "name": "represented_delayed_teleport_like_cpp",
           "type": "Option < (u32 , wow_core :: Position , TeleportToOptionsLikeCpp) >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_dependent_known_spells_like_cpp",
@@ -3458,8 +3468,10 @@
           "name": "represented_far_teleport_pending_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_favorite_item_appearances_like_cpp",
@@ -3642,8 +3654,10 @@
           "name": "represented_has_delayed_teleport_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_homebind_like_cpp",
@@ -30991,6 +31005,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_teleport_state_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_teleport_state_snapshot_like_cpp (& self) -> Option < PlayerTeleportStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_trade_state_snapshot_like_cpp",
           "visibility": "private",
           "signature": "fn player_trade_state_snapshot_like_cpp (& self ,) -> Option < Option < wow_entities :: PlayerTradeStateLikeCpp > >",
@@ -44167,7 +44192,7 @@
           "kind": "method",
           "name": "set_near_teleport_pending_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_near_teleport_pending_like_cpp (& mut self , pending : bool , destination : Option < (u16 , wow_core :: Position) > , zone_area : Option < (u32 , u32) > ,)",
+          "signature": "fn set_near_teleport_pending_like_cpp (& mut self , pending : bool , destination : Option < (u16 , wow_core :: Position) > , zone_area : Option < (u32 , u32) > ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -45857,7 +45882,7 @@
           "kind": "method",
           "name": "set_represented_can_delay_teleport_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_can_delay_teleport_like_cpp (& mut self , can_delay : bool)",
+          "signature": "fn set_represented_can_delay_teleport_like_cpp (& mut self , can_delay : bool) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45998,7 +46023,7 @@
           "kind": "method",
           "name": "set_represented_far_teleport_pending_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_far_teleport_pending_like_cpp (& mut self , pending : bool)",
+          "signature": "fn set_represented_far_teleport_pending_like_cpp (& mut self , pending : bool) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -49753,6 +49778,17 @@
           "name": "update_player_save_timer_like_cpp",
           "visibility": "private",
           "signature": "fn update_player_save_timer_like_cpp (& mut self , diff_ms : u32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_player_teleport_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn update_player_teleport_state_like_cpp (& mut self , update : impl FnOnce (& mut PlayerTeleportStateLikeCpp) ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -75962,7 +75998,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:36bcc1f131b8f6df7834f3117bb1f520:len=94935|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:849067adee0bb171c60e94fdde098888:len=95040|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

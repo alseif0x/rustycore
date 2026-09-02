@@ -32400,6 +32400,98 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
 }
 
 #[test]
+fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_580);
+    let destination = Position::new(3701.0, 1501.0, 121.0, 0.5);
+    let owned = wow_entities::PlayerTeleportStateLikeCpp {
+        can_delay: true,
+        has_delayed: true,
+        near_pending: true,
+        far_pending: false,
+        near_destination: Some((571, destination)),
+        delayed: Some((571, destination, TELE_TO_SPELL_LIKE_CPP)),
+        near_destination_zone_area: Some((20, 21)),
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TeleportOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.update_player_teleport_state_like_cpp(|state| *state = owned));
+    assert_eq!(
+        session.player_teleport_state_snapshot_like_cpp(),
+        Some(owned)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_teleport_state_snapshot_like_cpp(),
+        Some(owned)
+    );
+
+    let replacement_state = wow_entities::PlayerTeleportStateLikeCpp {
+        can_delay: false,
+        has_delayed: false,
+        near_pending: false,
+        far_pending: true,
+        near_destination: None,
+        delayed: None,
+        near_destination_zone_area: None,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    *replacement.teleport_state_mut_like_cpp() = replacement_state;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_teleport_state_snapshot_like_cpp(), None);
+    assert!(!session.set_represented_can_delay_teleport_like_cpp(true));
+    assert!(!session.set_represented_far_teleport_pending_like_cpp(false));
+    assert!(!session.set_near_teleport_pending_like_cpp(
+        true,
+        Some((571, destination)),
+        Some((20, 21)),
+    ));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| *player
+                .teleport_state_like_cpp()),
+        Some(replacement_state)
+    );
+}
+
+#[test]
 fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -47034,28 +47126,30 @@ async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
         0,
         "C++ Player::TeleportTo resets MovementInfo::jump before the same-map branch"
     );
-    let canonical = canonical.lock().unwrap();
-    let player = canonical
-        .find_map(571, 0)
-        .and_then(|map| map.map().get_typed_player(player_guid))
-        .expect("canonical player after teleport");
-    assert_eq!(
-        player.unit().movement_flags_like_cpp(),
-        MovementFlag::ROOT | MovementFlag::CAN_FLY,
-        "C++ Player::TeleportTo writes the masked flags back to Unit::m_movementInfo"
-    );
-    let motion = &player.unit().subsystems().motion;
-    assert!(
-        motion.spline.finalized,
-        "C++ Player::TeleportTo calls Unit::DisableSpline before the same-map branch"
-    );
-    assert!(
-        !motion
-            .active_generators
-            .iter()
-            .any(|generator| generator.kind == MovementGeneratorKind::Effect),
-        "C++ Player::TeleportTo removes EFFECT_MOTION_TYPE before the same-map branch"
-    );
+    {
+        let canonical = canonical.lock().unwrap();
+        let player = canonical
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(player_guid))
+            .expect("canonical player after teleport");
+        assert_eq!(
+            player.unit().movement_flags_like_cpp(),
+            MovementFlag::ROOT | MovementFlag::CAN_FLY,
+            "C++ Player::TeleportTo writes the masked flags back to Unit::m_movementInfo"
+        );
+        let motion = &player.unit().subsystems().motion;
+        assert!(
+            motion.spline.finalized,
+            "C++ Player::TeleportTo calls Unit::DisableSpline before the same-map branch"
+        );
+        assert!(
+            !motion
+                .active_generators
+                .iter()
+                .any(|generator| generator.kind == MovementGeneratorKind::Effect),
+            "C++ Player::TeleportTo removes EFFECT_MOTION_TYPE before the same-map branch"
+        );
+    }
     assert!(session.near_teleport_pending_like_cpp());
 }
 

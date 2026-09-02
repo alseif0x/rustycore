@@ -270,7 +270,7 @@ pub use player_gameplay_state::{
     PlayerCurrency, PlayerCurrencyState, PlayerDamageControlStateLikeCpp, PlayerGameplayState,
     PlayerGossipOptionLikeCpp, PlayerInteractionDataLikeCpp, PlayerMenuStateLikeCpp,
     PlayerMovementControlStateLikeCpp, PlayerResurrectionRequestLikeCpp,
-    PlayerResurrectionStateLikeCpp,
+    PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
 };
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,

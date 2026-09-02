@@ -188,7 +188,7 @@ use wow_entities::{
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
     PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerQuestGameplayState,
-    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
+    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery, SendNewItemDisplayText,
     SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem, SwapItemPreflightPlan,
@@ -6391,19 +6391,26 @@ pub struct WorldSession {
     #[cfg(test)]
     move_spline_done_taxi_events_like_cpp: Vec<MoveSplineDoneTaxiEventLikeCpp>,
     /// C++ `Player::m_bCanDelayTeleport`, represented around update-owned work.
+    #[cfg(test)]
     represented_can_delay_teleport_like_cpp: bool,
     /// C++ `Player::m_bHasDelayedTeleport`, represented for same-map near teleports.
+    #[cfg(test)]
     represented_has_delayed_teleport_like_cpp: bool,
     /// C++ `Player::mSemaphoreTeleport_Near` represented state.
+    #[cfg(test)]
     near_teleport_pending_like_cpp: bool,
     /// C++ `Player::mSemaphoreTeleport_Far` represented state.
+    #[cfg(test)]
     represented_far_teleport_pending_like_cpp: bool,
     /// C++ `Player::m_teleport_dest` represented state for near teleports.
+    #[cfg(test)]
     near_teleport_destination_like_cpp: Option<(u16, wow_core::Position)>,
     /// Saved `TeleportTo` arguments while `m_bHasDelayedTeleport` is set.
+    #[cfg(test)]
     represented_delayed_teleport_like_cpp:
         Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)>,
     /// Represented zone/area for the pending near-teleport destination.
+    #[cfg(test)]
     near_teleport_destination_zone_area_like_cpp: Option<(u32, u32)>,
     /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until full
     /// player-owned load validation/fallback replaces the session field.
@@ -8328,12 +8335,19 @@ impl WorldSession {
             player_spell_hit_aura_authority_tombstoned_like_cpp: false,
             #[cfg(test)]
             move_spline_done_taxi_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_can_delay_teleport_like_cpp: false,
+            #[cfg(test)]
             represented_has_delayed_teleport_like_cpp: false,
+            #[cfg(test)]
             near_teleport_pending_like_cpp: false,
+            #[cfg(test)]
             represented_far_teleport_pending_like_cpp: false,
+            #[cfg(test)]
             near_teleport_destination_like_cpp: None,
+            #[cfg(test)]
             represented_delayed_teleport_like_cpp: None,
+            #[cfg(test)]
             near_teleport_destination_zone_area_like_cpp: None,
             represented_homebind_like_cpp: None,
             #[cfg(test)]
@@ -10099,6 +10113,15 @@ impl WorldSession {
                 death_timer_active: self.represented_death_timer_active_like_cpp,
                 area_spirit_healer_guid: self.area_spirit_healer_guid_like_cpp,
             };
+            *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
+                can_delay: self.represented_can_delay_teleport_like_cpp,
+                has_delayed: self.represented_has_delayed_teleport_like_cpp,
+                near_pending: self.near_teleport_pending_like_cpp,
+                far_pending: self.represented_far_teleport_pending_like_cpp,
+                near_destination: self.near_teleport_destination_like_cpp,
+                delayed: self.represented_delayed_teleport_like_cpp,
+                near_destination_zone_area: self.near_teleport_destination_zone_area_like_cpp,
+            };
         }
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
         #[cfg(test)]
@@ -10363,8 +10386,10 @@ impl WorldSession {
         if let Some((map_id, position)) = self.pending_teleport {
             return Some((u16::try_from(map_id).unwrap_or(u16::MAX), position));
         }
-        if self.near_teleport_pending_like_cpp {
-            return self.near_teleport_destination_like_cpp;
+        if let Some(teleport) = self.player_teleport_state_snapshot_like_cpp()
+            && teleport.near_pending
+        {
+            return teleport.near_destination;
         }
         None
     }
@@ -38332,7 +38357,9 @@ impl WorldSession {
 
         let same_map_near_teleport = u32::from(self.player_map_id_like_cpp()) == new_map;
         if same_map_near_teleport {
-            self.represented_far_teleport_pending_like_cpp = false;
+            if !self.set_represented_far_teleport_pending_like_cpp(false) {
+                return;
+            }
             self.initiate_same_map_near_teleport_like_cpp(new_map, new_pos, options);
             return;
         }
@@ -38354,14 +38381,25 @@ impl WorldSession {
         }
 
         if u32::from(self.player_map_id_like_cpp()) != new_map {
-            self.represented_has_delayed_teleport_like_cpp =
-                self.represented_can_delay_teleport_like_cpp;
-            if self.represented_has_delayed_teleport_like_cpp {
-                self.near_teleport_pending_like_cpp = false;
-                self.near_teleport_destination_like_cpp = None;
-                self.near_teleport_destination_zone_area_like_cpp = None;
-                self.represented_far_teleport_pending_like_cpp = true;
-                self.represented_delayed_teleport_like_cpp = Some((new_map, new_pos, options));
+            let Some(can_delay) = self
+                .player_teleport_state_snapshot_like_cpp()
+                .map(|state| state.can_delay)
+            else {
+                return;
+            };
+            if !self.update_player_teleport_state_like_cpp(|state| {
+                state.has_delayed = can_delay;
+                if can_delay {
+                    state.near_pending = false;
+                    state.near_destination = None;
+                    state.near_destination_zone_area = None;
+                    state.far_pending = true;
+                    state.delayed = Some((new_map, new_pos, options));
+                }
+            }) {
+                return;
+            }
+            if can_delay {
                 return;
             }
 
@@ -38431,7 +38469,9 @@ impl WorldSession {
         }
 
         // 4. Transition to Transfer state — only WorldPortResponse accepted now
-        self.represented_far_teleport_pending_like_cpp = true;
+        if !self.set_represented_far_teleport_pending_like_cpp(true) {
+            return;
+        }
         self.state = SessionState::Transfer;
 
         info!(
@@ -38521,14 +38561,25 @@ impl WorldSession {
         destination: wow_core::Position,
         options: TeleportToOptionsLikeCpp,
     ) {
-        self.represented_has_delayed_teleport_like_cpp =
-            self.represented_can_delay_teleport_like_cpp;
-        if self.represented_has_delayed_teleport_like_cpp {
+        let Some(can_delay) = self
+            .player_teleport_state_snapshot_like_cpp()
+            .map(|state| state.can_delay)
+        else {
+            return;
+        };
+        if !self.update_player_teleport_state_like_cpp(|state| {
+            state.has_delayed = can_delay;
+        }) {
+            return;
+        }
+        if can_delay {
             let map_id_u16 = u16::try_from(map_id).unwrap_or(self.player_map_id_like_cpp());
-            self.near_teleport_pending_like_cpp = true;
-            self.near_teleport_destination_like_cpp = Some((map_id_u16, destination));
-            self.near_teleport_destination_zone_area_like_cpp = None;
-            self.represented_delayed_teleport_like_cpp = Some((map_id, destination, options));
+            let _ = self.update_player_teleport_state_like_cpp(|state| {
+                state.near_pending = true;
+                state.near_destination = Some((map_id_u16, destination));
+                state.near_destination_zone_area = None;
+                state.delayed = Some((map_id, destination, options));
+            });
             return;
         }
 
@@ -38549,9 +38600,13 @@ impl WorldSession {
 
         let map_id = u16::try_from(map_id).unwrap_or(self.player_map_id_like_cpp());
         self.pending_teleport = None;
-        self.near_teleport_pending_like_cpp = true;
-        self.near_teleport_destination_like_cpp = Some((map_id, destination));
-        self.near_teleport_destination_zone_area_like_cpp = None;
+        if !self.update_player_teleport_state_like_cpp(|state| {
+            state.near_pending = true;
+            state.near_destination = Some((map_id, destination));
+            state.near_destination_zone_area = None;
+        }) {
+            return;
+        }
         if let Some(current_pos) = self.player_position_like_cpp() {
             self.set_fall_information_like_cpp(0, current_pos.z);
         }
@@ -38585,21 +38640,27 @@ impl WorldSession {
     }
 
     fn process_represented_delayed_teleport_after_update_like_cpp(&mut self) -> bool {
-        if !self.represented_has_delayed_teleport_like_cpp
-            || self.resolved_player_is_alive_like_cpp() != Some(true)
-        {
+        let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if !teleport.has_delayed || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return false;
         }
 
-        let Some((map_id, destination, options)) =
-            self.represented_delayed_teleport_like_cpp.take()
-        else {
-            self.represented_has_delayed_teleport_like_cpp = false;
+        let Some((map_id, destination, options)) = teleport.delayed else {
+            let _ = self.update_player_teleport_state_like_cpp(|state| {
+                state.has_delayed = false;
+            });
             return false;
         };
 
-        self.represented_can_delay_teleport_like_cpp = false;
-        self.represented_has_delayed_teleport_like_cpp = false;
+        if !self.update_player_teleport_state_like_cpp(|state| {
+            state.delayed = None;
+            state.can_delay = false;
+            state.has_delayed = false;
+        }) {
+            return false;
+        }
         if u32::from(self.player_map_id_like_cpp()) == map_id {
             self.initiate_same_map_near_teleport_like_cpp(map_id, destination, options);
         } else {
@@ -38664,7 +38725,9 @@ impl WorldSession {
             });
         }
 
-        self.represented_far_teleport_pending_like_cpp = true;
+        if !self.set_represented_far_teleport_pending_like_cpp(true) {
+            return;
+        }
         self.state = SessionState::Transfer;
     }
 
@@ -56037,7 +56100,7 @@ impl WorldSession {
         move_time: i32,
     ) -> MoveTeleportAckActionLikeCpp {
         let accepted = self.record_move_teleport_ack_like_cpp(mover_guid, ack_index, move_time);
-        if !self.near_teleport_pending_like_cpp {
+        if !self.near_teleport_pending_like_cpp() {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -56073,7 +56136,24 @@ impl WorldSession {
             );
         }
 
-        let Some((map_id, destination)) = self.near_teleport_destination_like_cpp else {
+        let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                None,
+                None,
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                false,
+            );
+        };
+        let Some((map_id, destination)) = teleport.near_destination else {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -56160,14 +56240,30 @@ impl WorldSession {
             );
         };
 
-        self.near_teleport_pending_like_cpp = false;
+        if !self.update_player_teleport_state_like_cpp(|state| state.near_pending = false) {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                Some(map_id),
+                Some(destination),
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                false,
+            );
+        }
         let old_zone = world_local_before.zone_id;
         self.set_player_map_position_like_cpp(map_id, destination);
         self.update_registry_position();
         self.set_fall_information_like_cpp(0, destination.z);
 
-        let (new_zone, new_area) = self
-            .near_teleport_destination_zone_area_like_cpp
+        let (new_zone, new_area) = teleport
+            .near_destination_zone_area
             .unwrap_or((world_local_before.zone_id, world_local_before.area_id));
         self.update_zone_represented_like_cpp(new_zone, new_area);
 
@@ -56629,42 +56725,99 @@ impl WorldSession {
         pending: bool,
         destination: Option<(u16, wow_core::Position)>,
         zone_area: Option<(u32, u32)>,
-    ) {
-        self.near_teleport_pending_like_cpp = pending;
-        self.near_teleport_destination_like_cpp = destination;
-        self.near_teleport_destination_zone_area_like_cpp = zone_area;
+    ) -> bool {
+        self.update_player_teleport_state_like_cpp(|state| {
+            state.near_pending = pending;
+            state.near_destination = destination;
+            state.near_destination_zone_area = zone_area;
+        })
     }
 
-    pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) {
-        self.represented_can_delay_teleport_like_cpp = can_delay;
+    fn player_teleport_state_snapshot_like_cpp(&self) -> Option<PlayerTeleportStateLikeCpp> {
+        let canonical = self.with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(PlayerTeleportStateLikeCpp {
+                can_delay: self.represented_can_delay_teleport_like_cpp,
+                has_delayed: self.represented_has_delayed_teleport_like_cpp,
+                near_pending: self.near_teleport_pending_like_cpp,
+                far_pending: self.represented_far_teleport_pending_like_cpp,
+                near_destination: self.near_teleport_destination_like_cpp,
+                delayed: self.represented_delayed_teleport_like_cpp,
+                near_destination_zone_area: self.near_teleport_destination_zone_area_like_cpp,
+            });
+        }
+        canonical
+    }
+
+    fn update_player_teleport_state_like_cpp(
+        &mut self,
+        update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
+    ) -> bool {
+        if self.player_handle_like_cpp.is_some() {
+            return self
+                .with_owned_player_mut_like_cpp(|player| {
+                    update(player.teleport_state_mut_like_cpp())
+                })
+                .is_some();
+        }
+        #[cfg(test)]
+        {
+            let mut state = self
+                .player_teleport_state_snapshot_like_cpp()
+                .unwrap_or_default();
+            update(&mut state);
+            self.represented_can_delay_teleport_like_cpp = state.can_delay;
+            self.represented_has_delayed_teleport_like_cpp = state.has_delayed;
+            self.near_teleport_pending_like_cpp = state.near_pending;
+            self.represented_far_teleport_pending_like_cpp = state.far_pending;
+            self.near_teleport_destination_like_cpp = state.near_destination;
+            self.represented_delayed_teleport_like_cpp = state.delayed;
+            self.near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
+            true
+        }
+        #[cfg(not(test))]
+        {
+            let _ = update;
+            false
+        }
+    }
+
+    pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) -> bool {
+        self.update_player_teleport_state_like_cpp(|state| state.can_delay = can_delay)
     }
 
     pub(crate) fn represented_can_delay_teleport_like_cpp(&self) -> bool {
-        self.represented_can_delay_teleport_like_cpp
+        self.player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.can_delay)
     }
 
     #[cfg(test)]
     pub(crate) fn represented_has_delayed_teleport_like_cpp(&self) -> bool {
-        self.represented_has_delayed_teleport_like_cpp
+        self.player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.has_delayed)
     }
 
     #[cfg(test)]
     pub(crate) fn represented_delayed_teleport_like_cpp(
         &self,
     ) -> Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)> {
-        self.represented_delayed_teleport_like_cpp
+        self.player_teleport_state_snapshot_like_cpp()
+            .and_then(|state| state.delayed)
     }
 
     pub(crate) fn represented_far_teleport_pending_like_cpp(&self) -> bool {
-        self.represented_far_teleport_pending_like_cpp
+        self.player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.far_pending)
     }
 
-    pub(crate) fn set_represented_far_teleport_pending_like_cpp(&mut self, pending: bool) {
-        self.represented_far_teleport_pending_like_cpp = pending;
+    pub(crate) fn set_represented_far_teleport_pending_like_cpp(&mut self, pending: bool) -> bool {
+        self.update_player_teleport_state_like_cpp(|state| state.far_pending = pending)
     }
 
     pub(crate) fn near_teleport_pending_like_cpp(&self) -> bool {
-        self.near_teleport_pending_like_cpp
+        self.player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.near_pending)
     }
 
     #[cfg(test)]

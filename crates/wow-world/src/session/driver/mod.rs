@@ -130,7 +130,7 @@ impl WorldSession {
         if self.state == SessionState::LoggedIn {
             self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
             self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
-            self.represented_can_delay_teleport_like_cpp = true;
+            let _ = self.set_represented_can_delay_teleport_like_cpp(true);
             // Read the tick owner once; the lock is taken and released inside
             // runtime_tick_owner_like_cpp before any tick work begins.
             let owner = self.runtime_tick_owner_like_cpp();
@@ -158,7 +158,7 @@ impl WorldSession {
             self.tick_represented_online_xp_rest_bonus_like_cpp(
                 Self::current_game_time_secs_like_cpp(),
             );
-            self.represented_can_delay_teleport_like_cpp = false;
+            let _ = self.set_represented_can_delay_teleport_like_cpp(false);
             self.process_represented_delayed_teleport_after_update_like_cpp();
         }
 
