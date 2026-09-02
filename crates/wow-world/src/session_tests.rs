@@ -5041,7 +5041,7 @@ fn represented_item_level_area_scaling_deactivates_without_activity_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
     let item_id = 30_157_u32;
     install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 20);
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         represented_item_level_area_map_like_cpp(30_157, wow_data::map::MAP_COMMON, 0),
     ])));
@@ -5174,7 +5174,7 @@ fn represented_item_level_applies_pvp_item_level_bonus_when_active_like_cpp() {
         "C++ only adds GetPvpItemLevelBonus when Player::IsUsingPvpItemLevels is true"
     );
 
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     assert_eq!(
         session.represented_item_level_like_cpp(item_id, None),
         Some(125),
@@ -5207,7 +5207,7 @@ fn represented_item_level_applies_max_cap_after_pvp_bonus_like_cpp() {
         item_id: item_id as i32,
         item_level_delta: 75,
     }])));
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
         max_item_level: 150,
         ..Default::default()
@@ -5245,7 +5245,7 @@ fn represented_item_level_min_cutoff_uses_pre_pvp_item_level_like_cpp() {
         item_id: item_id as i32,
         item_level_delta: 50,
     }])));
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
         min_item_level_cutoff: 120,
         min_item_level: 200,
@@ -33919,6 +33919,72 @@ fn canonical_player_cinematic_state_follows_detached_and_stale_handle_ownership_
             camera_index: 1,
             movie_id: Some(901),
         })
+    );
+}
+
+#[test]
+fn canonical_player_pvp_item_level_mode_follows_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_567);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PvpItemLevelOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_represented_using_pvp_item_levels_like_cpp(true));
+    assert_eq!(
+        session.resolved_using_pvp_item_levels_like_cpp(),
+        Some(true)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_using_pvp_item_levels_like_cpp(),
+        Some(true)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_using_pvp_item_levels_like_cpp(), None);
+    assert!(!session.set_represented_using_pvp_item_levels_like_cpp(true));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().using_pvp_item_levels
+            }),
+        Some(false)
     );
 }
 

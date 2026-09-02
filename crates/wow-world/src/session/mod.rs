@@ -5492,6 +5492,9 @@ pub struct WorldSession {
     // Player level stats store (race/class/level → base stats)
     player_stats: Option<Arc<PlayerStatsStore>>,
     represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp,
+    /// Handle-less compatibility for older tests. Production C++
+    /// `Player::_usePvpItemLevels` lives on the canonical Player.
+    #[cfg(test)]
     represented_using_pvp_item_levels_like_cpp: bool,
 
     // Item stat modifiers store (item_id → stat bonuses from ItemSparse.db2)
@@ -7908,6 +7911,7 @@ impl WorldSession {
             item_limit_category_condition_store: None,
             player_stats: None,
             represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp::default(),
+            #[cfg(test)]
             represented_using_pvp_item_levels_like_cpp: false,
             item_bonus_db2_store: None,
             pvp_item_store: None,
@@ -20763,12 +20767,40 @@ impl WorldSession {
         self.represented_item_level_caps_like_cpp = caps;
     }
 
-    pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) {
-        self.represented_using_pvp_item_levels_like_cpp = active;
+    pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().using_pvp_item_levels = active
+            })
+            .is_some();
+        if canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_using_pvp_item_levels_like_cpp = active;
+            return true;
+        }
+        false
     }
 
+    fn resolved_using_pvp_item_levels_like_cpp(&self) -> Option<bool> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.gameplay_state().using_pvp_item_levels);
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_using_pvp_item_levels_like_cpp);
+        }
+        None
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_using_pvp_item_levels_like_cpp(&self) -> bool {
-        self.represented_using_pvp_item_levels_like_cpp
+        self.resolved_using_pvp_item_levels_like_cpp()
+            .expect("test Player PvP item-level owner must resolve")
     }
 
     fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
@@ -20785,7 +20817,10 @@ impl WorldSession {
                 entry.is_battleground_or_arena() || entry.activates_pvp_item_levels_like_cpp()
             });
         let pvp_activity = map_pvp_activity || self.represented_has_pvp_rules_enabled_like_cpp();
-        if self.represented_using_pvp_item_levels_like_cpp == pvp_activity {
+        let Some(using_pvp_item_levels) = self.resolved_using_pvp_item_levels_like_cpp() else {
+            return false;
+        };
+        if using_pvp_item_levels == pvp_activity {
             return false;
         }
 
@@ -20797,7 +20832,9 @@ impl WorldSession {
             return false;
         };
         self.record_represented_all_item_mods_like_cpp(&item_mod_targets, false);
-        self.represented_using_pvp_item_levels_like_cpp = pvp_activity;
+        if !self.set_represented_using_pvp_item_levels_like_cpp(pvp_activity) {
+            return false;
+        }
         self.record_represented_all_item_mods_like_cpp(&item_mod_targets, true);
         self.restore_represented_health_pct_after_item_mod_scaling_like_cpp(
             health_before,
@@ -45576,6 +45613,7 @@ impl WorldSession {
         entry_id: u32,
         runtime_item: Option<&Item>,
     ) -> Option<u32> {
+        let using_pvp_item_levels = self.resolved_using_pvp_item_levels_like_cpp()?;
         let item_stats_store = self.item_stats_store.as_ref()?;
         let random_property_template = item_stats_store.random_property_template(entry_id)?;
         let sparse_template = item_stats_store.sparse_template(entry_id);
@@ -45591,7 +45629,7 @@ impl WorldSession {
                 .unwrap_or(template_item_level);
             item_level += self.represented_item_level_bonus_like_cpp(runtime_item);
             let item_level_before_upgrades = item_level;
-            if self.represented_using_pvp_item_levels_like_cpp {
+            if using_pvp_item_levels {
                 item_level += i64::from(self.represented_pvp_item_level_bonus_like_cpp(entry_id));
             }
 

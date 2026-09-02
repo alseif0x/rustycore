@@ -85,6 +85,8 @@ pub struct PlayerGameplayState {
     pub trade: Option<PlayerTradeStateLikeCpp>,
     pub persistent_capabilities: PlayerPersistentCapabilityStateLikeCpp,
     pub battleground: PlayerBattlegroundState,
+    /// C++ `Player::_usePvpItemLevels`.
+    pub using_pvp_item_levels: bool,
     pub movement_control: PlayerMovementControlStateLikeCpp,
     pub damage_control: PlayerDamageControlStateLikeCpp,
     pub resurrection: PlayerResurrectionStateLikeCpp,

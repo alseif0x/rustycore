@@ -4769,8 +4769,10 @@
           "name": "represented_using_pvp_item_levels_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_vehicle_base_movements_like_cpp",
@@ -38812,8 +38814,10 @@
           "name": "represented_using_pvp_item_levels_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_using_pvp_item_levels_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40391,6 +40395,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_using_pvp_item_levels_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_using_pvp_item_levels_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -47011,7 +47026,7 @@
           "kind": "method",
           "name": "set_represented_using_pvp_item_levels_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_using_pvp_item_levels_like_cpp (& mut self , active : bool)",
+          "signature": "fn set_represented_using_pvp_item_levels_like_cpp (& mut self , active : bool) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -76100,7 +76115,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6648075ee7c93f106e0edf828d1acf13:len=95254|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a4d9833e51af13fdfc8a42945a4eceb0:len=95412|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

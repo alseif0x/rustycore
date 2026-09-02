@@ -360,7 +360,7 @@ async fn world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp
         30,
         0,
     );
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.pending_teleport = Some((571, destination));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);

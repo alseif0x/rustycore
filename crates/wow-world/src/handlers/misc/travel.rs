@@ -330,8 +330,12 @@ impl crate::session::WorldSession {
 
         // Update internal state
         self.set_player_map_position_like_cpp(new_map as u16, new_pos);
-        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+        // C++ updates area-based item scaling from SendInitialPacketsAfterAddToMap,
+        // after the same Player has been attached to its destination Map
+        // (Player.cpp:23650). Resolve/adopt that canonical owner first so the
+        // transition cannot be written into a discarded Session fallback.
+        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         self.update_registry_position();
         self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
