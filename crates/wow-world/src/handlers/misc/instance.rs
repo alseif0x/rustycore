@@ -296,7 +296,10 @@ impl crate::session::WorldSession {
             map.difficulty()
         };
 
-        if self.player_is_game_master_like_cpp() {
+        let Some(is_game_master) = self.player_is_game_master_like_cpp() else {
+            return false;
+        };
+        if is_game_master {
             return true;
         }
 
@@ -362,9 +365,7 @@ impl crate::session::WorldSession {
         }
 
         if is_new_lock {
-            self.send_packet(&InstanceSaveCreated {
-                gm: self.player_is_game_master_like_cpp(),
-            });
+            self.send_packet(&InstanceSaveCreated { gm: is_game_master });
             self.send_calendar_raid_lockout_added_like_cpp(&new_lock, &entries, now);
         }
 

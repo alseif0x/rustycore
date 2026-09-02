@@ -1180,7 +1180,7 @@ impl WorldSession {
         // C++ `HandlePartyInviteOpcode` rejects inviting GM targets unless
         // `GM.AllowInvite` / `CONFIG_ALLOW_GM_GROUP` is enabled.
         if !self.allow_gm_group_like_cpp()
-            && !self.player_is_game_master_like_cpp()
+            && self.player_is_game_master_like_cpp() != Some(true)
             && target_snapshot.is_game_master
         {
             send_result!(party_result::BAD_PLAYER_NAME);
@@ -1188,7 +1188,7 @@ impl WorldSession {
         }
 
         if !self.allow_two_side_interaction_group_like_cpp()
-            && !self.player_is_game_master_like_cpp()
+            && self.player_is_game_master_like_cpp() != Some(true)
             && player_team_for_race_cpp(self.player_race_like_cpp())
                 != player_team_for_race_cpp(target_snapshot.race)
         {

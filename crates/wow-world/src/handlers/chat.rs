@@ -1535,7 +1535,7 @@ impl WorldSession {
     }
 
     fn meets_whisper_level_req_like_cpp(&self) -> bool {
-        self.player_is_game_master_like_cpp()
+        self.player_is_game_master_like_cpp() == Some(true)
             || self.player_level_like_cpp() >= self.chat_level_requirements_like_cpp().whisper
     }
 

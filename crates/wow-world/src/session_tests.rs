@@ -11140,8 +11140,8 @@ async fn creature_attack_start_command_rejects_dead_victim_like_cpp() {
         .process_represented_session_commands_like_cpp()
         .await;
 
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
     assert!(
         send_rx.try_recv().is_err(),
         "dead victim must not receive attack-start"
@@ -31606,6 +31606,15 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_player_zone_area_like_cpp(100, 101);
     session.set_player_zone_area_authority_complete_like_cpp(true);
     session.set_player_pvp_state_like_cpp(true, true, true);
+    session.set_player_game_master_like_cpp(true);
+    session.set_player_mounted_like_cpp(true);
+    assert!(
+        session
+            .mutate_player_unit_presentation_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().set_scale(1.25);
+            })
+            .is_some()
+    );
     assert!(
         session
             .mutate_player_mount_vehicle_kit_like_cpp(|kit| {
@@ -31640,6 +31649,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(
         session.player_has_in_pvp_flag_like_cpp(player_guid),
         Some(true)
+    );
+    assert_eq!(session.player_is_game_master_like_cpp(), Some(true));
+    assert_eq!(
+        session.player_unit_presentation_snapshot_like_cpp(),
+        Some((UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT, 1, 1.25))
     );
     assert_eq!(
         session
@@ -31698,6 +31712,15 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_player_zone_area_like_cpp(200, 201);
     session.set_player_zone_area_authority_complete_like_cpp(true);
     session.set_player_pvp_state_like_cpp(false, false, false);
+    session.set_player_game_master_like_cpp(false);
+    session.set_player_mounted_like_cpp(false);
+    assert!(
+        session
+            .mutate_player_unit_presentation_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().set_scale(1.75);
+            })
+            .is_some()
+    );
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31721,6 +31744,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(
         session.player_has_in_pvp_flag_like_cpp(player_guid),
         Some(false)
+    );
+    assert_eq!(session.player_is_game_master_like_cpp(), Some(false));
+    assert_eq!(
+        session.player_unit_presentation_snapshot_like_cpp(),
+        Some((UnitFlags::PLAYER_CONTROLLED, 0, 1.75))
     );
 
     let mut replacement = Box::new(Player::new(Some(2), false));
@@ -31784,6 +31812,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     replacement
         .unit_mut()
         .set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+    replacement.set_game_master_like_cpp(true);
+    replacement.unit_mut().set_unit_flags_like_cpp(
+        UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT | UnitFlags::IMMUNE,
+    );
+    replacement.unit_mut().set_mount_display_id(77);
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .set_scale(1.5);
     replacement.gameplay_state_mut().mount_vehicle_kit =
         Some(represented_vehicle_kit_with_passenger_like_cpp(
             player_guid,
@@ -31811,6 +31849,8 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.player_zone_area_like_cpp(), None);
     assert_eq!(session.player_is_pvp_like_cpp(player_guid), None);
     assert_eq!(session.player_has_in_pvp_flag_like_cpp(player_guid), None);
+    assert_eq!(session.player_is_game_master_like_cpp(), None);
+    assert_eq!(session.player_unit_presentation_snapshot_like_cpp(), None);
     session.set_near_teleport_pending_like_cpp(
         true,
         Some((571, Position::new(1.0, 2.0, 3.0, 0.0))),
@@ -31834,6 +31874,15 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_player_zone_area_like_cpp(0xdead, 0xbeef);
     session.set_player_zone_area_authority_complete_like_cpp(false);
     session.set_player_pvp_state_like_cpp(false, false, true);
+    session.set_player_game_master_like_cpp(false);
+    session.set_player_mounted_like_cpp(false);
+    assert!(
+        session
+            .mutate_player_unit_presentation_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().set_scale(9.0);
+            })
+            .is_none()
+    );
     assert!(
         session
             .mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None)
@@ -31901,6 +31950,23 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                     flags: 9,
                 },
             )]),
+        ))
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.is_game_master_like_cpp(),
+                player.unit().unit_flags_like_cpp(),
+                player.unit().data().mount_display_id,
+                player.unit().world().object().scale(),
+            )),
+        Some((
+            true,
+            UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT | UnitFlags::IMMUNE,
+            77,
+            1.5,
         ))
     );
     assert_eq!(
@@ -59380,8 +59446,11 @@ fn player_attack_accepts_in_progress_duel_before_sanctuary_like_cpp() {
         assert_eq!(attacker_entity.unit().data().target, victim);
         assert!(victim_entity.unit().has_attacker_like_cpp(attacker));
     }
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -59796,8 +59865,8 @@ fn stop_player_attack_canonical_no_victim_ignores_stale_session_target_like_cpp(
     session.in_combat = true;
 
     assert_eq!(session.stop_player_attack_like_cpp(), None);
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 }
 
 #[test]
@@ -59902,7 +59971,7 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         0,
     ));
 
-    session.player_vehicle_seat_flags_like_cpp = Some(0);
+    assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0), None));
     session.start_player_attack_like_cpp(blocked_victim);
 
     {
@@ -59916,10 +59985,13 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         assert_eq!(player_entity.unit().attacking(), None);
         assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
     }
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    assert!(session.set_player_vehicle_seat_state_like_cpp(
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
+        None,
+    ));
     session.start_player_attack_like_cpp(allowed_victim);
 
     let guard = canonical.lock().unwrap();
@@ -59931,8 +60003,11 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         .unwrap();
     assert_eq!(player_entity.unit().attacking(), Some(allowed_victim));
     assert_eq!(player_entity.unit().data().target, allowed_victim);
-    assert_eq!(session.combat_target, Some(allowed_victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(allowed_victim))
+    );
 }
 
 #[test]
@@ -60529,8 +60604,12 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -60601,8 +60680,12 @@ fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -60672,8 +60755,12 @@ fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cp
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]

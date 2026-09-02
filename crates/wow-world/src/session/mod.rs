@@ -6041,7 +6041,8 @@ pub struct WorldSession {
     /// Test-only legacy fixture for sessions without an installed Player owner.
     #[cfg(test)]
     player_alive_like_cpp: bool,
-    /// Represented `Player::IsGameMaster()` movement/fall guard.
+    /// Handle-less fixture for C++ `Player::IsGameMaster()`.
+    #[cfg(test)]
     player_game_master_like_cpp: bool,
     /// Represented `CHEAT_GOD` movement/fall guard.
     player_cheat_god_like_cpp: bool,
@@ -6165,7 +6166,8 @@ pub struct WorldSession {
     /// Represented mount state touched by `CleanupAfterTaxiFlight`.
     #[cfg(test)]
     taxi_mounted_like_cpp: bool,
-    /// Represented `Unit::SetMountDisplayId` until UnitData owns live player fields.
+    /// Handle-less fixture for C++ `Unit::GetMountDisplayId()`.
+    #[cfg(test)]
     player_mount_display_id_like_cpp: i32,
     /// Represented vehicle id selected from mount creature template until VehicleKit exists.
     player_mount_vehicle_id_like_cpp: u32,
@@ -6278,16 +6280,19 @@ pub struct WorldSession {
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
     player_collision_height_like_cpp: f32,
-    /// Represented `Object::GetObjectScale()` for movement collision-height packets.
+    /// Handle-less fixture for C++ `Object::GetObjectScale()`.
+    #[cfg(test)]
     player_object_scale_like_cpp: f32,
     /// Represented `UnitData::ScaleDuration` for movement collision-height packets.
     player_scale_duration_like_cpp: i32,
-    /// Represented `UnitData::Flags` for player deltas not yet backed by canonical Unit.
+    /// Handle-less fixture for C++ `UnitData::Flags`.
+    #[cfg(test)]
     player_unit_flags_like_cpp: UnitFlags,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
     player_faction_template_like_cpp: Option<u32>,
-    /// Represented `UNIT_FLAG_MOUNT` state until UnitData owns live player flags.
+    /// Handle-less fixture for C++ `UNIT_FLAG_MOUNT`.
+    #[cfg(test)]
     player_mounted_like_cpp: bool,
     /// Represented `pvpInfo.IsHostile` branch for Honorless Target after taxi landing.
     #[cfg(test)]
@@ -8212,6 +8217,7 @@ impl WorldSession {
             in_combat: false,
             #[cfg(test)]
             player_alive_like_cpp: true,
+            #[cfg(test)]
             player_game_master_like_cpp: false,
             player_cheat_god_like_cpp: false,
             player_normal_damage_immune_like_cpp: false,
@@ -8274,6 +8280,7 @@ impl WorldSession {
             taxi_unit_flags_like_cpp: UnitFlags::empty(),
             #[cfg(test)]
             taxi_mounted_like_cpp: false,
+            #[cfg(test)]
             player_mount_display_id_like_cpp: 0,
             player_mount_vehicle_id_like_cpp: 0,
             #[cfg(test)]
@@ -8330,11 +8337,14 @@ impl WorldSession {
             movement_counter_like_cpp: 0,
             #[cfg(test)]
             player_collision_height_like_cpp: 1.0,
+            #[cfg(test)]
             player_object_scale_like_cpp: 1.0,
             player_scale_duration_like_cpp: 0,
+            #[cfg(test)]
             player_unit_flags_like_cpp: UnitFlags::PLAYER_CONTROLLED,
             #[cfg(test)]
             player_faction_template_like_cpp: None,
+            #[cfg(test)]
             player_mounted_like_cpp: false,
             #[cfg(test)]
             player_pvp_hostile_like_cpp: false,
@@ -9934,6 +9944,9 @@ impl WorldSession {
                 pvp_end_timer: self.player_pvp_end_timer_like_cpp,
                 contested_pvp_timer: self.player_contested_pvp_timer_like_cpp,
             };
+            player.gameplay_state_mut().vehicle_seat_flags =
+                self.player_vehicle_seat_flags_like_cpp;
+            player.gameplay_state_mut().vehicle_seat_id = self.player_vehicle_seat_id_like_cpp;
             player
                 .unit_mut()
                 .world_mut()
@@ -9945,6 +9958,7 @@ impl WorldSession {
                 player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
             }
         }
+        #[cfg(test)]
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
         #[cfg(test)]
@@ -9978,6 +9992,11 @@ impl WorldSession {
         player
             .unit_mut()
             .set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+        #[cfg(not(test))]
+        player
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::PLAYER_CONTROLLED);
+        #[cfg(test)]
         player
             .unit_mut()
             .set_unit_flags_like_cpp(self.player_unit_flags_like_cpp);
@@ -10030,6 +10049,9 @@ impl WorldSession {
             self.player_race_like_cpp(),
             self.player_gender_like_cpp(),
         );
+        #[cfg(not(test))]
+        let mount_display_id = 0;
+        #[cfg(test)]
         let mount_display_id = u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0);
         let unit = player.unit_mut();
         unit.set_display_id(display_id, true);
@@ -10038,6 +10060,9 @@ impl WorldSession {
         unit.set_collision_height_like_cpp(1.0);
         #[cfg(test)]
         unit.set_collision_height_like_cpp(self.player_collision_height_like_cpp);
+        #[cfg(not(test))]
+        unit.world_mut().object_mut().set_scale(1.0);
+        #[cfg(test)]
         unit.world_mut()
             .object_mut()
             .set_scale(self.player_object_scale_like_cpp);
@@ -11912,7 +11937,11 @@ impl WorldSession {
     ) -> PlayerAttackStartLikeCppResult {
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         let player_guid = self.player_guid();
-        let attacker_is_mounted_player = self.player_mounted_like_cpp;
+        let Some((attacker_unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp()
+        else {
+            return PlayerAttackStartLikeCppResult::Rejected;
+        };
+        let attacker_is_mounted_player = attacker_unit_flags.contains(UnitFlags::MOUNT);
         let (victim_alive, victim_in_world, mut attack_context) =
             self.canonical_unit_attack_target_state_like_cpp(victim);
         if !self.player_vehicle_seat_allows_attack_like_cpp() {
@@ -11924,7 +11953,7 @@ impl WorldSession {
             return PlayerAttackStartLikeCppResult::Rejected;
         }
         attack_context.attacker_is_mounted_player = attacker_is_mounted_player;
-        attack_context.attacker_unit_flags = self.player_unit_flags_like_cpp.bits();
+        attack_context.attacker_unit_flags = attacker_unit_flags.bits();
         attack_context.attacker_has_affecting_player = true;
         #[cfg_attr(not(test), allow(unused_mut))]
         let mut attacker_pvp_flags =
@@ -12214,7 +12243,7 @@ impl WorldSession {
             });
         }
         let bypass_player_cannot_enter_like_cpp =
-            is_dungeon && self.player_is_game_master_like_cpp();
+            is_dungeon && self.player_is_game_master_like_cpp() == Some(true);
         if is_dungeon
             && !bypass_player_cannot_enter_like_cpp
             && let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
@@ -15101,7 +15130,7 @@ impl WorldSession {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE
                         | wow_entities::GO_DYNFLAG_LO_SPARKLE
                         | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                } else if self.player_game_master_like_cpp {
+                } else if self.player_is_game_master_like_cpp() == Some(true) {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                 }
             }
@@ -15113,7 +15142,7 @@ impl WorldSession {
                     if state_for_player != wow_entities::GoState::Active {
                         dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                     }
-                } else if self.player_game_master_like_cpp {
+                } else if self.player_is_game_master_like_cpp() == Some(true) {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                 }
             }
@@ -22098,7 +22127,7 @@ impl WorldSession {
     pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
         // C++ skips chat spam checks for RBAC_PERM_SKIP_CHECK_CHAT_SPAM. RustyCore
         // has no RBAC store yet; represented GM state is the current session seam.
-        if self.player_is_game_master_like_cpp() {
+        if self.player_is_game_master_like_cpp() == Some(true) {
             return;
         }
 
@@ -22134,8 +22163,89 @@ impl WorldSession {
         data.time = current.saturating_add(i64::from(delay_secs));
     }
 
-    pub(crate) fn player_is_game_master_like_cpp(&self) -> bool {
-        self.player_game_master_like_cpp
+    pub(crate) fn player_is_game_master_like_cpp(&self) -> Option<bool> {
+        let canonical = self.with_owned_player_like_cpp(Player::is_game_master_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_game_master_like_cpp);
+        }
+        canonical
+    }
+
+    fn player_unit_presentation_snapshot_like_cpp(&self) -> Option<(UnitFlags, i32, f32)> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            (
+                player.unit().unit_flags_like_cpp(),
+                player.unit().data().mount_display_id,
+                player.unit().world().object().scale(),
+            )
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some((
+                self.player_unit_flags_like_cpp,
+                self.player_mount_display_id_like_cpp,
+                self.player_object_scale_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    fn mutate_player_unit_presentation_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut Player) -> R,
+    ) -> Option<R> {
+        self.with_owned_player_mut_like_cpp(mutate)
+    }
+
+    fn set_player_mount_presentation_like_cpp(&mut self, display_id: i32, mounted: bool) -> bool {
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut canonical = self
+            .mutate_player_unit_presentation_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_mount_display_id(u32::try_from(display_id).unwrap_or(0));
+                let mut flags = player.unit().unit_flags_like_cpp();
+                if mounted {
+                    flags.insert(UnitFlags::MOUNT);
+                } else {
+                    flags.remove(UnitFlags::MOUNT);
+                }
+                player.unit_mut().set_unit_flags_like_cpp(flags);
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical
+            && self.player_handle_like_cpp.is_none()
+            && let Some(guid) = self.player_guid()
+        {
+            canonical = self
+                .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                    player
+                        .unit_mut()
+                        .set_mount_display_id(u32::try_from(display_id).unwrap_or(0));
+                    let mut flags = player.unit().unit_flags_like_cpp();
+                    if mounted {
+                        flags.insert(UnitFlags::MOUNT);
+                    } else {
+                        flags.remove(UnitFlags::MOUNT);
+                    }
+                    player.unit_mut().set_unit_flags_like_cpp(flags);
+                })
+                .is_some();
+        }
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_mount_display_id_like_cpp = display_id;
+            self.player_mounted_like_cpp = mounted;
+            if mounted {
+                self.player_unit_flags_like_cpp.insert(UnitFlags::MOUNT);
+            } else {
+                self.player_unit_flags_like_cpp.remove(UnitFlags::MOUNT);
+            }
+            return true;
+        }
+        canonical
     }
 
     pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
@@ -30662,7 +30772,7 @@ impl WorldSession {
     /// already say they are resting.
     fn apply_represented_ffa_pvp_login_state_like_cpp(&mut self) -> bool {
         if !self.is_ffa_pvp_realm_like_cpp
-            || self.player_is_game_master_like_cpp()
+            || self.player_is_game_master_like_cpp() != Some(false)
             || self.resolved_visible_resting_like_cpp() != Some(false)
         {
             return false;
@@ -36318,11 +36428,11 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
+        if !self.set_player_mount_presentation_like_cpp(display_id, true) {
+            return Err("Missing Player presentation owner");
+        }
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.visible_auras.insert(slot, aura);
-        self.player_mount_display_id_like_cpp = display_id;
-        self.player_mounted_like_cpp = true;
-        self.player_unit_flags_like_cpp.insert(UnitFlags::MOUNT);
         if self.create_player_mount_vehicle_kit_like_cpp(vehicle_id, creature_entry) {
             self.mount_vehicle_create_requests_like_cpp = self
                 .mount_vehicle_create_requests_like_cpp
@@ -36771,6 +36881,11 @@ impl WorldSession {
     }
 
     fn update_player_collision_height_like_cpp(&mut self) {
+        let Some((_, mount_display_id, object_scale)) =
+            self.player_unit_presentation_snapshot_like_cpp()
+        else {
+            return;
+        };
         let computed_height = if let (Some(display_store), Some(model_store)) = (
             self.creature_display_info_store.as_ref(),
             self.creature_model_data_store.as_ref(),
@@ -36779,11 +36894,9 @@ impl WorldSession {
                 self.player_race_like_cpp(),
                 self.player_gender_like_cpp(),
             );
-            let mount_display_id = u32::try_from(self.player_mount_display_id_like_cpp)
-                .ok()
-                .filter(|id| *id != 0);
+            let mount_display_id = u32::try_from(mount_display_id).ok().filter(|id| *id != 0);
             wow_data::unit_collision_height_like_cpp(
-                self.player_object_scale_like_cpp,
+                object_scale,
                 native_display_id,
                 mount_display_id,
                 display_store,
@@ -36793,7 +36906,7 @@ impl WorldSession {
             None
         };
 
-        let mount_display_id = u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0);
+        let mount_display_id = u32::try_from(mount_display_id).unwrap_or(0);
         let _canonical_height = self.with_owned_player_mut_like_cpp(|player| {
             let unit = player.unit_mut();
             unit.set_mount_display_id(mount_display_id);
@@ -36812,6 +36925,11 @@ impl WorldSession {
 
     fn send_movement_set_collision_height_like_cpp(&mut self, reason: u8) {
         let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let Some((_, mount_display_id, object_scale)) =
+            self.player_unit_presentation_snapshot_like_cpp()
+        else {
             return;
         };
         let Some(collision_height) = self
@@ -36838,9 +36956,9 @@ impl WorldSession {
             mover_guid: player_guid,
             sequence_index,
             height: collision_height,
-            scale: self.player_object_scale_like_cpp,
+            scale: object_scale,
             reason,
-            mount_display_id: u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0),
+            mount_display_id: u32::try_from(mount_display_id).unwrap_or(0),
             scale_duration: self.player_scale_duration_like_cpp,
         });
 
@@ -36852,7 +36970,7 @@ impl WorldSession {
             wow_packet::packets::movement::MoveUpdateCollisionHeight {
                 status,
                 height: collision_height,
-                scale: self.player_object_scale_like_cpp,
+                scale: object_scale,
             }
             .to_bytes(),
             false,
@@ -36881,12 +36999,15 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
+        let Some((unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp() else {
+            return;
+        };
 
         use wow_packet::packets::update::{UnitDataValuesDeltaUpdate, UpdateObject};
         let mut data = UnitDataValuesDeltaUpdate::default();
         data.unit_data_mask[1] |= 1 << (41 - 32);
         data.unit_data_mask[1] |= 1 << (51 - 32);
-        data.flags = self.player_unit_flags_like_cpp.bits();
+        data.flags = unit_flags.bits();
         data.mount_display_id = display_id;
 
         self.send_packet(&UpdateObject::unit_values_update(
@@ -36898,9 +37019,22 @@ impl WorldSession {
 
     /// Remove an aura by slot and send SMSG_AURA_UPDATE.
     pub fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
+        let mounted_aura = self.visible_auras.get(&slot).is_some_and(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+        });
+        let was_mounted = if mounted_aura {
+            self.resolved_player_mounted_like_cpp()
+                .ok_or("Missing Player presentation owner")?
+        } else {
+            false
+        };
         let Some(aura) = self.visible_auras.remove(&slot) else {
             return Err("Aura slot not found");
         };
+        if mounted_aura && !self.set_player_mount_presentation_like_cpp(0, false) {
+            self.visible_auras.insert(slot, aura);
+            return Err("Missing Player presentation owner");
+        }
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.sync_canonical_threat_relevant_aura_like_cpp(
             aura.spell_id,
@@ -36912,10 +37046,8 @@ impl WorldSession {
         );
 
         if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) {
-            let was_mounted = self.player_mounted_like_cpp;
             let vehicle_id = self.player_mount_vehicle_id_like_cpp;
             let mount_capability_id = aura.represented_amount;
-            self.player_mount_display_id_like_cpp = 0;
             self.player_mount_vehicle_id_like_cpp = 0;
             let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| {
                 if let Some(vehicle_kit) = kit.as_mut() {
@@ -36926,8 +37058,6 @@ impl WorldSession {
             self.player_mount_vehicle_accessories_like_cpp.clear();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
-            self.player_mounted_like_cpp = false;
-            self.player_unit_flags_like_cpp.remove(UnitFlags::MOUNT);
             if was_mounted {
                 if vehicle_id != 0 {
                     self.mount_vehicle_remove_requests_like_cpp = self
@@ -37693,7 +37823,7 @@ impl WorldSession {
         if self.player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
             && self.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
             && u32::from(self.player_map_id_like_cpp()) != new_map
-            && !self.player_is_game_master_like_cpp()
+            && self.player_is_game_master_like_cpp() != Some(true)
             && !self
                 .known_spells_like_cpp()
                 .contains(&DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP)
@@ -38206,7 +38336,7 @@ impl WorldSession {
             return Some((TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, 0, 0));
         }
 
-        if self.player_is_game_master_like_cpp() {
+        if self.player_is_game_master_like_cpp() == Some(true) {
             return None;
         }
 
@@ -45799,18 +45929,41 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_player_game_master_like_cpp(&mut self, is_game_master: bool) {
-        self.player_game_master_like_cpp = is_game_master;
+        let mut canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_game_master_like_cpp(is_game_master)
+            })
+            .is_some();
+        if !canonical
+            && self.player_handle_like_cpp.is_none()
+            && let Some(guid) = self.player_guid()
+        {
+            canonical = self
+                .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                    player.set_game_master_like_cpp(is_game_master)
+                })
+                .is_some();
+        }
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_game_master_like_cpp = is_game_master;
+        }
     }
 
     #[cfg(test)]
     pub(crate) fn set_player_mounted_like_cpp(&mut self, mounted: bool) {
-        self.player_mounted_like_cpp = mounted;
-        self.player_mount_display_id_like_cpp = if mounted { 1 } else { 0 };
+        let display_id = if mounted { 1 } else { 0 };
+        let _ = self.set_player_mount_presentation_like_cpp(display_id, mounted);
+    }
+
+    fn resolved_player_mounted_like_cpp(&self) -> Option<bool> {
+        self.player_unit_presentation_snapshot_like_cpp()
+            .map(|(flags, _, _)| flags.contains(UnitFlags::MOUNT))
     }
 
     #[cfg(test)]
     pub(crate) fn player_mounted_like_cpp(&self) -> bool {
-        self.player_mounted_like_cpp
+        self.resolved_player_mounted_like_cpp()
+            .expect("test Player presentation owner must resolve")
     }
 
     #[cfg(test)]
@@ -46055,7 +46208,7 @@ impl WorldSession {
         let (_, max_health, player_is_alive) = self.resolved_player_vitals_like_cpp()?;
         if z_diff < 14.57
             || !player_is_alive
-            || self.player_game_master_like_cpp
+            || self.player_is_game_master_like_cpp() == Some(true)
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Hover)
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::FeatherFall)
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
@@ -47594,7 +47747,10 @@ impl WorldSession {
         });
 
         if result {
-            let spell_id = if self.player_mounted_like_cpp {
+            let Some(mounted) = self.resolved_player_mounted_like_cpp() else {
+                return;
+            };
+            let spell_id = if mounted {
                 SPELL_MOUNTED_DUEL_LIKE_CPP
             } else {
                 SPELL_DUEL_LIKE_CPP
@@ -48070,7 +48226,7 @@ impl WorldSession {
         self.player_vehicle_seat_state_like_cpp()
             .and_then(|(flags, _)| flags)
             .is_some()
-            || self.player_mounted_like_cpp
+            || self.resolved_player_mounted_like_cpp() == Some(true)
             || gameobject_usable_mounted
     }
 
@@ -48422,7 +48578,11 @@ impl WorldSession {
             return false;
         }
 
-        if self.player_unit_flags_like_cpp.contains(UnitFlags::IMMUNE) {
+        let Some((player_unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp()
+        else {
+            return false;
+        };
+        if player_unit_flags.contains(UnitFlags::IMMUNE) {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
@@ -50074,7 +50234,11 @@ impl WorldSession {
         gameobject_usable_mounted: bool,
         no_damage_immune: bool,
     ) -> bool {
-        if no_damage_immune && self.player_unit_flags_like_cpp.contains(UnitFlags::IMMUNE) {
+        let Some((player_unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp()
+        else {
+            return false;
+        };
+        if no_damage_immune && player_unit_flags.contains(UnitFlags::IMMUNE) {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::UseRejectedNoDamageImmune {
                     gameobject_guid,
@@ -50129,15 +50293,18 @@ impl WorldSession {
             let _ = self.remove_aura(slot);
         }
 
-        if self.player_mounted_like_cpp {
-            self.player_mounted_like_cpp = false;
-            self.player_mount_display_id_like_cpp = 0;
+        let Some(mounted) = self.resolved_player_mounted_like_cpp() else {
+            return;
+        };
+        if mounted {
+            if !self.set_player_mount_presentation_like_cpp(0, false) {
+                return;
+            }
             self.player_mount_vehicle_id_like_cpp = 0;
             let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
             self.player_mount_vehicle_accessories_like_cpp.clear();
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
-            self.player_unit_flags_like_cpp.remove(UnitFlags::MOUNT);
         }
     }
 
@@ -54021,7 +54188,7 @@ impl WorldSession {
                 has_mounted_flight_speed_aura: self.has_represented_aura_effect_like_cpp(
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
                 ),
-                is_player_security: !self.player_game_master_like_cpp,
+                is_player_security: self.player_is_game_master_like_cpp() != Some(true),
             },
         )
     }
@@ -55158,8 +55325,9 @@ impl WorldSession {
             .sum()
     }
 
-    fn represented_run_speed_rate_like_cpp(&self) -> f32 {
-        let (main_mod_effect, stack_effect, not_stack_effect) = if self.player_mounted_like_cpp {
+    fn represented_run_speed_rate_like_cpp(&self) -> Option<f32> {
+        let mounted = self.resolved_player_mounted_like_cpp()?;
+        let (main_mod_effect, stack_effect, not_stack_effect) = if mounted {
             (
                 RepresentedAuraEffectLikeCpp::MountedSpeed,
                 RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
@@ -55181,7 +55349,12 @@ impl WorldSession {
                 / 100.0;
 
         let speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
-        self.apply_represented_forward_speed_adjustments_like_cpp(UnitMoveTypeLikeCpp::Run, speed)
+        Some(
+            self.apply_represented_forward_speed_adjustments_like_cpp(
+                UnitMoveTypeLikeCpp::Run,
+                speed,
+            ),
+        )
     }
 
     fn apply_represented_forward_speed_adjustments_like_cpp(
@@ -55221,8 +55394,9 @@ impl WorldSession {
         speed
     }
 
-    fn represented_flight_speed_rate_like_cpp(&self) -> f32 {
-        let (flight_mod, flight_always) = if self.player_mounted_like_cpp {
+    fn represented_flight_speed_rate_like_cpp(&self) -> Option<f32> {
+        let mounted = self.resolved_player_mounted_like_cpp()?;
+        let (flight_mod, flight_always) = if mounted {
             (
                 self.max_represented_aura_amount_like_cpp(
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
@@ -55250,10 +55424,10 @@ impl WorldSession {
                 / 100.0;
 
         let speed = flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0);
-        self.apply_represented_forward_speed_adjustments_like_cpp(
+        Some(self.apply_represented_forward_speed_adjustments_like_cpp(
             UnitMoveTypeLikeCpp::Flight,
             speed,
-        )
+        ))
     }
 
     fn represented_swim_speed_rate_like_cpp(&self) -> f32 {
@@ -55284,17 +55458,17 @@ impl WorldSession {
     }
 
     fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
-        self.set_player_movement_speed_rate_and_notify_like_cpp(
-            UnitMoveTypeLikeCpp::Run,
-            self.represented_run_speed_rate_like_cpp(),
-        );
+        let Some(speed) = self.represented_run_speed_rate_like_cpp() else {
+            return;
+        };
+        self.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, speed);
     }
 
     fn recompute_represented_flight_speed_rate_like_cpp(&mut self) {
-        self.set_player_movement_speed_rate_and_notify_like_cpp(
-            UnitMoveTypeLikeCpp::Flight,
-            self.represented_flight_speed_rate_like_cpp(),
-        );
+        let Some(speed) = self.represented_flight_speed_rate_like_cpp() else {
+            return;
+        };
+        self.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Flight, speed);
     }
 
     fn recompute_represented_swim_speed_rate_like_cpp(&mut self) {
