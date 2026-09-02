@@ -2940,8 +2940,10 @@
           "name": "represented_auto_unequip_offhand_requests_like_cpp",
           "type": "Vec < RepresentedAutoUnequipOffhandLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_avg_equipped_item_level_updates_like_cpp",
@@ -2965,8 +2967,10 @@
           "name": "represented_bank_item_moves_like_cpp",
           "type": "Vec < RepresentedBankItemMoveLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_active_level_criteria_like_cpp",
@@ -3659,36 +3663,46 @@
           "name": "represented_guild_accept_invites_like_cpp",
           "type": "Vec < u64 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_bank_inventory_moves_like_cpp",
           "type": "Vec < RepresentedGuildBankInventoryMoveLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_bank_list_requests_like_cpp",
           "type": "Vec < RepresentedGuildBankListRequestLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_bank_money_moves_like_cpp",
           "type": "Vec < RepresentedGuildBankMoneyMoveLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_bank_tab_actions_like_cpp",
           "type": "Vec < RepresentedGuildBankTabActionLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_id_authority_complete_like_cpp",
@@ -3728,8 +3742,10 @@
           "name": "represented_guild_repair_bank_withdraws_like_cpp",
           "type": "Vec < RepresentedGuildRepairBankWithdrawLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_has_delayed_teleport_like_cpp",
@@ -25532,7 +25548,9 @@
           "name": "guild_bank_buy_tab_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn guild_bank_buy_tab_like_cpp (& mut self , banker : ObjectGuid , tab : u8) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -25545,7 +25563,9 @@
           "name": "guild_bank_inventory_move_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn guild_bank_inventory_move_like_cpp (& mut self , banker : ObjectGuid , to_char : bool , bank_tab : u8 , bank_slot : u8 , player_bag : u8 , player_slot : u8 , stack_count : u32 ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -25571,7 +25591,9 @@
           "name": "guild_bank_money_move_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn guild_bank_money_move_like_cpp (& mut self , banker : ObjectGuid , deposit : bool , money : u64 ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -25597,7 +25619,9 @@
           "name": "guild_bank_tab_action_without_banker_like_cpp",
           "visibility": "private",
           "signature": "fn guild_bank_tab_action_without_banker_like_cpp (& mut self , tab : i32 , action : RepresentedGuildBankTabActionKindLikeCpp ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": []
         },
@@ -25621,7 +25645,9 @@
           "name": "guild_bank_update_tab_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn guild_bank_update_tab_like_cpp (& mut self , banker : ObjectGuid , tab : u8 , name : String , icon : String ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32055,7 +32081,9 @@
           "name": "record_guild_bank_list_request_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_guild_bank_list_request_like_cpp (& mut self , banker : ObjectGuid , tab : u8 , full_update : bool ,) -> bool",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32345,7 +32373,9 @@
           "name": "record_represented_auto_unequip_offhand_request_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_auto_unequip_offhand_request_like_cpp (& mut self , request : RepresentedAutoUnequipOffhandLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -32371,7 +32401,9 @@
           "name": "record_represented_bank_item_move_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_bank_item_move_like_cpp (& mut self , move_like_cpp : RepresentedBankItemMoveLikeCpp ,)",
-          "cfg": [],
+          "cfg": [
+            "cfg_attr (not (test) , allow (unused_variables))"
+          ],
           "source_class": "production",
           "guards": [
             "visible"
@@ -34243,8 +34275,10 @@
           "name": "represented_auto_unequip_offhand_requests_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_auto_unequip_offhand_requests_like_cpp (& self ,) -> & [RepresentedAutoUnequipOffhandLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34378,8 +34412,10 @@
           "name": "represented_bank_item_moves_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_bank_item_moves_like_cpp (& self) -> & [RepresentedBankItemMoveLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -76328,7 +76364,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3095d1f7a56669c824b84a4b24bb17d3:len=94862|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:2796f9747a5a5720c6ff3eeb50e0170b:len=94982|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

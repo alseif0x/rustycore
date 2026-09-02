@@ -2648,6 +2648,7 @@ pub(crate) struct RepresentedGuildRepairBankStateLikeCpp {
     pub withdraw_repair_money_allowed: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedGuildRepairBankWithdrawLikeCpp {
     pub amount: u64,
@@ -2663,6 +2664,7 @@ pub(crate) struct RepresentedBankItemMoveLikeCpp {
     pub slot: u8,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedGuildBankInventoryMoveLikeCpp {
     pub banker: ObjectGuid,
@@ -2675,6 +2677,7 @@ pub(crate) struct RepresentedGuildBankInventoryMoveLikeCpp {
     pub stack_count: u32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedGuildBankListRequestLikeCpp {
     pub banker: ObjectGuid,
@@ -2683,6 +2686,7 @@ pub(crate) struct RepresentedGuildBankListRequestLikeCpp {
     pub full_update: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedGuildBankMoneyMoveLikeCpp {
     pub banker: ObjectGuid,
@@ -2691,6 +2695,7 @@ pub(crate) struct RepresentedGuildBankMoneyMoveLikeCpp {
     pub money: u64,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RepresentedGuildBankTabActionLikeCpp {
     pub banker: Option<ObjectGuid>,
@@ -5797,10 +5802,15 @@ pub struct WorldSession {
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
+    #[cfg(test)]
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
+    #[cfg(test)]
     represented_guild_bank_inventory_moves_like_cpp: Vec<RepresentedGuildBankInventoryMoveLikeCpp>,
+    #[cfg(test)]
     represented_guild_bank_list_requests_like_cpp: Vec<RepresentedGuildBankListRequestLikeCpp>,
+    #[cfg(test)]
     represented_guild_bank_money_moves_like_cpp: Vec<RepresentedGuildBankMoneyMoveLikeCpp>,
+    #[cfg(test)]
     represented_guild_bank_tab_actions_like_cpp: Vec<RepresentedGuildBankTabActionLikeCpp>,
     #[cfg(test)]
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
@@ -5810,6 +5820,7 @@ pub struct WorldSession {
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
     #[cfg(test)]
     represented_auction_sell_items_like_cpp: Vec<RepresentedAuctionSellItemLikeCpp>,
+    #[cfg(test)]
     represented_auto_unequip_offhand_requests_like_cpp: Vec<RepresentedAutoUnequipOffhandLikeCpp>,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -5883,6 +5894,7 @@ pub struct WorldSession {
     represented_guild_id_authority_complete_like_cpp: bool,
     #[cfg(test)]
     represented_guild_id_invited_like_cpp: u64,
+    #[cfg(test)]
     represented_guild_accept_invites_like_cpp: Vec<u64>,
     #[cfg(test)]
     represented_calendar_community_invites_like_cpp: Vec<RepresentedCalendarCommunityInviteLikeCpp>,
@@ -5929,6 +5941,7 @@ pub struct WorldSession {
     represented_duel_accepts_like_cpp: Vec<RepresentedDuelAcceptedLikeCpp>,
     represented_duel_cancels_like_cpp: Vec<RepresentedDuelCancelledLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
+    #[cfg(test)]
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
 
@@ -8046,10 +8059,15 @@ impl WorldSession {
             represented_player_base_mana_like_cpp: 0,
             #[cfg(test)]
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
+            #[cfg(test)]
             represented_bank_item_moves_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_guild_bank_inventory_moves_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_guild_bank_list_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_guild_bank_money_moves_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_guild_bank_tab_actions_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_auction_replicate_requests_like_cpp: Vec::new(),
@@ -8059,6 +8077,7 @@ impl WorldSession {
             represented_auction_remove_items_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_auction_sell_items_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_auto_unequip_offhand_requests_like_cpp: Vec::new(),
             #[cfg(test)]
             player_xp: 0,
@@ -8113,6 +8132,7 @@ impl WorldSession {
             represented_guild_id_authority_complete_like_cpp: false,
             #[cfg(test)]
             represented_guild_id_invited_like_cpp: 0,
+            #[cfg(test)]
             represented_guild_accept_invites_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_calendar_community_invites_like_cpp: Vec::new(),
@@ -8159,6 +8179,7 @@ impl WorldSession {
             represented_duel_accepts_like_cpp: Vec::new(),
             represented_duel_cancels_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
+            #[cfg(test)]
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             #[cfg(test)]
             player_currencies: HashMap::new(),
@@ -23059,7 +23080,9 @@ impl WorldSession {
                 .await;
         }
 
+        #[cfg(test)]
         let withdraw_amount = total_cost.min(MAX_MONEY_AMOUNT);
+        #[cfg(test)]
         self.represented_guild_repair_bank_withdraws_like_cpp.push(
             RepresentedGuildRepairBankWithdrawLikeCpp {
                 amount: withdraw_amount,
@@ -40659,28 +40682,34 @@ impl WorldSession {
             .is_some()
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_bank_item_move_like_cpp(
         &mut self,
         move_like_cpp: RepresentedBankItemMoveLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_bank_item_moves_like_cpp
             .push(move_like_cpp);
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
         &self.represented_bank_item_moves_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_auto_unequip_offhand_requests_like_cpp(
         &self,
     ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
         &self.represented_auto_unequip_offhand_requests_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auto_unequip_offhand_request_like_cpp(
         &mut self,
         request: RepresentedAutoUnequipOffhandLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_auto_unequip_offhand_requests_like_cpp
             .push(request);
     }
@@ -40707,6 +40736,7 @@ impl WorldSession {
             .map(|_| ())
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_guild_bank_list_request_like_cpp(
         &mut self,
         banker: ObjectGuid,
@@ -40716,6 +40746,7 @@ impl WorldSession {
         let Some(guild_id) = self.represented_guild_bank_can_interact_like_cpp(banker) else {
             return false;
         };
+        #[cfg(test)]
         self.represented_guild_bank_list_requests_like_cpp.push(
             RepresentedGuildBankListRequestLikeCpp {
                 banker,
@@ -40727,6 +40758,7 @@ impl WorldSession {
         true
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn guild_bank_inventory_move_like_cpp(
         &mut self,
         banker: ObjectGuid,
@@ -40748,6 +40780,7 @@ impl WorldSession {
             return false;
         }
 
+        #[cfg(test)]
         self.represented_guild_bank_inventory_moves_like_cpp.push(
             RepresentedGuildBankInventoryMoveLikeCpp {
                 banker,
@@ -40763,6 +40796,7 @@ impl WorldSession {
         true
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn guild_bank_money_move_like_cpp(
         &mut self,
         banker: ObjectGuid,
@@ -40785,6 +40819,7 @@ impl WorldSession {
             return false;
         }
 
+        #[cfg(test)]
         self.represented_guild_bank_money_moves_like_cpp.push(
             RepresentedGuildBankMoneyMoveLikeCpp {
                 banker,
@@ -40796,6 +40831,7 @@ impl WorldSession {
         true
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn guild_bank_buy_tab_like_cpp(&mut self, banker: ObjectGuid, tab: u8) -> bool {
         if !banker.is_empty()
             && self
@@ -40812,6 +40848,7 @@ impl WorldSession {
             return false;
         }
 
+        #[cfg(test)]
         self.represented_guild_bank_tab_actions_like_cpp.push(
             RepresentedGuildBankTabActionLikeCpp {
                 banker: (!banker.is_empty()).then_some(banker),
@@ -40823,6 +40860,7 @@ impl WorldSession {
         true
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn guild_bank_update_tab_like_cpp(
         &mut self,
         banker: ObjectGuid,
@@ -40838,6 +40876,7 @@ impl WorldSession {
             return false;
         };
 
+        #[cfg(test)]
         self.represented_guild_bank_tab_actions_like_cpp.push(
             RepresentedGuildBankTabActionLikeCpp {
                 banker: Some(banker),
@@ -40870,6 +40909,7 @@ impl WorldSession {
         )
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     fn guild_bank_tab_action_without_banker_like_cpp(
         &mut self,
         tab: i32,
@@ -40882,6 +40922,7 @@ impl WorldSession {
             return false;
         }
 
+        #[cfg(test)]
         self.represented_guild_bank_tab_actions_like_cpp.push(
             RepresentedGuildBankTabActionLikeCpp {
                 banker: None,
@@ -43093,6 +43134,8 @@ impl WorldSession {
         let Some(reason) = self.represented_auto_unequip_offhand_reason_like_cpp(force) else {
             return false;
         };
+        #[cfg(not(test))]
+        let _ = reason;
 
         self.remove_inventory_item_duration_refs_like_cpp(offhand_item.guid);
         self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
@@ -43106,6 +43149,7 @@ impl WorldSession {
             self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
         self.record_inventory_item_combat_stat_recalculations_like_cpp(EQUIPMENT_SLOT_OFFHAND);
 
+        #[cfg(test)]
         let mut stored_destination = None;
         let mut needs_mail_fallback = true;
         if let Some((InventoryResult::Ok, destinations, _)) =
@@ -43135,7 +43179,10 @@ impl WorldSession {
                 if item_mods_changed {
                     self.send_represented_item_bonus_player_stat_update_like_cpp();
                 }
-                stored_destination = Some((bag, slot));
+                #[cfg(test)]
+                {
+                    stored_destination = Some((bag, slot));
+                }
                 needs_mail_fallback = false;
             }
         }
@@ -43157,6 +43204,7 @@ impl WorldSession {
         self.record_represented_titan_grip_penalty_action_like_cpp();
         self.record_represented_avg_equipped_item_level_update_like_cpp();
 
+        #[cfg(test)]
         self.represented_auto_unequip_offhand_requests_like_cpp
             .push(RepresentedAutoUnequipOffhandLikeCpp {
                 item_guid: offhand_item.guid,
@@ -49779,7 +49827,10 @@ impl WorldSession {
         let Some(guild_id) = state.invited_guild_id else {
             return false;
         };
+        #[cfg(not(test))]
+        let _ = guild_id;
 
+        #[cfg(test)]
         self.represented_guild_accept_invites_like_cpp
             .push(guild_id);
         true
