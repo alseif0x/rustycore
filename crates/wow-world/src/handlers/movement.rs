@@ -156,14 +156,13 @@ impl WorldSession {
             );
             return;
         };
-        let mover_guid = self.player_moved_unit_guid_like_cpp();
-        if mover_guid.is_empty() {
+        let Some(mover_guid) = self.player_moved_unit_guid_like_cpp() else {
             warn!(
                 account = self.account_id,
                 "Movement packet received without active mover"
             );
             return;
-        }
+        };
         let mover_is_player = mover_guid == player_guid;
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
@@ -603,8 +602,14 @@ impl WorldSession {
             "RUST_LOGIN_TRACE SetActiveMover"
         );
 
-        let expected_mover = self.player_moved_unit_guid_like_cpp();
-        if !expected_mover.is_empty() && pkt.active_mover != expected_mover {
+        let Some(expected_mover) = self.player_moved_unit_guid_like_cpp() else {
+            warn!(
+                account = self.account_id,
+                "SetActiveMover received without canonical active mover"
+            );
+            return;
+        };
+        if pkt.active_mover != expected_mover {
             warn!(
                 account = self.account_id,
                 "SetActiveMover GUID mismatch: expected {:?}, got {:?}",
@@ -2529,7 +2534,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn logout_save_snapshot_prefers_latest_session_position_like_cpp() {
+    async fn logout_save_snapshot_uses_canonical_position_not_stale_session_mirror_like_cpp() {
         let mut session = make_session();
         let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let guid = ObjectGuid::create_player(1, 1043);
@@ -2573,10 +2578,10 @@ mod tests {
             .sync_session_from_save_to_db_snapshot_like_cpp()
             .expect("save snapshot");
 
-        assert_eq!(snapshot.position, latest_session_position);
+        assert_eq!(snapshot.position, stale_canonical_position);
         assert_eq!(
             session.player_position_like_cpp(),
-            Some(latest_session_position)
+            Some(stale_canonical_position)
         );
     }
 

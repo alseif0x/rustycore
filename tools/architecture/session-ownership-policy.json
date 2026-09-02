@@ -92,22 +92,28 @@
           "name": "active_player_local_flags_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "active_player_multi_action_bars_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "active_player_transport_server_time_like_cpp",
           "type": "i32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "active_spell_cast",
@@ -2218,8 +2224,10 @@
           "name": "player_moved_unit_guid_like_cpp",
           "type": "ObjectGuid",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_movement_flags_like_cpp",
@@ -2293,8 +2301,10 @@
           "name": "player_out_of_bounds_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_position",
@@ -18717,6 +18727,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "active_player_update_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn active_player_update_state_like_cpp (& self) -> Option < (u32 , i32 , u8) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "active_world_creature_guids_for_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn active_world_creature_guids_for_update_like_cpp (& self) -> Vec < ObjectGuid >",
@@ -20876,7 +20897,7 @@
           "kind": "method",
           "name": "apply_target_visibility_context_for_current_player_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_target_visibility_context_for_current_player_like_cpp (& self , target_unit : & mut wow_entities :: Unit , seer_unit : & mut wow_entities :: Unit ,)",
+          "signature": "fn apply_target_visibility_context_for_current_player_like_cpp (& self , target_unit : & mut wow_entities :: Unit , seer_unit : & mut wow_entities :: Unit , moved_unit_guid : Option < ObjectGuid > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -28537,6 +28558,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_active_player_update_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_active_player_update_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerGameplayState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_and_persist_player_gold_exclusive_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn mutate_and_persist_player_gold_exclusive_like_cpp < F > (& mut self , mutation : F ,) -> Option < (u64 , u64) > where F : FnOnce (u64) -> u64 ,",
@@ -30200,7 +30232,7 @@
           "kind": "method",
           "name": "player_moved_unit_guid_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_moved_unit_guid_like_cpp (& self) -> ObjectGuid",
+          "signature": "fn player_moved_unit_guid_like_cpp (& self) -> Option < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41024,6 +41056,22 @@
           "name": "set_active_player_local_flags_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_active_player_local_flags_like_cpp (& mut self , flags : u32)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_active_player_transport_server_time_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_active_player_transport_server_time_like_cpp (& mut self , value : i32)",
           "cfg": [
             "cfg (test)"
           ],
@@ -75308,7 +75356,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:609d1e602ee43c4fe21b42dd51521cfc:len=93715|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c27d3e3a878a403bfac49c02c8b31f9e:len=93790|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

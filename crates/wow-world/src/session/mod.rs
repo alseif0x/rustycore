@@ -6077,6 +6077,7 @@ pub struct WorldSession {
     #[cfg(test)]
     fall_damage_events_like_cpp: Vec<MovementFallDamageEvent>,
     /// C++ `PLAYER_FLAGS_IS_OUT_OF_BOUNDS` represented state.
+    #[cfg(test)]
     player_out_of_bounds_like_cpp: bool,
     /// Recorded `DAMAGE_FALL_TO_VOID` events until environmental damage packets are complete.
     under_map_damage_events_like_cpp: Vec<MovementUnderMapDamageEvent>,
@@ -6098,10 +6099,13 @@ pub struct WorldSession {
     /// Count of C++ jump proc side effects requested by movement.
     movement_jump_proc_requests_like_cpp: u32,
     /// Represented `ActivePlayerData::LocalFlags`.
+    #[cfg(test)]
     active_player_local_flags_like_cpp: u32,
     /// Represented `ActivePlayerData::TransportServerTime`.
+    #[cfg(test)]
     active_player_transport_server_time_like_cpp: i32,
     /// Represented `ActivePlayerData::MultiActionBars`.
+    #[cfg(test)]
     active_player_multi_action_bars_like_cpp: u8,
     /// Test-only action-button owner for fixtures without a canonical Player.
     #[cfg(test)]
@@ -6115,6 +6119,7 @@ pub struct WorldSession {
     /// synchronously inside `WorldObject::SendCombatLogMessage`.
     advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
+    #[cfg(test)]
     player_moved_unit_guid_like_cpp: ObjectGuid,
     /// Count of visibility refreshes requested by movement initialization.
     movement_visibility_refresh_requests_like_cpp: u32,
@@ -8235,6 +8240,7 @@ impl WorldSession {
             last_fall_z_like_cpp: 0.0,
             #[cfg(test)]
             fall_damage_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             player_out_of_bounds_like_cpp: false,
             under_map_damage_events_like_cpp: Vec::new(),
             #[cfg(test)]
@@ -8245,14 +8251,18 @@ impl WorldSession {
             player_emote_state_like_cpp: 0,
             temporary_pet_unsummon_requests_like_cpp: 0,
             movement_jump_proc_requests_like_cpp: 0,
+            #[cfg(test)]
             active_player_local_flags_like_cpp: 0,
+            #[cfg(test)]
             active_player_transport_server_time_like_cpp: 0,
+            #[cfg(test)]
             active_player_multi_action_bars_like_cpp: 0,
             #[cfg(test)]
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
             #[cfg(test)]
             represented_action_buttons_loaded_like_cpp: false,
             advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
+            #[cfg(test)]
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
             #[cfg(test)]
@@ -9947,6 +9957,21 @@ impl WorldSession {
             player.gameplay_state_mut().vehicle_seat_flags =
                 self.player_vehicle_seat_flags_like_cpp;
             player.gameplay_state_mut().vehicle_seat_id = self.player_vehicle_seat_id_like_cpp;
+            player.gameplay_state_mut().active_local_flags =
+                self.active_player_local_flags_like_cpp;
+            player.gameplay_state_mut().active_transport_server_time =
+                self.active_player_transport_server_time_like_cpp;
+            player.gameplay_state_mut().multi_action_bars =
+                self.active_player_multi_action_bars_like_cpp;
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_moved_unit(Some(if self.player_moved_unit_guid_like_cpp.is_empty() {
+                    guid
+                } else {
+                    self.player_moved_unit_guid_like_cpp
+                }));
             player
                 .unit_mut()
                 .world_mut()
@@ -9958,6 +9983,12 @@ impl WorldSession {
                 player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
             }
         }
+        #[cfg(not(test))]
+        player
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_moved_unit(Some(guid));
         #[cfg(test)]
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
@@ -10073,9 +10104,11 @@ impl WorldSession {
     }
 
     fn player_can_never_see_target_like_cpp(&self) -> bool {
-        self.active_player_local_flags_like_cpp
-            & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP
-            == 0
+        self.active_player_update_state_like_cpp()
+            .map(|(flags, _, _)| {
+                flags & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP == 0
+            })
+            .unwrap_or(true)
     }
 
     fn apply_player_session_visibility_detection_like_cpp(
@@ -10727,7 +10760,8 @@ impl WorldSession {
     }
 
     fn player_war_mode_local_active_like_cpp(&self) -> bool {
-        (self.active_player_local_flags_like_cpp & PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP) != 0
+        self.active_player_update_state_like_cpp()
+            .is_some_and(|(flags, _, _)| flags & PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP != 0)
     }
 
     fn update_player_pvp_like_cpp(&mut self, state: bool, override_state: bool) {
@@ -11562,6 +11596,7 @@ impl WorldSession {
         &self,
         target_unit: &mut wow_entities::Unit,
         seer_unit: &mut wow_entities::Unit,
+        moved_unit_guid: Option<ObjectGuid>,
     ) {
         target_unit.set_object_id_visibility_conditions_met_like_cpp(
             self.object_id_visibility_conditions_met_like_cpp(
@@ -11571,8 +11606,7 @@ impl WorldSession {
         );
 
         let target_guid = target_unit.world().object().guid();
-        let moved_unit_guid = self.player_moved_unit_guid_like_cpp();
-        if !moved_unit_guid.is_empty() && moved_unit_guid == target_guid {
+        if moved_unit_guid == Some(target_guid) {
             seer_unit.set_seer_can_always_see_target_like_cpp(true);
         }
 
@@ -11597,6 +11631,9 @@ impl WorldSession {
         &self,
         guid: ObjectGuid,
     ) -> (bool, bool, wow_entities::UnitAttackContextLikeCpp) {
+        // Resolve the Player-owned control state before taking the map lock;
+        // visibility checks below run while that same manager is borrowed.
+        let moved_unit_guid = self.player_moved_unit_guid_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return (
                 true,
@@ -11631,6 +11668,7 @@ impl WorldSession {
                         self.apply_target_visibility_context_for_current_player_like_cpp(
                             &mut target_unit,
                             &mut seer_unit,
+                            moved_unit_guid,
                         );
                         seer_unit.can_see_or_detect_unit_like_cpp(&target_unit, false, true, false)
                     })
@@ -11665,6 +11703,7 @@ impl WorldSession {
                         self.apply_target_visibility_context_for_current_player_like_cpp(
                             &mut target_unit,
                             &mut seer_unit,
+                            moved_unit_guid,
                         );
                         seer_unit.can_see_or_detect_unit_like_cpp(&target_unit, false, true, false)
                     })
@@ -39488,7 +39527,6 @@ impl WorldSession {
         self.player_class = controller.class();
         self.player_level = controller.level();
         self.player_gender = controller.gender();
-        self.player_moved_unit_guid_like_cpp = controller.guid();
         self.represented_seer_guid_like_cpp = Some(controller.guid());
         #[cfg(test)]
         {
@@ -39503,6 +39541,7 @@ impl WorldSession {
         // `ensure_canonical_player_owner_for_map_like_cpp` instead.
         #[cfg(not(test))]
         let _ = self.install_detached_canonical_player_from_session_like_cpp(controller_position);
+        self.set_player_moved_unit_guid_like_cpp(controller.guid());
     }
 
     fn player_bootstrap_attached_for_test_like_cpp(&self) -> bool {
@@ -45040,23 +45079,22 @@ impl WorldSession {
     /// bounded directory view. The argument remains only for pre-owner tests;
     /// production never manufactures combat state outside `CombatSubsystem`.
     pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
-        let canonical = self.resolved_in_combat_like_cpp();
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if self.player_handle_like_cpp.is_none() {
             self.in_combat = in_combat;
+            if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) {
+                registry.publish_in_combat_for_control_channel(
+                    guid,
+                    &self.session_command_tx,
+                    in_combat,
+                );
+            }
+            return;
         }
+        let canonical = self.resolved_in_combat_like_cpp();
         #[cfg(not(test))]
         let _ = in_combat;
-        let Some(in_combat) = canonical.or_else(|| {
-            #[cfg(test)]
-            {
-                return self.player_handle_like_cpp.is_none().then_some(in_combat);
-            }
-            #[cfg(not(test))]
-            {
-                None
-            }
-        }) else {
+        let Some(in_combat) = canonical else {
             return;
         };
         if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) {
@@ -46476,7 +46514,10 @@ impl WorldSession {
     ) -> Option<MovementUnderMapDamageEvent> {
         let min_height = self.player_min_height_like_cpp(movement_info.position);
         if movement_info.position.z >= min_height {
-            self.player_out_of_bounds_like_cpp = false;
+            #[cfg(test)]
+            {
+                self.player_out_of_bounds_like_cpp = false;
+            }
             return None;
         }
 
@@ -46486,7 +46527,10 @@ impl WorldSession {
             return None;
         }
 
-        self.player_out_of_bounds_like_cpp = true;
+        #[cfg(test)]
+        {
+            self.player_out_of_bounds_like_cpp = true;
+        }
         let damage = max_health;
         let (_, health_after, _, _, killed_player) =
             self.apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)?;
@@ -48183,10 +48227,17 @@ impl WorldSession {
     }
 
     pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
-        self.active_player_local_flags_like_cpp |=
-            PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
-        self.active_player_transport_server_time_like_cpp =
-            Self::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
+        let transport_server_time = Self::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
+        if self
+            .mutate_active_player_update_state_like_cpp(|state| {
+                state.active_local_flags |=
+                    PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
+                state.active_transport_server_time = transport_server_time;
+            })
+            .is_none()
+        {
+            return;
+        }
         self.sync_current_player_session_visibility_detection_like_cpp();
         // C++ `HandleMoveInitActiveMoverComplete` calls
         // `Player::UpdateObjectVisibility(false)`, which only queues
@@ -48200,16 +48251,37 @@ impl WorldSession {
         self.send_active_player_transport_server_time_update_like_cpp();
     }
 
-    pub(crate) fn player_moved_unit_guid_like_cpp(&self) -> ObjectGuid {
-        if !self.player_moved_unit_guid_like_cpp.is_empty() {
-            self.player_moved_unit_guid_like_cpp
-        } else {
-            self.player_guid().unwrap_or(ObjectGuid::EMPTY)
+    pub(crate) fn player_moved_unit_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().control.unit_moved_by_me
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let guid = if self.player_moved_unit_guid_like_cpp.is_empty() {
+                self.player_guid()?
+            } else {
+                self.player_moved_unit_guid_like_cpp
+            };
+            return Some(guid);
         }
+        canonical.flatten()
     }
 
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
-        self.player_moved_unit_guid_like_cpp = guid;
+        #[cfg_attr(not(test), allow(unused_variables))]
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .set_moved_unit((!guid.is_empty()).then_some(guid));
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_moved_unit_guid_like_cpp = guid;
+        }
     }
 
     pub(crate) fn represented_gameobject_use_allowed_by_mover_like_cpp(
@@ -48219,7 +48291,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if self.player_moved_unit_guid_like_cpp() == player_guid {
+        if self.player_moved_unit_guid_like_cpp() == Some(player_guid) {
             return true;
         }
 
@@ -48312,8 +48384,7 @@ impl WorldSession {
         {
             return None;
         }
-        (!self.player_moved_unit_guid_like_cpp.is_empty())
-            .then_some(self.player_moved_unit_guid_like_cpp)
+        self.player_moved_unit_guid_like_cpp()
     }
 
     fn represented_vehicle_seat_spell_click_plan_available_like_cpp(
@@ -53753,6 +53824,11 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return;
         };
+        let Some((local_flags, transport_server_time, _)) =
+            self.active_player_update_state_like_cpp()
+        else {
+            return;
+        };
 
         use wow_packet::packets::update::{ActivePlayerDataValuesUpdate, UpdateObject};
 
@@ -53761,13 +53837,54 @@ impl WorldSession {
         set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 69);
         set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 70);
         set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 118);
-        data.local_flags = self.active_player_local_flags_like_cpp;
-        data.transport_server_time = self.active_player_transport_server_time_like_cpp;
+        data.local_flags = local_flags;
+        data.transport_server_time = transport_server_time;
         self.send_packet(&UpdateObject::full_active_player_values_update(
             guid,
             self.player_map_id_like_cpp(),
             data,
         ));
+    }
+
+    fn active_player_update_state_like_cpp(&self) -> Option<(u32, i32, u8)> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let state = player.gameplay_state();
+            (
+                state.active_local_flags,
+                state.active_transport_server_time,
+                state.multi_action_bars,
+            )
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some((
+                self.active_player_local_flags_like_cpp,
+                self.active_player_transport_server_time_like_cpp,
+                self.active_player_multi_action_bars_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    fn mutate_active_player_update_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut state = wow_entities::PlayerGameplayState {
+                active_local_flags: self.active_player_local_flags_like_cpp,
+                active_transport_server_time: self.active_player_transport_server_time_like_cpp,
+                multi_action_bars: self.active_player_multi_action_bars_like_cpp,
+                ..Default::default()
+            };
+            let result = mutate(&mut state);
+            self.active_player_local_flags_like_cpp = state.active_local_flags;
+            self.active_player_transport_server_time_like_cpp = state.active_transport_server_time;
+            self.active_player_multi_action_bars_like_cpp = state.multi_action_bars;
+            return Some(result);
+        }
+        self.with_owned_player_mut_like_cpp(|player| mutate(player.gameplay_state_mut()))
     }
 
     /// Send represented `ActivePlayerData::FarsightObject` VALUES update after
@@ -53796,25 +53913,39 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn active_player_local_flags_like_cpp(&self) -> u32 {
-        self.active_player_local_flags_like_cpp
+        self.active_player_update_state_like_cpp()
+            .expect("test active Player owner must resolve")
+            .0
     }
 
     #[cfg(test)]
     pub(crate) fn set_active_player_local_flags_like_cpp(&mut self, flags: u32) {
-        self.active_player_local_flags_like_cpp = flags;
+        let _ = self.mutate_active_player_update_state_like_cpp(|state| {
+            state.active_local_flags = flags;
+        });
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
 
     fn clear_active_player_transport_server_time_override_for_far_teleport_like_cpp(&mut self) {
-        self.active_player_local_flags_like_cpp &=
-            !PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
-        self.active_player_transport_server_time_like_cpp = 0;
+        let _ = self.mutate_active_player_update_state_like_cpp(|state| {
+            state.active_local_flags &= !PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
+            state.active_transport_server_time = 0;
+        });
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
 
     #[cfg(test)]
     pub(crate) fn active_player_transport_server_time_like_cpp(&self) -> i32 {
-        self.active_player_transport_server_time_like_cpp
+        self.active_player_update_state_like_cpp()
+            .expect("test active Player owner must resolve")
+            .1
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_active_player_transport_server_time_like_cpp(&mut self, value: i32) {
+        let _ = self.mutate_active_player_update_state_like_cpp(|state| {
+            state.active_transport_server_time = value;
+        });
     }
 
     pub(crate) fn represented_set_action_bar_toggles_like_cpp(&mut self, mask: u8) -> bool {
@@ -53822,18 +53953,26 @@ impl WorldSession {
             return false;
         };
 
-        self.active_player_multi_action_bars_like_cpp = mask;
+        if self
+            .mutate_active_player_update_state_like_cpp(|state| state.multi_action_bars = mask)
+            .is_none()
+        {
+            return false;
+        }
         self.send_active_player_multi_action_bars_update_like_cpp(guid);
         true
     }
 
     fn send_active_player_multi_action_bars_update_like_cpp(&self, guid: ObjectGuid) {
+        let Some((_, _, multi_action_bars)) = self.active_player_update_state_like_cpp() else {
+            return;
+        };
         use wow_packet::packets::update::{ActivePlayerDataValuesUpdate, UpdateObject};
 
         let mut data = ActivePlayerDataValuesUpdate::default();
         set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 70);
         set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 72);
-        data.multi_action_bars = self.active_player_multi_action_bars_like_cpp;
+        data.multi_action_bars = multi_action_bars;
         self.send_packet(&UpdateObject::full_active_player_values_update(
             guid,
             self.player_map_id_like_cpp(),
@@ -53843,7 +53982,9 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn active_player_multi_action_bars_like_cpp(&self) -> u8 {
-        self.active_player_multi_action_bars_like_cpp
+        self.active_player_update_state_like_cpp()
+            .expect("test active Player owner must resolve")
+            .2
     }
 
     pub(crate) fn represented_set_action_button_like_cpp(
@@ -56365,7 +56506,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if self.player_moved_unit_guid_like_cpp() != player_guid {
+        if self.player_moved_unit_guid_like_cpp() != Some(player_guid) {
             return false;
         }
 

@@ -2242,7 +2242,7 @@ impl WorldSession {
             Ok(request) if pkt.is_empty() => request,
             _ => return false,
         };
-        if self.player_moved_unit_guid_like_cpp() != request.target_guid {
+        if self.player_moved_unit_guid_like_cpp() != Some(request.target_guid) {
             return false;
         }
 

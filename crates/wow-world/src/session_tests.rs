@@ -31610,6 +31610,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_player_mounted_like_cpp(true);
     assert!(
         session
+            .mutate_active_player_update_state_like_cpp(|state| {
+                state.active_local_flags = 0x11;
+                state.active_transport_server_time = 111;
+                state.multi_action_bars = 0x1f;
+            })
+            .is_some()
+    );
+    session.set_player_moved_unit_guid_like_cpp(pet_guid);
+    assert!(
+        session
             .mutate_player_unit_presentation_like_cpp(|player| {
                 player.unit_mut().world_mut().object_mut().set_scale(1.25);
             })
@@ -31655,6 +31665,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         session.player_unit_presentation_snapshot_like_cpp(),
         Some((UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT, 1, 1.25))
     );
+    assert_eq!(
+        session.active_player_update_state_like_cpp(),
+        Some((0x11, 111, 0x1f))
+    );
+    assert_eq!(session.player_moved_unit_guid_like_cpp(), Some(pet_guid));
     assert_eq!(
         session
             .player_quest_gameplay_snapshot_like_cpp()
@@ -31716,6 +31731,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_player_mounted_like_cpp(false);
     assert!(
         session
+            .mutate_active_player_update_state_like_cpp(|state| {
+                state.active_local_flags = 0x22;
+                state.active_transport_server_time = 222;
+                state.multi_action_bars = 0x2f;
+            })
+            .is_some()
+    );
+    session.set_player_moved_unit_guid_like_cpp(player_guid);
+    assert!(
+        session
             .mutate_player_unit_presentation_like_cpp(|player| {
                 player.unit_mut().world_mut().object_mut().set_scale(1.75);
             })
@@ -31750,6 +31775,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         session.player_unit_presentation_snapshot_like_cpp(),
         Some((UnitFlags::PLAYER_CONTROLLED, 0, 1.75))
     );
+    assert_eq!(
+        session.active_player_update_state_like_cpp(),
+        Some((0x22, 222, 0x2f))
+    );
+    assert_eq!(session.player_moved_unit_guid_like_cpp(), Some(player_guid));
 
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
@@ -31801,6 +31831,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     replacement.gameplay_state_mut().pet_guid = Some(pet_guid);
     replacement.gameplay_state_mut().vehicle_seat_flags = Some(0x99);
     replacement.gameplay_state_mut().vehicle_seat_id = Some(1999);
+    replacement.gameplay_state_mut().active_local_flags = 0x99;
+    replacement
+        .gameplay_state_mut()
+        .active_transport_server_time = 999;
+    replacement.gameplay_state_mut().multi_action_bars = 0x3f;
+    replacement
+        .unit_mut()
+        .subsystems_mut()
+        .control
+        .set_moved_unit(Some(pet_guid));
     replacement.gameplay_state_mut().world_local = wow_entities::PlayerWorldLocalState {
         zone_id: 900,
         area_id: 901,
@@ -31851,6 +31891,8 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.player_has_in_pvp_flag_like_cpp(player_guid), None);
     assert_eq!(session.player_is_game_master_like_cpp(), None);
     assert_eq!(session.player_unit_presentation_snapshot_like_cpp(), None);
+    assert_eq!(session.active_player_update_state_like_cpp(), None);
+    assert_eq!(session.player_moved_unit_guid_like_cpp(), None);
     session.set_near_teleport_pending_like_cpp(
         true,
         Some((571, Position::new(1.0, 2.0, 3.0, 0.0))),
@@ -31878,6 +31920,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_player_mounted_like_cpp(false);
     assert!(
         session
+            .mutate_active_player_update_state_like_cpp(|state| {
+                state.active_local_flags = 0xdead;
+                state.active_transport_server_time = -1;
+                state.multi_action_bars = 0;
+            })
+            .is_none()
+    );
+    session.set_player_moved_unit_guid_like_cpp(ObjectGuid::EMPTY);
+    assert!(
+        session
             .mutate_player_unit_presentation_like_cpp(|player| {
                 player.unit_mut().world_mut().object_mut().set_scale(9.0);
             })
@@ -31896,6 +31948,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 state.rewarded_quest_ids.insert(0xbeef);
             })
             .is_none()
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().active_local_flags,
+                player.gameplay_state().active_transport_server_time,
+                player.gameplay_state().multi_action_bars,
+                player.unit().subsystems().control.unit_moved_by_me,
+            )),
+        Some((0x99, 999, 0x3f, Some(pet_guid)))
     );
     assert_eq!(
         canonical
@@ -44669,7 +44733,7 @@ async fn teleport_to_far_map_clears_transport_server_time_override_like_cpp() {
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 42_000;
+    session.set_active_player_transport_server_time_like_cpp(42_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportClearTransportTime".to_string(),
@@ -44723,7 +44787,7 @@ async fn teleport_to_preflight_abort_preserves_transport_server_time_override_li
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 43_000;
+    session.set_active_player_transport_server_time_like_cpp(43_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRejectKeepsTransportTime".to_string(),
@@ -44787,7 +44851,7 @@ async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 44_000;
+    session.set_active_player_transport_server_time_like_cpp(44_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportSeamless".to_string(),
@@ -44863,7 +44927,7 @@ async fn teleport_to_invalid_seamless_falls_back_to_normal_transfer_like_cpp() {
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 45_000;
+    session.set_active_player_transport_server_time_like_cpp(45_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportInvalidSeamless".to_string(),
@@ -44930,7 +44994,7 @@ async fn teleport_to_player_logout_suppresses_transfer_packets_like_cpp() {
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 46_000;
+    session.set_active_player_transport_server_time_like_cpp(46_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportLogout".to_string(),
@@ -72276,7 +72340,7 @@ fn toggle_pvp_does_not_toggle_off_with_war_mode_local_active_like_cpp() {
         .unwrap();
     session.player_in_pvp_flag_like_cpp = true;
     session.player_pvp_enabled_like_cpp = true;
-    session.active_player_local_flags_like_cpp = PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
+    session.set_active_player_local_flags_like_cpp(PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP);
 
     session.apply_toggle_pvp_like_cpp();
 

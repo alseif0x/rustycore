@@ -504,7 +504,7 @@ impl crate::session::WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if self.player_moved_unit_guid_like_cpp() != player_guid {
+        if self.player_moved_unit_guid_like_cpp() != Some(player_guid) {
             return;
         }
 
