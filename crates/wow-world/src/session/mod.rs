@@ -6706,26 +6706,33 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) represented_critter_guid_like_cpp: Option<ObjectGuid>,
     /// Evidence for represented `TempSummon::UnSummon` from `CMSG_DISMISS_CRITTER`.
+    #[cfg(test)]
     pub(crate) represented_dismissed_critter_guids_like_cpp: Vec<ObjectGuid>,
     /// C++ ObjectAccessor/TempSummon query state for `CMSG_QUERY_BATTLE_PET_NAME`.
     #[cfg(test)]
     pub(crate) represented_battle_pet_query_companions_like_cpp:
         HashMap<ObjectGuid, RepresentedBattlePetQueryCompanionLikeCpp>,
     /// Represented caged-item creations from C++ `BattlePetMgr::CageBattlePet`.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_cage_items_like_cpp: Vec<RepresentedBattlePetCageItemLikeCpp>,
     /// C++ `sBattlePetXPGameTable` projected as level -> `uint16(Wins * Xp)`.
     pub(crate) represented_battle_pet_xp_per_level_like_cpp: BTreeMap<u16, u16>,
     /// Represented `CriteriaType::BattlePetReachLevel` events from battle-pet level grants.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_level_criteria_like_cpp:
         Vec<RepresentedBattlePetLevelCriteriaLikeCpp>,
     /// Represented `CriteriaType::ActivelyEarnPetLevel` events from pet-battle XP grants.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_active_level_criteria_like_cpp:
         Vec<RepresentedBattlePetLevelCriteriaLikeCpp>,
     /// Represented `CriteriaType::UniquePetsOwned` updates from `BattlePetMgr::AddPet`.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_unique_owned_criteria_like_cpp: u32,
     /// Represented `CriteriaType::LearnedNewPet` updates from `BattlePetMgr::AddPet`.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_learned_new_pet_criteria_like_cpp: Vec<u32>,
     /// Evidence for represented `BattlePetMgr::UpdateBattlePetData` calls.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_data_updates_like_cpp: Vec<ObjectGuid>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
@@ -8512,15 +8519,22 @@ impl WorldSession {
             represented_summoned_battle_pet_guid_like_cpp: None,
             #[cfg(test)]
             represented_critter_guid_like_cpp: None,
+            #[cfg(test)]
             represented_dismissed_critter_guids_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_battle_pet_query_companions_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_battle_pet_cage_items_like_cpp: Vec::new(),
             represented_battle_pet_xp_per_level_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_battle_pet_level_criteria_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_battle_pet_active_level_criteria_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_battle_pet_unique_owned_criteria_like_cpp: 0,
+            #[cfg(test)]
             represented_battle_pet_learned_new_pet_criteria_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_battle_pet_data_updates_like_cpp: Vec::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
@@ -50350,8 +50364,11 @@ impl WorldSession {
             level: pet.level,
             display_id: pet.display_id,
         };
+        #[cfg(test)]
         self.represented_battle_pet_cage_items_like_cpp
             .push(cage_item);
+        #[cfg(not(test))]
+        let _ = cage_item;
 
         let _ = self.battle_pet_remove_pet_like_cpp(pet_guid);
         self.send_packet(&wow_packet::packets::misc::BattlePetDeleted { pet_guid });
@@ -50736,11 +50753,14 @@ impl WorldSession {
 
         self.represented_battle_pets_like_cpp.insert(pet_guid, pet);
         self.send_battle_pet_updates_like_cpp(&[pet_guid], true);
-        self.represented_battle_pet_unique_owned_criteria_like_cpp = self
-            .represented_battle_pet_unique_owned_criteria_like_cpp
-            .saturating_add(1);
-        self.represented_battle_pet_learned_new_pet_criteria_like_cpp
-            .push(species);
+        #[cfg(test)]
+        {
+            self.represented_battle_pet_unique_owned_criteria_like_cpp = self
+                .represented_battle_pet_unique_owned_criteria_like_cpp
+                .saturating_add(1);
+            self.represented_battle_pet_learned_new_pet_criteria_like_cpp
+                .push(species);
+        }
 
         Some(pet_guid)
     }
@@ -50786,11 +50806,14 @@ impl WorldSession {
                     pets: vec![pet],
                     pet_added: true,
                 });
-                self.represented_battle_pet_unique_owned_criteria_like_cpp = self
-                    .represented_battle_pet_unique_owned_criteria_like_cpp
-                    .saturating_add(1);
-                self.represented_battle_pet_learned_new_pet_criteria_like_cpp
-                    .push(species);
+                #[cfg(test)]
+                {
+                    self.represented_battle_pet_unique_owned_criteria_like_cpp = self
+                        .represented_battle_pet_unique_owned_criteria_like_cpp
+                        .saturating_add(1);
+                    self.represented_battle_pet_learned_new_pet_criteria_like_cpp
+                        .push(species);
+                }
                 Ok(guid)
             }
             BattlePetAddOutcomeLikeCpp::Replayed(pet) => Ok(pet.guid),
@@ -50839,26 +50862,31 @@ impl WorldSession {
     /// the current unique-species count and `LearnedNewPet` sets one species
     /// to 1), so receipt recovery and packet re-sends are idempotent.
     pub(crate) fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32) {
-        self.represented_battle_pet_unique_owned_criteria_like_cpp = self
-            .battle_pet_account_attachment_like_cpp
-            .as_ref()
-            .map(|attachment| attachment.owner_like_cpp().unique_species_count_like_cpp())
-            .unwrap_or_else(|| {
-                u32::try_from(
-                    self.represented_battle_pets_like_cpp
-                        .values()
-                        .map(|pet| pet.species)
-                        .collect::<BTreeSet<_>>()
-                        .len(),
-                )
-                .unwrap_or(u32::MAX)
-            });
-        if !self
-            .represented_battle_pet_learned_new_pet_criteria_like_cpp
-            .contains(&species)
+        #[cfg(not(test))]
+        let _ = species;
+        #[cfg(test)]
         {
-            self.represented_battle_pet_learned_new_pet_criteria_like_cpp
-                .push(species);
+            self.represented_battle_pet_unique_owned_criteria_like_cpp = self
+                .battle_pet_account_attachment_like_cpp
+                .as_ref()
+                .map(|attachment| attachment.owner_like_cpp().unique_species_count_like_cpp())
+                .unwrap_or_else(|| {
+                    u32::try_from(
+                        self.represented_battle_pets_like_cpp
+                            .values()
+                            .map(|pet| pet.species)
+                            .collect::<BTreeSet<_>>()
+                            .len(),
+                    )
+                    .unwrap_or(u32::MAX)
+                });
+            if !self
+                .represented_battle_pet_learned_new_pet_criteria_like_cpp
+                .contains(&species)
+            {
+                self.represented_battle_pet_learned_new_pet_criteria_like_cpp
+                    .push(species);
+            }
         }
     }
 
@@ -51159,6 +51187,7 @@ impl WorldSession {
         while remaining_levels > 0 && level < MAX_BATTLE_PET_LEVEL_LIKE_CPP {
             level += 1;
             remaining_levels -= 1;
+            #[cfg(test)]
             self.represented_battle_pet_level_criteria_like_cpp
                 .push(RepresentedBattlePetLevelCriteriaLikeCpp { species, level });
         }
@@ -51217,6 +51246,7 @@ impl WorldSession {
             .level
             .saturating_add(granted_levels)
             .min(MAX_BATTLE_PET_LEVEL_LIKE_CPP);
+        #[cfg(test)]
         let criteria: Vec<_> = ((pet.level + 1)..=level)
             .map(|level| RepresentedBattlePetLevelCriteriaLikeCpp {
                 species: pet.species,
@@ -51236,6 +51266,7 @@ impl WorldSession {
             .await
         {
             Ok(((), packet)) => {
+                #[cfg(test)]
                 self.represented_battle_pet_level_criteria_like_cpp
                     .extend(criteria);
                 self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
@@ -51323,12 +51354,15 @@ impl WorldSession {
             };
             next_level_xp = row_xp;
 
-            let criteria = RepresentedBattlePetLevelCriteriaLikeCpp { species, level };
-            self.represented_battle_pet_level_criteria_like_cpp
-                .push(criteria);
-            if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
-                self.represented_battle_pet_active_level_criteria_like_cpp
+            #[cfg(test)]
+            {
+                let criteria = RepresentedBattlePetLevelCriteriaLikeCpp { species, level };
+                self.represented_battle_pet_level_criteria_like_cpp
                     .push(criteria);
+                if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
+                    self.represented_battle_pet_active_level_criteria_like_cpp
+                        .push(criteria);
+                }
             }
         }
 
@@ -51400,6 +51434,7 @@ impl WorldSession {
             xp
         };
         total_xp = total_xp.saturating_add(pet.exp);
+        #[cfg(test)]
         let mut criteria = Vec::new();
         while total_xp >= next_level_xp && level < MAX_BATTLE_PET_LEVEL_LIKE_CPP {
             total_xp = total_xp.saturating_sub(next_level_xp);
@@ -51408,6 +51443,7 @@ impl WorldSession {
                 return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
             };
             next_level_xp = row_xp;
+            #[cfg(test)]
             criteria.push(RepresentedBattlePetLevelCriteriaLikeCpp {
                 species: pet.species,
                 level,
@@ -51429,11 +51465,14 @@ impl WorldSession {
             .await
         {
             Ok(((), packet)) => {
-                self.represented_battle_pet_level_criteria_like_cpp
-                    .extend(criteria.iter().copied());
-                if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
-                    self.represented_battle_pet_active_level_criteria_like_cpp
-                        .extend(criteria);
+                #[cfg(test)]
+                {
+                    self.represented_battle_pet_level_criteria_like_cpp
+                        .extend(criteria.iter().copied());
+                    if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
+                        self.represented_battle_pet_active_level_criteria_like_cpp
+                            .extend(criteria);
+                    }
                 }
                 self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
                     pets: vec![packet],
@@ -51474,22 +51513,26 @@ impl WorldSession {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_battle_pet_level_criteria_like_cpp(
         &self,
     ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
         &self.represented_battle_pet_level_criteria_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_battle_pet_active_level_criteria_like_cpp(
         &self,
     ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
         &self.represented_battle_pet_active_level_criteria_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_battle_pet_unique_owned_criteria_like_cpp(&self) -> u32 {
         self.represented_battle_pet_unique_owned_criteria_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_battle_pet_learned_new_pet_criteria_like_cpp(&self) -> &[u32] {
         &self.represented_battle_pet_learned_new_pet_criteria_like_cpp
     }
@@ -51650,6 +51693,7 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_battle_pet_cage_items_like_cpp(
         &self,
     ) -> &[RepresentedBattlePetCageItemLikeCpp] {
@@ -51763,6 +51807,7 @@ impl WorldSession {
         }
 
         self.set_represented_critter_guid_like_cpp(None);
+        #[cfg(test)]
         self.represented_dismissed_critter_guids_like_cpp
             .push(critter_guid);
         true
@@ -51786,11 +51831,13 @@ impl WorldSession {
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.set_battle_pet_data_like_cpp(pet_guid, pet.quality, pet.level);
         });
+        #[cfg(test)]
         self.represented_battle_pet_data_updates_like_cpp
             .push(pet_guid);
         true
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_battle_pet_data_updates_like_cpp(&self) -> &[ObjectGuid] {
         &self.represented_battle_pet_data_updates_like_cpp
     }

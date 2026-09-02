@@ -2960,22 +2960,28 @@
           "name": "represented_battle_pet_active_level_criteria_like_cpp",
           "type": "Vec < RepresentedBattlePetLevelCriteriaLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_cage_items_like_cpp",
           "type": "Vec < RepresentedBattlePetCageItemLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_data_updates_like_cpp",
           "type": "Vec < ObjectGuid >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_journal_lock_like_cpp",
@@ -2988,15 +2994,19 @@
           "name": "represented_battle_pet_learned_new_pet_criteria_like_cpp",
           "type": "Vec < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_level_criteria_like_cpp",
           "type": "Vec < RepresentedBattlePetLevelCriteriaLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_query_companions_like_cpp",
@@ -3025,8 +3035,10 @@
           "name": "represented_battle_pet_unique_owned_criteria_like_cpp",
           "type": "u32",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_xp_per_level_like_cpp",
@@ -3385,8 +3397,10 @@
           "name": "represented_dismissed_critter_guids_like_cpp",
           "type": "Vec < ObjectGuid >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_duel_accepts_like_cpp",
@@ -34207,8 +34221,10 @@
           "name": "represented_battle_pet_active_level_criteria_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_active_level_criteria_like_cpp (& self ,) -> & [RepresentedBattlePetLevelCriteriaLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34220,8 +34236,10 @@
           "name": "represented_battle_pet_cage_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_cage_items_like_cpp (& self ,) -> & [RepresentedBattlePetCageItemLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34233,8 +34251,10 @@
           "name": "represented_battle_pet_data_updates_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_data_updates_like_cpp (& self) -> & [ObjectGuid]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34259,8 +34279,10 @@
           "name": "represented_battle_pet_learned_new_pet_criteria_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_learned_new_pet_criteria_like_cpp (& self) -> & [u32]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34272,8 +34294,10 @@
           "name": "represented_battle_pet_level_criteria_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_level_criteria_like_cpp (& self ,) -> & [RepresentedBattlePetLevelCriteriaLikeCpp]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34348,8 +34372,10 @@
           "name": "represented_battle_pet_unique_owned_criteria_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_unique_owned_criteria_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -76068,7 +76094,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5fd977d86bc7dbb8a0a8465267f870c3:len=94172|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:62db03926b24d734d5aeca723583018f:len=94277|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
