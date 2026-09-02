@@ -527,13 +527,16 @@ impl WorldSession {
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
         // that post-add terrain pass runs.
         self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
-        self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+        if !self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
             map_id: login_homebind.map_id,
             area_id: login_homebind
                 .bind_area_id
                 .expect("validated character homebind must have an area ID"),
             position: login_homebind.position,
-        });
+        }) {
+            self.kick("canonical Player homebind owner unavailable during login hydration");
+            return;
+        }
         if let Some(guild_id) = loaded_guild_id_like_cpp {
             if !self.set_represented_guild_id_like_cpp(guild_id) {
                 self.kick("canonical Player guild owner unavailable during login hydration");

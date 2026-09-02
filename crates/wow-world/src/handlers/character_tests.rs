@@ -7349,7 +7349,7 @@ fn make_hearth_and_resurrect_session(area_flags: u32) -> (WorldSession, flume::R
             flags: area_flags,
         },
     ])));
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 571,
         area_id: 77,
         position: Position::new(10.0, 20.0, 30.0, 1.5),

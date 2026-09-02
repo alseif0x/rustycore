@@ -17231,7 +17231,7 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         80,
         0,
     ));
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 1,
         area_id: 1519,
         position: home_position,
@@ -17314,7 +17314,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
         80,
         0,
     ));
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 1,
         area_id: 1519,
         position: home_position,
@@ -17524,7 +17524,7 @@ async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() 
         80,
         0,
     ));
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 1,
         area_id: 1519,
         position: home_position,
@@ -33774,6 +33774,77 @@ async fn canonical_player_money_follows_active_detached_and_stale_handle_ownersh
 }
 
 #[test]
+fn canonical_player_homebind_follows_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_565);
+    let original = RepresentedHomebindLikeCpp {
+        map_id: 571,
+        area_id: 67,
+        position: Position::new(3700.0, 1500.0, 120.0, 0.5),
+    };
+    let replacement_homebind = RepresentedHomebindLikeCpp {
+        map_id: 0,
+        area_id: 12,
+        position: Position::new(-8949.0, -132.0, 84.0, 1.0),
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "HomebindOwner".to_string(),
+        original.position,
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_represented_homebind_like_cpp(original));
+    assert_eq!(session.represented_homebind_like_cpp(), Some(original));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.represented_homebind_like_cpp(), Some(original));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().homebind = Some(replacement_homebind);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_homebind_like_cpp(), None);
+    assert!(!session.set_represented_homebind_like_cpp(original));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().homebind
+            }),
+        Some(Some(replacement_homebind))
+    );
+}
+
+#[test]
 fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -43522,7 +43593,7 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,
@@ -48154,7 +48225,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,
@@ -48197,7 +48268,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         0,
     ));
     disabled_session.set_player_health_like_cpp(100, 100);
-    disabled_session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = disabled_session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,

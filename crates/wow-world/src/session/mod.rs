@@ -2237,12 +2237,7 @@ pub(crate) struct RepresentedPendingBind {
     pub time_until_lock_ms: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedHomebindLikeCpp {
-    pub map_id: u32,
-    pub area_id: u32,
-    pub position: wow_core::Position,
-}
+pub(crate) type RepresentedHomebindLikeCpp = wow_entities::PlayerHomebindLikeCpp;
 
 struct HomebindPersistenceJobLikeCpp {
     port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
@@ -6531,8 +6526,9 @@ pub struct WorldSession {
     /// Represented zone/area for the pending near-teleport destination.
     #[cfg(test)]
     near_teleport_destination_zone_area_like_cpp: Option<(u32, u32)>,
-    /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until full
-    /// player-owned load validation/fallback replaces the session field.
+    /// Handle-less compatibility for older tests. Production C++
+    /// `Player::m_homebind` lives on the canonical Player.
+    #[cfg(test)]
     represented_homebind_like_cpp: Option<RepresentedHomebindLikeCpp>,
     /// C++ `Player::_resurrectionData`, represented until real Player/Spell
     /// resurrection request ownership exists.
@@ -8546,6 +8542,7 @@ impl WorldSession {
             represented_delayed_teleport_like_cpp: None,
             #[cfg(test)]
             near_teleport_destination_zone_area_like_cpp: None,
+            #[cfg(test)]
             represented_homebind_like_cpp: None,
             #[cfg(test)]
             represented_resurrection_request_like_cpp: None,
@@ -69777,7 +69774,9 @@ impl WorldSession {
         binder_id: ObjectGuid,
         homebind: RepresentedHomebindLikeCpp,
     ) {
-        self.represented_homebind_like_cpp = Some(homebind);
+        if !self.set_represented_homebind_like_cpp(homebind) {
+            return;
+        }
         self.persist_player_homebind_like_cpp(homebind);
 
         self.send_packet(&wow_packet::packets::misc::BindPointUpdate {
@@ -69858,14 +69857,37 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
-        self.represented_homebind_like_cpp
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.gameplay_state().homebind)
+            .flatten();
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.represented_homebind_like_cpp;
+        }
+        None
     }
 
     pub(crate) fn set_represented_homebind_like_cpp(
         &mut self,
         homebind: RepresentedHomebindLikeCpp,
-    ) {
-        self.represented_homebind_like_cpp = Some(homebind);
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().homebind = Some(homebind)
+            })
+            .is_some();
+        if canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_homebind_like_cpp = Some(homebind);
+            return true;
+        }
+        false
     }
 
     fn apply_effect_environmental_damage_like_cpp(

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use wow_core::ObjectGuid;
+use wow_core::{ObjectGuid, Position};
 
 use crate::{
     PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
@@ -89,6 +89,8 @@ pub struct PlayerGameplayState {
     pub damage_control: PlayerDamageControlStateLikeCpp,
     pub resurrection: PlayerResurrectionStateLikeCpp,
     pub teleport: PlayerTeleportStateLikeCpp,
+    /// C++ `Player::m_homebind` / `m_homebindAreaId`.
+    pub homebind: Option<PlayerHomebindLikeCpp>,
     pub pet_lifecycle: PlayerPetLifecycleStateLikeCpp,
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
@@ -101,6 +103,13 @@ pub struct PlayerGameplayState {
     pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
     pub spell_charges: Vec<PlayerSpellChargeRecord>,
     pub rest: PlayerRestState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerHomebindLikeCpp {
+    pub map_id: u32,
+    pub area_id: u32,
+    pub position: Position,
 }
 
 /// C++ `PlayerMenu::InteractionData`.
