@@ -800,6 +800,29 @@ pub struct PlayerBattlegroundState {
     pub current_bg_instance_id: Option<u32>,
     pub current_bg_team: Option<u32>,
     pub random: PlayerRandomBattlegroundState,
+    /// Represented C++ `Player::m_bgData.bgTypeID`.
+    pub represented_type_id: Option<u32>,
+    /// Represented current battleground map/instance map used by teleport leave gates.
+    pub represented_map_id: Option<u32>,
+    /// C++ `Player::m_bgData.bgBattlegroundQueueID` slots.
+    pub represented_queue_slots: Vec<PlayerBattlegroundQueueSlotLikeCpp>,
+    /// C++ `Player::m_ArenaTeamIdInvited`.
+    pub arena_team_id_invited: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerBattlegroundQueueTypeIdLikeCpp {
+    pub battlemaster_list_id: u16,
+    pub queue_type: u8,
+    pub rated: bool,
+    pub team_size: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerBattlegroundQueueSlotLikeCpp {
+    pub slot: u32,
+    pub queue_type_id: PlayerBattlegroundQueueTypeIdLikeCpp,
+    pub invited_instance_guid: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

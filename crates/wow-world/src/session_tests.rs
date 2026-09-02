@@ -31614,6 +31614,88 @@ fn canonical_player_persistent_capabilities_follow_detached_and_stale_ownership_
 }
 
 #[test]
+fn canonical_player_battleground_context_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_570);
+    let queue_type = RepresentedBattlegroundQueueTypeIdLikeCpp {
+        battlemaster_list_id: 3,
+        queue_type: 1,
+        rated: false,
+        team_size: 0,
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "BattlegroundOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_battleground_context_like_cpp(3, 529));
+    assert!(session.set_represented_arena_team_id_invited_like_cpp(77));
+    session.add_represented_battleground_queue_slot_like_cpp(1, queue_type, 88);
+    assert!(session.player_in_represented_battleground_like_cpp());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.player_in_represented_battleground_like_cpp());
+    assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 77);
+
+    let replacement_state = wow_entities::PlayerBattlegroundState {
+        represented_type_id: Some(7),
+        represented_map_id: Some(30),
+        represented_queue_slots: vec![wow_entities::PlayerBattlegroundQueueSlotLikeCpp {
+            slot: 2,
+            queue_type_id: queue_type,
+            invited_instance_guid: 99,
+        }],
+        arena_team_id_invited: 100,
+        ..Default::default()
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().battleground = replacement_state.clone();
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(!session.player_in_represented_battleground_like_cpp());
+    assert!(!session.set_player_battleground_context_like_cpp(1, 489));
+    assert!(!session.set_represented_arena_team_id_invited_like_cpp(101));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().battleground.clone()
+            }),
+        Some(replacement_state)
+    );
+}
+
+#[test]
 fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

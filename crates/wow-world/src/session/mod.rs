@@ -2787,13 +2787,8 @@ pub(crate) struct RepresentedBattlefieldListLikeCpp {
     pub list_id: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlegroundQueueTypeIdLikeCpp {
-    pub battlemaster_list_id: u16,
-    pub queue_type: u8,
-    pub rated: bool,
-    pub team_size: u8,
-}
+pub(crate) type RepresentedBattlegroundQueueTypeIdLikeCpp =
+    wow_entities::PlayerBattlegroundQueueTypeIdLikeCpp;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlemasterJoinLikeCpp {
@@ -2823,12 +2818,9 @@ pub(crate) struct RepresentedBattlemasterJoinSkirmishLikeCpp {
     pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlegroundQueueSlotLikeCpp {
-    pub slot: u32,
-    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
-    pub invited_instance_guid: u32,
-}
+#[cfg(test)]
+pub(crate) type RepresentedBattlegroundQueueSlotLikeCpp =
+    wow_entities::PlayerBattlegroundQueueSlotLikeCpp;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlefieldPortLikeCpp {
@@ -5888,6 +5880,7 @@ pub struct WorldSession {
     represented_calendar_community_invites_like_cpp: Vec<RepresentedCalendarCommunityInviteLikeCpp>,
     represented_calendar_add_events_like_cpp: Vec<RepresentedCalendarAddEventLikeCpp>,
     represented_calendar_remove_events_like_cpp: Vec<RepresentedCalendarRemoveEventLikeCpp>,
+    #[cfg(test)]
     represented_arena_team_id_invited_like_cpp: u32,
     represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
     #[cfg(test)]
@@ -6272,8 +6265,10 @@ pub struct WorldSession {
     /// Represented `vehicle_base->m_movementInfo = MoveChangeVehicleSeats.Status`.
     represented_vehicle_base_movements_like_cpp: Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
+    #[cfg(test)]
     player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented `Player::GetBattleground()->GetMapId()` until live Battleground ownership exists.
+    #[cfg(test)]
     player_battleground_map_id_like_cpp: Option<u32>,
     /// Represented `Battleground::GetStatus()` until live Battleground ownership exists.
     represented_battleground_status_like_cpp: Option<u8>,
@@ -6291,6 +6286,7 @@ pub struct WorldSession {
     represented_battlemaster_join_skirmishes_like_cpp:
         Vec<RepresentedBattlemasterJoinSkirmishLikeCpp>,
     /// Represented `Player::m_bgBattlegroundQueueID[PLAYER_MAX_BATTLEGROUND_QUEUES]`.
+    #[cfg(test)]
     represented_battleground_queue_slots_like_cpp: Vec<RepresentedBattlegroundQueueSlotLikeCpp>,
     /// Represented accepted/leave requests from CMSG_BATTLEFIELD_PORT before live BattlegroundMgr.
     represented_battlefield_ports_like_cpp: Vec<RepresentedBattlefieldPortLikeCpp>,
@@ -8093,6 +8089,7 @@ impl WorldSession {
             represented_calendar_community_invites_like_cpp: Vec::new(),
             represented_calendar_add_events_like_cpp: Vec::new(),
             represented_calendar_remove_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_arena_team_id_invited_like_cpp: 0,
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
             #[cfg(test)]
@@ -8297,7 +8294,9 @@ impl WorldSession {
             represented_vehicle_enter_requests_like_cpp: Vec::new(),
             represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
             represented_vehicle_base_movements_like_cpp: Vec::new(),
+            #[cfg(test)]
             player_battleground_type_id_like_cpp: None,
+            #[cfg(test)]
             player_battleground_map_id_like_cpp: None,
             represented_battleground_status_like_cpp: None,
             represented_battleground_leave_requests_like_cpp: 0,
@@ -8306,6 +8305,7 @@ impl WorldSession {
             represented_battlemaster_joins_like_cpp: Vec::new(),
             represented_battlemaster_join_arenas_like_cpp: Vec::new(),
             represented_battlemaster_join_skirmishes_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_battleground_queue_slots_like_cpp: Vec::new(),
             represented_battlefield_ports_like_cpp: Vec::new(),
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
@@ -45316,9 +45316,52 @@ impl WorldSession {
         });
     }
 
+    fn player_battleground_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerBattlegroundState> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.gameplay_state().battleground.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerBattlegroundState {
+                represented_type_id: self.player_battleground_type_id_like_cpp,
+                represented_map_id: self.player_battleground_map_id_like_cpp,
+                represented_queue_slots: self.represented_battleground_queue_slots_like_cpp.clone(),
+                arena_team_id_invited: self.represented_arena_team_id_invited_like_cpp,
+                ..Default::default()
+            });
+        }
+        canonical
+    }
+
+    fn mutate_player_battleground_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerBattlegroundState) -> R,
+    ) -> Option<R> {
+        let mut state = self.player_battleground_state_snapshot_like_cpp()?;
+        let result = mutate(&mut state);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().battleground = state.clone();
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.player_battleground_type_id_like_cpp = state.represented_type_id;
+            self.player_battleground_map_id_like_cpp = state.represented_map_id;
+            self.represented_battleground_queue_slots_like_cpp = state.represented_queue_slots;
+            self.represented_arena_team_id_invited_like_cpp = state.arena_team_id_invited;
+            return Some(result);
+        }
+        canonical.then_some(result)
+    }
+
     #[cfg(test)]
-    pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) {
-        self.player_battleground_type_id_like_cpp = (bg_type_id != 0).then_some(bg_type_id);
+    pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) -> bool {
+        self.mutate_player_battleground_state_like_cpp(|state| {
+            state.represented_type_id = (bg_type_id != 0).then_some(bg_type_id);
+        })
+        .is_some()
     }
 
     #[cfg(test)]
@@ -45326,9 +45369,12 @@ impl WorldSession {
         &mut self,
         bg_type_id: u32,
         bg_map_id: u32,
-    ) {
-        self.player_battleground_type_id_like_cpp = (bg_type_id != 0).then_some(bg_type_id);
-        self.player_battleground_map_id_like_cpp = (bg_map_id != 0).then_some(bg_map_id);
+    ) -> bool {
+        self.mutate_player_battleground_state_like_cpp(|state| {
+            state.represented_type_id = (bg_type_id != 0).then_some(bg_type_id);
+            state.represented_map_id = (bg_map_id != 0).then_some(bg_map_id);
+        })
+        .is_some()
     }
 
     pub(crate) fn set_represented_battleground_status_like_cpp(&mut self, status: Option<u8>) {
@@ -45336,7 +45382,8 @@ impl WorldSession {
     }
 
     pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
-        self.player_battleground_type_id_like_cpp.is_some()
+        self.player_battleground_state_snapshot_like_cpp()
+            .is_some_and(|state| state.represented_type_id.is_some())
     }
 
     pub(crate) fn resolved_combat_target_like_cpp(&self) -> Option<Option<ObjectGuid>> {
@@ -45412,7 +45459,8 @@ impl WorldSession {
 
     fn maybe_leave_represented_battleground_on_far_teleport_like_cpp(&mut self, new_map: u32) {
         if self
-            .player_battleground_map_id_like_cpp
+            .player_battleground_state_snapshot_like_cpp()
+            .and_then(|state| state.represented_map_id)
             .is_some_and(|bg_map_id| bg_map_id != new_map)
         {
             self.request_represented_battleground_leave_like_cpp();
@@ -46064,25 +46112,22 @@ impl WorldSession {
         queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
         invited_instance_guid: u32,
     ) {
-        if let Some(existing) = self
-            .represented_battleground_queue_slots_like_cpp
-            .iter_mut()
-            .find(|queued| queued.slot == slot)
-        {
-            *existing = RepresentedBattlegroundQueueSlotLikeCpp {
+        let _ = self.mutate_player_battleground_state_like_cpp(|state| {
+            let updated = RepresentedBattlegroundQueueSlotLikeCpp {
                 slot,
                 queue_type_id,
                 invited_instance_guid,
             };
-            return;
-        }
-        self.represented_battleground_queue_slots_like_cpp.push(
-            RepresentedBattlegroundQueueSlotLikeCpp {
-                slot,
-                queue_type_id,
-                invited_instance_guid,
-            },
-        );
+            if let Some(existing) = state
+                .represented_queue_slots
+                .iter_mut()
+                .find(|queued| queued.slot == slot)
+            {
+                *existing = updated;
+            } else {
+                state.represented_queue_slots.push(updated);
+            }
+        });
     }
 
     pub(crate) fn battlefield_port_like_cpp(
@@ -46090,14 +46135,14 @@ impl WorldSession {
         ticket: wow_packet::packets::misc::LfgRideTicket,
         accepted_invite: bool,
     ) -> bool {
-        if self
-            .represented_battleground_queue_slots_like_cpp
-            .is_empty()
-        {
+        let Some(state) = self.player_battleground_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if state.represented_queue_slots.is_empty() {
             return false;
         }
-        let Some(queued) = self
-            .represented_battleground_queue_slots_like_cpp
+        let Some(queued) = state
+            .represented_queue_slots
             .iter()
             .copied()
             .find(|queued| queued.slot == ticket.id)
@@ -47629,13 +47674,21 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
-    pub(crate) fn set_represented_arena_team_id_invited_like_cpp(&mut self, arena_team_id: u32) {
-        self.represented_arena_team_id_invited_like_cpp = arena_team_id;
+    pub(crate) fn set_represented_arena_team_id_invited_like_cpp(
+        &mut self,
+        arena_team_id: u32,
+    ) -> bool {
+        self.mutate_player_battleground_state_like_cpp(|state| {
+            state.arena_team_id_invited = arena_team_id;
+        })
+        .is_some()
     }
 
     #[cfg(test)]
     pub(crate) fn represented_arena_team_id_invited_like_cpp(&self) -> u32 {
-        self.represented_arena_team_id_invited_like_cpp
+        self.player_battleground_state_snapshot_like_cpp()
+            .expect("test Player battleground owner must resolve")
+            .arena_team_id_invited
     }
 
     pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
@@ -50774,7 +50827,8 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> Option<u32> {
-        if let Some(bg_type_id) = self.player_battleground_type_id_like_cpp {
+        let state = self.player_battleground_state_snapshot_like_cpp()?;
+        if let Some(bg_type_id) = state.represented_type_id {
             return Some(bg_type_id);
         }
 
@@ -51896,7 +51950,10 @@ impl WorldSession {
             return true;
         }
 
-        if self.player_battleground_type_id_like_cpp.is_none() {
+        if !self
+            .player_battleground_state_snapshot_like_cpp()
+            .is_some_and(|state| state.represented_type_id.is_some())
+        {
             return false;
         }
 

@@ -393,6 +393,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
                 reward_claimed_today: true,
                 last_reward_time: Some(1_700_000_060),
             },
+            ..Default::default()
         },
         reputations: vec![PlayerReputationRecord {
             faction_id: TEAM_ALLIANCE_ID,

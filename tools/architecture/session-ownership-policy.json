@@ -1932,15 +1932,19 @@
           "name": "player_battleground_map_id_like_cpp",
           "type": "Option < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_battleground_type_id_like_cpp",
           "type": "Option < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_bootstrap_attached_like_cpp",
@@ -2814,8 +2818,10 @@
           "name": "represented_arena_team_id_invited_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_armor_proficiency_like_cpp",
@@ -3016,8 +3022,10 @@
           "name": "represented_battleground_queue_slots_like_cpp",
           "type": "Vec < RepresentedBattlegroundQueueSlotLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battleground_status_like_cpp",
@@ -28690,6 +28698,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_battleground_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_battleground_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerBattlegroundState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_difficulty_preferences_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_difficulty_preferences_like_cpp < R > (& mut self , f : impl FnOnce (& mut u32 , & mut u32 , & mut u32) -> R ,) -> Option < R >",
@@ -29633,6 +29652,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_battleground_state_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_battleground_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerBattlegroundState >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -44173,7 +44203,7 @@
           "kind": "method",
           "name": "set_player_battleground_context_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_battleground_context_like_cpp (& mut self , bg_type_id : u32 , bg_map_id : u32 ,)",
+          "signature": "fn set_player_battleground_context_like_cpp (& mut self , bg_type_id : u32 , bg_map_id : u32 ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -44189,7 +44219,7 @@
           "kind": "method",
           "name": "set_player_battleground_type_id_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_battleground_type_id_like_cpp (& mut self , bg_type_id : u32)",
+          "signature": "fn set_player_battleground_type_id_like_cpp (& mut self , bg_type_id : u32) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -45412,7 +45442,7 @@
           "kind": "method",
           "name": "set_represented_arena_team_id_invited_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_arena_team_id_invited_like_cpp (& mut self , arena_team_id : u32)",
+          "signature": "fn set_represented_arena_team_id_invited_like_cpp (& mut self , arena_team_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75552,7 +75582,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4af8b2e5fd38eab5a5f874f0180206ca:len=94473|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b99a21f1de22f7a3a1891962a398287c:len=94533|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
