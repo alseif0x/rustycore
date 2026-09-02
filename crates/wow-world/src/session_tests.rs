@@ -2242,12 +2242,12 @@ fn movement_counter_post_increments_and_resets_like_cpp() {
     // C++ Unit::m_movementCounter: post-increment per movement-control packet, reset to
     // 0 in SendInitialPacketsBeforeAddToMap on a non-seamless add. #NEXT.R8.ENTITIES.1229.
     let (mut session, _, _) = make_session();
-    assert_eq!(session.next_movement_counter_like_cpp(), 0);
-    assert_eq!(session.next_movement_counter_like_cpp(), 1);
-    assert_eq!(session.next_movement_counter_like_cpp(), 2);
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(1));
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(2));
     session.reset_movement_counter_like_cpp();
-    assert_eq!(session.next_movement_counter_like_cpp(), 0);
-    assert_eq!(session.next_movement_counter_like_cpp(), 1);
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(1));
 }
 
 #[test]
@@ -32098,6 +32098,9 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
     assert!(session.set_fall_information_like_cpp(1_200, 87.5));
     session.set_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run, 2);
     session.set_movement_force_mod_magnitude_changes_like_cpp(3);
+    session.set_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run, 1.5);
+    session.set_movement_force_mod_magnitude_like_cpp(1.25);
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
     assert_eq!(session.fall_information_like_cpp(), (1_200, 87.5));
     assert_eq!(
         session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
@@ -32107,6 +32110,15 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         session.resolved_movement_force_mod_magnitude_changes_like_cpp(),
         Some(3)
     );
+    assert_eq!(
+        session.resolved_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+        Some(1.5)
+    );
+    assert_eq!(
+        session.resolved_movement_force_mod_magnitude_like_cpp(),
+        Some(1.25)
+    );
+    assert_eq!(session.movement_counter_like_cpp(), Some(1));
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
@@ -32121,6 +32133,7 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
         2
     );
+    assert_eq!(session.movement_counter_like_cpp(), Some(1));
 
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
@@ -32131,6 +32144,16 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
     replacement.set_fall_information_like_cpp(900, 44.0);
     assert!(replacement.set_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run.index(), 7));
     replacement.set_movement_force_mod_magnitude_changes_like_cpp(8);
+    assert!(
+        replacement
+            .unit_mut()
+            .set_speed_rate_at_like_cpp(UnitMoveTypeLikeCpp::Run.index(), 0.75)
+    );
+    replacement
+        .unit_mut()
+        .set_movement_force_mod_magnitude_like_cpp(0.8);
+    assert_eq!(replacement.unit_mut().next_movement_counter_like_cpp(), 0);
+    assert_eq!(replacement.unit_mut().next_movement_counter_like_cpp(), 1);
     let replacement_handle = canonical
         .lock()
         .unwrap()
@@ -32146,7 +32169,17 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         session.resolved_movement_force_mod_magnitude_changes_like_cpp(),
         None
     );
+    assert_eq!(
+        session.resolved_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+        None
+    );
+    assert_eq!(
+        session.resolved_movement_force_mod_magnitude_like_cpp(),
+        None
+    );
+    assert_eq!(session.movement_counter_like_cpp(), None);
     assert!(!session.set_fall_information_like_cpp(2_000, 10.0));
+    assert_eq!(session.next_movement_counter_like_cpp(), None);
     assert_eq!(
         canonical
             .lock()
@@ -32155,8 +32188,13 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
                 player.fall_information_like_cpp(),
                 player.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run.index()),
                 player.movement_force_mod_magnitude_changes_like_cpp(),
+                player
+                    .unit()
+                    .speed_rate_at_like_cpp(UnitMoveTypeLikeCpp::Run.index()),
+                player.unit().movement_force_mod_magnitude_like_cpp(),
+                player.unit().movement_counter_like_cpp(),
             )),
-        Some(((900, 44.0), Some(7), 8))
+        Some(((900, 44.0), Some(7), 8, Some(0.75), 0.8, 2))
     );
 }
 

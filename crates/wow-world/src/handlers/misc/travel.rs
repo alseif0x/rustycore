@@ -343,7 +343,10 @@ impl crate::session::WorldSession {
         // SMSG_RESUME_TOKEN — C++ HandleMoveWorldportAck sets SequenceIndex =
         // player->m_movementCounter (read here, before SendInitialPacketsBeforeAddToMap resets
         // it) and Reason = 1 for a non-seamless far teleport (MovementHandler.cpp:108-111).
-        let resume_seq = self.movement_counter_like_cpp();
+        let Some(resume_seq) = self.movement_counter_like_cpp() else {
+            self.set_state(crate::session::SessionState::LoggedIn);
+            return;
+        };
         self.send_packet(&ResumeToken {
             sequence_index: resume_seq,
             reason: 1,

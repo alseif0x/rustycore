@@ -105,5 +105,17 @@ mod tests {
         );
         assert_eq!(player.movement_force_mod_magnitude_changes_like_cpp(), 1);
         assert_eq!(player.forced_speed_changes_like_cpp(99), None);
+
+        assert_eq!(player.unit().movement_counter_like_cpp(), 0);
+        assert_eq!(player.unit_mut().next_movement_counter_like_cpp(), 0);
+        assert_eq!(player.unit_mut().next_movement_counter_like_cpp(), 1);
+        player.unit_mut().reset_movement_counter_like_cpp();
+        assert_eq!(player.unit().movement_counter_like_cpp(), 0);
+        assert!(player.unit_mut().set_speed_rate_at_like_cpp(1, 1.5));
+        assert_eq!(player.unit().speed_rate_at_like_cpp(1), Some(1.5));
+        player
+            .unit_mut()
+            .set_movement_force_mod_magnitude_like_cpp(1.25);
+        assert_eq!(player.unit().movement_force_mod_magnitude_like_cpp(), 1.25);
     }
 }

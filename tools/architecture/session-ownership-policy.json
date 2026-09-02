@@ -1638,8 +1638,10 @@
           "name": "movement_counter_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "movement_force_mod_magnitude_changes_like_cpp",
@@ -1654,8 +1656,10 @@
           "name": "movement_force_mod_magnitude_like_cpp",
           "type": "f32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "movement_jump_proc_requests_like_cpp",
@@ -1679,8 +1683,10 @@
           "name": "movement_speed_rates_like_cpp",
           "type": "[f32 ; UnitMoveTypeLikeCpp :: COUNT]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "movement_visibility_refresh_requests_like_cpp",
@@ -28623,7 +28629,7 @@
           "kind": "method",
           "name": "movement_counter_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn movement_counter_like_cpp (& self) -> u32",
+          "signature": "fn movement_counter_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29043,7 +29049,7 @@
           "kind": "method",
           "name": "next_movement_counter_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn next_movement_counter_like_cpp (& mut self) -> u32",
+          "signature": "fn next_movement_counter_like_cpp (& mut self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30504,8 +30510,10 @@
           "name": "player_movement_speed_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_movement_speed_like_cpp (& self , move_type : UnitMoveTypeLikeCpp) -> f32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38989,7 +38997,7 @@
           "kind": "method",
           "name": "reset_movement_counter_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn reset_movement_counter_like_cpp (& mut self)",
+          "signature": "fn reset_movement_counter_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39526,6 +39534,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_movement_force_mod_magnitude_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_movement_force_mod_magnitude_like_cpp (& self) -> Option < f32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_pass_on_group_loot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_pass_on_group_loot_like_cpp (& self) -> Option < bool >",
@@ -39688,6 +39707,28 @@
           "name": "resolved_player_movement_flags_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_player_movement_flags_like_cpp (& self) -> Option < MovementFlag >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_movement_speed_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_movement_speed_like_cpp (& self , move_type : UnitMoveTypeLikeCpp ,) -> Option < f32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_movement_speed_rate_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_movement_speed_rate_like_cpp (& self , move_type : UnitMoveTypeLikeCpp ,) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -44951,6 +44992,19 @@
           "guards": [
             "setter",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_player_movement_speed_rate_like_cpp_inner",
+          "visibility": "private",
+          "signature": "fn set_player_movement_speed_rate_like_cpp_inner (& mut self , move_type : UnitMoveTypeLikeCpp , rate : f32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter"
           ]
         },
         {
@@ -75868,7 +75922,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:47e8eb6fcd6a1287a2b163eb70dedbb8:len=94765|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d5100c0737d12ac79647e44ce7fc567e:len=94810|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

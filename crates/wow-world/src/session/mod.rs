@@ -6345,6 +6345,7 @@ pub struct WorldSession {
     /// packets (vehicle-rec, collision height, near-teleport, speed/flag changes) and read
     /// for `SMSG_RESUME_TOKEN` SequenceIndex on far teleport. Reset to 0 in
     /// `send_initial_packets_before_add_to_map` (non-seamless). #NEXT.R8.ENTITIES.1229.
+    #[cfg(test)]
     movement_counter_like_cpp: u32,
     /// Represented `Unit::GetCollisionHeight()` until model-display collision data owns it.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
@@ -6447,6 +6448,7 @@ pub struct WorldSession {
     #[cfg(test)]
     forced_speed_changes_like_cpp: [u8; UnitMoveTypeLikeCpp::COUNT],
     /// C++ `Unit::m_speed_rate[MAX_MOVE_TYPE]` represented state for player-controlled movers.
+    #[cfg(test)]
     movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
     /// C++ `Player::GetPet()->SetSpeedRate` propagation represented until pet Unit runtime owns it.
     represented_pet_movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
@@ -6460,6 +6462,7 @@ pub struct WorldSession {
     #[cfg(test)]
     movement_force_mod_magnitude_changes_like_cpp: u8,
     /// C++ `MovementForces::GetModMagnitude()` represented value; default is 1.0 when no force container exists.
+    #[cfg(test)]
     movement_force_mod_magnitude_like_cpp: f32,
     /// Speed ACK outcomes recorded until full Unit speed runtime owns this state.
     #[cfg(test)]
@@ -8289,6 +8292,7 @@ impl WorldSession {
             mount_pet_resummon_requests_like_cpp: 0,
             #[cfg(test)]
             mount_collision_height_update_requests_like_cpp: 0,
+            #[cfg(test)]
             movement_counter_like_cpp: 0,
             #[cfg(test)]
             player_collision_height_like_cpp: 1.0,
@@ -8345,6 +8349,7 @@ impl WorldSession {
             delayed_operations_processed_like_cpp: 0,
             #[cfg(test)]
             forced_speed_changes_like_cpp: [0; UnitMoveTypeLikeCpp::COUNT],
+            #[cfg(test)]
             movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
             represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
             #[cfg(test)]
@@ -8353,6 +8358,7 @@ impl WorldSession {
             player_on_transport_like_cpp: false,
             #[cfg(test)]
             movement_force_mod_magnitude_changes_like_cpp: 0,
+            #[cfg(test)]
             movement_force_mod_magnitude_like_cpp: 1.0,
             #[cfg(test)]
             movement_speed_ack_events_like_cpp: Vec::new(),
@@ -37273,7 +37279,9 @@ impl WorldSession {
             return;
         };
         let vehicle_rec_id = i32::try_from(vehicle_id).unwrap_or(i32::MAX);
-        let sequence_index = self.next_movement_counter_like_cpp();
+        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
+            return;
+        };
 
         self.send_packet(&wow_packet::packets::vehicle::MoveSetVehicleRecId {
             mover_guid: player_guid,
@@ -37399,7 +37407,9 @@ impl WorldSession {
         else {
             return;
         };
-        let sequence_index = self.next_movement_counter_like_cpp();
+        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
+            return;
+        };
 
         self.send_packet(&wow_packet::packets::movement::MoveSetCollisionHeight {
             mover_guid: player_guid,
@@ -38382,7 +38392,9 @@ impl WorldSession {
         // resume by this index, so they MUST match — a hardcoded 1 here vs the real counter in
         // ResumeToken left the client stuck on the loading screen. #NEXT.R8.ENTITIES.1229.
         if !self.player_logout_like_cpp {
-            let suspend_seq = self.movement_counter_like_cpp();
+            let Some(suspend_seq) = self.movement_counter_like_cpp() else {
+                return;
+            };
             self.send_packet(&SuspendToken {
                 sequence_index: suspend_seq,
                 reason: if options & TELE_TO_SEAMLESS_LIKE_CPP != 0 {
@@ -38520,7 +38532,9 @@ impl WorldSession {
         }
 
         if !self.player_logout_like_cpp {
-            let sequence_index = self.next_movement_counter_like_cpp();
+            let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
+                return;
+            };
             if let Some(mover_guid) = self.player_guid() {
                 self.send_same_map_move_update_teleport_to_visible_set_like_cpp(mover_guid);
                 self.send_packet(&wow_packet::packets::movement::MoveTeleport {
@@ -38612,7 +38626,9 @@ impl WorldSession {
         if !self.player_logout_like_cpp {
             // C++ SuspendToken.SequenceIndex = m_movementCounter (Player.cpp:1466); must match
             // the ResumeToken sent later so the client resumes. #NEXT.R8.ENTITIES.1229.
-            let suspend_seq = self.movement_counter_like_cpp();
+            let Some(suspend_seq) = self.movement_counter_like_cpp() else {
+                return;
+            };
             self.send_packet(&SuspendToken {
                 sequence_index: suspend_seq,
                 reason: if options & TELE_TO_SEAMLESS_LIKE_CPP != 0 {
@@ -41638,23 +41654,45 @@ impl WorldSession {
     /// C++ `Unit::m_movementCounter` post-increment: returns the current value and advances
     /// it. Used as the SequenceIndex of movement-control packets (vehicle-rec, collision,
     /// near-teleport, speed/flag) and read for `SMSG_RESUME_TOKEN` on far teleport.
-    pub(crate) fn next_movement_counter_like_cpp(&mut self) -> u32 {
-        let sequence_index = self.movement_counter_like_cpp;
-        self.movement_counter_like_cpp = self.movement_counter_like_cpp.wrapping_add(1);
-        sequence_index
+    pub(crate) fn next_movement_counter_like_cpp(&mut self) -> Option<u32> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().next_movement_counter_like_cpp()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let sequence_index = self.movement_counter_like_cpp;
+            self.movement_counter_like_cpp = self.movement_counter_like_cpp.wrapping_add(1);
+            return Some(sequence_index);
+        }
+        canonical
     }
 
     /// C++ `Player::SendInitialPacketsBeforeAddToMap` resets `m_movementCounter` to 0 for a
     /// non-seamless add (login / far teleport). Player.cpp:23483.
-    pub(crate) fn reset_movement_counter_like_cpp(&mut self) {
-        self.movement_counter_like_cpp = 0;
+    pub(crate) fn reset_movement_counter_like_cpp(&mut self) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().reset_movement_counter_like_cpp();
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.movement_counter_like_cpp = 0;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     /// Current `Unit::m_movementCounter` value (read without advancing). C++ reads this for
     /// `SMSG_RESUME_TOKEN.SequenceIndex` on far teleport (MovementHandler.cpp:109), before
     /// `SendInitialPacketsBeforeAddToMap` resets it.
-    pub(crate) fn movement_counter_like_cpp(&self) -> u32 {
-        self.movement_counter_like_cpp
+    pub(crate) fn movement_counter_like_cpp(&self) -> Option<u32> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().movement_counter_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.movement_counter_like_cpp);
+        }
+        canonical
     }
 
     /// C++ `CollectionMgr::SaveAccountMounts`.
@@ -56511,9 +56549,53 @@ impl WorldSession {
         }
     }
 
+    fn resolved_player_movement_speed_rate_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<f32> {
+        let index = move_type.index();
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.unit().speed_rate_at_like_cpp(index))
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.movement_speed_rates_like_cpp[index]);
+        }
+        canonical
+    }
+
+    fn set_player_movement_speed_rate_like_cpp_inner(
+        &mut self,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) -> bool {
+        let index = move_type.index();
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_speed_rate_at_like_cpp(index, rate)
+            })
+            .unwrap_or(false);
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.movement_speed_rates_like_cpp[index] = rate;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+    }
+
+    fn resolved_player_movement_speed_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<f32> {
+        Some(
+            PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()]
+                * self.resolved_player_movement_speed_rate_like_cpp(move_type)?,
+        )
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_movement_speed_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> f32 {
-        PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()]
-            * self.movement_speed_rates_like_cpp[move_type.index()]
+        self.resolved_player_movement_speed_like_cpp(move_type)
+            .expect("test Player movement-speed owner must resolve")
     }
 
     fn max_represented_aura_amount_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> i32 {
@@ -56867,7 +56949,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let sequence_index = self.next_movement_counter_like_cpp();
+        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
+            return;
+        };
 
         let self_packet = wow_packet::packets::movement::MoveSetFlag {
             opcode,
@@ -56993,12 +57077,16 @@ impl WorldSession {
         rate: f32,
     ) {
         let rate = rate.max(0.01);
-        let index = move_type.index();
-        if self.movement_speed_rates_like_cpp[index] == rate {
+        let Some(current_rate) = self.resolved_player_movement_speed_rate_like_cpp(move_type)
+        else {
+            return;
+        };
+        if current_rate == rate {
             return;
         }
-
-        self.movement_speed_rates_like_cpp[index] = rate;
+        if !self.set_player_movement_speed_rate_like_cpp_inner(move_type, rate) {
+            return;
+        }
         self.propagate_represented_player_speed_to_pet_like_cpp(move_type, rate);
 
         let Some(player_guid) = self.player_guid() else {
@@ -57017,8 +57105,12 @@ impl WorldSession {
             return;
         }
 
-        let speed = self.player_movement_speed_like_cpp(move_type);
-        let sequence_index = self.next_movement_counter_like_cpp();
+        let Some(speed) = self.resolved_player_movement_speed_like_cpp(move_type) else {
+            return;
+        };
+        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
+            return;
+        };
 
         let self_packet = wow_packet::packets::movement::MoveSetSpeed {
             opcode: set_opcode,
@@ -57117,7 +57209,7 @@ impl WorldSession {
                     opcode,
                     move_type: Some(move_type),
                     ack_speed: speed,
-                    expected_speed: Some(self.player_movement_speed_like_cpp(move_type)),
+                    expected_speed: self.resolved_player_movement_speed_like_cpp(move_type),
                     remaining_forced_changes: Some(remaining_forced_changes),
                     action: MovementSpeedAckActionLikeCpp::SkippedPending,
                 });
@@ -57125,7 +57217,9 @@ impl WorldSession {
             }
         }
 
-        let expected_speed = self.player_movement_speed_like_cpp(move_type);
+        let Some(expected_speed) = self.resolved_player_movement_speed_like_cpp(move_type) else {
+            return false;
+        };
         let Some(player_on_transport) = self.player_on_transport_state_like_cpp() else {
             return false;
         };
@@ -57190,6 +57284,9 @@ impl WorldSession {
         else {
             return false;
         };
+        let Some(expected_magnitude) = self.resolved_movement_force_mod_magnitude_like_cpp() else {
+            return false;
+        };
         let mut action = MovementSpeedAckActionLikeCpp::Accepted;
         if remaining_forced_changes > 0 {
             let Some(remaining) = self.consume_movement_force_mod_magnitude_change_like_cpp()
@@ -57197,9 +57294,7 @@ impl WorldSession {
                 return false;
             };
             remaining_forced_changes = remaining;
-            if remaining_forced_changes == 0
-                && (self.movement_force_mod_magnitude_like_cpp - speed).abs() > 0.01
-            {
+            if remaining_forced_changes == 0 && (expected_magnitude - speed).abs() > 0.01 {
                 self.trace_anticheat_violation_like_cpp(
                     "HandleMoveSetModMovementForceMagnitudeAck.IncorrectMagnitude",
                     Some(opcode),
@@ -57216,7 +57311,7 @@ impl WorldSession {
             opcode,
             move_type: None,
             ack_speed: speed,
-            expected_speed: Some(self.movement_force_mod_magnitude_like_cpp),
+            expected_speed: Some(expected_magnitude),
             remaining_forced_changes: Some(remaining_forced_changes),
             action,
         });
@@ -57293,6 +57388,17 @@ impl WorldSession {
         canonical
     }
 
+    fn resolved_movement_force_mod_magnitude_like_cpp(&self) -> Option<f32> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.unit().movement_force_mod_magnitude_like_cpp()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.movement_force_mod_magnitude_like_cpp);
+        }
+        canonical
+    }
+
     fn consume_movement_force_mod_magnitude_change_like_cpp(&mut self) -> Option<u8> {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
             player.consume_movement_force_mod_magnitude_change_like_cpp()
@@ -57338,7 +57444,7 @@ impl WorldSession {
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
-        self.movement_speed_rates_like_cpp[move_type.index()] = rate.max(0.01);
+        let _ = self.set_player_movement_speed_rate_like_cpp_inner(move_type, rate.max(0.01));
     }
 
     #[cfg(test)]
@@ -57534,7 +57640,16 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_movement_force_mod_magnitude_like_cpp(&mut self, magnitude: f32) {
-        self.movement_force_mod_magnitude_like_cpp = magnitude;
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_movement_force_mod_magnitude_like_cpp(magnitude);
+            })
+            .is_some();
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.movement_force_mod_magnitude_like_cpp = magnitude;
+        }
     }
 
     #[cfg(test)]

@@ -437,6 +437,10 @@ pub struct Unit {
     movement_flags: MovementFlag,
     movement_time: u32,
     speed_rate: [f32; MAX_MOVE_TYPE],
+    /// C++ `Unit::m_movementCounter`, the sequence shared by movement-control packets.
+    movement_counter_like_cpp: u32,
+    /// C++ `Unit::_movementForces->GetModMagnitude()`. A missing force container reads 1.0.
+    movement_force_mod_magnitude_like_cpp: f32,
     ai_anim_kit_id: u16,
     movement_anim_kit_id: u16,
     melee_anim_kit_id: u16,
@@ -475,6 +479,8 @@ impl Unit {
             movement_flags: MovementFlag::NONE,
             movement_time: 0,
             speed_rate: [1.0; MAX_MOVE_TYPE],
+            movement_counter_like_cpp: 0,
+            movement_force_mod_magnitude_like_cpp: 1.0,
             ai_anim_kit_id: 0,
             movement_anim_kit_id: 0,
             melee_anim_kit_id: 0,
@@ -1653,11 +1659,45 @@ impl Unit {
         self.speed_rate
     }
 
+    pub fn speed_rate_at_like_cpp(&self, move_type_index: usize) -> Option<f32> {
+        self.speed_rate.get(move_type_index).copied()
+    }
+
+    pub fn set_speed_rate_at_like_cpp(&mut self, move_type_index: usize, rate: f32) -> bool {
+        let Some(speed_rate) = self.speed_rate.get_mut(move_type_index) else {
+            return false;
+        };
+        *speed_rate = rate.max(0.0);
+        true
+    }
+
     pub fn set_speed_rate_like_cpp(&mut self, move_type: wow_constants::UnitMoveType, rate: f32) {
         let slot = move_type as usize;
         if slot < MAX_MOVE_TYPE {
             self.speed_rate[slot] = rate.max(0.0);
         }
+    }
+
+    pub const fn movement_counter_like_cpp(&self) -> u32 {
+        self.movement_counter_like_cpp
+    }
+
+    pub fn next_movement_counter_like_cpp(&mut self) -> u32 {
+        let current = self.movement_counter_like_cpp;
+        self.movement_counter_like_cpp = self.movement_counter_like_cpp.wrapping_add(1);
+        current
+    }
+
+    pub fn reset_movement_counter_like_cpp(&mut self) {
+        self.movement_counter_like_cpp = 0;
+    }
+
+    pub const fn movement_force_mod_magnitude_like_cpp(&self) -> f32 {
+        self.movement_force_mod_magnitude_like_cpp
+    }
+
+    pub fn set_movement_force_mod_magnitude_like_cpp(&mut self, magnitude: f32) {
+        self.movement_force_mod_magnitude_like_cpp = magnitude;
     }
 
     pub fn set_mod_casting_speed_like_cpp(&mut self, casting_speed: f32) {
