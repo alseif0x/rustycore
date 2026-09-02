@@ -3044,8 +3044,10 @@
           "name": "represented_battle_pet_xp_per_level_like_cpp",
           "type": "BTreeMap < u16 , u16 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pets_like_cpp",
@@ -45880,8 +45882,10 @@
           "name": "set_represented_battle_pet_xp_per_level_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_battle_pet_xp_per_level_like_cpp (& mut self , level : u16 , xp_per_level : u16 ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -76094,7 +76098,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:62db03926b24d734d5aeca723583018f:len=94277|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:70379ad3feb1d80e5a97bd51de5b936d:len=94292|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

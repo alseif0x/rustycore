@@ -6716,6 +6716,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) represented_battle_pet_cage_items_like_cpp: Vec<RepresentedBattlePetCageItemLikeCpp>,
     /// C++ `sBattlePetXPGameTable` projected as level -> `uint16(Wins * Xp)`.
+    #[cfg(test)]
     pub(crate) represented_battle_pet_xp_per_level_like_cpp: BTreeMap<u16, u16>,
     /// Represented `CriteriaType::BattlePetReachLevel` events from battle-pet level grants.
     #[cfg(test)]
@@ -8525,6 +8526,7 @@ impl WorldSession {
             represented_battle_pet_query_companions_like_cpp: HashMap::new(),
             #[cfg(test)]
             represented_battle_pet_cage_items_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_battle_pet_xp_per_level_like_cpp: BTreeMap::new(),
             #[cfg(test)]
             represented_battle_pet_level_criteria_like_cpp: Vec::new(),
@@ -21983,14 +21985,18 @@ impl WorldSession {
     }
 
     fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
-        self.battle_pet_xp_game_table
+        let canonical = self
+            .battle_pet_xp_game_table
             .as_ref()
-            .and_then(|table| table.xp_per_level_like_cpp(level))
-            .or_else(|| {
-                self.represented_battle_pet_xp_per_level_like_cpp
-                    .get(&level)
-                    .copied()
-            })
+            .and_then(|table| table.xp_per_level_like_cpp(level));
+        #[cfg(test)]
+        return canonical.or_else(|| {
+            self.represented_battle_pet_xp_per_level_like_cpp
+                .get(&level)
+                .copied()
+        });
+        #[cfg(not(test))]
+        canonical
     }
 
     fn battle_pet_species_has_flag_like_cpp(&self, species: u32, flag: i32) -> bool {
@@ -51289,6 +51295,7 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn set_represented_battle_pet_xp_per_level_like_cpp(
         &mut self,
         level: u16,
