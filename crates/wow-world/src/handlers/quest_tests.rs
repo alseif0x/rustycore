@@ -1023,6 +1023,7 @@ fn insert_player_with_reputation(
             faction_id,
             standing,
             flags: 0,
+            ..Default::default()
         });
     manager
         .create_world_map(571, 0)
@@ -6808,6 +6809,7 @@ fn set_canonical_party_reputation_like_cpp(
             faction_id,
             standing,
             flags: 0,
+            ..Default::default()
         });
 }
 

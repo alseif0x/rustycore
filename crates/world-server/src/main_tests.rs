@@ -11044,6 +11044,7 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
                 faction_id: 72,
                 standing: -6000,
                 flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                ..Default::default()
             });
         player.set_forced_reputation_rank_like_cpp(87, true);
     }

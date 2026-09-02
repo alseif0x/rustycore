@@ -5574,6 +5574,7 @@ pub struct WorldSession {
     reputation_reward_rate_store: Option<Arc<ReputationRewardRateStoreLikeCpp>>,
     creature_onkill_reputation_store: Option<Arc<CreatureOnKillReputationStoreLikeCpp>>,
     reputation_spillover_template_store: Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
+    #[cfg(test)]
     championing_faction_like_cpp: u32,
     creature_template_lifecycle_store_like_cpp: Option<Arc<CreatureTemplateLifecycleStoreLikeCpp>>,
     creature_template_mount_store: Option<Arc<CreatureTemplateMountStoreLikeCpp>>,
@@ -6839,7 +6840,9 @@ pub struct WorldSession {
     vmap_indoor_check_like_cpp: bool,
     /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.
     represented_is_outdoors_like_cpp: Option<bool>,
-    /// C++ `ReputationMgr` per-player state foundation.
+    /// Fixture-only fallback. Production C++ `ReputationMgr` state is owned by
+    /// the generation-checked canonical `Player`.
+    #[cfg(test)]
     reputation_mgr_like_cpp: ReputationMgrLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
     #[cfg(test)]
@@ -7885,6 +7888,7 @@ impl WorldSession {
             reputation_reward_rate_store: None,
             creature_onkill_reputation_store: None,
             reputation_spillover_template_store: None,
+            #[cfg(test)]
             championing_faction_like_cpp: 0,
             creature_template_lifecycle_store_like_cpp: None,
             creature_template_mount_store: None,
@@ -8615,6 +8619,7 @@ impl WorldSession {
             represented_offhand_check_at_spell_unlearn_like_cpp: true,
             vmap_indoor_check_like_cpp: false,
             represented_is_outdoors_like_cpp: None,
+            #[cfg(test)]
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
             #[cfg(test)]
             watched_faction_index_like_cpp: -1,
@@ -21731,14 +21736,16 @@ impl WorldSession {
             return 1.0;
         };
 
-        let rank = self
-            .reputation_mgr_like_cpp
-            .rank_for_faction_entry_like_cpp(
+        let Some(rank) = self.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
                 self.friendship_rep_reaction_store.as_deref(),
                 self.player_race_like_cpp(),
                 self.player_class_like_cpp(),
-            );
+            )
+        }) else {
+            return 1.0;
+        };
         if rank <= ReputationRankLikeCpp::Neutral {
             return 1.0;
         }
@@ -21771,25 +21778,77 @@ impl WorldSession {
         else {
             return ReputationRankLikeCpp::Neutral;
         };
-        self.reputation_mgr_like_cpp
-            .rank_for_faction_entry_like_cpp(
+        self.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
                 self.friendship_rep_reaction_store.as_deref(),
                 self.player_race_like_cpp(),
                 self.player_class_like_cpp(),
             )
+        })
+        .unwrap_or(ReputationRankLikeCpp::Neutral)
     }
 
     pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
         self.reputation_rates
     }
 
+    #[cfg(test)]
     pub(crate) fn reputation_mgr_like_cpp(&self) -> &ReputationMgrLikeCpp {
         &self.reputation_mgr_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> &mut ReputationMgrLikeCpp {
         &mut self.reputation_mgr_like_cpp
+    }
+
+    pub(crate) fn with_reputation_mgr_like_cpp<R>(
+        &self,
+        operation: impl FnOnce(&ReputationMgrLikeCpp) -> R,
+    ) -> Option<R> {
+        let mut operation = Some(operation);
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let manager =
+                ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp(player.gameplay_state());
+            operation.take().expect("reputation operation runs once")(&manager)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(
+                operation.take().expect("reputation operation is available")(
+                    &self.reputation_mgr_like_cpp,
+                ),
+            );
+        }
+        None
+    }
+
+    pub(crate) fn mutate_reputation_mgr_like_cpp<R>(
+        &mut self,
+        operation: impl FnOnce(&mut ReputationMgrLikeCpp) -> R,
+    ) -> Option<R> {
+        let mut operation = Some(operation);
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let mut manager =
+                ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp(player.gameplay_state());
+            let result = operation.take().expect("reputation mutation runs once")(&mut manager);
+            manager.write_to_player_gameplay_state_like_cpp(player.gameplay_state_mut());
+            result
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(operation.take().expect("reputation mutation is available")(
+                &mut self.reputation_mgr_like_cpp,
+            ));
+        }
+        None
     }
 
     pub(crate) fn load_character_reputation_rows_like_cpp(
@@ -21804,15 +21863,17 @@ impl WorldSession {
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
 
-        self.reputation_mgr_like_cpp_mut().load_from_db_like_cpp(
-            rows,
-            faction_store.as_ref(),
-            friendship_rep_reaction_store.as_deref(),
-            paragon_reputation_store.as_deref(),
-            race,
-            class,
-        );
-        true
+        self.mutate_reputation_mgr_like_cpp(|mgr| {
+            mgr.load_from_db_like_cpp(
+                rows,
+                faction_store.as_ref(),
+                friendship_rep_reaction_store.as_deref(),
+                paragon_reputation_store.as_deref(),
+                race,
+                class,
+            );
+        })
+        .is_some()
     }
 
     pub(crate) fn resolved_watched_faction_index_like_cpp(&self) -> Option<i32> {
@@ -21893,6 +21954,9 @@ impl WorldSession {
         else {
             return ReputationRankLikeCpp::Neutral;
         };
+        let Some(reputation_mgr) = self.with_reputation_mgr_like_cpp(Clone::clone) else {
+            return ReputationRankLikeCpp::Neutral;
+        };
 
         if input.target_has_player_owner && input.target_player_owner_is_current_session {
             if source_faction_template.is_contested_guard_faction_like_cpp()
@@ -21900,8 +21964,7 @@ impl WorldSession {
             {
                 return ReputationRankLikeCpp::Hostile;
             }
-            if let Some(forced_rank) = self
-                .reputation_mgr_like_cpp
+            if let Some(forced_rank) = reputation_mgr
                 .forced_rank_by_faction_id_like_cpp(u32::from(source_faction_template.faction))
             {
                 return forced_rank;
@@ -21913,17 +21976,13 @@ impl WorldSession {
                     faction_store.get(u32::from(source_faction_template.faction))
                 && source_faction_entry.can_have_reputation_like_cpp()
             {
-                let mut rank = self
-                    .reputation_mgr_like_cpp
-                    .rank_for_faction_entry_like_cpp(
-                        source_faction_entry,
-                        self.friendship_rep_reaction_store.as_deref(),
-                        self.player_race_like_cpp(),
-                        self.player_class_like_cpp(),
-                    );
-                if self
-                    .reputation_mgr_like_cpp
-                    .is_at_war_with_faction_like_cpp(source_faction_entry)
+                let mut rank = reputation_mgr.rank_for_faction_entry_like_cpp(
+                    source_faction_entry,
+                    self.friendship_rep_reaction_store.as_deref(),
+                    self.player_race_like_cpp(),
+                    self.player_class_like_cpp(),
+                );
+                if reputation_mgr.is_at_war_with_faction_like_cpp(source_faction_entry)
                     && rank > ReputationRankLikeCpp::Neutral
                 {
                     rank = ReputationRankLikeCpp::Neutral;
@@ -21962,13 +22021,15 @@ impl WorldSession {
         if input.same_charmer_or_owner_or_self {
             return ReputationRankLikeCpp::Friendly;
         }
+        let Some(reputation_mgr) = self.with_reputation_mgr_like_cpp(Clone::clone) else {
+            return ReputationRankLikeCpp::Neutral;
+        };
 
         if input.self_has_player_owner {
             if let Some(faction_template_store) = self.faction_template_store.as_ref()
                 && let Some(target_faction_template) =
                     faction_template_store.get(input.target_faction_template_id)
-                && let Some(forced_rank) = self
-                    .reputation_mgr_like_cpp
+                && let Some(forced_rank) = reputation_mgr
                     .forced_rank_by_faction_id_like_cpp(u32::from(target_faction_template.faction))
             {
                 return forced_rank;
@@ -22018,12 +22079,9 @@ impl WorldSession {
                 if let Some(target_faction_template) =
                     faction_template_store.get(input.target_faction_template_id)
                 {
-                    if let Some(forced_rank) = self
-                        .reputation_mgr_like_cpp
-                        .forced_rank_by_faction_id_like_cpp(u32::from(
-                            target_faction_template.faction,
-                        ))
-                    {
+                    if let Some(forced_rank) = reputation_mgr.forced_rank_by_faction_id_like_cpp(
+                        u32::from(target_faction_template.faction),
+                    ) {
                         return forced_rank;
                     }
                     if !input.self_ignores_reputation
@@ -22037,10 +22095,7 @@ impl WorldSession {
                         {
                             return ReputationRankLikeCpp::Hostile;
                         }
-                        if self
-                            .reputation_mgr_like_cpp
-                            .is_at_war_with_faction_like_cpp(target_faction_entry)
-                        {
+                        if reputation_mgr.is_at_war_with_faction_like_cpp(target_faction_entry) {
                             return ReputationRankLikeCpp::Hostile;
                         }
                         return ReputationRankLikeCpp::Friendly;
@@ -23742,17 +23797,21 @@ impl WorldSession {
         let player_reputation_rank = if required_reputation_faction == 0 {
             0
         } else {
-            self.faction_store
+            match self
+                .faction_store
                 .as_ref()
                 .and_then(|store| store.get(required_reputation_faction))
-                .map(|faction| {
-                    let standing = self
-                        .reputation_mgr_like_cpp()
-                        .reputation_for_faction_like_cpp(
+            {
+                Some(faction) => {
+                    let Some(standing) = self.with_reputation_mgr_like_cpp(|mgr| {
+                        mgr.reputation_for_faction_like_cpp(
                             faction,
                             self.player_race_like_cpp(),
                             self.player_class_like_cpp(),
-                        );
+                        )
+                    }) else {
+                        return InventoryResult::ItemNotFound;
+                    };
                     u32::from(
                         reputation_to_rank_like_cpp(
                             faction,
@@ -23761,8 +23820,9 @@ impl WorldSession {
                         )
                         .as_u8(),
                     )
-                })
-                .unwrap_or(0)
+                }
+                None => 0,
+            }
         };
         let mut item_effect_spell_ids: Vec<(u8, i32)> = self
             .item_effect_store
@@ -26843,14 +26903,20 @@ impl WorldSession {
     }
 
     fn initialize_reputation_mgr_like_cpp(&mut self) {
-        if let Some(faction_store) = self.faction_store.as_deref() {
-            self.reputation_mgr_like_cpp.initialize_like_cpp(
-                faction_store,
-                self.paragon_reputation_store.as_deref(),
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
+        let Some(faction_store) = self.faction_store.clone() else {
+            return;
+        };
+        let paragon_reputation_store = self.paragon_reputation_store.clone();
+        let race = self.player_race_like_cpp();
+        let class = self.player_class_like_cpp();
+        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
+            mgr.initialize_like_cpp(
+                faction_store.as_ref(),
+                paragon_reputation_store.as_deref(),
+                race,
+                class,
             );
-        }
+        });
     }
 
     pub fn set_reputation_reward_rate_store(
@@ -26880,7 +26946,25 @@ impl WorldSession {
     }
 
     pub(crate) fn set_championing_faction_like_cpp(&mut self, faction_id: u32) {
-        self.championing_faction_like_cpp = faction_id;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().championing_faction_id = faction_id;
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            self.championing_faction_like_cpp = faction_id;
+        }
+    }
+
+    pub(crate) fn resolved_championing_faction_like_cpp(&self) -> Option<u32> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.gameplay_state().championing_faction_id);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.championing_faction_like_cpp);
+        }
+        canonical
     }
 
     pub fn set_reputation_spillover_template_store(
@@ -32073,17 +32157,16 @@ impl WorldSession {
             _ => FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
         };
 
-        let mut applied = 0usize;
-        for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
-            .iter()
-            .chain(team_factions.iter())
-        {
-            let Some(faction_entry) = faction_store.get(*faction_id).cloned() else {
-                continue;
-            };
-            let outcome = self
-                .reputation_mgr_like_cpp_mut()
-                .set_one_faction_reputation_like_cpp(
+        let Some((applied, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
+            let mut applied = 0usize;
+            for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
+                .iter()
+                .chain(team_factions.iter())
+            {
+                let Some(faction_entry) = faction_store.get(*faction_id).cloned() else {
+                    continue;
+                };
+                let outcome = mgr.set_one_faction_reputation_like_cpp(
                     &faction_entry,
                     FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP,
                     false,
@@ -32097,15 +32180,16 @@ impl WorldSession {
                     player_race,
                     player_class,
                 );
-            if outcome.applied {
-                applied += 1;
+                if outcome.applied {
+                    applied += 1;
+                }
             }
-        }
-
-        if applied > 0 {
-            let packet = self
-                .reputation_mgr_like_cpp_mut()
-                .set_faction_standing_packet_like_cpp(None);
+            let packet = (applied > 0).then(|| mgr.set_faction_standing_packet_like_cpp(None));
+            (applied, packet)
+        }) else {
+            return 0;
+        };
+        if let Some(packet) = packet {
             self.send_packet(&packet);
         }
 
@@ -33385,7 +33469,7 @@ impl WorldSession {
     }
 
     fn represented_championing_faction_for_kill_like_cpp(&self) -> Option<u32> {
-        let championing_faction = self.championing_faction_like_cpp;
+        let championing_faction = self.resolved_championing_faction_like_cpp()?;
         if championing_faction == 0 {
             return None;
         }
@@ -33547,14 +33631,16 @@ impl WorldSession {
             return;
         }
 
-        let current_rank = self
-            .reputation_mgr_like_cpp()
-            .rank_for_faction_entry_like_cpp(
+        let Some(current_rank) = self.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.rank_for_faction_entry_like_cpp(
                 &faction_entry,
                 self.friendship_rep_reaction_store.as_deref(),
                 self.player_race_like_cpp(),
                 self.player_class_like_cpp(),
-            );
+            )
+        }) else {
+            return;
+        };
         let spillover_only = current_rank.as_u8() > max_cap;
 
         let reputation_spillover_template_store =
@@ -33576,20 +33662,25 @@ impl WorldSession {
             player_race: self.player_race_like_cpp(),
             player_class: self.player_class_like_cpp(),
         };
-        let outcome = self.reputation_mgr_like_cpp_mut().set_reputation_like_cpp(
-            &faction_entry,
-            reputation,
-            options,
-            &faction_store,
-            db_spillover_template,
-            friendship_rep_reaction_store.as_deref(),
-            paragon_reputation_store.as_deref(),
-            currency_types_store.as_deref(),
-        );
-        if let Some(rep_list_id) = outcome.send_state_rep_list_id {
-            let packet = self
-                .reputation_mgr_like_cpp_mut()
-                .set_faction_standing_packet_like_cpp(Some(rep_list_id));
+        let Some((outcome, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
+            let outcome = mgr.set_reputation_like_cpp(
+                &faction_entry,
+                reputation,
+                options,
+                &faction_store,
+                db_spillover_template,
+                friendship_rep_reaction_store.as_deref(),
+                paragon_reputation_store.as_deref(),
+                currency_types_store.as_deref(),
+            );
+            let packet = outcome
+                .send_state_rep_list_id
+                .map(|rep_list_id| mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id)));
+            (outcome, packet)
+        }) else {
+            return;
+        };
+        if let Some(packet) = packet {
             self.send_packet(&packet);
         }
         if outcome.applied {
@@ -34190,13 +34281,15 @@ impl WorldSession {
             return;
         };
 
-        let old_reputation = self
-            .reputation_mgr_like_cpp()
-            .reputation_for_faction_like_cpp(
+        let Some(old_reputation) = self.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.reputation_for_faction_like_cpp(
                 faction_entry,
                 self.player_race_like_cpp(),
                 self.player_class_like_cpp(),
-            );
+            )
+        }) else {
+            return;
+        };
         let new_reputation = old_reputation.saturating_add(change);
         let object_id = i32::try_from(faction_id).unwrap_or(i32::MAX);
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -69836,20 +69929,25 @@ impl WorldSession {
             player_race: self.player_race_like_cpp(),
             player_class: self.player_class_like_cpp(),
         };
-        let outcome = self.reputation_mgr_like_cpp_mut().set_reputation_like_cpp(
-            &faction_entry,
-            reputation,
-            options,
-            &faction_store,
-            db_spillover_template,
-            friendship_rep_reaction_store.as_deref(),
-            paragon_reputation_store.as_deref(),
-            currency_types_store.as_deref(),
-        );
-        if let Some(rep_list_id) = outcome.send_state_rep_list_id {
-            let packet = self
-                .reputation_mgr_like_cpp_mut()
-                .set_faction_standing_packet_like_cpp(Some(rep_list_id));
+        let Some((outcome, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
+            let outcome = mgr.set_reputation_like_cpp(
+                &faction_entry,
+                reputation,
+                options,
+                &faction_store,
+                db_spillover_template,
+                friendship_rep_reaction_store.as_deref(),
+                paragon_reputation_store.as_deref(),
+                currency_types_store.as_deref(),
+            );
+            let packet = outcome
+                .send_state_rep_list_id
+                .map(|rep_list_id| mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id)));
+            (outcome, packet)
+        }) else {
+            return false;
+        };
+        if let Some(packet) = packet {
             self.send_packet(&packet);
         }
         outcome.applied

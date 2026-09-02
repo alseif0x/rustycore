@@ -1505,23 +1505,27 @@ impl WorldSession {
                     let db_spillover_template = reputation_spillover_template_store
                         .as_deref()
                         .and_then(|store| store.get(faction_id));
-                    let outcome = self.reputation_mgr_like_cpp_mut().set_reputation_like_cpp(
-                        faction_entry,
-                        reputation_after_recruit_a_friend_bonus_like_cpp,
-                        options,
-                        faction_store,
-                        db_spillover_template,
-                        friendship_rep_reaction_store.as_deref(),
-                        paragon_reputation_store.as_deref(),
-                        currency_types_store.as_deref(),
-                    );
-                    if let Some(rep_list_id) = outcome.send_state_rep_list_id {
-                        let packet = self
-                            .reputation_mgr_like_cpp_mut()
-                            .set_faction_standing_packet_like_cpp(Some(rep_list_id));
+                    let mutation = self.mutate_reputation_mgr_like_cpp(|mgr| {
+                        let outcome = mgr.set_reputation_like_cpp(
+                            faction_entry,
+                            reputation_after_recruit_a_friend_bonus_like_cpp,
+                            options,
+                            faction_store,
+                            db_spillover_template,
+                            friendship_rep_reaction_store.as_deref(),
+                            paragon_reputation_store.as_deref(),
+                            currency_types_store.as_deref(),
+                        );
+                        let packet = outcome.send_state_rep_list_id.map(|rep_list_id| {
+                            mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id))
+                        });
+                        (outcome, packet)
+                    });
+                    let owner_unavailable = mutation.is_none();
+                    if let Some((_outcome, Some(packet))) = mutation {
                         self.send_packet(&packet);
                     }
-                    false
+                    owner_unavailable
                 } else {
                     true
                 };

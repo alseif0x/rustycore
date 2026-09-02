@@ -1761,9 +1761,11 @@ impl WorldSession {
         });
 
         // 16. InitializeFactions (1000 factions, all neutral)
-        let initialize_factions = self
-            .reputation_mgr_like_cpp_mut()
-            .initialize_factions_packet_like_cpp();
+        let Some(initialize_factions) =
+            self.mutate_reputation_mgr_like_cpp(|mgr| mgr.initialize_factions_packet_like_cpp())
+        else {
+            return false;
+        };
         self.send_packet(&initialize_factions);
 
         // 17. SetupCurrency (empty)

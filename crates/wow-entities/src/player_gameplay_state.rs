@@ -47,6 +47,12 @@ pub struct PlayerGameplayState {
     pub legacy_raid_difficulty_id: u32,
     pub pass_on_group_loot: bool,
     pub forced_reputation_ranks: Vec<(u32, u8)>,
+    /// C++ `ReputationMgr` cached visible/honored/revered/exalted counters.
+    pub reputation_rank_counters: [u8; 4],
+    /// C++ `ReputationMgr::_sendFactionIncreased`.
+    pub send_faction_increased: bool,
+    /// C++ `Player::m_ChampioningFaction`.
+    pub championing_faction_id: u32,
     pub transport: Option<PlayerTransportState>,
     pub world_local: PlayerWorldLocalState,
     /// C++ `Unit::m_vehicleKit` for Player mount vehicles.

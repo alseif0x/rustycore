@@ -144,22 +144,40 @@ impl Player {
 
     pub fn set_forced_reputation_rank_like_cpp(&mut self, faction_id: u32, forced: bool) {
         if forced {
-            self.forced_reaction_faction_ids.insert(faction_id);
+            if !self
+                .gameplay_state
+                .forced_reputation_ranks
+                .iter()
+                .any(|(id, _)| *id == faction_id)
+            {
+                self.gameplay_state
+                    .forced_reputation_ranks
+                    .push((faction_id, 0));
+            }
         } else {
-            self.forced_reaction_faction_ids.remove(&faction_id);
+            self.gameplay_state
+                .forced_reputation_ranks
+                .retain(|(id, _)| *id != faction_id);
         }
     }
 
     pub fn has_forced_reputation_rank_like_cpp(&self, faction_id: u32) -> bool {
-        self.forced_reaction_faction_ids.contains(&faction_id)
+        self.gameplay_state
+            .forced_reputation_ranks
+            .iter()
+            .any(|(id, _)| *id == faction_id)
     }
 
-    pub fn forced_reputation_faction_ids_like_cpp(&self) -> &HashSet<u32> {
-        &self.forced_reaction_faction_ids
+    pub fn forced_reputation_faction_ids_like_cpp(&self) -> impl Iterator<Item = u32> + '_ {
+        self.gameplay_state
+            .forced_reputation_ranks
+            .iter()
+            .map(|(id, _)| *id)
     }
 
     pub fn replace_forced_reputation_faction_ids_like_cpp(&mut self, faction_ids: HashSet<u32>) {
-        self.forced_reaction_faction_ids = faction_ids;
+        self.gameplay_state.forced_reputation_ranks =
+            faction_ids.into_iter().map(|id| (id, 0)).collect();
     }
 
     pub fn is_at_war_with_faction_like_cpp(&self, faction_id: u32) -> bool {

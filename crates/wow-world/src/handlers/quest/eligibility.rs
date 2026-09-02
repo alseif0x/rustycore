@@ -269,36 +269,48 @@ impl WorldSession {
     // for unknown faction id, Player.cpp:15265 / ReputationMgr.cpp:118-124).
     fn satisfy_quest_reputation_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
         if quest.required_min_rep_faction != 0 {
-            let rep = self
+            let rep = match self
                 .faction_store()
                 .and_then(|store| store.get(quest.required_min_rep_faction))
-                .map(|faction_entry| {
-                    self.reputation_mgr_like_cpp()
-                        .reputation_for_faction_like_cpp(
+            {
+                Some(faction_entry) => {
+                    let Some(rep) = self.with_reputation_mgr_like_cpp(|mgr| {
+                        mgr.reputation_for_faction_like_cpp(
                             faction_entry,
                             self.player_race_like_cpp(),
                             self.player_class_like_cpp(),
                         )
-                })
-                .unwrap_or(0);
+                    }) else {
+                        return false;
+                    };
+                    rep
+                }
+                None => 0,
+            };
             if rep < quest.required_min_rep_value {
                 return false;
             }
         }
 
         if quest.required_max_rep_faction != 0 {
-            let rep = self
+            let rep = match self
                 .faction_store()
                 .and_then(|store| store.get(quest.required_max_rep_faction))
-                .map(|faction_entry| {
-                    self.reputation_mgr_like_cpp()
-                        .reputation_for_faction_like_cpp(
+            {
+                Some(faction_entry) => {
+                    let Some(rep) = self.with_reputation_mgr_like_cpp(|mgr| {
+                        mgr.reputation_for_faction_like_cpp(
                             faction_entry,
                             self.player_race_like_cpp(),
                             self.player_class_like_cpp(),
                         )
-                })
-                .unwrap_or(0);
+                    }) else {
+                        return false;
+                    };
+                    rep
+                }
+                None => 0,
+            };
             if rep >= quest.required_max_rep_value {
                 return false;
             }

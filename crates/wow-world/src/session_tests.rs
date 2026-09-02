@@ -31778,6 +31778,124 @@ fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cp
 }
 
 #[test]
+fn canonical_player_reputation_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_572);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ReputationOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session
+            .mutate_reputation_mgr_like_cpp(|mgr| {
+                let mut faction = crate::reputation::FactionStateLikeCpp::new_like_cpp(
+                    72,
+                    5,
+                    ReputationFlagsLikeCpp::VISIBLE,
+                );
+                faction.standing = 1_234;
+                mgr.insert_state_for_test_like_cpp(faction);
+                mgr.apply_force_reaction_like_cpp(
+                    87,
+                    wow_data::reputation::ReputationRankLikeCpp::Hostile,
+                    true,
+                );
+            })
+            .is_some()
+    );
+    session.set_championing_faction_like_cpp(72);
+    assert_eq!(
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            (
+                mgr.get_state(5).map(|state| state.standing),
+                mgr.forced_rank_by_faction_id_like_cpp(87),
+            )
+        }),
+        Some((
+            Some(1_234),
+            Some(wow_data::reputation::ReputationRankLikeCpp::Hostile)
+        ))
+    );
+    assert_eq!(session.resolved_championing_faction_like_cpp(), Some(72));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .with_reputation_mgr_like_cpp(|mgr| { mgr.get_state(5).map(|state| state.standing) }),
+        Some(Some(1_234))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().championing_faction_id = 999;
+    replacement
+        .gameplay_state_mut()
+        .reputations
+        .push(wow_entities::PlayerReputationRecord {
+            faction_id: 999,
+            reputation_list_id: 6,
+            standing: 7_777,
+            ..Default::default()
+        });
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.with_reputation_mgr_like_cpp(|_| ()), None);
+    assert_eq!(session.mutate_reputation_mgr_like_cpp(|_| ()), None);
+    session.set_championing_faction_like_cpp(72);
+    assert_eq!(session.resolved_championing_faction_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                (
+                    player.gameplay_state().championing_faction_id,
+                    player.gameplay_state().reputations.clone(),
+                )
+            }),
+        Some((
+            999,
+            vec![wow_entities::PlayerReputationRecord {
+                faction_id: 999,
+                reputation_list_id: 6,
+                standing: 7_777,
+                ..Default::default()
+            }]
+        ))
+    );
+}
+
+#[test]
 fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -41904,11 +42022,12 @@ async fn spell_reputation_effect_modifies_current_player_reputation_like_cpp() {
         .await
         .expect("represented EffectReputation should execute");
 
-    let state = session
-        .reputation_mgr_like_cpp()
-        .get_state(rep_list_id)
-        .expect("faction state");
-    assert_eq!(state.standing, 250);
+    assert_eq!(
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.get_state(rep_list_id).map(|state| state.standing)
+        }),
+        Some(Some(250))
+    );
 
     let packets = drain_server_packet_bytes(&send_rx);
     let opcodes: Vec<_> = packets
@@ -42003,12 +42122,10 @@ async fn spell_reputation_effect_uses_spell_reward_rate_like_cpp() {
         .expect("represented EffectReputation should execute");
 
     assert_eq!(
-        session
-            .reputation_mgr_like_cpp()
-            .get_state(rep_list_id)
-            .unwrap()
-            .standing,
-        300
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.get_state(rep_list_id).map(|state| state.standing)
+        }),
+        Some(Some(300))
     );
 }
 
@@ -42051,7 +42168,10 @@ async fn spell_reputation_effect_ignores_missing_faction_like_cpp() {
         .await
         .expect("missing faction represented EffectReputation should execute as C++ no-op");
 
-    assert!(session.reputation_mgr_like_cpp().get_state(5).is_none());
+    assert_eq!(
+        session.with_reputation_mgr_like_cpp(|mgr| mgr.get_state(5).is_none()),
+        Some(true)
+    );
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
@@ -42104,12 +42224,10 @@ async fn spell_reputation_effect_ignores_non_player_target_like_cpp() {
         .expect("non-player target represented EffectReputation should execute as C++ no-op");
 
     assert_eq!(
-        session
-            .reputation_mgr_like_cpp()
-            .get_state(rep_list_id)
-            .unwrap()
-            .standing,
-        0
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.get_state(rep_list_id).map(|state| state.standing)
+        }),
+        Some(Some(0))
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -61345,6 +61463,7 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
                     faction_id: 72,
                     standing: 0,
                     flags: 0,
+                    ..Default::default()
                 });
         })
         .unwrap();
@@ -61428,6 +61547,7 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
                     faction_id: 72,
                     standing: 0,
                     flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                    ..Default::default()
                 });
         })
         .unwrap();
@@ -72862,6 +72982,7 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
                 faction_id: 72,
                 standing: 1234,
                 flags: 0,
+                ..Default::default()
             });
     });
 
@@ -72910,6 +73031,7 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
                 faction_id: 72,
                 standing: -6000,
                 flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                ..Default::default()
             });
         player.set_forced_reputation_rank_like_cpp(87, true);
         player.gameplay_state_mut().forced_reputation_ranks = vec![(

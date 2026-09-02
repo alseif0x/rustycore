@@ -337,8 +337,10 @@
           "name": "championing_faction_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "characters_per_realm_like_cpp",
@@ -4669,8 +4671,10 @@
           "name": "reputation_mgr_like_cpp",
           "type": "ReputationMgrLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "reputation_rates",
@@ -28873,6 +28877,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_reputation_mgr_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mutate_reputation_mgr_like_cpp < R > (& mut self , operation : impl FnOnce (& mut ReputationMgrLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_world_creature",
           "visibility": "pub (crate)",
           "signature": "fn mutate_world_creature < F , R > (& mut self , guid : ObjectGuid , f : F) -> Option < R > where F : FnOnce (& mut crate :: map_manager :: WorldCreature) -> R ,",
@@ -38686,8 +38703,10 @@
           "name": "reputation_mgr_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn reputation_mgr_like_cpp (& self) -> & ReputationMgrLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38699,8 +38718,10 @@
           "name": "reputation_mgr_like_cpp_mut",
           "visibility": "pub (crate)",
           "signature": "fn reputation_mgr_like_cpp_mut (& mut self) -> & mut ReputationMgrLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -39157,6 +39178,19 @@
           "name": "resolved_buyback_timestamp_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_buyback_timestamp_like_cpp (& self) -> Option < [i64 ; BUYBACK_SLOT_COUNT] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_championing_faction_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_championing_faction_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -50451,6 +50485,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_reputation_mgr_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn with_reputation_mgr_like_cpp < R > (& self , operation : impl FnOnce (& ReputationMgrLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -75678,7 +75725,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d5c11ec67c87b4b6f8dd4f864d60fe3d:len=94589|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7e8509928924a6df9e978cd2d9a7a68e:len=94698|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

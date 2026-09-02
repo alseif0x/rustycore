@@ -846,11 +846,16 @@ pub struct PlayerRandomBattlegroundState {
     pub last_reward_time: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerReputationRecord {
     pub faction_id: u32,
+    /// C++ `FactionState::ReputationListID`, the stable client-array key.
+    pub reputation_list_id: u32,
     pub standing: i32,
     pub flags: u32,
+    pub visual_standing_increase: i32,
+    pub need_send: bool,
+    pub need_save: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3689,7 +3694,6 @@ pub struct Player {
     enchant_durations: Vec<PlayerEnchantDuration>,
     lifecycle_metadata: PlayerLifecycleMetadata,
     duel: Option<PlayerDuelInfoLikeCpp>,
-    forced_reaction_faction_ids: HashSet<u32>,
 }
 
 impl Player {
@@ -3728,7 +3732,6 @@ impl Player {
             enchant_durations: Vec::new(),
             lifecycle_metadata: PlayerLifecycleMetadata::default(),
             duel: None,
-            forced_reaction_faction_ids: HashSet::new(),
         }
     }
 

@@ -542,8 +542,7 @@ impl WorldSession {
         };
 
         let reputations = self
-            .reputation_mgr_like_cpp()
-            .pending_save_rows_like_cpp()
+            .with_reputation_mgr_like_cpp(|mgr| mgr.pending_save_rows_like_cpp())?
             .into_iter()
             .map(
                 |(faction_id, standing, flags)| PlayerReputationSaveLikeCpp {
@@ -699,8 +698,9 @@ impl WorldSession {
             self.tutorials_changed_like_cpp = false;
         }
         if committed.reputation {
-            self.reputation_mgr_like_cpp_mut()
-                .mark_pending_save_to_db_committed_like_cpp();
+            let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
+                mgr.mark_pending_save_to_db_committed_like_cpp();
+            });
         }
     }
 

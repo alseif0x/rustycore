@@ -399,6 +399,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             faction_id: TEAM_ALLIANCE_ID,
             standing: 4_200,
             flags: 0x1,
+            ..Default::default()
         }],
         achievements: vec![PlayerAchievementRecord {
             achievement_id: 6,
