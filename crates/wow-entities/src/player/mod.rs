@@ -596,12 +596,16 @@ pub struct PlayerWorldLocalState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerMailRecord {
     pub mail_id: u32,
-    pub sender: ObjectGuid,
-    pub receiver: ObjectGuid,
+    /// C++ `Mail::messageType`; non-normal mail uses the raw sender as the
+    /// alternate sender identifier rather than a Player GUID.
+    pub message_type: u8,
+    pub sender: u64,
+    pub receiver: u64,
     pub template_id: Option<u32>,
     pub deliver_time: u64,
     pub expire_time: u64,
     pub checked_flags: u32,
+    pub stationery_id: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

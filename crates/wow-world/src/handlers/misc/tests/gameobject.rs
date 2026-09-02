@@ -5,45 +5,13 @@
 
 use super::*;
 
-#[derive(Debug)]
-struct RecordingGameObjectUseTemplatePortLikeCpp {
-    requests: Mutex<Vec<wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp>>,
-    outcome: wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp,
-}
-
-impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp
-    for RecordingGameObjectUseTemplatePortLikeCpp
-{
-    fn load_gameobject_use_template_like_cpp<'a>(
-        &'a self,
-        request: wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp,
-    ) -> wow_persistence::PersistenceFutureLikeCpp<
-        'a,
-        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp,
-    > {
-        Box::pin(async move {
-            self.requests.lock().unwrap().push(request);
-            self.outcome.clone()
-        })
-    }
-}
-
 fn game_obj_use_test_session_like_cpp(
-    outcome: wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp,
-) -> (
-    crate::session::WorldSession,
-    Arc<RecordingGameObjectUseTemplatePortLikeCpp>,
-    ObjectGuid,
-    ObjectGuid,
-) {
+    template: Option<wow_data::GameObjectQueryTemplateLikeCpp>,
+) -> (crate::session::WorldSession, ObjectGuid, ObjectGuid) {
     let (mut session, _send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 99);
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 8);
-    let port = Arc::new(RecordingGameObjectUseTemplatePortLikeCpp {
-        requests: Mutex::new(Vec::new()),
-        outcome,
-    });
 
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 10, 0);
@@ -58,9 +26,18 @@ fn game_obj_use_test_session_like_cpp(
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.set_gameobject_use_template_persistence_port_like_cpp(port.clone());
+    session.set_object_mgr_catalogs_like_cpp(Arc::new(crate::session::ObjectMgrCatalogsLikeCpp {
+        creature: Arc::new(wow_data::CreatureQueryCatalogLikeCpp::default()),
+        gameobject: Arc::new(wow_data::GameObjectQueryCatalogLikeCpp::from_rows_like_cpp(
+            template,
+            [],
+        )),
+        gameobject_quest_items: Arc::new(wow_data::GameObjectQuestItemStoreLikeCpp::default()),
+        page_text: Arc::new(wow_data::PageTextCatalogLikeCpp::default()),
+        gameobject_lifecycle: Arc::default(),
+    }));
 
-    (session, port, player_guid, gameobject_guid)
+    (session, player_guid, gameobject_guid)
 }
 
 fn game_obj_use_packet_like_cpp(gameobject_guid: ObjectGuid) -> WorldPacket {
@@ -72,28 +49,28 @@ fn game_obj_use_packet_like_cpp(gameobject_guid: ObjectGuid) -> WorldPacket {
 
 #[tokio::test]
 async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_cpp() {
-    let mut data = [0_u32; wow_persistence::GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP];
+    let mut data = [0_i32; wow_data::WORLD_QUERY_GAMEOBJECT_DATA_COUNT_LIKE_CPP];
     data[2] = 2_500;
-    let (mut session, port, player_guid, gameobject_guid) = game_obj_use_test_session_like_cpp(
-        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Found(
-            wow_persistence::GameObjectUseTemplateLoadRowLikeCpp {
-                go_type: wow_entities::GAMEOBJECT_TYPE_DOOR,
-                icon_name: "Gossip".to_string(),
-                size: 1.0,
-                data,
-                content_tuning_id: 0,
-            },
-        ),
-    );
+    let (mut session, player_guid, gameobject_guid) =
+        game_obj_use_test_session_like_cpp(Some(wow_data::GameObjectQueryTemplateLikeCpp {
+            entry: 777,
+            go_type: wow_entities::GAMEOBJECT_TYPE_DOOR as i32,
+            display_id: 0,
+            name: "Door".into(),
+            icon_name: "Gossip".to_string(),
+            cast_bar_caption: String::new(),
+            unk_string: String::new(),
+            size: 1.0,
+            data,
+            content_tuning_id: 0,
+            min_money: 0,
+            max_money: 0,
+        }));
 
     session
         .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
         .await;
 
-    assert_eq!(
-        port.requests.lock().unwrap().as_slice(),
-        [wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp { entry: 777 }]
-    );
     assert!(
         session
             .represented_gameobject_use_effects
@@ -113,27 +90,18 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
 }
 
 #[tokio::test]
-async fn game_obj_use_missing_or_failed_template_is_noop_like_cpp() {
-    for outcome in [
-        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Missing,
-        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Failed {
-            reason: "database unavailable".to_string(),
-        },
-    ] {
-        let (mut session, port, _player_guid, gameobject_guid) =
-            game_obj_use_test_session_like_cpp(outcome);
+async fn game_obj_use_missing_template_is_noop_like_cpp() {
+    let (mut session, _player_guid, gameobject_guid) = game_obj_use_test_session_like_cpp(None);
 
-        session
-            .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
-            .await;
+    session
+        .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
+        .await;
 
-        assert_eq!(port.requests.lock().unwrap().len(), 1);
-        assert!(session.represented_gameobject_use_effects.is_empty());
-    }
+    assert!(session.represented_gameobject_use_effects.is_empty());
 }
 
 #[tokio::test]
-async fn game_obj_use_missing_port_is_noop_before_template_read_like_cpp() {
+async fn game_obj_use_missing_catalog_capability_is_noop_before_template_read_like_cpp() {
     let (mut session, _send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 99);
     let gameobject_guid =

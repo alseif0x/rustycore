@@ -33,8 +33,10 @@ use wow_data::quest::{
     QuestTemplate,
 };
 use wow_data::{
-    ItemChildEquipmentEntry, ItemChildEquipmentStore, PlayerConditionEntry, PlayerLevelStats,
-    PlayerStatsStore, SpellMiscEntry, SpellMiscStore,
+    CreatureQueryCatalogLikeCpp, CreatureQueryDisplayLikeCpp, CreatureQueryTemplateLikeCpp,
+    GameObjectQueryCatalogLikeCpp, GameObjectQueryTemplateLikeCpp, ItemChildEquipmentEntry,
+    ItemChildEquipmentStore, PageTextCatalogLikeCpp, PageTextLikeCpp, PlayerConditionEntry,
+    PlayerLevelStats, PlayerStatsStore, SpellMiscEntry, SpellMiscStore,
 };
 use wow_entities::{CHILD_EQUIPMENT_SLOT_START, EQUIPMENT_SLOT_MAINHAND};
 use wow_packet::packets::loot::{
@@ -48,132 +50,51 @@ use wow_persistence::{
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, CharacterEnumerationLoadOutcomeLikeCpp,
     CharacterEnumerationPersistencePortLikeCpp, CharacterEnumerationRequestLikeCpp,
-    CharacterEnumerationRowLikeCpp, CreatureQueryCatalogOutcomeLikeCpp,
-    CreatureQueryCatalogPersistencePortLikeCpp, CreatureQueryCatalogRequestLikeCpp,
-    CreatureQueryCatalogRowLikeCpp, CreatureQueryDisplayRowLikeCpp,
-    GameObjectQueryCatalogOutcomeLikeCpp, GameObjectQueryCatalogPersistencePortLikeCpp,
-    GameObjectQueryCatalogRequestLikeCpp, GameObjectQueryCatalogRowLikeCpp,
-    GossipBroadcastTextLocaleRequestLikeCpp, GossipCatalogPersistencePortLikeCpp,
-    GossipCatalogReadOutcomeLikeCpp, GossipCreatureMenuRequestLikeCpp,
-    GossipMenuCatalogRequestLikeCpp, GossipMenuOptionCatalogRowLikeCpp,
-    GossipNpcTextCatalogRequestLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,
+    CharacterEnumerationRowLikeCpp, GossipBroadcastTextLocaleRequestLikeCpp,
+    GossipCatalogPersistencePortLikeCpp, GossipCatalogReadOutcomeLikeCpp,
+    GossipCreatureMenuRequestLikeCpp, GossipMenuCatalogRequestLikeCpp,
+    GossipMenuOptionCatalogRowLikeCpp, GossipNpcTextCatalogRequestLikeCpp,
+    MapCorpseAuxiliaryLoadOutcomeLikeCpp,
     MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
-    PageTextCatalogDiagnosticLikeCpp, PageTextCatalogOutcomeLikeCpp,
-    PageTextCatalogPersistencePortLikeCpp, PageTextCatalogRequestLikeCpp,
-    PageTextCatalogRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
-    PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
-    PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
-    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerNameQueryOutcomeLikeCpp, PlayerNameQueryPersistencePortLikeCpp,
-    PlayerNameQueryRequestLikeCpp, PlayerNameQueryRowLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerOnlineMarkRequestLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
+    PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
+    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerNameQueryOutcomeLikeCpp,
+    PlayerNameQueryPersistencePortLikeCpp, PlayerNameQueryRequestLikeCpp,
+    PlayerNameQueryRowLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
 };
 
-struct CreatureQueryCatalogPortFixtureLikeCpp {
-    requests: std::sync::Mutex<Vec<CreatureQueryCatalogRequestLikeCpp>>,
-    outcomes: std::sync::Mutex<std::collections::VecDeque<CreatureQueryCatalogOutcomeLikeCpp>>,
-}
-
-impl CreatureQueryCatalogPortFixtureLikeCpp {
-    fn new(outcomes: impl IntoIterator<Item = CreatureQueryCatalogOutcomeLikeCpp>) -> Arc<Self> {
-        Arc::new(Self {
-            requests: std::sync::Mutex::new(Vec::new()),
-            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
-        })
-    }
-
-    fn requests(&self) -> Vec<CreatureQueryCatalogRequestLikeCpp> {
-        self.requests.lock().unwrap().clone()
-    }
-}
-
-impl CreatureQueryCatalogPersistencePortLikeCpp for CreatureQueryCatalogPortFixtureLikeCpp {
-    fn load_creature_query_catalog_like_cpp<'a>(
-        &'a self,
-        request: CreatureQueryCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, CreatureQueryCatalogOutcomeLikeCpp> {
-        self.requests.lock().unwrap().push(request);
-        let outcome = self
-            .outcomes
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("one creature-query outcome per request");
-        Box::pin(async move { outcome })
-    }
-}
-
-struct GameObjectQueryCatalogPortFixtureLikeCpp {
-    requests: std::sync::Mutex<Vec<GameObjectQueryCatalogRequestLikeCpp>>,
-    outcomes: std::sync::Mutex<std::collections::VecDeque<GameObjectQueryCatalogOutcomeLikeCpp>>,
-}
-
-impl GameObjectQueryCatalogPortFixtureLikeCpp {
-    fn new(outcomes: impl IntoIterator<Item = GameObjectQueryCatalogOutcomeLikeCpp>) -> Arc<Self> {
-        Arc::new(Self {
-            requests: std::sync::Mutex::new(Vec::new()),
-            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
-        })
-    }
-
-    fn requests(&self) -> Vec<GameObjectQueryCatalogRequestLikeCpp> {
-        self.requests.lock().unwrap().clone()
-    }
-}
-
-impl GameObjectQueryCatalogPersistencePortLikeCpp for GameObjectQueryCatalogPortFixtureLikeCpp {
-    fn load_gameobject_query_catalog_like_cpp<'a>(
-        &'a self,
-        request: GameObjectQueryCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, GameObjectQueryCatalogOutcomeLikeCpp> {
-        self.requests.lock().unwrap().push(request);
-        let outcome = self
-            .outcomes
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("one gameobject-query outcome per request");
-        Box::pin(async move { outcome })
-    }
-}
-
-struct PageTextCatalogPortFixtureLikeCpp {
-    requests: std::sync::Mutex<Vec<PageTextCatalogRequestLikeCpp>>,
-    outcomes: std::sync::Mutex<std::collections::VecDeque<PageTextCatalogOutcomeLikeCpp>>,
-}
-
-impl PageTextCatalogPortFixtureLikeCpp {
-    fn new(outcomes: impl IntoIterator<Item = PageTextCatalogOutcomeLikeCpp>) -> Arc<Self> {
-        Arc::new(Self {
-            requests: std::sync::Mutex::new(Vec::new()),
-            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
-        })
-    }
-
-    fn requests(&self) -> Vec<PageTextCatalogRequestLikeCpp> {
-        self.requests.lock().unwrap().clone()
-    }
-}
-
-impl PageTextCatalogPersistencePortLikeCpp for PageTextCatalogPortFixtureLikeCpp {
-    fn load_page_text_catalog_like_cpp<'a>(
-        &'a self,
-        request: PageTextCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, PageTextCatalogOutcomeLikeCpp> {
-        self.requests.lock().unwrap().push(request);
-        let outcome = self
-            .outcomes
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("one page-text outcome per request");
-        Box::pin(async move { outcome })
-    }
+fn install_world_query_catalogs_like_cpp(
+    session: &mut WorldSession,
+    creatures: impl IntoIterator<Item = CreatureQueryTemplateLikeCpp>,
+    gameobjects: impl IntoIterator<Item = GameObjectQueryTemplateLikeCpp>,
+    pages: impl IntoIterator<Item = PageTextLikeCpp>,
+    gameobject_quest_items: impl IntoIterator<Item = (u32, u32, u32)>,
+) {
+    let quest_items = wow_data::GameObjectQuestItemStoreLikeCpp::from_rows_like_cpp(
+        gameobject_quest_items,
+        |_| true,
+        |_| true,
+    )
+    .store;
+    session.set_object_mgr_catalogs_like_cpp(Arc::new(crate::session::ObjectMgrCatalogsLikeCpp {
+        creature: Arc::new(CreatureQueryCatalogLikeCpp::from_rows_like_cpp(
+            creatures,
+            [],
+        )),
+        gameobject: Arc::new(GameObjectQueryCatalogLikeCpp::from_rows_like_cpp(
+            gameobjects,
+            [],
+        )),
+        gameobject_quest_items: Arc::new(quest_items),
+        page_text: Arc::new(PageTextCatalogLikeCpp::from_rows_like_cpp(pages, [])),
+        gameobject_lifecycle: Arc::default(),
+    }));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -10750,7 +10671,7 @@ async fn hotfix_request_sql_hotfix_blob_keeps_valid_cpp_blob_path() {
 }
 
 #[tokio::test]
-async fn query_page_text_without_catalog_port_sends_cpp_deny_shape() {
+async fn query_page_text_without_catalog_capability_sends_cpp_deny_shape() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
 
     session
@@ -10773,14 +10694,14 @@ async fn query_page_text_without_catalog_port_sends_cpp_deny_shape() {
 #[tokio::test]
 async fn query_page_text_uses_typed_catalog_and_preserves_exact_chain_packet_like_cpp() {
     let pages = vec![
-        PageTextCatalogRowLikeCpp {
+        PageTextLikeCpp {
             id: 123,
             next_page_id: 124,
             player_condition_id: -7,
             flags: 3,
             text: "Primera página".to_owned(),
         },
-        PageTextCatalogRowLikeCpp {
+        PageTextLikeCpp {
             id: 124,
             next_page_id: 0,
             player_condition_id: 9,
@@ -10788,16 +10709,8 @@ async fn query_page_text_uses_typed_catalog_and_preserves_exact_chain_packet_lik
             text: "Segunda página".to_owned(),
         },
     ];
-    let port = PageTextCatalogPortFixtureLikeCpp::new([PageTextCatalogOutcomeLikeCpp {
-        pages: pages.clone(),
-        diagnostics: vec![PageTextCatalogDiagnosticLikeCpp::LocaleReadFailed {
-            page_text_id: 124,
-            locale: "esES".to_owned(),
-            reason: "locale fallback diagnostic".to_owned(),
-        }],
-    }]);
     let (mut session, send_rx) = make_session_with_send_capacity(1);
-    session.set_page_text_catalog_persistence_port_like_cpp(port.clone());
+    install_world_query_catalogs_like_cpp(&mut session, [], [], pages.clone(), []);
 
     session
         .handle_query_page_text(QueryPageText {
@@ -10806,13 +10719,6 @@ async fn query_page_text_uses_typed_catalog_and_preserves_exact_chain_packet_lik
         })
         .await;
 
-    assert_eq!(
-        port.requests(),
-        vec![PageTextCatalogRequestLikeCpp {
-            page_text_id: 123,
-            locale: "esES".to_owned(),
-        }]
-    );
     assert_eq!(
         send_rx.try_recv().unwrap(),
         QueryPageTextResponse {
@@ -10835,32 +10741,18 @@ async fn query_page_text_uses_typed_catalog_and_preserves_exact_chain_packet_lik
 
 #[tokio::test]
 async fn query_page_text_preserves_partial_chain_and_empty_failure_shapes_like_cpp() {
-    for outcome in [
-        PageTextCatalogOutcomeLikeCpp {
-            pages: vec![PageTextCatalogRowLikeCpp {
-                id: 123,
-                next_page_id: 124,
-                player_condition_id: 0,
-                flags: 0,
-                text: "partial".to_owned(),
-            }],
-            diagnostics: vec![PageTextCatalogDiagnosticLikeCpp::PageReadFailed {
-                page_text_id: 124,
-                reason: "base query failed".to_owned(),
-            }],
-        },
-        PageTextCatalogOutcomeLikeCpp {
-            pages: Vec::new(),
-            diagnostics: vec![PageTextCatalogDiagnosticLikeCpp::PageReadFailed {
-                page_text_id: 123,
-                reason: "base query failed".to_owned(),
-            }],
-        },
+    for expected_pages in [
+        vec![PageTextLikeCpp {
+            id: 123,
+            next_page_id: 124,
+            player_condition_id: 0,
+            flags: 0,
+            text: "partial".to_owned(),
+        }],
+        Vec::new(),
     ] {
-        let expected_pages = outcome.pages.clone();
-        let port = PageTextCatalogPortFixtureLikeCpp::new([outcome]);
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        session.set_page_text_catalog_persistence_port_like_cpp(port);
+        install_world_query_catalogs_like_cpp(&mut session, [], [], expected_pages.clone(), []);
 
         session
             .handle_query_page_text(QueryPageText {
@@ -12338,8 +12230,9 @@ async fn character_enumeration_query_failure_publishes_failure_and_no_legit_guid
     assert!(send_rx.try_recv().is_ok());
 }
 
-fn creature_query_catalog_row_like_cpp() -> CreatureQueryCatalogRowLikeCpp {
-    CreatureQueryCatalogRowLikeCpp {
+fn creature_query_catalog_row_like_cpp() -> CreatureQueryTemplateLikeCpp {
+    CreatureQueryTemplateLikeCpp {
+        entry: 42,
         name: "Localized creature".to_owned(),
         subname: "Localized title".to_owned(),
         title_alt: "Localized alternate".to_owned(),
@@ -12360,7 +12253,7 @@ fn creature_query_catalog_row_like_cpp() -> CreatureQueryCatalogRowLikeCpp {
         energy_multi: 2.5,
         creature_difficulty_id: 16,
         type_flags: [17, 18],
-        displays: vec![CreatureQueryDisplayRowLikeCpp {
+        displays: vec![CreatureQueryDisplayLikeCpp {
             display_id: 19,
             scale: 0.75,
             probability: 0.25,
@@ -12371,25 +12264,13 @@ fn creature_query_catalog_row_like_cpp() -> CreatureQueryCatalogRowLikeCpp {
 #[tokio::test]
 async fn creature_query_uses_typed_catalog_and_preserves_packet_projection_like_cpp() {
     let row = creature_query_catalog_row_like_cpp();
-    let port =
-        CreatureQueryCatalogPortFixtureLikeCpp::new([CreatureQueryCatalogOutcomeLikeCpp::Found {
-            row: row.clone(),
-            locale_error: Some("locale fallback diagnostic".to_owned()),
-        }]);
     let (mut session, send_rx) = make_session_with_send_capacity(1);
-    session.set_creature_query_catalog_persistence_port_like_cpp(port.clone());
+    install_world_query_catalogs_like_cpp(&mut session, [row.clone()], [], [], []);
 
     session
         .handle_query_creature(QueryCreature { creature_id: 42 })
         .await;
 
-    assert_eq!(
-        port.requests(),
-        vec![CreatureQueryCatalogRequestLikeCpp {
-            entry: 42,
-            locale: "esES".to_owned(),
-        }]
-    );
     let mut names: [String; 4] = Default::default();
     names[0] = row.name;
     let expected = QueryCreatureResponse {
@@ -12434,15 +12315,11 @@ async fn creature_query_uses_typed_catalog_and_preserves_packet_projection_like_
 
 #[tokio::test]
 async fn creature_query_missing_or_failed_catalog_emits_disallowed_response_like_cpp() {
-    for outcome in [
-        CreatureQueryCatalogOutcomeLikeCpp::Missing,
-        CreatureQueryCatalogOutcomeLikeCpp::Failed {
-            reason: "world query failed".to_owned(),
-        },
-    ] {
-        let port = CreatureQueryCatalogPortFixtureLikeCpp::new([outcome]);
+    for with_empty_capability in [false, true] {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        session.set_creature_query_catalog_persistence_port_like_cpp(port);
+        if with_empty_capability {
+            install_world_query_catalogs_like_cpp(&mut session, [], [], [], []);
+        }
 
         session
             .handle_query_creature(QueryCreature { creature_id: 43 })
@@ -12460,11 +12337,12 @@ async fn creature_query_missing_or_failed_catalog_emits_disallowed_response_like
     }
 }
 
-fn gameobject_query_catalog_row_like_cpp() -> GameObjectQueryCatalogRowLikeCpp {
-    let mut data = [0_i32; wow_persistence::GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP];
+fn gameobject_query_catalog_row_like_cpp() -> GameObjectQueryTemplateLikeCpp {
+    let mut data = [0_i32; wow_data::WORLD_QUERY_GAMEOBJECT_DATA_COUNT_LIKE_CPP];
     data[0] = 7;
     data[34] = 41;
-    GameObjectQueryCatalogRowLikeCpp {
+    GameObjectQueryTemplateLikeCpp {
+        entry: 42,
         go_type: 3,
         display_id: 4,
         name: "Localized object".to_owned(),
@@ -12474,23 +12352,23 @@ fn gameobject_query_catalog_row_like_cpp() -> GameObjectQueryCatalogRowLikeCpp {
         size: 1.25,
         data,
         content_tuning_id: 42,
-        quest_items: vec![43, 44],
+        min_money: 0,
+        max_money: 0,
     }
 }
 
 #[tokio::test]
 async fn gameobject_query_uses_typed_catalog_and_preserves_packet_projection_like_cpp() {
     let row = gameobject_query_catalog_row_like_cpp();
-    let port = GameObjectQueryCatalogPortFixtureLikeCpp::new([
-        GameObjectQueryCatalogOutcomeLikeCpp::Found {
-            row: row.clone(),
-            locale_error: Some("locale fallback diagnostic".to_owned()),
-            quest_items_error: Some("quest item fallback diagnostic".to_owned()),
-        },
-    ]);
     let guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 0, 571, 0, 42, 99);
     let (mut session, send_rx) = make_session_with_send_capacity(1);
-    session.set_gameobject_query_catalog_persistence_port_like_cpp(port.clone());
+    install_world_query_catalogs_like_cpp(
+        &mut session,
+        [],
+        [row.clone()],
+        [],
+        [(42, 43, 0), (42, 44, 1)],
+    );
 
     session
         .handle_query_game_object(QueryGameObject {
@@ -12499,13 +12377,6 @@ async fn gameobject_query_uses_typed_catalog_and_preserves_packet_projection_lik
         })
         .await;
 
-    assert_eq!(
-        port.requests(),
-        vec![GameObjectQueryCatalogRequestLikeCpp {
-            entry: 42,
-            locale: "esES".to_owned(),
-        }]
-    );
     let mut names: [String; 4] = Default::default();
     names[0] = row.name;
     assert_eq!(
@@ -12523,7 +12394,7 @@ async fn gameobject_query_uses_typed_catalog_and_preserves_packet_projection_lik
                 display_id: row.display_id,
                 data: row.data,
                 size: row.size,
-                quest_items: row.quest_items,
+                quest_items: vec![43, 44],
                 content_tuning_id: row.content_tuning_id,
             }),
         }
@@ -12534,15 +12405,11 @@ async fn gameobject_query_uses_typed_catalog_and_preserves_packet_projection_lik
 #[tokio::test]
 async fn gameobject_query_missing_or_failed_catalog_preserves_guid_and_disallows_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 0, 571, 0, 43, 100);
-    for outcome in [
-        GameObjectQueryCatalogOutcomeLikeCpp::Missing,
-        GameObjectQueryCatalogOutcomeLikeCpp::Failed {
-            reason: "world query failed".to_owned(),
-        },
-    ] {
-        let port = GameObjectQueryCatalogPortFixtureLikeCpp::new([outcome]);
+    for with_empty_capability in [false, true] {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        session.set_gameobject_query_catalog_persistence_port_like_cpp(port);
+        if with_empty_capability {
+            install_world_query_catalogs_like_cpp(&mut session, [], [], [], []);
+        }
 
         session
             .handle_query_game_object(QueryGameObject {

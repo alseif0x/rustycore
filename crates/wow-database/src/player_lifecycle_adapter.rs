@@ -39,9 +39,10 @@ use wow_persistence::{
     PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
     PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
     PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerLoginTransportLoadRowLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
-    PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerOnlineMarkRequestLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerLoginTransportLoadRowLikeCpp, PlayerMailLoadRowLikeCpp,
+    PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
+    PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
+    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
     PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
@@ -1326,6 +1327,11 @@ fn player_login_auxiliary_load_statement_like_cpp(
     request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
 ) -> PreparedStatement {
     match request {
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail { player_guid } => {
+            let mut statement = PreparedStatement::for_statement(CharStatements::SEL_MAIL);
+            statement.set_u64(0, player_guid);
+            statement
+        }
         PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid } => {
             let mut statement =
                 PreparedStatement::new(CharStatements::SEL_CHARACTER_CUSTOMIZATIONS.sql());
@@ -2571,6 +2577,28 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
             };
 
             let loaded = match request {
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerMailLoadRowLikeCpp {
+                                mail_id: result.try_read(0).unwrap_or(0),
+                                message_type: result.try_read(1).unwrap_or(0),
+                                sender: result.try_read(2).unwrap_or(0),
+                                receiver: result.try_read(3).unwrap_or(0),
+                                expire_time: result.try_read(6).unwrap_or(0),
+                                deliver_time: result.try_read(7).unwrap_or(0),
+                                checked_flags: result.try_read(10).unwrap_or(0),
+                                stationery_id: result.try_read(11).unwrap_or(0),
+                                template_id: result.try_read(12).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Mail(rows)
+                }
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { .. } => {
                     let mut rows = Vec::new();
                     if !result.is_empty() {
@@ -3803,6 +3831,11 @@ mod tests {
     #[test]
     fn player_login_auxiliary_requests_map_to_exact_character_statements_like_cpp() {
         let cases = [
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail { player_guid: 77 },
+                CharStatements::SEL_MAIL.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
             (
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid: 77 },
                 CharStatements::SEL_CHARACTER_CUSTOMIZATIONS.sql(),

@@ -20,6 +20,9 @@ use wow_world::{
 /// The outer world-server callback captures this aggregate; the listener
 /// neither receives it nor exposes any field through the `wow-network` API.
 pub(super) struct SessionResources {
+    /// Required immutable ObjectMgr-style query capability. Construction is
+    /// infallible only after every startup catalog loaded successfully.
+    pub(super) object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>,
     pub(super) stored_item_persistence_port:
         Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
     pub(super) player_inventory_persistence_port:
@@ -34,10 +37,6 @@ pub(super) struct SessionResources {
     pub(super) player_lifecycle_port: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
     pub(super) character_enumeration_persistence_port:
         Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
-    pub(super) creature_query_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
-    pub(super) gameobject_query_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
     pub(super) item_template_addon_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
     pub(super) loot_template_catalog_persistence_port:
@@ -48,8 +47,6 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
     pub(super) gossip_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
-    pub(super) page_text_catalog_persistence_port:
-        Option<Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>>,
     pub(super) player_name_query_persistence_port:
         Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>>,
     /// Characters capability for session-owned account data and tutorials.
@@ -82,12 +79,6 @@ pub(super) struct SessionResources {
     /// Characters-database capability for legacy `CMSG_BUG_REPORT` writes.
     pub(super) support_bug_report_persistence_port:
         Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
-    /// Characters-database capability for the transitional next-mail read.
-    pub(super) next_mail_time_persistence_port:
-        Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>>,
-    /// World-database capability for the transitional gameobject-use template read.
-    pub(super) gameobject_use_template_persistence_port:
-        Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     pub(super) player_spell_acquisition_persistence_port:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
     pub(super) instance_lock_persistence_port:
@@ -254,8 +245,6 @@ pub(super) struct SessionResources {
     pub(super) spell_totem_model_store: Option<Arc<wow_data::SpellTotemModelStoreLikeCpp>>,
     pub(super) movie_store: Option<Arc<wow_data::MovieStore>>,
     pub(super) script_name_interner: Option<Arc<wow_data::ScriptNameInternerLikeCpp>>,
-    pub(super) gameobject_template_lifecycle_store:
-        Option<Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>>,
     pub(super) area_table_store: Option<Arc<wow_data::AreaTableStore>>,
     pub(super) fishing_base_skill_store: Option<Arc<wow_data::FishingBaseSkillStoreLikeCpp>>,
     pub(super) area_trigger_db2_store: Option<Arc<wow_data::AreaTriggerDb2Store>>,

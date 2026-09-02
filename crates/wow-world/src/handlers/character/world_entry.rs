@@ -436,6 +436,46 @@ impl WorldSession {
             gender,
         );
 
+        let mail_rows = match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Mail(rows),
+            ) => rows,
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(player_guid = guid.counter(), %reason, "failed to load canonical Player mail owner");
+                self.kick("WorldSession::HandlePlayerLogin Player mail hydration failed");
+                return;
+            }
+            _ => {
+                self.kick("WorldSession::HandlePlayerLogin invalid Player mail hydration outcome");
+                return;
+            }
+        };
+        let mails = mail_rows
+            .into_iter()
+            .map(|row| wow_entities::PlayerMailRecord {
+                mail_id: row.mail_id,
+                message_type: row.message_type,
+                sender: row.sender,
+                receiver: row.receiver,
+                template_id: (row.template_id != 0).then_some(row.template_id),
+                deliver_time: row.deliver_time,
+                expire_time: row.expire_time,
+                checked_flags: row.checked_flags,
+                stationery_id: row.stationery_id,
+            })
+            .collect();
+        if !self.replace_owned_player_mails_like_cpp(mails) {
+            self.kick("WorldSession::HandlePlayerLogin canonical Player mail owner disappeared");
+            return;
+        }
+
         // Load played time + money/xp from DB using C++ CHAR_SEL_CHARACTER order.
         self.total_played_time = base_row.total_played_time.unwrap_or(0);
         self.level_played_time = base_row.level_played_time.unwrap_or(0);

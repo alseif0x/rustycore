@@ -69,6 +69,7 @@ mod vendor_trade;
 mod visibility_spawn_catalog;
 mod world_auxiliary_catalog;
 mod world_object_catalog;
+mod world_query_catalog;
 mod world_reference_catalog;
 
 pub use area_trigger_template_catalog::{
@@ -337,6 +338,7 @@ pub use world_auxiliary_catalog::{
     WorldAuxiliaryRowsLoadOutcomeLikeCpp,
 };
 pub use world_object_catalog::*;
+pub use world_query_catalog::*;
 pub use world_reference_catalog::{
     WorldObjectIdCatalogKindLikeCpp, WorldReferenceCatalogPersistencePortLikeCpp,
     WorldReferenceRowsLoadOutcomeLikeCpp, WorldSafeLocPersistenceRowLikeCpp,
@@ -1031,110 +1033,6 @@ pub trait SupportBugReportPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 }
 
-/// SQLx-free request for the represented on-demand `CHAR_SEL_MAIL` read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NextMailTimeLoadRequestLikeCpp {
-    pub player_guid: u64,
-}
-
-impl NextMailTimeLoadRequestLikeCpp {
-    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
-        LogicalDatabaseLikeCpp::Characters
-    }
-}
-
-/// The five persisted columns consumed by Rust's represented
-/// `CMSG_QUERY_NEXT_MAIL_TIME` projection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NextMailTimeLoadRowLikeCpp {
-    pub message_type: u8,
-    pub sender: u64,
-    pub deliver_time: i64,
-    pub checked: u8,
-    pub stationery: i32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NextMailTimeLoadOutcomeLikeCpp {
-    Loaded(Vec<NextMailTimeLoadRowLikeCpp>),
-    Failed { reason: String },
-}
-
-/// Dedicated SQLx-free capability for the transitional on-demand mail read.
-/// C++ reads the canonical in-memory Player mail owner instead; #153 owns
-/// retiring this represented query once that owner exists in Rust.
-pub trait NextMailTimePersistencePortLikeCpp: Send + Sync {
-    fn load_next_mail_time_rows_like_cpp<'a>(
-        &'a self,
-        request: NextMailTimeLoadRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, NextMailTimeLoadOutcomeLikeCpp>;
-}
-
-pub const GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP: usize = 35;
-
-/// SQLx-free request for Rust's transitional per-interaction gameobject
-/// template read. C++ resolves this data from ObjectMgr's startup store.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GameObjectUseTemplateLoadRequestLikeCpp {
-    pub entry: u32,
-}
-
-impl GameObjectUseTemplateLoadRequestLikeCpp {
-    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
-        LogicalDatabaseLikeCpp::World
-    }
-}
-
-/// Only the template projection consumed by the represented gameobject-use
-/// path; database rows and statement vocabulary do not cross this boundary.
-#[derive(Debug, Clone, PartialEq)]
-pub struct GameObjectUseTemplateLoadRowLikeCpp {
-    pub go_type: u32,
-    pub icon_name: String,
-    pub size: f32,
-    pub data: [u32; GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP],
-    pub content_tuning_id: u32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GameObjectUseTemplateLoadOutcomeLikeCpp {
-    Found(GameObjectUseTemplateLoadRowLikeCpp),
-    Missing,
-    Failed { reason: String },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GameObjectMoneyLootCatalogRequestLikeCpp {
-    pub entry: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GameObjectMoneyLootCatalogOutcomeLikeCpp {
-    Found { min_money: u32, max_money: u32 },
-    Missing,
-    Failed { reason: String },
-}
-
-/// Dedicated SQLx-free capability for the transitional gameobject template
-/// read. #153 owns replacing it with the canonical startup-loaded store.
-pub trait GameObjectUseTemplatePersistencePortLikeCpp: Send + Sync {
-    fn load_gameobject_use_template_like_cpp<'a>(
-        &'a self,
-        request: GameObjectUseTemplateLoadRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, GameObjectUseTemplateLoadOutcomeLikeCpp>;
-
-    fn load_gameobject_money_loot_like_cpp(
-        &self,
-        _request: GameObjectMoneyLootCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'_, GameObjectMoneyLootCatalogOutcomeLikeCpp> {
-        Box::pin(async {
-            GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed {
-                reason: "gameobject money catalog is unavailable".into(),
-            }
-        })
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ItemTemplateAddonCatalogRequestLikeCpp {
     pub item_entry: u32,
@@ -1262,150 +1160,6 @@ pub trait GossipCatalogPersistencePortLikeCpp: Send + Sync {
         &'a self,
         request: GossipBroadcastTextLocaleRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, GossipCatalogReadOutcomeLikeCpp<String>>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CreatureQueryCatalogRequestLikeCpp {
-    pub entry: u32,
-    pub locale: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CreatureQueryDisplayRowLikeCpp {
-    pub display_id: u32,
-    pub scale: f32,
-    pub probability: f32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CreatureQueryCatalogRowLikeCpp {
-    pub name: String,
-    pub subname: String,
-    pub title_alt: String,
-    pub icon_name: String,
-    pub creature_type: i32,
-    pub creature_family: i32,
-    pub classification: i32,
-    pub kill_credits: [i32; 2],
-    pub civilian: bool,
-    pub racial_leader: bool,
-    pub movement_id: i32,
-    pub required_expansion: i32,
-    pub vignette_id: i32,
-    pub unit_class: i32,
-    pub widget_set_id: i32,
-    pub widget_set_unit_condition_id: i32,
-    pub hp_multi: f32,
-    pub energy_multi: f32,
-    pub creature_difficulty_id: i32,
-    pub type_flags: [u32; 2],
-    pub displays: Vec<CreatureQueryDisplayRowLikeCpp>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum CreatureQueryCatalogOutcomeLikeCpp {
-    Found {
-        row: CreatureQueryCatalogRowLikeCpp,
-        locale_error: Option<String>,
-    },
-    Missing,
-    Failed {
-        reason: String,
-    },
-}
-
-/// Transitional on-demand World catalog read. C++ serves the same projection
-/// from ObjectMgr; #153 owns convergence onto the startup-loaded owner.
-pub trait CreatureQueryCatalogPersistencePortLikeCpp: Send + Sync {
-    fn load_creature_query_catalog_like_cpp<'a>(
-        &'a self,
-        request: CreatureQueryCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, CreatureQueryCatalogOutcomeLikeCpp>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GameObjectQueryCatalogRequestLikeCpp {
-    pub entry: u32,
-    pub locale: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct GameObjectQueryCatalogRowLikeCpp {
-    pub go_type: i32,
-    pub display_id: i32,
-    pub name: String,
-    pub icon_name: String,
-    pub cast_bar_caption: String,
-    pub unk_string: String,
-    pub size: f32,
-    pub data: [i32; GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP],
-    pub content_tuning_id: i32,
-    pub quest_items: Vec<i32>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GameObjectQueryCatalogOutcomeLikeCpp {
-    Found {
-        row: GameObjectQueryCatalogRowLikeCpp,
-        locale_error: Option<String>,
-        quest_items_error: Option<String>,
-    },
-    Missing,
-    Failed {
-        reason: String,
-    },
-}
-
-/// Transitional on-demand World catalog read. C++ serves the same projection
-/// from ObjectMgr; #153 owns convergence onto the startup-loaded owner.
-pub trait GameObjectQueryCatalogPersistencePortLikeCpp: Send + Sync {
-    fn load_gameobject_query_catalog_like_cpp<'a>(
-        &'a self,
-        request: GameObjectQueryCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, GameObjectQueryCatalogOutcomeLikeCpp>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PageTextCatalogRequestLikeCpp {
-    pub page_text_id: u32,
-    pub locale: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PageTextCatalogRowLikeCpp {
-    pub id: u32,
-    pub next_page_id: u32,
-    pub player_condition_id: i32,
-    pub flags: u8,
-    pub text: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PageTextCatalogDiagnosticLikeCpp {
-    PageReadFailed {
-        page_text_id: u32,
-        reason: String,
-    },
-    LocaleReadFailed {
-        page_text_id: u32,
-        locale: String,
-        reason: String,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PageTextCatalogOutcomeLikeCpp {
-    pub pages: Vec<PageTextCatalogRowLikeCpp>,
-    pub diagnostics: Vec<PageTextCatalogDiagnosticLikeCpp>,
-}
-
-/// Transitional on-demand World catalog read. C++ walks the same page chain
-/// from ObjectMgr; #153 owns convergence onto that startup-loaded owner.
-pub trait PageTextCatalogPersistencePortLikeCpp: Send + Sync {
-    fn load_page_text_catalog_like_cpp<'a>(
-        &'a self,
-        request: PageTextCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, PageTextCatalogOutcomeLikeCpp>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1955,6 +1709,9 @@ pub trait SessionAccountStatePortLikeCpp: Send + Sync {
 /// the concrete adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
+    Mail {
+        player_guid: u64,
+    },
     Customizations {
         player_guid: u64,
     },
@@ -2263,6 +2020,21 @@ impl PlayerLoginAuxiliaryLoadRequestLikeCpp {
 pub struct PlayerCustomizationLoadRowLikeCpp {
     pub option_id: u32,
     pub choice_id: u32,
+}
+
+/// C++ `CHAR_SEL_MAIL` projection installed into the canonical Player during
+/// `Player::LoadFromDB`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerMailLoadRowLikeCpp {
+    pub mail_id: u32,
+    pub message_type: u8,
+    pub sender: u64,
+    pub receiver: u64,
+    pub expire_time: u64,
+    pub deliver_time: u64,
+    pub checked_flags: u32,
+    pub stationery_id: i32,
+    pub template_id: u32,
 }
 
 /// Raw optional columns used by C++ `Player::_LoadBGData`. Missing values stay
@@ -2575,6 +2347,7 @@ pub struct PlayerTraitConfigLoadRowLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
+    Mail(Vec<PlayerMailLoadRowLikeCpp>),
     Customizations(Vec<PlayerCustomizationLoadRowLikeCpp>),
     CompletedAchievements(Vec<u32>),
     InstanceTimeRestrictions(Vec<PlayerInstanceTimeRestrictionLoadRowLikeCpp>),
@@ -4678,22 +4451,6 @@ mod tests {
             }
             .logical_database(),
             LogicalDatabaseLikeCpp::Characters
-        );
-    }
-
-    #[test]
-    fn next_mail_time_load_names_the_character_database_like_cpp() {
-        assert_eq!(
-            NextMailTimeLoadRequestLikeCpp { player_guid: 17 }.logical_database(),
-            LogicalDatabaseLikeCpp::Characters
-        );
-    }
-
-    #[test]
-    fn gameobject_use_template_load_names_the_world_database_like_cpp() {
-        assert_eq!(
-            GameObjectUseTemplateLoadRequestLikeCpp { entry: 42 }.logical_database(),
-            LogicalDatabaseLikeCpp::World
         );
     }
 

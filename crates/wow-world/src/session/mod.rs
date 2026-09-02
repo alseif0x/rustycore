@@ -280,6 +280,18 @@ pub(crate) const REST_STATE_RESTED_LIKE_CPP: u8 = 1;
 pub(crate) const REST_STATE_NORMAL_LIKE_CPP: u8 = 2;
 pub(crate) const REST_STATE_RAF_LINKED_LIKE_CPP: u8 = 6;
 
+/// Capability-specific immutable query owner consumed by query/gameobject
+/// handlers. It mirrors C++ ObjectMgr startup stores and contains no database
+/// handle or mutable gameplay state.
+#[derive(Debug, Clone)]
+pub struct ObjectMgrCatalogsLikeCpp {
+    pub creature: Arc<wow_data::CreatureQueryCatalogLikeCpp>,
+    pub gameobject: Arc<wow_data::GameObjectQueryCatalogLikeCpp>,
+    pub gameobject_quest_items: Arc<wow_data::GameObjectQuestItemStoreLikeCpp>,
+    pub page_text: Arc<wow_data::PageTextCatalogLikeCpp>,
+    pub gameobject_lifecycle: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
+}
+
 #[derive(Debug)]
 pub(crate) enum LootMoneyPersistenceErrorLikeCpp {
     MissingPlayer,
@@ -5243,9 +5255,6 @@ pub(crate) struct SessionPersistencePortsLikeCpp {
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     represented_group: Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
     support_bug_report: Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
-    next_mail_time: Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>>,
-    gameobject_use_template:
-        Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     item_template_addon_catalog:
         Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
     pub(crate) loot_template_catalog:
@@ -5255,11 +5264,6 @@ pub(crate) struct SessionPersistencePortsLikeCpp {
     pub(crate) visibility_spawn_catalog:
         Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
     gossip_catalog: Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
-    creature_query_catalog:
-        Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
-    gameobject_query_catalog:
-        Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
-    page_text_catalog: Option<Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>>,
     player_name_query: Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>>,
     player_spell_acquisition:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
@@ -6488,7 +6492,7 @@ pub struct WorldSession {
     represented_support_complaints_enabled_like_cpp: bool,
     represented_support_suggestions_enabled_like_cpp: bool,
     script_name_interner: Option<Arc<ScriptNameInternerLikeCpp>>,
-    gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
+    object_mgr_catalogs_like_cpp: Option<Arc<ObjectMgrCatalogsLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
     /// C++ `Player::_pendingSpellCastRequest`, represented separately from
@@ -8499,7 +8503,7 @@ impl WorldSession {
             represented_support_complaints_enabled_like_cpp: false,
             represented_support_suggestions_enabled_like_cpp: false,
             script_name_interner: None,
-            gameobject_template_lifecycle_store: None,
+            object_mgr_catalogs_like_cpp: None,
             quest_store: None,
             quest_poi_store_like_cpp: None,
             quest_pool_store: None,
@@ -10358,6 +10362,22 @@ impl WorldSession {
         let result = manager.with_player_mut_like_cpp(handle, f);
         drop(manager);
         result
+    }
+
+    pub(crate) fn replace_owned_player_mails_like_cpp(
+        &self,
+        mails: Vec<wow_entities::PlayerMailRecord>,
+    ) -> bool {
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().mails = mails;
+        })
+        .is_some()
+    }
+
+    pub(crate) fn owned_player_mails_like_cpp(
+        &self,
+    ) -> Option<Vec<wow_entities::PlayerMailRecord>> {
+        self.with_owned_player_like_cpp(|player| player.gameplay_state().mails.clone())
     }
 
     /// Test fixtures created before #578 may inject a typed Player directly
@@ -17354,39 +17374,11 @@ impl WorldSession {
         self.persistence_ports_like_cpp.support_bug_report.clone()
     }
 
-    pub fn set_next_mail_time_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.next_mail_time = Some(port);
-    }
-
-    pub(crate) fn next_mail_time_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.next_mail_time.clone()
-    }
-
-    pub fn set_gameobject_use_template_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.gameobject_use_template = Some(port);
-    }
-
     pub fn set_spell_acquisition_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
     ) {
         self.persistence_ports_like_cpp.player_spell_acquisition = Some(port);
-    }
-
-    pub(crate) fn gameobject_use_template_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .gameobject_use_template
-            .clone()
     }
 
     pub fn set_item_template_addon_catalog_persistence_port_like_cpp(
@@ -17415,49 +17407,6 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.gossip_catalog.clone()
-    }
-
-    pub fn set_creature_query_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.creature_query_catalog = Some(port);
-    }
-
-    pub(crate) fn creature_query_catalog_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .creature_query_catalog
-            .clone()
-    }
-
-    pub fn set_gameobject_query_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.gameobject_query_catalog = Some(port);
-    }
-
-    pub(crate) fn gameobject_query_catalog_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .gameobject_query_catalog
-            .clone()
-    }
-
-    pub fn set_page_text_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.page_text_catalog = Some(port);
-    }
-
-    pub(crate) fn page_text_catalog_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.page_text_catalog.clone()
     }
 
     pub fn set_player_name_query_persistence_port_like_cpp(
@@ -29395,17 +29344,39 @@ impl WorldSession {
         self.spell_target_position_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_gameobject_template_lifecycle_store(
         &mut self,
         store: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
     ) {
-        self.gameobject_template_lifecycle_store = Some(store);
+        match self.object_mgr_catalogs_like_cpp.as_mut() {
+            Some(catalogs) => Arc::make_mut(catalogs).gameobject_lifecycle = store,
+            None => {
+                self.object_mgr_catalogs_like_cpp = Some(Arc::new(ObjectMgrCatalogsLikeCpp {
+                    creature: Arc::default(),
+                    gameobject: Arc::default(),
+                    gameobject_quest_items: Arc::default(),
+                    page_text: Arc::default(),
+                    gameobject_lifecycle: store,
+                }));
+            }
+        }
     }
 
     pub(crate) fn gameobject_template_lifecycle_store(
         &self,
     ) -> Option<&Arc<GameObjectTemplateLifecycleStoreLikeCpp>> {
-        self.gameobject_template_lifecycle_store.as_ref()
+        self.object_mgr_catalogs_like_cpp
+            .as_ref()
+            .map(|catalogs| &catalogs.gameobject_lifecycle)
+    }
+
+    pub fn set_object_mgr_catalogs_like_cpp(&mut self, catalogs: Arc<ObjectMgrCatalogsLikeCpp>) {
+        self.object_mgr_catalogs_like_cpp = Some(catalogs);
+    }
+
+    pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
+        self.object_mgr_catalogs_like_cpp.as_deref()
     }
 
     pub fn set_area_table_store(&mut self, store: Arc<AreaTableStore>) {
@@ -39652,6 +39623,14 @@ impl WorldSession {
         };
         self.player_handle_like_cpp = Some(handle);
         true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn install_detached_canonical_player_for_test_like_cpp(&mut self) -> bool {
+        let Some(position) = self.player_position else {
+            return false;
+        };
+        self.install_detached_canonical_player_from_session_like_cpp(position)
     }
 
     pub(crate) fn ensure_login_player_controller_like_cpp(
@@ -68073,7 +68052,11 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(template_store) = self.gameobject_template_lifecycle_store.as_deref() else {
+        let Some(template_store) = self
+            .object_mgr_catalogs_like_cpp
+            .as_deref()
+            .map(|catalogs| catalogs.gameobject_lifecycle.as_ref())
+        else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplateStore,
                 template_entry: Some(template_entry),
@@ -68256,7 +68239,11 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(template_store) = self.gameobject_template_lifecycle_store.as_deref() else {
+        let Some(template_store) = self
+            .object_mgr_catalogs_like_cpp
+            .as_deref()
+            .map(|catalogs| catalogs.gameobject_lifecycle.as_ref())
+        else {
             return Some(ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MissingTemplateStore,
                 slot: Some(slot),

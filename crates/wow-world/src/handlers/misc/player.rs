@@ -240,41 +240,18 @@ impl crate::session::WorldSession {
         const MAIL_CHECK_MASK_READ_LIKE_CPP: u8 = 0x01;
         const MAIL_NORMAL_LIKE_CPP: u8 = 0;
 
-        let Some(port) = self.next_mail_time_persistence_port_like_cpp() else {
+        let Some(rows) = self.owned_player_mails_like_cpp() else {
             self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
             return;
         };
-
-        let Some(player_object_guid) = self.player_guid() else {
-            self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
-            return;
-        };
-
-        let player_guid = player_object_guid.counter() as u64;
         let now = GameTime::now().as_secs() as i64;
-        let rows = match port
-            .load_next_mail_time_rows_like_cpp(wow_persistence::NextMailTimeLoadRequestLikeCpp {
-                player_guid,
-            })
-            .await
-        {
-            wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Loaded(rows) => rows,
-            wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    error = %reason,
-                    player_guid, "Failed to query mail for CMSG_QUERY_NEXT_MAIL_TIME"
-                );
-                self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
-                return;
-            }
-        };
 
         let mut packet = MailQueryNextTimeResult::no_mail();
         let mut sent_senders = std::collections::BTreeSet::new();
 
         for row in rows {
-            if (row.checked & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
-                && now >= row.deliver_time
+            if (row.checked_flags as u8 & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
+                && now >= row.deliver_time as i64
                 && sent_senders.insert(row.sender)
             {
                 let sender_guid = if row.message_type == MAIL_NORMAL_LIKE_CPP {
@@ -286,14 +263,14 @@ impl crate::session::WorldSession {
                 packet.next_mail_time = 0.0;
                 packet.next.push(MailNextTimeEntry {
                     sender_guid,
-                    time_left: (row.deliver_time - now) as f32,
+                    time_left: (row.deliver_time as i64 - now) as f32,
                     alt_sender_id: if row.message_type == MAIL_NORMAL_LIKE_CPP {
                         0
                     } else {
                         row.sender as i32
                     },
                     alt_sender_type: row.message_type as i8,
-                    stationery_id: row.stationery,
+                    stationery_id: row.stationery_id,
                 });
 
                 if sent_senders.len() > 2 {

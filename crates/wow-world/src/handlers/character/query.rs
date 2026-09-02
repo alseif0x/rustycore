@@ -70,49 +70,13 @@ impl WorldSession {
         }
         self.creature_query_cache.insert(query.creature_id);
 
-        let port = match self.creature_query_catalog_persistence_port_like_cpp() {
-            Some(port) => port,
+        let row = match self.world_query_catalogs_like_cpp().and_then(|catalogs| {
+            catalogs
+                .creature
+                .resolve_like_cpp(query.creature_id, &self.locale)
+        }) {
+            Some(row) => row,
             None => {
-                self.send_packet(&QueryCreatureResponse {
-                    creature_id: query.creature_id,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-        };
-
-        let row = match port
-            .load_creature_query_catalog_like_cpp(
-                wow_persistence::CreatureQueryCatalogRequestLikeCpp {
-                    entry: query.creature_id,
-                    locale: self.locale.clone(),
-                },
-            )
-            .await
-        {
-            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Found { row, locale_error } => {
-                if let Some(error) = locale_error {
-                    warn!(
-                        "Failed to query creature locale for {}: {error}",
-                        query.creature_id
-                    );
-                }
-                row
-            }
-            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Failed { reason } => {
-                debug!(
-                    "Failed to query creature template {}: {reason}",
-                    query.creature_id
-                );
-                self.send_packet(&QueryCreatureResponse {
-                    creature_id: query.creature_id,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Missing => {
                 self.send_packet(&QueryCreatureResponse {
                     creature_id: query.creature_id,
                     allow: false,
@@ -178,61 +142,14 @@ impl WorldSession {
         &mut self,
         query: wow_packet::packets::query::QueryGameObject,
     ) {
-        let port = match self.gameobject_query_catalog_persistence_port_like_cpp() {
-            Some(port) => port,
+        let catalogs = self.world_query_catalogs_like_cpp();
+        let row = match catalogs.and_then(|catalogs| {
+            catalogs
+                .gameobject
+                .resolve_like_cpp(query.game_object_id, &self.locale)
+        }) {
+            Some(row) => row,
             None => {
-                self.send_packet(&QueryGameObjectResponse {
-                    game_object_id: query.game_object_id,
-                    guid: query.guid,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-        };
-
-        let row = match port
-            .load_gameobject_query_catalog_like_cpp(
-                wow_persistence::GameObjectQueryCatalogRequestLikeCpp {
-                    entry: query.game_object_id,
-                    locale: self.locale.clone(),
-                },
-            )
-            .await
-        {
-            wow_persistence::GameObjectQueryCatalogOutcomeLikeCpp::Found {
-                row,
-                locale_error,
-                quest_items_error,
-            } => {
-                if let Some(error) = locale_error {
-                    debug!(
-                        "Failed to query gameobject locale {} {}: {error}",
-                        query.game_object_id, self.locale
-                    );
-                }
-                if let Some(error) = quest_items_error {
-                    debug!(
-                        "Failed to query gameobject quest items {}: {error}",
-                        query.game_object_id
-                    );
-                }
-                row
-            }
-            wow_persistence::GameObjectQueryCatalogOutcomeLikeCpp::Failed { reason } => {
-                debug!(
-                    "Failed to query gameobject template {}: {reason}",
-                    query.game_object_id
-                );
-                self.send_packet(&QueryGameObjectResponse {
-                    game_object_id: query.game_object_id,
-                    guid: query.guid,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-            wow_persistence::GameObjectQueryCatalogOutcomeLikeCpp::Missing => {
                 self.send_packet(&QueryGameObjectResponse {
                     game_object_id: query.game_object_id,
                     guid: query.guid,
@@ -255,7 +172,16 @@ impl WorldSession {
             display_id: row.display_id,
             data: row.data,
             size: row.size,
-            quest_items: row.quest_items,
+            quest_items: catalogs
+                .and_then(|catalogs| {
+                    catalogs
+                        .gameobject_quest_items
+                        .get_gameobject_quest_item_list_like_cpp(query.game_object_id)
+                })
+                .into_iter()
+                .flatten()
+                .filter_map(|item| i32::try_from(*item).ok())
+                .collect(),
             content_tuning_id: row.content_tuning_id,
         };
 
@@ -268,8 +194,10 @@ impl WorldSession {
     }
 
     pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
-        let port = match self.page_text_catalog_persistence_port_like_cpp() {
-            Some(port) => port,
+        let pages = match self.world_query_catalogs_like_cpp() {
+            Some(catalogs) => catalogs
+                .page_text
+                .resolve_chain_like_cpp(query.page_text_id, &self.locale),
             None => {
                 self.send_packet(&QueryPageTextResponse {
                     page_text_id: query.page_text_id,
@@ -280,27 +208,7 @@ impl WorldSession {
             }
         };
 
-        let outcome = port
-            .load_page_text_catalog_like_cpp(wow_persistence::PageTextCatalogRequestLikeCpp {
-                page_text_id: query.page_text_id,
-                locale: self.locale.clone(),
-            })
-            .await;
-        for diagnostic in outcome.diagnostics {
-            match diagnostic {
-                wow_persistence::PageTextCatalogDiagnosticLikeCpp::PageReadFailed {
-                    page_text_id,
-                    reason,
-                } => debug!("Failed to query page text {page_text_id}: {reason}"),
-                wow_persistence::PageTextCatalogDiagnosticLikeCpp::LocaleReadFailed {
-                    page_text_id,
-                    locale,
-                    reason,
-                } => debug!("Failed to query page text locale {page_text_id} {locale}: {reason}"),
-            }
-        }
-        let pages = outcome
-            .pages
+        let pages = pages
             .into_iter()
             .map(|page| PageTextInfo {
                 id: page.id,

@@ -859,13 +859,6 @@
           "source_class": "production"
         },
         {
-          "name": "gameobject_template_lifecycle_store",
-          "type": "Option < Arc < GameObjectTemplateLifecycleStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "gem_properties_store",
           "type": "Option < Arc < GemPropertiesStore > >",
           "visibility": "private",
@@ -1737,6 +1730,13 @@
         {
           "name": "num_talents_at_level_store",
           "type": "Option < Arc < NumTalentsAtLevelStore > >",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "object_mgr_catalogs_like_cpp",
+          "type": "Option < Arc < ObjectMgrCatalogsLikeCpp > >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -10287,7 +10287,7 @@
           "kind": "method",
           "name": "load_gameobject_template_addon_money_loot_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn load_gameobject_template_addon_money_loot_like_cpp (& self , gameobject_entry : u32 ,) -> (u32 , u32)",
+          "signature": "fn load_gameobject_template_addon_money_loot_like_cpp (& self , gameobject_entry : u32 ,) -> (u32 , u32)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23827,19 +23827,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "creature_query_catalog_persistence_port_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn creature_query_catalog_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: CreatureQueryCatalogPersistencePortLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "creature_template_lifecycle_store_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn creature_template_lifecycle_store_like_cpp (& self ,) -> Option < & Arc < CreatureTemplateLifecycleStoreLikeCpp > >",
@@ -25022,35 +25009,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "gameobject_query_catalog_persistence_port_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn gameobject_query_catalog_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: GameObjectQueryCatalogPersistencePortLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "gameobject_template_lifecycle_store",
           "visibility": "pub (crate)",
           "signature": "fn gameobject_template_lifecycle_store (& self ,) -> Option < & Arc < GameObjectTemplateLifecycleStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "gameobject_use_template_persistence_port_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn gameobject_use_template_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: GameObjectUseTemplatePersistencePortLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25949,6 +25910,21 @@
           "name": "insert_represented_equipment_set_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn insert_represented_equipment_set_like_cpp (& mut self , guid : u64 , equipment_set : RepresentedEquipmentSetLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "install_detached_canonical_player_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn install_detached_canonical_player_for_test_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -28880,19 +28856,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "next_mail_time_persistence_port_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn next_mail_time_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: NextMailTimePersistencePortLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "next_movement_counter_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn next_movement_counter_like_cpp (& mut self) -> u32",
@@ -29093,6 +29056,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "owned_player_mails_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn owned_player_mails_like_cpp (& self ,) -> Option < Vec < wow_entities :: PlayerMailRecord > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "packet_rx",
           "visibility": "pub (crate)",
           "signature": "fn packet_rx (& self) -> & flume :: Receiver < wow_packet :: WorldPacket >",
@@ -29136,19 +29112,6 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "page_text_catalog_persistence_port_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn page_text_catalog_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: PageTextCatalogPersistencePortLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",
@@ -33271,6 +33234,19 @@
           "name": "replace_loaded_represented_player_spell_rows_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn replace_loaded_represented_player_spell_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = RepresentedPlayerSpellLikeCpp > , complete : bool ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_owned_player_mails_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn replace_owned_player_mails_like_cpp (& self , mails : Vec < wow_entities :: PlayerMailRecord > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41998,20 +41974,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_creature_query_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
-          "signature": "fn set_creature_query_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: CreatureQueryCatalogPersistencePortLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_creature_template_lifecycle_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_creature_template_lifecycle_store_like_cpp (& mut self , store : Arc < CreatureTemplateLifecycleStoreLikeCpp > ,)",
@@ -42420,39 +42382,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_gameobject_query_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
-          "signature": "fn set_gameobject_query_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: GameObjectQueryCatalogPersistencePortLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_gameobject_template_lifecycle_store",
           "visibility": "pub",
           "signature": "fn set_gameobject_template_lifecycle_store (& mut self , store : Arc < GameObjectTemplateLifecycleStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_gameobject_use_template_persistence_port_like_cpp",
-          "visibility": "pub",
-          "signature": "fn set_gameobject_use_template_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: GameObjectUseTemplatePersistencePortLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -43663,20 +43599,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_next_mail_time_persistence_port_like_cpp",
-          "visibility": "pub",
-          "signature": "fn set_next_mail_time_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: NextMailTimePersistencePortLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_no_reset_talent_cost_like_cpp",
           "visibility": "pub",
           "signature": "fn set_no_reset_talent_cost_like_cpp (& mut self , no_cost : bool)",
@@ -43708,6 +43630,20 @@
           "name": "set_num_talents_at_level_store",
           "visibility": "pub",
           "signature": "fn set_num_talents_at_level_store (& mut self , store : Arc < NumTalentsAtLevelStore >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_object_mgr_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_object_mgr_catalogs_like_cpp (& mut self , catalogs : Arc < ObjectMgrCatalogsLikeCpp >)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43780,20 +43716,6 @@
           "name": "set_packet_spoof_config_like_cpp",
           "visibility": "pub",
           "signature": "fn set_packet_spoof_config_like_cpp (& mut self , config : PacketSpoofConfigLikeCpp)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_page_text_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
-          "signature": "fn set_page_text_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PageTextCatalogPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -50167,6 +50089,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "world_query_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn world_query_catalogs_like_cpp (& self) -> Option < & ObjectMgrCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "world_safe_loc_store_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn world_safe_loc_store_like_cpp (& self) -> Option < & Arc < WorldSafeLocStore > >",
@@ -50878,13 +50813,6 @@
           "source_class": "production"
         },
         {
-          "name": "creature_query_catalog_persistence_port",
-          "type": "Option < Arc < dyn wow_persistence :: CreatureQueryCatalogPersistencePortLikeCpp > >",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "creature_template_lifecycle_store",
           "type": "Option < Arc < wow_data :: CreatureTemplateLifecycleStoreLikeCpp > >",
           "visibility": "pub (super)",
@@ -51048,27 +50976,6 @@
         {
           "name": "gameobject_display_info_store",
           "type": "Option < Arc < wow_data :: GameObjectDisplayInfoStore > >",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "gameobject_query_catalog_persistence_port",
-          "type": "Option < Arc < dyn wow_persistence :: GameObjectQueryCatalogPersistencePortLikeCpp > >",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "gameobject_template_lifecycle_store",
-          "type": "Option < Arc < wow_data :: GameObjectTemplateLifecycleStoreLikeCpp > >",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "gameobject_use_template_persistence_port",
-          "type": "Option < Arc < dyn wow_persistence :: GameObjectUseTemplatePersistencePortLikeCpp > >",
           "visibility": "pub (super)",
           "cfg": [],
           "source_class": "production"
@@ -51522,13 +51429,6 @@
           "source_class": "production"
         },
         {
-          "name": "next_mail_time_persistence_port",
-          "type": "Option < Arc < dyn wow_persistence :: NextMailTimePersistencePortLikeCpp > >",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "no_reset_talent_cost",
           "type": "bool",
           "visibility": "pub (super)",
@@ -51550,6 +51450,13 @@
           "source_class": "production"
         },
         {
+          "name": "object_mgr_catalogs",
+          "type": "Arc < wow_world :: session :: ObjectMgrCatalogsLikeCpp >",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "offhand_check_at_spell_unlearn",
           "type": "bool",
           "visibility": "pub (super)",
@@ -51566,13 +51473,6 @@
         {
           "name": "packet_spoof_config",
           "type": "PacketSpoofConfigLikeCpp",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "page_text_catalog_persistence_port",
-          "type": "Option < Arc < dyn wow_persistence :: PageTextCatalogPersistencePortLikeCpp > >",
           "visibility": "pub (super)",
           "cfg": [],
           "source_class": "production"
@@ -52492,7 +52392,7 @@
         {
           "module": "crate::app",
           "callee": "SessionResources",
-          "argument_count": 273,
+          "argument_count": 268,
           "cfg": [],
           "source_class": "production",
           "count": 1
@@ -52508,7 +52408,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:65f052a01469391fd140ff5cd60c9c84:len=37739",
+      "body_fingerprint": "fnv1a64x2:74cd36830e7d53b142e8f88dd7da02b0:len=36862",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -53090,14 +52990,6 @@
         },
         {
           "module": "crate::session_factory",
-          "callee": "session.set_creature_query_catalog_persistence_port_like_cpp",
-          "argument_count": 1,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
           "callee": "session.set_creature_template_lifecycle_store_like_cpp",
           "argument_count": 1,
           "cfg": [],
@@ -53299,30 +53191,6 @@
         {
           "module": "crate::session_factory",
           "callee": "session.set_gameobject_display_info_store",
-          "argument_count": 1,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
-          "callee": "session.set_gameobject_query_catalog_persistence_port_like_cpp",
-          "argument_count": 1,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
-          "callee": "session.set_gameobject_template_lifecycle_store",
-          "argument_count": 1,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
-          "callee": "session.set_gameobject_use_template_persistence_port_like_cpp",
           "argument_count": 1,
           "cfg": [],
           "source_class": "production",
@@ -53850,14 +53718,6 @@
         },
         {
           "module": "crate::session_factory",
-          "callee": "session.set_next_mail_time_persistence_port_like_cpp",
-          "argument_count": 1,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
           "callee": "session.set_no_reset_talent_cost_like_cpp",
           "argument_count": 1,
           "cfg": [],
@@ -53882,6 +53742,14 @@
         },
         {
           "module": "crate::session_factory",
+          "callee": "session.set_object_mgr_catalogs_like_cpp",
+          "argument_count": 1,
+          "cfg": [],
+          "source_class": "production",
+          "count": 1
+        },
+        {
+          "module": "crate::session_factory",
           "callee": "session.set_offhand_check_at_spell_unlearn_like_cpp",
           "argument_count": 1,
           "cfg": [],
@@ -53899,14 +53767,6 @@
         {
           "module": "crate::session_factory",
           "callee": "session.set_packet_spoof_config_like_cpp",
-          "argument_count": 1,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
-          "callee": "session.set_page_text_catalog_persistence_port_like_cpp",
           "argument_count": 1,
           "cfg": [],
           "source_class": "production",
@@ -67074,7 +66934,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:65f052a01469391fd140ff5cd60c9c84:len=37739|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:74cd36830e7d53b142e8f88dd7da02b0:len=36862|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
           "cfg": [],
           "multiplicity": 1
         },
@@ -75386,7 +75246,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:2229b6b454f1a04704849e302d45e5e8:len=94015|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3810ad1807d2de56c6861023e51f2e29:len=93993|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

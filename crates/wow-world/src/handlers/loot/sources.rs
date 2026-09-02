@@ -1726,9 +1726,8 @@ impl WorldSession {
                 Vec::new()
             })
         };
-        let (min_money, max_money) = self
-            .load_gameobject_template_addon_money_loot_like_cpp(gameobject_guid.entry())
-            .await;
+        let (min_money, max_money) =
+            self.load_gameobject_template_addon_money_loot_like_cpp(gameobject_guid.entry());
         let coins = self.represented_money_loot_with_rate_like_cpp(
             min_money,
             max_money,

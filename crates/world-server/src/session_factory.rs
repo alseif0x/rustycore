@@ -274,6 +274,7 @@ pub(super) async fn create_session(
         id: active_session_id,
     };
     let account_id = account.id;
+    session.set_object_mgr_catalogs_like_cpp(Arc::clone(&resources.object_mgr_catalogs));
     if let Some(ref port) = resources.stored_item_persistence_port {
         session.set_stored_item_persistence_port_like_cpp(Arc::clone(port));
     }
@@ -295,12 +296,6 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.character_enumeration_persistence_port {
         session.set_character_enumeration_persistence_port_like_cpp(Arc::clone(port));
     }
-    if let Some(ref port) = resources.creature_query_catalog_persistence_port {
-        session.set_creature_query_catalog_persistence_port_like_cpp(Arc::clone(port));
-    }
-    if let Some(ref port) = resources.gameobject_query_catalog_persistence_port {
-        session.set_gameobject_query_catalog_persistence_port_like_cpp(Arc::clone(port));
-    }
     if let Some(ref port) = resources.item_template_addon_catalog_persistence_port {
         session.set_item_template_addon_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
@@ -315,9 +310,6 @@ pub(super) async fn create_session(
     }
     if let Some(ref port) = resources.gossip_catalog_persistence_port {
         session.set_gossip_catalog_persistence_port_like_cpp(Arc::clone(port));
-    }
-    if let Some(ref port) = resources.page_text_catalog_persistence_port {
-        session.set_page_text_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.player_name_query_persistence_port {
         session.set_player_name_query_persistence_port_like_cpp(Arc::clone(port));
@@ -351,12 +343,6 @@ pub(super) async fn create_session(
     }
     if let Some(ref port) = resources.support_bug_report_persistence_port {
         session.set_support_bug_report_persistence_port_like_cpp(Arc::clone(port));
-    }
-    if let Some(ref port) = resources.next_mail_time_persistence_port {
-        session.set_next_mail_time_persistence_port_like_cpp(Arc::clone(port));
-    }
-    if let Some(ref port) = resources.gameobject_use_template_persistence_port {
-        session.set_gameobject_use_template_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.player_spell_acquisition_persistence_port {
         session.set_spell_acquisition_port_like_cpp(Arc::clone(port));
@@ -738,9 +724,6 @@ pub(super) async fn create_session(
     }
     if let Some(ref store) = resources.script_name_interner {
         session.set_script_name_interner(Arc::clone(store));
-    }
-    if let Some(ref store) = resources.gameobject_template_lifecycle_store {
-        session.set_gameobject_template_lifecycle_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.area_table_store {
         session.set_area_table_store(Arc::clone(store));

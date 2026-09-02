@@ -101,31 +101,19 @@ impl crate::session::WorldSession {
             }
         };
 
-        let Some(port) = self.gameobject_use_template_persistence_port_like_cpp() else {
+        let Some(row) = self
+            .world_query_catalogs_like_cpp()
+            .and_then(|catalogs| catalogs.gameobject.get(gameobject_access.entry))
+            .cloned()
+        else {
             return;
         };
-        let row = match port
-            .load_gameobject_use_template_like_cpp(
-                wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp {
-                    entry: gameobject_access.entry,
-                },
-            )
-            .await
-        {
-            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Found(row) => row,
-            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Missing => return,
-            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    entry = gameobject_access.entry,
-                    error = %reason,
-                    "GameObjUse: failed to query gameobject template"
-                );
-                return;
-            }
-        };
 
-        let go_type = row.go_type;
-        let template = GameObjectTemplateData::new(go_type, row.data);
+        let Ok(go_type) = u32::try_from(row.go_type) else {
+            return;
+        };
+        let data = row.data.map(|value| u32::try_from(value).unwrap_or(0));
+        let template = GameObjectTemplateData::new(go_type, data);
         self.record_represented_gameobject_template_quest_source_like_cpp(
             gameobject_guid,
             &template,
@@ -380,7 +368,7 @@ impl crate::session::WorldSession {
             }
             GAMEOBJECT_TYPE_MEETINGSTONE => {
                 if let Some(mut source) = template.meeting_stone_use_source_like_cpp() {
-                    source.content_tuning_id = row.content_tuning_id;
+                    source.content_tuning_id = u32::try_from(row.content_tuning_id).unwrap_or(0);
                     self.use_represented_gameobject_meeting_stone_like_cpp(
                         gameobject_guid,
                         player_guid,

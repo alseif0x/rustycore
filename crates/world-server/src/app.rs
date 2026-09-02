@@ -2284,8 +2284,30 @@ async fn run_inner(
             |item_id| item_stats_store.sparse_template(item_id).is_some(),
         )
         .await?;
-    let _gameobject_quest_item_store = Arc::new(gameobject_quest_item_store);
+    let gameobject_quest_item_store = Arc::new(gameobject_quest_item_store);
     let _creature_quest_item_store = Arc::new(creature_quest_item_store);
+
+    let world_query_catalog_persistence =
+        wow_database::world_query_catalog_adapter::MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new(
+            Arc::clone(&world_db),
+        );
+    let (creature_query_catalog, gameobject_query_catalog, page_text_catalog) =
+        crate::world_query_catalog::load_like_cpp(&world_query_catalog_persistence)
+            .await
+            .context("Failed to load immutable C++ ObjectMgr query catalogs")?;
+    let object_mgr_catalogs = Arc::new(wow_world::session::ObjectMgrCatalogsLikeCpp {
+        creature: Arc::new(creature_query_catalog),
+        gameobject: Arc::new(gameobject_query_catalog),
+        gameobject_quest_items: gameobject_quest_item_store,
+        page_text: Arc::new(page_text_catalog),
+        gameobject_lifecycle: Arc::clone(&gameobject_template_lifecycle_store),
+    });
+    info!(
+        creatures = object_mgr_catalogs.creature.len(),
+        gameobjects = object_mgr_catalogs.gameobject.len(),
+        pages = object_mgr_catalogs.page_text.len(),
+        "Loaded immutable C++ ObjectMgr query capability"
+    );
 
     // C++ global DB2 stores used by Item::CalculateDurabilityRepairCost.
     let durability_costs_store = Arc::new(
@@ -4446,20 +4468,6 @@ async fn run_inner(
             &char_db,
         )),
     );
-    let creature_query_catalog_persistence_port: Arc<
-        dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
-            &world_db,
-        )),
-    );
-    let gameobject_query_catalog_persistence_port: Arc<
-        dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
-            &world_db,
-        )),
-    );
     let item_template_addon_catalog_persistence_port: Arc<
         dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp,
     > = Arc::new(
@@ -4489,11 +4497,6 @@ async fn run_inner(
     let gossip_catalog_persistence_port: Arc<
         dyn wow_persistence::GossipCatalogPersistencePortLikeCpp,
     > = gossip_catalog_adapter.clone();
-    let page_text_catalog_persistence_port: Arc<
-        dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db)),
-    );
     let player_name_query_persistence_port: Arc<
         dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp,
     > = Arc::new(
@@ -4559,20 +4562,6 @@ async fn run_inner(
             Arc::clone(&char_db),
         ),
     );
-    let next_mail_time_persistence_port: Arc<
-        dyn wow_persistence::NextMailTimePersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::next_mail_time_adapter::MariaDbNextMailTimePersistenceAdapterLikeCpp::new(
-            Arc::clone(&char_db),
-        ),
-    );
-    let gameobject_use_template_persistence_port: Arc<
-        dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::gameobject_use_template_adapter::MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::new(
-            Arc::clone(&world_db),
-        ),
-    );
     let spell_acquisition_port = spell_acquisition_port(Arc::clone(&char_db));
     let battle_pet_purchase_persistence_port: Arc<
         dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp,
@@ -4600,6 +4589,7 @@ async fn run_inner(
             wow_database::MariaDbVendorTradePersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
         );
     let session_resources = Arc::new(SessionResources {
+        object_mgr_catalogs,
         stored_item_persistence_port: Some(stored_item_persistence_port),
         player_inventory_persistence_port: Some(player_inventory_persistence_port),
         player_quest_persistence_port: Some(player_quest_persistence_port),
@@ -4607,8 +4597,6 @@ async fn run_inner(
         character_administration_persistence_port: Some(character_administration_persistence_port),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
         character_enumeration_persistence_port: Some(character_enumeration_persistence_port),
-        creature_query_catalog_persistence_port: Some(creature_query_catalog_persistence_port),
-        gameobject_query_catalog_persistence_port: Some(gameobject_query_catalog_persistence_port),
         item_template_addon_catalog_persistence_port: Some(
             item_template_addon_catalog_persistence_port,
         ),
@@ -4616,7 +4604,6 @@ async fn run_inner(
         vendor_catalog_persistence_port: Some(vendor_catalog_persistence_port),
         visibility_spawn_catalog_persistence_port: Some(visibility_spawn_catalog_persistence_port),
         gossip_catalog_persistence_port: Some(gossip_catalog_persistence_port),
-        page_text_catalog_persistence_port: Some(page_text_catalog_persistence_port),
         player_name_query_persistence_port: Some(player_name_query_persistence_port),
         session_account_state_port: Some(Arc::clone(&session_account_state_port)),
         packet_spoof_ban_persistence_port: Some(Arc::clone(&packet_spoof_ban_persistence_port)),
@@ -4628,10 +4615,6 @@ async fn run_inner(
         group_loot_money_persistence_port: Some(Arc::clone(&group_loot_money_persistence_port)),
         represented_group_persistence_port: Some(Arc::clone(&represented_group_persistence_port)),
         support_bug_report_persistence_port: Some(Arc::clone(&support_bug_report_persistence_port)),
-        next_mail_time_persistence_port: Some(Arc::clone(&next_mail_time_persistence_port)),
-        gameobject_use_template_persistence_port: Some(Arc::clone(
-            &gameobject_use_template_persistence_port,
-        )),
         player_spell_acquisition_persistence_port: Some(spell_acquisition_port),
         battle_pet_purchase_persistence_port: Some(battle_pet_purchase_persistence_port),
         instance_lock_persistence_port: Some(instance_lock_persistence_port),
@@ -4768,7 +4751,6 @@ async fn run_inner(
         spell_totem_model_store: Some(Arc::clone(&spell_totem_model_store)),
         movie_store: Some(Arc::clone(&movie_store)),
         script_name_interner: Some(Arc::clone(&script_name_interner)),
-        gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
         area_trigger_db2_store: Some(Arc::clone(&area_trigger_db2_store)),

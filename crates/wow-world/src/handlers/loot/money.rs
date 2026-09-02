@@ -247,35 +247,14 @@ impl WorldSession {
         }
     }
 
-    pub(super) async fn load_gameobject_template_addon_money_loot_like_cpp(
+    pub(super) fn load_gameobject_template_addon_money_loot_like_cpp(
         &self,
         gameobject_entry: u32,
     ) -> (u32, u32) {
-        let Some(port) = self.gameobject_use_template_persistence_port_like_cpp() else {
-            return (0, 0);
-        };
-
-        match port
-            .load_gameobject_money_loot_like_cpp(
-                wow_persistence::GameObjectMoneyLootCatalogRequestLikeCpp {
-                    entry: gameobject_entry,
-                },
-            )
-            .await
-        {
-            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Found {
-                min_money,
-                max_money,
-            } => (min_money, max_money),
-            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Missing => (0, 0),
-            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    gameobject_entry,
-                    "failed to load gameobject_template_addon money loot: {reason}"
-                );
-                (0, 0)
-            }
-        }
+        self.world_query_catalogs_like_cpp()
+            .and_then(|catalogs| catalogs.gameobject.get(gameobject_entry))
+            .map(|row| (row.min_money, row.max_money))
+            .unwrap_or((0, 0))
     }
 
     pub(super) async fn persist_and_consume_stored_item_money_like_cpp(

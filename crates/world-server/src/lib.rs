@@ -1541,6 +1541,7 @@ mod skill_world_rules;
 mod static_data_overlay;
 mod world_auxiliary_catalog;
 mod world_object_catalog;
+mod world_query_catalog;
 mod world_reference_catalog;
 use bootstrap::*;
 
