@@ -622,8 +622,10 @@ impl WorldSession {
             return;
         };
         let new_money = old_money.saturating_sub(VOID_STORAGE_UNLOCK_COST_LIKE_CPP);
-        let new_flags = self.represented_player_flags_value_like_cpp()
-            | crate::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
+        let Some(new_flags) = self.represented_player_flags_value_like_cpp() else {
+            return;
+        };
+        let new_flags = new_flags | crate::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
         let request = wow_persistence::VoidStorageUnlockWriteRequestLikeCpp {
             player_guid: player_guid.counter() as u64,
             money_before: old_money,

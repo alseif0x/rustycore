@@ -31483,6 +31483,99 @@ fn canonical_player_difficulty_and_loot_preferences_follow_detached_and_stale_ow
 }
 
 #[test]
+fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_567);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "MetadataOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    session.set_loaded_player_flags_like_cpp(0x10);
+    session.set_loaded_player_flags_ex_like_cpp(0x20);
+    session.set_watched_faction_index_like_cpp(42);
+    assert!(session.set_loaded_quest_completed_bit_like_cpp(42));
+    assert_eq!(session.load_represented_explored_zones_like_cpp("1 0"), 1);
+    assert_eq!(
+        session.resolved_player_flags_for_create_like_cpp(),
+        Some((0x10, 0x20))
+    );
+    assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(42));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    session.set_loaded_player_flags_like_cpp(0x30);
+    session.set_loaded_player_flags_ex_like_cpp(0x40);
+    session.set_watched_faction_index_like_cpp(43);
+    assert!(session.clear_loaded_quest_completed_bit_like_cpp(42));
+    assert_eq!(session.load_represented_explored_zones_like_cpp("2 0"), 1);
+    assert_eq!(
+        session.resolved_player_flags_for_create_like_cpp(),
+        Some((0x30, 0x40))
+    );
+    assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(43));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_all_player_flags(0x100);
+    replacement.replace_all_player_flags_ex(0x200);
+    replacement.set_watched_faction_index_like_cpp(99);
+    assert!(replacement.set_quest_completed_bit_like_cpp(77, true));
+    assert!(replacement.set_explored_zones_block_like_cpp(0, 0x400));
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_flags_for_create_like_cpp(), None);
+    assert_eq!(session.player_explored_zones_snapshot_like_cpp(), None);
+    assert_eq!(session.resolved_watched_faction_index_like_cpp(), None);
+    session.set_loaded_player_flags_like_cpp(0xdead);
+    session.set_loaded_player_flags_ex_like_cpp(0xbeef);
+    session.set_watched_faction_index_like_cpp(5);
+    assert!(!session.set_loaded_quest_completed_bit_like_cpp(42));
+    assert_eq!(session.load_represented_explored_zones_like_cpp("4 0"), 0);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.data().player_flags,
+                player.data().player_flags_ex,
+                player.watched_faction_index_like_cpp(),
+                player.quest_completed_block_like_cpp(1),
+                player.explored_zones_block_like_cpp(0),
+            )),
+        Some((0x100, 0x200, 99, Some(1 << 12), Some(0x400)))
+    );
+}
+
+#[test]
 fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -42823,6 +42916,7 @@ fn first_login_start_all_explored_sets_all_cpp_blocks_and_sends_update() {
     assert!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .take(2)
             .eq(["4294967295", "4294967295"]),
@@ -56628,6 +56722,7 @@ fn represented_explored_zones_load_preserves_canonical_snapshot_like_cpp() {
     assert_eq!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .take(4)
             .collect::<Vec<_>>(),
@@ -57341,6 +57436,7 @@ async fn check_area_explore_marks_block_sends_update_and_records_criteria_like_c
     assert_eq!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .take(4)
             .collect::<Vec<_>>(),
@@ -57545,6 +57641,7 @@ async fn check_area_explore_rejects_missing_and_invalid_area_bits_like_cpp() {
     assert!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .all(|token| token == "0")
     );

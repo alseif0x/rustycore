@@ -2416,6 +2416,7 @@ mod tests {
         assert_eq!(
             session
                 .represented_explored_zones_db_string_like_cpp()
+                .expect("test Player explored-zones owner resolves")
                 .split_whitespace()
                 .take(4)
                 .collect::<Vec<_>>(),

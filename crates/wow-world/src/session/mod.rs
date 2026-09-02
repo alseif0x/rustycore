@@ -5716,9 +5716,12 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_rest_time_secs_like_cpp: u64,
     /// C++ `characters.playerFlags` as loaded by `Player::LoadFromDB`.
+    #[cfg(test)]
     represented_loaded_player_flags_like_cpp: Option<u32>,
     /// C++ `characters.playerFlagsEx` as loaded by `Player::LoadFromDB`.
+    #[cfg(test)]
     represented_loaded_player_flags_ex_like_cpp: Option<u32>,
+    #[cfg(test)]
     represented_loaded_player_flags_applied_like_cpp: bool,
     /// C++ `RATE_REST_OFFLINE_IN_WILDERNESS`.
     rest_offline_wilderness_rate_like_cpp: f32,
@@ -6624,8 +6627,10 @@ pub struct WorldSession {
     pub(crate) represented_quest_reward_reputations_like_cpp:
         Vec<RepresentedQuestRewardReputationLikeCpp>,
     /// Bridge for quest completed unique-bit state loaded before the canonical Player snapshot exists.
+    #[cfg(test)]
     pub(crate) represented_quest_completed_bits_like_cpp: BTreeSet<u32>,
     /// C++ `ActivePlayerData::ExploredZones`, represented before the canonical Player owns persistence.
+    #[cfg(test)]
     represented_explored_zones_like_cpp: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
     /// Represented `CriteriaType::RevealWorldMapOverlay` events from area discovery.
     #[allow(dead_code)]
@@ -6729,6 +6734,7 @@ pub struct WorldSession {
     /// C++ `ReputationMgr` per-player state foundation.
     reputation_mgr_like_cpp: ReputationMgrLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
+    #[cfg(test)]
     watched_faction_index_like_cpp: i32,
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     enable_ae_loot_like_cpp: bool,
@@ -8010,8 +8016,11 @@ impl WorldSession {
             represented_inn_area_trigger_id_like_cpp: 0,
             #[cfg(test)]
             represented_rest_time_secs_like_cpp: 0,
+            #[cfg(test)]
             represented_loaded_player_flags_like_cpp: None,
+            #[cfg(test)]
             represented_loaded_player_flags_ex_like_cpp: None,
+            #[cfg(test)]
             represented_loaded_player_flags_applied_like_cpp: false,
             rest_offline_wilderness_rate_like_cpp: 1.0,
             rest_offline_tavern_or_city_rate_like_cpp: 1.0,
@@ -8478,7 +8487,9 @@ impl WorldSession {
             represented_quest_reward_talent_points_like_cpp: Vec::new(),
             represented_quest_reward_mails_like_cpp: Vec::new(),
             represented_quest_reward_reputations_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_quest_completed_bits_like_cpp: BTreeSet::new(),
+            #[cfg(test)]
             represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
             represented_area_zone_criteria_like_cpp: Vec::new(),
@@ -8549,6 +8560,7 @@ impl WorldSession {
             vmap_indoor_check_like_cpp: false,
             represented_is_outdoors_like_cpp: None,
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
+            #[cfg(test)]
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
             addon_channel_like_cpp: true,
@@ -9877,10 +9889,15 @@ impl WorldSession {
         {
             player.set_bank_bag_slot_flag_value_like_cpp(index, value);
         }
+        #[cfg(not(test))]
+        player.set_watched_faction_index_like_cpp(-1);
+        #[cfg(test)]
         player.set_watched_faction_index_like_cpp(self.watched_faction_index_like_cpp);
+        #[cfg(test)]
         for quest_bit in &self.represented_quest_completed_bits_like_cpp {
             player.set_quest_completed_bit_like_cpp(*quest_bit, true);
         }
+        #[cfg(test)]
         player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
@@ -21397,12 +21414,32 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn resolved_watched_faction_index_like_cpp(&self) -> Option<i32> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.watched_faction_index_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.watched_faction_index_like_cpp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn watched_faction_index_like_cpp(&self) -> i32 {
-        self.watched_faction_index_like_cpp
+        self.resolved_watched_faction_index_like_cpp()
+            .expect("Player watched-faction owner must resolve")
     }
 
     pub(crate) fn set_watched_faction_index_like_cpp(&mut self, index: i32) {
-        self.watched_faction_index_like_cpp = index;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_watched_faction_index_like_cpp(index)
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            self.watched_faction_index_like_cpp = index;
+        }
     }
 
     #[allow(dead_code)]
@@ -27463,7 +27500,8 @@ impl WorldSession {
     }
 
     fn represented_war_mode_update_zone_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.represented_loaded_player_flags_like_cpp.is_some()
+        self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
+            .is_some()
             && !self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP)
     }
 
@@ -29691,7 +29729,7 @@ impl WorldSession {
 
     fn clear_represented_rest_flags_for_character_load_like_cpp(&mut self) {
         let loaded_resting = self
-            .represented_loaded_player_flags_like_cpp
+            .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
             .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
         let _canonical = self.with_owned_player_mut_for_rest_like_cpp(|player| {
             let mut state = player.rest_state_like_cpp().clone();
@@ -29912,24 +29950,26 @@ impl WorldSession {
         let canonical = self
             .player_guid()
             .and_then(|guid| self.canonical_player_has_player_flag_like_cpp(guid, flag));
-        match (
-            canonical,
-            self.represented_loaded_player_flags_like_cpp,
-            self.represented_loaded_player_flags_applied_like_cpp,
-        ) {
-            (Some(value), Some(_), true) | (Some(value), None, _) => value,
-            (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => {
-                (loaded_flags & flag) != 0
-            }
-            (None, None, _) => false,
+        if let Some(value) = canonical {
+            return value;
         }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .represented_loaded_player_flags_like_cpp
+                .is_some_and(|flags| (flags & flag) != 0);
+        }
+        false
     }
 
-    pub(crate) fn represented_player_flags_value_like_cpp(&self) -> u32 {
-        self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
-            .filter(|_| self.represented_loaded_player_flags_applied_like_cpp)
-            .or(self.represented_loaded_player_flags_like_cpp)
-            .unwrap_or(0)
+    pub(crate) fn represented_player_flags_value_like_cpp(&self) -> Option<u32> {
+        let canonical =
+            self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.represented_loaded_player_flags_like_cpp;
+        }
+        canonical
     }
 
     pub(crate) fn void_storage_is_unlocked_like_cpp(&self) -> bool {
@@ -29944,16 +29984,19 @@ impl WorldSession {
             Some(player.values_update(true))
         });
 
-        let flags =
-            self.represented_player_flags_value_like_cpp() | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
-        self.represented_loaded_player_flags_like_cpp = Some(flags);
-        if self
+        let Some(_current_flags) = self.represented_player_flags_value_like_cpp() else {
+            return;
+        };
+        let _canonical = self
             .mutate_canonical_player_like_cpp(|player| {
                 player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
             })
-            .is_some()
-        {
-            self.represented_loaded_player_flags_applied_like_cpp = true;
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_loaded_player_flags_like_cpp =
+                Some(_current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
+            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
         }
 
         if let Some(update) = values_update {
@@ -30327,24 +30370,14 @@ impl WorldSession {
     fn resolved_player_flags_for_rest_state_save_like_cpp(&self) -> Option<u32> {
         let canonical_flags =
             self.with_owned_player_for_rest_like_cpp(|player| player.data().player_flags);
-        let mut player_flags = match (
-            canonical_flags,
-            self.represented_loaded_player_flags_like_cpp,
-            self.represented_loaded_player_flags_applied_like_cpp,
-        ) {
-            (Some(flags), Some(_), true) | (Some(flags), None, _) => flags,
-            (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => loaded_flags,
-            (None, None, _) => {
-                #[cfg(test)]
-                if self.player_handle_like_cpp.is_none() {
-                    0
-                } else {
-                    return None;
-                }
-                #[cfg(not(test))]
-                return None;
-            }
+        #[cfg(test)]
+        let canonical_flags = if canonical_flags.is_none() && self.player_handle_like_cpp.is_none()
+        {
+            self.represented_loaded_player_flags_like_cpp.or(Some(0))
+        } else {
+            canonical_flags
         };
+        let mut player_flags = canonical_flags?;
         let rest = self.player_rest_state_snapshot_like_cpp()?;
         if rest.location_initialized {
             if rest.rest_flag_mask != 0 {
@@ -30360,24 +30393,14 @@ impl WorldSession {
         let player_flags = self.resolved_player_flags_for_rest_state_save_like_cpp()?;
         let canonical_flags_ex =
             self.with_owned_player_for_rest_like_cpp(|player| player.data().player_flags_ex);
-        let player_flags_ex = match (
-            canonical_flags_ex,
-            self.represented_loaded_player_flags_ex_like_cpp,
-            self.represented_loaded_player_flags_applied_like_cpp,
-        ) {
-            (Some(flags), Some(_), true) | (Some(flags), None, _) => flags,
-            (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => loaded_flags,
-            (None, None, _) => {
-                #[cfg(test)]
-                if self.player_handle_like_cpp.is_none() {
-                    0
-                } else {
-                    return None;
-                }
-                #[cfg(not(test))]
-                return None;
-            }
-        };
+        #[cfg(test)]
+        let canonical_flags_ex =
+            if canonical_flags_ex.is_none() && self.player_handle_like_cpp.is_none() {
+                self.represented_loaded_player_flags_ex_like_cpp.or(Some(0))
+            } else {
+                canonical_flags_ex
+            };
+        let player_flags_ex = canonical_flags_ex?;
         Some((player_flags, player_flags_ex))
     }
 
@@ -30663,31 +30686,48 @@ impl WorldSession {
 
     pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
         let blocks = parse_explored_zones_db_string_like_cpp(input);
-        let changed = self.represented_explored_zones_like_cpp != blocks;
-        self.represented_explored_zones_like_cpp = blocks;
+        let Some(previous) = self.player_explored_zones_snapshot_like_cpp() else {
+            return 0;
+        };
+        let changed = previous != blocks;
 
-        if let Some(update) = self
+        let canonical = self
             .mutate_canonical_player_like_cpp(|player| {
                 let applied = player.set_explored_zones_blocks_like_cpp(&blocks);
                 (applied > 0).then(|| player.values_update(true))
             })
-            .flatten()
-        {
+            .flatten();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_explored_zones_like_cpp = blocks;
+        }
+        if let Some(update) = canonical {
             self.send_player_values_update_like_cpp(&update);
         }
 
         if changed {
-            self.represented_explored_zones_like_cpp
-                .iter()
-                .filter(|block| **block != 0)
-                .count()
+            blocks.iter().filter(|block| **block != 0).count()
         } else {
             0
         }
     }
 
-    pub(crate) fn represented_explored_zones_db_string_like_cpp(&self) -> String {
-        explored_zones_db_string_from_blocks_like_cpp(&self.represented_explored_zones_like_cpp)
+    pub(crate) fn player_explored_zones_snapshot_like_cpp(
+        &self,
+    ) -> Option<[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP]> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_explored_zones_like_cpp);
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_explored_zones_db_string_like_cpp(&self) -> Option<String> {
+        Some(explored_zones_db_string_from_blocks_like_cpp(
+            &self.player_explored_zones_snapshot_like_cpp()?,
+        ))
     }
 
     /// Represented C++ `Player::UpdateArea` criteria branch.
@@ -30894,11 +30934,13 @@ impl WorldSession {
             return false;
         };
 
-        if self.represented_explored_zones_like_cpp[offset] & mask != 0 {
+        let Some(explored_zones) = self.player_explored_zones_snapshot_like_cpp() else {
+            return false;
+        };
+        if explored_zones[offset] & mask != 0 {
             return false;
         }
 
-        self.represented_explored_zones_like_cpp[offset] |= mask;
         self.represented_reveal_world_map_overlay_criteria_like_cpp
             .push(area_id);
 
@@ -30968,14 +31010,6 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
         &self.represented_area_zone_criteria_like_cpp
-    }
-
-    fn sync_represented_explored_zones_from_canonical_like_cpp(&mut self) {
-        if let Some(blocks) =
-            self.mutate_canonical_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp())
-        {
-            self.represented_explored_zones_like_cpp = blocks;
-        }
     }
 
     /// Represented C++ first-login `PlayerInfo::castSpells[GetCreateMode()]`.
@@ -31250,7 +31284,11 @@ impl WorldSession {
             return 0;
         };
 
-        self.represented_explored_zones_like_cpp = [u64::MAX; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_explored_zones_like_cpp =
+                [u64::MAX; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
+        }
         self.send_player_values_update_like_cpp(&update);
         applied
     }
@@ -33822,10 +33860,13 @@ impl WorldSession {
                 player.set_quest_completed_bit_like_cpp(quest_bit, true)
             })
             .unwrap_or(false);
-        let bridge_changed = self
-            .represented_quest_completed_bits_like_cpp
-            .insert(quest_bit);
-        canonical_changed || bridge_changed
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .represented_quest_completed_bits_like_cpp
+                .insert(quest_bit);
+        }
+        canonical_changed
     }
 
     fn clear_loaded_quest_completed_bit_like_cpp(&mut self, quest_bit: u32) -> bool {
@@ -33843,10 +33884,13 @@ impl WorldSession {
                 player.set_quest_completed_bit_like_cpp(quest_bit, false)
             })
             .unwrap_or(false);
-        let bridge_changed = self
-            .represented_quest_completed_bits_like_cpp
-            .remove(&quest_bit);
-        canonical_changed || bridge_changed
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .represented_quest_completed_bits_like_cpp
+                .remove(&quest_bit);
+        }
+        canonical_changed
     }
 
     /// Set the player XP table (xp required per level).
@@ -38257,9 +38301,12 @@ impl WorldSession {
             self.player_spell_hit_aura_authority_tombstoned_like_cpp = false;
             self.player_quest_status_authority_complete_like_cpp = false;
             self.represented_rewarded_quest_rows_like_cpp.clear();
-            self.represented_loaded_player_flags_like_cpp = None;
-            self.represented_loaded_player_flags_ex_like_cpp = None;
-            self.represented_loaded_player_flags_applied_like_cpp = false;
+            #[cfg(test)]
+            {
+                self.represented_loaded_player_flags_like_cpp = None;
+                self.represented_loaded_player_flags_ex_like_cpp = None;
+                self.represented_loaded_player_flags_applied_like_cpp = false;
+            }
             self.represented_guild_id_like_cpp = 0;
             self.represented_guild_id_authority_complete_like_cpp = false;
             self.represented_trait_config_rows_like_cpp.clear();
@@ -38620,20 +38667,35 @@ impl WorldSession {
 
     pub(crate) fn set_loaded_player_flags_like_cpp(&mut self, player_flags: u32) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.represented_loaded_player_flags_like_cpp = Some(player_flags);
-        self.represented_loaded_player_flags_ex_like_cpp
-            .get_or_insert(0);
-        self.represented_loaded_player_flags_applied_like_cpp = false;
-        self.apply_loaded_player_flags_to_canonical_like_cpp();
+        let _canonical = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player.replace_all_player_flags(player_flags)
+            })
+            .is_some();
+        #[cfg(test)]
+        {
+            self.represented_loaded_player_flags_like_cpp = Some(player_flags);
+            self.represented_loaded_player_flags_ex_like_cpp
+                .get_or_insert(0);
+            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
+        }
     }
 
     pub(crate) fn set_loaded_player_flags_ex_like_cpp(&mut self, player_flags_ex: u32) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.represented_loaded_player_flags_ex_like_cpp = Some(player_flags_ex);
-        self.represented_loaded_player_flags_applied_like_cpp = false;
-        self.apply_loaded_player_flags_to_canonical_like_cpp();
+        let _canonical = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player.replace_all_player_flags_ex(player_flags_ex)
+            })
+            .is_some();
+        #[cfg(test)]
+        {
+            self.represented_loaded_player_flags_ex_like_cpp = Some(player_flags_ex);
+            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
+        }
     }
 
+    #[cfg(test)]
     pub(crate) fn apply_loaded_player_flags_to_canonical_like_cpp(&mut self) {
         let Some(player_flags) = self.represented_loaded_player_flags_like_cpp else {
             return;
@@ -42784,14 +42846,13 @@ impl WorldSession {
             .map(|(&id, &value)| PlayerConditionSkillLikeCpp { id, value })
             .collect();
         let (_, area_id) = self.player_zone_area_like_cpp();
+        let explored_zones = self.player_explored_zones_snapshot_like_cpp()?;
         let (explored_area_ids, parent_area_ids) = self
             .area_table_store
             .as_ref()
             .map(|store| {
                 (
-                    store.explored_area_ids_from_blocks_like_cpp(
-                        &self.represented_explored_zones_like_cpp,
-                    ),
+                    store.explored_area_ids_from_blocks_like_cpp(&explored_zones),
                     store.parent_area_ids_like_cpp(area_id),
                 )
             })

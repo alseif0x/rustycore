@@ -3298,8 +3298,10 @@
           "name": "represented_explored_zones_like_cpp",
           "type": "[u64 ; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_fallback_player_spell_rows_like_cpp",
@@ -3617,22 +3619,28 @@
           "name": "represented_loaded_player_flags_applied_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_loaded_player_flags_ex_like_cpp",
           "type": "Option < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_loaded_player_flags_like_cpp",
           "type": "Option < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_locked_dungeon_encounters",
@@ -3945,8 +3953,10 @@
           "name": "represented_quest_completed_bits_like_cpp",
           "type": "BTreeSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_quest_confirm_accepts_like_cpp",
@@ -5271,8 +5281,10 @@
           "name": "watched_faction_index_like_cpp",
           "type": "i32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "waypoint_path_resolver_like_cpp",
@@ -19914,8 +19926,10 @@
           "name": "apply_loaded_player_flags_to_canonical_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_loaded_player_flags_to_canonical_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29537,6 +29551,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_explored_zones_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_explored_zones_snapshot_like_cpp (& self ,) -> Option < [u64 ; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_faction_template_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_faction_template_id_like_cpp (& self) -> Option < u32 >",
@@ -34615,7 +34642,7 @@
           "kind": "method",
           "name": "represented_explored_zones_db_string_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_explored_zones_db_string_like_cpp (& self) -> String",
+          "signature": "fn represented_explored_zones_db_string_like_cpp (& self) -> Option < String >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36102,7 +36129,7 @@
           "kind": "method",
           "name": "represented_player_flags_value_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_player_flags_value_like_cpp (& self) -> u32",
+          "signature": "fn represented_player_flags_value_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39075,6 +39102,19 @@
           "name": "resolved_visible_resting_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_visible_resting_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_watched_faction_index_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_watched_faction_index_like_cpp (& self) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -47846,17 +47886,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "sync_represented_explored_zones_from_canonical_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_represented_explored_zones_from_canonical_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "sync_represented_farsight_clear_from_canonical_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn sync_represented_farsight_clear_from_canonical_like_cpp (& mut self) -> bool",
@@ -49677,8 +49706,10 @@
           "name": "watched_faction_index_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn watched_faction_index_like_cpp (& self) -> i32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -75030,7 +75061,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:41d04fc6b94aea53dfb63676b99bec0c:len=93287|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ce04d022e100754165795c1f2cbef486:len=93377|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

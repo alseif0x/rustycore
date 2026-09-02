@@ -137,7 +137,6 @@ impl WorldSession {
                 "RUST_PLAYER_POWER_SAVE skipped: no authoritative canonical power snapshot"
             );
         }
-        self.sync_represented_explored_zones_from_canonical_like_cpp();
         let character = PlayerCharacterSnapshotSaveLikeCpp {
             position: PlayerPositionSaveLikeCpp {
                 x: snapshot.position.x,
@@ -160,7 +159,7 @@ impl WorldSession {
             powers,
             talent_reset_cost: self.represented_talent_reset_cost_like_cpp,
             talent_reset_time: self.represented_talent_reset_time_secs_like_cpp,
-            explored_zones: self.represented_explored_zones_db_string_like_cpp(),
+            explored_zones: self.represented_explored_zones_db_string_like_cpp()?,
             dungeon_difficulty: self.resolved_dungeon_difficulty_id_like_cpp()?,
             raid_difficulty: self.resolved_raid_difficulty_id_like_cpp()?,
             legacy_raid_difficulty: self.resolved_legacy_raid_difficulty_id_like_cpp()?,

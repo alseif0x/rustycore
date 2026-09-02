@@ -421,6 +421,21 @@ impl WorldSession {
             return;
         };
 
+        // C++ constructs the selected `Player` before hydrating its character
+        // rows. Establish the generation-checked owner now so every following
+        // load step writes directly into that one value instead of requiring a
+        // Session-side bootstrap mirror.
+        let attached_controller = self.ensure_login_player_controller_like_cpp(
+            guid,
+            name.clone(),
+            position,
+            map_id as u16,
+            race,
+            class,
+            level,
+            gender,
+        );
+
         // Load played time + money/xp from DB using C++ CHAR_SEL_CHARACTER order.
         self.total_played_time = base_row.total_played_time.unwrap_or(0);
         self.level_played_time = base_row.level_played_time.unwrap_or(0);
@@ -782,16 +797,6 @@ impl WorldSession {
         }
         self.refresh_next_level_xp();
         self.clamp_loaded_player_xp_to_next_level_like_cpp();
-        let attached_controller = self.ensure_login_player_controller_like_cpp(
-            guid,
-            name.clone(),
-            position,
-            map_id as u16,
-            race,
-            class,
-            level,
-            gender,
-        );
         if saved_character_map_is_battleground {
             // Rust does not yet have a live BattlegroundMgr roster/status
             // authority, so it cannot prove C++'s `currentBg &&
@@ -839,6 +844,7 @@ impl WorldSession {
             );
         }
         if attached_controller {
+            #[cfg(test)]
             self.apply_loaded_player_flags_to_canonical_like_cpp();
             let _ = self.apply_represented_group_leader_flag_like_cpp();
         }

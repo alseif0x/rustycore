@@ -365,6 +365,10 @@ impl Player {
         );
     }
 
+    pub fn watched_faction_index_like_cpp(&self) -> i32 {
+        self.active_data().watched_faction_index
+    }
+
     pub fn set_quest_completed_bit_like_cpp(&mut self, quest_bit: u32, completed: bool) -> bool {
         if quest_bit == 0 {
             return false;
