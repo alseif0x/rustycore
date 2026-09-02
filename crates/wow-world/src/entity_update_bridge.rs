@@ -559,6 +559,7 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.health = update.values.health.min(i64::MAX as u64) as i64;
     packet_update.max_health = update.values.max_health.min(i64::MAX as u64) as i64;
     packet_update.display_id = update.values.display_id;
+    packet_update.critter = update.values.critter;
     packet_update.target = update.values.target;
     packet_update.race = update.values.race;
     packet_update.class_id = update.values.class_id;
@@ -2034,6 +2035,24 @@ mod tests {
         assert_eq!(unit.virtual_items[2].item_id, 25);
         assert_eq!(unit.virtual_items[2].appearance_mod_id, 3);
         assert_eq!(unit.virtual_items[2].item_visual, 4);
+    }
+
+    #[test]
+    fn bridges_canonical_unit_critter_guid_like_cpp() {
+        let mut player = Player::new(Some(7), false);
+        let critter = ObjectGuid::new(7, 12);
+        player.clear_data_changes();
+        player.unit_mut().set_critter_guid_like_cpp(Some(critter));
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let unit = packet_update.unit_data.unwrap();
+
+        assert!(mask_has(
+            &unit.unit_data_mask,
+            wow_entities::UNIT_DATA_CRITTER_BIT
+        ));
+        assert_eq!(unit.critter, critter);
     }
 
     #[test]

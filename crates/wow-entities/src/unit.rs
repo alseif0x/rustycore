@@ -60,6 +60,7 @@ pub const UNIT_DATA_SHEATHE_STATE_BIT: usize = 77;
 pub const UNIT_DATA_PVP_FLAGS_BIT: usize = 78;
 pub const UNIT_DATA_PET_FLAGS_BIT: usize = 79;
 pub const UNIT_DATA_SHAPESHIFT_FORM_BIT: usize = 80;
+pub const UNIT_DATA_CRITTER_BIT: usize = 13;
 pub const UNIT_DATA_TARGET_BIT: usize = 19;
 pub const UNIT_DATA_RACE_BIT: usize = 24;
 pub const UNIT_DATA_CLASS_ID_BIT: usize = 25;
@@ -92,6 +93,7 @@ pub struct UnitDataValues {
     pub health: u64,
     pub max_health: u64,
     pub display_id: i32,
+    pub critter: ObjectGuid,
     pub target: ObjectGuid,
     pub race: u8,
     pub class_id: u8,
@@ -138,6 +140,7 @@ impl Default for UnitDataValues {
             health: 0,
             max_health: 0,
             display_id: 0,
+            critter: ObjectGuid::EMPTY,
             target: ObjectGuid::EMPTY,
             race: 0,
             class_id: 0,
@@ -1831,6 +1834,18 @@ impl Unit {
 
     pub fn set_target(&mut self, target: ObjectGuid) {
         self.set_guid_field(UNIT_DATA_TARGET_BIT, target, |data| &mut data.target);
+    }
+
+    pub fn critter_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.data.critter.is_empty()).then_some(self.data.critter)
+    }
+
+    pub fn set_critter_guid_like_cpp(&mut self, critter: Option<ObjectGuid>) {
+        self.set_guid_field(
+            UNIT_DATA_CRITTER_BIT,
+            critter.unwrap_or(ObjectGuid::EMPTY),
+            |data| &mut data.critter,
+        );
     }
 
     pub fn set_unit_flags_like_cpp(&mut self, flags: UnitFlags) {
@@ -4084,6 +4099,22 @@ mod tests {
             unit.unit_data_changes_mask()
                 .is_set(UNIT_DATA_HOVER_HEIGHT_BIT)
         );
+    }
+
+    #[test]
+    fn critter_guid_uses_canonical_unitdata_and_change_bit_like_cpp() {
+        let mut unit = Unit::new(true);
+        let critter = ObjectGuid::new(7, 12);
+        unit.clear_unit_data_changes();
+
+        unit.set_critter_guid_like_cpp(Some(critter));
+
+        assert_eq!(unit.critter_guid_like_cpp(), Some(critter));
+        assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_PARENT_BIT));
+        assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_CRITTER_BIT));
+
+        unit.set_critter_guid_like_cpp(None);
+        assert_eq!(unit.critter_guid_like_cpp(), None);
     }
 
     #[test]
