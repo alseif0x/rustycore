@@ -1783,7 +1783,7 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
     assert!(!session.player_quests.contains_key(&quest_id));
     assert!(session.rewarded_quests.contains(&quest_id));
     assert_eq!(session.player_gold_like_cpp(), 42);
-    assert_eq!(session.player_currency_quantity(currency_id), 5);
+    assert_eq!(session.player_currency_quantity(currency_id), Some(5));
     assert_eq!(
         send_rx.try_recv().unwrap(),
         wow_packet::packets::misc::SetCurrency {
@@ -1859,7 +1859,7 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
     assert!(!session.player_quests.contains_key(&quest_id));
     assert!(session.rewarded_quests.contains(&quest_id));
     assert_eq!(session.player_gold_like_cpp(), 42);
-    assert_eq!(session.player_currency_quantity(currency_id), 7);
+    assert_eq!(session.player_currency_quantity(currency_id), Some(7));
     assert_eq!(
         send_rx.try_recv().unwrap(),
         wow_packet::packets::misc::SetCurrency {
@@ -3144,7 +3144,7 @@ async fn quest_giver_choose_reward_removes_currency_objective_before_rewards_lik
     assert!(!session.player_quests.contains_key(&quest_id));
     assert!(session.rewarded_quests.contains(&quest_id));
     assert_eq!(session.player_gold_like_cpp(), 42);
-    assert_eq!(session.player_currency_quantity(currency_id), 6);
+    assert_eq!(session.player_currency_quantity(currency_id), Some(6));
     assert_eq!(
         send_rx.try_recv().unwrap(),
         wow_packet::packets::misc::SetCurrency {

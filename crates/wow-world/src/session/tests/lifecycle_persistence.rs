@@ -588,7 +588,7 @@ async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_
         currency_entry(395),
     ])));
 
-    let snapshot = session.player_currencies_like_cpp().clone();
+    let snapshot = session.player_currencies_like_cpp().unwrap();
     assert!(
         session
             .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
@@ -600,7 +600,7 @@ async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_
             .await
             .is_ok()
     );
-    assert_eq!(session.player_currency_quantity(395), 7);
+    assert_eq!(session.player_currency_quantity(395), Some(7));
     let requests = port.currency_saves();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].player_guid, 0x7400_0201);
@@ -614,6 +614,7 @@ async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_
     assert_eq!(
         session
             .player_currencies_like_cpp()
+            .unwrap()
             .get(&395)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::Unchanged)
@@ -629,7 +630,7 @@ async fn missing_currency_persistence_port_keeps_the_existing_unsaved_state_like
         currency_entry(395),
     ])));
 
-    let snapshot = session.player_currencies_like_cpp().clone();
+    let snapshot = session.player_currencies_like_cpp().unwrap();
     assert!(
         session
             .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
@@ -641,10 +642,11 @@ async fn missing_currency_persistence_port_keeps_the_existing_unsaved_state_like
             .await
             .is_ok()
     );
-    assert_eq!(session.player_currency_quantity(395), 7);
+    assert_eq!(session.player_currency_quantity(395), Some(7));
     assert_eq!(
         session
             .player_currencies_like_cpp()
+            .unwrap()
             .get(&395)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::New)
@@ -662,7 +664,7 @@ async fn unknown_quest_currency_commit_restores_the_pre_save_snapshot_like_cpp()
         currency_entry(395),
     ])));
 
-    let snapshot = session.player_currencies_like_cpp().clone();
+    let snapshot = session.player_currencies_like_cpp().unwrap();
     assert!(
         session
             .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
@@ -674,7 +676,7 @@ async fn unknown_quest_currency_commit_restores_the_pre_save_snapshot_like_cpp()
             .await
             .is_err()
     );
-    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(session.player_currency_quantity(395), Some(0));
     assert_eq!(port.currency_saves().len(), 1);
 }
 

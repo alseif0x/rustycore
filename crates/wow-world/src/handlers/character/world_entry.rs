@@ -139,7 +139,7 @@ impl WorldSession {
 
         // Clear inventory state
         self.clear_all_inventory_runtime_like_cpp();
-        self.clear_player_currencies_like_cpp();
+        let _ = self.clear_player_currencies_like_cpp();
         self.set_active_loot_guid(ObjectGuid::EMPTY);
 
         // ── Restore realm socket as primary ──────────────────────────
@@ -887,7 +887,10 @@ impl WorldSession {
         let mut loaded_equipped_item_guids: Vec<ObjectGuid> = Vec::new();
         let realm_id = self.realm_id();
         self.clear_inventory_items_and_objects_like_cpp();
-        self.clear_player_currencies_like_cpp();
+        if !self.clear_player_currencies_like_cpp() {
+            warn!("canonical Player currency owner unavailable during login");
+            return;
+        }
         {
             self.begin_player_equipment_inventory_authority_load_like_cpp();
             let mut refund_cleanup_actions = Vec::new();
@@ -1512,13 +1515,16 @@ impl WorldSession {
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
                 wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(rows),
             ) => {
+                let Some(mut currencies) = self.player_currencies_like_cpp() else {
+                    warn!("canonical Player currency owner unavailable after currency load");
+                    return;
+                };
                 for row in rows {
                     let currency_id = u32::from(row.currency_id);
                     let known_currency = self
                         .currency_types_store()
                         .is_some_and(|store| store.has_record(currency_id));
                     if known_currency {
-                        let mut currencies = self.player_currencies_like_cpp().clone();
                         currencies.entry(currency_id).or_insert_with(|| {
                             crate::session::PlayerCurrency {
                                 state: crate::session::PlayerCurrencyState::Unchanged,
@@ -1530,14 +1536,14 @@ impl WorldSession {
                                 flags: row.flags,
                             }
                         });
-                        self.set_player_currencies_like_cpp(currencies);
                     }
                 }
-                info!(
-                    "Loaded {} currencies for {:?}",
-                    self.player_currencies_like_cpp().len(),
-                    guid
-                );
+                let currency_count = currencies.len();
+                if !self.set_player_currencies_like_cpp(currencies) {
+                    warn!("canonical Player currency owner unavailable after currency load");
+                    return;
+                }
+                info!("Loaded {} currencies for {:?}", currency_count, guid);
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!("Failed to load currencies for {:?}: {}", guid, reason);

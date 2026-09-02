@@ -565,7 +565,9 @@ impl WorldSession {
                 };
                 item_turnin_changes.append(&mut changes);
             }
-            let mut planned_currencies = self.player_currencies_like_cpp().clone();
+            let Some(mut planned_currencies) = self.player_currencies_like_cpp() else {
+                return;
+            };
             let currency_gain = match self.plan_add_currency_vendor_like_cpp(
                 &mut planned_currencies,
                 buy.item_id as u32,
@@ -644,7 +646,10 @@ impl WorldSession {
 
             // Publish the entire committed state before reopening payout/save
             // admission. No await may split durable success from runtime.
-            self.set_player_currencies_like_cpp(planned_currencies);
+            if !self.set_player_currencies_like_cpp(planned_currencies) {
+                self.kick("canonical Player currency owner became unavailable after vendor COMMIT");
+                return;
+            }
             self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
             drop(money_persistence);
 
@@ -670,7 +675,9 @@ impl WorldSession {
                 self.send_packet(&packet);
             }
             for &(currency_id, amount) in &extended_cost_currency_costs {
-                let Some(quantity) = i32::try_from(self.player_currency_quantity(currency_id)).ok()
+                let Some(quantity) = self
+                    .player_currency_quantity(currency_id)
+                    .and_then(|quantity| i32::try_from(quantity).ok())
                 else {
                     continue;
                 };
@@ -998,7 +1005,9 @@ impl WorldSession {
             };
             item_turnin_changes.append(&mut changes);
         }
-        let mut planned_currencies = self.player_currencies_like_cpp().clone();
+        let Some(mut planned_currencies) = self.player_currencies_like_cpp() else {
+            return;
+        };
         for &(currency_id, amount) in &extended_cost_currency_costs {
             if i32::try_from(amount).is_err()
                 || !Self::plan_remove_currency_like_cpp(
@@ -1077,7 +1086,10 @@ impl WorldSession {
             return;
         }
         self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
-        self.set_player_currencies_like_cpp(planned_currencies);
+        if !self.set_player_currencies_like_cpp(planned_currencies) {
+            self.kick("canonical Player currency owner became unavailable after vendor COMMIT");
+            return;
+        }
         for &(_, item_guid, _, new_count) in &existing_updates {
             self.update_inventory_item_object_like_cpp(item_guid, |item| {
                 item.set_count(new_count);
@@ -1199,7 +1211,9 @@ impl WorldSession {
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
         for &(currency_id, amount) in &extended_cost_currency_costs {
-            let Some(quantity) = i32::try_from(self.player_currency_quantity(currency_id)).ok()
+            let Some(quantity) = self
+                .player_currency_quantity(currency_id)
+                .and_then(|quantity| i32::try_from(quantity).ok())
             else {
                 continue;
             };
@@ -2244,7 +2258,9 @@ impl WorldSession {
             }
         }
 
-        let currency_snapshot = self.player_currencies_like_cpp().clone();
+        let Some(currency_snapshot) = self.player_currencies_like_cpp() else {
+            return;
+        };
         let mut currency_deltas = Vec::new();
         for &(currency_id, amount) in &currency_costs {
             match self.add_currency_item_refund(currency_id, amount) {
@@ -2261,12 +2277,18 @@ impl WorldSession {
                 }
             }
         }
-        let mut persisted_currencies = self.player_currencies_like_cpp().clone();
+        let Some(mut persisted_currencies) = self.player_currencies_like_cpp() else {
+            self.set_player_currencies_like_cpp(currency_snapshot);
+            return;
+        };
         let currency_save = self.plan_player_currency_save_like_cpp(
             player_guid.counter() as u64,
             &mut persisted_currencies,
         );
-        self.set_player_currencies_like_cpp(persisted_currencies);
+        if !self.set_player_currencies_like_cpp(persisted_currencies) {
+            self.set_player_currencies_like_cpp(currency_snapshot);
+            return;
+        }
         let persistence_request = wow_persistence::VendorTradePersistenceRequestLikeCpp::Refund(
             wow_persistence::VendorRefundPersistenceLikeCpp {
                 player_guid: player_guid.counter() as u64,

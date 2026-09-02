@@ -31536,6 +31536,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.load_represented_explored_zones_like_cpp("1 0"), 1);
     session.set_represented_pending_quest_sharing_like_cpp(share_sender, 400);
     session.set_player_transport_info_like_cpp(Some(transport_info.clone()));
+    assert!(session.set_player_currencies_like_cpp(HashMap::from([(
+        395,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Unchanged,
+            quantity: 10,
+            weekly_quantity: 1,
+            tracked_quantity: 2,
+            increased_cap_quantity: 3,
+            earned_quantity: 4,
+            flags: 5,
+        },
+    )])));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31594,6 +31606,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.load_represented_explored_zones_like_cpp("2 0"), 1);
     session.clear_represented_pending_quest_sharing_like_cpp();
     session.set_player_transport_position_like_cpp(Some(Position::new(4.0, 5.0, 6.0, 0.75)));
+    assert!(session.set_player_currencies_like_cpp(HashMap::from([(
+        395,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Changed,
+            quantity: 20,
+            weekly_quantity: 2,
+            tracked_quantity: 3,
+            increased_cap_quantity: 4,
+            earned_quantity: 5,
+            flags: 6,
+        },
+    )])));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31648,6 +31672,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         prev_time: Some(455),
         vehicle_id: Some(100),
     });
+    replacement.gameplay_state_mut().currencies.insert(
+        395,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Unchanged,
+            quantity: 999,
+            weekly_quantity: 9,
+            tracked_quantity: 9,
+            increased_cap_quantity: 9,
+            earned_quantity: 9,
+            flags: 9,
+        },
+    );
     assert!(replacement.set_quest_completed_bit_like_cpp(77, true));
     assert!(replacement.set_explored_zones_block_like_cpp(0, 0x400));
     let replacement_handle = canonical
@@ -31661,6 +31697,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), None);
     assert_eq!(session.player_quest_gameplay_snapshot_like_cpp(), None);
     assert_eq!(session.player_transport_state_like_cpp(), None);
+    assert_eq!(session.player_currencies_like_cpp(), None);
     session.set_loaded_player_flags_like_cpp(0xdead);
     session.set_loaded_player_flags_ex_like_cpp(0xbeef);
     session.set_watched_faction_index_like_cpp(5);
@@ -31668,6 +31705,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.load_represented_explored_zones_like_cpp("4 0"), 0);
     session.set_represented_pending_quest_sharing_like_cpp(share_sender, 0xdead);
     session.set_player_transport_info_like_cpp(None);
+    assert!(!session.set_player_currencies_like_cpp(HashMap::new()));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31692,6 +31730,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 player.gameplay_state().quests.rewarded_quest_ids.clone(),
                 player.gameplay_state().quests.pending_share,
                 player.gameplay_state().transport.clone(),
+                player.gameplay_state().currencies.clone(),
             )),
         Some((
             0x100,
@@ -31717,6 +31756,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 prev_time: Some(455),
                 vehicle_id: Some(100),
             }),
+            HashMap::from([(
+                395,
+                PlayerCurrency {
+                    state: PlayerCurrencyState::Unchanged,
+                    quantity: 999,
+                    weekly_quantity: 9,
+                    tracked_quantity: 9,
+                    increased_cap_quantity: 9,
+                    earned_quantity: 9,
+                    flags: 9,
+                },
+            )]),
         ))
     );
 }
@@ -34382,7 +34433,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
         Some(test_creature_guid(77))
     );
     assert_eq!(session.known_spells_like_cpp(), &[118, 133]);
-    assert_eq!(session.player_currency_quantity(395), 9);
+    assert_eq!(session.player_currency_quantity(395), Some(9));
     assert_eq!(session.inventory_items_like_cpp()[&23].guid, item_guid);
     assert_eq!(
         session.inventory_item_objects_like_cpp()[&item_guid].count(),
@@ -60540,7 +60591,7 @@ fn corpse_despawn_syncs_canonical_corpse_timer() {
 #[test]
 fn player_currency_helpers_match_cpp_storage_lookup() {
     let (mut session, _, _) = make_session();
-    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(session.player_currency_quantity(395), Some(0));
     assert!(!session.has_currency(395, 1));
 
     session.player_currencies.insert(
@@ -60556,7 +60607,7 @@ fn player_currency_helpers_match_cpp_storage_lookup() {
         },
     );
 
-    assert_eq!(session.player_currency_quantity(395), 42);
+    assert_eq!(session.player_currency_quantity(395), Some(42));
     assert!(session.has_currency(395, 42));
     assert!(!session.has_currency(395, 43));
 }
@@ -60642,7 +60693,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     assert_eq!(delta.weekly_quantity, Some(120));
     assert_eq!(delta.max_quantity, Some(150));
     assert_eq!(delta.total_earned, Some(32));
-    assert_eq!(session.player_currency_quantity(395), 115);
+    assert_eq!(session.player_currency_quantity(395), Some(115));
     assert_eq!(
         session
             .player_currencies
@@ -60682,7 +60733,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
             flags: 0,
         },
     );
-    let runtime_before = session.player_currencies_like_cpp().clone();
+    let runtime_before = session.player_currencies_like_cpp().unwrap();
     let mut planned = runtime_before.clone();
 
     let gain = session
@@ -60711,7 +60762,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
     assert_eq!(request.rows.len(), 2);
     assert_eq!(
         session.player_currencies_like_cpp(),
-        &runtime_before,
+        Some(runtime_before),
         "a definite rollback or cancellation before COMMIT must leave runtime unchanged"
     );
 }
@@ -60736,7 +60787,7 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
             flags: 0,
         },
     );
-    let mut planned = session.player_currencies_like_cpp().clone();
+    let mut planned = session.player_currencies_like_cpp().unwrap();
     session
         .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
         .unwrap();
@@ -60753,11 +60804,12 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
     // durable success branch.
     session.set_player_currencies_like_cpp(planned);
 
-    assert_eq!(session.player_currency_quantity(395), 3);
-    assert_eq!(session.player_currency_quantity(396), 6);
+    assert_eq!(session.player_currency_quantity(395), Some(3));
+    assert_eq!(session.player_currency_quantity(396), Some(6));
     assert!(
         session
             .player_currencies_like_cpp()
+            .unwrap()
             .values()
             .all(|currency| currency.state == PlayerCurrencyState::Unchanged)
     );
@@ -60860,7 +60912,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     );
 
     assert!(session.remove_currency(395, 100));
-    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(session.player_currency_quantity(395), Some(0));
     assert_eq!(
         session
             .player_currencies
@@ -60870,7 +60922,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     );
     assert!(!session.remove_currency(999, 1));
 
-    let mut persisted_currencies = session.player_currencies_like_cpp().clone();
+    let mut persisted_currencies = session.player_currencies_like_cpp().unwrap();
     let request = session.plan_player_currency_save_like_cpp(1, &mut persisted_currencies);
     session.set_player_currencies_like_cpp(persisted_currencies);
     assert_eq!(request.rows.len(), 2);

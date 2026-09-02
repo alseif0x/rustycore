@@ -204,6 +204,7 @@ use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
     CONTAINER_DATA_SLOTS_PARENT_BIT, ContainerDataUpdate, ContainerDataValues,
 };
+pub(crate) use wow_entities::{PlayerCurrency, PlayerCurrencyState};
 use wow_handler::{PacketProcessing, SessionStatus};
 
 // Only the test modules mounted into this file name these directly; the
@@ -5865,7 +5866,8 @@ pub struct WorldSession {
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
 
-    /// C++ `_currencyStorage`, keyed by CurrencyTypes.db2 ID.
+    /// Legacy handle-less test fixture for C++ `Player::_currencyStorage`.
+    #[cfg(test)]
     player_currencies: HashMap<u32, PlayerCurrency>,
     represented_quest_objective_progress_events_like_cpp:
         VecDeque<RepresentedQuestObjectiveProgressEventLikeCpp>,
@@ -7164,26 +7166,6 @@ pub(crate) struct VendorBuyItemTestOverrideLikeCpp {
     pub(crate) buy_count: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub(crate) enum PlayerCurrencyState {
-    Unchanged = 0,
-    Changed = 1,
-    New = 2,
-    Removed = 3,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PlayerCurrency {
-    pub state: PlayerCurrencyState,
-    pub quantity: u32,
-    pub weekly_quantity: u32,
-    pub tracked_quantity: u32,
-    pub increased_cap_quantity: u32,
-    pub earned_quantity: u32,
-    pub flags: u8,
-}
-
 #[derive(Debug, Clone, Default)]
 pub(crate) struct RepresentedPlayerConditionContextLikeCpp {
     spells: Vec<u32>,
@@ -8142,6 +8124,7 @@ impl WorldSession {
             represented_duel_cancels_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
+            #[cfg(test)]
             player_currencies: HashMap::new(),
             represented_quest_objective_progress_events_like_cpp: VecDeque::new(),
             represented_quest_objective_progress_draining_like_cpp: false,
@@ -17687,25 +17670,29 @@ impl WorldSession {
     }
 
     /// C++ `Player::GetCurrencyQuantity`.
-    pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> u32 {
-        self.player_currencies_like_cpp()
-            .get(&currency_id)
-            .map(|currency| currency.quantity)
-            .unwrap_or(0)
+    pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
+        self.player_currencies_like_cpp().map(|currencies| {
+            currencies
+                .get(&currency_id)
+                .map(|currency| currency.quantity)
+                .unwrap_or(0)
+        })
     }
 
     /// C++ `Player::HasCurrency`.
     pub(crate) fn has_currency(&self, currency_id: u32, amount: u32) -> bool {
-        self.player_currency_quantity(currency_id) >= amount
+        self.player_currency_quantity(currency_id)
+            .is_some_and(|quantity| quantity >= amount)
     }
 
     /// C++ `Player::SendCurrencies`.
     pub(crate) fn setup_currencies_packet_like_cpp(&self) -> Option<SetupCurrency> {
         let store = self.currency_types_store.as_ref()?;
+        let currencies = self.player_currencies_like_cpp()?;
 
         let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
-        let mut records = Vec::with_capacity(self.player_currencies_like_cpp().len());
-        for (&currency_id, currency) in self.player_currencies_like_cpp() {
+        let mut records = Vec::with_capacity(currencies.len());
+        for (&currency_id, currency) in &currencies {
             let Some(entry) = store.get(currency_id).copied() else {
                 continue;
             };
@@ -17770,7 +17757,9 @@ impl WorldSession {
             return false;
         }
 
-        let mut currencies = self.player_currencies_like_cpp().clone();
+        let Some(mut currencies) = self.player_currencies_like_cpp() else {
+            return false;
+        };
         if let Some(currency) = currencies.get_mut(&currency_id) {
             if currency.flags != flags {
                 currency.flags = flags;
@@ -17778,7 +17767,9 @@ impl WorldSession {
                     currency.state = PlayerCurrencyState::Changed;
                 }
             }
-            self.set_player_currencies_like_cpp(currencies);
+            if !self.set_player_currencies_like_cpp(currencies) {
+                return false;
+            }
         }
 
         let Some(packet) = self.setup_currencies_packet_like_cpp() else {
@@ -17884,9 +17875,11 @@ impl WorldSession {
         currency_id: u32,
         amount: u32,
     ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        let mut currencies = self.player_currencies_like_cpp().clone();
+        let mut currencies = self.player_currencies_like_cpp().ok_or(())?;
         let delta = self.plan_add_currency_vendor_like_cpp(&mut currencies, currency_id, amount)?;
-        self.set_player_currencies_like_cpp(currencies);
+        if !self.set_player_currencies_like_cpp(currencies) {
+            return Err(());
+        }
         Ok(delta)
     }
 
@@ -17923,7 +17916,7 @@ impl WorldSession {
             return Ok(None);
         }
 
-        let mut currencies = self.player_currencies_like_cpp().clone();
+        let mut currencies = self.player_currencies_like_cpp().ok_or(())?;
         let currency = currencies.entry(currency_id).or_insert(PlayerCurrency {
             state: PlayerCurrencyState::New,
             quantity: 0,
@@ -17951,7 +17944,9 @@ impl WorldSession {
             total_earned: entry.has_total_earned().then_some(currency.earned_quantity),
             suppress_chat_log: entry.is_suppressing_chat_log(false),
         };
-        self.set_player_currencies_like_cpp(currencies);
+        if !self.set_player_currencies_like_cpp(currencies) {
+            return Err(());
+        }
         Ok(Some(delta))
     }
 
@@ -17997,7 +17992,7 @@ impl WorldSession {
             CurrencyGainSourceLikeCpp::QuestRewardIgnoreCaps
                 | CurrencyGainSourceLikeCpp::WorldQuestRewardIgnoreCaps
         );
-        let mut currencies = self.player_currencies_like_cpp().clone();
+        let mut currencies = self.player_currencies_like_cpp().ok_or(())?;
         let currency = currencies.entry(currency_id).or_insert(PlayerCurrency {
             state: PlayerCurrencyState::New,
             quantity: 0,
@@ -18053,7 +18048,9 @@ impl WorldSession {
             total_earned: entry.has_total_earned().then_some(currency.earned_quantity),
             suppress_chat_log: entry.is_suppressing_chat_log(false),
         };
-        self.set_player_currencies_like_cpp(currencies);
+        if !self.set_player_currencies_like_cpp(currencies) {
+            return Err(());
+        }
         Ok(Some(delta))
     }
 
@@ -18083,12 +18080,13 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
-        let mut currencies = self.player_currencies_like_cpp().clone();
+        let Some(mut currencies) = self.player_currencies_like_cpp() else {
+            return false;
+        };
         if !Self::plan_remove_currency_like_cpp(&mut currencies, currency_id, amount) {
             return false;
         }
-        self.set_player_currencies_like_cpp(currencies);
-        true
+        self.set_player_currencies_like_cpp(currencies)
     }
 
     /// C++ `Player::_SaveCurrency` plan for changed/new currency rows.
@@ -18158,9 +18156,17 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return Ok(());
         };
-        let mut currencies = self.player_currencies_like_cpp().clone();
+        let Some(mut currencies) = self.player_currencies_like_cpp() else {
+            return Err(wow_persistence::PersistenceOutcomeLikeCpp::Failed {
+                reason: "canonical Player currency owner is unavailable".to_string(),
+            });
+        };
         let request = self.plan_player_currency_save_like_cpp(character_guid, &mut currencies);
-        self.set_player_currencies_like_cpp(currencies);
+        if !self.set_player_currencies_like_cpp(currencies) {
+            return Err(wow_persistence::PersistenceOutcomeLikeCpp::Failed {
+                reason: "canonical Player currency owner became unavailable".to_string(),
+            });
+        }
         let outcome = port.persist_currency_save_like_cpp(request).await;
         if matches!(
             outcome,
@@ -33280,7 +33286,10 @@ impl WorldSession {
             return;
         };
 
-        let current_quantity = i64::from(self.player_currency_quantity(currency_id));
+        let Some(current_quantity) = self.player_currency_quantity(currency_id).map(i64::from)
+        else {
+            return;
+        };
         let add_count = i64::from(change);
         let object_id = i32::try_from(currency_id).unwrap_or(i32::MAX);
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -42437,12 +42446,22 @@ impl WorldSession {
     pub(crate) fn set_player_currencies_like_cpp(
         &mut self,
         currencies: HashMap<u32, PlayerCurrency>,
-    ) {
-        self.player_currencies = currencies;
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().currencies = currencies.clone();
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_currencies = currencies;
+            return true;
+        }
+        canonical
     }
 
-    pub(crate) fn clear_player_currencies_like_cpp(&mut self) {
-        self.set_player_currencies_like_cpp(HashMap::new());
+    pub(crate) fn clear_player_currencies_like_cpp(&mut self) -> bool {
+        self.set_player_currencies_like_cpp(HashMap::new())
     }
 
     #[cfg(test)]
@@ -43000,8 +43019,14 @@ impl WorldSession {
         canonical
     }
 
-    pub(crate) fn player_currencies_like_cpp(&self) -> &HashMap<u32, PlayerCurrency> {
-        &self.player_currencies
+    pub(crate) fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.gameplay_state().currencies.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_currencies.clone());
+        }
+        canonical
     }
 
     pub(crate) fn represented_player_condition_context_like_cpp(
@@ -43018,7 +43043,7 @@ impl WorldSession {
             .map(|(id, count)| PlayerConditionCountLikeCpp { id, count })
             .collect();
         let currencies = self
-            .player_currencies_like_cpp()
+            .player_currencies_like_cpp()?
             .iter()
             .map(|(&id, currency)| PlayerConditionCountLikeCpp {
                 id,

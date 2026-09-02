@@ -2001,8 +2001,10 @@
           "name": "player_currencies",
           "type": "HashMap < u32 , PlayerCurrency >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_emote_state_like_cpp",
@@ -23014,7 +23016,7 @@
           "kind": "method",
           "name": "clear_player_currencies_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn clear_player_currencies_like_cpp (& mut self)",
+          "signature": "fn clear_player_currencies_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29561,7 +29563,7 @@
           "kind": "method",
           "name": "player_currencies_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_currencies_like_cpp (& self) -> & HashMap < u32 , PlayerCurrency >",
+          "signature": "fn player_currencies_like_cpp (& self) -> Option < HashMap < u32 , PlayerCurrency > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29574,7 +29576,7 @@
           "kind": "method",
           "name": "player_currency_quantity",
           "visibility": "pub (crate)",
-          "signature": "fn player_currency_quantity (& self , currency_id : u32) -> u32",
+          "signature": "fn player_currency_quantity (& self , currency_id : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43944,7 +43946,7 @@
           "kind": "method",
           "name": "set_player_currencies_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_currencies_like_cpp (& mut self , currencies : HashMap < u32 , PlayerCurrency > ,)",
+          "signature": "fn set_player_currencies_like_cpp (& mut self , currencies : HashMap < u32 , PlayerCurrency > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75154,7 +75156,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c79eb62e47e6e6dff547382bf045d27c:len=93587|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:85e60470d2998fe5ab531074a295203a:len=93615|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

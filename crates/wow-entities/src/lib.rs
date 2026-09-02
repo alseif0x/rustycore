@@ -260,7 +260,7 @@ pub use player::{
     item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
     item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
-pub use player_gameplay_state::PlayerGameplayState;
+pub use player_gameplay_state::{PlayerCurrency, PlayerCurrencyState, PlayerGameplayState};
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,
     SCENE_OBJECT_DATA_RND_SEED_VAL_BIT, SCENE_OBJECT_DATA_SCENE_TYPE_BIT,

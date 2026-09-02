@@ -404,12 +404,18 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             counter: 99,
             completed_at: None,
         }],
-        currencies: vec![PlayerCurrencyRecord {
-            currency_id: 395,
-            count: 12,
-            weekly_count: 3,
-            tracked_quantity: Some(20),
-        }],
+        currencies: HashMap::from([(
+            395,
+            crate::PlayerCurrency {
+                state: crate::PlayerCurrencyState::Unchanged,
+                quantity: 12,
+                weekly_quantity: 3,
+                tracked_quantity: 20,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        )]),
         spell_cooldowns: vec![PlayerSpellCooldownRecord {
             spell_id: 642,
             item_id: None,

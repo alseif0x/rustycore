@@ -906,7 +906,9 @@ impl WorldSession {
         amount: u32,
         gain_source: CurrencyGainSourceLikeCpp,
     ) -> bool {
-        let currency_snapshot = self.player_currencies_like_cpp().clone();
+        let Some(currency_snapshot) = self.player_currencies_like_cpp() else {
+            return false;
+        };
         let delta = match self.add_currency_quest_reward_like_cpp(currency_id, amount, gain_source)
         {
             Ok(delta) => delta,
@@ -1066,7 +1068,9 @@ impl WorldSession {
         };
         let map_id = self.player_map_id_like_cpp();
         let mut item_changes = Vec::new();
-        let currency_snapshot = self.player_currencies_like_cpp().clone();
+        let Some(currency_snapshot) = self.player_currencies_like_cpp() else {
+            return false;
+        };
         let mut currency_losses = Vec::new();
 
         for objective in &quest.objectives {
@@ -1094,12 +1098,18 @@ impl WorldSession {
                     ) else {
                         return false;
                     };
-                    let before = self.player_currency_quantity(currency_id);
+                    let Some(before) = self.player_currency_quantity(currency_id) else {
+                        self.set_player_currencies_like_cpp(currency_snapshot);
+                        return false;
+                    };
                     if !self.remove_currency(currency_id, amount) {
                         self.set_player_currencies_like_cpp(currency_snapshot);
                         return false;
                     }
-                    let after = self.player_currency_quantity(currency_id);
+                    let Some(after) = self.player_currency_quantity(currency_id) else {
+                        self.set_player_currencies_like_cpp(currency_snapshot);
+                        return false;
+                    };
                     let removed = before.saturating_sub(after);
                     if removed > 0 {
                         currency_losses.push((currency_id, after, removed));
@@ -1126,10 +1136,15 @@ impl WorldSession {
         }
 
         if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
-            let mut currencies = self.player_currencies_like_cpp().clone();
+            let Some(mut currencies) = self.player_currencies_like_cpp() else {
+                self.set_player_currencies_like_cpp(currency_snapshot);
+                return false;
+            };
             let currency_save = self
                 .plan_player_currency_save_like_cpp(player_guid.counter() as u64, &mut currencies);
-            self.set_player_currencies_like_cpp(currencies);
+            if !self.set_player_currencies_like_cpp(currencies) {
+                return false;
+            }
             let items = item_changes
                 .iter()
                 .map(|change| match *change {

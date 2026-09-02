@@ -1,14 +1,13 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use wow_core::ObjectGuid;
 
 use crate::{
     PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
-    PlayerBattlegroundState, PlayerCurrencyRecord, PlayerCustomizationChoice, PlayerGroupState,
-    PlayerGuildState, PlayerMailRecord, PlayerQuestGameplayState, PlayerReputationRecord,
-    PlayerRestState, PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord,
-    PlayerSpellCooldownRecord, PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState,
-    PlayerTransportState,
+    PlayerBattlegroundState, PlayerCustomizationChoice, PlayerGroupState, PlayerGuildState,
+    PlayerMailRecord, PlayerQuestGameplayState, PlayerReputationRecord, PlayerRestState,
+    PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
+    PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState, PlayerTransportState,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -56,10 +55,30 @@ pub struct PlayerGameplayState {
     pub reputations: Vec<PlayerReputationRecord>,
     pub achievements: Vec<PlayerAchievementRecord>,
     pub achievement_criteria: Vec<PlayerAchievementCriteriaRecord>,
-    pub currencies: Vec<PlayerCurrencyRecord>,
+    /// C++ `Player::_currencyStorage`, including its per-row persistence state.
+    pub currencies: HashMap<u32, PlayerCurrency>,
     pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
     pub spell_charges: Vec<PlayerSpellChargeRecord>,
     pub rest: PlayerRestState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerCurrencyState {
+    Unchanged = 0,
+    Changed = 1,
+    New = 2,
+    Removed = 3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCurrency {
+    pub state: PlayerCurrencyState,
+    pub quantity: u32,
+    pub weekly_quantity: u32,
+    pub tracked_quantity: u32,
+    pub increased_cap_quantity: u32,
+    pub earned_quantity: u32,
+    pub flags: u8,
 }
 
 impl PlayerGameplayState {
