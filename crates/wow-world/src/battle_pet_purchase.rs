@@ -4362,12 +4362,16 @@ mod executor_tests {
         assert!(session.set_complete_represented_player_spell_rows_like_cpp([]));
         assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
         assert!(session.set_complete_represented_override_spells_like_cpp([]));
-        assert!(
-            session.set_complete_player_skill_records_like_cpp(std::collections::HashMap::new(), 0)
-        );
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        // Production login hydrates Player::SetFactionForRace before the
+        // trainer can be used. This synthetic fixture has no ChrRaces store,
+        // so install that canonical interaction prerequisite explicitly.
+        session.set_player_faction_template_like_cpp(1);
+        assert!(
+            session.set_complete_player_skill_records_like_cpp(std::collections::HashMap::new(), 0)
+        );
         insert_saga_trainer_creature_like_cpp(&canonical, saga_trainer_guid_like_cpp());
         session.set_player_trainer_interaction_like_cpp(saga_trainer_guid_like_cpp(), TRAINER_ID);
         session.set_battle_pet_purchase_persistence_port_like_cpp(store_handle_like_cpp(&store));

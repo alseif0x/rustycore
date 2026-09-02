@@ -66821,6 +66821,7 @@ async fn spell_effect_uncage_battle_pet_adds_pet_and_updates_criteria_like_cpp()
     let spell_id = 77_292;
 
     session.set_player_guid(Some(player_guid));
+    session.set_player_position_like_cpp(Position::ZERO);
     install_represented_battle_pet_stat_stores_like_cpp(&mut session);
     install_represented_battle_pet_species_like_cpp(
         &mut session,
