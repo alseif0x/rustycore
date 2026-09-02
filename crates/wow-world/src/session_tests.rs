@@ -33845,6 +33845,84 @@ fn canonical_player_homebind_follows_detached_and_stale_handle_ownership_like_cp
 }
 
 #[test]
+fn canonical_player_cinematic_state_follows_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_566);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CinematicOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    session.set_represented_cinematic_like_cpp_for_test(Some(444));
+    session.set_represented_movie_like_cpp_for_test(Some(177));
+    assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
+    assert_eq!(session.represented_movie_like_cpp(), Some(177));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
+    assert_eq!(session.represented_movie_like_cpp(), Some(177));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().cinematic = wow_entities::PlayerCinematicStateLikeCpp {
+        cinematic_id: Some(900),
+        camera_ids: Some([1, 2, 3, 0, 0, 0, 0, 0]),
+        camera_index: 1,
+        movie_id: Some(901),
+    };
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_cinematic_like_cpp(), None);
+    assert_eq!(session.represented_movie_like_cpp(), None);
+    session.set_represented_cinematic_like_cpp_for_test(Some(1));
+    session.set_represented_movie_like_cpp_for_test(Some(2));
+    session.complete_represented_cinematic_like_cpp();
+    session.complete_represented_movie_like_cpp();
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().cinematic
+            }),
+        Some(wow_entities::PlayerCinematicStateLikeCpp {
+            cinematic_id: Some(900),
+            camera_ids: Some([1, 2, 3, 0, 0, 0, 0, 0]),
+            camera_index: 1,
+            movie_id: Some(901),
+        })
+    );
+}
+
+#[test]
 fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

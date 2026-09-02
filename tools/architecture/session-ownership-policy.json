@@ -3293,15 +3293,19 @@
           "name": "represented_cinematic_camera_ids_like_cpp",
           "type": "Option < [u16 ; 8] >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_cinematic_camera_index_like_cpp",
           "type": "i32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_cinematic_end_events_like_cpp",
@@ -3316,8 +3320,10 @@
           "name": "represented_cinematic_like_cpp",
           "type": "Option < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_cinematic_next_camera_events_like_cpp",
@@ -3966,8 +3972,10 @@
           "name": "represented_movie_like_cpp",
           "type": "Option < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_offhand_check_at_spell_unlearn_like_cpp",
@@ -29028,6 +29036,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_cinematic_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_cinematic_state_like_cpp < R > (& mut self , mut mutate : impl FnMut (& mut wow_entities :: PlayerCinematicStateLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_difficulty_preferences_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_difficulty_preferences_like_cpp < R > (& mut self , f : impl FnOnce (& mut u32 , & mut u32 , & mut u32) -> R ,) -> Option < R >",
@@ -30045,6 +30064,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_cinematic_state_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_cinematic_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerCinematicStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -76070,7 +76100,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:9d002c50621bea24d9aefc35e2e1513f:len=95194|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6648075ee7c93f106e0edf828d1acf13:len=95254|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

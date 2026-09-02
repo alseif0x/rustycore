@@ -91,6 +91,9 @@ pub struct PlayerGameplayState {
     pub teleport: PlayerTeleportStateLikeCpp,
     /// C++ `Player::m_homebind` / `m_homebindAreaId`.
     pub homebind: Option<PlayerHomebindLikeCpp>,
+    /// C++ `Player::m_cinematic`, `m_movie` and the active `CinematicMgr`
+    /// camera cursor.
+    pub cinematic: PlayerCinematicStateLikeCpp,
     pub pet_lifecycle: PlayerPetLifecycleStateLikeCpp,
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
@@ -110,6 +113,25 @@ pub struct PlayerHomebindLikeCpp {
     pub map_id: u32,
     pub area_id: u32,
     pub position: Position,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCinematicStateLikeCpp {
+    pub cinematic_id: Option<u32>,
+    pub camera_ids: Option<[u16; 8]>,
+    pub camera_index: i32,
+    pub movie_id: Option<u32>,
+}
+
+impl Default for PlayerCinematicStateLikeCpp {
+    fn default() -> Self {
+        Self {
+            cinematic_id: None,
+            camera_ids: None,
+            camera_index: -1,
+            movie_id: None,
+        }
+    }
 }
 
 /// C++ `PlayerMenu::InteractionData`.
