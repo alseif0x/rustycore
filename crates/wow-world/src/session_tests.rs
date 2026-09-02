@@ -32492,6 +32492,90 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
 }
 
 #[test]
+fn canonical_player_pet_lifecycle_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_581);
+    let owned = wow_entities::PlayerPetLifecycleStateLikeCpp {
+        temporary_unsummoned_pet_number: 42,
+        old_pet_spell: 1234,
+        temporary_mount_react_state: Some(2),
+        ..Default::default()
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PetLifecycleOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.update_player_pet_lifecycle_state_like_cpp(|state| *state = owned.clone()));
+    assert_eq!(
+        session.player_pet_lifecycle_state_snapshot_like_cpp(),
+        Some(owned.clone())
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_pet_lifecycle_state_snapshot_like_cpp(),
+        Some(owned)
+    );
+
+    let replacement_state = wow_entities::PlayerPetLifecycleStateLikeCpp {
+        temporary_unsummoned_pet_number: 99,
+        old_pet_spell: 5678,
+        temporary_mount_react_state: Some(1),
+        ..Default::default()
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    *replacement.pet_lifecycle_state_mut_like_cpp() = replacement_state.clone();
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_pet_lifecycle_state_snapshot_like_cpp(), None);
+    assert!(
+        !session.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_unsummoned_pet_number = 7;
+        })
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .pet_lifecycle_state_like_cpp()
+                .clone()),
+        Some(replacement_state)
+    );
+}
+
+#[test]
 fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

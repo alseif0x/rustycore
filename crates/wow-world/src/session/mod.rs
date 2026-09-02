@@ -187,12 +187,12 @@ use wow_entities::{
     PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetAuraLikeCpp,
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
-    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerQuestGameplayState,
-    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
-    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem, SwapItemPreflightPlan,
-    TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
+    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
+    PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
+    PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
+    SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
     UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
     UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
     VehicleAccessory, VisibleItemValues, WorldObject,
@@ -6285,14 +6285,18 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) represented_pet_guid_like_cpp: Option<ObjectGuid>,
     /// C++ `Player::m_temporaryUnsummonedPetNumber`, represented until pet DB load/resummon is live.
+    #[cfg(test)]
     represented_temporary_unsummoned_pet_number_like_cpp: u32,
     /// C++ `Player::m_oldpetspell`, used by `RemovePet(nullptr, ..., returnreagent=true)`.
+    #[cfg(test)]
     represented_old_pet_spell_like_cpp: u32,
     /// Represented `character_pet`/stable rows until `Pet::LoadPetFromDB` is wired to DB.
+    #[cfg(test)]
     represented_pet_stable_like_cpp: PetStable,
     /// True only after the current Player's complete `character_pet` query
     /// returned no rows. Any later pet load or lifetime mutation revokes this
     /// narrow proof instead of attempting to model pet-to-owner aura casts.
+    #[cfg(test)]
     represented_character_pet_rows_empty_authority_complete_like_cpp: bool,
     /// Represented `pet_spell` rows keyed by pet number until `PetLoadQueryHolder` is live.
     represented_pet_spells_like_cpp: HashMap<u32, Vec<CharacterPetSpellRowLikeCpp>>,
@@ -6314,6 +6318,7 @@ pub struct WorldSession {
     /// Represented current pet command state for C++ mount/dismount PetMode side effects.
     represented_pet_command_state_like_cpp: u8,
     /// C++ `Player::m_temporaryPetReactState` saved by `DisablePetControlsOnMount`.
+    #[cfg(test)]
     temporary_mount_pet_react_state_like_cpp: Option<u8>,
     /// Count of C++ `CreateVehicleKit` mount side effects represented until Vehicle runtime sends packets.
     #[cfg(test)]
@@ -8273,9 +8278,13 @@ impl WorldSession {
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             #[cfg(test)]
             represented_pet_guid_like_cpp: None,
+            #[cfg(test)]
             represented_temporary_unsummoned_pet_number_like_cpp: 0,
+            #[cfg(test)]
             represented_old_pet_spell_like_cpp: 0,
+            #[cfg(test)]
             represented_pet_stable_like_cpp: PetStable::default(),
+            #[cfg(test)]
             represented_character_pet_rows_empty_authority_complete_like_cpp: false,
             represented_pet_spells_like_cpp: HashMap::new(),
             represented_pet_spell_cooldowns_like_cpp: HashMap::new(),
@@ -8288,6 +8297,7 @@ impl WorldSession {
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
             represented_pet_command_state_like_cpp:
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+            #[cfg(test)]
             temporary_mount_pet_react_state_like_cpp: None,
             #[cfg(test)]
             mount_vehicle_create_requests_like_cpp: 0,
@@ -10121,6 +10131,15 @@ impl WorldSession {
                 near_destination: self.near_teleport_destination_like_cpp,
                 delayed: self.represented_delayed_teleport_like_cpp,
                 near_destination_zone_area: self.near_teleport_destination_zone_area_like_cpp,
+            };
+            *player.pet_lifecycle_state_mut_like_cpp() = PlayerPetLifecycleStateLikeCpp {
+                stable: self.represented_pet_stable_like_cpp.clone(),
+                character_rows_empty_authority_complete: self
+                    .represented_character_pet_rows_empty_authority_complete_like_cpp,
+                temporary_unsummoned_pet_number: self
+                    .represented_temporary_unsummoned_pet_number_like_cpp,
+                old_pet_spell: self.represented_old_pet_spell_like_cpp,
+                temporary_mount_react_state: self.temporary_mount_pet_react_state_like_cpp,
             };
         }
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
@@ -28312,19 +28331,16 @@ impl WorldSession {
     /// represented, admit only the complete empty-query state and revoke it
     /// on every represented pet load or mutation.
     fn represented_character_pet_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.represented_character_pet_rows_empty_authority_complete_like_cpp
-            && self.represented_temporary_unsummoned_pet_number_like_cpp == 0
+        let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
+            return false;
+        };
+        pet_lifecycle.character_rows_empty_authority_complete
+            && pet_lifecycle.temporary_unsummoned_pet_number == 0
             && self.player_pet_guid_state_like_cpp() == Some(None)
-            && self
-                .represented_pet_stable_like_cpp
-                .current_pet_index
-                .is_none()
-            && self.represented_pet_stable_like_cpp.active_pets.is_empty()
-            && self.represented_pet_stable_like_cpp.stabled_pets.is_empty()
-            && self
-                .represented_pet_stable_like_cpp
-                .unslotted_pets
-                .is_empty()
+            && pet_lifecycle.stable.current_pet_index.is_none()
+            && pet_lifecycle.stable.active_pets.is_empty()
+            && pet_lifecycle.stable.stabled_pets.is_empty()
+            && pet_lifecycle.stable.unslotted_pets.is_empty()
     }
 
     /// C++ `_LoadTraits` creates missing configs for specialization indexes
@@ -37359,8 +37375,12 @@ impl WorldSession {
             return;
         };
 
-        self.temporary_mount_pet_react_state_like_cpp =
-            Some(self.represented_pet_react_state_like_cpp);
+        let previous_react_state = self.represented_pet_react_state_like_cpp;
+        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_mount_react_state = Some(previous_react_state);
+        }) {
+            return;
+        }
         self.represented_pet_react_state_like_cpp = react_state;
         self.represented_pet_command_state_like_cpp = command_state;
         self.send_packet(&wow_packet::packets::pet::PetMode {
@@ -37373,7 +37393,10 @@ impl WorldSession {
 
     fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
         if let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() {
-            if let Some(react_state) = self.temporary_mount_pet_react_state_like_cpp {
+            if let Some(react_state) = self
+                .player_pet_lifecycle_state_snapshot_like_cpp()
+                .and_then(|state| state.temporary_mount_react_state)
+            {
                 self.represented_pet_react_state_like_cpp = react_state;
             }
             self.send_packet(&wow_packet::packets::pet::PetMode {
@@ -37384,7 +37407,9 @@ impl WorldSession {
             });
         }
 
-        self.temporary_mount_pet_react_state_like_cpp = None;
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_mount_react_state = None;
+        });
     }
 
     fn update_player_collision_height_like_cpp(&mut self) {
@@ -39572,7 +39597,9 @@ impl WorldSession {
             self.represented_trait_config_rows_complete_like_cpp = false;
             self.represented_trait_entry_rows_complete_like_cpp = false;
             self.represented_trait_entry_rows_empty_like_cpp = false;
-            self.represented_character_pet_rows_empty_authority_complete_like_cpp = false;
+            let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+                state.character_rows_empty_authority_complete = false;
+            });
             // C++ owns PlayerMenu (and therefore both InteractionData and its
             // menus) under Player. A WorldSession can survive character
             // logout, so no player-menu state may cross that lifetime here.
@@ -41142,12 +41169,67 @@ impl WorldSession {
         true
     }
 
+    fn player_pet_lifecycle_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<PlayerPetLifecycleStateLikeCpp> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.pet_lifecycle_state_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(PlayerPetLifecycleStateLikeCpp {
+                stable: self.represented_pet_stable_like_cpp.clone(),
+                character_rows_empty_authority_complete: self
+                    .represented_character_pet_rows_empty_authority_complete_like_cpp,
+                temporary_unsummoned_pet_number: self
+                    .represented_temporary_unsummoned_pet_number_like_cpp,
+                old_pet_spell: self.represented_old_pet_spell_like_cpp,
+                temporary_mount_react_state: self.temporary_mount_pet_react_state_like_cpp,
+            });
+        }
+        canonical
+    }
+
+    fn update_player_pet_lifecycle_state_like_cpp(
+        &mut self,
+        update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
+    ) -> bool {
+        if self.player_handle_like_cpp.is_some() {
+            return self
+                .with_owned_player_mut_like_cpp(|player| {
+                    update(player.pet_lifecycle_state_mut_like_cpp())
+                })
+                .is_some();
+        }
+        #[cfg(test)]
+        {
+            let mut state = self
+                .player_pet_lifecycle_state_snapshot_like_cpp()
+                .unwrap_or_default();
+            update(&mut state);
+            self.represented_pet_stable_like_cpp = state.stable;
+            self.represented_character_pet_rows_empty_authority_complete_like_cpp =
+                state.character_rows_empty_authority_complete;
+            self.represented_temporary_unsummoned_pet_number_like_cpp =
+                state.temporary_unsummoned_pet_number;
+            self.represented_old_pet_spell_like_cpp = state.old_pet_spell;
+            self.temporary_mount_pet_react_state_like_cpp = state.temporary_mount_react_state;
+            true
+        }
+        #[cfg(not(test))]
+        {
+            let _ = update;
+            false
+        }
+    }
+
     pub(crate) fn begin_represented_character_pet_authority_load_like_cpp(&mut self) {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
     }
 
     fn invalidate_represented_character_pet_empty_authority_like_cpp(&mut self) {
-        self.represented_character_pet_rows_empty_authority_complete_like_cpp = false;
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.character_rows_empty_authority_complete = false;
+        });
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
 
@@ -41180,18 +41262,22 @@ impl WorldSession {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         self.represented_pet_created_by_spell_like_cpp = created_by_spell;
         if pet_guid.is_none() {
-            self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
-            self.represented_old_pet_spell_like_cpp = 0;
+            let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+                state.temporary_unsummoned_pet_number = 0;
+                state.old_pet_spell = 0;
+            });
             self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
         }
         self.represented_pet_react_state_like_cpp = react_state;
         self.represented_pet_command_state_like_cpp = command_state;
-        self.temporary_mount_pet_react_state_like_cpp = None;
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_mount_react_state = None;
+        });
     }
 
     pub(crate) fn set_represented_pet_stable_like_cpp(&mut self, stable: PetStable) {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        self.represented_pet_stable_like_cpp = stable;
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| state.stable = stable);
     }
 
     pub(crate) fn apply_represented_login_pet_talent_reset_like_cpp(&mut self) -> bool {
@@ -41206,24 +41292,18 @@ impl WorldSession {
 
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
 
-        for pet in self
-            .represented_pet_stable_like_cpp
-            .active_pets
-            .iter_mut()
-            .flatten()
-        {
-            pet.specialization_id = 0;
-        }
-        for pet in self
-            .represented_pet_stable_like_cpp
-            .stabled_pets
-            .iter_mut()
-            .flatten()
-        {
-            pet.specialization_id = 0;
-        }
-        for pet in &mut self.represented_pet_stable_like_cpp.unslotted_pets {
-            pet.specialization_id = 0;
+        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            for pet in state.stable.active_pets.iter_mut().flatten() {
+                pet.specialization_id = 0;
+            }
+            for pet in state.stable.stabled_pets.iter_mut().flatten() {
+                pet.specialization_id = 0;
+            }
+            for pet in &mut state.stable.unslotted_pets {
+                pet.specialization_id = 0;
+            }
+        }) {
+            return false;
         }
         self.represented_pet_spells_like_cpp.clear();
         true
@@ -41262,15 +41342,20 @@ impl WorldSession {
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
             self.represented_pet_command_state_like_cpp =
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
-            self.temporary_mount_pet_react_state_like_cpp = None;
+            let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+                state.temporary_mount_react_state = None;
+            });
             self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
         }
-        self.represented_pet_stable_like_cpp.current_pet_index = None;
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.stable.current_pet_index = None;
+        });
     }
 
     #[cfg(test)]
     pub(crate) fn represented_pet_stable_current_index_like_cpp(&self) -> Option<u32> {
-        self.represented_pet_stable_like_cpp.current_pet_index
+        self.player_pet_lifecycle_state_snapshot_like_cpp()
+            .and_then(|state| state.stable.current_pet_index)
     }
 
     pub(crate) fn load_represented_pet_stable_rows_like_cpp(
@@ -41325,7 +41410,9 @@ impl WorldSession {
             loaded = loaded.saturating_add(1);
         }
 
-        if Pet::get_load_pet_info(&stable, 0, summoned_pet_number, None).is_some() {
+        let selected_summoned_pet =
+            Pet::get_load_pet_info(&stable, 0, summoned_pet_number, None).is_some();
+        if selected_summoned_pet {
             stable.current_pet_index = stable
                 .active_pets
                 .iter()
@@ -41334,11 +41421,19 @@ impl WorldSession {
                         .is_some_and(|pet| pet.pet_number == summoned_pet_number)
                 })
                 .map(|index| index as u32);
-            self.represented_temporary_unsummoned_pet_number_like_cpp = summoned_pet_number;
         }
 
-        self.represented_pet_stable_like_cpp = stable;
-        self.represented_character_pet_rows_empty_authority_complete_like_cpp = !query_had_rows;
+        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            // C++ remembers the selected controlled pet on the Player even
+            // while the live Pet object is absent from Map storage.
+            if selected_summoned_pet {
+                state.temporary_unsummoned_pet_number = summoned_pet_number;
+            }
+            state.stable = stable;
+            state.character_rows_empty_authority_complete = !query_had_rows;
+        }) {
+            return 0;
+        }
         loaded
     }
 
@@ -41675,7 +41770,8 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_temporary_unsummoned_pet_number_like_cpp(&self) -> u32 {
-        self.represented_temporary_unsummoned_pet_number_like_cpp
+        self.player_pet_lifecycle_state_snapshot_like_cpp()
+            .map_or(0, |state| state.temporary_unsummoned_pet_number)
     }
 
     #[cfg(test)]
@@ -45932,6 +46028,9 @@ impl WorldSession {
         let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
             return;
         };
+        let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
+            return;
+        };
 
         self.request_temporary_pet_unsummon_like_cpp();
 
@@ -45947,7 +46046,7 @@ impl WorldSession {
                 let Some(pet) = managed.map().get_typed_pet(pet_guid) else {
                     return;
                 };
-                if self.represented_temporary_unsummoned_pet_number_like_cpp == 0
+                if pet_lifecycle.temporary_unsummoned_pet_number == 0
                     && pet.is_controlled()
                     && !pet.is_temporary_summoned()
                 {
@@ -45967,9 +46066,11 @@ impl WorldSession {
                 }
             });
             if let Some(pet_number) = temporary_pet_number.filter(|pet_number| *pet_number != 0) {
-                self.represented_temporary_unsummoned_pet_number_like_cpp = pet_number;
-                self.represented_old_pet_spell_like_cpp =
-                    self.represented_pet_created_by_spell_like_cpp;
+                let old_pet_spell = self.represented_pet_created_by_spell_like_cpp;
+                let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+                    state.temporary_unsummoned_pet_number = pet_number;
+                    state.old_pet_spell = old_pet_spell;
+                });
             }
         }
 
@@ -45979,22 +46080,27 @@ impl WorldSession {
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
         self.represented_pet_command_state_like_cpp =
             wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
-        self.temporary_mount_pet_react_state_like_cpp = None;
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_mount_react_state = None;
+        });
     }
 
     fn represented_pet_stable_info_by_number_like_cpp(
         &self,
         pet_number: u32,
     ) -> Option<PetStableInfo> {
-        self.represented_pet_stable_like_cpp
+        let pet_lifecycle = self.player_pet_lifecycle_state_snapshot_like_cpp()?;
+        pet_lifecycle
+            .stable
             .active_pets
             .iter()
-            .chain(self.represented_pet_stable_like_cpp.stabled_pets.iter())
+            .chain(pet_lifecycle.stable.stabled_pets.iter())
             .flatten()
             .find(|pet| pet.pet_number == pet_number)
             .cloned()
             .or_else(|| {
-                self.represented_pet_stable_like_cpp
+                pet_lifecycle
+                    .stable
                     .unslotted_pets
                     .iter()
                     .find(|pet| pet.pet_number == pet_number)
@@ -46064,7 +46170,10 @@ impl WorldSession {
                 .saturating_add(1);
         }
 
-        let pet_number = self.represented_temporary_unsummoned_pet_number_like_cpp;
+        let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
+            return;
+        };
+        let pet_number = pet_lifecycle.temporary_unsummoned_pet_number;
         if pet_number == 0
             || self.is_pet_need_be_temporary_unsummoned_like_cpp()
             || self.player_pet_guid_state_like_cpp().flatten().is_some()
@@ -46074,8 +46183,7 @@ impl WorldSession {
 
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
 
-        let load_info =
-            Pet::get_load_pet_info(&self.represented_pet_stable_like_cpp, 0, pet_number, None);
+        let load_info = Pet::get_load_pet_info(&pet_lifecycle.stable, 0, pet_number, None);
         let stable_info = load_info
             .filter(|info| info.pet_number == pet_number)
             .and_then(|_| self.represented_pet_stable_info_by_number_like_cpp(pet_number));
@@ -46307,7 +46415,11 @@ impl WorldSession {
             Some(pet_guid)
         });
 
-        self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
+        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_unsummoned_pet_number = 0;
+        }) {
+            return;
+        }
         if let Some(pet_guid) = inserted_guid {
             let _ = self.set_player_pet_guid_like_cpp(Some(pet_guid));
             if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {

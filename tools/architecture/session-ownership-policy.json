@@ -3169,8 +3169,10 @@
           "name": "represented_character_pet_rows_empty_authority_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_character_spell_charges_like_cpp",
@@ -3870,8 +3872,10 @@
           "name": "represented_old_pet_spell_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_override_spells_complete_like_cpp",
@@ -4022,8 +4026,10 @@
           "name": "represented_pet_stable_like_cpp",
           "type": "PetStable",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_base_mana_like_cpp",
@@ -4505,8 +4511,10 @@
           "name": "represented_temporary_unsummoned_pet_number_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_timed_quest_removals_like_cpp",
@@ -5280,8 +5288,10 @@
           "name": "temporary_mount_pet_react_state_like_cpp",
           "type": "Option < u8 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "temporary_pet_resummon_requests_like_cpp",
@@ -30669,6 +30679,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_pet_lifecycle_state_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_pet_lifecycle_state_snapshot_like_cpp (& self ,) -> Option < PlayerPetLifecycleStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_position_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_position_like_cpp (& self) -> Option < wow_core :: Position >",
@@ -49756,6 +49777,17 @@
           "name": "update_player_collision_height_like_cpp",
           "visibility": "private",
           "signature": "fn update_player_collision_height_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_player_pet_lifecycle_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn update_player_pet_lifecycle_state_like_cpp (& mut self , update : impl FnOnce (& mut PlayerPetLifecycleStateLikeCpp) ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -75998,7 +76030,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:849067adee0bb171c60e94fdde098888:len=95040|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:151e05f7154b4d8bd7ab9d409a66f1dc:len=95115|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

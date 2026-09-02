@@ -16,6 +16,7 @@ mod items;
 mod location;
 mod menu;
 mod movement_control;
+mod pet_lifecycle;
 mod progression;
 mod resurrection;
 mod social;

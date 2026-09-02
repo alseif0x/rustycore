@@ -89,6 +89,7 @@ pub struct PlayerGameplayState {
     pub damage_control: PlayerDamageControlStateLikeCpp,
     pub resurrection: PlayerResurrectionStateLikeCpp,
     pub teleport: PlayerTeleportStateLikeCpp,
+    pub pet_lifecycle: PlayerPetLifecycleStateLikeCpp,
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
     pub menu: PlayerMenuStateLikeCpp,
@@ -218,6 +219,21 @@ pub struct PlayerTeleportStateLikeCpp {
     pub near_destination: Option<(u16, wow_core::Position)>,
     pub delayed: Option<(u32, wow_core::Position, u32)>,
     pub near_destination_zone_area: Option<(u32, u32)>,
+}
+
+/// Player-owned C++ pet lifetime bookkeeping. The live `Pet` remains owned by
+/// canonical Map/Unit storage; query-holder spell/aura rows remain load staging.
+///
+/// Mirrors `Player::m_petStable`, `m_temporaryUnsummonedPetNumber`,
+/// `m_temporaryPetReactState`, and `m_oldpetspell`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PlayerPetLifecycleStateLikeCpp {
+    pub stable: crate::PetStable,
+    /// Complete empty result from the current Player's `character_pet` query.
+    pub character_rows_empty_authority_complete: bool,
+    pub temporary_unsummoned_pet_number: u32,
+    pub old_pet_spell: u32,
+    pub temporary_mount_react_state: Option<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
