@@ -79,11 +79,14 @@ use crate::session::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
     RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
+    RepresentedQuestRewardReputationSourceLikeCpp, RepresentedQuestRewardTalentPointsLikeCpp,
+    ReputationGainSourceLikeCpp, SeasonalQuestStatusDbRowLikeCpp, WorldSession,
+};
+#[cfg(test)]
+use crate::session::{
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
-    RepresentedQuestRewardReputationSourceLikeCpp, RepresentedQuestRewardSpellCastLikeCpp,
-    RepresentedQuestRewardSpellKindLikeCpp, RepresentedQuestRewardTalentPointsLikeCpp,
-    RepresentedQuestRewardTitleLikeCpp, ReputationGainSourceLikeCpp,
-    SeasonalQuestStatusDbRowLikeCpp, WorldSession,
+    RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
+    RepresentedQuestRewardTitleLikeCpp,
 };
 
 fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {
@@ -95,6 +98,7 @@ fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 
 }
 
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
+#[cfg(test)]
 pub(crate) const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 = 0x0020_0000;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
 const QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP: u32 = 0x0000_0002;

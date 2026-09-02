@@ -81109,6 +81109,14 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     let canonical = shared_canonical_map_manager();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.unit_mut().set_faction(1);
+        })
+        .expect("live canonical Player fixture");
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -81124,18 +81132,22 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     quest_store.ender_quests.insert(792, vec![quest_id]);
     session.quest_store = Some(Arc::new(quest_store));
     session.set_player_gold_like_cpp(MAX_MONEY_AMOUNT - 1);
-    session.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.statuses.insert(
+                quest_id,
+                crate::handlers::quest::PlayerQuestStatus {
+                    quest_id,
+                    status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: Vec::new(),
+                    slot: 0,
+                },
+            );
+        })
+        .expect("canonical Player quest owner");
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -81147,7 +81159,12 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
         .await;
 
     assert_eq!(session.player_gold_like_cpp(), MAX_MONEY_AMOUNT - 1);
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_eq!(
+        session
+            .player_quest_gameplay_snapshot_like_cpp()
+            .map(|quests| quests.rewarded_quest_ids.contains(&quest_id)),
+        Some(true)
+    );
 }
 
 #[tokio::test]

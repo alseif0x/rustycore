@@ -248,8 +248,11 @@ impl WorldSession {
             })
             .unwrap_or(false);
         if removed {
-            self.represented_timed_quest_removals_like_cpp
-                .push(quest_id);
+            #[cfg(test)]
+            {
+                self.represented_timed_quest_removals_like_cpp
+                    .push(quest_id);
+            }
         }
     }
 

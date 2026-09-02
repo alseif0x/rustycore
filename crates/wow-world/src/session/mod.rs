@@ -161,6 +161,8 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
+#[cfg(test)]
+use wow_entities::TitanGripPenaltyAction;
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
@@ -192,7 +194,7 @@ use wow_entities::{
     PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
-    SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
+    SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, UNIT_DATA_BITS,
     UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
     UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
     VehicleAccessory, VisibleItemValues, WorldObject,
@@ -261,6 +263,7 @@ const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
 const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP: u8 = 18;
+#[cfg(test)]
 const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
@@ -1423,12 +1426,14 @@ pub(crate) struct RepresentedQuestCompleteStatusUpdateLikeCpp {
     pub script_status_change_unrepresented: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestRewardSpellKindLikeCpp {
     RewardSpell,
     RewardDisplaySpell { index: u8 },
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
     pub quest_id: u32,
@@ -1440,6 +1445,7 @@ pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
     pub cast_spell_runtime_unrepresented: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RepresentedForceDeselectLikeCpp {
     pub caster_guid: ObjectGuid,
@@ -1450,6 +1456,7 @@ pub(crate) struct RepresentedForceDeselectLikeCpp {
     pub attacker_pet_attack_stop_unrepresented: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardTitleLikeCpp {
     pub quest_id: u32,
@@ -1465,6 +1472,7 @@ pub(crate) struct RepresentedQuestRewardTalentPointsLikeCpp {
     pub init_talent_for_level_unrepresented: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardMailLikeCpp {
     pub quest_id: u32,
@@ -1486,6 +1494,7 @@ pub(crate) enum RepresentedQuestRewardReputationSourceLikeCpp {
     RepeatableQuest,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardReputationLikeCpp {
     pub quest_id: u32,
@@ -2446,6 +2455,7 @@ struct RepresentedSpellClickCreatureSnapshotLikeCpp {
     owner_guid: Option<ObjectGuid>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedItemModsReapplyEventLikeCpp {
     pub item_guid: ObjectGuid,
@@ -2625,6 +2635,7 @@ fn represented_combat_rating_index_like_cpp(
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedCombatStatRecalculationLikeCpp {
     Expertise { attack: WeaponAttackType },
@@ -2860,6 +2871,7 @@ pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub to_the_death: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedDuelRequestedLikeCpp {
     pub target_guid: ObjectGuid,
@@ -5844,6 +5856,7 @@ pub struct WorldSession {
     buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     #[cfg(test)]
     current_buyback_slot: u8,
+    #[cfg(test)]
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
     represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
     represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp,
@@ -5851,8 +5864,11 @@ pub struct WorldSession {
     represented_item_set_spell_events_like_cpp: Vec<RepresentedItemSetSpellEventLikeCpp>,
     represented_item_set_aura_refresh_events_like_cpp:
         Vec<RepresentedItemSetAuraRefreshEventLikeCpp>,
+    #[cfg(test)]
     represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
+    #[cfg(test)]
     represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
+    #[cfg(test)]
     represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
     #[cfg(test)]
     represented_guild_id_like_cpp: u64,
@@ -5895,7 +5911,9 @@ pub struct WorldSession {
     represented_silence_party_talker_like_cpp: Vec<RepresentedSilencePartyTalkerLikeCpp>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_duel_arbiter_guid_like_cpp: Option<ObjectGuid>,
+    #[cfg(test)]
     represented_duel_requests_like_cpp: Vec<RepresentedDuelRequestedLikeCpp>,
+    #[cfg(test)]
     represented_force_deselects_like_cpp: Vec<RepresentedForceDeselectLikeCpp>,
     represented_duel_accepts_like_cpp: Vec<RepresentedDuelAcceptedLikeCpp>,
     represented_duel_cancels_like_cpp: Vec<RepresentedDuelCancelledLikeCpp>,
@@ -6002,6 +6020,7 @@ pub struct WorldSession {
     /// live from `Player::GetSpellHistory()` in `SendInitialPacketsBeforeAddToMap`; Rust
     /// persists the login snapshot so the before-add helper can re-send it on far teleport
     /// without a DB round trip. #NEXT.R8.ENTITIES.1229.
+    #[cfg(test)]
     represented_spell_history_packets_like_cpp: (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>),
     /// Handle-less unit-test fallback; production C++ `Player::_CUFProfiles` lives on canonical
     /// `wow_entities::Player`.
@@ -6180,8 +6199,10 @@ pub struct WorldSession {
     /// Represented accepted `CMSG_ACTIVATE_TAXI` requests until TaxiPathGraph/MotionMaster are canonical.
     represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
     /// Represented accepted barber-shop requests until ChrCustomization DB2/cost/update runtime is canonical.
+    #[cfg(test)]
     represented_alter_appearance_requests_like_cpp: Vec<RepresentedAlterAppearanceLikeCpp>,
     /// Represented accepted barber confirmation requests until Player::SetCustomizations is canonical.
+    #[cfg(test)]
     represented_confirm_barbers_choice_requests_like_cpp:
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
@@ -6744,13 +6765,17 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) represented_battle_pet_data_updates_like_cpp: Vec<ObjectGuid>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
+    #[cfg(test)]
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
+    #[cfg(test)]
     pub(crate) represented_quest_reward_skill_updates_like_cpp: Vec<(u32, u32)>,
     /// Session-local evidence for represented quest reward triggered spell casts.
+    #[cfg(test)]
     pub(crate) represented_quest_reward_spell_casts_like_cpp:
         Vec<RepresentedQuestRewardSpellCastLikeCpp>,
     /// Session-local evidence for represented quest reward `SetTitle` calls.
+    #[cfg(test)]
     pub(crate) represented_quest_reward_titles_like_cpp: Vec<RepresentedQuestRewardTitleLikeCpp>,
     /// C++ `ActivePlayerData::KnownTitles` represented as title bit indexes.
     #[cfg(test)]
@@ -6762,8 +6787,10 @@ pub struct WorldSession {
     pub(crate) represented_quest_reward_talent_points_like_cpp:
         Vec<RepresentedQuestRewardTalentPointsLikeCpp>,
     /// Session-local evidence for represented quest reward mail.
+    #[cfg(test)]
     pub(crate) represented_quest_reward_mails_like_cpp: Vec<RepresentedQuestRewardMailLikeCpp>,
     /// Session-local evidence for represented quest reward reputation.
+    #[cfg(test)]
     pub(crate) represented_quest_reward_reputations_like_cpp:
         Vec<RepresentedQuestRewardReputationLikeCpp>,
     /// Bridge for quest completed unique-bit state loaded before the canonical Player snapshot exists.
@@ -8044,14 +8071,18 @@ impl WorldSession {
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             #[cfg(test)]
             current_buyback_slot: BUYBACK_SLOT_START,
+            #[cfg(test)]
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
             represented_item_bonus_actions_like_cpp: Vec::new(),
             represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp::default(),
             represented_item_set_effects_like_cpp: HashMap::new(),
             represented_item_set_spell_events_like_cpp: Vec::new(),
             represented_item_set_aura_refresh_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_guild_id_like_cpp: 0,
@@ -8091,7 +8122,9 @@ impl WorldSession {
             represented_silence_party_talker_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_duel_arbiter_guid_like_cpp: None,
+            #[cfg(test)]
             represented_duel_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_force_deselects_like_cpp: Vec::new(),
             represented_duel_accepts_like_cpp: Vec::new(),
             represented_duel_cancels_like_cpp: Vec::new(),
@@ -8146,6 +8179,7 @@ impl WorldSession {
             #[cfg(test)]
             represented_armor_proficiency_like_cpp: 0,
             account_mounts_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
             #[cfg(test)]
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
@@ -8231,7 +8265,9 @@ impl WorldSession {
             #[cfg(test)]
             taxi_destinations_like_cpp: Vec::new(),
             represented_activate_taxi_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_alter_appearance_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
             #[cfg(test)]
@@ -8550,16 +8586,22 @@ impl WorldSession {
             represented_battle_pet_learned_new_pet_criteria_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_battle_pet_data_updates_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_timed_quest_removals_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_quest_reward_titles_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_known_titles_like_cpp: HashSet::new(),
             #[cfg(test)]
             represented_chosen_title_like_cpp: 0,
             represented_quest_reward_talent_points_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_quest_reward_mails_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_quest_reward_reputations_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_quest_completed_bits_like_cpp: BTreeSet::new(),
@@ -20620,13 +20662,16 @@ impl WorldSession {
         slot: u8,
         apply: bool,
     ) {
-        self.represented_item_mod_reapply_events_like_cpp.push(
-            RepresentedItemModsReapplyEventLikeCpp {
-                item_guid,
-                slot,
-                apply,
-            },
-        );
+        #[cfg(test)]
+        {
+            self.represented_item_mod_reapply_events_like_cpp.push(
+                RepresentedItemModsReapplyEventLikeCpp {
+                    item_guid,
+                    slot,
+                    apply,
+                },
+            );
+        }
 
         let Some(item_entry) = self
             .resolved_inventory_item_object_like_cpp(item_guid)
@@ -42001,16 +42046,21 @@ impl WorldSession {
     /// Persist the login snapshot of the player's spell history + charge packets so the
     /// before-add init helper can re-send them (e.g. on far teleport). Mirrors C++
     /// `Player::SendInitialPacketsBeforeAddToMap` reading `GetSpellHistory()`.
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_login_spell_history_packets_like_cpp(
         &mut self,
         history: Vec<SpellHistoryEntry>,
         charges: Vec<SpellChargeEntry>,
     ) {
-        self.represented_spell_history_packets_like_cpp = (history, charges);
+        #[cfg(test)]
+        {
+            self.represented_spell_history_packets_like_cpp = (history, charges);
+        }
     }
 
     /// Login snapshot of spell-history + charge packet entries
     /// (see `record_login_spell_history_packets_like_cpp`).
+    #[cfg(test)]
     pub(crate) fn spell_history_packets_like_cpp(
         &self,
     ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
@@ -43377,65 +43427,75 @@ impl WorldSession {
         self.represented_item_bonus_actions_like_cpp.len() != action_start
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_inventory_item_combat_stat_recalculations_like_cpp(&mut self, slot: u8) {
-        let attack = match slot {
-            EQUIPMENT_SLOT_MAINHAND => Some(WeaponAttackType::BaseAttack),
-            EQUIPMENT_SLOT_OFFHAND => Some(WeaponAttackType::OffAttack),
-            _ => None,
-        };
-        if let Some(attack) = attack {
-            self.represented_combat_stat_recalculations_like_cpp
-                .push(RepresentedCombatStatRecalculationLikeCpp::Expertise { attack });
-            self.represented_combat_stat_recalculations_like_cpp.push(
-                RepresentedCombatStatRecalculationLikeCpp::Rating {
-                    combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
-                },
-            );
+        #[cfg(test)]
+        {
+            let attack = match slot {
+                EQUIPMENT_SLOT_MAINHAND => Some(WeaponAttackType::BaseAttack),
+                EQUIPMENT_SLOT_OFFHAND => Some(WeaponAttackType::OffAttack),
+                _ => None,
+            };
+            if let Some(attack) = attack {
+                self.represented_combat_stat_recalculations_like_cpp
+                    .push(RepresentedCombatStatRecalculationLikeCpp::Expertise { attack });
+                self.represented_combat_stat_recalculations_like_cpp.push(
+                    RepresentedCombatStatRecalculationLikeCpp::Rating {
+                        combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
+                    },
+                );
+            }
         }
     }
 
     pub(crate) fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
-        let main_template = self
-            .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_MAINHAND)
-            .and_then(|item| self.item_storage_template(item.entry_id));
-        let off_template = self
-            .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND)
-            .and_then(|item| self.item_storage_template(item.entry_id));
-        let using_two_handed_weapon_in_one_hand =
-            Player::is_using_two_handed_weapon_in_one_hand_template(
-                main_template.as_ref(),
-                off_template.as_ref(),
-            );
+        #[cfg(test)]
+        {
+            let main_template = self
+                .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_MAINHAND)
+                .and_then(|item| self.item_storage_template(item.entry_id));
+            let off_template = self
+                .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND)
+                .and_then(|item| self.item_storage_template(item.entry_id));
+            let using_two_handed_weapon_in_one_hand =
+                Player::is_using_two_handed_weapon_in_one_hand_template(
+                    main_template.as_ref(),
+                    off_template.as_ref(),
+                );
 
-        let Some(action) = self.canonical_player_snapshot_like_cpp(|player| {
-            let penalty_spell_id = player.titan_grip_penalty_spell_id();
-            let has_penalty_aura = penalty_spell_id > 0
-                && self
-                    .visible_auras
-                    .values()
-                    .any(|aura| aura.spell_id == penalty_spell_id as i32);
+            let Some(action) = self.canonical_player_snapshot_like_cpp(|player| {
+                let penalty_spell_id = player.titan_grip_penalty_spell_id();
+                let has_penalty_aura = penalty_spell_id > 0
+                    && self
+                        .visible_auras
+                        .values()
+                        .any(|aura| aura.spell_id == penalty_spell_id as i32);
 
-            player.check_titan_grip_penalty_action(
-                using_two_handed_weapon_in_one_hand,
-                has_penalty_aura,
-            )
-        }) else {
-            return;
-        };
+                player.check_titan_grip_penalty_action(
+                    using_two_handed_weapon_in_one_hand,
+                    has_penalty_aura,
+                )
+            }) else {
+                return;
+            };
 
-        if action != TitanGripPenaltyAction::None {
-            self.represented_titan_grip_penalty_actions_like_cpp
-                .push(action);
+            if action != TitanGripPenaltyAction::None {
+                self.represented_titan_grip_penalty_actions_like_cpp
+                    .push(action);
+            }
         }
     }
 
     pub(crate) fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
-        let Some(avg_equipped_item_level) = self.represented_avg_equipped_item_level_like_cpp()
-        else {
-            return;
-        };
-        self.represented_avg_equipped_item_level_updates_like_cpp
-            .push(avg_equipped_item_level);
+        #[cfg(test)]
+        {
+            let Some(avg_equipped_item_level) = self.represented_avg_equipped_item_level_like_cpp()
+            else {
+                return;
+            };
+            self.represented_avg_equipped_item_level_updates_like_cpp
+                .push(avg_equipped_item_level);
+        }
     }
 
     fn send_auto_unequip_offhand_values_update_like_cpp(
@@ -47415,7 +47475,7 @@ impl WorldSession {
         if spell_id == 0 {
             return;
         }
-        let canonical = self
+        let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
                 player
                     .resurrection_state_mut_like_cpp()
@@ -47424,7 +47484,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
+        if _canonical || self.player_handle_like_cpp.is_none() {
             self.represented_self_res_spells_like_cpp.insert(spell_id);
         }
     }
@@ -49502,13 +49562,16 @@ impl WorldSession {
             packet_bytes,
         );
 
-        self.represented_duel_requests_like_cpp
-            .push(RepresentedDuelRequestedLikeCpp {
-                target_guid,
-                arbiter_guid,
-                gameobject_entry: gameobject_entry as u32,
-                to_the_death: false,
-            });
+        #[cfg(test)]
+        {
+            self.represented_duel_requests_like_cpp
+                .push(RepresentedDuelRequestedLikeCpp {
+                    target_guid,
+                    arbiter_guid,
+                    gameobject_entry: gameobject_entry as u32,
+                    to_the_death: false,
+                });
+        }
         true
     }
 
@@ -56933,12 +56996,16 @@ impl WorldSession {
         &self.represented_activate_taxi_requests_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_alter_appearance_like_cpp(
         &mut self,
         request: RepresentedAlterAppearanceLikeCpp,
     ) {
-        self.represented_alter_appearance_requests_like_cpp
-            .push(request);
+        #[cfg(test)]
+        {
+            self.represented_alter_appearance_requests_like_cpp
+                .push(request);
+        }
     }
 
     #[cfg(test)]
@@ -56948,12 +57015,16 @@ impl WorldSession {
         &self.represented_alter_appearance_requests_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_confirm_barbers_choice_like_cpp(
         &mut self,
         request: RepresentedConfirmBarbersChoiceLikeCpp,
     ) {
-        self.represented_confirm_barbers_choice_requests_like_cpp
-            .push(request);
+        #[cfg(test)]
+        {
+            self.represented_confirm_barbers_choice_requests_like_cpp
+                .push(request);
+        }
     }
 
     #[cfg(test)]
@@ -58950,20 +59021,24 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_timed_quest_removals_like_cpp(&self) -> &[u32] {
         &self.represented_timed_quest_removals_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_reward_skill_updates_like_cpp(&self) -> &[(u32, u32)] {
         &self.represented_quest_reward_skill_updates_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_reward_spell_casts_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardSpellCastLikeCpp] {
         &self.represented_quest_reward_spell_casts_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_reward_titles_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardTitleLikeCpp] {
@@ -59051,12 +59126,14 @@ impl WorldSession {
         &self.represented_quest_reward_talent_points_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_reward_mails_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardMailLikeCpp] {
         &self.represented_quest_reward_mails_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_reward_reputations_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardReputationLikeCpp] {
@@ -71703,23 +71780,28 @@ impl WorldSession {
             return false;
         };
 
-        use wow_packet::ServerPacket;
-        let break_target_packet_bytes = wow_packet::packets::combat::BreakTarget {
-            unit_guid: caster_guid,
-        }
-        .to_bytes();
-        let clear_target_packet_bytes =
-            wow_packet::packets::spell::ClearTarget { guid: caster_guid }.to_bytes();
+        #[cfg(test)]
+        {
+            use wow_packet::ServerPacket;
+            let break_target_packet_bytes = wow_packet::packets::combat::BreakTarget {
+                unit_guid: caster_guid,
+            }
+            .to_bytes();
+            let clear_target_packet_bytes =
+                wow_packet::packets::spell::ClearTarget { guid: caster_guid }.to_bytes();
 
-        self.represented_force_deselects_like_cpp
-            .push(RepresentedForceDeselectLikeCpp {
-                caster_guid,
-                visibility_range_yards: DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP,
-                break_target_packet_bytes,
-                clear_target_packet_bytes,
-                hostile_visible_fanout_unrepresented: true,
-                attacker_pet_attack_stop_unrepresented: true,
-            });
+            self.represented_force_deselects_like_cpp
+                .push(RepresentedForceDeselectLikeCpp {
+                    caster_guid,
+                    visibility_range_yards: DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP,
+                    break_target_packet_bytes,
+                    clear_target_packet_bytes,
+                    hostile_visible_fanout_unrepresented: true,
+                    attacker_pet_attack_stop_unrepresented: true,
+                });
+        }
+        #[cfg(not(test))]
+        let _ = caster_guid;
         true
     }
 

@@ -1226,10 +1226,12 @@ impl WorldSession {
         true
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     fn apply_represented_quest_reward_skill_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
+        #[cfg(test)]
         if quest.reward_skill_line_id != 0 {
             self.represented_quest_reward_skill_updates_like_cpp
                 .push((quest.reward_skill_line_id, quest.reward_skill_points));
@@ -1240,48 +1242,54 @@ impl WorldSession {
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
-        let caster_selection_unrepresented =
-            (quest.flags & QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP) == 0;
-        if quest.reward_spell > 0 {
-            self.represented_quest_reward_spell_casts_like_cpp.push(
-                RepresentedQuestRewardSpellCastLikeCpp {
-                    quest_id: quest.id,
-                    spell_id: quest.reward_spell,
-                    kind: RepresentedQuestRewardSpellKindLikeCpp::RewardSpell,
-                    can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
-                    spell_info_lookup_unrepresented: true,
-                    caster_selection_unrepresented,
-                    cast_spell_runtime_unrepresented: true,
-                },
-            );
-            return;
-        }
-
-        let display_spells = quest.reward_display_spell;
-        for (index, spell_id) in display_spells.into_iter().enumerate() {
-            if spell_id == 0 {
-                continue;
-            }
-            self.represented_quest_reward_spell_casts_like_cpp.push(
-                RepresentedQuestRewardSpellCastLikeCpp {
-                    quest_id: quest.id,
-                    spell_id,
-                    kind: RepresentedQuestRewardSpellKindLikeCpp::RewardDisplaySpell {
-                        index: index as u8,
+        #[cfg(test)]
+        {
+            let caster_selection_unrepresented =
+                (quest.flags & QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP) == 0;
+            if quest.reward_spell > 0 {
+                self.represented_quest_reward_spell_casts_like_cpp.push(
+                    RepresentedQuestRewardSpellCastLikeCpp {
+                        quest_id: quest.id,
+                        spell_id: quest.reward_spell,
+                        kind: RepresentedQuestRewardSpellKindLikeCpp::RewardSpell,
+                        can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
+                        spell_info_lookup_unrepresented: true,
+                        caster_selection_unrepresented,
+                        cast_spell_runtime_unrepresented: true,
                     },
-                    can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
-                    spell_info_lookup_unrepresented: true,
-                    caster_selection_unrepresented,
-                    cast_spell_runtime_unrepresented: true,
-                },
-            );
+                );
+                return;
+            }
+
+            let display_spells = quest.reward_display_spell;
+            for (index, spell_id) in display_spells.into_iter().enumerate() {
+                if spell_id == 0 {
+                    continue;
+                }
+                self.represented_quest_reward_spell_casts_like_cpp.push(
+                    RepresentedQuestRewardSpellCastLikeCpp {
+                        quest_id: quest.id,
+                        spell_id,
+                        kind: RepresentedQuestRewardSpellKindLikeCpp::RewardDisplaySpell {
+                            index: index as u8,
+                        },
+                        can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
+                        spell_info_lookup_unrepresented: true,
+                        caster_selection_unrepresented,
+                        cast_spell_runtime_unrepresented: true,
+                    },
+                );
+            }
         }
+        #[cfg(not(test))]
+        let _ = quest;
     }
 
     fn apply_represented_quest_title_and_talent_rewards_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
+        #[cfg(test)]
         if quest.reward_title_id != 0 {
             self.represented_quest_reward_titles_like_cpp.push(
                 RepresentedQuestRewardTitleLikeCpp {
@@ -1292,7 +1300,6 @@ impl WorldSession {
                 },
             );
         }
-
         if quest.reward_skill_points != 0 {
             self.represented_quest_reward_talent_points_like_cpp.push(
                 RepresentedQuestRewardTalentPointsLikeCpp {
@@ -1309,24 +1316,31 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         quest_giver_guid: ObjectGuid,
     ) {
-        if quest.reward_mail_template_id == 0 {
-            return;
-        }
+        #[cfg(test)]
+        {
+            if quest.reward_mail_template_id == 0 {
+                return;
+            }
 
-        self.represented_quest_reward_mails_like_cpp
-            .push(RepresentedQuestRewardMailLikeCpp {
-                quest_id: quest.id,
-                mail_template_id: quest.reward_mail_template_id,
-                delay_secs: quest.reward_mail_delay_secs,
-                sender_entry: (quest.reward_mail_sender_entry != 0)
-                    .then_some(quest.reward_mail_sender_entry),
-                quest_giver_guid: (quest.reward_mail_sender_entry == 0).then_some(quest_giver_guid),
-                mail_template_lookup_unrepresented: true,
-                mail_draft_runtime_unrepresented: true,
-                character_db_transaction_unrepresented: true,
-            });
+            self.represented_quest_reward_mails_like_cpp
+                .push(RepresentedQuestRewardMailLikeCpp {
+                    quest_id: quest.id,
+                    mail_template_id: quest.reward_mail_template_id,
+                    delay_secs: quest.reward_mail_delay_secs,
+                    sender_entry: (quest.reward_mail_sender_entry != 0)
+                        .then_some(quest.reward_mail_sender_entry),
+                    quest_giver_guid: (quest.reward_mail_sender_entry == 0)
+                        .then_some(quest_giver_guid),
+                    mail_template_lookup_unrepresented: true,
+                    mail_draft_runtime_unrepresented: true,
+                    character_db_transaction_unrepresented: true,
+                });
+        }
+        #[cfg(not(test))]
+        let _ = (quest, quest_giver_guid);
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     fn record_represented_quest_reward_reputation_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
@@ -1530,31 +1544,36 @@ impl WorldSession {
                     true
                 };
 
-            self.represented_quest_reward_reputations_like_cpp.push(
-                RepresentedQuestRewardReputationLikeCpp {
-                    quest_id: quest.id,
-                    slot: slot as u8,
-                    faction_id,
-                    reward_faction_value: quest.reward_faction_values[slot],
-                    reward_faction_override,
-                    reward_faction_cap_in: quest.reward_faction_cap_in[slot],
-                    base_reputation_before_gain,
-                    reputation_after_low_level_rate_like_cpp,
-                    reputation_after_reward_rate_like_cpp,
-                    no_quest_bonus,
-                    no_spillover,
-                    source,
-                    faction_store_lookup_unrepresented: faction_lookup_missing,
-                    quest_faction_reward_store_lookup_unrepresented: quest_faction_reward_lookup,
-                    reputation_reward_rate_lookup_unrepresented: reputation_reward_rate_lookup,
-                    gray_level_script_hook_unrepresented: true,
-                    reputation_rank_cap_check_unrepresented: quest.reward_faction_cap_in[slot] != 0
-                        && reputation_after_recruit_a_friend_bonus_like_cpp > 0
-                        && current_rank_for_cap.is_none(),
-                    calculate_reputation_gain_unrepresented: true,
-                    modify_reputation_runtime_unrepresented,
-                },
-            );
+            #[cfg(test)]
+            {
+                self.represented_quest_reward_reputations_like_cpp.push(
+                    RepresentedQuestRewardReputationLikeCpp {
+                        quest_id: quest.id,
+                        slot: slot as u8,
+                        faction_id,
+                        reward_faction_value: quest.reward_faction_values[slot],
+                        reward_faction_override,
+                        reward_faction_cap_in: quest.reward_faction_cap_in[slot],
+                        base_reputation_before_gain,
+                        reputation_after_low_level_rate_like_cpp,
+                        reputation_after_reward_rate_like_cpp,
+                        no_quest_bonus,
+                        no_spillover,
+                        source,
+                        faction_store_lookup_unrepresented: faction_lookup_missing,
+                        quest_faction_reward_store_lookup_unrepresented:
+                            quest_faction_reward_lookup,
+                        reputation_reward_rate_lookup_unrepresented: reputation_reward_rate_lookup,
+                        gray_level_script_hook_unrepresented: true,
+                        reputation_rank_cap_check_unrepresented: quest.reward_faction_cap_in[slot]
+                            != 0
+                            && reputation_after_recruit_a_friend_bonus_like_cpp > 0
+                            && current_rank_for_cap.is_none(),
+                        calculate_reputation_gain_unrepresented: true,
+                        modify_reputation_runtime_unrepresented,
+                    },
+                );
+            }
         }
     }
 
