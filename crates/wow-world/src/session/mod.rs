@@ -6698,7 +6698,9 @@ pub struct WorldSession {
     /// instead prove this through `battle_pet_account_attachment_like_cpp`,
     /// which is published only after the canonical account load succeeds.
     represented_battle_pet_slots_authority_complete_like_cpp: bool,
-    /// C++ `ActivePlayerData::SummonedBattlePetGUID`, represented until battle-pet summon runtime is live.
+    /// Isolated-test fallback for canonical C++
+    /// `ActivePlayerData::SummonedBattlePetGUID` ownership.
+    #[cfg(test)]
     pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
     /// C++ `Player::GetCritterGUID`, represented until companion summon runtime is live.
     pub(crate) represented_critter_guid_like_cpp: Option<ObjectGuid>,
@@ -8504,6 +8506,7 @@ impl WorldSession {
                 RepresentedBattlePetSlotLikeCpp::locked_empty(index as u8)
             }),
             represented_battle_pet_slots_authority_complete_like_cpp: false,
+            #[cfg(test)]
             represented_summoned_battle_pet_guid_like_cpp: None,
             represented_critter_guid_like_cpp: None,
             represented_dismissed_critter_guids_like_cpp: Vec::new(),
@@ -50349,11 +50352,14 @@ impl WorldSession {
         let _ = self.battle_pet_remove_pet_like_cpp(pet_guid);
         self.send_packet(&wow_packet::packets::misc::BattlePetDeleted { pet_guid });
 
-        if self.represented_summoned_battle_pet_guid_like_cpp == Some(pet_guid) {
-            self.represented_summoned_battle_pet_guid_like_cpp = None;
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
+        if self.represented_summoned_battle_pet_guid_like_cpp() == Some(pet_guid) {
+            let _cleared = self.mutate_canonical_player_like_cpp(|player| {
                 player.clear_battle_pet_data_like_cpp();
             });
+            #[cfg(test)]
+            if _cleared.is_none() {
+                self.represented_summoned_battle_pet_guid_like_cpp = None;
+            }
         }
 
         RepresentedBattlePetCageOutcomeLikeCpp::Caged(cage_item)
@@ -51588,21 +51594,56 @@ impl WorldSession {
     /// `BattlePetMgr::SummonPet` silently ignores unknown pets before casting
     /// the summon spell; `DismissPet` clears the active summoned companion.
     pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        if self.represented_summoned_battle_pet_guid_like_cpp == Some(pet_guid) {
-            self.represented_summoned_battle_pet_guid_like_cpp = None;
-            return true;
+        if self.represented_summoned_battle_pet_guid_like_cpp() == Some(pet_guid) {
+            return self.set_represented_summoned_battle_pet_guid_like_cpp(None);
         }
 
         if self.represented_battle_pet_like_cpp(pet_guid).is_none() {
             return false;
         }
 
-        self.represented_summoned_battle_pet_guid_like_cpp = Some(pet_guid);
-        true
+        self.set_represented_summoned_battle_pet_guid_like_cpp(Some(pet_guid))
     }
 
     pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.represented_summoned_battle_pet_guid_like_cpp
+        if let Some(guid) =
+            self.with_owned_player_like_cpp(Player::summoned_battle_pet_guid_like_cpp)
+        {
+            return guid;
+        }
+        #[cfg(test)]
+        {
+            self.represented_summoned_battle_pet_guid_like_cpp
+        }
+        #[cfg(not(test))]
+        {
+            None
+        }
+    }
+
+    fn set_represented_summoned_battle_pet_guid_like_cpp(
+        &mut self,
+        pet_guid: Option<ObjectGuid>,
+    ) -> bool {
+        if self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_summoned_battle_pet_guid_like_cpp(
+                    pet_guid.unwrap_or(wow_core::ObjectGuid::EMPTY),
+                );
+            })
+            .is_some()
+        {
+            return true;
+        }
+        #[cfg(test)]
+        {
+            self.represented_summoned_battle_pet_guid_like_cpp = pet_guid;
+            true
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
     }
 
     pub(crate) fn represented_battle_pet_cage_items_like_cpp(
@@ -51653,9 +51694,9 @@ impl WorldSession {
 
         if let Some(companion) = self.represented_battle_pet_query_companion_like_cpp(critter_guid)
             && let Some(battle_pet_guid) = companion.battle_pet_companion_guid
-            && self.represented_summoned_battle_pet_guid_like_cpp == Some(battle_pet_guid)
+            && self.represented_summoned_battle_pet_guid_like_cpp() == Some(battle_pet_guid)
         {
-            self.represented_summoned_battle_pet_guid_like_cpp = None;
+            let _ = self.set_represented_summoned_battle_pet_guid_like_cpp(None);
         }
 
         self.represented_critter_guid_like_cpp = None;
@@ -51675,7 +51716,7 @@ impl WorldSession {
             return false;
         };
 
-        if self.represented_summoned_battle_pet_guid_like_cpp != Some(pet_guid) {
+        if self.represented_summoned_battle_pet_guid_like_cpp() != Some(pet_guid) {
             return false;
         }
 

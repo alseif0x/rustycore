@@ -4378,8 +4378,10 @@
           "name": "represented_summoned_battle_pet_guid_like_cpp",
           "type": "Option < ObjectGuid >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_support_bugs_enabled_like_cpp",
@@ -46425,6 +46427,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_represented_summoned_battle_pet_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_represented_summoned_battle_pet_guid_like_cpp (& mut self , pet_guid : Option < ObjectGuid > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_represented_support_bugs_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_represented_support_bugs_enabled_like_cpp (& mut self , enabled : bool)",
@@ -76047,7 +76062,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4d8adbc84b2cb880eb0f4f086edac983:len=94130|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b62c6e6960bdb5e851edd5c218e10a33:len=94152|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
