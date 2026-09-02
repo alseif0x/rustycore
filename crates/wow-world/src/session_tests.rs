@@ -64783,7 +64783,9 @@ async fn battle_pet_remove_pet_requires_lock_and_marks_removed_like_cpp() {
         ))
     );
 
-    let journal = session.represented_battle_pet_journal_like_cpp();
+    let journal = session
+        .represented_battle_pet_journal_like_cpp()
+        .expect("represented battle-pet journal");
     assert!(journal.pets.is_empty());
     assert_eq!(journal.slots[1].pet_guid, pet_guid);
 }
@@ -65247,7 +65249,7 @@ fn battle_pet_max_pet_level_ignores_removed_rows_like_cpp() {
     let high_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b1);
     let removed_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b2);
 
-    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), 0);
+    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), Some(0));
 
     session.add_represented_battle_pet_packet_info_like_cpp(
         low_guid,
@@ -65283,7 +65285,7 @@ fn battle_pet_max_pet_level_ignores_removed_rows_like_cpp() {
         },
     );
 
-    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), 19);
+    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), Some(19));
 }
 
 #[test]
@@ -65328,8 +65330,14 @@ fn battle_pet_has_max_pet_count_uses_cpp_default_species_limit() {
     );
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 3);
-    assert!(session.battle_pet_has_max_pet_count_like_cpp(11, None));
-    assert!(!session.battle_pet_has_max_pet_count_like_cpp(12, None));
+    assert_eq!(
+        session.battle_pet_has_max_pet_count_like_cpp(11, None),
+        Some(true)
+    );
+    assert_eq!(
+        session.battle_pet_has_max_pet_count_like_cpp(12, None),
+        Some(false)
+    );
 }
 
 #[test]
@@ -65354,7 +65362,10 @@ fn battle_pet_has_max_pet_count_honors_legacy_account_unique_like_cpp() {
     );
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 1);
-    assert!(session.battle_pet_has_max_pet_count_like_cpp(11, None));
+    assert_eq!(
+        session.battle_pet_has_max_pet_count_like_cpp(11, None),
+        Some(true)
+    );
 }
 
 #[test]

@@ -10,10 +10,12 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
+#[cfg(test)]
+use wow_packet::packets::misc::CageBattlePet;
 use wow_packet::packets::misc::{
     BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
     BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
-    CageBattlePet, QueryBattlePetName, QueryBattlePetNameResponse,
+    QueryBattlePetName, QueryBattlePetNameResponse,
 };
 use wow_packet::packets::pet::DismissCritter;
 
@@ -153,7 +155,9 @@ impl crate::session::WorldSession {
             self.send_battle_pet_journal_lock_status_like_cpp().await;
         }
 
-        self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
+        if let Some(journal) = self.represented_battle_pet_journal_like_cpp() {
+            self.send_packet_realm(&journal);
+        }
     }
 
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
@@ -164,7 +168,9 @@ impl crate::session::WorldSession {
     pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_battle_pet_journal_lock_status_like_cpp().await;
         if self.has_represented_battle_pet_journal_lock_like_cpp() {
-            self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
+            if let Some(journal) = self.represented_battle_pet_journal_like_cpp() {
+                self.send_packet_realm(&journal);
+            }
         }
     }
 
@@ -227,6 +233,7 @@ impl crate::session::WorldSession {
     /// unregistered for production dispatch. Until the real inventory path is
     /// wired, this represented body exercises the successful inventory seam.
 
+    #[cfg(test)]
     pub async fn handle_cage_battle_pet_represented_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,

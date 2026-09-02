@@ -2987,8 +2987,10 @@
           "name": "represented_battle_pet_journal_lock_like_cpp",
           "type": "bool",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_learned_new_pet_criteria_like_cpp",
@@ -3021,15 +3023,19 @@
           "name": "represented_battle_pet_slots_authority_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_slots_like_cpp",
           "type": "[RepresentedBattlePetSlotLikeCpp ; BATTLE_PET_SLOT_COUNT_LIKE_CPP]",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battle_pet_unique_owned_criteria_like_cpp",
@@ -3053,8 +3059,10 @@
           "name": "represented_battle_pets_like_cpp",
           "type": "HashMap < ObjectGuid , RepresentedBattlePetDataLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_battlefield_lists_like_cpp",
@@ -13108,8 +13116,10 @@
           "name": "handle_cage_battle_pet_represented_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_cage_battle_pet_represented_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -19122,8 +19132,10 @@
           "name": "add_represented_battle_pet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn add_represented_battle_pet_like_cpp (& mut self , pet_guid : ObjectGuid , flags : u16 , save_info : RepresentedBattlePetSaveInfoLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -19135,8 +19147,10 @@
           "name": "add_represented_battle_pet_packet_info_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn add_represented_battle_pet_packet_info_like_cpp (& mut self , pet_guid : ObjectGuid , packet_info : RepresentedBattlePetDataLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21323,8 +21337,10 @@
           "name": "battle_pet_add_pet_represented_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_add_pet_represented_like_cpp (& mut self , species : u32 , display_id : u32 , breed : u16 , quality : u8 , level : u16 ,) -> Option < ObjectGuid >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21347,8 +21363,10 @@
           "name": "battle_pet_cage_battle_pet_represented_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_cage_battle_pet_represented_like_cpp (& mut self , pet_guid : ObjectGuid , inventory_can_store : bool , item_stored : bool ,) -> RepresentedBattlePetCageOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21373,8 +21391,10 @@
           "name": "battle_pet_change_battle_pet_quality_represented_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_change_battle_pet_quality_represented_like_cpp (& mut self , pet_guid : ObjectGuid , quality : u8 ,) -> RepresentedBattlePetQualityOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21412,8 +21432,10 @@
           "name": "battle_pet_clear_fanfare_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_clear_fanfare_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21425,8 +21447,10 @@
           "name": "battle_pet_count_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_count_like_cpp (& self , species : u32 , owner_guid : Option < ObjectGuid > ,) -> u8",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21438,8 +21462,10 @@
           "name": "battle_pet_grant_battle_pet_experience_represented_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_grant_battle_pet_experience_represented_like_cpp (& mut self , pet_guid : ObjectGuid , xp : u16 , xp_source : RepresentedBattlePetXpSourceLikeCpp , pet_battle_xp_multiplier : f32 ,) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21451,8 +21477,10 @@
           "name": "battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp (& mut self , pet_guid : ObjectGuid , xp : u16 , xp_source : RepresentedBattlePetXpSourceLikeCpp ,) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21464,8 +21492,10 @@
           "name": "battle_pet_grant_battle_pet_level_represented_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_grant_battle_pet_level_represented_like_cpp (& mut self , pet_guid : ObjectGuid , granted_levels : u16 ,) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21502,7 +21532,7 @@
           "kind": "method",
           "name": "battle_pet_has_max_pet_count_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battle_pet_has_max_pet_count_like_cpp (& self , species : u32 , owner_guid : Option < ObjectGuid > ,) -> bool",
+          "signature": "fn battle_pet_has_max_pet_count_like_cpp (& self , species : u32 , owner_guid : Option < ObjectGuid > ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21516,8 +21546,10 @@
           "name": "battle_pet_heal_battle_pets_pct_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_heal_battle_pets_pct_like_cpp (& mut self , pct : u8) -> usize",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21528,7 +21560,7 @@
           "kind": "method",
           "name": "battle_pet_max_pet_level_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battle_pet_max_pet_level_like_cpp (& self) -> u16",
+          "signature": "fn battle_pet_max_pet_level_like_cpp (& self) -> Option < u16 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21555,8 +21587,10 @@
           "name": "battle_pet_modify_name_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_modify_name_like_cpp (& mut self , pet_guid : ObjectGuid , name : String , declined_names : Option < wow_packet :: packets :: misc :: DeclinedNamesLikeCpp > , timestamp : i64 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21609,8 +21643,10 @@
           "name": "battle_pet_remove_pet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_remove_pet_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21661,8 +21697,10 @@
           "name": "battle_pet_set_battle_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_set_battle_slot_like_cpp (& mut self , pet_guid : ObjectGuid , slot : u8 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21687,8 +21725,10 @@
           "name": "battle_pet_set_flags_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_set_flags_like_cpp (& mut self , pet_guid : ObjectGuid , flags : u16 , control_type : u8 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21763,8 +21803,10 @@
           "name": "battle_pet_unlock_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_unlock_slot_like_cpp (& mut self , slot : u8) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -23579,8 +23621,10 @@
           "name": "complete_represented_battle_pet_slot_authority_load_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn complete_represented_battle_pet_slot_authority_load_like_cpp (& mut self , rows : impl IntoIterator < Item = (u8 , Option < ObjectGuid > , bool) > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29111,8 +29155,10 @@
           "name": "next_represented_battle_pet_guid_like_cpp",
           "visibility": "private",
           "signature": "fn next_represented_battle_pet_guid_like_cpp () -> ObjectGuid",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -34267,7 +34313,7 @@
           "kind": "method",
           "name": "represented_battle_pet_journal_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_battle_pet_journal_like_cpp (& self ,) -> wow_packet :: packets :: misc :: BattlePetJournal",
+          "signature": "fn represented_battle_pet_journal_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: BattlePetJournal >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -34348,8 +34394,10 @@
           "name": "represented_battle_pet_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_slot_like_cpp (& self , slot : u8) -> Option < ObjectGuid >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34361,8 +34409,10 @@
           "name": "represented_battle_pet_slot_locked_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_slot_locked_like_cpp (& self , slot : u8) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40700,8 +40750,10 @@
           "name": "send_battle_pet_updates_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_battle_pet_updates_like_cpp (& mut self , pet_guids : & [ObjectGuid] , pet_added : bool ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -76098,7 +76150,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:70379ad3feb1d80e5a97bd51de5b936d:len=94292|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:023cab3ed602fb3025647ecb30a97d8b:len=94352|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
