@@ -86,6 +86,7 @@ pub struct PlayerGameplayState {
     pub persistent_capabilities: PlayerPersistentCapabilityStateLikeCpp,
     pub battleground: PlayerBattlegroundState,
     pub movement_control: PlayerMovementControlStateLikeCpp,
+    pub damage_control: PlayerDamageControlStateLikeCpp,
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
     pub menu: PlayerMenuStateLikeCpp,
@@ -169,6 +170,16 @@ pub struct PlayerMovementControlStateLikeCpp {
     pub movement_force_mod_magnitude_changes: u8,
     pub last_fall_time: u32,
     pub last_fall_z: f32,
+}
+
+/// Player/Unit-owned damage gates currently represented by the Rust runtime.
+/// C++ keeps the god command bit on `Player::_activeCheats`; physical and
+/// environmental immunity are evaluated from the target Unit/Player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerDamageControlStateLikeCpp {
+    pub cheat_god: bool,
+    pub normal_damage_immune: bool,
+    pub environmental_damage_immune: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

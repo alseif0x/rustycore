@@ -1988,8 +1988,10 @@
           "name": "player_cheat_god_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_class",
@@ -2075,8 +2077,10 @@
           "name": "player_environmental_damage_immune_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_equipment_inventory_authority_complete_like_cpp",
@@ -2324,8 +2328,10 @@
           "name": "player_normal_damage_immune_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_object_scale_like_cpp",
@@ -39584,6 +39590,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_damage_control_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_damage_control_like_cpp (& self ,) -> Option < wow_entities :: PlayerDamageControlStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_emote_state_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_player_emote_state_like_cpp (& self) -> Option < u32 >",
@@ -75922,7 +75939,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d5100c0737d12ac79647e44ce7fc567e:len=94810|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c5940641abf2e4572a971de68bce2ef0:len=94855|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

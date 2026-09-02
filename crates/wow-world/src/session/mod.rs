@@ -6091,10 +6091,13 @@ pub struct WorldSession {
     #[cfg(test)]
     player_game_master_like_cpp: bool,
     /// Represented `CHEAT_GOD` movement/fall guard.
+    #[cfg(test)]
     player_cheat_god_like_cpp: bool,
     /// Represented `IsImmunedToDamage(SPELL_SCHOOL_MASK_NORMAL)` fall guard.
+    #[cfg(test)]
     player_normal_damage_immune_like_cpp: bool,
     /// Represented `IsImmuneToEnvironmentalDamage()` guard inside EnvironmentalDamage.
+    #[cfg(test)]
     player_environmental_damage_immune_like_cpp: bool,
     /// Test-only legacy health fixture for sessions without a Player handle.
     #[cfg(test)]
@@ -8153,8 +8156,11 @@ impl WorldSession {
             player_alive_like_cpp: true,
             #[cfg(test)]
             player_game_master_like_cpp: false,
+            #[cfg(test)]
             player_cheat_god_like_cpp: false,
+            #[cfg(test)]
             player_normal_damage_immune_like_cpp: false,
+            #[cfg(test)]
             player_environmental_damage_immune_like_cpp: false,
             #[cfg(test)]
             player_health_like_cpp: 100,
@@ -10075,6 +10081,14 @@ impl WorldSession {
             .set_moved_unit(Some(guid));
         #[cfg(test)]
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
+        #[cfg(test)]
+        {
+            player.set_cheat_god_like_cpp(self.player_cheat_god_like_cpp);
+            player.set_normal_damage_immune_like_cpp(self.player_normal_damage_immune_like_cpp);
+            player.set_environmental_damage_immune_like_cpp(
+                self.player_environmental_damage_immune_like_cpp,
+            );
+        }
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
         #[cfg(test)]
         {
@@ -46721,17 +46735,51 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
-        self.player_cheat_god_like_cpp = enabled;
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_cheat_god_like_cpp(enabled))
+            .is_some();
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_cheat_god_like_cpp = enabled;
+        }
     }
 
     #[cfg(test)]
     pub(crate) fn set_player_normal_damage_immune_like_cpp(&mut self, immune: bool) {
-        self.player_normal_damage_immune_like_cpp = immune;
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_normal_damage_immune_like_cpp(immune)
+            })
+            .is_some();
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_normal_damage_immune_like_cpp = immune;
+        }
     }
 
     #[cfg(test)]
     pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
-        self.player_environmental_damage_immune_like_cpp = immune;
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_environmental_damage_immune_like_cpp(immune)
+            })
+            .is_some();
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_environmental_damage_immune_like_cpp = immune;
+        }
+    }
+
+    fn resolved_player_damage_control_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
+        let canonical = self.with_owned_player_like_cpp(|player| player.damage_control_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerDamageControlStateLikeCpp {
+                cheat_god: self.player_cheat_god_like_cpp,
+                normal_damage_immune: self.player_normal_damage_immune_like_cpp,
+                environmental_damage_immune: self.player_environmental_damage_immune_like_cpp,
+            });
+        }
+        canonical
     }
 
     pub(crate) fn set_player_health_like_cpp(&mut self, health: u32, max_health: u32) {
@@ -46980,6 +47028,7 @@ impl WorldSession {
         movement_info: &wow_packet::packets::movement::MovementInfo,
     ) -> Option<MovementFallDamageEvent> {
         let (_, last_fall_z) = self.resolved_fall_information_like_cpp()?;
+        let damage_control = self.resolved_player_damage_control_like_cpp()?;
         let z_diff = last_fall_z - movement_info.position.z;
         let (_, max_health, player_is_alive) = self.resolved_player_vitals_like_cpp()?;
         if z_diff < 14.57
@@ -46988,7 +47037,7 @@ impl WorldSession {
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Hover)
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::FeatherFall)
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
-            || self.player_normal_damage_immune_like_cpp
+            || damage_control.normal_damage_immune
         {
             return None;
         }
@@ -47001,7 +47050,7 @@ impl WorldSession {
         }
 
         let mut damage = (damage_percent * max_health as f32) as u32;
-        if self.player_cheat_god_like_cpp {
+        if damage_control.cheat_god {
             damage = 0;
         }
         damage = (damage as f32
@@ -47020,7 +47069,7 @@ impl WorldSession {
             return None;
         }
 
-        let requested_damage = if self.player_environmental_damage_immune_like_cpp {
+        let requested_damage = if damage_control.environmental_damage_immune {
             0
         } else {
             damage
@@ -68578,7 +68627,10 @@ impl WorldSession {
         if target_guid != player_guid || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if self.player_environmental_damage_immune_like_cpp {
+        if self
+            .resolved_player_damage_control_like_cpp()
+            .is_none_or(|state| state.environmental_damage_immune)
+        {
             return;
         }
 

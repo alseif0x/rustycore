@@ -10,6 +10,7 @@
 //! location, writer, mirror or runtime clock changed.
 
 mod collections;
+mod damage_control;
 mod identity;
 mod items;
 mod location;
