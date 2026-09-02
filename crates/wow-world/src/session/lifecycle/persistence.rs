@@ -548,16 +548,13 @@ impl WorldSession {
             )
             .collect();
 
-        let cuf_profiles = if self.cuf_profiles_loaded_like_cpp {
-            Some(
+        let cuf_profiles = match self.owned_player_cuf_profiles_like_cpp() {
+            Some((profiles, true)) => Some(
                 (0..wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP)
                     .map(|id| PlayerCufProfileSlotSaveLikeCpp {
                         profile_id: id as u8,
-                        profile: self
-                            .cuf_profiles_like_cpp
-                            .get(id)
-                            .and_then(Option::as_ref)
-                            .map(|profile| PlayerCufProfileSaveLikeCpp {
+                        profile: profiles.get(id).and_then(Option::as_ref).map(|profile| {
+                            PlayerCufProfileSaveLikeCpp {
                                 profile_name: profile.profile_name.clone(),
                                 frame_height: profile.frame_height,
                                 frame_width: profile.frame_width,
@@ -570,17 +567,19 @@ impl WorldSession {
                                 top_offset: profile.top_offset,
                                 bottom_offset: profile.bottom_offset,
                                 left_offset: profile.left_offset,
-                            }),
+                            }
+                        }),
                     })
                     .collect(),
-            )
-        } else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented CUF profile save because character_cuf_profiles was not loaded coherently"
-            );
-            None
+            ),
+            _ => {
+                warn!(
+                    account = self.account_id,
+                    player_guid = ?self.player_guid(),
+                    "Skipping represented CUF profile save because canonical character_cuf_profiles authority was unavailable or not loaded coherently"
+                );
+                None
+            }
         };
 
         Some(PlayerCharacterSaveRequestLikeCpp {

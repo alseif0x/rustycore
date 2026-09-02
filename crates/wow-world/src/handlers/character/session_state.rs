@@ -1943,7 +1943,9 @@ impl WorldSession {
         // 28. LoadCufProfiles — C++ sends this immediately after InitWorldStates.
         // Keeping the CUF profile application at that exact point in the login burst is
         // client-significant: the later phase refresh must not overtake it.
-        self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
+        if let Some(packet) = self.represented_load_cuf_profiles_packet_like_cpp() {
+            self.send_packet(&packet);
+        }
         // C++ `Player::SendInitialPacketsAfterAddToMap` calls
         // `SendAurasForTarget(this)` after movement aura state setup.
         self.send_initial_player_auras_like_cpp();

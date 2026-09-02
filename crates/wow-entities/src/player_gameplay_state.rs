@@ -4,11 +4,11 @@ use wow_core::ObjectGuid;
 
 use crate::{
     PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
-    PlayerBattlegroundState, PlayerCustomizationChoice, PlayerGroupState, PlayerGuildState,
-    PlayerMailRecord, PlayerQuestGameplayState, PlayerReputationRecord, PlayerRestState,
-    PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
-    PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState, PlayerTransportState,
-    PlayerWorldLocalState,
+    PlayerBattlegroundState, PlayerCufProfile, PlayerCustomizationChoice, PlayerGroupState,
+    PlayerGuildState, PlayerMailRecord, PlayerQuestGameplayState, PlayerReputationRecord,
+    PlayerRestState, PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord,
+    PlayerSpellCooldownRecord, PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState,
+    PlayerTransportState, PlayerWorldLocalState,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -59,6 +59,9 @@ pub struct PlayerGameplayState {
     pub multi_action_bars: u8,
     pub pet_guid: Option<ObjectGuid>,
     pub mails: Vec<PlayerMailRecord>,
+    /// C++ `Player::_CUFProfiles`; five stable slots plus load authority.
+    pub cuf_profiles: Vec<Option<PlayerCufProfile>>,
+    pub cuf_profiles_loaded: bool,
     pub group: Option<PlayerGroupState>,
     pub guild: PlayerGuildState,
     pub battleground: PlayerBattlegroundState,

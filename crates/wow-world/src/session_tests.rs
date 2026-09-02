@@ -59212,6 +59212,120 @@ fn cuf_profile_for_save_test(name: &str, height: u16) -> wow_packet::packets::mi
 }
 
 #[test]
+fn canonical_player_cuf_profiles_follow_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 59_198);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CufOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session.represented_save_cuf_profiles_like_cpp(vec![cuf_profile_for_save_test(
+            "Canonical",
+            72
+        ),])
+    );
+    session.mark_represented_cuf_profiles_loaded_like_cpp();
+    assert_eq!(
+        session
+            .represented_load_cuf_profiles_packet_like_cpp()
+            .expect("active canonical Player")
+            .profiles[0]
+            .profile_name,
+        "Canonical"
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .owned_player_cuf_profiles_like_cpp()
+            .expect("detached canonical Player")
+            .0[0]
+            .as_ref()
+            .unwrap()
+            .profile_name,
+        "Canonical"
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().cuf_profiles = vec![
+        Some(player_cuf_profile_from_packet_like_cpp(
+            cuf_profile_for_save_test("Replacement", 64),
+        )),
+        None,
+        None,
+        None,
+        None,
+    ];
+    replacement.gameplay_state_mut().cuf_profiles_loaded = true;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .represented_load_cuf_profiles_packet_like_cpp()
+            .is_none()
+    );
+    assert!(
+        !session.represented_save_cuf_profiles_like_cpp(vec![cuf_profile_for_save_test(
+            "StaleWrite",
+            80
+        ),])
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .gameplay_state()
+                .cuf_profiles[0]
+                .as_ref()
+                .unwrap()
+                .profile_name
+                .clone(),),
+        Some("Replacement".to_string())
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        None
+    );
+}
+
+#[test]
 fn tutorial_flags_default_to_zeroes_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_tutorials_data_values_like_cpp(None);
@@ -59259,6 +59373,7 @@ fn cuf_profile_loader_rejects_cpp_oob_id_bug() {
     assert!(
         session
             .represented_load_cuf_profiles_packet_like_cpp()
+            .expect("handle-less CUF fixture")
             .profiles
             .is_empty(),
         "C++ checks id > MAX_CUF_PROFILES before indexing an array of MAX_CUF_PROFILES; Rust rejects id == MAX to avoid the legacy OOB bug"

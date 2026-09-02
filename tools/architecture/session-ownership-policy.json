@@ -577,15 +577,19 @@
           "name": "cuf_profiles_like_cpp",
           "type": "Vec < Option < wow_packet :: packets :: misc :: CufProfile > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "cuf_profiles_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "currency_types_store",
@@ -29056,6 +29060,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "owned_player_cuf_profiles_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn owned_player_cuf_profiles_like_cpp (& self ,) -> Option < (Vec < Option < wow_entities :: PlayerCufProfile > > , bool) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "owned_player_mails_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn owned_player_mails_like_cpp (& self ,) -> Option < Vec < wow_entities :: PlayerMailRecord > >",
@@ -35895,7 +35912,7 @@
           "kind": "method",
           "name": "represented_load_cuf_profiles_packet_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_load_cuf_profiles_packet_like_cpp (& self ,) -> wow_packet :: packets :: misc :: LoadCufProfiles",
+          "signature": "fn represented_load_cuf_profiles_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: LoadCufProfiles >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75246,7 +75263,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3810ad1807d2de56c6861023e51f2e29:len=93993|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0e94d53286d270282301e787b063a1f3:len=94072|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

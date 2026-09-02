@@ -5224,6 +5224,44 @@ fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
     output
 }
 
+fn player_cuf_profile_from_packet_like_cpp(
+    profile: wow_packet::packets::misc::CufProfile,
+) -> wow_entities::PlayerCufProfile {
+    wow_entities::PlayerCufProfile {
+        profile_name: profile.profile_name,
+        frame_height: profile.frame_height,
+        frame_width: profile.frame_width,
+        sort_by: profile.sort_by,
+        health_text: profile.health_text,
+        top_point: profile.top_point,
+        bottom_point: profile.bottom_point,
+        left_point: profile.left_point,
+        top_offset: profile.top_offset,
+        bottom_offset: profile.bottom_offset,
+        left_offset: profile.left_offset,
+        bool_options: profile.bool_options,
+    }
+}
+
+fn player_cuf_profile_to_packet_like_cpp(
+    profile: &wow_entities::PlayerCufProfile,
+) -> wow_packet::packets::misc::CufProfile {
+    wow_packet::packets::misc::CufProfile {
+        profile_name: profile.profile_name.clone(),
+        frame_height: profile.frame_height,
+        frame_width: profile.frame_width,
+        sort_by: profile.sort_by,
+        health_text: profile.health_text,
+        top_point: profile.top_point,
+        bottom_point: profile.bottom_point,
+        left_point: profile.left_point,
+        top_offset: profile.top_offset,
+        bottom_offset: profile.bottom_offset,
+        left_offset: profile.left_offset,
+        bool_options: profile.bool_options,
+    }
+}
+
 #[cfg(test)]
 struct PlayerTransportLoginStateLikeCpp {
     info: wow_packet::packets::movement::TransportInfo,
@@ -5969,8 +6007,11 @@ pub struct WorldSession {
     /// persists the login snapshot so the before-add helper can re-send it on far teleport
     /// without a DB round trip. #NEXT.R8.ENTITIES.1229.
     represented_spell_history_packets_like_cpp: (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>),
-    /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
+    /// Handle-less unit-test fallback; production C++ `Player::_CUFProfiles` lives on canonical
+    /// `wow_entities::Player`.
+    #[cfg(test)]
     cuf_profiles_like_cpp: Vec<Option<wow_packet::packets::misc::CufProfile>>,
+    #[cfg(test)]
     cuf_profiles_loaded_like_cpp: bool,
 
     // ── Dual-connection (realm + instance) ───────────────────────
@@ -8214,7 +8255,9 @@ impl WorldSession {
             represented_armor_proficiency_like_cpp: 0,
             account_mounts_like_cpp: HashMap::new(),
             represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
+            #[cfg(test)]
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
+            #[cfg(test)]
             cuf_profiles_loaded_like_cpp: false,
             #[cfg(test)]
             player_position: None,
@@ -54242,30 +54285,63 @@ impl WorldSession {
             return false;
         }
 
-        if self.cuf_profiles_like_cpp.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
-        {
-            self.cuf_profiles_like_cpp =
-                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+        #[cfg(test)]
+        let fixture_profiles = profiles.clone();
+        let profiles = profiles
+            .into_iter()
+            .map(player_cuf_profile_from_packet_like_cpp)
+            .collect::<Vec<_>>();
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let state = player.gameplay_state_mut();
+            state.cuf_profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+            for (slot, profile) in profiles.into_iter().enumerate() {
+                state.cuf_profiles[slot] = Some(profile);
+            }
+        });
+        if canonical.is_some() {
+            return true;
         }
 
-        let profile_count = profiles.len();
-        for (slot, profile) in profiles.into_iter().enumerate() {
-            self.cuf_profiles_like_cpp[slot] = Some(profile);
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.cuf_profiles_like_cpp =
+                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+            for (slot, profile) in fixture_profiles.into_iter().enumerate() {
+                self.cuf_profiles_like_cpp[slot] = Some(profile);
+            }
+            return true;
         }
-        for slot in self.cuf_profiles_like_cpp.iter_mut().skip(profile_count) {
-            *slot = None;
-        }
-        true
+        false
     }
 
     pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
-        self.cuf_profiles_like_cpp =
-            vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-        self.cuf_profiles_loaded_like_cpp = false;
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let state = player.gameplay_state_mut();
+            state.cuf_profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+            state.cuf_profiles_loaded = false;
+        });
+        if canonical.is_some() {
+            return;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.cuf_profiles_like_cpp =
+                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+            self.cuf_profiles_loaded_like_cpp = false;
+        }
     }
 
     pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
-        self.cuf_profiles_loaded_like_cpp = true;
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().cuf_profiles_loaded = true;
+        });
+        if canonical.is_some() {
+            return;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.cuf_profiles_loaded_like_cpp = true;
+        }
     }
 
     pub(crate) fn load_represented_cuf_profile_like_cpp(
@@ -54278,25 +54354,87 @@ impl WorldSession {
             return false;
         }
 
-        if self.cuf_profiles_like_cpp.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
-        {
-            self.cuf_profiles_like_cpp =
-                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+        #[cfg(test)]
+        let fixture_profile = profile.clone();
+        let profile = player_cuf_profile_from_packet_like_cpp(profile);
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let profiles = &mut player.gameplay_state_mut().cuf_profiles;
+            if profiles.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
+                *profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+            }
+            profiles[index] = Some(profile);
+        });
+        if canonical.is_some() {
+            return true;
         }
-        self.cuf_profiles_like_cpp[index] = Some(profile);
-        true
+
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            if self.cuf_profiles_like_cpp.len()
+                != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
+            {
+                self.cuf_profiles_like_cpp =
+                    vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+            }
+            self.cuf_profiles_like_cpp[index] = Some(fixture_profile);
+            return true;
+        }
+        false
     }
 
     pub(crate) fn represented_load_cuf_profiles_packet_like_cpp(
         &self,
-    ) -> wow_packet::packets::misc::LoadCufProfiles {
-        wow_packet::packets::misc::LoadCufProfiles {
-            profiles: self
-                .cuf_profiles_like_cpp
-                .iter()
-                .filter_map(Clone::clone)
-                .collect(),
+    ) -> Option<wow_packet::packets::misc::LoadCufProfiles> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| wow_packet::packets::misc::LoadCufProfiles {
+                profiles: player
+                    .gameplay_state()
+                    .cuf_profiles
+                    .iter()
+                    .filter_map(|profile| {
+                        profile.as_ref().map(player_cuf_profile_to_packet_like_cpp)
+                    })
+                    .collect(),
+            });
+        if canonical.is_some() {
+            return canonical;
         }
+
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(wow_packet::packets::misc::LoadCufProfiles {
+                profiles: self
+                    .cuf_profiles_like_cpp
+                    .iter()
+                    .filter_map(Clone::clone)
+                    .collect(),
+            });
+        }
+        None
+    }
+
+    pub(crate) fn owned_player_cuf_profiles_like_cpp(
+        &self,
+    ) -> Option<(Vec<Option<wow_entities::PlayerCufProfile>>, bool)> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let state = player.gameplay_state();
+            (state.cuf_profiles.clone(), state.cuf_profiles_loaded)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some((
+                self.cuf_profiles_like_cpp
+                    .iter()
+                    .map(|profile| profile.clone().map(player_cuf_profile_from_packet_like_cpp))
+                    .collect(),
+                self.cuf_profiles_loaded_like_cpp,
+            ));
+        }
+        None
     }
 
     #[cfg(test)]
