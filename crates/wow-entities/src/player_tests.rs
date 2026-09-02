@@ -277,22 +277,28 @@ fn player_lifecycle_world_insertion_state_marks_visibility_after_add() {
 fn player_gameplay_sample_state() -> PlayerGameplayState {
     PlayerGameplayState {
         quests: PlayerQuestGameplayState {
-            statuses: vec![PlayerQuestStatusRecord {
-                quest_id: 100,
-                status: 3,
-                explored: true,
-                timer_expires_at: Some(1_700_000_100),
-            }],
+            statuses: BTreeMap::from([(
+                100,
+                PlayerQuestStatusRecord {
+                    quest_id: 100,
+                    status: 3,
+                    explored: true,
+                    accept_time_secs: 1_700_000_000,
+                    end_time_secs: 1_700_000_100,
+                    objective_counts: vec![4],
+                    slot: 1,
+                },
+            )]),
             objective_progress: vec![PlayerQuestObjectiveProgress {
                 quest_id: 100,
                 objective_id: 7,
                 counter: 4,
             }],
-            rewarded_quest_ids: vec![90],
-            daily_quest_ids: vec![101],
-            weekly_quest_ids: vec![102],
-            monthly_quest_ids: vec![103],
-            seasonal_quest_ids: vec![104],
+            rewarded_quest_ids: BTreeSet::from([90]),
+            daily_quest_ids: BTreeSet::from([101]),
+            weekly_quest_ids: BTreeSet::from([102]),
+            monthly_quest_ids: BTreeSet::from([103]),
+            seasonal_quests: BTreeMap::from([(1, BTreeMap::from([(104, 0)]))]),
             ..Default::default()
         },
         skills: vec![PlayerSkillRecord {

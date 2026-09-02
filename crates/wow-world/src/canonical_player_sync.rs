@@ -63,14 +63,7 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
     let quest_statuses = session
         .player_quests
         .iter()
-        .map(
-            |(&quest_id, status)| wow_entities::PlayerQuestStatusRecord {
-                quest_id,
-                status: status.status,
-                explored: false,
-                timer_expires_at: None,
-            },
-        )
+        .map(|(&id, status)| (id, status.clone()))
         .collect();
     let objective_counts = session
         .player_quests
@@ -78,12 +71,6 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
         .map(|(&quest_id, status)| (quest_id, status.objective_counts.clone()))
         .collect();
     let rewarded = session.rewarded_quests.iter().copied().collect();
-    let daily = session
-        .daily_quests_completed_like_cpp
-        .iter()
-        .copied()
-        .collect();
-    let df = session.df_quests_like_cpp.iter().copied().collect();
     let Some(inventory_item_counts) = session.represented_inventory_item_counts_like_cpp() else {
         return;
     };
@@ -142,8 +129,6 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
         state.quests.statuses = quest_statuses;
         state.quests.objective_counts_by_quest = objective_counts;
         state.quests.rewarded_quest_ids = rewarded;
-        state.quests.daily_quest_ids = daily;
-        state.quests.df_quest_ids = df;
         state.quests.pending_share = pending_share;
         state.inventory_item_counts = inventory_item_counts;
         state.forced_reputation_ranks = forced_reputation_ranks;

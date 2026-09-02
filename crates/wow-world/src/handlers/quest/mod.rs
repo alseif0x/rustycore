@@ -42,6 +42,7 @@ use wow_data::{
     quest::QuestStore,
     reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
+pub use wow_entities::PlayerQuestStatusRecord as PlayerQuestStatus;
 use wow_entities::{
     ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
     SendNewItemModifier, SendNewItemPlan, is_bag_pos,
@@ -472,24 +473,6 @@ pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
 mod tests;
 
 // ── PlayerQuestStatus ────────────────────────────────────────────────────────
-
-/// Tracks one active quest for a player.
-#[derive(Debug, Clone)]
-pub struct PlayerQuestStatus {
-    pub quest_id: u32,
-    /// C++ QuestStatus values: 0=None, 1=Complete, 3=Incomplete, 5=Failed, 6=Rewarded.
-    pub status: u8,
-    pub explored: bool,
-    /// TrinityCore QuestStatusData::AcceptTime, persisted as Unix seconds.
-    pub accept_time_secs: i64,
-    /// Represented ActivePlayerData::QuestLog[slot].EndTime persisted by _SaveQuestStatus.
-    pub end_time_secs: i64,
-    /// Progress per objective (indexed by objective.storage_index).
-    /// value = current count toward the required amount.
-    pub objective_counts: Vec<i32>,
-    /// Represented TrinityCore QuestStatusData::Slot / ActivePlayerData::QuestLog index.
-    pub slot: u8,
-}
 
 #[derive(Debug, Clone)]
 pub(crate) struct ItemTransferQuestPersistencePlanLikeCpp {

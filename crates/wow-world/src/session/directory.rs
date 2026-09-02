@@ -1145,7 +1145,7 @@ impl PlayerRegistry {
                 active_quest_statuses: state
                     .quests
                     .statuses
-                    .iter()
+                    .values()
                     .map(|status| (status.quest_id, status.status))
                     .collect(),
                 active_quest_objective_counts: state
@@ -1367,8 +1367,7 @@ impl PlayerRegistry {
                 .gameplay_state()
                 .quests
                 .statuses
-                .iter()
-                .find(|status| status.quest_id == quest_id)
+                .get(&quest_id)
                 .map(|status| status.status)
         })
     }
@@ -1424,7 +1423,7 @@ impl PlayerRegistry {
             snapshot.active_quest_statuses = gameplay
                 .quests
                 .statuses
-                .into_iter()
+                .into_values()
                 .map(|status| (status.quest_id, status.status))
                 .collect();
             snapshot.df_quests = gameplay.quests.df_quest_ids.into_iter().collect();

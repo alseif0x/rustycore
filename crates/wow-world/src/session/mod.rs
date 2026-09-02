@@ -187,15 +187,15 @@ use wow_entities::{
     PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetAuraLikeCpp,
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryRuntime,
-    PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
-    SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
-    UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
-    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
-    VehicleAccessory, VisibleItemValues, WorldObject,
-    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
-    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    PlayerItemTimeUpdate, PlayerQuestGameplayState, QUESTS_COMPLETED_BITS_PER_BLOCK,
+    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState,
+    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef,
+    SwapItemPreflightItem, SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM,
+    TitanGripPenaltyAction, UNIT_DATA_BITS, UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT,
+    UNIT_DATA_MODS_PARENT_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
+    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
+    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
     item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
     item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
@@ -6518,20 +6518,27 @@ pub struct WorldSession {
     /// C++ `Player::_instanceResetTimes`: instance id -> release time.
     pub(crate) represented_instance_reset_times_like_cpp: BTreeMap<u32, u64>,
     /// C++ `ActivePlayerData::DailyQuestsCompleted`, represented per-session until full Player runtime owns it.
+    #[cfg(test)]
     pub(crate) daily_quests_completed_like_cpp: HashSet<u32>,
     /// C++ `Player::m_DFQuests`, represented per-session until full Player runtime owns it.
+    #[cfg(test)]
     pub(crate) df_quests_like_cpp: HashSet<u32>,
     /// C++ `Player::m_weeklyquests`, represented per-session until full Player runtime owns it.
+    #[cfg(test)]
     pub(crate) weekly_quests_completed_like_cpp: HashSet<u32>,
     /// C++ `Player::m_monthlyquests`, represented per-session until full Player runtime owns it.
+    #[cfg(test)]
     pub(crate) monthly_quests_completed_like_cpp: HashSet<u32>,
     /// C++ `Player::m_lastDailyQuestTime`, represented for daily/DF quest status persistence.
+    #[cfg(test)]
     pub(crate) last_daily_quest_time_like_cpp: i64,
     pub(crate) quest_low_level_hide_diff_like_cpp: u32,
     pub(crate) quest_high_level_hide_diff_like_cpp: u32,
     /// C++ `Player::m_seasonalquests`, represented per-session until full Player runtime owns it.
+    #[cfg(test)]
     pub(crate) seasonal_quests_like_cpp: BTreeMap<u16, BTreeMap<u32, u64>>,
     /// C++ `Player::m_SeasonalQuestChanged` represented flag.
+    #[cfg(test)]
     pub(crate) seasonal_quest_changed_like_cpp: bool,
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
     pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, AccountHeirloomDataLikeCpp>,
@@ -8442,14 +8449,21 @@ impl WorldSession {
             #[cfg(test)]
             represented_completed_achievements_like_cpp: HashSet::new(),
             represented_instance_reset_times_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             daily_quests_completed_like_cpp: HashSet::new(),
+            #[cfg(test)]
             df_quests_like_cpp: HashSet::new(),
+            #[cfg(test)]
             weekly_quests_completed_like_cpp: HashSet::new(),
+            #[cfg(test)]
             monthly_quests_completed_like_cpp: HashSet::new(),
+            #[cfg(test)]
             last_daily_quest_time_like_cpp: 0,
             quest_low_level_hide_diff_like_cpp: 4,
             quest_high_level_hide_diff_like_cpp: 7,
+            #[cfg(test)]
             seasonal_quests_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             seasonal_quest_changed_like_cpp: false,
             represented_account_heirlooms_like_cpp: BTreeMap::new(),
             represented_account_toys_like_cpp: BTreeMap::new(),
@@ -27246,6 +27260,105 @@ impl WorldSession {
             || cfg!(test) && self.player_bootstrap_attached_for_test_like_cpp()
     }
 
+    pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
+        &self,
+    ) -> Option<PlayerQuestGameplayState> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(self.player_quest_gameplay_fixture_like_cpp());
+        }
+        self.with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
+    }
+
+    pub(crate) fn mutate_player_quest_gameplay_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
+    ) -> Option<R> {
+        let mut mutate = Some(mutate);
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut fixture = self.player_quest_gameplay_fixture_like_cpp();
+            let result = mutate.take().expect("test quest mutation executes once")(&mut fixture);
+            self.apply_player_quest_gameplay_fixture_like_cpp(fixture);
+            return Some(result);
+        }
+        let canonical = self.mutate_canonical_player_like_cpp(|player| {
+            mutate.take().expect("Player quest mutation executes once")(
+                &mut player.gameplay_state_mut().quests,
+            )
+        });
+        if canonical.is_some() {
+            // Transitional compatibility inside the still-open quest macro-block:
+            // callers not yet converted off the four remaining Session quest
+            // fields must observe canonical mutations until those fields are
+            // retired together and this copy-back disappears.
+            if let Some(state) =
+                self.with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
+            {
+                self.apply_player_quest_core_compatibility_like_cpp(&state);
+            }
+            return canonical;
+        }
+        None
+    }
+
+    #[cfg(test)]
+    fn player_quest_gameplay_fixture_like_cpp(&self) -> PlayerQuestGameplayState {
+        PlayerQuestGameplayState {
+            statuses: self
+                .player_quests
+                .iter()
+                .map(|(&quest_id, status)| (quest_id, status.clone()))
+                .collect(),
+            rewarded_quest_ids: self.rewarded_quests.iter().copied().collect(),
+            daily_quest_ids: self
+                .daily_quests_completed_like_cpp
+                .iter()
+                .copied()
+                .collect(),
+            weekly_quest_ids: self
+                .weekly_quests_completed_like_cpp
+                .iter()
+                .copied()
+                .collect(),
+            monthly_quest_ids: self
+                .monthly_quests_completed_like_cpp
+                .iter()
+                .copied()
+                .collect(),
+            seasonal_quests: self.seasonal_quests_like_cpp.clone(),
+            df_quest_ids: self.df_quests_like_cpp.iter().copied().collect(),
+            last_daily_quest_time_secs: self.last_daily_quest_time_like_cpp,
+            seasonal_quest_changed: self.seasonal_quest_changed_like_cpp,
+            status_authority_complete: self.player_quest_status_authority_complete_like_cpp,
+            rewarded_quest_rows: self.represented_rewarded_quest_rows_like_cpp.clone(),
+            ..Default::default()
+        }
+    }
+
+    #[cfg(test)]
+    fn apply_player_quest_gameplay_fixture_like_cpp(&mut self, state: PlayerQuestGameplayState) {
+        self.apply_player_quest_core_compatibility_like_cpp(&state);
+        self.daily_quests_completed_like_cpp = state.daily_quest_ids.into_iter().collect();
+        self.weekly_quests_completed_like_cpp = state.weekly_quest_ids.into_iter().collect();
+        self.monthly_quests_completed_like_cpp = state.monthly_quest_ids.into_iter().collect();
+        self.seasonal_quests_like_cpp = state.seasonal_quests;
+        self.df_quests_like_cpp = state.df_quest_ids.into_iter().collect();
+        self.last_daily_quest_time_like_cpp = state.last_daily_quest_time_secs;
+        self.seasonal_quest_changed_like_cpp = state.seasonal_quest_changed;
+    }
+
+    fn apply_player_quest_core_compatibility_like_cpp(&mut self, state: &PlayerQuestGameplayState) {
+        self.player_quests = state
+            .statuses
+            .iter()
+            .map(|(&quest_id, status)| (quest_id, status.clone()))
+            .collect();
+        self.rewarded_quests = state.rewarded_quest_ids.iter().copied().collect();
+        self.player_quest_status_authority_complete_like_cpp = state.status_authority_complete;
+        self.represented_rewarded_quest_rows_like_cpp = state.rewarded_quest_rows.clone();
+    }
+
     pub(crate) fn represented_quest_can_increase_rewarded_counters_like_cpp(
         &self,
         quest_id: u32,
@@ -34692,8 +34805,7 @@ impl WorldSession {
         // C++ Player::_LoadSeasonalQuestStatus clears first and always resets
         // m_SeasonalQuestChanged at the end. Rust deliberately skips rows when
         // no quest store is available, because C++ requires a real QuestTemplate.
-        self.seasonal_quests_like_cpp.clear();
-
+        let mut seasonal_quests = BTreeMap::<u16, BTreeMap<u32, u64>>::new();
         let mut outcome = LoadSeasonalQuestStatusOutcomeLikeCpp::default();
         for row in rows {
             outcome.rows_seen += 1;
@@ -34721,8 +34833,7 @@ impl WorldSession {
                 continue;
             };
 
-            if self
-                .seasonal_quests_like_cpp
+            if seasonal_quests
                 .entry(event_id)
                 .or_default()
                 .insert(row.quest_id, completed_time)
@@ -34751,8 +34862,11 @@ impl WorldSession {
             }
         }
 
-        self.seasonal_quest_changed_like_cpp = false;
-        outcome.seasonal_quest_changed = self.seasonal_quest_changed_like_cpp;
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.seasonal_quests = seasonal_quests;
+            state.seasonal_quest_changed = false;
+        });
+        outcome.seasonal_quest_changed = false;
         outcome
     }
 
@@ -34762,9 +34876,12 @@ impl WorldSession {
         event_start_time: u64,
     ) -> ResetSeasonalQuestStatusOutcomeLikeCpp {
         // C++ Player::ResetSeasonalQuestStatus: DB data deleted in caller.
-        self.seasonal_quest_changed_like_cpp = false;
-
-        let Some(bucket) = self.seasonal_quests_like_cpp.get_mut(&event_id) else {
+        if self
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.seasonal_quest_changed = false;
+            })
+            .is_none()
+        {
             return ResetSeasonalQuestStatusOutcomeLikeCpp {
                 event_id,
                 event_start_time,
@@ -34776,7 +34893,37 @@ impl WorldSession {
                 completed_bit_no_change_or_noop: 0,
                 completed_bit_clear_unrepresented: 0,
                 event_bucket_erased: false,
-                seasonal_quest_changed: self.seasonal_quest_changed_like_cpp,
+                seasonal_quest_changed: false,
+            };
+        }
+        let Some(mut recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return ResetSeasonalQuestStatusOutcomeLikeCpp {
+                event_id,
+                event_start_time,
+                reason: ResetSeasonalQuestStatusReasonLikeCpp::MissingEvent,
+                removed_quest_ids: Vec::new(),
+                completed_bit_cleared: 0,
+                completed_bit_skipped_no_quest_v2_store: 0,
+                completed_bit_skipped_zero_unique_bit: 0,
+                completed_bit_no_change_or_noop: 0,
+                completed_bit_clear_unrepresented: 0,
+                event_bucket_erased: false,
+                seasonal_quest_changed: false,
+            };
+        };
+        let Some(bucket) = recurrence.seasonal_quests.get_mut(&event_id) else {
+            return ResetSeasonalQuestStatusOutcomeLikeCpp {
+                event_id,
+                event_start_time,
+                reason: ResetSeasonalQuestStatusReasonLikeCpp::MissingEvent,
+                removed_quest_ids: Vec::new(),
+                completed_bit_cleared: 0,
+                completed_bit_skipped_no_quest_v2_store: 0,
+                completed_bit_skipped_zero_unique_bit: 0,
+                completed_bit_no_change_or_noop: 0,
+                completed_bit_clear_unrepresented: 0,
+                event_bucket_erased: false,
+                seasonal_quest_changed: false,
             };
         };
 
@@ -34792,7 +34939,7 @@ impl WorldSession {
                 completed_bit_no_change_or_noop: 0,
                 completed_bit_clear_unrepresented: 0,
                 event_bucket_erased: false,
-                seasonal_quest_changed: self.seasonal_quest_changed_like_cpp,
+                seasonal_quest_changed: false,
             };
         }
 
@@ -34809,8 +34956,13 @@ impl WorldSession {
 
         let event_bucket_erased = bucket.is_empty() && !removed_quest_ids.is_empty();
         if event_bucket_erased {
-            self.seasonal_quests_like_cpp.remove(&event_id);
+            recurrence.seasonal_quests.remove(&event_id);
         }
+        let seasonal_quests = recurrence.seasonal_quests;
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.seasonal_quests = seasonal_quests;
+            state.seasonal_quest_changed = false;
+        });
 
         let mut completed_bit_cleared = 0;
         let mut completed_bit_skipped_no_quest_v2_store = 0;
@@ -34850,7 +35002,7 @@ impl WorldSession {
             completed_bit_no_change_or_noop,
             completed_bit_clear_unrepresented: 0,
             event_bucket_erased,
-            seasonal_quest_changed: self.seasonal_quest_changed_like_cpp,
+            seasonal_quest_changed: false,
         }
     }
 
@@ -34861,33 +35013,45 @@ impl WorldSession {
         quest_id: u32,
         completed_time: u64,
     ) {
-        self.seasonal_quests_like_cpp
-            .entry(event_id)
-            .or_default()
-            .insert(quest_id, completed_time);
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state
+                .seasonal_quests
+                .entry(event_id)
+                .or_default()
+                .insert(quest_id, completed_time);
+        });
     }
 
     #[cfg(test)]
     pub(crate) fn seed_empty_seasonal_event_bucket_like_cpp(&mut self, event_id: u16) {
-        self.seasonal_quests_like_cpp.entry(event_id).or_default();
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.seasonal_quests.entry(event_id).or_default();
+        });
     }
 
     #[cfg(test)]
     pub(crate) fn seasonal_quest_bucket_like_cpp(
         &self,
         event_id: u16,
-    ) -> Option<&BTreeMap<u32, u64>> {
-        self.seasonal_quests_like_cpp.get(&event_id)
+    ) -> Option<BTreeMap<u32, u64>> {
+        self.player_quest_gameplay_snapshot_like_cpp()?
+            .seasonal_quests
+            .get(&event_id)
+            .cloned()
     }
 
     #[cfg(test)]
     pub(crate) fn set_seasonal_quest_changed_like_cpp_for_test(&mut self, changed: bool) {
-        self.seasonal_quest_changed_like_cpp = changed;
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.seasonal_quest_changed = changed;
+        });
     }
 
     #[cfg(test)]
     pub(crate) fn seasonal_quest_changed_like_cpp(&self) -> bool {
-        self.seasonal_quest_changed_like_cpp
+        self.player_quest_gameplay_snapshot_like_cpp()
+            .expect("test Player quest owner resolves")
+            .seasonal_quest_changed
     }
 
     /// Set the list of legitimate characters for this account.
@@ -55561,11 +55725,13 @@ impl WorldSession {
         quest_id: u32,
         completed: bool,
     ) {
-        if completed {
-            self.daily_quests_completed_like_cpp.insert(quest_id);
-        } else {
-            self.daily_quests_completed_like_cpp.remove(&quest_id);
-        }
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            if completed {
+                state.daily_quest_ids.insert(quest_id);
+            } else {
+                state.daily_quest_ids.remove(&quest_id);
+            }
+        });
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -55574,11 +55740,13 @@ impl WorldSession {
         quest_id: u32,
         present: bool,
     ) {
-        if present {
-            self.df_quests_like_cpp.insert(quest_id);
-        } else {
-            self.df_quests_like_cpp.remove(&quest_id);
-        }
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            if present {
+                state.df_quest_ids.insert(quest_id);
+            } else {
+                state.df_quest_ids.remove(&quest_id);
+            }
+        });
         self.sync_player_registry_state_like_cpp();
     }
 

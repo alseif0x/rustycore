@@ -765,9 +765,9 @@ impl WorldSession {
             self.complete_player_quest_status_authority_load_like_cpp();
         }
 
-        self.df_quests_like_cpp.clear();
-        self.daily_quests_completed_like_cpp.clear();
-        self.last_daily_quest_time_like_cpp = 0;
+        let mut loaded_df = std::collections::BTreeSet::new();
+        let mut loaded_daily = std::collections::BTreeSet::new();
+        let mut loaded_last_daily_time = 0;
         match port.load_daily_like_cpp(owner_guid).await {
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(daily_rows) => {
                 for row in daily_rows {
@@ -778,11 +778,11 @@ impl WorldSession {
                         .as_ref()
                         .and_then(|store| store.get(quest_id))
                     {
-                        self.last_daily_quest_time_like_cpp = completed_time;
+                        loaded_last_daily_time = completed_time;
                         if quest.is_df_quest_like_cpp() {
-                            self.df_quests_like_cpp.insert(quest_id);
+                            loaded_df.insert(quest_id);
                         } else {
-                            self.daily_quests_completed_like_cpp.insert(quest_id);
+                            loaded_daily.insert(quest_id);
                         }
                     }
                 }
@@ -795,8 +795,13 @@ impl WorldSession {
                 );
             }
         }
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.df_quest_ids = loaded_df;
+            state.daily_quest_ids = loaded_daily;
+            state.last_daily_quest_time_secs = loaded_last_daily_time;
+        });
 
-        self.weekly_quests_completed_like_cpp.clear();
+        let mut loaded_weekly = std::collections::BTreeSet::new();
         match port.load_weekly_like_cpp(owner_guid).await {
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(weekly_rows) => {
                 for row in weekly_rows {
@@ -807,7 +812,7 @@ impl WorldSession {
                         .and_then(|store| store.get(quest_id))
                         .is_some()
                     {
-                        self.weekly_quests_completed_like_cpp.insert(quest_id);
+                        loaded_weekly.insert(quest_id);
                     }
                 }
             }
@@ -819,8 +824,11 @@ impl WorldSession {
                 );
             }
         }
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.weekly_quest_ids = loaded_weekly;
+        });
 
-        self.monthly_quests_completed_like_cpp.clear();
+        let mut loaded_monthly = std::collections::BTreeSet::new();
         match port.load_monthly_like_cpp(owner_guid).await {
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(monthly_rows) => {
                 for row in monthly_rows {
@@ -831,7 +839,7 @@ impl WorldSession {
                         .and_then(|store| store.get(quest_id))
                         .is_some()
                     {
-                        self.monthly_quests_completed_like_cpp.insert(quest_id);
+                        loaded_monthly.insert(quest_id);
                     }
                 }
             }
@@ -843,6 +851,9 @@ impl WorldSession {
                 );
             }
         }
+        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.monthly_quest_ids = loaded_monthly;
+        });
 
         let seasonal_rows = match port.load_seasonal_like_cpp(owner_guid).await {
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(rows) => rows
@@ -918,14 +929,23 @@ impl WorldSession {
             );
         }
 
+        let recurrence = self.player_quest_gameplay_snapshot_like_cpp();
         info!(
             account = self.account_id,
             active = self.player_quests.len(),
             rewarded = self.rewarded_quests.len(),
-            df = self.df_quests_like_cpp.len(),
-            daily = self.daily_quests_completed_like_cpp.len(),
-            weekly = self.weekly_quests_completed_like_cpp.len(),
-            monthly = self.monthly_quests_completed_like_cpp.len(),
+            df = recurrence
+                .as_ref()
+                .map_or(0, |state| state.df_quest_ids.len()),
+            daily = recurrence
+                .as_ref()
+                .map_or(0, |state| state.daily_quest_ids.len()),
+            weekly = recurrence
+                .as_ref()
+                .map_or(0, |state| state.weekly_quest_ids.len()),
+            monthly = recurrence
+                .as_ref()
+                .map_or(0, |state| state.monthly_quest_ids.len()),
             seasonal_inserted = seasonal_outcome.inserted,
             seasonal_replaced = seasonal_outcome.replaced,
             seasonal_completed_bit_set = seasonal_outcome.completed_bit_set,

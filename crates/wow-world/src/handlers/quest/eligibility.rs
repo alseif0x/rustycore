@@ -179,11 +179,10 @@ impl WorldSession {
             })
             .unwrap_or_default();
         let rewarded_quest_ids: Vec<_> = self.rewarded_quests.iter().copied().collect();
-        let daily_quest_ids: Vec<_> = self
-            .daily_quests_completed_like_cpp
-            .iter()
-            .copied()
-            .collect();
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
+        let daily_quest_ids: Vec<_> = recurrence.daily_quest_ids.iter().copied().collect();
         let quest_snapshot = crate::conditions::ConditionPlayerQuestSnapshot {
             statuses: &quest_statuses,
             objective_progress: &quest_objective_progress,
@@ -318,6 +317,9 @@ impl WorldSession {
         let Some(quest_store) = &self.quest_store else {
             return true;
         };
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
         for peer in quest_store
             .quests
@@ -331,24 +333,23 @@ impl WorldSession {
 
             // Player.cpp:15366 — SatisfyQuestDay: daily/DF cooldown blocks the group
             // Mirrors the daily/DF pattern from the push path (quest.rs:271-278).
-            if peer.is_df_quest_like_cpp() && self.df_quests_like_cpp.contains(&peer.id) {
+            if peer.is_df_quest_like_cpp() && recurrence.df_quest_ids.contains(&peer.id) {
                 return false;
             }
-            if peer.is_daily_like_cpp() && self.daily_quests_completed_like_cpp.contains(&peer.id) {
+            if peer.is_daily_like_cpp() && recurrence.daily_quest_ids.contains(&peer.id) {
                 return false;
             }
 
             // Player.cpp:15366 — SatisfyQuestWeek: weekly cooldown blocks the group
-            if peer.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&peer.id)
-            {
+            if peer.is_weekly_like_cpp() && recurrence.weekly_quest_ids.contains(&peer.id) {
                 return false;
             }
 
             // Player.cpp:15366 — SatisfyQuestSeasonal: seasonal cooldown blocks the group
             // Mirrors the seasonal pattern from can_take_quest (quest.rs:5948-5963).
-            if peer.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
-                if let Some(bucket) = self
-                    .seasonal_quests_like_cpp
+            if peer.is_seasonal_like_cpp() && !recurrence.seasonal_quests.is_empty() {
+                if let Some(bucket) = recurrence
+                    .seasonal_quests
                     .get(&peer.event_id_for_quest_like_cpp())
                 {
                     if !bucket.is_empty() && bucket.contains_key(&peer.id) {
@@ -545,11 +546,20 @@ impl WorldSession {
             return false;
         }
 
-        if quest.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
-            if let Some(bucket) = self
-                .seasonal_quests_like_cpp
-                .get(&quest.event_id_for_quest_like_cpp())
-            {
+        let recurrence = self.player_quest_gameplay_snapshot_like_cpp();
+        if quest.is_seasonal_like_cpp() && recurrence.is_none() {
+            return false;
+        }
+        if quest.is_seasonal_like_cpp()
+            && recurrence
+                .as_ref()
+                .is_some_and(|state| !state.seasonal_quests.is_empty())
+        {
+            if let Some(bucket) = recurrence.as_ref().and_then(|state| {
+                state
+                    .seasonal_quests
+                    .get(&quest.event_id_for_quest_like_cpp())
+            }) {
                 if !bucket.is_empty() && bucket.contains_key(&quest.id) {
                     return false;
                 }
@@ -593,6 +603,9 @@ impl WorldSession {
             );
             return false;
         }
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
         // SatisfyQuestStatus — C# lines 1624-1654
         // If quest is already rewarded (non-repeatable), cannot take again.
@@ -734,7 +747,7 @@ impl WorldSession {
         // DailyQuestsCompleted. Mirrors the completion-push split at quest.rs:2973-2979
         // and the exclusive-group peer pattern at quest.rs:5873-5879.
         if quest.is_df_quest_like_cpp() {
-            if self.df_quests_like_cpp.contains(&quest.id) {
+            if recurrence.df_quest_ids.contains(&quest.id) {
                 debug!(
                     account = self.account_id,
                     quest_id = quest.id,
@@ -742,9 +755,7 @@ impl WorldSession {
                 );
                 return false;
             }
-        } else if quest.is_daily_like_cpp()
-            && self.daily_quests_completed_like_cpp.contains(&quest.id)
-        {
+        } else if quest.is_daily_like_cpp() && recurrence.daily_quest_ids.contains(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -754,7 +765,7 @@ impl WorldSession {
         }
 
         // SatisfyQuestWeek — Player.cpp:15409-15418 (CanTakeQuest term Player.cpp:14093-14102).
-        if quest.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&quest.id) {
+        if quest.is_weekly_like_cpp() && recurrence.weekly_quest_ids.contains(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -764,8 +775,7 @@ impl WorldSession {
         }
 
         // SatisfyQuestMonth — Player.cpp:15445-15454 (CanTakeQuest term Player.cpp:14093-14102).
-        if quest.is_monthly_like_cpp() && self.monthly_quests_completed_like_cpp.contains(&quest.id)
-        {
+        if quest.is_monthly_like_cpp() && recurrence.monthly_quest_ids.contains(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -780,9 +790,9 @@ impl WorldSession {
         // DependentPreviousQuests, DependentBreadcrumbQuests) runs before this, as part of
         // SatisfyQuestDependentQuests. SatisfyQuestTimed remains a separate gap:
         // the session has no active-timed-quest set yet (see #QUESTS.15).
-        if quest.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
-            if let Some(bucket) = self
-                .seasonal_quests_like_cpp
+        if quest.is_seasonal_like_cpp() && !recurrence.seasonal_quests.is_empty() {
+            if let Some(bucket) = recurrence
+                .seasonal_quests
                 .get(&quest.event_id_for_quest_like_cpp())
             {
                 if !bucket.is_empty() && bucket.contains_key(&quest.id) {

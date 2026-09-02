@@ -312,7 +312,9 @@ impl crate::session::WorldSession {
                 other_quest_id = reward.other_quest_id,
                 special_flags = quest.special_flags,
                 is_df = quest.is_df_quest_like_cpp(),
-                df_done = self.df_quests_like_cpp.contains(&quest.id),
+                df_done = self
+                    .player_quest_gameplay_snapshot_like_cpp()
+                    .is_some_and(|state| state.df_quest_ids.contains(&quest.id)),
                 first_reward = dungeon_info.first_reward,
                 "RUST_LFG_TRACE reward decision"
             );
@@ -359,6 +361,9 @@ impl crate::session::WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         _msg: bool,
     ) -> bool {
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
         if !quest.is_df_quest_like_cpp()
             && !quest.is_turn_in_like_cpp()
             && self.player_quests.get(&quest.id).is_none_or(|status| {
@@ -368,21 +373,20 @@ impl crate::session::WorldSession {
             return false;
         }
         if quest.is_df_quest_like_cpp() {
-            return !self.df_quests_like_cpp.contains(&quest.id);
+            return !recurrence.df_quest_ids.contains(&quest.id);
         }
-        if quest.is_daily_like_cpp() && self.daily_quests_completed_like_cpp.contains(&quest.id) {
+        if quest.is_daily_like_cpp() && recurrence.daily_quest_ids.contains(&quest.id) {
             return false;
         }
-        if quest.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&quest.id) {
+        if quest.is_weekly_like_cpp() && recurrence.weekly_quest_ids.contains(&quest.id) {
             return false;
         }
-        if quest.is_monthly_like_cpp() && self.monthly_quests_completed_like_cpp.contains(&quest.id)
-        {
+        if quest.is_monthly_like_cpp() && recurrence.monthly_quest_ids.contains(&quest.id) {
             return false;
         }
         if quest.is_seasonal_like_cpp()
-            && self
-                .seasonal_quests_like_cpp
+            && recurrence
+                .seasonal_quests
                 .get(&quest.event_id_for_quest_like_cpp())
                 .is_some_and(|quests| quests.contains_key(&quest.id))
         {

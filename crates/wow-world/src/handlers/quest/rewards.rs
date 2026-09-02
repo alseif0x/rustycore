@@ -1554,26 +1554,40 @@ impl WorldSession {
         let mut save_seasonal = false;
 
         if quest.is_daily_like_cpp() || quest.is_df_quest_like_cpp() {
-            self.last_daily_quest_time_like_cpp = now;
-            if quest.is_df_quest_like_cpp() {
-                self.df_quests_like_cpp.insert(quest.id);
-            } else {
-                self.daily_quests_completed_like_cpp.insert(quest.id);
-            }
             save_daily = true;
         } else if quest.is_weekly_like_cpp() {
-            self.weekly_quests_completed_like_cpp.insert(quest.id);
             save_weekly = true;
         } else if quest.is_monthly_like_cpp() {
-            self.monthly_quests_completed_like_cpp.insert(quest.id);
             save_monthly = true;
         } else if quest.is_seasonal_like_cpp() {
-            self.seasonal_quests_like_cpp
-                .entry(quest.event_id_for_quest_like_cpp())
-                .or_default()
-                .insert(quest.id, now.max(0) as u64);
-            self.seasonal_quest_changed_like_cpp = true;
             save_seasonal = true;
+        }
+
+        if self
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                if save_daily {
+                    state.last_daily_quest_time_secs = now;
+                    if quest.is_df_quest_like_cpp() {
+                        state.df_quest_ids.insert(quest.id);
+                    } else {
+                        state.daily_quest_ids.insert(quest.id);
+                    }
+                } else if save_weekly {
+                    state.weekly_quest_ids.insert(quest.id);
+                } else if save_monthly {
+                    state.monthly_quest_ids.insert(quest.id);
+                } else if save_seasonal {
+                    state
+                        .seasonal_quests
+                        .entry(quest.event_id_for_quest_like_cpp())
+                        .or_default()
+                        .insert(quest.id, now.max(0) as u64);
+                    state.seasonal_quest_changed = true;
+                }
+            })
+            .is_none()
+        {
+            return;
         }
 
         let Some(port) = self.player_quest_persistence_port_like_cpp() else {
@@ -1581,39 +1595,34 @@ impl WorldSession {
         };
 
         let owner_guid = player_guid.counter() as u64;
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return;
+        };
         let request = if save_daily {
-            let mut quest_ids = self
-                .daily_quests_completed_like_cpp
+            let mut quest_ids = recurrence
+                .daily_quest_ids
                 .iter()
                 .copied()
                 .collect::<Vec<_>>();
-            quest_ids.extend(self.df_quests_like_cpp.iter().copied());
+            quest_ids.extend(recurrence.df_quest_ids.iter().copied());
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Daily {
                 owner_guid,
-                completed_time: self.last_daily_quest_time_like_cpp,
+                completed_time: recurrence.last_daily_quest_time_secs,
                 quest_ids,
             }
         } else if save_weekly {
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Weekly {
                 owner_guid,
-                quest_ids: self
-                    .weekly_quests_completed_like_cpp
-                    .iter()
-                    .copied()
-                    .collect(),
+                quest_ids: recurrence.weekly_quest_ids.iter().copied().collect(),
             }
         } else if save_monthly {
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Monthly {
                 owner_guid,
-                quest_ids: self
-                    .monthly_quests_completed_like_cpp
-                    .iter()
-                    .copied()
-                    .collect(),
+                quest_ids: recurrence.monthly_quest_ids.iter().copied().collect(),
             }
         } else if save_seasonal {
-            let completions = self
-                .seasonal_quests_like_cpp
+            let completions = recurrence
+                .seasonal_quests
                 .iter()
                 .flat_map(|(event_id, quests)| {
                     quests.iter().filter_map(|(quest_id, completed_time)| {

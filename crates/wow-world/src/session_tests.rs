@@ -10284,15 +10284,26 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
 }
 
 #[test]
-fn reset_seasonal_clears_quest_v2_completed_bit_from_bridge_and_canonical_like_cpp() {
+fn reset_seasonal_clears_quest_v2_completed_bit_from_canonical_player_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 12_345);
     let canonical = shared_canonical_map_manager();
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
-    session.set_player_guid(Some(player_guid));
-    session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "SeasonalOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical seasonal map");
     session.seed_seasonal_quest_status_like_cpp(7, 1001, 99);
     session.set_quest_v2_store(Arc::new(seasonal_quest_v2_store_like_cpp([(1001, 65)])));
     assert!(session.set_loaded_quest_completed_bit_like_cpp(65));
@@ -10306,7 +10317,6 @@ fn reset_seasonal_clears_quest_v2_completed_bit_from_bridge_and_canonical_like_c
     assert_eq!(outcome.completed_bit_no_change_or_noop, 0);
     assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
     assert_eq!(session.seasonal_quest_bucket_like_cpp(7), None);
-    assert!(session.represented_quest_completed_bits_like_cpp.is_empty());
     let guard = canonical.lock().expect("canonical lock");
     let player = guard
         .find_map(571, 0)
@@ -31510,11 +31520,25 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_watched_faction_index_like_cpp(42);
     assert!(session.set_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("1 0"), 1);
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.daily_quest_ids.insert(100);
+                state.last_daily_quest_time_secs = 10;
+            })
+            .is_some()
+    );
     assert_eq!(
         session.resolved_player_flags_for_create_like_cpp(),
         Some((0x10, 0x20))
     );
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(42));
+    assert_eq!(
+        session
+            .player_quest_gameplay_snapshot_like_cpp()
+            .map(|state| (state.daily_quest_ids, state.last_daily_quest_time_secs)),
+        Some((BTreeSet::from([100]), 10))
+    );
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
@@ -31529,6 +31553,14 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session.set_watched_faction_index_like_cpp(43);
     assert!(session.clear_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("2 0"), 1);
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.daily_quest_ids.insert(101);
+                state.last_daily_quest_time_secs = 20;
+            })
+            .is_some()
+    );
     assert_eq!(
         session.resolved_player_flags_for_create_like_cpp(),
         Some((0x30, 0x40))
@@ -31544,6 +31576,11 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     replacement.replace_all_player_flags(0x100);
     replacement.replace_all_player_flags_ex(0x200);
     replacement.set_watched_faction_index_like_cpp(99);
+    replacement
+        .gameplay_state_mut()
+        .quests
+        .daily_quest_ids
+        .insert(999);
     assert!(replacement.set_quest_completed_bit_like_cpp(77, true));
     assert!(replacement.set_explored_zones_block_like_cpp(0, 0x400));
     let replacement_handle = canonical
@@ -31555,11 +31592,19 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.resolved_player_flags_for_create_like_cpp(), None);
     assert_eq!(session.player_explored_zones_snapshot_like_cpp(), None);
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), None);
+    assert_eq!(session.player_quest_gameplay_snapshot_like_cpp(), None);
     session.set_loaded_player_flags_like_cpp(0xdead);
     session.set_loaded_player_flags_ex_like_cpp(0xbeef);
     session.set_watched_faction_index_like_cpp(5);
     assert!(!session.set_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("4 0"), 0);
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.daily_quest_ids.insert(0xdead);
+            })
+            .is_none()
+    );
     assert_eq!(
         canonical
             .lock()
@@ -31570,8 +31615,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 player.watched_faction_index_like_cpp(),
                 player.quest_completed_block_like_cpp(1),
                 player.explored_zones_block_like_cpp(0),
+                player.gameplay_state().quests.daily_quest_ids.clone(),
             )),
-        Some((0x100, 0x200, 99, Some(1 << 12), Some(0x400)))
+        Some((
+            0x100,
+            0x200,
+            99,
+            Some(1 << 12),
+            Some(0x400),
+            BTreeSet::from([999]),
+        ))
     );
 }
 

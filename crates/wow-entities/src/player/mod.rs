@@ -408,14 +408,18 @@ impl Default for PlayerGameplayLoadPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerQuestGameplayState {
-    pub statuses: Vec<PlayerQuestStatusRecord>,
+    pub statuses: BTreeMap<u32, PlayerQuestStatusRecord>,
     pub objective_progress: Vec<PlayerQuestObjectiveProgress>,
-    pub rewarded_quest_ids: Vec<u32>,
-    pub daily_quest_ids: Vec<u32>,
-    pub weekly_quest_ids: Vec<u32>,
-    pub monthly_quest_ids: Vec<u32>,
-    pub seasonal_quest_ids: Vec<u32>,
-    pub df_quest_ids: Vec<u32>,
+    pub rewarded_quest_ids: BTreeSet<u32>,
+    pub daily_quest_ids: BTreeSet<u32>,
+    pub weekly_quest_ids: BTreeSet<u32>,
+    pub monthly_quest_ids: BTreeSet<u32>,
+    pub seasonal_quests: BTreeMap<u16, BTreeMap<u32, u64>>,
+    pub df_quest_ids: BTreeSet<u32>,
+    pub last_daily_quest_time_secs: i64,
+    pub seasonal_quest_changed: bool,
+    pub status_authority_complete: bool,
+    pub rewarded_quest_rows: BTreeSet<u32>,
     pub pending_share: Option<(ObjectGuid, u32)>,
     pub objective_counts_by_quest: Vec<(u32, Vec<i32>)>,
 }
@@ -425,7 +429,10 @@ pub struct PlayerQuestStatusRecord {
     pub quest_id: u32,
     pub status: u8,
     pub explored: bool,
-    pub timer_expires_at: Option<u64>,
+    pub accept_time_secs: i64,
+    pub end_time_secs: i64,
+    pub objective_counts: Vec<i32>,
+    pub slot: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

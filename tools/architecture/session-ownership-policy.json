@@ -622,8 +622,10 @@
           "name": "daily_quests_completed_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "declined_names_used_like_cpp",
@@ -643,8 +645,10 @@
           "name": "df_quests_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "difficulty_store",
@@ -1182,8 +1186,10 @@
           "name": "last_daily_quest_time_like_cpp",
           "type": "i64",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "last_fall_time_like_cpp",
@@ -1481,8 +1487,10 @@
           "name": "monthly_quests_completed_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "mount_cancel_expected_vehicle_aura_packets_like_cpp",
@@ -4597,15 +4605,19 @@
           "name": "seasonal_quest_changed_like_cpp",
           "type": "bool",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "seasonal_quests_like_cpp",
           "type": "BTreeMap < u16 , BTreeMap < u32 , u64 > >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "security",
@@ -5297,8 +5309,10 @@
           "name": "weekly_quests_completed_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "world_safe_loc_store_like_cpp",
@@ -20158,6 +20172,30 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "apply_player_quest_core_compatibility_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_player_quest_core_compatibility_like_cpp (& mut self , state : & PlayerQuestGameplayState)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_player_quest_gameplay_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_player_quest_gameplay_fixture_like_cpp (& mut self , state : PlayerQuestGameplayState)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "apply_player_session_visibility_detection_like_cpp",
           "visibility": "private",
           "signature": "fn apply_player_session_visibility_detection_like_cpp (player : & mut Player , never_visible_for_seer : bool , seer_can_never_see_target : bool ,)",
@@ -28502,6 +28540,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_quest_gameplay_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mutate_player_quest_gameplay_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut PlayerQuestGameplayState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_rest_state_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_rest_state_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerRestState) -> R ,) -> Option < R >",
@@ -30187,6 +30238,32 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_quest_gameplay_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_quest_gameplay_fixture_like_cpp (& self) -> PlayerQuestGameplayState",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_quest_gameplay_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_quest_gameplay_snapshot_like_cpp (& self ,) -> Option < PlayerQuestGameplayState >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39473,7 +39550,7 @@
           "kind": "method",
           "name": "seasonal_quest_bucket_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn seasonal_quest_bucket_like_cpp (& self , event_id : u16 ,) -> Option < & BTreeMap < u32 , u64 > >",
+          "signature": "fn seasonal_quest_bucket_like_cpp (& self , event_id : u16 ,) -> Option < BTreeMap < u32 , u64 > >",
           "cfg": [
             "cfg (test)"
           ],
@@ -75061,7 +75138,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ce04d022e100754165795c1f2cbef486:len=93377|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b46e638cd9f82a73d39caddeb41bbc3e:len=93482|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
