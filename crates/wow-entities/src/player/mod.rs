@@ -770,6 +770,14 @@ pub struct PlayerTradeStateLikeCpp {
     pub spell_cast_item_guid: Option<ObjectGuid>,
 }
 
+/// Persistent C++ `Player` capability fields loaded with the character row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerPersistentCapabilityStateLikeCpp {
+    pub at_login_flags: u16,
+    pub weapon_proficiency: u32,
+    pub armor_proficiency: u32,
+}
+
 impl PlayerTradeStateLikeCpp {
     pub const fn new(partner_guid: ObjectGuid) -> Self {
         Self {

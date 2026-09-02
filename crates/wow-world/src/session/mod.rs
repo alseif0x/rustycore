@@ -6011,8 +6011,10 @@ pub struct WorldSession {
     represented_spell_acquisition_post_commit_actions_like_cpp:
         Vec<crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp>,
     /// C++ `Player::m_weaponProficiency`; `Spell::EffectProficiency` ORs into it.
+    #[cfg(test)]
     represented_weapon_proficiency_like_cpp: u32,
     /// C++ `Player::m_armorProficiency`; `Spell::EffectProficiency` ORs into it.
+    #[cfg(test)]
     represented_armor_proficiency_like_cpp: u32,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
@@ -6200,6 +6202,7 @@ pub struct WorldSession {
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
     represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
     /// C++ `Player::m_atLoginFlags`, represented for reset-on-login side effects.
+    #[cfg(test)]
     represented_at_login_flags_like_cpp: u16,
     /// Represented `sScriptMgr->OnPlayerTalentsReset` calls until ScriptMgr is live.
     represented_talent_reset_script_hooks_like_cpp: Vec<RepresentedTalentResetScriptHookLikeCpp>,
@@ -8167,7 +8170,9 @@ impl WorldSession {
             represented_trait_entry_rows_complete_like_cpp: false,
             represented_trait_entry_rows_empty_like_cpp: false,
             represented_spell_acquisition_post_commit_actions_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_weapon_proficiency_like_cpp: 0,
+            #[cfg(test)]
             represented_armor_proficiency_like_cpp: 0,
             account_mounts_like_cpp: HashMap::new(),
             represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
@@ -8253,6 +8258,7 @@ impl WorldSession {
             represented_alter_appearance_requests_like_cpp: Vec::new(),
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_at_login_flags_like_cpp: 0,
             represented_talent_reset_script_hooks_like_cpp: Vec::new(),
             represented_at_login_flag_removals_like_cpp: Vec::new(),
@@ -31294,7 +31300,10 @@ impl WorldSession {
     pub(crate) fn apply_represented_login_talent_reset_if_needed_like_cpp(&mut self) -> bool {
         const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
 
-        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_TALENTS_LIKE_CPP) == 0 {
+        if !self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_RESET_TALENTS_LIKE_CPP) != 0)
+        {
             return false;
         }
 
@@ -31317,7 +31326,10 @@ impl WorldSession {
     pub(crate) fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
         const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
 
-        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_SPELLS_LIKE_CPP) == 0 {
+        if !self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_RESET_SPELLS_LIKE_CPP) != 0)
+        {
             return false;
         }
 
@@ -31334,7 +31346,10 @@ impl WorldSession {
     pub(crate) fn apply_represented_first_login_flag_if_needed_like_cpp(&mut self) -> bool {
         const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
 
-        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_FIRST_LIKE_CPP) == 0 {
+        if !self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_FIRST_LIKE_CPP) != 0)
+        {
             return false;
         }
 
@@ -36271,7 +36286,11 @@ impl WorldSession {
         &mut self,
         known_spells: &[i32],
     ) -> usize {
-        if self.player_guid().is_none() {
+        if self.player_guid().is_none()
+            || self
+                .player_persistent_capability_state_snapshot_like_cpp()
+                .is_none()
+        {
             return 0;
         }
         let Some(spell_store) = self.spell_store().cloned() else {
@@ -36292,11 +36311,16 @@ impl WorldSession {
                 continue;
             }
 
-            let before_weapon = self.represented_weapon_proficiency_like_cpp;
-            let before_armor = self.represented_armor_proficiency_like_cpp;
+            let Some(before) = self.player_persistent_capability_state_snapshot_like_cpp() else {
+                return applied;
+            };
             if self.apply_proficiency_effect_like_cpp(spell_id).is_ok()
-                && (self.represented_weapon_proficiency_like_cpp != before_weapon
-                    || self.represented_armor_proficiency_like_cpp != before_armor)
+                && self
+                    .player_persistent_capability_state_snapshot_like_cpp()
+                    .is_some_and(|after| {
+                        after.weapon_proficiency != before.weapon_proficiency
+                            || after.armor_proficiency != before.armor_proficiency
+                    })
             {
                 applied += 1;
             }
@@ -40734,7 +40758,10 @@ impl WorldSession {
     pub(crate) fn apply_represented_login_pet_talent_reset_like_cpp(&mut self) -> bool {
         const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
 
-        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) == 0 {
+        if !self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0)
+        {
             return false;
         }
 
@@ -55695,16 +55722,58 @@ impl WorldSession {
             .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
     }
 
+    fn player_persistent_capability_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.gameplay_state().persistent_capabilities);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {
+                at_login_flags: self.represented_at_login_flags_like_cpp,
+                weapon_proficiency: self.represented_weapon_proficiency_like_cpp,
+                armor_proficiency: self.represented_armor_proficiency_like_cpp,
+            });
+        }
+        canonical
+    }
+
+    fn mutate_player_persistent_capability_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerPersistentCapabilityStateLikeCpp) -> R,
+    ) -> Option<R> {
+        let mut state = self.player_persistent_capability_state_snapshot_like_cpp()?;
+        let result = mutate(&mut state);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().persistent_capabilities = state;
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_at_login_flags_like_cpp = state.at_login_flags;
+            self.represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
+            self.represented_armor_proficiency_like_cpp = state.armor_proficiency;
+            return Some(result);
+        }
+        canonical.then_some(result)
+    }
+
     pub(crate) fn remove_represented_at_login_flag_like_cpp(
         &mut self,
         flags: u16,
         persist: bool,
     ) -> bool {
-        if (self.represented_at_login_flags_like_cpp & flags) == 0 {
+        let Some(removed) = self.mutate_player_persistent_capability_state_like_cpp(|state| {
+            let removed = (state.at_login_flags & flags) != 0;
+            state.at_login_flags &= !flags;
+            removed
+        }) else {
+            return false;
+        };
+        if !removed {
             return false;
         }
-
-        self.represented_at_login_flags_like_cpp &= !flags;
         if persist {
             self.represented_at_login_flag_removals_like_cpp.push(
                 RepresentedAtLoginFlagRemovalLikeCpp {
@@ -55717,12 +55786,22 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) {
-        self.represented_at_login_flags_like_cpp = flags;
+    pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
+        self.mutate_player_persistent_capability_state_like_cpp(|state| {
+            state.at_login_flags = flags;
+        })
+        .is_some()
     }
 
+    pub(crate) fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16> {
+        self.player_persistent_capability_state_snapshot_like_cpp()
+            .map(|state| state.at_login_flags)
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_at_login_flags_like_cpp(&self) -> u16 {
-        self.represented_at_login_flags_like_cpp
+        self.resolved_represented_at_login_flags_like_cpp()
+            .expect("test Player persistent-capability owner must resolve")
     }
 
     #[cfg(test)]
@@ -70265,21 +70344,27 @@ impl WorldSession {
             return Ok(());
         }
 
-        if equipped.equipped_item_class == ItemClass::Weapon as i8
-            && (self.represented_weapon_proficiency_like_cpp & sub_class_mask) == 0
-        {
-            self.represented_weapon_proficiency_like_cpp |= sub_class_mask;
+        let Some(update) = self.mutate_player_persistent_capability_state_like_cpp(|state| {
+            if equipped.equipped_item_class == ItemClass::Weapon as i8
+                && (state.weapon_proficiency & sub_class_mask) == 0
+            {
+                state.weapon_proficiency |= sub_class_mask;
+                Some((ItemClass::Weapon as u8, state.weapon_proficiency))
+            } else if equipped.equipped_item_class == ItemClass::Armor as i8
+                && (state.armor_proficiency & sub_class_mask) == 0
+            {
+                state.armor_proficiency |= sub_class_mask;
+                Some((ItemClass::Armor as u8, state.armor_proficiency))
+            } else {
+                None
+            }
+        }) else {
+            return Err("No canonical Player persistent-capability owner");
+        };
+        if let Some((proficiency_class, proficiency_mask)) = update {
             self.send_packet(&SetProficiency {
-                proficiency_mask: self.represented_weapon_proficiency_like_cpp,
-                proficiency_class: ItemClass::Weapon as u8,
-            });
-        } else if equipped.equipped_item_class == ItemClass::Armor as i8
-            && (self.represented_armor_proficiency_like_cpp & sub_class_mask) == 0
-        {
-            self.represented_armor_proficiency_like_cpp |= sub_class_mask;
-            self.send_packet(&SetProficiency {
-                proficiency_mask: self.represented_armor_proficiency_like_cpp,
-                proficiency_class: ItemClass::Armor as u8,
+                proficiency_mask,
+                proficiency_class,
             });
         }
 

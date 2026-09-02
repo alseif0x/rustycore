@@ -2821,8 +2821,10 @@
           "name": "represented_armor_proficiency_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_at_login_flag_removals_like_cpp",
@@ -2835,8 +2837,10 @@
           "name": "represented_at_login_flags_like_cpp",
           "type": "u16",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_auction_place_bids_like_cpp",
@@ -4642,8 +4646,10 @@
           "name": "represented_weapon_proficiency_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "reputation_mgr_like_cpp",
@@ -28730,6 +28736,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_persistent_capability_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_persistent_capability_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerPersistentCapabilityStateLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_quest_gameplay_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_player_quest_gameplay_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut PlayerQuestGameplayState) -> R ,) -> Option < R >",
@@ -30457,6 +30474,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_persistent_capability_state_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_persistent_capability_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerPersistentCapabilityStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -33700,8 +33728,10 @@
           "name": "represented_at_login_flags_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_at_login_flags_like_cpp (& self) -> u16",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -39627,6 +39657,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_represented_at_login_flags_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_represented_at_login_flags_like_cpp (& self) -> Option < u16 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_represented_guild_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_represented_guild_id_like_cpp (& self) -> Option < u64 >",
@@ -45383,7 +45426,7 @@
           "kind": "method",
           "name": "set_represented_at_login_flags_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_at_login_flags_like_cpp (& mut self , flags : u16)",
+          "signature": "fn set_represented_at_login_flags_like_cpp (& mut self , flags : u16) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75509,7 +75552,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f6c36d61c8d01afba55a4ef4dc21bbb6:len=94428|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4af8b2e5fd38eab5a5f874f0180206ca:len=94473|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

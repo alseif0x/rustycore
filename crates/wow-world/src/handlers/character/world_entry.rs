@@ -508,7 +508,12 @@ impl WorldSession {
             return;
         }
         self.set_player_create_mode_like_cpp(create_mode);
-        self.set_represented_at_login_flags_like_cpp(at_login_flags);
+        if !self.set_represented_at_login_flags_like_cpp(at_login_flags) {
+            self.kick(
+                "canonical Player persistent-capability owner unavailable during login hydration",
+            );
+            return;
+        }
         let saved_rest_state = base_row.rest_state.unwrap_or(REST_STATE_NORMAL_LIKE_CPP);
         let saved_rest_bonus = base_row.rest_bonus.unwrap_or(0.0);
         let saved_logout_time_secs = base_row.logout_time_secs.unwrap_or(0);
@@ -542,7 +547,10 @@ impl WorldSession {
         );
         let summoned_pet_number = base_row.summoned_pet_number.unwrap_or(0);
         const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
-        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+        if self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0)
+        {
             let outcome = player_lifecycle_port
                 .reset_login_pet_talents_like_cpp(guid.counter() as u64)
                 .await;
@@ -815,7 +823,10 @@ impl WorldSession {
                 _ => unreachable!("pet declined-name request returned a different row family"),
             }
         }
-        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+        if self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0)
+        {
             self.apply_represented_login_pet_talent_reset_like_cpp();
         }
         self.group_guid = None;
