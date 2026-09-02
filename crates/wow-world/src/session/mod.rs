@@ -186,16 +186,17 @@ use wow_entities::{
     MAX_POWERS, MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT,
     PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetAuraLikeCpp,
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
-    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryRuntime,
-    PlayerItemTimeUpdate, PlayerQuestGameplayState, QUESTS_COMPLETED_BITS_PER_BLOCK,
-    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState,
-    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef,
-    SwapItemPreflightItem, SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM,
-    TitanGripPenaltyAction, UNIT_DATA_BITS, UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT,
-    UNIT_DATA_MODS_PARENT_BIT, Unit, UnitDataUpdate, UnitDataValues,
-    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
-    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
-    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
+    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerQuestGameplayState,
+    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
+    REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem, SwapItemPreflightPlan,
+    TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
+    UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
+    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
+    VehicleAccessory, VisibleItemValues, WorldObject,
+    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
+    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
     item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
     item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
@@ -6964,9 +6965,11 @@ pub struct WorldSession {
     /// player-choice runtime lands. Gossip options deliberately remain
     /// separate because C++ `InteractionData::Reset` and
     /// `PlayerMenu::ClearMenus` are different operations.
+    #[cfg(test)]
     player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp,
     /// Active gossip options for the NPC the player is talking to.
     /// Stored when SMSG_GOSSIP_MESSAGE is sent, used when CMSG_GOSSIP_SELECT_OPTION arrives.
+    #[cfg(test)]
     pub(crate) gossip_options: Vec<GossipOptionInfo>,
 
     // ── Area trigger tracking ──────────────────────────────────────
@@ -6983,69 +6986,8 @@ pub struct WorldSession {
     pub(crate) creature_query_cache: std::collections::HashSet<u32>,
 }
 
-/// A gossip option stored server-side for routing when the player selects it.
-#[derive(Debug, Clone)]
-pub struct GossipOptionInfo {
-    pub gossip_option_id: i32,
-    pub menu_id: u32,
-    pub order_index: u32,
-    pub option_npc: u8,
-    pub action_menu_id: u32,
-}
-
-/// Represented C++ `PlayerMenu::InteractionData`.
-///
-/// C++ keeps this provenance separate from the gossip menu contents. The
-/// unrepresented `PlayerChoiceId` member must join this owner when player
-/// choices become live rather than creating another session-side mirror.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct PlayerInteractionDataLikeCpp {
-    source_guid: ObjectGuid,
-    trainer_id: u32,
-}
-
-impl Default for PlayerInteractionDataLikeCpp {
-    fn default() -> Self {
-        Self {
-            source_guid: ObjectGuid::EMPTY,
-            trainer_id: 0,
-        }
-    }
-}
-
-impl PlayerInteractionDataLikeCpp {
-    fn reset(&mut self) {
-        *self = Self::default();
-    }
-
-    fn set_source(&mut self, source_guid: ObjectGuid) {
-        *self = Self {
-            source_guid,
-            trainer_id: 0,
-        };
-    }
-
-    fn set_trainer(&mut self, source_guid: ObjectGuid, trainer_id: u32) {
-        *self = Self {
-            source_guid,
-            trainer_id,
-        };
-    }
-
-    fn reset_if_source(&mut self, source_guid: ObjectGuid) -> bool {
-        if self.source_guid != source_guid {
-            return false;
-        }
-        self.reset();
-        true
-    }
-
-    fn trainer_matches(&self, source_guid: ObjectGuid, trainer_id: i32) -> bool {
-        self.trainer_id != 0
-            && self.source_guid == source_guid
-            && self.trainer_id == trainer_id as u32
-    }
-}
+/// Compatibility name while handler modules move to the Player-owned type.
+pub use wow_entities::PlayerGossipOptionLikeCpp as GossipOptionInfo;
 
 /// Compatibility name retained while handlers move onto Player-owned inventory
 /// commands and queries. The concrete record is owned by `wow_entities::Player`.
@@ -8666,7 +8608,9 @@ impl WorldSession {
             #[cfg(test)]
             represented_player_phase_shift: PhaseShift::default(),
             last_visibility_pos: None,
+            #[cfg(test)]
             player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
+            #[cfg(test)]
             gossip_options: Vec::new(),
             active_area_trigger: None,
             pending_teleport: None,
@@ -15545,6 +15489,7 @@ impl WorldSession {
             .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
         let mut canonical_record_found_like_cpp = false;
         let mut canonical_fail_closed_like_cpp = false;
+        let mut canonical_reaction_input_like_cpp = None;
         let canonical_access = (|| {
             let manager = self.canonical_map_manager.as_ref()?;
             let Ok(manager) = manager.lock() else {
@@ -15619,33 +15564,28 @@ impl WorldSession {
             }
             let unit_flags2 = creature.unit().unit_flags2_like_cpp();
             if !unit_flags2.contains(UnitFlags2::INTERACT_WHILE_HOSTILE) {
-                let reaction =
-                    self.represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
-                        self_faction_template_id: creature.unit().data().faction_template.max(0)
-                            as u32,
-                        target_faction_template_id: target_player_faction_template_id?,
-                        same_object: false,
-                        attackable_by_summoner: false,
-                        same_charmer_or_owner_or_self: false,
-                        self_has_player_owner: false,
-                        target_has_player_owner: true,
-                        target_player_owner_is_current_session: true,
-                        target_owner_forced_rank_for_self: None,
-                        same_player_owner: false,
-                        duel_in_progress: false,
-                        same_raid: false,
-                        self_unit_player_controlled: false,
-                        target_unit_player_controlled: true,
-                        self_ffa_pvp: false,
-                        target_ffa_pvp: false,
-                        self_ignores_reputation: false,
-                        target_ignores_reputation: false,
-                        target_is_unit: true,
-                        target_player_contested_pvp,
-                    });
-                if reaction <= wow_data::reputation::ReputationRankLikeCpp::Unfriendly {
-                    return None;
-                }
+                canonical_reaction_input_like_cpp = Some(RepresentedGetReactionInputLikeCpp {
+                    self_faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+                    target_faction_template_id: target_player_faction_template_id?,
+                    same_object: false,
+                    attackable_by_summoner: false,
+                    same_charmer_or_owner_or_self: false,
+                    self_has_player_owner: false,
+                    target_has_player_owner: true,
+                    target_player_owner_is_current_session: true,
+                    target_owner_forced_rank_for_self: None,
+                    same_player_owner: false,
+                    duel_in_progress: false,
+                    same_raid: false,
+                    self_unit_player_controlled: false,
+                    target_unit_player_controlled: true,
+                    self_ffa_pvp: false,
+                    target_ffa_pvp: false,
+                    self_ignores_reputation: false,
+                    target_ignores_reputation: false,
+                    target_is_unit: true,
+                    target_player_contested_pvp,
+                });
             }
 
             let interaction_distance = creature.unit().world().combat_reach() + 4.0;
@@ -15678,8 +15618,17 @@ impl WorldSession {
                 faction_template_id: creature.unit().data().faction_template.max(0) as u32,
             })
         })();
-        if canonical_access.is_some() {
-            return canonical_access;
+        if let Some(canonical_access) = canonical_access {
+            // Reputation is Player-owned and resolves through the same
+            // canonical manager. Evaluate it only after releasing the map
+            // guard held by the lookup closure above.
+            if canonical_reaction_input_like_cpp.is_some_and(|input| {
+                self.represented_get_reaction_to_like_cpp(input)
+                    <= wow_data::reputation::ReputationRankLikeCpp::Unfriendly
+            }) {
+                return None;
+            }
+            return Some(canonical_access);
         }
         if canonical_record_found_like_cpp || canonical_fail_closed_like_cpp {
             return None;
@@ -39516,7 +39465,7 @@ impl WorldSession {
             // menus) under Player. A WorldSession can survive character
             // logout, so no player-menu state may cross that lifetime here.
             self.reset_player_interaction_data_like_cpp();
-            self.gossip_options.clear();
+            self.clear_player_gossip_options_like_cpp();
             self.represented_spell_acquisition_post_commit_actions_like_cpp
                 .clear();
             if previous_player_guid.is_some() {
@@ -40277,39 +40226,93 @@ impl WorldSession {
         canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
-    pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) {
-        self.player_interaction_data_like_cpp.reset();
+    fn resolved_player_interaction_data_like_cpp(&self) -> Option<PlayerInteractionDataLikeCpp> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_interaction_data_like_cpp);
+        }
+        canonical
     }
 
-    pub(crate) fn set_player_interaction_source_like_cpp(&mut self, source_guid: ObjectGuid) {
-        self.player_interaction_data_like_cpp
-            .set_source(source_guid);
+    pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.reset_interaction_data_like_cpp())
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_interaction_data_like_cpp.reset();
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn set_player_interaction_source_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_interaction_source_like_cpp(source_guid);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_interaction_data_like_cpp
+                .set_source(source_guid);
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_trainer_interaction_like_cpp(
         &mut self,
         source_guid: ObjectGuid,
         trainer_id: u32,
-    ) {
-        self.player_interaction_data_like_cpp
-            .set_trainer(source_guid, trainer_id);
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_trainer_interaction_like_cpp(source_guid, trainer_id);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_interaction_data_like_cpp
+                .set_trainer(source_guid, trainer_id);
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn reset_player_interaction_if_source_like_cpp(
         &mut self,
         source_guid: ObjectGuid,
     ) -> bool {
-        self.player_interaction_data_like_cpp
-            .reset_if_source(source_guid)
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.reset_interaction_if_source_like_cpp(source_guid)
+        });
+        #[cfg(test)]
+        if canonical.is_some() || self.player_handle_like_cpp.is_none() {
+            let fixture = self
+                .player_interaction_data_like_cpp
+                .reset_if_source(source_guid);
+            return canonical.unwrap_or(fixture);
+        }
+        canonical.unwrap_or(false)
     }
 
     pub(crate) fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        (!self.player_interaction_data_like_cpp.source_guid.is_empty())
-            .then_some(self.player_interaction_data_like_cpp.source_guid)
+        let interaction = self.resolved_player_interaction_data_like_cpp()?;
+        (!interaction.source_guid.is_empty()).then_some(interaction.source_guid)
     }
 
+    pub(crate) fn resolved_player_interaction_trainer_id_like_cpp(&self) -> Option<u32> {
+        self.resolved_player_interaction_data_like_cpp()
+            .map(|interaction| interaction.trainer_id)
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_interaction_trainer_id_like_cpp(&self) -> u32 {
-        self.player_interaction_data_like_cpp.trainer_id
+        self.resolved_player_interaction_trainer_id_like_cpp()
+            .unwrap_or(0)
     }
 
     pub(crate) fn player_trainer_interaction_matches_like_cpp(
@@ -40317,8 +40320,62 @@ impl WorldSession {
         source_guid: ObjectGuid,
         trainer_id: i32,
     ) -> bool {
-        self.player_interaction_data_like_cpp
-            .trainer_matches(source_guid, trainer_id)
+        self.resolved_player_interaction_data_like_cpp()
+            .is_some_and(|interaction| interaction.trainer_matches(source_guid, trainer_id))
+    }
+
+    pub(crate) fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.clear_gossip_options_like_cpp())
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.gossip_options.clear();
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn replace_player_gossip_options_like_cpp(
+        &mut self,
+        options: Vec<GossipOptionInfo>,
+    ) -> bool {
+        #[cfg(test)]
+        let fixture_options = options.clone();
+        let mut options = Some(options);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.replace_gossip_options_like_cpp(
+                    options.take().expect("gossip option mutation runs once"),
+                );
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.gossip_options = fixture_options;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn player_gossip_option_like_cpp(
+        &self,
+        gossip_option_id: i32,
+    ) -> Option<GossipOptionInfo> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .gossip_options_like_cpp()
+                .iter()
+                .find(|option| option.gossip_option_id == gossip_option_id)
+                .cloned()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self
+                .gossip_options
+                .iter()
+                .find(|option| option.gossip_option_id == gossip_option_id)
+                .cloned();
+        }
+        canonical.flatten()
     }
 
     pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {

@@ -891,8 +891,10 @@
           "name": "gossip_options",
           "type": "Vec < GossipOptionInfo >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "graveyard_store",
@@ -2146,8 +2148,10 @@
           "name": "player_interaction_data_like_cpp",
           "type": "PlayerInteractionDataLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_inventory_slot_count_like_cpp",
@@ -23197,6 +23201,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "clear_player_gossip_options_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn clear_player_gossip_options_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "clear_player_skill_tombstones_like_cpp",
           "visibility": "private",
           "signature": "fn clear_player_skill_tombstones_like_cpp (& mut self)",
@@ -29951,6 +29968,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_gossip_option_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_gossip_option_like_cpp (& self , gossip_option_id : i32 ,) -> Option < GossipOptionInfo >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_guid",
           "visibility": "pub",
           "signature": "fn player_guid (& self) -> Option < ObjectGuid >",
@@ -30078,8 +30108,10 @@
           "name": "player_interaction_trainer_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_interaction_trainer_id_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -33459,6 +33491,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_player_gossip_options_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn replace_player_gossip_options_like_cpp (& mut self , options : Vec < GossipOptionInfo > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38916,7 +38961,7 @@
           "kind": "method",
           "name": "reset_player_interaction_data_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn reset_player_interaction_data_like_cpp (& mut self)",
+          "signature": "fn reset_player_interaction_data_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39476,6 +39521,30 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_interaction_data_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_interaction_data_like_cpp (& self) -> Option < PlayerInteractionDataLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_interaction_trainer_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_interaction_trainer_id_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44604,7 +44673,7 @@
           "kind": "method",
           "name": "set_player_interaction_source_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_interaction_source_like_cpp (& mut self , source_guid : ObjectGuid)",
+          "signature": "fn set_player_interaction_source_like_cpp (& mut self , source_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45047,7 +45116,7 @@
           "kind": "method",
           "name": "set_player_trainer_interaction_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_trainer_interaction_like_cpp (& mut self , source_guid : ObjectGuid , trainer_id : u32 ,)",
+          "signature": "fn set_player_trainer_interaction_like_cpp (& mut self , source_guid : ObjectGuid , trainer_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75725,7 +75794,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5f5cfb7f8a5a91ed7d69154130d72212:len=94675|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:2d11f226d3467e41420aaeb34f30e1d6:len=94705|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -3649,6 +3649,7 @@ fn make_quest_status_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (mut session, send_rx) = make_session_with_send_capacity(8);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_player_faction_template_like_cpp(1);
     session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
     (session, send_rx)
 }
@@ -6981,6 +6982,7 @@ fn make_bank_slot_session(
         80,
         0,
     ));
+    session.set_player_faction_template_like_cpp(1);
     session.set_bank_bag_slot_prices_store(Arc::new(
         wow_data::BankBagSlotPricesStore::from_entries([
             wow_data::BankBagSlotPricesEntry { id: 1, cost: 100 },
@@ -8676,6 +8678,9 @@ async fn autobank_item_without_persistence_keeps_runtime_unchanged_like_cpp() {
 #[test]
 fn bank_authorization_reads_the_single_interaction_source_like_cpp() {
     let (mut session, _send_rx, canonical) = make_bank_slot_session(2);
+    insert_bank_test_player_in_world(&session, &canonical);
+    session.set_player_alive_like_cpp(true);
+    session.set_player_faction_template_like_cpp(1);
     let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 140);
     let vendor = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 141);
     insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());

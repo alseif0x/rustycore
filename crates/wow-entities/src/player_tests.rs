@@ -14,6 +14,7 @@ use wow_constants::{
     BagFamilyMask, InventoryResult, InventoryType, ItemBondingType, ItemClass, ItemContext,
     ItemFieldFlags, ItemSubClassContainer, ItemSubclassProfession,
 };
+use wow_core::guid::HighGuid;
 
 fn can_store_args<'a>(
     bag: u8,
@@ -537,6 +538,43 @@ fn player_owns_create_form_and_specialization_state_like_cpp() {
 }
 
 #[test]
+fn player_owns_interaction_provenance_and_gossip_menu_like_cpp() {
+    let mut player = Player::new(Some(7), false);
+    let source = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
+    let other = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 101, 1);
+    let option = crate::PlayerGossipOptionLikeCpp {
+        gossip_option_id: 7,
+        menu_id: 11,
+        order_index: 2,
+        option_npc: 3,
+        action_menu_id: 13,
+    };
+
+    player.set_trainer_interaction_like_cpp(source, 77);
+    player.replace_gossip_options_like_cpp(vec![option.clone()]);
+    assert!(
+        player
+            .interaction_data_like_cpp()
+            .trainer_matches(source, 77)
+    );
+    assert_eq!(player.gossip_options_like_cpp(), &[option]);
+
+    assert!(!player.reset_interaction_if_source_like_cpp(other));
+    assert_eq!(player.interaction_data_like_cpp().source_guid, source);
+    player.set_interaction_source_like_cpp(other);
+    assert_eq!(player.interaction_data_like_cpp().trainer_id, 0);
+    assert_eq!(player.interaction_data_like_cpp().player_choice_id, 0);
+
+    player.clear_gossip_options_like_cpp();
+    player.reset_interaction_data_like_cpp();
+    assert!(player.gossip_options_like_cpp().is_empty());
+    assert_eq!(
+        player.interaction_data_like_cpp(),
+        &crate::PlayerInteractionDataLikeCpp::default()
+    );
+}
+
+#[test]
 fn player_gameplay_default_state_is_empty_and_attached_to_new_player() {
     let player = Player::new(None, false);
 
@@ -572,6 +610,7 @@ fn player_gameplay_apply_load_record_stores_every_major_bucket() {
     assert_eq!(player.gameplay_state().group, state.group);
     assert_eq!(player.gameplay_state().guild, state.guild);
     assert_eq!(player.gameplay_state().battleground, state.battleground);
+    assert_eq!(player.gameplay_state().menu, state.menu);
     assert_eq!(player.gameplay_state().reputations, state.reputations);
     assert_eq!(player.gameplay_state().achievements, state.achievements);
     assert_eq!(

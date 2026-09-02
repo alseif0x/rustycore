@@ -85,6 +85,9 @@ pub struct PlayerGameplayState {
     pub trade: Option<PlayerTradeStateLikeCpp>,
     pub persistent_capabilities: PlayerPersistentCapabilityStateLikeCpp,
     pub battleground: PlayerBattlegroundState,
+    /// C++ `Player::PlayerTalkClass` state. The network session services the
+    /// menu, but its mutable interaction lifetime belongs to the Player.
+    pub menu: PlayerMenuStateLikeCpp,
     pub reputations: Vec<PlayerReputationRecord>,
     pub achievements: Vec<PlayerAchievementRecord>,
     pub achievement_criteria: Vec<PlayerAchievementCriteriaRecord>,
@@ -93,6 +96,67 @@ pub struct PlayerGameplayState {
     pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
     pub spell_charges: Vec<PlayerSpellChargeRecord>,
     pub rest: PlayerRestState,
+}
+
+/// C++ `PlayerMenu::InteractionData`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerInteractionDataLikeCpp {
+    pub source_guid: ObjectGuid,
+    pub trainer_id: u32,
+    pub player_choice_id: u32,
+}
+
+impl PlayerInteractionDataLikeCpp {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    pub fn set_source(&mut self, source_guid: ObjectGuid) {
+        *self = Self {
+            source_guid,
+            ..Self::default()
+        };
+    }
+
+    pub fn set_trainer(&mut self, source_guid: ObjectGuid, trainer_id: u32) {
+        *self = Self {
+            source_guid,
+            trainer_id,
+            player_choice_id: 0,
+        };
+    }
+
+    pub fn reset_if_source(&mut self, source_guid: ObjectGuid) -> bool {
+        if self.source_guid != source_guid {
+            return false;
+        }
+        self.reset();
+        true
+    }
+
+    pub fn trainer_matches(&self, source_guid: ObjectGuid, trainer_id: i32) -> bool {
+        self.trainer_id != 0
+            && self.source_guid == source_guid
+            && self.trainer_id == trainer_id as u32
+    }
+}
+
+/// Server-side C++ `GossipMenuItem` projection needed to route a client
+/// selection without introducing packet types into the canonical entity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerGossipOptionLikeCpp {
+    pub gossip_option_id: i32,
+    pub menu_id: u32,
+    pub order_index: u32,
+    pub option_npc: u8,
+    pub action_menu_id: u32,
+}
+
+/// Mutable subset of C++ `PlayerMenu` represented by the current runtime.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerMenuStateLikeCpp {
+    pub interaction: PlayerInteractionDataLikeCpp,
+    pub gossip_options: Vec<PlayerGossipOptionLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

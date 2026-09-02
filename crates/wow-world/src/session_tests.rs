@@ -29803,6 +29803,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical map");
+    session.set_player_faction_template_like_cpp(1);
 
     add_canonical_test_creature(
         &canonical,
@@ -29978,7 +29979,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
         ),
         None
     );
-    session.taxi_flight_state_like_cpp = None;
+    assert!(session.replace_player_taxi_state_like_cpp(Default::default()));
 
     session.set_player_alive_like_cpp(false);
     assert_eq!(
@@ -31978,6 +31979,96 @@ fn canonical_player_phase_shift_follows_active_detached_and_stale_ownership_like
                 player.unit().world().phase_shift().clone()
             }),
         Some(replacement_phase)
+    );
+}
+
+#[test]
+fn canonical_player_menu_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_574);
+    let source_guid = test_creature_guid(574);
+    let option = GossipOptionInfo {
+        gossip_option_id: 7,
+        menu_id: 11,
+        order_index: 2,
+        option_npc: 3,
+        action_menu_id: 13,
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "MenuOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_trainer_interaction_like_cpp(source_guid, 77));
+    assert!(session.replace_player_gossip_options_like_cpp(vec![option.clone()]));
+    assert_eq!(
+        session.player_interaction_source_guid_like_cpp(),
+        Some(source_guid)
+    );
+    assert!(session.player_trainer_interaction_matches_like_cpp(source_guid, 77));
+    assert_eq!(
+        session.player_gossip_option_like_cpp(7),
+        Some(option.clone())
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.player_gossip_option_like_cpp(7), Some(option));
+
+    let replacement_source = test_creature_guid(575);
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_trainer_interaction_like_cpp(replacement_source, 99);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_interaction_source_guid_like_cpp(), None);
+    assert_eq!(
+        session.resolved_player_interaction_trainer_id_like_cpp(),
+        None
+    );
+    assert_eq!(session.player_gossip_option_like_cpp(7), None);
+    assert!(!session.set_player_interaction_source_like_cpp(source_guid));
+    assert!(!session.replace_player_gossip_options_like_cpp(Vec::new()));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                *player.interaction_data_like_cpp()
+            }),
+        Some(wow_entities::PlayerInteractionDataLikeCpp {
+            source_guid: replacement_source,
+            trainer_id: 99,
+            player_choice_id: 0,
+        })
     );
 }
 

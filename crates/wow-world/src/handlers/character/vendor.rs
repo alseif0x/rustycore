@@ -277,7 +277,9 @@ impl WorldSession {
             Vec::new()
         };
 
-        self.gossip_options = stored_options;
+        if !self.replace_player_gossip_options_like_cpp(stored_options) {
+            return false;
+        }
         self.set_player_interaction_source_like_cpp(npc_guid);
         self.send_packet(&GossipMessage {
             gossip_guid: npc_guid,

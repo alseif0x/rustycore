@@ -580,7 +580,7 @@ impl WorldSession {
                 trainer_guid = ?trainer_guid,
                 trainer_id = trainer_id,
                 active_source = ?self.player_interaction_source_guid_like_cpp(),
-                active_trainer_id = self.player_interaction_trainer_id_like_cpp(),
+                active_trainer_id = ?self.resolved_player_interaction_trainer_id_like_cpp(),
                 "Trainer buy rejected: active trainer interaction mismatch"
             );
             return;
@@ -1813,9 +1813,12 @@ mod tests {
                 .learn_known_spell_like_cpp(KNOWN_TRAINER_SPELL);
             match case {
                 "unbound" => {}
-                "wrong-guid" | "wrong-id" => fixture
-                    .session
-                    .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID),
+                "wrong-guid" | "wrong-id" => {
+                    fixture.session.set_player_trainer_interaction_like_cpp(
+                        fixture.trainer,
+                        DEFAULT_TRAINER_ID,
+                    );
+                }
                 _ => unreachable!(),
             }
             let (request_guid, request_id) = match case {

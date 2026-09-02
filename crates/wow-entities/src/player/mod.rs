@@ -13,6 +13,7 @@ mod collections;
 mod identity;
 mod items;
 mod location;
+mod menu;
 mod progression;
 mod social;
 mod spellbook;
