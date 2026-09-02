@@ -8,6 +8,34 @@
 use super::*;
 
 impl Player {
+    pub fn create_mode_like_cpp(&self) -> u8 {
+        self.gameplay_state().create_mode
+    }
+
+    pub fn set_create_mode_like_cpp(&mut self, create_mode: u8) {
+        self.gameplay_state_mut().create_mode = create_mode;
+    }
+
+    pub fn shapeshift_form_id_like_cpp(&self) -> u32 {
+        self.gameplay_state().shapeshift_form_id
+    }
+
+    pub fn set_shapeshift_form_id_like_cpp(&mut self, form_id: u32) {
+        self.gameplay_state_mut().shapeshift_form_id = form_id;
+    }
+
+    pub fn loot_specialization_id_like_cpp(&self) -> u32 {
+        self.gameplay_state().loot_specialization_id
+    }
+
+    pub fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) {
+        self.gameplay_state_mut().loot_specialization_id = spec_id;
+    }
+
+    pub fn primary_specialization_id_like_cpp(&self) -> u32 {
+        self.data().current_spec_id
+    }
+
     pub fn replace_skill_records_like_cpp(
         &mut self,
         mut records: Vec<PlayerSkillRecord>,

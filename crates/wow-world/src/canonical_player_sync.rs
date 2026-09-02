@@ -11,7 +11,6 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
         .unit_mut()
         .world_mut()
         .set_zone_and_area(zone_id, area_id);
-    player.set_primary_specialization(session.represented_primary_specialization_id_like_cpp);
     player.gameplay_state_mut().customizations = session
         .loaded_player_customizations_like_cpp
         .iter()
@@ -39,12 +38,6 @@ pub(crate) fn sync_player_zone_area_like_cpp(session: &WorldSession, zone_id: u3
             .unit_mut()
             .world_mut()
             .set_zone_and_area(zone_id, area_id);
-    });
-}
-
-pub(crate) fn sync_player_primary_specialization_like_cpp(session: &WorldSession, spec_id: u32) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
-        player.set_primary_specialization(spec_id);
     });
 }
 

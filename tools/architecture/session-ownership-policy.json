@@ -1356,8 +1356,10 @@
           "name": "loot_specialization_id",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "loot_stores",
@@ -1976,8 +1978,10 @@
           "name": "player_create_mode_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_currencies",
@@ -3861,8 +3865,10 @@
           "name": "represented_primary_specialization_id_like_cpp",
           "type": "u32",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_push_quest_to_party_outcomes_like_cpp",
@@ -4071,8 +4077,10 @@
           "name": "represented_shapeshift_form_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_sign_petitions_like_cpp",
@@ -27684,7 +27692,7 @@
           "kind": "method",
           "name": "loot_specialization_id_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn loot_specialization_id_like_cpp (& self) -> u32",
+          "signature": "fn loot_specialization_id_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29253,7 +29261,7 @@
           "kind": "method",
           "name": "player_create_mode_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_create_mode_like_cpp (& self) -> u8",
+          "signature": "fn player_create_mode_like_cpp (& self) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -35962,7 +35970,7 @@
           "kind": "method",
           "name": "represented_primary_specialization_id_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_primary_specialization_id_like_cpp (& self) -> u32",
+          "signature": "fn represented_primary_specialization_id_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36585,7 +36593,7 @@
           "kind": "method",
           "name": "represented_shapeshift_form_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_shapeshift_form_like_cpp (& self) -> u32",
+          "signature": "fn represented_shapeshift_form_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42386,7 +42394,7 @@
           "kind": "method",
           "name": "set_loot_specialization_id_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_loot_specialization_id_like_cpp (& mut self , spec_id : u32)",
+          "signature": "fn set_loot_specialization_id_like_cpp (& mut self , spec_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43172,7 +43180,7 @@
           "kind": "method",
           "name": "set_player_create_mode_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_create_mode_like_cpp (& mut self , create_mode : u8)",
+          "signature": "fn set_player_create_mode_like_cpp (& mut self , create_mode : u8) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44808,7 +44816,7 @@
           "kind": "method",
           "name": "set_represented_primary_specialization_id_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_primary_specialization_id_like_cpp (& mut self , spec_id : u32)",
+          "signature": "fn set_represented_primary_specialization_id_like_cpp (& mut self , spec_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44850,7 +44858,7 @@
           "kind": "method",
           "name": "set_represented_shapeshift_form_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_shapeshift_form_like_cpp (& mut self , form_id : u32)",
+          "signature": "fn set_represented_shapeshift_form_like_cpp (& mut self , form_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -74483,7 +74491,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6e4704b7ae73f3f39f4c2040fbd4e8d0:len=92627|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:01ed5b552a46d6a54e548fd06bc14916:len=92687|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

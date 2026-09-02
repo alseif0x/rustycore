@@ -13,6 +13,12 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerGameplayState {
+    /// C++ `Player::m_createMode`.
+    pub create_mode: u8,
+    /// Transitional raw C++ shapeshift-form projection until aura state owns it.
+    pub shapeshift_form_id: u32,
+    /// C++ `UF::ActivePlayerData::LootSpecID`.
+    pub loot_specialization_id: u32,
     pub quests: PlayerQuestGameplayState,
     pub skills: Vec<PlayerSkillRecord>,
     pub skills_loaded: bool,

@@ -5691,12 +5691,16 @@ pub struct WorldSession {
     /// Gender of the currently logged-in character (set at login).
     player_gender: u8,
     /// C++ `Player::m_createMode`, loaded from `characters.createMode`.
+    #[cfg(test)]
     player_create_mode_like_cpp: u8,
     /// Represented C++ `Player::GetShapeshiftForm()` until shapeshift aura state owns it.
+    #[cfg(test)]
     represented_shapeshift_form_like_cpp: u32,
     /// C++ ActivePlayerData::LootSpecID represented session state.
+    #[cfg(test)]
     loot_specialization_id: u32,
     /// Represented C++ ActivePlayerData::CurrentSpecID / GetPrimarySpecialization.
+    #[cfg(test)]
     pub(crate) represented_primary_specialization_id_like_cpp: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
     known_spells: Vec<i32>,
@@ -6989,9 +6993,9 @@ impl RepresentedPlayerConditionContextLikeCpp {
             power_type: -1,
             power: 0,
             max_power: 0,
-            primary_specialization_id: (session.represented_primary_specialization_id_like_cpp
-                != 0)
-                .then_some(session.represented_primary_specialization_id_like_cpp),
+            primary_specialization_id: session
+                .represented_primary_specialization_id_like_cpp()
+                .filter(|spec_id| *spec_id != 0),
             skills: &self.skills,
             language_skill: 0,
             reputations: &self.reputations,
@@ -7892,9 +7896,13 @@ impl WorldSession {
             player_class: 0,
             player_level: 0,
             player_gender: 0,
+            #[cfg(test)]
             player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+            #[cfg(test)]
             represented_shapeshift_form_like_cpp: 0,
+            #[cfg(test)]
             loot_specialization_id: 0,
+            #[cfg(test)]
             represented_primary_specialization_id_like_cpp: 0,
             known_spells: Vec::new(),
             represented_player_spell_rows_like_cpp: BTreeMap::new(),
@@ -9616,6 +9624,13 @@ impl WorldSession {
         player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
+        #[cfg(test)]
+        {
+            player.set_create_mode_like_cpp(self.player_create_mode_like_cpp);
+            player.set_shapeshift_form_id_like_cpp(self.represented_shapeshift_form_like_cpp);
+            player.set_loot_specialization_id_like_cpp(self.loot_specialization_id);
+            player.set_primary_specialization(self.represented_primary_specialization_id_like_cpp);
+        }
         player
             .unit_mut()
             .set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
@@ -19870,7 +19885,7 @@ impl WorldSession {
                 continue;
             }
             if item_set_spell.chr_spec_id != 0
-                && u32::from(item_set_spell.chr_spec_id) != primary_spec
+                && Some(u32::from(item_set_spell.chr_spec_id)) != primary_spec
             {
                 continue;
             }
@@ -19962,16 +19977,15 @@ impl WorldSession {
             return false;
         };
 
+        let Some(form_id) = self.represented_shapeshift_form_like_cpp() else {
+            return false;
+        };
         spell_store
-            .check_shapeshift_like_cpp(
-                spell_id,
-                self.represented_shapeshift_form_like_cpp(),
-                |form| {
-                    self.spell_shapeshift_form_store
-                        .as_ref()
-                        .and_then(|store| store.get(form))
-                },
-            )
+            .check_shapeshift_like_cpp(spell_id, form_id, |form| {
+                self.spell_shapeshift_form_store
+                    .as_ref()
+                    .and_then(|store| store.get(form))
+            })
             .unwrap_or(SpellCastResult::Success)
             == SpellCastResult::Success
     }
@@ -20055,7 +20069,7 @@ impl WorldSession {
 
             for item_set_spell in spells {
                 if item_set_spell.chr_spec_id != 0
-                    && u32::from(item_set_spell.chr_spec_id) != primary_spec
+                    && Some(u32::from(item_set_spell.chr_spec_id)) != primary_spec
                 {
                     self.represented_item_set_aura_refresh_events_like_cpp.push(
                         RepresentedItemSetAuraRefreshEventLikeCpp {
@@ -20157,7 +20171,7 @@ impl WorldSession {
                 continue;
             }
             if effect.chr_specialization_id != 0
-                && u32::from(effect.chr_specialization_id) != primary_spec
+                && Some(u32::from(effect.chr_specialization_id)) != primary_spec
             {
                 continue;
             }
@@ -22797,7 +22811,7 @@ impl WorldSession {
                 effect1_spell_id,
                 has_effect1_spell,
                 artifact_specialization: None,
-                primary_specialization: self.represented_primary_specialization_id_like_cpp(),
+                primary_specialization: player.primary_specialization_id_like_cpp(),
             },
             item_skill: 0,
             item_skill_value: 0,
@@ -30087,6 +30101,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
+        let Some(create_mode) = self.player_create_mode_like_cpp() else {
+            return 0;
+        };
         let spells = self
             .player_create_cast_spell_store_like_cpp
             .as_ref()
@@ -30095,7 +30112,7 @@ impl WorldSession {
                     .cast_spells_like_cpp(
                         self.player_race_like_cpp(),
                         self.player_class_like_cpp(),
-                        self.player_create_mode_like_cpp(),
+                        create_mode,
                     )
                     .to_vec()
             })
@@ -34565,7 +34582,9 @@ impl WorldSession {
             return false;
         };
         let (stances, _) = spell_store.shapeshift_masks_like_cpp(spell_id);
-        let form = self.represented_shapeshift_form_like_cpp();
+        let Some(form) = self.represented_shapeshift_form_like_cpp() else {
+            return false;
+        };
         let stance_mask = form
             .checked_sub(1)
             .and_then(|shift| 1u64.checked_shl(shift))
@@ -37985,8 +38004,16 @@ impl WorldSession {
         self.refresh_represented_talent_points_like_cpp();
     }
 
-    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) {
-        self.player_create_mode_like_cpp = create_mode;
+    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) -> bool {
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_create_mode_like_cpp(create_mode))
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.player_handle_like_cpp.is_none() {
+            self.player_create_mode_like_cpp = create_mode;
+            return true;
+        }
+        _canonical
     }
 
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
@@ -41281,8 +41308,13 @@ impl WorldSession {
         self.player_class
     }
 
-    pub(crate) fn player_create_mode_like_cpp(&self) -> u8 {
-        self.player_create_mode_like_cpp
+    pub(crate) fn player_create_mode_like_cpp(&self) -> Option<u8> {
+        let canonical = self.with_owned_player_like_cpp(Player::create_mode_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_create_mode_like_cpp);
+        }
+        canonical
     }
 
     pub(crate) fn player_level_like_cpp(&self) -> u8 {
@@ -41293,29 +41325,74 @@ impl WorldSession {
         self.player_gender
     }
 
-    pub(crate) fn loot_specialization_id_like_cpp(&self) -> u32 {
-        self.loot_specialization_id
+    pub(crate) fn loot_specialization_id_like_cpp(&self) -> Option<u32> {
+        let canonical = self.with_owned_player_like_cpp(Player::loot_specialization_id_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.loot_specialization_id);
+        }
+        canonical
     }
 
-    pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) {
-        self.loot_specialization_id = spec_id;
+    pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_loot_specialization_id_like_cpp(spec_id)
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.loot_specialization_id = spec_id;
+            return true;
+        }
+        canonical
     }
 
-    pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> u32 {
-        self.represented_shapeshift_form_like_cpp
+    pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {
+        let canonical = self.with_owned_player_like_cpp(Player::shapeshift_form_id_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_shapeshift_form_like_cpp);
+        }
+        canonical
     }
 
-    pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) {
-        self.represented_shapeshift_form_like_cpp = form_id;
+    pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_shapeshift_form_id_like_cpp(form_id)
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.represented_shapeshift_form_like_cpp = form_id;
+            return true;
+        }
+        canonical
     }
 
-    pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> u32 {
-        self.represented_primary_specialization_id_like_cpp
+    pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> Option<u32> {
+        let canonical = self.with_owned_player_like_cpp(Player::primary_specialization_id_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_primary_specialization_id_like_cpp);
+        }
+        canonical
     }
 
-    pub(crate) fn set_represented_primary_specialization_id_like_cpp(&mut self, spec_id: u32) {
-        self.represented_primary_specialization_id_like_cpp = spec_id;
-        crate::canonical_player_sync::sync_player_primary_specialization_like_cpp(self, spec_id);
+    pub(crate) fn set_represented_primary_specialization_id_like_cpp(
+        &mut self,
+        spec_id: u32,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_primary_specialization(spec_id))
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.represented_primary_specialization_id_like_cpp = spec_id;
+            return true;
+        }
+        canonical
     }
 
     pub(crate) fn resolved_player_money_like_cpp(&self) -> Option<u64> {

@@ -487,6 +487,21 @@ fn player_owns_exact_skill_rows_and_persistence_authority_like_cpp() {
 }
 
 #[test]
+fn player_owns_create_form_and_specialization_state_like_cpp() {
+    let mut player = Player::new(Some(7), false);
+
+    player.set_create_mode_like_cpp(1);
+    player.set_shapeshift_form_id_like_cpp(5);
+    player.set_loot_specialization_id_like_cpp(65);
+    player.set_primary_specialization(66);
+
+    assert_eq!(player.create_mode_like_cpp(), 1);
+    assert_eq!(player.shapeshift_form_id_like_cpp(), 5);
+    assert_eq!(player.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(player.primary_specialization_id_like_cpp(), 66);
+}
+
+#[test]
 fn player_gameplay_default_state_is_empty_and_attached_to_new_player() {
     let player = Player::new(None, false);
 

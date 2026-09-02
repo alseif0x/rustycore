@@ -31028,6 +31028,94 @@ fn canonical_player_progression_follows_active_detached_and_stale_handle_ownersh
     );
 }
 
+#[test]
+fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_560);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "SpecializationOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_player_create_mode_like_cpp(1));
+    assert!(session.set_represented_shapeshift_form_like_cpp(5));
+    assert!(session.set_loot_specialization_id_like_cpp(65));
+    assert!(session.set_represented_primary_specialization_id_like_cpp(66));
+
+    assert_eq!(session.player_create_mode_like_cpp(), Some(1));
+    assert_eq!(session.represented_shapeshift_form_like_cpp(), Some(5));
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
+    assert_eq!(
+        session.represented_primary_specialization_id_like_cpp(),
+        Some(66)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.player_create_mode_like_cpp(), Some(1));
+    assert_eq!(session.represented_shapeshift_form_like_cpp(), Some(5));
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_create_mode_like_cpp(0);
+    replacement.set_shapeshift_form_id_like_cpp(2);
+    replacement.set_loot_specialization_id_like_cpp(70);
+    replacement.set_primary_specialization(71);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_create_mode_like_cpp(), None);
+    assert_eq!(session.represented_shapeshift_form_like_cpp(), None);
+    assert_eq!(session.loot_specialization_id_like_cpp(), None);
+    assert_eq!(
+        session.represented_primary_specialization_id_like_cpp(),
+        None
+    );
+    assert!(!session.set_player_create_mode_like_cpp(1));
+    assert!(!session.set_represented_shapeshift_form_like_cpp(5));
+    assert!(!session.set_loot_specialization_id_like_cpp(65));
+    assert!(!session.set_represented_primary_specialization_id_like_cpp(66));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.create_mode_like_cpp(),
+                player.shapeshift_form_id_like_cpp(),
+                player.loot_specialization_id_like_cpp(),
+                player.primary_specialization_id_like_cpp(),
+            )),
+        Some((0, 2, 70, 71))
+    );
+}
+
 #[tokio::test]
 async fn canonical_player_money_follows_active_detached_and_stale_handle_ownership_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();

@@ -12020,22 +12020,22 @@ async fn set_loot_specialization_matches_cpp_class_validation() {
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 65 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
 
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 71 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
 
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 999 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
 
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 0 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 0);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(0));
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -12056,7 +12056,7 @@ async fn set_loot_specialization_without_loaded_player_is_ignored_like_cpp_statu
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 65 })
         .await;
 
-    assert_eq!(session.loot_specialization_id_like_cpp(), 0);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(0));
 }
 
 #[tokio::test]
