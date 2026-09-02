@@ -1989,12 +1989,17 @@ impl WorldSession {
         &mut self,
         command: CancelRepresentedTradeLikeCppCommand,
     ) {
-        if self.represented_active_trade_partner_like_cpp().is_none() {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
             return;
         }
 
         self.record_represented_trade_cancel_like_cpp(command.status);
-        self.clear_represented_active_trade_partner_like_cpp();
+        if !self.clear_represented_active_trade_partner_like_cpp() {
+            return;
+        }
         self.send_raw_packet(&command.packet_bytes);
     }
 
@@ -2002,7 +2007,10 @@ impl WorldSession {
         &mut self,
         command: SendRepresentedTradeStatusLikeCppCommand,
     ) {
-        if self.represented_active_trade_partner_like_cpp().is_none() {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
             return;
         }
 
@@ -2013,11 +2021,16 @@ impl WorldSession {
         &mut self,
         command: UnacceptRepresentedTradeLikeCppCommand,
     ) {
-        if self.represented_active_trade_partner_like_cpp().is_none() {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
             return;
         }
 
-        self.set_represented_trade_accepted_like_cpp_for_command(false);
+        if !self.set_represented_trade_accepted_like_cpp_for_command(false) {
+            return;
+        }
         self.send_raw_packet(&command.packet_bytes);
     }
 

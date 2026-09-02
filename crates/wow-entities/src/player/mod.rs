@@ -63,6 +63,9 @@ pub const CLASS_SHAMAN: u8 = 7;
 pub const SKILL_PLATE_MAIL: u32 = 293;
 pub const SKILL_MAIL: u32 = 413;
 pub const NULL_BAG: u8 = 0;
+/// C++ `TRADE_SLOT_COUNT`; kept with the Player-owned `TradeData` projection so
+/// the entity crate does not depend on packet serialization.
+pub const PLAYER_TRADE_SLOT_COUNT_LIKE_CPP: usize = 7;
 
 pub trait PlayerPowerIndexResolver {
     fn power_index_by_class(&self, power: PowerType, class_id: u8) -> Option<usize>;
@@ -751,6 +754,36 @@ pub struct PlayerGuildState {
     pub rank_id: Option<u32>,
     /// True after C++ `_LoadGuild` resolved membership, including no guild.
     pub authority_complete: bool,
+}
+
+/// C++ `TradeData`, uniquely owned by `Player::m_trade` while a trade is open.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerTradeStateLikeCpp {
+    pub partner_guid: ObjectGuid,
+    pub accepted: bool,
+    pub partner_server_state_index: u32,
+    pub client_state_index: u32,
+    pub server_state_index: u32,
+    pub items: [Option<ObjectGuid>; PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],
+    pub money: u64,
+    pub spell_id: u32,
+    pub spell_cast_item_guid: Option<ObjectGuid>,
+}
+
+impl PlayerTradeStateLikeCpp {
+    pub const fn new(partner_guid: ObjectGuid) -> Self {
+        Self {
+            partner_guid,
+            accepted: false,
+            partner_server_state_index: 0,
+            client_state_index: 1,
+            server_state_index: 1,
+            items: [None; PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],
+            money: 0,
+            spell_id: 0,
+            spell_cast_item_guid: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

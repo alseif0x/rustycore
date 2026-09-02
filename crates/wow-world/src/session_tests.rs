@@ -31440,6 +31440,98 @@ fn canonical_player_guild_state_follows_active_detached_and_stale_ownership_like
 }
 
 #[test]
+fn canonical_player_trade_state_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_565);
+    let partner_guid = ObjectGuid::create_player(1, 5_566);
+    let item_guid = ObjectGuid::create_item(1, 70_001);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TradeOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_active_trade_partner_like_cpp(Some(partner_guid)));
+    assert!(session.set_represented_partner_trade_server_state_index_like_cpp(7));
+    session.set_represented_trade_item_like_cpp_for_test(2, item_guid);
+    session.set_represented_trade_spell_like_cpp_for_test(7418, Some(item_guid));
+    session.set_represented_trade_accepted_like_cpp_for_test(true);
+    assert_eq!(
+        session.resolved_represented_active_trade_partner_like_cpp(),
+        Some(Some(partner_guid))
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.represented_trade_item_like_cpp(2), Some(item_guid));
+    assert_eq!(session.represented_trade_spell_like_cpp(), 7418);
+    assert!(session.represented_trade_accepted_like_cpp());
+
+    let replacement_partner = ObjectGuid::create_player(1, 5_567);
+    let replacement_state = wow_entities::PlayerTradeStateLikeCpp {
+        partner_guid: replacement_partner,
+        accepted: true,
+        partner_server_state_index: 12,
+        client_state_index: 13,
+        server_state_index: 14,
+        items: [None; wow_entities::PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],
+        money: 15,
+        spell_id: 16,
+        spell_cast_item_guid: None,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().trade = Some(replacement_state.clone());
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.resolved_represented_active_trade_partner_like_cpp(),
+        None
+    );
+    assert!(
+        !session.set_represented_active_trade_partner_like_cpp(Some(ObjectGuid::create_player(
+            1, 5_568
+        )))
+    );
+    assert!(!session.set_represented_trade_accepted_like_cpp_for_command(false));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().trade.clone()
+            }),
+        Some(Some(replacement_state))
+    );
+}
+
+#[test]
 fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

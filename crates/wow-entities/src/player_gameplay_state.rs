@@ -8,8 +8,8 @@ use crate::{
     PlayerEquipmentSetLikeCpp, PlayerGroupState, PlayerGuildState, PlayerMailRecord,
     PlayerQuestGameplayState, PlayerReputationRecord, PlayerRestState, PlayerSkillRecord,
     PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerSpellRuntimeState,
-    PlayerTalentRuntimeState, PlayerTaxiState, PlayerTransportState, PlayerVoidStorageItemLikeCpp,
-    PlayerWorldLocalState,
+    PlayerTalentRuntimeState, PlayerTaxiState, PlayerTradeStateLikeCpp, PlayerTransportState,
+    PlayerVoidStorageItemLikeCpp, PlayerWorldLocalState,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -72,6 +72,8 @@ pub struct PlayerGameplayState {
     pub void_storage_loaded: bool,
     pub group: Option<PlayerGroupState>,
     pub guild: PlayerGuildState,
+    /// C++ `Player::m_trade`; `None` is the normal no-trade state.
+    pub trade: Option<PlayerTradeStateLikeCpp>,
     pub battleground: PlayerBattlegroundState,
     pub reputations: Vec<PlayerReputationRecord>,
     pub achievements: Vec<PlayerAchievementRecord>,
