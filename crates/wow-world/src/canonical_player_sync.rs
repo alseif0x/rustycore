@@ -6,11 +6,6 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     session: &WorldSession,
     player: &mut wow_entities::Player,
 ) -> Option<()> {
-    let (zone_id, area_id) = session.player_zone_area_like_cpp();
-    player
-        .unit_mut()
-        .world_mut()
-        .set_zone_and_area(zone_id, area_id);
     #[cfg(test)]
     {
         player.gameplay_state_mut().customizations = session
@@ -33,15 +28,6 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
         );
     }
     Some(())
-}
-
-pub(crate) fn sync_player_zone_area_like_cpp(session: &WorldSession, zone_id: u32, area_id: u32) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
-        player
-            .unit_mut()
-            .world_mut()
-            .set_zone_and_area(zone_id, area_id);
-    });
 }
 
 pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status: u32) {

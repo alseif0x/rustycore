@@ -1879,8 +1879,10 @@
           "name": "player_area_id_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_aura_authority_complete_like_cpp",
@@ -1964,8 +1966,10 @@
           "name": "player_contested_pvp_timer_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_create_cast_spell_store_like_cpp",
@@ -2095,8 +2099,10 @@
           "name": "player_in_pvp_flag_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_interaction_data_like_cpp",
@@ -2295,22 +2301,28 @@
           "name": "player_pvp_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_pvp_end_timer_like_cpp",
           "type": "Option < i64 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_pvp_hostile_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_quest_status_authority_complete_like_cpp",
@@ -2496,15 +2508,19 @@
           "name": "player_zone_area_authority_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_zone_id_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "power_type_store",
@@ -22546,8 +22562,10 @@
           "name": "canonical_player_pvp_flags_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_player_pvp_flags_like_cpp (& self , guid : ObjectGuid) -> Option < UnitPvpFlags >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -28677,6 +28695,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_world_local_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_world_local_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerWorldLocalState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_world_creature",
           "visibility": "pub (crate)",
           "signature": "fn mutate_world_creature < F , R > (& mut self , guid : ObjectGuid , f : F) -> Option < R > where F : FnOnce (& mut crate :: map_manager :: WorldCreature) -> R ,",
@@ -29753,7 +29782,7 @@
           "kind": "method",
           "name": "player_has_in_pvp_flag_like_cpp",
           "visibility": "private",
-          "signature": "fn player_has_in_pvp_flag_like_cpp (& self , guid : ObjectGuid) -> bool",
+          "signature": "fn player_has_in_pvp_flag_like_cpp (& self , guid : ObjectGuid) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -29957,7 +29986,7 @@
           "kind": "method",
           "name": "player_is_pvp_like_cpp",
           "visibility": "private",
-          "signature": "fn player_is_pvp_like_cpp (& self , guid : ObjectGuid) -> bool",
+          "signature": "fn player_is_pvp_like_cpp (& self , guid : ObjectGuid) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -30739,6 +30768,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_world_local_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_world_local_state_like_cpp (& self) -> Option < wow_entities :: PlayerWorldLocalState >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_xp_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_xp_like_cpp (& self) -> u32",
@@ -30756,7 +30796,7 @@
           "kind": "method",
           "name": "player_zone_area_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_zone_area_like_cpp (& self) -> (u32 , u32)",
+          "signature": "fn player_zone_area_like_cpp (& self) -> Option < (u32 , u32) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -34969,7 +35009,7 @@
           "kind": "method",
           "name": "represented_gameobject_area_id_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_gameobject_area_id_like_cpp (& self , gameobject_guid : ObjectGuid ,) -> u32",
+          "signature": "fn represented_gameobject_area_id_like_cpp (& self , gameobject_guid : ObjectGuid ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75212,7 +75252,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3ce130cbab6fdab3aca9a50930d0f752:len=93630|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:04a7c06055bcda051040c168a542d544:len=93750|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -8,6 +8,7 @@ use crate::{
     PlayerMailRecord, PlayerQuestGameplayState, PlayerReputationRecord, PlayerRestState,
     PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
     PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState, PlayerTransportState,
+    PlayerWorldLocalState,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -44,6 +45,7 @@ pub struct PlayerGameplayState {
     pub pass_on_group_loot: bool,
     pub forced_reputation_ranks: Vec<(u32, u8)>,
     pub transport: Option<PlayerTransportState>,
+    pub world_local: PlayerWorldLocalState,
     /// C++ `Unit::m_vehicleKit` for Player mount vehicles.
     pub mount_vehicle_kit: Option<crate::Vehicle>,
     /// Current C++ `VehicleSeatEntry::Flags` and `ID` for the Player passenger.

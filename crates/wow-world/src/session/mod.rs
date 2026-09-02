@@ -2988,6 +2988,7 @@ pub(crate) enum MoveTeleportAckActionLikeCpp {
     NotBeingTeleportedNear,
     WrongMover,
     MissingDestination,
+    MissingPlayerOwner,
     Accepted,
 }
 
@@ -6289,20 +6290,28 @@ pub struct WorldSession {
     /// Represented `UNIT_FLAG_MOUNT` state until UnitData owns live player flags.
     player_mounted_like_cpp: bool,
     /// Represented `pvpInfo.IsHostile` branch for Honorless Target after taxi landing.
+    #[cfg(test)]
     player_pvp_hostile_like_cpp: bool,
     /// Represented `Player::IsPvP()` branch for friendly-area near teleport handling.
+    #[cfg(test)]
     player_pvp_enabled_like_cpp: bool,
     /// Represented `PLAYER_FLAGS_IN_PVP` branch for friendly-area near teleport handling.
+    #[cfg(test)]
     player_in_pvp_flag_like_cpp: bool,
     /// Represented `pvpInfo.EndTimer` consumed by `Player::UpdatePvPFlag`.
+    #[cfg(test)]
     player_pvp_end_timer_like_cpp: Option<i64>,
     /// C++ `Player::m_contestedPvPTimer`, reset by `Player::ResetContestedPvP`.
+    #[cfg(test)]
     player_contested_pvp_timer_like_cpp: u32,
     /// Current represented zone/area ids until Map/Terrain runtime can calculate them.
+    #[cfg(test)]
     player_zone_id_like_cpp: u32,
+    #[cfg(test)]
     player_area_id_like_cpp: u32,
     /// True only when the current zone/area came from an extracted C++ terrain
     /// tile, rather than the DB-seeded or map-wide fallback.
+    #[cfg(test)]
     player_zone_area_authority_complete_like_cpp: bool,
     /// Permanent fail-closed marker for this C++ Player lifetime after a login
     /// cast closure that Rust did not retain losslessly (currently FIRST).
@@ -7205,10 +7214,10 @@ impl RepresentedPlayerConditionContextLikeCpp {
     pub(crate) fn as_context<'a>(
         &'a self,
         session: &'a WorldSession,
-    ) -> PlayerConditionContextLikeCpp<'a> {
+    ) -> Option<PlayerConditionContextLikeCpp<'a>> {
         let class = session.player_class_like_cpp();
-        let (_, area_id) = session.player_zone_area_like_cpp();
-        PlayerConditionContextLikeCpp {
+        let (_, area_id) = session.player_zone_area_like_cpp()?;
+        Some(PlayerConditionContextLikeCpp {
             race: session.player_race_like_cpp(),
             class_mask: if class == 0 {
                 0
@@ -7261,7 +7270,7 @@ impl RepresentedPlayerConditionContextLikeCpp {
             chr_specializations: session.chr_specialization_store.as_deref(),
             world_state_expressions: None,
             world_state_expression_context: None,
-        }
+        })
     }
 }
 
@@ -8327,13 +8336,21 @@ impl WorldSession {
             #[cfg(test)]
             player_faction_template_like_cpp: None,
             player_mounted_like_cpp: false,
+            #[cfg(test)]
             player_pvp_hostile_like_cpp: false,
+            #[cfg(test)]
             player_pvp_enabled_like_cpp: false,
+            #[cfg(test)]
             player_in_pvp_flag_like_cpp: false,
+            #[cfg(test)]
             player_pvp_end_timer_like_cpp: None,
+            #[cfg(test)]
             player_contested_pvp_timer_like_cpp: 0,
+            #[cfg(test)]
             player_zone_id_like_cpp: 0,
+            #[cfg(test)]
             player_area_id_like_cpp: 0,
+            #[cfg(test)]
             player_zone_area_authority_complete_like_cpp: false,
             player_spell_hit_aura_authority_tombstoned_like_cpp: false,
             #[cfg(test)]
@@ -9907,6 +9924,27 @@ impl WorldSession {
         }
         #[cfg(test)]
         player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
+        #[cfg(test)]
+        {
+            player.gameplay_state_mut().world_local = wow_entities::PlayerWorldLocalState {
+                zone_id: self.player_zone_id_like_cpp,
+                area_id: self.player_area_id_like_cpp,
+                zone_area_authority_complete: self.player_zone_area_authority_complete_like_cpp,
+                pvp_hostile: self.player_pvp_hostile_like_cpp,
+                pvp_end_timer: self.player_pvp_end_timer_like_cpp,
+                contested_pvp_timer: self.player_contested_pvp_timer_like_cpp,
+            };
+            player
+                .unit_mut()
+                .world_mut()
+                .set_zone_and_area(self.player_zone_id_like_cpp, self.player_area_id_like_cpp);
+            if self.player_pvp_enabled_like_cpp {
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            }
+            if self.player_in_pvp_flag_like_cpp {
+                player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+            }
+        }
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
         #[cfg(test)]
@@ -10462,6 +10500,18 @@ impl WorldSession {
         guid: ObjectGuid,
         flag: u32,
     ) -> Option<bool> {
+        if self.player_guid() == Some(guid) {
+            let owned = self.with_owned_player_like_cpp(|player| player.has_player_flag(flag));
+            if owned.is_some() {
+                return owned;
+            }
+            #[cfg(not(test))]
+            return None;
+            #[cfg(test)]
+            if self.player_handle_like_cpp.is_some() {
+                return None;
+            }
+        }
         let map_id = u32::from(self.player_map_id_like_cpp());
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
@@ -10545,7 +10595,78 @@ impl WorldSession {
         .is_some()
     }
 
+    fn player_world_local_state_like_cpp(&self) -> Option<wow_entities::PlayerWorldLocalState> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerWorldLocalState {
+                zone_id: self.player_zone_id_like_cpp,
+                area_id: self.player_area_id_like_cpp,
+                zone_area_authority_complete: self.player_zone_area_authority_complete_like_cpp,
+                pvp_hostile: self.player_pvp_hostile_like_cpp,
+                pvp_end_timer: self.player_pvp_end_timer_like_cpp,
+                contested_pvp_timer: self.player_contested_pvp_timer_like_cpp,
+            });
+        }
+        canonical
+    }
+
+    fn mutate_player_world_local_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerWorldLocalState) -> R,
+    ) -> Option<R> {
+        let mut mutate = Some(mutate);
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            mutate.take().expect("world-local mutation runs once")(
+                &mut player.gameplay_state_mut().world_local,
+            )
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let mut state = self
+                .player_world_local_state_like_cpp()
+                .expect("handle-less fixture world-local state");
+            let result = mutate.take().expect("world-local mutation runs once")(&mut state);
+            self.player_zone_id_like_cpp = state.zone_id;
+            self.player_area_id_like_cpp = state.area_id;
+            self.player_zone_area_authority_complete_like_cpp = state.zone_area_authority_complete;
+            self.player_pvp_hostile_like_cpp = state.pvp_hostile;
+            self.player_pvp_end_timer_like_cpp = state.pvp_end_timer;
+            self.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer;
+            return Some(result);
+        }
+        canonical
+    }
+
+    fn player_is_pvp_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
+        if self.player_guid() != Some(guid) {
+            return None;
+        }
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .pvp_flags_like_cpp()
+                .contains(UnitPvpFlags::PVP)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            if let Some(flags) = self.canonical_player_pvp_flags_like_cpp(guid) {
+                return Some(flags.contains(UnitPvpFlags::PVP));
+            }
+            return Some(self.player_pvp_enabled_like_cpp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     fn canonical_player_pvp_flags_like_cpp(&self, guid: ObjectGuid) -> Option<UnitPvpFlags> {
+        if self.player_guid() == Some(guid)
+            && let Some(flags) =
+                self.with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp())
+        {
+            return Some(flags);
+        }
         let map_id = u32::from(self.player_map_id_like_cpp());
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
@@ -10561,15 +10682,23 @@ impl WorldSession {
         result
     }
 
-    fn player_is_pvp_like_cpp(&self, guid: ObjectGuid) -> bool {
-        self.canonical_player_pvp_flags_like_cpp(guid)
-            .map(|flags| flags.contains(UnitPvpFlags::PVP))
-            .unwrap_or(self.player_pvp_enabled_like_cpp)
-    }
-
-    fn player_has_in_pvp_flag_like_cpp(&self, guid: ObjectGuid) -> bool {
-        self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_IN_PVP_LIKE_CPP)
-            .unwrap_or(self.player_in_pvp_flag_like_cpp)
+    fn player_has_in_pvp_flag_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
+        if self.player_guid() != Some(guid) {
+            return None;
+        }
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            if let Some(value) =
+                self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_IN_PVP_LIKE_CPP)
+            {
+                return Some(value);
+            }
+            return Some(self.player_in_pvp_flag_like_cpp);
+        }
+        canonical
     }
 
     fn player_war_mode_local_active_like_cpp(&self) -> bool {
@@ -10577,18 +10706,14 @@ impl WorldSession {
     }
 
     fn update_player_pvp_like_cpp(&mut self, state: bool, override_state: bool) {
-        if !state || override_state {
-            self.player_pvp_end_timer_like_cpp = None;
-            self.player_pvp_enabled_like_cpp = state;
+        let end_timer = if !state || override_state {
+            None
         } else {
-            self.player_pvp_end_timer_like_cpp = Some(wow_entities::game_time_secs_like_cpp());
-            self.player_pvp_enabled_like_cpp = state;
-        }
-
-        let Some(guid) = self.player_guid() else {
-            return;
+            Some(wow_entities::game_time_secs_like_cpp())
         };
-        let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().world_local.pvp_end_timer = end_timer;
             if state {
                 player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
             } else {
@@ -10597,6 +10722,28 @@ impl WorldSession {
                     .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
             }
         });
+        #[cfg(test)]
+        if mutated.is_none()
+            && self.player_handle_like_cpp.is_none()
+            && let Some(guid) = self.player_guid()
+        {
+            mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                player.gameplay_state_mut().world_local.pvp_end_timer = end_timer;
+                if state {
+                    player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+                } else {
+                    player
+                        .unit_mut()
+                        .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+                }
+            });
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.player_pvp_end_timer_like_cpp = end_timer;
+            self.player_pvp_enabled_like_cpp = state;
+        }
+        let _ = mutated;
     }
 
     pub(crate) fn update_pvp_flag_like_cpp(&mut self, curr_time: i64) {
@@ -10604,23 +10751,39 @@ impl WorldSession {
             return;
         };
 
-        if !self.player_is_pvp_like_cpp(guid) {
+        if self.player_is_pvp_like_cpp(guid) != Some(true) {
             return;
         }
 
-        let Some(end_timer) = self.player_pvp_end_timer_like_cpp else {
+        let Some(state) = self.player_world_local_state_like_cpp() else {
+            return;
+        };
+        let Some(end_timer) = state.pvp_end_timer else {
             return;
         };
 
-        if curr_time < end_timer.saturating_add(300) || self.player_pvp_hostile_like_cpp {
+        if curr_time < end_timer.saturating_add(300) || state.pvp_hostile {
             return;
         }
 
         if end_timer <= curr_time {
-            self.player_pvp_end_timer_like_cpp = None;
-            let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+            #[cfg_attr(not(test), allow(unused_mut))]
+            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().world_local.pvp_end_timer = None;
                 player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
             });
+            #[cfg(test)]
+            if mutated.is_none() && self.player_handle_like_cpp.is_none() {
+                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                    player.gameplay_state_mut().world_local.pvp_end_timer = None;
+                    player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                });
+            }
+            #[cfg(test)]
+            if self.player_handle_like_cpp.is_none() {
+                self.player_pvp_end_timer_like_cpp = None;
+            }
+            let _ = mutated;
         }
 
         self.update_player_pvp_like_cpp(false, false);
@@ -10631,8 +10794,10 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return;
         };
-
-        self.apply_set_pvp_like_cpp(!self.player_has_in_pvp_flag_like_cpp(guid));
+        let Some(in_pvp) = self.player_has_in_pvp_flag_like_cpp(guid) else {
+            return;
+        };
+        self.apply_set_pvp_like_cpp(!in_pvp);
     }
 
     pub(crate) fn apply_set_pvp_like_cpp(&mut self, enable_pvp: bool) {
@@ -10641,24 +10806,52 @@ impl WorldSession {
         };
 
         if enable_pvp {
-            let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+            #[cfg_attr(not(test), allow(unused_mut))]
+            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
                 player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
                 player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
             });
-            self.player_in_pvp_flag_like_cpp = true;
+            #[cfg(test)]
+            if mutated.is_none() && self.player_handle_like_cpp.is_none() {
+                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                    player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                    player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                });
+                self.player_in_pvp_flag_like_cpp = true;
+            }
+            let _ = mutated;
 
-            if !self.player_is_pvp_like_cpp(guid) || self.player_pvp_end_timer_like_cpp.is_some() {
+            if self.player_is_pvp_like_cpp(guid) == Some(false)
+                || self
+                    .player_world_local_state_like_cpp()
+                    .is_some_and(|state| state.pvp_end_timer.is_some())
+            {
                 self.update_player_pvp_like_cpp(true, true);
             }
         } else if !self.player_war_mode_local_active_like_cpp() {
-            let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+            #[cfg_attr(not(test), allow(unused_mut))]
+            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
                 player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
                 player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
             });
-            self.player_in_pvp_flag_like_cpp = false;
+            #[cfg(test)]
+            if mutated.is_none() && self.player_handle_like_cpp.is_none() {
+                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                    player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                    player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                });
+                self.player_in_pvp_flag_like_cpp = false;
+            }
+            let _ = mutated;
 
-            if !self.player_pvp_hostile_like_cpp && self.player_is_pvp_like_cpp(guid) {
-                self.player_pvp_end_timer_like_cpp = Some(wow_entities::game_time_secs_like_cpp());
+            let Some(state) = self.player_world_local_state_like_cpp() else {
+                return;
+            };
+            if !state.pvp_hostile && self.player_is_pvp_like_cpp(guid) == Some(true) {
+                let now = wow_entities::game_time_secs_like_cpp();
+                let _ = self.mutate_player_world_local_state_like_cpp(|state| {
+                    state.pvp_end_timer = Some(now);
+                });
             }
         }
 
@@ -11733,9 +11926,15 @@ impl WorldSession {
         attack_context.attacker_is_mounted_player = attacker_is_mounted_player;
         attack_context.attacker_unit_flags = self.player_unit_flags_like_cpp.bits();
         attack_context.attacker_has_affecting_player = true;
-        let attacker_pvp_flags = player_guid
-            .and_then(|guid| self.canonical_player_pvp_flags_like_cpp(guid))
-            .unwrap_or_default();
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut attacker_pvp_flags =
+            self.with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp());
+        #[cfg(test)]
+        if attacker_pvp_flags.is_none() && self.player_handle_like_cpp.is_none() {
+            attacker_pvp_flags =
+                player_guid.and_then(|guid| self.canonical_player_pvp_flags_like_cpp(guid));
+        }
+        let attacker_pvp_flags = attacker_pvp_flags.unwrap_or_default();
         attack_context.attacker_in_sanctuary = attacker_pvp_flags.contains(UnitPvpFlags::SANCTUARY);
         attack_context.attacker_is_ffa_pvp = attacker_pvp_flags.contains(UnitPvpFlags::FFA_PVP);
         attack_context.attacker_has_pvp_unk1_flag = attacker_pvp_flags.contains(UnitPvpFlags::UNK1);
@@ -12558,11 +12757,9 @@ impl WorldSession {
                             |condition| {
                                 self.represented_player_condition_context_like_cpp()
                                     .as_ref()
+                                    .and_then(|context| context.as_context(self))
                                     .is_some_and(|context| {
-                                        is_player_meeting_condition_like_cpp(
-                                            condition,
-                                            &context.as_context(self),
-                                        )
+                                        is_player_meeting_condition_like_cpp(condition, &context)
                                     })
                             },
                         )
@@ -13993,10 +14190,9 @@ impl WorldSession {
                     source_info.set_unit_target_snapshot(1, creature_unit_snapshot);
                     if let Some(store) = player_condition_store.as_ref() {
                         source_info.set_player_condition_store(store.as_ref());
-                        source_info.set_player_condition_context(
-                            0,
-                            player_condition_context.as_context(self),
-                        );
+                        if let Some(context) = player_condition_context.as_context(self) {
+                            source_info.set_player_condition_context(0, context);
+                        }
                     }
                     crate::conditions::condition_meets_basic_like_cpp(
                         condition,
@@ -14154,10 +14350,9 @@ impl WorldSession {
                         source_info.set_unit_target_snapshot(1, creature_unit_snapshot);
                         if let Some(store) = player_condition_store.as_ref() {
                             source_info.set_player_condition_store(store.as_ref());
-                            source_info.set_player_condition_context(
-                                0,
-                                player_condition_context.as_context(self),
-                            );
+                            if let Some(context) = player_condition_context.as_context(self) {
+                                source_info.set_player_condition_context(0, context);
+                            }
                         }
                         crate::conditions::condition_meets_basic_like_cpp(
                             condition,
@@ -17451,7 +17646,7 @@ impl WorldSession {
         let mut quantity = entry.quantity;
         if let Some(condition_store) = self.item_limit_category_condition_store.as_ref() {
             let context_holder = self.represented_player_condition_context_like_cpp()?;
-            let context = context_holder.as_context(self);
+            let context = context_holder.as_context(self)?;
             for condition in condition_store.conditions_for_parent_like_cpp(entry.id) {
                 let player_condition = self
                     .player_condition_store
@@ -17789,7 +17984,9 @@ impl WorldSession {
                     let Some(context) = self.represented_player_condition_context_like_cpp() else {
                         continue;
                     };
-                    if !is_player_meeting_condition_like_cpp(condition, &context.as_context(self)) {
+                    if !context.as_context(self).is_some_and(|context| {
+                        is_player_meeting_condition_like_cpp(condition, &context)
+                    }) {
                         continue;
                     }
                 }
@@ -23094,18 +23291,30 @@ impl WorldSession {
     }
 
     fn reset_contested_pvp_like_cpp(&mut self) {
-        let Some(guid) = self.player_guid() else {
-            self.player_contested_pvp_timer_like_cpp = 0;
+        let Some(_guid) = self.player_guid() else {
             return;
         };
 
-        let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
                 .clear_unit_state(UnitState::ATTACK_PLAYER.bits());
             player.remove_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+            player.gameplay_state_mut().world_local.contested_pvp_timer = 0;
         });
-        self.player_contested_pvp_timer_like_cpp = 0;
+        #[cfg(test)]
+        if mutated.is_none() && self.player_handle_like_cpp.is_none() {
+            mutated = self.mutate_canonical_player_by_guid_like_cpp(_guid, |player| {
+                player
+                    .unit_mut()
+                    .clear_unit_state(UnitState::ATTACK_PLAYER.bits());
+                player.remove_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+                player.gameplay_state_mut().world_local.contested_pvp_timer = 0;
+            });
+            self.player_contested_pvp_timer_like_cpp = 0;
+        }
+        let _ = mutated;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -27460,10 +27669,13 @@ impl WorldSession {
         }
 
         if spell_area.area_id != 0 {
-            if !self.player_zone_area_authority_complete_like_cpp {
+            let Some(world_local) = self.player_world_local_state_like_cpp() else {
+                return false;
+            };
+            if !world_local.zone_area_authority_complete {
                 return true;
             }
-            let (zone_id, area_id) = self.player_zone_area_like_cpp();
+            let (zone_id, area_id) = (world_local.zone_id, world_local.area_id);
             if spell_area.area_id != zone_id && spell_area.area_id != area_id {
                 return false;
             }
@@ -27656,8 +27868,7 @@ impl WorldSession {
     }
 
     fn represented_war_mode_update_zone_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
-            .is_some()
+        self.represented_player_flags_value_like_cpp().is_some()
             && !self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP)
     }
 
@@ -27707,10 +27918,13 @@ impl WorldSession {
     /// spells are admitted only when the effective spell projection and
     /// runtime-hook authority prove them hit-inert.
     fn represented_update_zone_script_aura_source_is_hit_inert_like_cpp(&self) -> bool {
-        if !self.player_zone_area_authority_complete_like_cpp {
+        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+            return false;
+        };
+        if !world_local.zone_area_authority_complete {
             return false;
         }
-        let (zone_id, _) = self.player_zone_area_like_cpp();
+        let zone_id = world_local.zone_id;
         let audited_source_spell_id = match zone_id {
             // OutdoorPvPNA::NA_CAPTURE_BUFF.
             3_518 => Some(33_795),
@@ -27759,13 +27973,16 @@ impl WorldSession {
     /// and 134735. The hierarchy must be complete, non-cyclic, and terminate
     /// at parent zero before Rust can prove those casts absent.
     fn represented_update_area_pvp_rule_aura_source_is_empty_like_cpp(&self) -> bool {
-        if !self.player_zone_area_authority_complete_like_cpp {
+        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+            return false;
+        };
+        if !world_local.zone_area_authority_complete {
             return false;
         }
         let Some(areas) = self.area_table_store.as_ref() else {
             return false;
         };
-        let (_, mut area_id) = self.player_zone_area_like_cpp();
+        let mut area_id = world_local.area_id;
         if area_id == 0 {
             return false;
         }
@@ -30289,7 +30506,9 @@ impl WorldSession {
         } else {
             false
         };
-        self.player_pvp_hostile_like_cpp = zone_hostile || war_mode_active;
+        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
+            state.pvp_hostile = zone_hostile || war_mode_active;
+        });
     }
 
     pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
@@ -30901,12 +31120,31 @@ impl WorldSession {
         new_area: u32,
         send_rest_update: bool,
     ) -> bool {
-        let old_area = self.player_area_id_like_cpp;
+        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+            return false;
+        };
+        let old_area = world_local.area_id;
         if old_area != new_area {
-            self.player_zone_area_authority_complete_like_cpp = false;
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.player_area_id_like_cpp = new_area;
+        if self
+            .mutate_player_world_local_state_like_cpp(|state| {
+                if old_area != new_area {
+                    state.zone_area_authority_complete = false;
+                }
+                state.area_id = new_area;
+            })
+            .is_none()
+        {
+            return false;
+        }
+        let zone_id = world_local.zone_id;
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .world_mut()
+                .set_zone_and_area(zone_id, new_area);
+        });
 
         let mut rest_changed = false;
         let area_resting = self.area_table_store.as_ref().and_then(|store| {
@@ -30976,12 +31214,31 @@ impl WorldSession {
             return false;
         }
 
-        let old_zone = self.player_zone_id_like_cpp;
+        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+            return false;
+        };
+        let old_zone = world_local.zone_id;
         if old_zone != new_zone {
-            self.player_zone_area_authority_complete_like_cpp = false;
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.player_zone_id_like_cpp = new_zone;
+        if self
+            .mutate_player_world_local_state_like_cpp(|state| {
+                if old_zone != new_zone {
+                    state.zone_area_authority_complete = false;
+                }
+                state.zone_id = new_zone;
+            })
+            .is_none()
+        {
+            return false;
+        }
+        let area_id = world_local.area_id;
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .world_mut()
+                .set_zone_and_area(new_zone, area_id);
+        });
         if self
             .mutate_player_rest_state_like_cpp(|state| {
                 state.deferred_flag_update_dirty = false;
@@ -31014,11 +31271,14 @@ impl WorldSession {
         };
 
         self.update_represented_hostile_area_state_like_cpp(&zone);
+        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+            return false;
+        };
         // C++ keeps an existing city-rest flag in a hostile, non-sanctuary
         // LinkedChat zone. It removes the flag only in the outer non-LinkedChat
         // branch; the hostile inner branch performs no RestMgr mutation.
         if zone.linked_chat_like_cpp() {
-            if !self.player_pvp_hostile_like_cpp || zone.is_sanctuary_like_cpp() {
+            if !world_local.pvp_hostile || zone.is_sanctuary_like_cpp() {
                 self.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0);
             }
         } else {
@@ -38064,7 +38324,9 @@ impl WorldSession {
         };
 
         let current_map_id = u32::from(self.player_map_id_like_cpp());
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+            return true;
+        };
         let current_map_instance_type = map_store
             .get(current_map_id)
             .map(|entry| entry.instance_type);
@@ -38583,6 +38845,9 @@ impl WorldSession {
         let previous_player_guid = self.player_guid;
         let player_changed = self.player_guid != guid;
         if player_changed {
+            let _ = self.mutate_player_world_local_state_like_cpp(|state| {
+                state.zone_area_authority_complete = false;
+            });
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.player_guid = guid;
@@ -38595,7 +38860,6 @@ impl WorldSession {
             self.visible_auras.clear();
             self.player_aura_authority_complete_like_cpp = false;
             self.player_equipment_inventory_authority_complete_like_cpp = false;
-            self.player_zone_area_authority_complete_like_cpp = false;
             self.player_spell_hit_aura_authority_tombstoned_like_cpp = false;
             #[cfg(test)]
             {
@@ -43164,7 +43428,7 @@ impl WorldSession {
             .iter()
             .map(|(&id, &value)| PlayerConditionSkillLikeCpp { id, value })
             .collect();
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let (_, area_id) = self.player_zone_area_like_cpp()?;
         let explored_zones = self.player_explored_zones_snapshot_like_cpp()?;
         let (explored_area_ids, parent_area_ids) = self
             .area_table_store
@@ -44027,7 +44291,9 @@ impl WorldSession {
         let Some(context) = self.represented_player_condition_context_like_cpp() else {
             return false;
         };
-        is_player_meeting_condition_like_cpp(condition, &context.as_context(self))
+        context
+            .as_context(self)
+            .is_some_and(|context| is_player_meeting_condition_like_cpp(condition, &context))
     }
 
     #[allow(dead_code)]
@@ -44191,7 +44457,9 @@ impl WorldSession {
 
         let map_id = u32::from(self.player_map_id_like_cpp());
         let map = self.map_store.as_ref().and_then(|store| store.get(map_id));
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let (_, area_id) = self
+            .player_zone_area_like_cpp()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
         let mount_flags = mount_restriction_flags.unwrap_or_else(|| {
             area_store
                 .get(area_id)
@@ -44294,7 +44562,9 @@ impl WorldSession {
         let player_conditions = self.player_condition_store.as_ref()?;
         let context = self.represented_player_condition_context_like_cpp()?;
         store.failed_condition_like_cpp(map_difficulty_id, player_conditions, |condition| {
-            is_player_meeting_condition_like_cpp(condition, &context.as_context(self))
+            context
+                .as_context(self)
+                .is_some_and(|context| is_player_meeting_condition_like_cpp(condition, &context))
         })
     }
 
@@ -51951,11 +52221,11 @@ impl WorldSession {
     pub(crate) fn represented_gameobject_area_id_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
-    ) -> u32 {
+    ) -> Option<u32> {
         self.represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.area_id)
-            .unwrap_or_else(|| self.player_zone_area_like_cpp().1)
+            .or_else(|| self.player_zone_area_like_cpp().map(|(_, area_id)| area_id))
     }
 
     fn represented_fishing_base_skill_level_like_cpp(
@@ -54138,7 +54408,9 @@ impl WorldSession {
             .map(|position| position.z)
             .unwrap_or(status.position.z);
         self.set_fall_information_like_cpp(0, current_z);
-        let honorless_target_cast = self.player_pvp_hostile_like_cpp;
+        let honorless_target_cast = self
+            .player_world_local_state_like_cpp()
+            .is_some_and(|state| state.pvp_hostile);
 
         self.record_move_spline_done_taxi_event_like_cpp(
             spline_id,
@@ -54263,25 +54535,109 @@ impl WorldSession {
             );
         };
 
+        let Some(world_local_before) = self.player_world_local_state_like_cpp() else {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                None,
+                None,
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                false,
+            );
+        };
+        let Some(player_guid) = self.player_guid() else {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                None,
+                None,
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                false,
+            );
+        };
+        let Some(pvp_enabled_before) = self.player_is_pvp_like_cpp(player_guid) else {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                None,
+                None,
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                false,
+            );
+        };
+        let Some(in_pvp_before) = self.player_has_in_pvp_flag_like_cpp(player_guid) else {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                None,
+                None,
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                false,
+            );
+        };
+
         self.near_teleport_pending_like_cpp = false;
-        let old_zone = self.player_zone_id_like_cpp;
+        let old_zone = world_local_before.zone_id;
         self.set_player_map_position_like_cpp(map_id, destination);
         self.update_registry_position();
         self.set_fall_information_like_cpp(0, destination.z);
 
         let (new_zone, new_area) = self
             .near_teleport_destination_zone_area_like_cpp
-            .unwrap_or((self.player_zone_id_like_cpp, self.player_area_id_like_cpp));
+            .unwrap_or((world_local_before.zone_id, world_local_before.area_id));
         self.update_zone_represented_like_cpp(new_zone, new_area);
 
         let zone_changed = old_zone != new_zone;
-        let honorless_target_cast = zone_changed && self.player_pvp_hostile_like_cpp;
-        let pvp_disabled = zone_changed
-            && !self.player_pvp_hostile_like_cpp
-            && self.player_pvp_enabled_like_cpp
-            && !self.player_in_pvp_flag_like_cpp;
+        let Some(world_local_after) = self.player_world_local_state_like_cpp() else {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                Some(map_id),
+                Some(destination),
+                Some(old_zone),
+                Some(new_zone),
+                Some(new_area),
+                false,
+                false,
+                false,
+                false,
+            );
+        };
+        let honorless_target_cast = zone_changed && world_local_after.pvp_hostile;
+        let pvp_disabled =
+            zone_changed && !world_local_after.pvp_hostile && pvp_enabled_before && !in_pvp_before;
         if pvp_disabled {
-            self.player_pvp_enabled_like_cpp = false;
+            self.update_player_pvp_like_cpp(false, true);
         }
 
         self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
@@ -54577,7 +54933,9 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_player_pvp_hostile_like_cpp(&mut self, hostile: bool) {
-        self.player_pvp_hostile_like_cpp = hostile;
+        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
+            state.pvp_hostile = hostile;
+        });
     }
 
     #[cfg(test)]
@@ -54593,24 +54951,39 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
-        if self.player_zone_area_like_cpp() != (zone_id, area_id) {
-            self.player_zone_area_authority_complete_like_cpp = false;
+        let changed = self
+            .player_zone_area_like_cpp()
+            .is_some_and(|current| current != (zone_id, area_id));
+        if changed {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.player_zone_id_like_cpp = zone_id;
-        self.player_area_id_like_cpp = area_id;
-        crate::canonical_player_sync::sync_player_zone_area_like_cpp(self, zone_id, area_id);
+        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
+            if changed {
+                state.zone_area_authority_complete = false;
+            }
+            state.zone_id = zone_id;
+            state.area_id = area_id;
+        });
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .world_mut()
+                .set_zone_and_area(zone_id, area_id);
+        });
     }
 
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
-        self.player_zone_area_authority_complete_like_cpp = complete;
+        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
+            state.zone_area_authority_complete = complete;
+        });
         if !complete {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
     }
 
-    pub(crate) fn player_zone_area_like_cpp(&self) -> (u32, u32) {
-        (self.player_zone_id_like_cpp, self.player_area_id_like_cpp)
+    pub(crate) fn player_zone_area_like_cpp(&self) -> Option<(u32, u32)> {
+        self.player_world_local_state_like_cpp()
+            .map(|state| (state.zone_id, state.area_id))
     }
 
     #[cfg(test)]
@@ -54620,9 +54993,22 @@ impl WorldSession {
         pvp_enabled: bool,
         in_pvp_flag: bool,
     ) {
-        self.player_pvp_hostile_like_cpp = hostile;
-        self.player_pvp_enabled_like_cpp = pvp_enabled;
-        self.player_in_pvp_flag_like_cpp = in_pvp_flag;
+        self.set_player_pvp_hostile_like_cpp(hostile);
+        self.update_player_pvp_like_cpp(pvp_enabled, true);
+        if let Some(guid) = self.player_guid() {
+            let _ = self.with_owned_player_mut_like_cpp(|player| {
+                if in_pvp_flag {
+                    player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                }
+            });
+            let _ = guid;
+        }
+        if self.player_handle_like_cpp.is_none() {
+            self.player_pvp_enabled_like_cpp = pvp_enabled;
+            self.player_in_pvp_flag_like_cpp = in_pvp_flag;
+        }
     }
 
     #[cfg(test)]
@@ -66188,6 +66574,7 @@ impl WorldSession {
             }
 
             if mount_type_id != 0 {
+                let current_area_id = self.player_zone_area_like_cpp()?.1;
                 let (is_submerged, is_in_water) =
                     self.represented_player_mount_liquid_state_like_cpp()?;
                 if let Err(reject_reason) = self
@@ -66205,7 +66592,7 @@ impl WorldSession {
                         mount_type_id,
                         riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
                         map_id = self.player_map_id_like_cpp(),
-                        area_id = self.player_zone_area_like_cpp().1,
+                        area_id = current_area_id,
                         is_submerged,
                         is_in_water,
                         ?reject_reason,
@@ -66221,7 +66608,7 @@ impl WorldSession {
                     mount_type_id,
                     riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
                     map_id = self.player_map_id_like_cpp(),
-                    area_id = self.player_zone_area_like_cpp().1,
+                    area_id = current_area_id,
                     is_submerged,
                     is_in_water,
                     "Represented mount cast passed C++ mount capability check"
@@ -66391,7 +66778,9 @@ impl WorldSession {
             return;
         }
 
-        let (_, current_area_id) = self.player_zone_area_like_cpp();
+        let Some((_, current_area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
         let area_id = Self::bind_area_id_like_cpp(effect.effect_misc_value_1, current_area_id);
 
         let Some(current_position) = self.player_position_like_cpp() else {
@@ -67158,7 +67547,9 @@ impl WorldSession {
         source_info.set_player_target_snapshot(1, player_snapshot);
         if let (Some(store), Some(context)) = (player_condition_store, player_condition_context) {
             source_info.set_player_condition_store(store);
-            source_info.set_player_condition_context(1, context.as_context(self));
+            if let Some(context) = context.as_context(self) {
+                source_info.set_player_condition_context(1, context);
+            }
         }
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(

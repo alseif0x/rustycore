@@ -68,7 +68,9 @@ impl crate::session::WorldSession {
                 "RUST_CEMETERY_TRACE handler entry"
             );
         }
-        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        let Some((zone_id, area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
             info!(
                 account = self.account_id,
@@ -183,7 +185,9 @@ impl crate::session::WorldSession {
             player_condition_context.as_ref(),
         ) {
             source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(0, context.as_context(self));
+            if let Some(context) = context.as_context(self) {
+                source_info.set_player_condition_context(0, context);
+            }
         }
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(

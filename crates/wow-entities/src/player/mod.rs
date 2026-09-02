@@ -577,6 +577,22 @@ pub struct PlayerTransportState {
     pub vehicle_id: Option<i32>,
 }
 
+/// C++ `Player` state updated by `UpdateZone`, `UpdateArea`, `UpdatePvPState`
+/// and `UpdateContestedPvP`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerWorldLocalState {
+    pub zone_id: u32,
+    pub area_id: u32,
+    /// Rust extraction fidelity: true only when terrain produced zone/area.
+    pub zone_area_authority_complete: bool,
+    /// C++ `Player::pvpInfo.IsHostile`.
+    pub pvp_hostile: bool,
+    /// C++ `Player::pvpInfo.EndTimer`; `None` mirrors C++ zero.
+    pub pvp_end_timer: Option<i64>,
+    /// C++ `Player::m_contestedPvPTimer`.
+    pub contested_pvp_timer: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerMailRecord {
     pub mail_id: u32,

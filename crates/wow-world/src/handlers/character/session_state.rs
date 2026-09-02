@@ -677,7 +677,7 @@ impl WorldSession {
             .map(|key| key.instance_id)
             .unwrap_or(0);
         let _ = player.set_map(u32::from(self.player_map_id_like_cpp()), instance_id);
-        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        let (zone_id, area_id) = self.player_zone_area_like_cpp()?;
         player.set_zone_and_area(zone_id, area_id);
         if let Some(position) = self.player_position_like_cpp() {
             player.relocate(position);
@@ -1910,7 +1910,10 @@ impl WorldSession {
                     %error,
                     "failed to resolve C++ terrain zone/area before InitWorldStates; using DB-seeded zone/area"
                 );
-                let (seeded_zone_id, seeded_area_id) = self.player_zone_area_like_cpp();
+                let Some((seeded_zone_id, seeded_area_id)) = self.player_zone_area_like_cpp()
+                else {
+                    return;
+                };
                 self.update_zone_represented_without_rest_update_packet_like_cpp(
                     seeded_zone_id,
                     seeded_area_id,
@@ -1923,7 +1926,10 @@ impl WorldSession {
         // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
         // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
         // values filtered by AreaIDs.
-        let (represented_zone_id, represented_area_id) = self.player_zone_area_like_cpp();
+        let Some((represented_zone_id, represented_area_id)) = self.player_zone_area_like_cpp()
+        else {
+            return;
+        };
         let world_states = self
             .load_initial_world_states_for_login_like_cpp(map_id, represented_area_id)
             .await;

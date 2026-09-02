@@ -449,7 +449,7 @@ impl WorldSession {
                 self.condition_player_snapshot_like_cpp(),
                 vendor_unit_snapshot,
                 player_condition_store.as_deref(),
-                Some(player_condition_context.as_context(self)),
+                player_condition_context.as_context(self),
             ) {
                 warn!(
                     "BuyItem: conditions not met for creature entry {} item {}",
@@ -497,7 +497,7 @@ impl WorldSession {
             if let Some(result) = vendor_buy_player_condition_block_result_like_cpp(
                 vendor_item.player_condition_id,
                 player_condition_store.as_deref(),
-                Some(player_condition_context.as_context(self)),
+                player_condition_context.as_context(self),
             ) {
                 self.send_equip_error(result, None, None, 0, 0);
                 return;
@@ -775,7 +775,7 @@ impl WorldSession {
         if let Some(result) = vendor_buy_player_condition_block_result_like_cpp(
             vendor_item.player_condition_id,
             player_condition_store.as_deref(),
-            Some(player_condition_context.as_context(self)),
+            player_condition_context.as_context(self),
         ) {
             self.send_equip_error(result, None, None, 0, 0);
             return;

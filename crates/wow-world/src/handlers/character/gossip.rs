@@ -179,7 +179,9 @@ impl WorldSession {
         source_info.set_unit_target_snapshot(1, source_unit_snapshot);
         if let Some(store) = player_condition_store.as_ref() {
             source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(0, player_condition_context.as_context(self));
+            if let Some(context) = player_condition_context.as_context(self) {
+                source_info.set_player_condition_context(0, context);
+            }
         }
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(

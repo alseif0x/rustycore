@@ -565,7 +565,9 @@ impl WorldSession {
             return;
         }
 
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
         let Some(area_table_store) = self.area_table_store() else {
             debug!(
                 account = self.account_id,

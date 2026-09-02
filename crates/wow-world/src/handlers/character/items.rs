@@ -895,7 +895,7 @@ impl WorldSession {
                             player_condition_failed: vendor_player_condition_failed_id_like_cpp(
                                 player_condition_id,
                                 player_condition_store.as_deref(),
-                                Some(player_condition_context.as_context(self)),
+                                player_condition_context.as_context(self),
                             ),
                             locked: false,
                             do_not_filter,
@@ -964,7 +964,7 @@ impl WorldSession {
                             player_snapshot,
                             vendor_unit_snapshot,
                             player_condition_store.as_deref(),
-                            Some(player_condition_context.as_context(self)),
+                            player_condition_context.as_context(self),
                         ) {
                             warn!(
                                 "Vendor item condition not met for creature entry {} item {}",
@@ -994,7 +994,7 @@ impl WorldSession {
                         player_condition_failed: vendor_player_condition_failed_id_like_cpp(
                             player_condition_id,
                             player_condition_store.as_deref(),
-                            Some(player_condition_context.as_context(self)),
+                            player_condition_context.as_context(self),
                         ),
                         locked: false,
                         do_not_filter,

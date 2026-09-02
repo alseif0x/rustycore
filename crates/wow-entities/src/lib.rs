@@ -237,7 +237,7 @@ pub use player::{
     PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
     PlayerSpellLoadState, PlayerSpellRuntimeState, PlayerStorageError, PlayerTalentRuntimeState,
     PlayerTaxiFlightNodeLikeCpp, PlayerTaxiFlightStateLikeCpp, PlayerTaxiState,
-    PlayerTransportState, PlayerValuesUpdate, PlayerWorldInsertionState,
+    PlayerTransportState, PlayerValuesUpdate, PlayerWorldInsertionState, PlayerWorldLocalState,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, REPUTATION_FLAG_AT_WAR_LIKE_CPP, RemoveArenaEnchantmentAction,
     SKILL_MAIL, SKILL_PLATE_MAIL, SendNewItemArgs, SendNewItemDelivery, SendNewItemDisplayText,

@@ -818,6 +818,26 @@ fn player_spell_hit_source_authority_requires_empty_traits_and_active_glyphs_lik
 #[test]
 fn player_spell_hit_source_authority_gates_update_zone_aura_producers_like_cpp() {
     let mut session = complete_empty_player_spell_hit_authority_fixture_like_cpp();
+    assert_eq!(
+        session.player_world_local_state_like_cpp(),
+        Some(wow_entities::PlayerWorldLocalState {
+            zone_id: 1,
+            area_id: 12,
+            zone_area_authority_complete: true,
+            ..Default::default()
+        })
+    );
+    assert_eq!(session.represented_player_flags_value_like_cpp(), Some(0));
+    assert!(!session.represented_player_has_flag_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP));
+    assert_eq!(
+        (
+            session.represented_spell_area_autocast_source_is_empty_like_cpp(),
+            session.represented_war_mode_update_zone_aura_source_is_empty_like_cpp(),
+            session.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp(),
+            session.represented_update_zone_script_aura_source_is_hit_inert_like_cpp(),
+        ),
+        (true, true, true, true),
+    );
     assert!(session.can_authorize_empty_player_spell_hit_aura_source_like_cpp());
 
     session.set_loaded_player_flags_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP);
@@ -4183,7 +4203,9 @@ fn auto_unequip_offhand_records_average_equipped_item_level_like_cpp() {
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
     assert_eq!(
         context.avg_equipped_item_level, 25.0,
         "C++ PlayerCondition uses PlayerData::AvgItemLevel[1], so the represented context must use the same equipped-average formula"
@@ -4253,7 +4275,9 @@ fn represented_condition_total_avg_item_level_uses_cpp_slot_formula_like_cpp() {
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 25.0,
@@ -4351,7 +4375,9 @@ fn represented_condition_total_avg_item_level_uses_best_represented_slot_candida
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 12.5,
@@ -4476,7 +4502,9 @@ fn represented_condition_avg_item_level_uses_runtime_item_level_like_cpp() {
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 16.25,
@@ -4576,7 +4604,9 @@ fn represented_condition_avg_item_level_applies_item_bonus_level_like_cpp() {
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 9.6875,
@@ -5382,7 +5412,9 @@ fn represented_condition_total_avg_item_level_skips_can_use_rejected_candidates_
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -5522,7 +5554,9 @@ fn represented_condition_total_avg_item_level_skips_unique_limit_candidates_like
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -5722,7 +5756,9 @@ fn represented_condition_total_avg_item_level_skips_socketed_gem_limit_candidate
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -5901,7 +5937,9 @@ fn represented_condition_total_avg_item_level_rejects_twohand_candidate_with_off
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 12.5,
@@ -6068,7 +6106,9 @@ fn represented_condition_total_avg_item_level_counts_contained_items_for_max_cou
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -6190,7 +6230,9 @@ fn represented_condition_total_avg_item_level_uses_represented_bag_contents_like
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 13.75,
@@ -6288,7 +6330,9 @@ fn represented_condition_total_avg_item_level_uses_represented_bank_item_like_cp
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 15.0,
@@ -6410,7 +6454,9 @@ fn represented_condition_total_avg_item_level_uses_represented_bank_bag_contents
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 16.25,
@@ -6532,7 +6578,9 @@ fn represented_condition_total_avg_item_level_uses_represented_reagent_bank_cont
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 17.5,
@@ -6599,7 +6647,9 @@ fn represented_condition_total_avg_item_level_does_not_count_same_ring_twice_lik
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -14344,7 +14394,9 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     let owned = session
         .represented_player_condition_context_like_cpp()
         .expect("fixture canonical inventory owner");
-    let context = owned.as_context(&session);
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(context.race, 1);
     assert_eq!(context.class_mask, 0b10);
@@ -21714,7 +21766,7 @@ fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
         }]),
     ));
 
-    assert_eq!(session.player_zone_area_like_cpp(), (0, 0));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((0, 0)));
     assert_eq!(
         session
             .represented_mount_capability_for_type_from_session_like_cpp(7, None)
@@ -31551,6 +31603,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     )])));
     assert!(session.set_player_pet_guid_like_cpp(Some(pet_guid)));
     assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x10), Some(1001)));
+    session.set_player_zone_area_like_cpp(100, 101);
+    session.set_player_zone_area_authority_complete_like_cpp(true);
+    session.set_player_pvp_state_like_cpp(true, true, true);
     assert!(
         session
             .mutate_player_mount_vehicle_kit_like_cpp(|kit| {
@@ -31577,9 +31632,15 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     );
     assert_eq!(
         session.resolved_player_flags_for_create_like_cpp(),
-        Some((0x10, 0x20))
+        Some((0x210, 0x20))
     );
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(42));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((100, 101)));
+    assert_eq!(session.player_is_pvp_like_cpp(player_guid), Some(true));
+    assert_eq!(
+        session.player_has_in_pvp_flag_like_cpp(player_guid),
+        Some(true)
+    );
     assert_eq!(
         session
             .player_quest_gameplay_snapshot_like_cpp()
@@ -31634,6 +31695,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     )])));
     assert!(session.set_player_pet_guid_like_cpp(None));
     assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x20), Some(1002)));
+    session.set_player_zone_area_like_cpp(200, 201);
+    session.set_player_zone_area_authority_complete_like_cpp(true);
+    session.set_player_pvp_state_like_cpp(false, false, false);
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -31652,6 +31716,12 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         Some((0x30, 0x40))
     );
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(43));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 201)));
+    assert_eq!(session.player_is_pvp_like_cpp(player_guid), Some(false));
+    assert_eq!(
+        session.player_has_in_pvp_flag_like_cpp(player_guid),
+        Some(false)
+    );
 
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
@@ -31703,6 +31773,17 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     replacement.gameplay_state_mut().pet_guid = Some(pet_guid);
     replacement.gameplay_state_mut().vehicle_seat_flags = Some(0x99);
     replacement.gameplay_state_mut().vehicle_seat_id = Some(1999);
+    replacement.gameplay_state_mut().world_local = wow_entities::PlayerWorldLocalState {
+        zone_id: 900,
+        area_id: 901,
+        zone_area_authority_complete: true,
+        pvp_hostile: true,
+        pvp_end_timer: Some(123),
+        contested_pvp_timer: 456,
+    };
+    replacement
+        .unit_mut()
+        .set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
     replacement.gameplay_state_mut().mount_vehicle_kit =
         Some(represented_vehicle_kit_with_passenger_like_cpp(
             player_guid,
@@ -31726,6 +31807,20 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.player_pet_guid_state_like_cpp(), None);
     assert_eq!(session.player_vehicle_seat_state_like_cpp(), None);
     assert_eq!(session.player_mount_vehicle_kit_snapshot_like_cpp(), None);
+    assert_eq!(session.player_world_local_state_like_cpp(), None);
+    assert_eq!(session.player_zone_area_like_cpp(), None);
+    assert_eq!(session.player_is_pvp_like_cpp(player_guid), None);
+    assert_eq!(session.player_has_in_pvp_flag_like_cpp(player_guid), None);
+    session.set_near_teleport_pending_like_cpp(
+        true,
+        Some((571, Position::new(1.0, 2.0, 3.0, 0.0))),
+        Some((1, 2)),
+    );
+    assert_eq!(
+        session.handle_move_teleport_ack_like_cpp(player_guid, 1, 2),
+        MoveTeleportAckActionLikeCpp::MissingPlayerOwner
+    );
+    assert!(session.near_teleport_pending_like_cpp());
     session.set_loaded_player_flags_like_cpp(0xdead);
     session.set_loaded_player_flags_ex_like_cpp(0xbeef);
     session.set_watched_faction_index_like_cpp(5);
@@ -31736,6 +31831,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert!(!session.set_player_currencies_like_cpp(HashMap::new()));
     assert!(!session.set_player_pet_guid_like_cpp(None));
     assert!(!session.set_player_vehicle_seat_state_like_cpp(None, None));
+    session.set_player_zone_area_like_cpp(0xdead, 0xbeef);
+    session.set_player_zone_area_authority_complete_like_cpp(false);
+    session.set_player_pvp_state_like_cpp(false, false, true);
     assert!(
         session
             .mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None)
@@ -31803,6 +31901,26 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                     flags: 9,
                 },
             )]),
+        ))
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().world_local,
+                player.unit().pvp_flags_like_cpp(),
+            )),
+        Some((
+            wow_entities::PlayerWorldLocalState {
+                zone_id: 900,
+                area_id: 901,
+                zone_area_authority_complete: true,
+                pvp_hostile: true,
+                pvp_end_timer: Some(123),
+                contested_pvp_timer: 456,
+            },
+            UnitPvpFlags::PVP,
         ))
     );
     assert_eq!(
@@ -53511,8 +53629,11 @@ fn player_attack_accepts_typed_player_victim_with_pvp_flag_snapshot_like_cpp() {
         assert_eq!(attacker_entity.unit().data().target, victim);
         assert!(victim_entity.unit().has_attacker_like_cpp(attacker));
     }
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -57222,7 +57343,7 @@ fn update_area_records_enter_leave_area_criteria_like_cpp() {
     session.set_player_zone_area_like_cpp(10, 100);
 
     assert!(session.update_area_represented_like_cpp(101));
-    assert_eq!(session.player_zone_area_like_cpp(), (10, 101));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((10, 101)));
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[
@@ -57307,7 +57428,7 @@ fn update_zone_records_area_then_top_level_criteria_like_cpp() {
     ])));
 
     assert!(session.update_zone_represented_like_cpp(20, 101));
-    assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((20, 101)));
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[
@@ -57653,7 +57774,7 @@ fn update_zone_missing_zone_keeps_area_criteria_but_skips_top_level_like_cpp() {
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
 
     assert!(session.update_zone_represented_like_cpp(20, 101));
-    assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((20, 101)));
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[

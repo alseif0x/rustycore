@@ -279,8 +279,9 @@ impl WorldSession {
                 source_info.set_player_target_snapshot(0, player_snapshot);
                 if let Some(store) = player_condition_store {
                     source_info.set_player_condition_store(store.as_ref());
-                    source_info
-                        .set_player_condition_context(0, player_condition_context.as_context(self));
+                    if let Some(context) = player_condition_context.as_context(self) {
+                        source_info.set_player_condition_context(0, context);
+                    }
                 }
                 match conditions::condition_meets_basic_like_cpp(
                     condition,

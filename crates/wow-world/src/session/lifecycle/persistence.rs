@@ -145,7 +145,7 @@ impl WorldSession {
                 orientation: snapshot.position.orientation,
                 map_id: snapshot.map_id,
                 instance_id: snapshot.instance_id,
-                zone_id: self.player_zone_id_like_cpp as u16,
+                zone_id: self.player_zone_area_like_cpp()?.0 as u16,
             },
             level: self.player_level_like_cpp(),
             xp: self.resolved_player_xp_like_cpp()?,

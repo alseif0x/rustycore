@@ -263,7 +263,7 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         .handle_world_port_response(WorldPacket::new_empty())
         .await;
 
-    assert_eq!(session.player_zone_area_like_cpp(), (200, 300));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
     assert!(
         !session.represented_is_resting_like_cpp(),
         "C++ HandleMoveWorldportAck calls UpdateZone in SendInitialPacketsAfterAddToMap before later rest-state saves observe flags"

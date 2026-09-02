@@ -2356,7 +2356,9 @@ impl WorldSession {
         };
 
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+            return true;
+        };
         let map_instance_type = self
             .map_store()
             .and_then(|store| store.get(map_id))

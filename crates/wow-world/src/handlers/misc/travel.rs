@@ -116,7 +116,9 @@ impl crate::session::WorldSession {
             return;
         };
         let map_id = self.player_map_id_like_cpp();
-        let (zone_id, _area_id) = self.player_zone_area_like_cpp();
+        let Some((zone_id, _area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
         let gender = self.player_gender_like_cpp();
@@ -394,7 +396,9 @@ impl crate::session::WorldSession {
         )
         .await;
 
-        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        let Some((zone_id, area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
         info!(
             account = self.account_id,
             map = new_map,

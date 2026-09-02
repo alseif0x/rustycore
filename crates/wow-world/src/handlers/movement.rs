@@ -414,12 +414,16 @@ impl WorldSession {
                         self.update_zone_represented_like_cpp(zone_id, area_id);
                         area_id
                     } else {
-                        let (_, current_area_id) = self.player_zone_area_like_cpp();
+                        let Some((_, current_area_id)) = self.player_zone_area_like_cpp() else {
+                            return;
+                        };
                         current_area_id
                     }
                 }
                 Err(error) => {
-                    let (_, area_id) = self.player_zone_area_like_cpp();
+                    let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+                        return;
+                    };
                     warn!(
                         account = self.account_id,
                         map_id = self.player_map_id_like_cpp(),
@@ -1755,7 +1759,7 @@ mod tests {
         assert!(!session.near_teleport_pending_like_cpp());
         assert_eq!(session.player_position_like_cpp(), Some(destination));
         assert_eq!(session.fall_information_like_cpp(), (0, 14.0));
-        assert_eq!(session.player_zone_area_like_cpp(), (20, 21));
+        assert_eq!(session.player_zone_area_like_cpp(), Some((20, 21)));
         assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
         assert_eq!(session.delayed_operations_processed_like_cpp(), 1);
 
@@ -2519,7 +2523,7 @@ mod tests {
 
         assert_eq!(
             session.player_zone_area_like_cpp(),
-            (1637, 5170),
+            Some((1637, 5170)),
             "C++ Player::Update uses terrain GetZoneAndAreaId, so cemetery requests after movement must use the Orgrimmar zone, not stale DB zone"
         );
     }
