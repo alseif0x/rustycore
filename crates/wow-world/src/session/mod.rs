@@ -6095,8 +6095,10 @@ pub struct WorldSession {
     #[cfg(test)]
     player_emote_state_like_cpp: u32,
     /// Count of C++ temporary pet unsummon side effects requested by movement.
+    #[cfg(test)]
     temporary_pet_unsummon_requests_like_cpp: u32,
     /// Count of C++ jump proc side effects requested by movement.
+    #[cfg(test)]
     movement_jump_proc_requests_like_cpp: u32,
     /// Represented `ActivePlayerData::LocalFlags`.
     #[cfg(test)]
@@ -6263,18 +6265,25 @@ pub struct WorldSession {
     /// C++ `Player::m_temporaryPetReactState` saved by `DisablePetControlsOnMount`.
     temporary_mount_pet_react_state_like_cpp: Option<u8>,
     /// Count of C++ `CreateVehicleKit` mount side effects represented until Vehicle runtime sends packets.
+    #[cfg(test)]
     mount_vehicle_create_requests_like_cpp: u32,
     /// Count of C++ `RemoveVehicleKit` mount side effects represented until Vehicle runtime sends packets.
+    #[cfg(test)]
     mount_vehicle_remove_requests_like_cpp: u32,
     /// Count of C++ `SendOnCancelExpectedVehicleRideAura` packets emitted after vehicle-kit creation.
+    #[cfg(test)]
     mount_cancel_expected_vehicle_aura_packets_like_cpp: u32,
     /// Count of C++ `DisablePetControlsOnMount` side effects represented until pet runtime is canonical.
+    #[cfg(test)]
     mount_pet_control_disable_requests_like_cpp: u32,
     /// Count of C++ `EnablePetControlsOnDismount` side effects represented until pet runtime is canonical.
+    #[cfg(test)]
     mount_pet_control_enable_requests_like_cpp: u32,
     /// Count of C++ mount/dismount pet resummon calls represented until pet runtime is canonical.
+    #[cfg(test)]
     mount_pet_resummon_requests_like_cpp: u32,
     /// Count of C++ mount collision-height updates represented until movement packets are canonical.
+    #[cfg(test)]
     mount_collision_height_update_requests_like_cpp: u32,
     /// C++ `Unit::m_movementCounter`: one per-player counter shared by ALL movement-control
     /// packets (vehicle-rec, collision height, near-teleport, speed/flag changes) and read
@@ -6373,8 +6382,10 @@ pub struct WorldSession {
     #[cfg(test)]
     move_teleport_ack_events_like_cpp: Vec<MoveTeleportAckEventLikeCpp>,
     /// Count of C++ `ResummonPetTemporaryUnSummonedIfAny` calls after near teleport ACK.
+    #[cfg(test)]
     temporary_pet_resummon_requests_like_cpp: u32,
     /// Count of C++ `ProcessDelayedOperations` calls after successful near teleport ACK.
+    #[cfg(test)]
     delayed_operations_processed_like_cpp: u32,
     /// C++ `Player::m_forced_speed_changes[MAX_MOVE_TYPE]` represented state.
     forced_speed_changes_like_cpp: [u8; UnitMoveTypeLikeCpp::COUNT],
@@ -6383,6 +6394,7 @@ pub struct WorldSession {
     /// C++ `Player::GetPet()->SetSpeedRate` propagation represented until pet Unit runtime owns it.
     represented_pet_movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
     /// Count of represented player speed changes propagated to the active pet.
+    #[cfg(test)]
     represented_pet_speed_propagations_like_cpp: u32,
     /// Represented transport guard for speed ACK anticheat; C++ skips speed mismatch while on transport.
     #[cfg(test)]
@@ -6463,9 +6475,12 @@ pub struct WorldSession {
     represented_cinematic_like_cpp: Option<u32>,
     represented_cinematic_camera_ids_like_cpp: Option<[u16; 8]>,
     represented_cinematic_camera_index_like_cpp: i32,
+    #[cfg(test)]
     represented_cinematic_next_camera_events_like_cpp: Vec<u16>,
+    #[cfg(test)]
     represented_cinematic_end_events_like_cpp: Vec<u32>,
     represented_movie_like_cpp: Option<u32>,
+    #[cfg(test)]
     represented_movie_complete_events_like_cpp: Vec<u32>,
     represented_support_enabled_like_cpp: bool,
     represented_support_tickets_enabled_like_cpp: bool,
@@ -8249,7 +8264,9 @@ impl WorldSession {
             represented_live_applications_like_cpp: Vec::new(),
             #[cfg(test)]
             player_emote_state_like_cpp: 0,
+            #[cfg(test)]
             temporary_pet_unsummon_requests_like_cpp: 0,
+            #[cfg(test)]
             movement_jump_proc_requests_like_cpp: 0,
             #[cfg(test)]
             active_player_local_flags_like_cpp: 0,
@@ -8337,12 +8354,19 @@ impl WorldSession {
             represented_pet_command_state_like_cpp:
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
             temporary_mount_pet_react_state_like_cpp: None,
+            #[cfg(test)]
             mount_vehicle_create_requests_like_cpp: 0,
+            #[cfg(test)]
             mount_vehicle_remove_requests_like_cpp: 0,
+            #[cfg(test)]
             mount_cancel_expected_vehicle_aura_packets_like_cpp: 0,
+            #[cfg(test)]
             mount_pet_control_disable_requests_like_cpp: 0,
+            #[cfg(test)]
             mount_pet_control_enable_requests_like_cpp: 0,
+            #[cfg(test)]
             mount_pet_resummon_requests_like_cpp: 0,
+            #[cfg(test)]
             mount_collision_height_update_requests_like_cpp: 0,
             movement_counter_like_cpp: 0,
             #[cfg(test)]
@@ -8394,11 +8418,14 @@ impl WorldSession {
             represented_death_timer_active_like_cpp: false,
             #[cfg(test)]
             move_teleport_ack_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             temporary_pet_resummon_requests_like_cpp: 0,
+            #[cfg(test)]
             delayed_operations_processed_like_cpp: 0,
             forced_speed_changes_like_cpp: [0; UnitMoveTypeLikeCpp::COUNT],
             movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
             represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
+            #[cfg(test)]
             represented_pet_speed_propagations_like_cpp: 0,
             #[cfg(test)]
             player_on_transport_like_cpp: false,
@@ -8459,9 +8486,12 @@ impl WorldSession {
             represented_cinematic_like_cpp: None,
             represented_cinematic_camera_ids_like_cpp: None,
             represented_cinematic_camera_index_like_cpp: -1,
+            #[cfg(test)]
             represented_cinematic_next_camera_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_cinematic_end_events_like_cpp: Vec::new(),
             represented_movie_like_cpp: None,
+            #[cfg(test)]
             represented_movie_complete_events_like_cpp: Vec::new(),
             represented_support_enabled_like_cpp: true,
             represented_support_tickets_enabled_like_cpp: false,
@@ -29183,6 +29213,9 @@ impl WorldSession {
 
     pub(crate) fn complete_represented_cinematic_like_cpp(&mut self) {
         if let Some(cinematic_id) = self.represented_cinematic_like_cpp.take() {
+            #[cfg(not(test))]
+            let _ = cinematic_id;
+            #[cfg(test)]
             self.represented_cinematic_end_events_like_cpp
                 .push(cinematic_id);
         }
@@ -29214,12 +29247,16 @@ impl WorldSession {
         if camera_id == 0 {
             return;
         }
+        #[cfg(test)]
         self.represented_cinematic_next_camera_events_like_cpp
             .push(camera_id);
     }
 
     pub(crate) fn complete_represented_movie_like_cpp(&mut self) {
         if let Some(movie_id) = self.represented_movie_like_cpp.take() {
+            #[cfg(not(test))]
+            let _ = movie_id;
+            #[cfg(test)]
             self.represented_movie_complete_events_like_cpp
                 .push(movie_id);
         }
@@ -36473,22 +36510,31 @@ impl WorldSession {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.visible_auras.insert(slot, aura);
         if self.create_player_mount_vehicle_kit_like_cpp(vehicle_id, creature_entry) {
-            self.mount_vehicle_create_requests_like_cpp = self
-                .mount_vehicle_create_requests_like_cpp
-                .saturating_add(1);
+            #[cfg(test)]
+            {
+                self.mount_vehicle_create_requests_like_cpp = self
+                    .mount_vehicle_create_requests_like_cpp
+                    .saturating_add(1);
+            }
             self.send_set_vehicle_rec_id_like_cpp(vehicle_id);
             self.send_on_cancel_expected_vehicle_ride_aura_like_cpp();
         }
-        self.mount_pet_control_disable_requests_like_cpp = self
-            .mount_pet_control_disable_requests_like_cpp
-            .saturating_add(1);
+        #[cfg(test)]
+        {
+            self.mount_pet_control_disable_requests_like_cpp = self
+                .mount_pet_control_disable_requests_like_cpp
+                .saturating_add(1);
+        }
         self.disable_pet_controls_on_mount_like_cpp(
             wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP,
             wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
         );
-        self.mount_collision_height_update_requests_like_cpp = self
-            .mount_collision_height_update_requests_like_cpp
-            .saturating_add(1);
+        #[cfg(test)]
+        {
+            self.mount_collision_height_update_requests_like_cpp = self
+                .mount_collision_height_update_requests_like_cpp
+                .saturating_add(1);
+        }
         self.update_player_collision_height_like_cpp();
         self.send_movement_set_collision_height_like_cpp(
             wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
@@ -36880,9 +36926,12 @@ impl WorldSession {
     }
 
     fn send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut self) {
-        self.mount_cancel_expected_vehicle_aura_packets_like_cpp = self
-            .mount_cancel_expected_vehicle_aura_packets_like_cpp
-            .saturating_add(1);
+        #[cfg(test)]
+        {
+            self.mount_cancel_expected_vehicle_aura_packets_like_cpp = self
+                .mount_cancel_expected_vehicle_aura_packets_like_cpp
+                .saturating_add(1);
+        }
         self.send_packet(&wow_packet::packets::vehicle::OnCancelExpectedRideVehicleAura);
     }
 
@@ -37099,20 +37148,29 @@ impl WorldSession {
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
             if was_mounted {
                 if vehicle_id != 0 {
-                    self.mount_vehicle_remove_requests_like_cpp = self
-                        .mount_vehicle_remove_requests_like_cpp
-                        .saturating_add(1);
+                    #[cfg(test)]
+                    {
+                        self.mount_vehicle_remove_requests_like_cpp = self
+                            .mount_vehicle_remove_requests_like_cpp
+                            .saturating_add(1);
+                    }
                     self.send_set_vehicle_rec_id_like_cpp(0);
                 }
-                self.mount_pet_control_enable_requests_like_cpp = self
-                    .mount_pet_control_enable_requests_like_cpp
-                    .saturating_add(1);
+                #[cfg(test)]
+                {
+                    self.mount_pet_control_enable_requests_like_cpp = self
+                        .mount_pet_control_enable_requests_like_cpp
+                        .saturating_add(1);
+                }
                 self.enable_pet_controls_on_dismount_like_cpp();
-                self.mount_pet_resummon_requests_like_cpp =
-                    self.mount_pet_resummon_requests_like_cpp.saturating_add(1);
-                self.mount_collision_height_update_requests_like_cpp = self
-                    .mount_collision_height_update_requests_like_cpp
-                    .saturating_add(1);
+                #[cfg(test)]
+                {
+                    self.mount_pet_resummon_requests_like_cpp =
+                        self.mount_pet_resummon_requests_like_cpp.saturating_add(1);
+                    self.mount_collision_height_update_requests_like_cpp = self
+                        .mount_collision_height_update_requests_like_cpp
+                        .saturating_add(1);
+                }
                 self.update_player_collision_height_like_cpp();
                 self.send_movement_set_collision_height_like_cpp(
                     wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
@@ -45254,9 +45312,12 @@ impl WorldSession {
     }
 
     pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
-        self.temporary_pet_resummon_requests_like_cpp = self
-            .temporary_pet_resummon_requests_like_cpp
-            .saturating_add(1);
+        #[cfg(test)]
+        {
+            self.temporary_pet_resummon_requests_like_cpp = self
+                .temporary_pet_resummon_requests_like_cpp
+                .saturating_add(1);
+        }
 
         let pet_number = self.represented_temporary_unsummoned_pet_number_like_cpp;
         if pet_number == 0
@@ -46948,9 +47009,12 @@ impl WorldSession {
 
     pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        self.temporary_pet_unsummon_requests_like_cpp = self
-            .temporary_pet_unsummon_requests_like_cpp
-            .saturating_add(1);
+        #[cfg(test)]
+        {
+            self.temporary_pet_unsummon_requests_like_cpp = self
+                .temporary_pet_unsummon_requests_like_cpp
+                .saturating_add(1);
+        }
     }
 
     #[cfg(test)]
@@ -46959,8 +47023,11 @@ impl WorldSession {
     }
 
     pub(crate) fn request_jump_proc_like_cpp(&mut self) {
-        self.movement_jump_proc_requests_like_cpp =
-            self.movement_jump_proc_requests_like_cpp.saturating_add(1);
+        #[cfg(test)]
+        {
+            self.movement_jump_proc_requests_like_cpp =
+                self.movement_jump_proc_requests_like_cpp.saturating_add(1);
+        }
     }
 
     #[cfg(test)]
@@ -54950,8 +55017,11 @@ impl WorldSession {
 
         self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
-        self.delayed_operations_processed_like_cpp =
-            self.delayed_operations_processed_like_cpp.saturating_add(1);
+        #[cfg(test)]
+        {
+            self.delayed_operations_processed_like_cpp =
+                self.delayed_operations_processed_like_cpp.saturating_add(1);
+        }
 
         self.record_move_teleport_ack_event_like_cpp(
             mover_guid,
@@ -55885,9 +55955,12 @@ impl WorldSession {
         }
 
         self.represented_pet_movement_speed_rates_like_cpp[index] = rate;
-        self.represented_pet_speed_propagations_like_cpp = self
-            .represented_pet_speed_propagations_like_cpp
-            .saturating_add(1);
+        #[cfg(test)]
+        {
+            self.represented_pet_speed_propagations_like_cpp = self
+                .represented_pet_speed_propagations_like_cpp
+                .saturating_add(1);
+        }
         self.send_represented_pet_spline_speed_like_cpp(pet_guid, move_type, rate);
     }
 
