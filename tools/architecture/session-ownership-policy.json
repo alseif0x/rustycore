@@ -3209,8 +3209,10 @@
           "name": "represented_can_duel_spell_casts_like_cpp",
           "type": "Vec < RepresentedCanDuelSpellCastLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_can_swim_to_fly_transition_like_cpp",
@@ -3461,22 +3463,28 @@
           "name": "represented_duel_accepts_like_cpp",
           "type": "Vec < RepresentedDuelAcceptedLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_duel_arbiter_guid_like_cpp",
           "type": "Option < ObjectGuid >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_duel_cancels_like_cpp",
           "type": "Vec < RepresentedDuelCancelledLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_duel_requests_like_cpp",
@@ -4435,8 +4443,10 @@
           "name": "represented_silence_party_talker_like_cpp",
           "type": "Vec < RepresentedSilencePartyTalkerLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_spell_acquisition_post_commit_actions_like_cpp",
@@ -4635,8 +4645,10 @@
           "name": "represented_trade_cancel_statuses_like_cpp",
           "type": "Vec < u8 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_trade_client_state_index_like_cpp",
@@ -40303,6 +40315,19 @@
           "name": "resolved_represented_at_login_flags_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_represented_at_login_flags_like_cpp (& self) -> Option < u16 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_represented_duel_arbiter_guid_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_represented_duel_arbiter_guid_like_cpp (& self ,) -> Option < Option < ObjectGuid > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -76043,7 +76068,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:75353ee008d40f89b95e41cc087aa936:len=94973|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:05d7f76bc8428831fef996d3f84d6fd8:len=95204|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

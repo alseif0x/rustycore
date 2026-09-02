@@ -1368,6 +1368,7 @@ pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
     pub player_condition_id: u32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedSilencePartyTalkerLikeCpp {
     pub target: ObjectGuid,
@@ -2877,6 +2878,7 @@ fn arena_skirmish_type_like_cpp(bg_type_id: u32, bracket_id: u32) -> u8 {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
@@ -2893,6 +2895,7 @@ pub(crate) struct RepresentedDuelRequestedLikeCpp {
     pub to_the_death: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedDuelAcceptedLikeCpp {
     pub opponent_guid: ObjectGuid,
@@ -2950,11 +2953,13 @@ pub(crate) struct RepresentedLiveApplicationLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(test)]
 pub(crate) enum RepresentedDuelCancelOutcomeLikeCpp {
     Interrupted,
     Surrendered,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedDuelCancelledLikeCpp {
     pub opponent_guid: ObjectGuid,
@@ -3589,6 +3594,7 @@ const CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP: u32
 const CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP: i32 = 0x0000_0004;
 pub(crate) const SPELL_DUEL_LIKE_CPP: u32 = 7266;
 pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
+#[cfg(test)]
 pub(crate) const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;
 pub(crate) const DUEL_COUNTDOWN_MS_LIKE_CPP: u32 = 3000;
 pub type SharedCanonicalMapManager = Arc<Mutex<wow_map::MapManager>>;
@@ -5962,6 +5968,7 @@ pub struct WorldSession {
     represented_trade_spell_like_cpp: u32,
     #[cfg(test)]
     represented_trade_spell_cast_item_like_cpp: Option<ObjectGuid>,
+    #[cfg(test)]
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     #[cfg(test)]
     represented_sign_petitions_like_cpp: Vec<RepresentedSignPetitionLikeCpp>,
@@ -5969,14 +5976,21 @@ pub struct WorldSession {
     represented_decline_petitions_like_cpp: Vec<RepresentedDeclinePetitionLikeCpp>,
     #[cfg(test)]
     represented_query_petitions_like_cpp: Vec<RepresentedQueryPetitionLikeCpp>,
+    #[cfg(test)]
     represented_silence_party_talker_like_cpp: Vec<RepresentedSilencePartyTalkerLikeCpp>,
+    #[cfg(test)]
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
+    /// Handle-less compatibility for older tests. Production C++
+    /// `PlayerData::DuelArbiter` lives on the canonical Player.
+    #[cfg(test)]
     represented_duel_arbiter_guid_like_cpp: Option<ObjectGuid>,
     #[cfg(test)]
     represented_duel_requests_like_cpp: Vec<RepresentedDuelRequestedLikeCpp>,
     #[cfg(test)]
     represented_force_deselects_like_cpp: Vec<RepresentedForceDeselectLikeCpp>,
+    #[cfg(test)]
     represented_duel_accepts_like_cpp: Vec<RepresentedDuelAcceptedLikeCpp>,
+    #[cfg(test)]
     represented_duel_cancels_like_cpp: Vec<RepresentedDuelCancelledLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     #[cfg(test)]
@@ -8209,6 +8223,7 @@ impl WorldSession {
             represented_trade_spell_like_cpp: 0,
             #[cfg(test)]
             represented_trade_spell_cast_item_like_cpp: None,
+            #[cfg(test)]
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_sign_petitions_like_cpp: Vec::new(),
@@ -8216,14 +8231,19 @@ impl WorldSession {
             represented_decline_petitions_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_query_petitions_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_silence_party_talker_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_duel_arbiter_guid_like_cpp: None,
             #[cfg(test)]
             represented_duel_requests_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_force_deselects_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_duel_accepts_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_duel_cancels_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             #[cfg(test)]
@@ -48933,7 +48953,10 @@ impl WorldSession {
     }
 
     pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
+        #[cfg(test)]
         self.represented_trade_cancel_statuses_like_cpp.push(status);
+        #[cfg(not(test))]
+        let _ = status;
     }
 
     fn player_trade_state_snapshot_like_cpp(
@@ -49204,8 +49227,11 @@ impl WorldSession {
         target: ObjectGuid,
         silent: bool,
     ) {
+        #[cfg(test)]
         self.represented_silence_party_talker_like_cpp
             .push(RepresentedSilencePartyTalkerLikeCpp { target, silent });
+        #[cfg(not(test))]
+        let _ = (target, silent);
     }
 
     #[cfg(test)]
@@ -49618,6 +49644,7 @@ impl WorldSession {
             } else {
                 SPELL_DUEL_LIKE_CPP
             };
+            #[cfg(test)]
             self.represented_can_duel_spell_casts_like_cpp.push(
                 RepresentedCanDuelSpellCastLikeCpp {
                     target_guid,
@@ -49625,6 +49652,8 @@ impl WorldSession {
                     to_the_death,
                 },
             );
+            #[cfg(not(test))]
+            let _ = (spell_id, to_the_death);
         }
     }
 
@@ -49648,7 +49677,29 @@ impl WorldSession {
     }
 
     pub(crate) fn set_represented_duel_arbiter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
-        self.represented_duel_arbiter_guid_like_cpp = guid;
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_duel_arbiter_like_cpp(guid))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            self.represented_duel_arbiter_guid_like_cpp = guid;
+        }
+        #[cfg(not(test))]
+        let _ = canonical;
+    }
+
+    pub(crate) fn resolved_represented_duel_arbiter_guid_like_cpp(
+        &self,
+    ) -> Option<Option<ObjectGuid>> {
+        let canonical = self.with_owned_player_like_cpp(|player| player.duel_arbiter_like_cpp());
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_duel_arbiter_guid_like_cpp);
+        }
+        None
     }
 
     fn represented_current_duel_info_like_cpp(
@@ -49784,7 +49835,7 @@ impl WorldSession {
             player_guid,
             wow_entities::PlayerDuelStateLikeCpp::Challenged,
         );
-        self.represented_duel_arbiter_guid_like_cpp = Some(arbiter_guid);
+        self.set_represented_duel_arbiter_guid_like_cpp(Some(arbiter_guid));
 
         use wow_packet::ServerPacket;
         let packet = wow_packet::packets::misc::DuelRequested {
@@ -49818,7 +49869,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if self.represented_duel_arbiter_guid_like_cpp != Some(arbiter_guid) {
+        if self.resolved_represented_duel_arbiter_guid_like_cpp() != Some(Some(arbiter_guid)) {
             return false;
         }
 
@@ -49856,6 +49907,7 @@ impl WorldSession {
         let packet_bytes = packet.to_bytes();
         self.send_raw_packet(&packet_bytes);
         self.send_represented_duel_countdown_to_opponent_like_cpp(opponent_guid, packet_bytes);
+        #[cfg(test)]
         self.represented_duel_accepts_like_cpp
             .push(RepresentedDuelAcceptedLikeCpp {
                 opponent_guid,
@@ -49877,16 +49929,19 @@ impl WorldSession {
         }
 
         let opponent_guid = duel.opponent;
+        #[cfg(test)]
         let outcome = if duel.state == wow_entities::PlayerDuelStateLikeCpp::InProgress {
             RepresentedDuelCancelOutcomeLikeCpp::Surrendered
         } else {
             RepresentedDuelCancelOutcomeLikeCpp::Interrupted
         };
+        #[cfg(test)]
         let beg_spell_id = (outcome == RepresentedDuelCancelOutcomeLikeCpp::Surrendered)
             .then_some(SPELL_DUEL_BEG_LIKE_CPP);
 
         self.clear_represented_duel_like_cpp(player_guid);
         self.clear_represented_duel_like_cpp(opponent_guid);
+        #[cfg(test)]
         self.represented_duel_cancels_like_cpp
             .push(RepresentedDuelCancelledLikeCpp {
                 opponent_guid,

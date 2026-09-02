@@ -3701,6 +3701,7 @@ pub struct Player {
     enchant_durations: Vec<PlayerEnchantDuration>,
     lifecycle_metadata: PlayerLifecycleMetadata,
     duel: Option<PlayerDuelInfoLikeCpp>,
+    duel_arbiter: Option<ObjectGuid>,
 }
 
 impl Player {
@@ -3739,6 +3740,7 @@ impl Player {
             enchant_durations: Vec::new(),
             lifecycle_metadata: PlayerLifecycleMetadata::default(),
             duel: None,
+            duel_arbiter: None,
         }
     }
 
@@ -3926,6 +3928,14 @@ impl Player {
         self.duel = duel;
     }
 
+    pub const fn duel_arbiter_like_cpp(&self) -> Option<ObjectGuid> {
+        self.duel_arbiter
+    }
+
+    pub fn set_duel_arbiter_like_cpp(&mut self, arbiter: Option<ObjectGuid>) {
+        self.duel_arbiter = arbiter;
+    }
+
     pub fn set_duel_opponent_in_progress_like_cpp(&mut self, opponent: ObjectGuid) {
         self.duel = Some(PlayerDuelInfoLikeCpp {
             opponent,
@@ -3935,6 +3945,7 @@ impl Player {
 
     pub fn clear_duel_like_cpp(&mut self) {
         self.duel = None;
+        self.duel_arbiter = None;
     }
 
     pub fn is_dueling_opponent_in_progress_like_cpp(&self, opponent: ObjectGuid) -> bool {

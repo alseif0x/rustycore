@@ -43101,8 +43101,8 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
     assert_eq!(request.gameobject_entry, gameobject_entry as u32);
     assert!(!request.to_the_death);
     assert_eq!(
-        target_session.represented_duel_arbiter_guid_like_cpp,
-        Some(request.arbiter_guid)
+        target_session.resolved_represented_duel_arbiter_guid_like_cpp(),
+        Some(Some(request.arbiter_guid))
     );
     assert_eq!(
         session.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
