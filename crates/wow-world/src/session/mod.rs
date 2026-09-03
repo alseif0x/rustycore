@@ -4743,6 +4743,10 @@ struct RepresentedPlayerSpellRuntimeLikeCpp {
     favorite_known_spells: HashSet<i32>,
     trait_definition_ids: HashMap<i32, i32>,
     trait_definition_ids_complete: bool,
+    trait_config_rows: BTreeMap<i32, (i32, i32, i32)>,
+    trait_config_rows_complete: bool,
+    trait_entry_rows_complete: bool,
+    trait_entry_rows_empty: bool,
     override_spells: HashMap<i32, BTreeSet<i32>>,
     override_spells_complete: bool,
 }
@@ -4823,6 +4827,10 @@ fn canonical_player_spell_runtime_like_cpp(
         favorite_known_spells: runtime.favorite_known_spells.into_iter().collect(),
         trait_definition_ids: runtime.trait_definition_ids.into_iter().collect(),
         trait_definition_ids_complete: runtime.trait_definition_ids_complete,
+        trait_config_rows: runtime.trait_config_rows,
+        trait_config_rows_complete: runtime.trait_config_rows_complete,
+        trait_entry_rows_complete: runtime.trait_entry_rows_complete,
+        trait_entry_rows_empty: runtime.trait_entry_rows_empty,
         override_spells: runtime.override_spells.into_iter().collect(),
         override_spells_complete: runtime.override_spells_complete,
     }
@@ -4854,6 +4862,10 @@ fn represented_player_spell_runtime_like_cpp(
             .map(|(&spell_id, &trait_definition_id)| (spell_id, trait_definition_id))
             .collect(),
         trait_definition_ids_complete: runtime.trait_definition_ids_complete,
+        trait_config_rows: runtime.trait_config_rows.clone(),
+        trait_config_rows_complete: runtime.trait_config_rows_complete,
+        trait_entry_rows_complete: runtime.trait_entry_rows_complete,
+        trait_entry_rows_empty: runtime.trait_entry_rows_empty,
         override_spells: runtime
             .override_spells
             .iter()
@@ -6027,13 +6039,18 @@ pub struct WorldSession {
     /// narrow aura proof needs type/spec/flags independently from the derived
     /// trait-spell map because an empty entry query can still make C++ create
     /// or replace a config with condition-granted entries.
+    #[cfg(test)]
     represented_trait_config_rows_like_cpp: BTreeMap<i32, (i32, i32, i32)>,
+    #[cfg(test)]
     represented_trait_config_rows_complete_like_cpp: bool,
+    #[cfg(test)]
     represented_trait_entry_rows_complete_like_cpp: bool,
+    #[cfg(test)]
     represented_trait_entry_rows_empty_like_cpp: bool,
-    /// Ordered post-commit acquisition intents. Packet-producing intents are
-    /// also emitted immediately; criteria/quest/passive owners consume this
-    /// represented causal log until their full managers are ported.
+    /// Test-only causal trace. Production applies every represented
+    /// post-commit action immediately; retaining a second action history on
+    /// the Session would be audit state, not C++ runtime authority.
+    #[cfg(test)]
     represented_spell_acquisition_post_commit_actions_like_cpp:
         Vec<crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp>,
     /// C++ `Player::m_weaponProficiency`; `Spell::EffectProficiency` ORs into it.
@@ -8171,10 +8188,15 @@ impl WorldSession {
             represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
             #[cfg(test)]
             represented_spell_trait_definition_ids_complete_like_cpp: false,
+            #[cfg(test)]
             represented_trait_config_rows_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_trait_config_rows_complete_like_cpp: false,
+            #[cfg(test)]
             represented_trait_entry_rows_complete_like_cpp: false,
+            #[cfg(test)]
             represented_trait_entry_rows_empty_like_cpp: false,
+            #[cfg(test)]
             represented_spell_acquisition_post_commit_actions_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_weapon_proficiency_like_cpp: 0,
@@ -10276,6 +10298,11 @@ impl WorldSession {
                         .clone(),
                     trait_definition_ids_complete: self
                         .represented_spell_trait_definition_ids_complete_like_cpp,
+                    trait_config_rows: self.represented_trait_config_rows_like_cpp.clone(),
+                    trait_config_rows_complete: self
+                        .represented_trait_config_rows_complete_like_cpp,
+                    trait_entry_rows_complete: self.represented_trait_entry_rows_complete_like_cpp,
+                    trait_entry_rows_empty: self.represented_trait_entry_rows_empty_like_cpp,
                     override_spells: self.represented_override_spells_like_cpp.clone(),
                     override_spells_complete: self.represented_override_spells_complete_like_cpp,
                 },
@@ -28285,13 +28312,13 @@ impl WorldSession {
     }
 
     pub(crate) fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
-        self.represented_trait_config_rows_like_cpp.clear();
-        self.represented_trait_config_rows_complete_like_cpp = false;
-        self.represented_trait_entry_rows_complete_like_cpp = false;
-        self.represented_trait_entry_rows_empty_like_cpp = false;
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.trait_definition_ids.clear();
             runtime.trait_definition_ids_complete = false;
+            runtime.trait_config_rows.clear();
+            runtime.trait_config_rows_complete = false;
+            runtime.trait_entry_rows_complete = false;
+            runtime.trait_entry_rows_empty = false;
         });
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
@@ -28314,11 +28341,13 @@ impl WorldSession {
             }
         }
 
-        self.represented_trait_config_rows_like_cpp = exact_configs;
-        self.represented_trait_config_rows_complete_like_cpp = true;
-        self.represented_trait_entry_rows_complete_like_cpp = true;
-        self.represented_trait_entry_rows_empty_like_cpp = entries_empty;
-        true
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.trait_config_rows = exact_configs;
+            runtime.trait_config_rows_complete = true;
+            runtime.trait_entry_rows_complete = true;
+            runtime.trait_entry_rows_empty = entries_empty;
+        })
+        .is_some()
     }
 
     fn player_spell_hit_source_identity_complete_like_cpp(&self) -> bool {
@@ -28662,9 +28691,12 @@ impl WorldSession {
     /// empty. `ValidateConfig` accepts those empty configs, so C++ neither
     /// replaces them with granted entries nor creates a missing config.
     fn represented_trait_config_aura_source_is_empty_like_cpp(&self) -> bool {
-        if !self.represented_trait_config_rows_complete_like_cpp
-            || !self.represented_trait_entry_rows_complete_like_cpp
-            || !self.represented_trait_entry_rows_empty_like_cpp
+        let Some(runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+            return false;
+        };
+        if !runtime.trait_config_rows_complete
+            || !runtime.trait_entry_rows_complete
+            || !runtime.trait_entry_rows_empty
         {
             return false;
         }
@@ -28687,12 +28719,10 @@ impl WorldSession {
             }
         }
 
-        if self.represented_trait_config_rows_like_cpp.len() != expected_specs.len() {
+        if runtime.trait_config_rows.len() != expected_specs.len() {
             return false;
         }
-        for &(config_type, specialization_id, combat_flags) in
-            self.represented_trait_config_rows_like_cpp.values()
-        {
+        for &(config_type, specialization_id, combat_flags) in runtime.trait_config_rows.values() {
             const TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP: i32 = 1;
             const TRAIT_COMBAT_CONFIG_ACTIVE_FOR_SPEC_LIKE_CPP: i32 = 0x1;
             if config_type != TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP
@@ -31947,11 +31977,11 @@ impl WorldSession {
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.override_spells.clear();
             runtime.trait_definition_ids.clear();
+            runtime.trait_config_rows.clear();
+            runtime.trait_config_rows_complete = false;
+            runtime.trait_entry_rows_complete = false;
+            runtime.trait_entry_rows_empty = false;
         });
-        self.represented_trait_config_rows_like_cpp.clear();
-        self.represented_trait_config_rows_complete_like_cpp = false;
-        self.represented_trait_entry_rows_complete_like_cpp = false;
-        self.represented_trait_entry_rows_empty_like_cpp = false;
         self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
     }
 
@@ -40029,10 +40059,12 @@ impl WorldSession {
                 self.represented_guild_id_like_cpp = 0;
                 self.represented_guild_id_authority_complete_like_cpp = false;
             }
-            self.represented_trait_config_rows_like_cpp.clear();
-            self.represented_trait_config_rows_complete_like_cpp = false;
-            self.represented_trait_entry_rows_complete_like_cpp = false;
-            self.represented_trait_entry_rows_empty_like_cpp = false;
+            let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+                runtime.trait_config_rows.clear();
+                runtime.trait_config_rows_complete = false;
+                runtime.trait_entry_rows_complete = false;
+                runtime.trait_entry_rows_empty = false;
+            });
             let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
                 state.character_rows_empty_authority_complete = false;
             });
@@ -40041,6 +40073,7 @@ impl WorldSession {
             // logout, so no player-menu state may cross that lifetime here.
             self.reset_player_interaction_data_like_cpp();
             self.clear_player_gossip_options_like_cpp();
+            #[cfg(test)]
             self.represented_spell_acquisition_post_commit_actions_like_cpp
                 .clear();
             if previous_player_guid.is_some() {
@@ -44314,21 +44347,24 @@ impl WorldSession {
             .collect();
 
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let fallback_rows = self
-            .player_spell_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.fallback_rows)
-            .unwrap_or_default();
+        let Some(existing_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+            return false;
+        };
         if !self.replace_player_spell_runtime_like_cpp(RepresentedPlayerSpellRuntimeLikeCpp {
             known_spells: known_spells.clone(),
             rows: exact_spells,
             rows_loaded: true,
             rows_complete: true,
-            fallback_rows,
+            fallback_rows: existing_runtime.fallback_rows,
             dependent_known_spells: dependent_spells,
             removed_known_spells: removed_spells,
             favorite_known_spells: favorite_spells,
             trait_definition_ids: exact_traits,
             trait_definition_ids_complete: true,
+            trait_config_rows: existing_runtime.trait_config_rows,
+            trait_config_rows_complete: existing_runtime.trait_config_rows_complete,
+            trait_entry_rows_complete: existing_runtime.trait_entry_rows_complete,
+            trait_entry_rows_empty: existing_runtime.trait_entry_rows_empty,
             override_spells: exact_overrides,
             override_spells_complete: true,
         }) {
@@ -44366,11 +44402,15 @@ impl WorldSession {
         &mut self,
         action: crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp,
     ) {
+        #[cfg(test)]
         self.represented_spell_acquisition_post_commit_actions_like_cpp
             .push(action);
+        #[cfg(not(test))]
+        let _ = action;
     }
 
     pub(crate) fn begin_spell_acquisition_post_commit_action_batch_like_cpp(&mut self) {
+        #[cfg(test)]
         self.represented_spell_acquisition_post_commit_actions_like_cpp
             .clear();
     }
@@ -44771,6 +44811,10 @@ impl WorldSession {
                 trait_definition_ids: self.represented_spell_trait_definition_ids_like_cpp.clone(),
                 trait_definition_ids_complete: self
                     .represented_spell_trait_definition_ids_complete_like_cpp,
+                trait_config_rows: self.represented_trait_config_rows_like_cpp.clone(),
+                trait_config_rows_complete: self.represented_trait_config_rows_complete_like_cpp,
+                trait_entry_rows_complete: self.represented_trait_entry_rows_complete_like_cpp,
+                trait_entry_rows_empty: self.represented_trait_entry_rows_empty_like_cpp,
                 override_spells: self.represented_override_spells_like_cpp.clone(),
                 override_spells_complete: self.represented_override_spells_complete_like_cpp,
             });
@@ -44801,6 +44845,11 @@ impl WorldSession {
             self.represented_spell_trait_definition_ids_like_cpp = runtime.trait_definition_ids;
             self.represented_spell_trait_definition_ids_complete_like_cpp =
                 runtime.trait_definition_ids_complete;
+            self.represented_trait_config_rows_like_cpp = runtime.trait_config_rows;
+            self.represented_trait_config_rows_complete_like_cpp =
+                runtime.trait_config_rows_complete;
+            self.represented_trait_entry_rows_complete_like_cpp = runtime.trait_entry_rows_complete;
+            self.represented_trait_entry_rows_empty_like_cpp = runtime.trait_entry_rows_empty;
             self.represented_override_spells_like_cpp = runtime.override_spells;
             self.represented_override_spells_complete_like_cpp = runtime.override_spells_complete;
             return true;

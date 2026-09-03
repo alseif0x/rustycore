@@ -506,6 +506,14 @@ pub struct PlayerSpellRuntimeState {
     pub favorite_known_spells: BTreeSet<i32>,
     pub trait_definition_ids: BTreeMap<i32, i32>,
     pub trait_definition_ids_complete: bool,
+    /// Exact C++ `TraitConfig` headers loaded for this Player, keyed by
+    /// config ID. Completeness is explicit because an authoritative empty
+    /// entry result is materially different from an owner that was not
+    /// resolved during login.
+    pub trait_config_rows: BTreeMap<i32, (i32, i32, i32)>,
+    pub trait_config_rows_complete: bool,
+    pub trait_entry_rows_complete: bool,
+    pub trait_entry_rows_empty: bool,
     pub override_spells: BTreeMap<i32, BTreeSet<i32>>,
     pub override_spells_complete: bool,
 }

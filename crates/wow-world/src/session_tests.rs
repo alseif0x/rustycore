@@ -34323,6 +34323,84 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
 }
 
 #[test]
+fn canonical_player_trait_config_authority_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_571);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TraitConfigOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session.complete_represented_trait_config_authority_load_like_cpp(
+            [(1, 1, 71, 1), (2, 1, 72, 1), (3, 1, 73, 1)],
+            true,
+        )
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    let detached = session
+        .player_spell_runtime_snapshot_like_cpp()
+        .expect("detached canonical trait-config owner");
+    assert!(detached.trait_config_rows_complete);
+    assert!(detached.trait_entry_rows_complete);
+    assert!(detached.trait_entry_rows_empty);
+    assert_eq!(detached.trait_config_rows.len(), 3);
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(session.player_spell_runtime_snapshot_like_cpp().is_none());
+    assert!(
+        !session.complete_represented_trait_config_authority_load_like_cpp(
+            [(9, 1, 71, 1), (10, 1, 72, 1), (11, 1, 73, 1)],
+            true,
+        ),
+        "a stale Session generation must not publish trait authority"
+    );
+    let replacement_runtime = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(replacement_handle, |player| {
+            player.spell_runtime_like_cpp().clone()
+        })
+        .expect("replacement spell owner");
+    assert!(replacement_runtime.trait_config_rows.is_empty());
+    assert!(!replacement_runtime.trait_config_rows_complete);
+    assert!(!replacement_runtime.trait_entry_rows_complete);
+    assert!(!replacement_runtime.trait_entry_rows_empty);
+}
+
+#[test]
 fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
