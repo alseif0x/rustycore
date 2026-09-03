@@ -21,6 +21,11 @@ Logs/
 # ...but committed capture-diff golden fixtures (PKT 3.1) must be tracked.
 !crates/capture-diff/flows/**/*.pkt
 
+# Github Page
+docs/wiki/.vitepress/cache/
+docs/wiki/.vitepress/dist/
+docs/wiki/node_modules/
+
 # Local DB config
 /my.cnf
 
@@ -42,7 +47,6 @@ Thumbs.db
 .trae/
 memory/
 skills/
-wiki/
 skills-lock.json
 
 # Repository-scoped agent skills shared by the RustyCore team. Keep this as an
