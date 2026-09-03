@@ -266,11 +266,27 @@ impl WorldSession {
                 .bank_bag_slot_prices_store
                 .clone()
                 .unwrap_or(empty_catalogs.bank_bag_slot_prices),
+            adventure_map_pois: self
+                .adventure_map_poi_store
+                .clone()
+                .unwrap_or(empty_catalogs.adventure_map_pois),
+            battlemaster_lists: self
+                .battlemaster_list_store
+                .clone()
+                .unwrap_or(empty_catalogs.battlemaster_lists),
             emotes: self.emotes_store.clone().unwrap_or(empty_catalogs.emotes),
             emotes_text: self
                 .emotes_text_store
                 .clone()
                 .unwrap_or(empty_catalogs.emotes_text),
+            graveyards: self
+                .graveyard_store
+                .clone()
+                .unwrap_or(empty_catalogs.graveyards),
+            lfg_dungeons: self
+                .lfg_dungeon_store_like_cpp
+                .clone()
+                .unwrap_or(empty_catalogs.lfg_dungeons),
             tact_keys: self
                 .tact_key_store
                 .clone()

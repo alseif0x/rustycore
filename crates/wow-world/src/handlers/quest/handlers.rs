@@ -14,8 +14,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_adventure_map_start_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_adventure_map_start_quest(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_adventure_map_start_quest_with_catalog_like_cpp(
+                        catalogs.adventure_map_pois.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -233,7 +240,11 @@ impl WorldSession {
     ///
     /// Rust keeps the same silent-return gates and records the accepted request until
     /// Adventure Map quest starts can call the same live AddQuestAndCheckCompletion path.
-    pub async fn handle_adventure_map_start_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_adventure_map_start_quest_with_catalog_like_cpp(
+        &mut self,
+        adventure_map_poi_store: &wow_data::AdventureMapPoiStore,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match AdventureMapStartQuest::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -249,9 +260,6 @@ impl WorldSession {
             return;
         };
         let Some(quest) = quest_store.get(quest_id) else {
-            return;
-        };
-        let Some(adventure_map_poi_store) = self.adventure_map_poi_store().cloned() else {
             return;
         };
         let Some(poi) = adventure_map_poi_store.find_start_quest_poi_like_cpp(quest_id, |id| {
@@ -271,6 +279,15 @@ impl WorldSession {
                 player_condition_id: poi.player_condition_id,
             },
         );
+    }
+
+    #[cfg(test)]
+    pub async fn handle_adventure_map_start_quest(&mut self, pkt: wow_packet::WorldPacket) {
+        let store = self.adventure_map_poi_store().cloned().unwrap_or_else(|| {
+            std::sync::Arc::new(wow_data::AdventureMapPoiStore::from_entries([]))
+        });
+        self.handle_adventure_map_start_quest_with_catalog_like_cpp(store.as_ref(), pkt)
+            .await;
     }
 
     /// CMSG_QUEST_GIVER_STATUS_QUERY — returns the quest status icon for an NPC.

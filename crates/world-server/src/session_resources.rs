@@ -176,7 +176,6 @@ impl SessionInventoryCapabilitiesLikeCpp {
 pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) condition_store: Arc<wow_data::ConditionEntriesByTypeStore>,
     pub(super) player_condition_store: Arc<wow_data::PlayerConditionStore>,
-    pub(super) adventure_map_poi_store: Arc<wow_data::AdventureMapPoiStore>,
     pub(super) content_tuning_store: Arc<wow_data::progression_rewards::ContentTuningStore>,
     pub(super) curve_store: Arc<wow_data::progression_rewards::CurveStore>,
     pub(super) curve_point_store: Arc<wow_data::progression_rewards::CurvePointStore>,
@@ -262,7 +261,6 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) area_trigger_store: Arc<wow_data::AreaTriggerStore>,
     pub(super) area_trigger_script_store: Arc<wow_data::AreaTriggerScriptStoreLikeCpp>,
     pub(super) tavern_area_trigger_store: Arc<wow_data::TavernAreaTriggerStoreLikeCpp>,
-    pub(super) graveyard_store: Arc<wow_data::GraveyardStore>,
     pub(super) area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     pub(super) chr_specialization_store: Arc<wow_data::ChrSpecializationStore>,
     pub(super) dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>,
@@ -272,8 +270,6 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) map_difficulty_x_condition_store: Arc<wow_data::MapDifficultyXConditionStore>,
     pub(super) access_requirement_store: Arc<wow_data::AccessRequirementStoreLikeCpp>,
     pub(super) lfg_dungeons_store: Arc<wow_data::LfgDungeonsStore>,
-    pub(super) lfg_dungeon_store_like_cpp: Arc<wow_data::LfgDungeonStoreLikeCpp>,
-    pub(super) battlemaster_list_store: Arc<wow_data::BattlemasterListStore>,
     pub(super) creature_template_lifecycle_store:
         Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
     pub(super) creature_template_mount_store: Arc<wow_data::CreatureTemplateMountStoreLikeCpp>,
@@ -472,7 +468,6 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
         session.set_condition_store(Arc::clone(&self.condition_store));
         session.set_player_condition_store(Arc::clone(&self.player_condition_store));
-        session.set_adventure_map_poi_store(Arc::clone(&self.adventure_map_poi_store));
         session.set_content_tuning_store(Arc::clone(&self.content_tuning_store));
         session.set_curve_store(Arc::clone(&self.curve_store));
         session.set_curve_point_store(Arc::clone(&self.curve_point_store));
@@ -557,7 +552,6 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
         session.set_area_trigger_store(Arc::clone(&self.area_trigger_store));
         session.set_area_trigger_script_store(Arc::clone(&self.area_trigger_script_store));
         session.set_tavern_area_trigger_store(Arc::clone(&self.tavern_area_trigger_store));
-        session.set_graveyard_store(Arc::clone(&self.graveyard_store));
         session.set_chr_specialization_store(Arc::clone(&self.chr_specialization_store));
         session.set_dungeon_encounter_store(Arc::clone(&self.dungeon_encounter_store));
         session.set_map_store(Arc::clone(&self.map_store));
@@ -568,8 +562,6 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
         ));
         session.set_access_requirement_store(Arc::clone(&self.access_requirement_store));
         session.set_lfg_dungeons_store(Arc::clone(&self.lfg_dungeons_store));
-        session.set_lfg_dungeon_store_like_cpp(Arc::clone(&self.lfg_dungeon_store_like_cpp));
-        session.set_battlemaster_list_store(Arc::clone(&self.battlemaster_list_store));
         session.set_creature_template_lifecycle_store_like_cpp(Arc::clone(
             &self.creature_template_lifecycle_store,
         ));

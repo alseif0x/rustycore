@@ -51,8 +51,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_cemetery_list",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_cemetery_list(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_request_cemetery_list_with_catalog_like_cpp(
+                        catalogs.graveyards.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -60,7 +67,11 @@ inventory::submit! {
 impl crate::session::WorldSession {
     /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
     /// C++ ref: `WorldSession::HandleRequestCemeteryList`.
-    pub async fn handle_request_cemetery_list(&mut self, _pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_request_cemetery_list_with_catalog_like_cpp(
+        &mut self,
+        graveyard_store: &wow_data::GraveyardStore,
+        _pkt: wow_packet::WorldPacket,
+    ) {
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
             info!(
                 account = self.account_id,
@@ -82,16 +93,6 @@ impl crate::session::WorldSession {
                 "RUST_CEMETERY_TRACE handler resolved zone_area"
             );
         }
-        let Some(graveyard_store) = self.graveyard_store().cloned() else {
-            info!(
-                zone = zone_id,
-                area = area_id,
-                map_id = self.player_map_id_like_cpp(),
-                player = ?self.player_guid(),
-                "No graveyard store available for CMSG_REQUEST_CEMETERY_LIST"
-            );
-            return;
-        };
         let Some(graveyards) = graveyard_store.graveyards_for_zone(zone_id) else {
             info!(
                 zone = zone_id,
@@ -139,6 +140,16 @@ impl crate::session::WorldSession {
             is_gossip_triggered: false,
             cemetery_ids,
         });
+    }
+
+    #[cfg(test)]
+    pub async fn handle_request_cemetery_list(&mut self, pkt: wow_packet::WorldPacket) {
+        let store = self
+            .graveyard_store()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(wow_data::GraveyardStore::default()));
+        self.handle_request_cemetery_list_with_catalog_like_cpp(store.as_ref(), pkt)
+            .await;
     }
 
     fn graveyard_conditions_meet_like_cpp(

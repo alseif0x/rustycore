@@ -30,8 +30,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_df_get_system_info",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_df_get_system_info(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_df_get_system_info_with_catalog_like_cpp(
+                        catalogs.lfg_dungeons.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -85,7 +92,11 @@ inventory::submit! {
 }
 
 impl crate::session::WorldSession {
-    pub async fn handle_df_get_system_info(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_df_get_system_info_with_catalog_like_cpp(
+        &mut self,
+        lfg_dungeons: &wow_data::LfgDungeonStoreLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match DfGetSystemInfo::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -98,7 +109,7 @@ impl crate::session::WorldSession {
         };
 
         if request.player {
-            if let Some(info) = self.lfg_player_lock_info_like_cpp() {
+            if let Some(info) = self.lfg_player_lock_info_like_cpp(lfg_dungeons) {
                 self.send_packet(&info);
             }
         } else {
@@ -108,11 +119,10 @@ impl crate::session::WorldSession {
         }
     }
 
-    fn lfg_player_lock_info_like_cpp(&self) -> Option<LfgPlayerInfo> {
-        let Some(store) = self.lfg_dungeon_store_like_cpp() else {
-            return Some(LfgPlayerInfo::empty());
-        };
-
+    fn lfg_player_lock_info_like_cpp(
+        &self,
+        store: &wow_data::LfgDungeonStoreLikeCpp,
+    ) -> Option<LfgPlayerInfo> {
         let level = self.player_level_like_cpp();
         let expansion = self.expansion;
         let current_item_level = self.represented_average_item_level_like_cpp()?.max(0.0) as i32;
@@ -161,6 +171,16 @@ impl crate::session::WorldSession {
         }
 
         Some(info)
+    }
+
+    #[cfg(test)]
+    pub async fn handle_df_get_system_info(&mut self, pkt: wow_packet::WorldPacket) {
+        let store = self
+            .lfg_dungeon_store_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_df_get_system_info_with_catalog_like_cpp(store.as_ref(), pkt)
+            .await;
     }
 
     fn lfg_season_is_active_like_cpp(&self, _dungeon_id: u32) -> bool {

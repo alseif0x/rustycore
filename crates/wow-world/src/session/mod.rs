@@ -306,8 +306,12 @@ pub struct ObjectMgrCatalogsLikeCpp {
 pub struct SessionHandlerCatalogsLikeCpp {
     pub object_mgr: Arc<ObjectMgrCatalogsLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
+    pub adventure_map_pois: Arc<AdventureMapPoiStore>,
+    pub battlemaster_lists: Arc<BattlemasterListStore>,
     pub emotes: Arc<EmotesStore>,
     pub emotes_text: Arc<EmotesTextStore>,
+    pub graveyards: Arc<GraveyardStore>,
+    pub lfg_dungeons: Arc<LfgDungeonStoreLikeCpp>,
     pub tact_keys: Arc<TactKeyStore>,
 }
 
@@ -317,8 +321,12 @@ impl Default for SessionHandlerCatalogsLikeCpp {
         Self {
             object_mgr: Arc::new(ObjectMgrCatalogsLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
+            adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
+            battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
             emotes: Arc::new(EmotesStore::from_entries([])),
             emotes_text: Arc::new(EmotesTextStore::from_entries([])),
+            graveyards: Arc::new(GraveyardStore::default()),
+            lfg_dungeons: Arc::new(LfgDungeonStoreLikeCpp::default()),
             tact_keys: Arc::new(TactKeyStore::from_entries([])),
         }
     }
@@ -5516,6 +5524,7 @@ pub struct WorldSession {
     player_condition_store: Option<Arc<PlayerConditionStore>>,
 
     // C++ AdventureMapPOI.db2 store used by Adventure Map quest starts.
+    #[cfg(test)]
     adventure_map_poi_store: Option<Arc<AdventureMapPoiStore>>,
 
     // C++ ContentTuning.db2 store used by level gates such as Meeting Stone.
@@ -5580,6 +5589,7 @@ pub struct WorldSession {
     tavern_area_trigger_store: Option<Arc<TavernAreaTriggerStoreLikeCpp>>,
 
     // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
+    #[cfg(test)]
     graveyard_store: Option<Arc<GraveyardStore>>,
 
     // ChrSpecialization store (loot specialization validation)
@@ -5595,7 +5605,9 @@ pub struct WorldSession {
     map_difficulty_x_condition_store: Option<Arc<MapDifficultyXConditionStore>>,
     access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
+    #[cfg(test)]
     lfg_dungeon_store_like_cpp: Option<Arc<LfgDungeonStoreLikeCpp>>,
+    #[cfg(test)]
     battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
     #[cfg(test)]
     pub(crate) represented_dungeon_difficulty_id_like_cpp: u32,
@@ -7866,6 +7878,7 @@ impl WorldSession {
             loot_stores: None,
             condition_store: None,
             player_condition_store: None,
+            #[cfg(test)]
             adventure_map_poi_store: None,
             content_tuning_store: None,
             curve_store: None,
@@ -7899,6 +7912,7 @@ impl WorldSession {
             #[cfg(test)]
             driver_phase_trace_like_cpp: Vec::new(),
             tavern_area_trigger_store: None,
+            #[cfg(test)]
             graveyard_store: None,
             chr_specialization_store: None,
             dungeon_encounter_store: None,
@@ -7908,7 +7922,9 @@ impl WorldSession {
             map_difficulty_x_condition_store: None,
             access_requirement_store: None,
             lfg_dungeons_store: None,
+            #[cfg(test)]
             lfg_dungeon_store_like_cpp: None,
+            #[cfg(test)]
             battlemaster_list_store: None,
             #[cfg(test)]
             represented_dungeon_difficulty_id_like_cpp: DIFFICULTY_NORMAL_LIKE_CPP,
@@ -25627,10 +25643,12 @@ impl WorldSession {
     }
 
     /// Set the C++ AdventureMapPOI.db2 store for this session.
+    #[cfg(test)]
     pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
         self.adventure_map_poi_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
         self.adventure_map_poi_store.as_ref()
     }
@@ -27314,10 +27332,12 @@ impl WorldSession {
             && (pos.z - center.z).abs() <= half_height
     }
 
+    #[cfg(test)]
     pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
         self.graveyard_store = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
         self.graveyard_store.as_ref()
     }
@@ -27387,16 +27407,26 @@ impl WorldSession {
         self.lfg_dungeons_store.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {
         self.lfg_dungeon_store_like_cpp = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn lfg_dungeon_store_like_cpp(&self) -> Option<&Arc<LfgDungeonStoreLikeCpp>> {
         self.lfg_dungeon_store_like_cpp.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_battlemaster_list_store(&mut self, store: Arc<BattlemasterListStore>) {
         self.battlemaster_list_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn battlemaster_list_store_for_test_like_cpp(
+        &self,
+    ) -> Option<&Arc<BattlemasterListStore>> {
+        self.battlemaster_list_store.as_ref()
     }
 
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
@@ -47430,14 +47460,15 @@ impl WorldSession {
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn battlefield_list_like_cpp(&mut self, list_id: i32) -> bool {
+    pub(crate) fn battlefield_list_like_cpp(
+        &mut self,
+        battlemaster_lists: &BattlemasterListStore,
+        list_id: i32,
+    ) -> bool {
         let Ok(list_id) = u32::try_from(list_id) else {
             return false;
         };
-        let Some(store) = self.battlemaster_list_store.as_ref() else {
-            return false;
-        };
-        if store.get(list_id).is_none() {
+        if battlemaster_lists.get(list_id).is_none() {
             return false;
         }
 
@@ -47450,6 +47481,7 @@ impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn battlemaster_join_like_cpp(
         &mut self,
+        battlemaster_lists: &BattlemasterListStore,
         queue_ids: &[u64],
         roles: u8,
         blacklist_map: [i32; 2],
@@ -47458,16 +47490,11 @@ impl WorldSession {
             return false;
         };
         let queue_type_id = battleground_queue_type_id_from_packed_like_cpp(packed_queue_id);
-        if !self.is_valid_battleground_queue_type_id_like_cpp(queue_type_id) {
+        if !self.is_valid_battleground_queue_type_id_like_cpp(battlemaster_lists, queue_type_id) {
             return false;
         }
-        if self
-            .battlemaster_list_store
-            .as_ref()
-            .map(|store| {
-                store.is_internal_only_like_cpp(u32::from(queue_type_id.battlemaster_list_id))
-            })
-            .unwrap_or(false)
+        if battlemaster_lists
+            .is_internal_only_like_cpp(u32::from(queue_type_id.battlemaster_list_id))
         {
             return false;
         }
@@ -47505,6 +47532,7 @@ impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn battlemaster_join_arena_like_cpp(
         &mut self,
+        battlemaster_lists: &BattlemasterListStore,
         team_size_index: u8,
         roles: u8,
     ) -> bool {
@@ -47521,7 +47549,7 @@ impl WorldSession {
             rated: true,
             team_size: arena_type,
         };
-        if !self.is_valid_battleground_queue_type_id_like_cpp(queue_type_id) {
+        if !self.is_valid_battleground_queue_type_id_like_cpp(battlemaster_lists, queue_type_id) {
             return false;
         }
         if self
@@ -47579,6 +47607,7 @@ impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn battlemaster_join_skirmish_like_cpp(
         &mut self,
+        battlemaster_lists: &BattlemasterListStore,
         bg_type_id: u32,
         bracket_id: u32,
         as_group: u8,
@@ -47589,11 +47618,7 @@ impl WorldSession {
         }
 
         let arena_type = arena_skirmish_type_like_cpp(bg_type_id, bracket_id);
-        let Some(entry) = self
-            .battlemaster_list_store
-            .as_ref()
-            .and_then(|store| store.get(wow_data::BATTLEGROUND_AA_LIKE_CPP))
-        else {
+        let Some(entry) = battlemaster_lists.get(wow_data::BATTLEGROUND_AA_LIKE_CPP) else {
             return false;
         };
         if entry.instance_type != wow_data::MAP_ARENA_LIKE_CPP {
@@ -47727,12 +47752,10 @@ impl WorldSession {
 
     fn is_valid_battleground_queue_type_id_like_cpp(
         &self,
+        battlemaster_lists: &BattlemasterListStore,
         queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
     ) -> bool {
-        let Some(entry) = self
-            .battlemaster_list_store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(queue_type_id.battlemaster_list_id)))
+        let Some(entry) = battlemaster_lists.get(u32::from(queue_type_id.battlemaster_list_id))
         else {
             return false;
         };

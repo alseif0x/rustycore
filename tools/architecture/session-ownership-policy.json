@@ -142,8 +142,10 @@
           "name": "adventure_map_poi_store",
           "type": "Option < Arc < AdventureMapPoiStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "allow_gm_group_like_cpp",
@@ -274,8 +276,10 @@
           "name": "battlemaster_list_store",
           "type": "Option < Arc < BattlemasterListStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battlenet_account_id",
@@ -914,8 +918,10 @@
           "name": "graveyard_store",
           "type": "Option < Arc < GraveyardStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "group_guid",
@@ -1301,8 +1307,10 @@
           "name": "lfg_dungeon_store_like_cpp",
           "type": "Option < Arc < LfgDungeonStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "lfg_dungeons_store",
@@ -12752,6 +12760,21 @@
           "module": "crate::handlers::misc",
           "trait_path": null,
           "kind": "method",
+          "name": "battlemaster_list_catalog_for_test_like_cpp",
+          "visibility": "private",
+          "signature": "fn battlemaster_list_catalog_for_test_like_cpp (& self ,) -> std :: sync :: Arc < wow_data :: BattlemasterListStore >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
           "name": "can_reward_lfg_quest_like_cpp",
           "visibility": "private",
           "signature": "fn can_reward_lfg_quest_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate , _msg : bool ,) -> bool",
@@ -13325,7 +13348,23 @@
           "kind": "method",
           "name": "handle_battlefield_list",
           "visibility": "pub",
-          "signature": "async fn handle_battlefield_list (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_battlefield_list (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battlefield_list_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_battlefield_list_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13367,9 +13406,11 @@
           "kind": "method",
           "name": "handle_battlemaster_join",
           "visibility": "pub",
-          "signature": "async fn handle_battlemaster_join (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_battlemaster_join (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -13381,7 +13422,23 @@
           "kind": "method",
           "name": "handle_battlemaster_join_arena",
           "visibility": "pub",
-          "signature": "async fn handle_battlemaster_join_arena (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_battlemaster_join_arena (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battlemaster_join_arena_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_battlemaster_join_arena_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13395,7 +13452,37 @@
           "kind": "method",
           "name": "handle_battlemaster_join_skirmish",
           "visibility": "pub",
-          "signature": "async fn handle_battlemaster_join_skirmish (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_battlemaster_join_skirmish (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battlemaster_join_skirmish_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_battlemaster_join_skirmish_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battlemaster_join_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_battlemaster_join_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13943,7 +14030,23 @@
           "kind": "method",
           "name": "handle_df_get_system_info",
           "visibility": "pub",
-          "signature": "async fn handle_df_get_system_info (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_df_get_system_info (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_df_get_system_info_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_df_get_system_info_with_catalog_like_cpp (& mut self , lfg_dungeons : & wow_data :: LfgDungeonStoreLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -14673,7 +14776,23 @@
           "kind": "method",
           "name": "handle_request_cemetery_list",
           "visibility": "pub",
-          "signature": "async fn handle_request_cemetery_list (& mut self , _pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_request_cemetery_list (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_cemetery_list_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_request_cemetery_list_with_catalog_like_cpp (& mut self , graveyard_store : & wow_data :: GraveyardStore , _pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15539,7 +15658,7 @@
           "kind": "method",
           "name": "lfg_player_lock_info_like_cpp",
           "visibility": "private",
-          "signature": "fn lfg_player_lock_info_like_cpp (& self) -> Option < LfgPlayerInfo >",
+          "signature": "fn lfg_player_lock_info_like_cpp (& self , store : & wow_data :: LfgDungeonStoreLikeCpp ,) -> Option < LfgPlayerInfo >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16176,7 +16295,23 @@
           "kind": "method",
           "name": "handle_adventure_map_start_quest",
           "visibility": "pub",
-          "signature": "async fn handle_adventure_map_start_quest (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_adventure_map_start_quest (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_adventure_map_start_quest_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_adventure_map_start_quest_with_catalog_like_cpp (& mut self , adventure_map_poi_store : & wow_data :: AdventureMapPoiStore , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19695,8 +19830,10 @@
           "name": "adventure_map_poi_store",
           "visibility": "pub",
           "signature": "fn adventure_map_poi_store (& self) -> Option < & Arc < AdventureMapPoiStore > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -22227,7 +22364,7 @@
           "kind": "method",
           "name": "battlefield_list_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battlefield_list_like_cpp (& mut self , list_id : i32) -> bool",
+          "signature": "fn battlefield_list_like_cpp (& mut self , battlemaster_lists : & BattlemasterListStore , list_id : i32 ,) -> bool",
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
@@ -22272,7 +22409,7 @@
           "kind": "method",
           "name": "battlemaster_join_arena_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battlemaster_join_arena_like_cpp (& mut self , team_size_index : u8 , roles : u8 ,) -> bool",
+          "signature": "fn battlemaster_join_arena_like_cpp (& mut self , battlemaster_lists : & BattlemasterListStore , team_size_index : u8 , roles : u8 ,) -> bool",
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
@@ -22287,7 +22424,7 @@
           "kind": "method",
           "name": "battlemaster_join_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battlemaster_join_like_cpp (& mut self , queue_ids : & [u64] , roles : u8 , blacklist_map : [i32 ; 2] ,) -> bool",
+          "signature": "fn battlemaster_join_like_cpp (& mut self , battlemaster_lists : & BattlemasterListStore , queue_ids : & [u64] , roles : u8 , blacklist_map : [i32 ; 2] ,) -> bool",
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
@@ -22302,11 +22439,26 @@
           "kind": "method",
           "name": "battlemaster_join_skirmish_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battlemaster_join_skirmish_like_cpp (& mut self , bg_type_id : u32 , bracket_id : u32 , as_group : u8 , is_rated : u8 ,) -> bool",
+          "signature": "fn battlemaster_join_skirmish_like_cpp (& mut self , battlemaster_lists : & BattlemasterListStore , bg_type_id : u32 , bracket_id : u32 , as_group : u8 , is_rated : u8 ,) -> bool",
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
           "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battlemaster_list_store_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battlemaster_list_store_for_test_like_cpp (& self ,) -> Option < & Arc < BattlemasterListStore > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25783,8 +25935,10 @@
           "name": "graveyard_store",
           "visibility": "pub (crate)",
           "signature": "fn graveyard_store (& self) -> Option < & Arc < GraveyardStore > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -27151,7 +27305,7 @@
           "kind": "method",
           "name": "is_valid_battleground_queue_type_id_like_cpp",
           "visibility": "private",
-          "signature": "fn is_valid_battleground_queue_type_id_like_cpp (& self , queue_type_id : RepresentedBattlegroundQueueTypeIdLikeCpp ,) -> bool",
+          "signature": "fn is_valid_battleground_queue_type_id_like_cpp (& self , battlemaster_lists : & BattlemasterListStore , queue_type_id : RepresentedBattlegroundQueueTypeIdLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -27933,8 +28087,10 @@
           "name": "lfg_dungeon_store_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn lfg_dungeon_store_like_cpp (& self) -> Option < & Arc < LfgDungeonStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -42679,8 +42835,10 @@
           "name": "set_adventure_map_poi_store",
           "visibility": "pub",
           "signature": "fn set_adventure_map_poi_store (& mut self , store : Arc < AdventureMapPoiStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -42963,8 +43121,10 @@
           "name": "set_battlemaster_list_store",
           "visibility": "pub",
           "signature": "fn set_battlemaster_list_store (& mut self , store : Arc < BattlemasterListStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44033,8 +44193,10 @@
           "name": "set_graveyard_store",
           "visibility": "pub",
           "signature": "fn set_graveyard_store (& mut self , store : Arc < GraveyardStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44634,8 +44796,10 @@
           "name": "set_lfg_dungeon_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_lfg_dungeon_store_like_cpp (& mut self , store : Arc < LfgDungeonStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -73281,7 +73445,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:cf3aaccdde18ef79dfac3cbeafc0bffa:len=96165|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:663bea34828920750406ecd596ec792e:len=96225|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

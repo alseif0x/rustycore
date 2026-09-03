@@ -3576,9 +3576,13 @@ fn session_resources_requires_named_capability_bundles() {
         "every inner production capability must also be required by its Rust type"
     );
     for retired_test_only_catalog in [
+        "adventure_map_poi_store",
         "bank_bag_slot_prices_store",
+        "battlemaster_list_store",
         "emotes_store",
         "emotes_text_store",
+        "graveyard_store",
+        "lfg_dungeon_store_like_cpp",
         "pet_default_spell_store",
         "pet_family_spell_store",
         "pet_levelup_spell_store",
