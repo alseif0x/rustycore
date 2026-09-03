@@ -7,12 +7,13 @@
 
 use std::sync::Arc;
 
+use wow_network::SocketTimeoutsLikeCpp;
 use wow_social::group::{GroupRegistry, PendingInvites};
 use wow_world::session::directory::PlayerRegistry;
 use wow_world::session::mailbox::GameEventQuestCompleteCommandLikeCpp;
 use wow_world::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
-    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
+    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp, WorldSession,
 };
 
 /// Application-owned resources used to construct a `WorldSession`.
@@ -110,6 +111,155 @@ pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) item_spec_override_store: Option<Arc<wow_data::ItemSpecOverrideStore>>,
     pub(super) item_disenchant_loot_store: Option<Arc<wow_data::ItemDisenchantLootStore>>,
     pub(super) loot_stores: Option<Arc<wow_loot::LootStores>>,
+}
+
+impl SessionInventoryCapabilitiesLikeCpp {
+    /// Installs the complete immutable inventory/catalog capability as one
+    /// composition-root operation. Production startup has already validated
+    /// that every member is present before the listener is published.
+    pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
+        if let Some(ref store) = self.bank_bag_slot_prices_store {
+            session.set_bank_bag_slot_prices_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.currency_types_store {
+            session.set_currency_types_store(Arc::clone(store));
+        }
+        if let Some(ref stores) = self.import_price_stores {
+            session.set_import_price_stores(Arc::clone(stores));
+        }
+        if let Some(ref store) = self.emotes_store {
+            session.set_emotes_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.emotes_text_store {
+            session.set_emotes_text_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_class_store {
+            session.set_item_class_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_currency_cost_store {
+            session.set_item_currency_cost_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_extended_cost_store {
+            session.set_item_extended_cost_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_store {
+            session.set_item_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_child_equipment_store {
+            session.set_item_child_equipment_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_appearance_store {
+            session.set_item_appearance_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_modified_appearance_store {
+            session.set_item_modified_appearance_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_search_name_store {
+            session.set_item_search_name_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.trinity_string_store {
+            session.set_trinity_string_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.heirloom_store {
+            session.set_heirloom_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.toy_store {
+            session.set_toy_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.battle_pet_breed_quality_store {
+            session.set_battle_pet_breed_quality_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.battle_pet_breed_state_store {
+            session.set_battle_pet_breed_state_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.battle_pet_species_store {
+            session.set_battle_pet_species_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.battle_pet_selection_store {
+            session.set_battle_pet_selection_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.battle_pet_species_state_store {
+            session.set_battle_pet_species_state_store(Arc::clone(store));
+        }
+        if let Some(ref table) = self.battle_pet_xp_game_table {
+            session.set_battle_pet_xp_game_table(Arc::clone(table));
+        }
+        if let Some(ref table) = self.combat_ratings_game_table {
+            session.set_combat_ratings_game_table(Arc::clone(table));
+        }
+        if let Some(ref table) = self.shield_block_regular_game_table {
+            session.set_shield_block_regular_game_table(Arc::clone(table));
+        }
+        if let Some(ref store) = self.transmog_set_item_store {
+            session.set_transmog_set_item_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_price_base_store {
+            session.set_item_price_base_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_limit_category_store {
+            session.set_item_limit_category_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_limit_category_condition_store {
+            session.set_item_limit_category_condition_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.player_create_info_store {
+            session.set_player_create_info_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.player_create_cast_spell_store {
+            session.set_player_create_cast_spell_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.player_create_custom_spell_store {
+            session.set_player_create_custom_spell_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.player_stats {
+            session.set_player_stats(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_bonus_db2_store {
+            session.set_item_bonus_db2_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.pvp_item_store {
+            session.set_pvp_item_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_set_store {
+            session.set_item_set_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_set_spell_store {
+            session.set_item_set_spell_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_stats_store {
+            session.set_item_stats_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.durability_costs_store {
+            session.set_durability_costs_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.durability_quality_store {
+            session.set_durability_quality_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_effect_store {
+            session.set_item_effect_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_random_suffix_store {
+            session.set_item_random_suffix_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_random_properties_store {
+            session.set_item_random_properties_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_spec_override_store {
+            session.set_item_spec_override_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.rand_prop_points_store {
+            session.set_rand_prop_points_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_random_enchantment_template_store {
+            session.set_item_random_enchantment_template_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.item_disenchant_loot_store {
+            session.set_item_disenchant_loot_store(Arc::clone(store));
+        }
+        if let Some(ref stores) = self.loot_stores {
+            session.set_loot_stores(Arc::clone(stores));
+        }
+    }
 }
 
 /// Immutable Player creation, condition, stat and skill catalogs.
@@ -404,6 +554,529 @@ pub(super) struct SessionRealmCapabilitiesLikeCpp {
     pub(super) realm_external_address: [u8; 4],
     /// Local (LAN) IP from `realmlist.localAddress`.
     pub(super) realm_local_address: [u8; 4],
+}
+
+impl SessionCoreCapabilitiesLikeCpp {
+    /// Installs the required process capabilities as one composition-root operation.
+    pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
+        session.set_object_mgr_catalogs_like_cpp(Arc::clone(&self.object_mgr_catalogs));
+        session.set_required_persistence_capabilities_like_cpp(self.persistence.clone());
+        if let Some(ref generator) = self.guid_generator {
+            session.set_guid_generator(Arc::clone(generator));
+        }
+        if let Some(ref generator) = self.item_guid_generator {
+            session.set_item_guid_generator_like_cpp(Arc::clone(generator));
+        }
+        if let Some(ref generator) = self.equipment_set_guid_generator {
+            session.set_equipment_set_guid_generator_like_cpp(Arc::clone(generator));
+        }
+        if let Some(ref generator) = self.void_storage_item_id_generator {
+            session.set_void_storage_item_id_generator_like_cpp(Arc::clone(generator));
+        }
+        if let Some(ref mgr) = self.instance_lock_mgr {
+            session.set_instance_lock_mgr(Arc::clone(mgr));
+        }
+        if let Some(ref store) = self.trainer_store {
+            session.set_trainer_store_like_cpp(Arc::clone(store));
+        }
+    }
+}
+
+impl SessionPlayerCatalogCapabilitiesLikeCpp {
+    /// Installs this complete capability group after bootstrap validation.
+    pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
+        if let Some(ref store) = self.condition_store {
+            session.set_condition_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.player_condition_store {
+            session.set_player_condition_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.adventure_map_poi_store {
+            session.set_adventure_map_poi_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.content_tuning_store {
+            session.set_content_tuning_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.curve_store {
+            session.set_curve_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.curve_point_store {
+            session.set_curve_point_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.scaling_stat_distribution_store {
+            session.set_scaling_stat_distribution_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.scaling_stat_values_store {
+            session.set_scaling_stat_values_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.disable_mgr {
+            session.set_disable_mgr(Arc::clone(store));
+        }
+        if let Some(ref store) = self.difficulty_store {
+            session.set_difficulty_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.lock_store {
+            session.set_lock_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_item_enchantment_store {
+            session.set_spell_item_enchantment_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_item_enchantment_condition_store {
+            session.set_spell_item_enchantment_condition_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.gem_properties_store {
+            session.set_gem_properties_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_enchant_proc_store {
+            session.set_spell_enchant_proc_store(Arc::clone(store));
+        }
+        if let Some(ref cache) = self.hotfix_blob_cache {
+            session.set_hotfix_blob_cache(Arc::clone(cache));
+        }
+        if let Some(ref store) = self.tact_key_store {
+            session.set_tact_key_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.skill_store {
+            session.set_skill_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.trait_definition_store {
+            session.set_trait_definition_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.trait_node_entry_store {
+            session.set_trait_node_entry_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.skill_line_store {
+            session.set_skill_line_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.skill_tiers_store {
+            session.set_skill_tiers_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.talent_store {
+            session.set_talent_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.talent_tab_store {
+            session.set_talent_tab_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.num_talents_at_level_store {
+            session.set_num_talents_at_level_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.glyph_properties_store {
+            session.set_glyph_properties_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.chr_races_store {
+            session.set_chr_races_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.chr_classes_store {
+            session.set_chr_classes_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.power_type_store {
+            session.set_power_type_store(Arc::clone(store));
+        }
+    }
+}
+
+impl SessionSpellCatalogCapabilitiesLikeCpp {
+    /// Installs this complete capability group after bootstrap validation.
+    pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
+        if let Some(ref store) = self.spell_store {
+            session.set_spell_store(Arc::clone(store));
+        }
+        if let Some(ref catalog) = self.spell_acquisition_catalog {
+            session.set_spell_acquisition_catalog(Arc::clone(catalog));
+        }
+        if let (Some(casts), Some(crafts)) = (
+            self.spell_acquisition_safe_cast_spell_ids.as_ref(),
+            self.spell_acquisition_valid_craft_spell_ids.as_ref(),
+        ) {
+            session.set_spell_acquisition_static_authority_like_cpp(
+                casts.iter().copied(),
+                crafts.iter().copied(),
+            );
+        }
+        if let (Some(exact), Some(all_ranks), Some(legacy), Some(rejected_linked_triggers)) = (
+            self.spell_script_exact_spell_ids.as_ref(),
+            self.spell_script_all_rank_root_spell_ids.as_ref(),
+            self.legacy_spell_script_spell_ids.as_ref(),
+            self.spell_linked_rejected_trigger_spell_ids.as_ref(),
+        ) {
+            session.set_spell_runtime_script_authority_like_cpp(
+                Arc::clone(exact),
+                Arc::clone(all_ranks),
+                Arc::clone(legacy),
+                Arc::clone(rejected_linked_triggers),
+            );
+        }
+        if let Some(ref store) = self.spell_levels_store {
+            session.set_spell_levels_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_chain_store {
+            session.set_spell_chain_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_category_store {
+            session.set_spell_category_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.npc_spell_click_store {
+            session.set_npc_spell_click_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_aura_options_store {
+            session.set_spell_aura_options_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_aura_restrictions_store {
+            session.set_spell_aura_restrictions_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_target_restrictions_store {
+            session.set_spell_target_restrictions_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_equipped_items_store {
+            session.set_spell_equipped_items_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_misc_store {
+            session.set_spell_misc_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_group_store {
+            session.set_spell_group_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_group_stack_rule_store {
+            session.set_spell_group_stack_rule_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_linked_store {
+            session.set_spell_linked_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_pet_aura_store {
+            session.set_spell_pet_aura_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_area_store {
+            session.set_spell_area_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_custom_attribute_store {
+            session.set_spell_custom_attribute_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.serverside_spell_store {
+            session.set_serverside_spell_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_learn_skill_store {
+            session.set_spell_learn_skill_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_learn_spell_store {
+            session.set_spell_learn_spell_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.pet_levelup_spell_store {
+            session.set_pet_levelup_spell_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.pet_default_spell_store {
+            session.set_pet_default_spell_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.pet_family_spell_store {
+            session.set_pet_family_spell_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_proc_store {
+            session.set_spell_proc_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_required_store {
+            session.set_spell_required_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_threat_store {
+            session.set_spell_threat_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_duration_store {
+            session.set_spell_duration_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_radius_store {
+            session.set_spell_radius_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_range_store {
+            session.set_spell_range_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_target_position_store {
+            session.set_spell_target_position_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_totem_model_store {
+            session.set_spell_totem_model_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.movie_store {
+            session.set_movie_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.script_name_interner {
+            session.set_script_name_interner(Arc::clone(store));
+        }
+    }
+}
+
+impl SessionWorldCatalogCapabilitiesLikeCpp {
+    /// Installs this complete capability group after bootstrap validation.
+    pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
+        if let Some(ref store) = self.area_table_store {
+            session.set_area_table_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.fishing_base_skill_store {
+            session.set_fishing_base_skill_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.area_trigger_db2_store {
+            session.set_area_trigger_db2_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.area_trigger_store {
+            session.set_area_trigger_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.area_trigger_script_store {
+            session.set_area_trigger_script_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.tavern_area_trigger_store {
+            session.set_tavern_area_trigger_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.graveyard_store {
+            session.set_graveyard_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.chr_specialization_store {
+            session.set_chr_specialization_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.dungeon_encounter_store {
+            session.set_dungeon_encounter_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.map_store {
+            session.set_map_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.world_safe_loc_store {
+            session.set_world_safe_loc_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.map_difficulty_store {
+            session.set_map_difficulty_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.map_difficulty_x_condition_store {
+            session.set_map_difficulty_x_condition_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.access_requirement_store {
+            session.set_access_requirement_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.lfg_dungeons_store {
+            session.set_lfg_dungeons_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.lfg_dungeon_store_like_cpp {
+            session.set_lfg_dungeon_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.battlemaster_list_store {
+            session.set_battlemaster_list_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_template_lifecycle_store {
+            session.set_creature_template_lifecycle_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_template_mount_store {
+            session.set_creature_template_mount_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_equipment_store {
+            session.set_creature_equipment_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_display_info_store {
+            session.set_creature_display_info_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_display_info_extra_store {
+            session.set_creature_display_info_extra_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.gameobject_display_info_store {
+            session.set_gameobject_display_info_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_model_info_store {
+            session.set_creature_model_info_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_addon_store {
+            session.set_creature_addon_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_difficulty_store {
+            session.set_creature_difficulty_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_base_stats_store {
+            session.set_creature_base_stats_store_like_cpp(Arc::clone(store));
+        }
+        session.set_creature_health_rates_like_cpp(self.creature_health_rates);
+        if let Some(ref store) = self.creature_model_data_store {
+            session.set_creature_model_data_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.mount_store {
+            session.set_mount_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.mount_definition_store {
+            session.set_mount_definition_store_like_cpp(Arc::clone(store));
+        }
+        if let Some(ref store) = self.mount_capability_store {
+            session.set_mount_capability_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.mount_type_x_capability_store {
+            session.set_mount_type_x_capability_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.mount_x_display_store {
+            session.set_mount_x_display_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.spell_shapeshift_form_store {
+            session.set_spell_shapeshift_form_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.vehicle_store {
+            session.set_vehicle_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.vehicle_seat_store {
+            session.set_vehicle_seat_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.vehicle_template_store {
+            session.set_vehicle_template_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.vehicle_accessory_store {
+            session.set_vehicle_accessory_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.terrain_swap_store {
+            session.set_terrain_swap_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.phase_store {
+            session.set_phase_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.phase_group_store {
+            session.set_phase_group_store(Arc::clone(store));
+        }
+    }
+}
+
+impl SessionProgressionCapabilitiesLikeCpp {
+    /// Installs this complete capability group after bootstrap validation.
+    pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
+        if let Some(ref store) = self.quest_store {
+            session.set_quest_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.quest_xp_store {
+            session.set_quest_xp_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.quest_money_reward_store {
+            session.set_quest_money_reward_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.quest_v2_store {
+            session.set_quest_v2_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.quest_info_store {
+            session.set_quest_info_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.quest_package_item_store {
+            session.set_quest_package_item_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.quest_faction_reward_store {
+            session.set_quest_faction_reward_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.progression_faction_store {
+            session.set_faction_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.faction_template_store {
+            session.set_faction_template_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.friendship_rep_reaction_store {
+            session.set_friendship_rep_reaction_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.paragon_reputation_store {
+            session.set_paragon_reputation_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.reputation_reward_rate_store {
+            session.set_reputation_reward_rate_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.creature_onkill_reputation_store {
+            session.set_creature_onkill_reputation_store(Arc::clone(store));
+        }
+        if let Some(ref store) = self.reputation_spillover_template_store {
+            session.set_reputation_spillover_template_store(Arc::clone(store));
+        }
+        if let Some(ref table) = self.player_xp_table {
+            session.set_player_xp_table(Arc::clone(table));
+        }
+        if let Some(ref store) = self.exploration_base_xp_store {
+            session.set_exploration_base_xp_store_like_cpp(Arc::clone(store));
+        }
+        session.set_exploration_xp_rate_like_cpp(self.exploration_xp_rate);
+        session.set_rested_xp_config_like_cpp(
+            self.max_player_level_config,
+            self.rest_offline_wilderness_rate,
+            self.rest_offline_tavern_or_city_rate,
+            self.rest_ingame_rate,
+        );
+        session.set_max_primary_trade_skills_like_cpp(self.max_primary_trade_skills);
+        session.set_pvp_realm_like_cpp(self.is_pvp_realm);
+        session.set_ffa_pvp_realm_like_cpp(self.is_ffa_pvp_realm);
+        session.set_recruit_a_friend_xp_config_like_cpp(
+            self.max_recruit_a_friend_bonus_player_level,
+            self.max_recruit_a_friend_bonus_player_level_difference,
+        );
+        session.set_min_quest_scaled_xp_ratio_like_cpp(self.min_quest_scaled_xp_ratio);
+        session.set_min_discovered_scaled_xp_ratio_like_cpp(self.min_discovered_scaled_xp_ratio);
+    }
+}
+
+impl SessionRuntimePolicyCapabilitiesLikeCpp {
+    /// Installs this complete capability group after bootstrap validation.
+    pub(super) fn install_into_session_like_cpp(
+        &self,
+        session: &mut WorldSession,
+        socket_timeouts: SocketTimeoutsLikeCpp,
+    ) {
+        session.set_quest_low_level_hide_diff_like_cpp(self.quest_low_level_hide_diff);
+        session.set_quest_high_level_hide_diff_like_cpp(self.quest_high_level_hide_diff);
+        if let Some(ref modules) = self.module_registry {
+            session.set_module_registry_like_cpp(Arc::clone(modules));
+        }
+        if let Some(ref registry) = self.player_registry {
+            session.set_player_registry(Arc::clone(registry));
+        }
+        if let Some(sender) = self.game_event_quest_complete_tx.as_ref() {
+            session.set_game_event_quest_complete_sender_like_cpp(sender.clone());
+        }
+        session.set_loot_drop_rates_like_cpp(self.loot_drop_rates);
+        session.set_reputation_rates_like_cpp(self.reputation_rates);
+        session.set_repair_cost_rate_like_cpp(self.repair_cost_rate);
+        session.set_reset_schedule_like_cpp(self.reset_schedule);
+        session.set_no_reset_talent_cost_like_cpp(self.no_reset_talent_cost);
+        session.set_offhand_check_at_spell_unlearn_like_cpp(self.offhand_check_at_spell_unlearn);
+        session.set_vmap_indoor_check_like_cpp(self.vmap_indoor_check);
+        session.set_start_all_explored_like_cpp(self.start_all_explored);
+        session.set_start_all_reputation_like_cpp(self.start_all_reputation);
+        session.set_start_all_spells_like_cpp(self.start_all_spells);
+        session.set_represented_support_enabled_like_cpp(self.support_enabled);
+        session.set_represented_support_tickets_enabled_like_cpp(self.support_tickets_enabled);
+        session.set_represented_support_bugs_enabled_like_cpp(self.support_bugs_enabled);
+        session
+            .set_represented_support_complaints_enabled_like_cpp(self.support_complaints_enabled);
+        session
+            .set_represented_support_suggestions_enabled_like_cpp(self.support_suggestions_enabled);
+        session.set_enable_ae_loot_like_cpp(self.enable_ae_loot);
+        session.set_addon_channel_like_cpp(self.addon_channel);
+        session.set_server_expansion_like_cpp(self.server_expansion);
+        session.set_characters_per_realm_like_cpp(self.characters_per_realm);
+        session.set_declined_names_used_like_cpp(self.declined_names_used);
+        session
+            .set_feature_system_bpay_store_enabled_like_cpp(self.feature_system_bpay_store_enabled);
+        session.set_feature_system_character_undelete_enabled_like_cpp(
+            self.feature_system_character_undelete_enabled,
+        );
+        session.set_instance_ignore_raid_like_cpp(self.instance_ignore_raid);
+        session.set_instance_ignore_level_like_cpp(self.instance_ignore_level);
+        session.set_max_instances_per_hour_like_cpp(self.max_instances_per_hour);
+        session.set_chat_fake_message_preventing_like_cpp(self.chat_fake_message_preventing);
+        session.set_party_raid_warnings_like_cpp(self.party_raid_warnings);
+        session.set_allow_gm_group_like_cpp(self.allow_gm_group);
+        session
+            .set_allow_two_side_interaction_group_like_cpp(self.allow_two_side_interaction_group);
+        session.set_party_level_req_like_cpp(self.party_level_req);
+        session.set_chat_strict_link_checking_kick_like_cpp(self.chat_strict_link_checking_kick);
+        session.set_chat_level_requirements_like_cpp(self.chat_level_requirements);
+        session.set_chat_listen_ranges_like_cpp(self.chat_listen_ranges);
+        session.set_chat_flood_config_like_cpp(self.chat_flood_config);
+        session.set_socket_timeouts_like_cpp(socket_timeouts);
+        session.set_packet_spoof_config_like_cpp(self.packet_spoof_config);
+        session.set_player_save_interval_ms_like_cpp(self.player_save_interval_ms);
+        if let (Some(group_registry), Some(pending_invites)) =
+            (&self.group_registry, &self.pending_invites)
+        {
+            session.set_group_registry(Arc::clone(group_registry), Arc::clone(pending_invites));
+        }
+    }
+}
+
+impl SessionRealmCapabilitiesLikeCpp {
+    /// Installs this complete capability group after bootstrap validation.
+    pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
+        session.set_realm_handle_like_cpp(self.realm_region, self.realm_battlegroup, self.realm_id);
+        session.set_realm_names_like_cpp(self.realm_names.iter().cloned());
+    }
 }
 
 macro_rules! require_capabilities_like_cpp {

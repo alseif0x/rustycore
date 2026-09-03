@@ -3453,10 +3453,10 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     let composition_source =
         fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
             .expect("world-server composition source should be readable");
-    let session_factory_source = fs::read_to_string(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_factory.rs"),
+    let resources_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
-    .expect("world-server session factory source should be readable");
+    .expect("world-server session resources source should be readable");
     let materialization_needle = [
         "max_primary_trade_skills:",
         " max_primary_trade_skills_like_cpp(&world_configs),",
@@ -3464,7 +3464,7 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     .concat();
     let propagation_needle = [
         "session.set_max_primary_trade_skills_like_cpp(",
-        "resources.progression.max_primary_trade_skills);",
+        "self.max_primary_trade_skills);",
     ]
     .concat();
     assert!(
@@ -3472,8 +3472,8 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
         "SessionResources must materialize the validated configuration"
     );
     assert!(
-        session_factory_source.contains(&propagation_needle),
-        "create_session must propagate SessionResources into WorldSession"
+        resources_source.contains(&propagation_needle),
+        "the progression capability must propagate its validated policy atomically"
     );
 }
 
@@ -3512,10 +3512,15 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
         "the core capability bundle must carry one complete persistence graph"
     );
     assert!(
-        session_factory_source.contains(
-            "session.set_required_persistence_capabilities_like_cpp(resources.core.persistence.clone())"
+        session_factory_source
+            .contains("resources.core.install_into_session_like_cpp(&mut session)"),
+        "create_session must install the complete core graph atomically"
+    );
+    assert!(
+        resources_source.contains(
+            "session.set_required_persistence_capabilities_like_cpp(self.persistence.clone())"
         ),
-        "create_session must install the complete graph atomically"
+        "the atomic core installer must publish the complete persistence graph"
     );
     assert!(
         !session_factory_source.contains("if let Some(ref port) = resources."),
@@ -3532,6 +3537,10 @@ fn session_resources_requires_named_capability_bundles() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
     .expect("SessionResources source should be readable");
+    let session_factory_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_factory.rs"),
+    )
+    .expect("session factory source should be readable");
     let session_resources = resources_source
         .split("pub(super) struct SessionResources {")
         .nth(1)
@@ -3562,6 +3571,27 @@ fn session_resources_requires_named_capability_bundles() {
         !session_resources.contains("Option<"),
         "named capability bundles must be mandatory at production construction"
     );
+    assert_eq!(
+        session_factory_source
+            .matches("install_into_session_like_cpp(&mut session")
+            .count(),
+        8,
+        "the factory must install exactly the eight named capability bundles"
+    );
+    for forbidden_projection in [
+        "resources.core.persistence",
+        "resources.inventory.item_store",
+        "resources.player.condition_store",
+        "resources.spells.spell_store",
+        "resources.progression.quest_store",
+        "resources.runtime.module_registry",
+        "resources.realm.realm_names",
+    ] {
+        assert!(
+            !session_factory_source.contains(forbidden_projection),
+            "the factory must not project bundle member {forbidden_projection} into WorldSession"
+        );
+    }
 
     let construction = composition_source
         .find("let session_resources = SessionResources {")
