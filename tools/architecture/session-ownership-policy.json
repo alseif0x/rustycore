@@ -1888,22 +1888,28 @@
           "name": "pet_default_spell_store",
           "type": "Option < Arc < PetDefaultSpellStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "pet_family_spell_store",
           "type": "Option < Arc < PetFamilySpellStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "pet_levelup_spell_store",
           "type": "Option < Arc < PetLevelupSpellStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "pet_load_query_holder_rows_like_cpp",
@@ -5050,8 +5056,10 @@
           "name": "serverside_spell_store",
           "type": "Option < Arc < ServersideSpellStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "session_command_rx",
@@ -5197,8 +5205,10 @@
           "name": "spell_enchant_proc_store",
           "type": "Option < Arc < SpellEnchantProcStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "spell_equipped_items_store",
@@ -5365,8 +5375,10 @@
           "name": "spell_totem_model_store",
           "type": "Option < Arc < SpellTotemModelStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "start_all_explored_like_cpp",
@@ -5654,8 +5666,10 @@
           "name": "vehicle_template_store",
           "type": "Option < Arc < VehicleTemplateStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "vendor_buy_item_test_override_like_cpp",
@@ -28804,8 +28818,10 @@
           "name": "model_for_totem_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn model_for_totem_like_cpp (& self , spell_id : u32 , race_id : u8) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29897,8 +29913,10 @@
           "name": "pet_default_spells_entry_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn pet_default_spells_entry_like_cpp (& self , id : i32 ,) -> Option < & PetDefaultSpellsEntryLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29910,8 +29928,10 @@
           "name": "pet_family_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn pet_family_spells_like_cpp (& self , pet_family : u32) -> Option < Vec < u32 > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29923,8 +29943,10 @@
           "name": "pet_levelup_spell_list_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn pet_levelup_spell_list_like_cpp (& self , pet_family : u32 ,) -> Option < & PetLevelupSpellSetLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30919,8 +30941,10 @@
           "name": "player_mount_vehicle_despawn_delay_ms_like_cpp",
           "visibility": "private",
           "signature": "fn player_mount_vehicle_despawn_delay_ms_like_cpp (& self) -> i32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -42304,8 +42328,10 @@
           "name": "serverside_spell_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn serverside_spell_like_cpp (& self , spell_id : u32 , difficulty : u32 ,) -> Option < & ServersideSpellInfoLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -45177,8 +45203,10 @@
           "name": "set_pet_default_spell_store",
           "visibility": "pub",
           "signature": "fn set_pet_default_spell_store (& mut self , store : Arc < PetDefaultSpellStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45191,8 +45219,10 @@
           "name": "set_pet_family_spell_store",
           "visibility": "pub",
           "signature": "fn set_pet_family_spell_store (& mut self , store : Arc < PetFamilySpellStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45205,8 +45235,10 @@
           "name": "set_pet_levelup_spell_store",
           "visibility": "pub",
           "signature": "fn set_pet_levelup_spell_store (& mut self , store : Arc < PetLevelupSpellStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -47622,8 +47654,10 @@
           "name": "set_serverside_spell_store",
           "visibility": "pub",
           "signature": "fn set_serverside_spell_store (& mut self , store : Arc < ServersideSpellStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -47888,8 +47922,10 @@
           "name": "set_spell_enchant_proc_store",
           "visibility": "pub",
           "signature": "fn set_spell_enchant_proc_store (& mut self , store : Arc < SpellEnchantProcStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48196,8 +48232,10 @@
           "name": "set_spell_totem_model_store",
           "visibility": "pub",
           "signature": "fn set_spell_totem_model_store (& mut self , store : Arc < SpellTotemModelStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48568,8 +48606,10 @@
           "name": "set_vehicle_template_store",
           "visibility": "pub",
           "signature": "fn set_vehicle_template_store (& mut self , store : Arc < VehicleTemplateStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48916,8 +48956,10 @@
           "name": "spell_enchant_proc_event_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_enchant_proc_event_like_cpp (& self , enchantment_id : u32 ,) -> Option < & SpellEnchantProcEntryLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -73059,7 +73101,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a5aafc06b28113c5db074c80ad4af39a:len=95877|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:cb7e108fa35121fb390b78ba5b484316:len=95982|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -195,7 +195,6 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) spell_item_enchantment_condition_store:
         Arc<wow_data::SpellItemEnchantmentConditionStore>,
     pub(super) gem_properties_store: Arc<wow_data::GemPropertiesStore>,
-    pub(super) spell_enchant_proc_store: Arc<wow_data::SpellEnchantProcStoreLikeCpp>,
     pub(super) hotfix_blob_cache: Arc<wow_data::HotfixBlobCache>,
     pub(super) tact_key_store: Arc<wow_data::TactKeyStore>,
     pub(super) skill_store: Arc<wow_data::SkillStore>,
@@ -247,12 +246,8 @@ pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     pub(super) spell_pet_aura_store: Arc<wow_data::SpellPetAuraStoreLikeCpp>,
     pub(super) spell_area_store: Arc<wow_data::SpellAreaStoreLikeCpp>,
     pub(super) spell_custom_attribute_store: Arc<wow_data::SpellCustomAttributeStoreLikeCpp>,
-    pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,
     pub(super) spell_learn_skill_store: Arc<wow_data::SpellLearnSkillStoreLikeCpp>,
     pub(super) spell_learn_spell_store: Arc<wow_data::SpellLearnSpellStoreLikeCpp>,
-    pub(super) pet_levelup_spell_store: Arc<wow_data::PetLevelupSpellStoreLikeCpp>,
-    pub(super) pet_default_spell_store: Arc<wow_data::PetDefaultSpellStoreLikeCpp>,
-    pub(super) pet_family_spell_store: Arc<wow_data::PetFamilySpellStoreLikeCpp>,
     pub(super) spell_proc_store: Arc<wow_data::SpellProcStoreLikeCpp>,
     pub(super) spell_required_store: Arc<wow_data::SpellRequiredStoreLikeCpp>,
     pub(super) spell_threat_store: Arc<wow_data::SpellThreatStoreLikeCpp>,
@@ -260,7 +255,6 @@ pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     pub(super) spell_radius_store: Arc<wow_data::SpellRadiusStore>,
     pub(super) spell_range_store: Arc<wow_data::SpellRangeStore>,
     pub(super) spell_target_position_store: Arc<wow_data::SpellTargetPositionStoreLikeCpp>,
-    pub(super) spell_totem_model_store: Arc<wow_data::SpellTotemModelStoreLikeCpp>,
     pub(super) movie_store: Arc<wow_data::MovieStore>,
     pub(super) script_name_interner: Arc<wow_data::ScriptNameInternerLikeCpp>,
 }
@@ -306,7 +300,6 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) spell_shapeshift_form_store: Arc<wow_data::SpellShapeshiftFormStore>,
     pub(super) vehicle_store: Arc<wow_data::VehicleStore>,
     pub(super) vehicle_seat_store: Arc<wow_data::VehicleSeatStore>,
-    pub(super) vehicle_template_store: Arc<wow_data::VehicleTemplateStoreLikeCpp>,
     pub(super) vehicle_accessory_store: Arc<wow_data::VehicleAccessoryStoreLikeCpp>,
     pub(super) terrain_swap_store: Arc<wow_data::TerrainSwapStore>,
     pub(super) phase_store: Arc<wow_data::PhaseStore>,
@@ -497,7 +490,6 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
             &self.spell_item_enchantment_condition_store,
         ));
         session.set_gem_properties_store(Arc::clone(&self.gem_properties_store));
-        session.set_spell_enchant_proc_store(Arc::clone(&self.spell_enchant_proc_store));
         session.set_hotfix_blob_cache(Arc::clone(&self.hotfix_blob_cache));
         session.set_tact_key_store(Arc::clone(&self.tact_key_store));
         session.set_skill_store(Arc::clone(&self.skill_store));
@@ -546,12 +538,8 @@ impl SessionSpellCatalogCapabilitiesLikeCpp {
         session.set_spell_pet_aura_store(Arc::clone(&self.spell_pet_aura_store));
         session.set_spell_area_store(Arc::clone(&self.spell_area_store));
         session.set_spell_custom_attribute_store(Arc::clone(&self.spell_custom_attribute_store));
-        session.set_serverside_spell_store(Arc::clone(&self.serverside_spell_store));
         session.set_spell_learn_skill_store(Arc::clone(&self.spell_learn_skill_store));
         session.set_spell_learn_spell_store(Arc::clone(&self.spell_learn_spell_store));
-        session.set_pet_levelup_spell_store(Arc::clone(&self.pet_levelup_spell_store));
-        session.set_pet_default_spell_store(Arc::clone(&self.pet_default_spell_store));
-        session.set_pet_family_spell_store(Arc::clone(&self.pet_family_spell_store));
         session.set_spell_proc_store(Arc::clone(&self.spell_proc_store));
         session.set_spell_required_store(Arc::clone(&self.spell_required_store));
         session.set_spell_threat_store(Arc::clone(&self.spell_threat_store));
@@ -559,7 +547,6 @@ impl SessionSpellCatalogCapabilitiesLikeCpp {
         session.set_spell_radius_store(Arc::clone(&self.spell_radius_store));
         session.set_spell_range_store(Arc::clone(&self.spell_range_store));
         session.set_spell_target_position_store(Arc::clone(&self.spell_target_position_store));
-        session.set_spell_totem_model_store(Arc::clone(&self.spell_totem_model_store));
         session.set_movie_store(Arc::clone(&self.movie_store));
         session.set_script_name_interner(Arc::clone(&self.script_name_interner));
     }
@@ -611,7 +598,6 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
         session.set_spell_shapeshift_form_store(Arc::clone(&self.spell_shapeshift_form_store));
         session.set_vehicle_store(Arc::clone(&self.vehicle_store));
         session.set_vehicle_seat_store(Arc::clone(&self.vehicle_seat_store));
-        session.set_vehicle_template_store(Arc::clone(&self.vehicle_template_store));
         session.set_vehicle_accessory_store(Arc::clone(&self.vehicle_accessory_store));
         session.set_terrain_swap_store(Arc::clone(&self.terrain_swap_store));
         session.set_phase_store(Arc::clone(&self.phase_store));

@@ -116,34 +116,29 @@ use wow_data::{
     ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore, MapDifficultyStore,
     MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountDefinitionStoreLikeCpp,
     MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
-    NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
-    PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
-    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
-    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
+    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp, PlayerStatsStore,
     PvpItemStore, RandPropPointsStore, SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, ScriptIdLikeCpp,
-    ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp,
-    ShieldBlockRegularGameTableLikeCpp, SkillLineStore, SkillRangeTypeLikeCpp, SkillStore,
-    SkillTiersStoreLikeCpp, SpellAcquisitionCatalogLikeCpp, SpellAreaLikeCpp,
-    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore, SpellCategoryStore,
-    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
-    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellEquippedItemsEntry,
-    SpellEquippedItemsStore, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore,
-    SpellLearnSkillLookupLikeCpp, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLevelsStore,
-    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
-    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
-    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp,
-    SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore,
+    ScriptNameInternerLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore,
+    SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAcquisitionCatalogLikeCpp,
+    SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore,
+    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
+    SpellDurationStore, SpellEquippedItemsEntry, SpellEquippedItemsStore,
+    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
+    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillLookupLikeCpp,
+    SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
+    SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
+    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SummonPropertiesEntry, TactKeyStore,
     TalentStore, TalentTabStore, TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp,
     TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp, WorldSafeLocStore, calculate_battle_pet_stats_like_cpp,
-    is_player_meeting_condition_like_cpp,
+    WorldSafeLocStore, calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -160,6 +155,13 @@ use wow_data::{
         SPELL_CLICK_USER_RAID_LIKE_CPP, UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
+};
+#[cfg(test)]
+use wow_data::{
+    PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp,
+    PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp, ServersideSpellInfoLikeCpp,
+    ServersideSpellStoreLikeCpp, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, VehicleTemplateStoreLikeCpp,
 };
 #[cfg(test)]
 use wow_entities::TitanGripPenaltyAction;
@@ -5508,6 +5510,7 @@ pub struct WorldSession {
     spell_item_enchantment_store: Option<Arc<SpellItemEnchantmentStore>>,
     spell_item_enchantment_condition_store: Option<Arc<SpellItemEnchantmentConditionStore>>,
     gem_properties_store: Option<Arc<GemPropertiesStore>>,
+    #[cfg(test)]
     spell_enchant_proc_store: Option<Arc<SpellEnchantProcStoreLikeCpp>>,
 
     // Hotfix blob cache: raw DB2 record bytes for DBReply responses
@@ -5601,6 +5604,7 @@ pub struct WorldSession {
     spell_shapeshift_form_store: Option<Arc<SpellShapeshiftFormStore>>,
     vehicle_store: Option<Arc<VehicleStore>>,
     vehicle_seat_store: Option<Arc<VehicleSeatStore>>,
+    #[cfg(test)]
     vehicle_template_store: Option<Arc<VehicleTemplateStoreLikeCpp>>,
     vehicle_accessory_store: Option<Arc<VehicleAccessoryStoreLikeCpp>>,
     terrain_swap_store: Option<Arc<wow_data::TerrainSwapStore>>,
@@ -6606,11 +6610,15 @@ pub struct WorldSession {
     spell_pet_aura_store: Option<Arc<SpellPetAuraStoreLikeCpp>>,
     spell_area_store: Option<Arc<SpellAreaStoreLikeCpp>>,
     spell_custom_attribute_store: Option<Arc<SpellCustomAttributeStoreLikeCpp>>,
+    #[cfg(test)]
     serverside_spell_store: Option<Arc<ServersideSpellStoreLikeCpp>>,
     spell_learn_skill_store: Option<Arc<SpellLearnSkillStoreLikeCpp>>,
     spell_learn_spell_store: Option<Arc<SpellLearnSpellStoreLikeCpp>>,
+    #[cfg(test)]
     pet_levelup_spell_store: Option<Arc<PetLevelupSpellStoreLikeCpp>>,
+    #[cfg(test)]
     pet_default_spell_store: Option<Arc<PetDefaultSpellStoreLikeCpp>>,
+    #[cfg(test)]
     pet_family_spell_store: Option<Arc<PetFamilySpellStoreLikeCpp>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
     spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
@@ -6619,6 +6627,7 @@ pub struct WorldSession {
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
     spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
+    #[cfg(test)]
     spell_totem_model_store: Option<Arc<SpellTotemModelStoreLikeCpp>>,
     chr_classes_store: Option<Arc<ChrClassesStore>>,
     power_type_store: Option<Arc<PowerTypeStore>>,
@@ -7834,6 +7843,7 @@ impl WorldSession {
             spell_item_enchantment_store: None,
             spell_item_enchantment_condition_store: None,
             gem_properties_store: None,
+            #[cfg(test)]
             spell_enchant_proc_store: None,
             hotfix_blob_cache: None,
             tact_key_store: None,
@@ -7900,6 +7910,7 @@ impl WorldSession {
             spell_shapeshift_form_store: None,
             vehicle_store: None,
             vehicle_seat_store: None,
+            #[cfg(test)]
             vehicle_template_store: None,
             vehicle_accessory_store: None,
             terrain_swap_store: None,
@@ -8525,11 +8536,15 @@ impl WorldSession {
             spell_pet_aura_store: None,
             spell_area_store: None,
             spell_custom_attribute_store: None,
+            #[cfg(test)]
             serverside_spell_store: None,
             spell_learn_skill_store: None,
             spell_learn_spell_store: None,
+            #[cfg(test)]
             pet_levelup_spell_store: None,
+            #[cfg(test)]
             pet_default_spell_store: None,
+            #[cfg(test)]
             pet_family_spell_store: None,
             spell_proc_store: None,
             spell_required_store: None,
@@ -8538,6 +8553,7 @@ impl WorldSession {
             spell_radius_store: None,
             spell_range_store: None,
             spell_target_position_store: None,
+            #[cfg(test)]
             spell_totem_model_store: None,
             chr_classes_store: None,
             power_type_store: None,
@@ -26598,10 +26614,12 @@ impl WorldSession {
         activate
     }
 
+    #[cfg(test)]
     pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
         self.spell_enchant_proc_store = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn spell_enchant_proc_event_like_cpp(
         &self,
         enchantment_id: u32,
@@ -27838,6 +27856,7 @@ impl WorldSession {
         self.vehicle_seat_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_vehicle_template_store(&mut self, store: Arc<VehicleTemplateStoreLikeCpp>) {
         self.vehicle_template_store = Some(store);
     }
@@ -29398,10 +29417,12 @@ impl WorldSession {
         self.spell_custom_attribute_store.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
         self.serverside_spell_store = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn serverside_spell_like_cpp(
         &self,
         spell_id: u32,
@@ -29476,10 +29497,12 @@ impl WorldSession {
             .is_some_and(|store| store.is_spell_learn_to_spell_like_cpp(spell_id1, spell_id2))
     }
 
+    #[cfg(test)]
     pub fn set_pet_levelup_spell_store(&mut self, store: Arc<PetLevelupSpellStoreLikeCpp>) {
         self.pet_levelup_spell_store = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn pet_levelup_spell_list_like_cpp(
         &self,
         pet_family: u32,
@@ -29489,10 +29512,12 @@ impl WorldSession {
             .and_then(|store| store.get_pet_levelup_spell_list_like_cpp(pet_family))
     }
 
+    #[cfg(test)]
     pub fn set_pet_default_spell_store(&mut self, store: Arc<PetDefaultSpellStoreLikeCpp>) {
         self.pet_default_spell_store = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn pet_default_spells_entry_like_cpp(
         &self,
         id: i32,
@@ -29502,10 +29527,12 @@ impl WorldSession {
             .and_then(|store| store.get_pet_default_spells_entry_like_cpp(id))
     }
 
+    #[cfg(test)]
     pub fn set_pet_family_spell_store(&mut self, store: Arc<PetFamilySpellStoreLikeCpp>) {
         self.pet_family_spell_store = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn pet_family_spells_like_cpp(&self, pet_family: u32) -> Option<Vec<u32>> {
         self.pet_family_spell_store
             .as_ref()
@@ -29963,10 +29990,12 @@ impl WorldSession {
         })
     }
 
+    #[cfg(test)]
     pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
         self.spell_totem_model_store = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn model_for_totem_like_cpp(&self, spell_id: u32, race_id: u8) -> u32 {
         self.spell_totem_model_store
             .as_ref()
@@ -37955,7 +37984,7 @@ impl WorldSession {
             .is_some()
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     fn player_mount_vehicle_despawn_delay_ms_like_cpp(&self) -> i32 {
         let Some(Some(vehicle_kit)) = self.player_mount_vehicle_kit_snapshot_like_cpp() else {
             return 1;

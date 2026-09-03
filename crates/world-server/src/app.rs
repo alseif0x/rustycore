@@ -933,7 +933,7 @@ async fn run_inner(
         wow_database::MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
         ));
-    let vehicle_template_store = Arc::new(
+    let _vehicle_template_store = Arc::new(
         crate::vehicle_catalog::load_vehicle_template_store_like_cpp(&vehicle_world_persistence)
             .await
             .context("Failed to load C++ vehicle_template rows")?,
@@ -2445,7 +2445,6 @@ async fn run_inner(
         )
         .await
         .context("Failed to load C++ spell_enchant_proc_data rows")?;
-    let spell_enchant_proc_store = Arc::new(spell_enchant_proc_outcome.store);
     info!(
         "Loaded {} C++ spell_enchant_proc_data rows ({} missing enchantments)",
         spell_enchant_proc_outcome.loaded_row_count,
@@ -4047,7 +4046,6 @@ async fn run_inner(
     )
     .await
     .context("Failed to load C++ spell_totem_model rows")?;
-    let spell_totem_model_store = Arc::new(spell_totem_model_outcome.store);
     info!(
         "Loaded {} C++ spell_totem_model rows ({} validation issues)",
         spell_totem_model_outcome.loaded_row_count,
@@ -4703,7 +4701,6 @@ async fn run_inner(
                 &spell_item_enchantment_condition_store,
             ),
             gem_properties_store: Arc::clone(&gem_properties_store),
-            spell_enchant_proc_store: Arc::clone(&spell_enchant_proc_store),
             hotfix_blob_cache: Arc::clone(&hotfix_blob_cache),
             tact_key_store: Arc::clone(&tact_key_store),
             skill_store: Arc::clone(&skill_store),
@@ -4749,12 +4746,8 @@ async fn run_inner(
             spell_pet_aura_store: Arc::clone(&spell_pet_aura_store),
             spell_area_store: Arc::clone(&spell_area_store),
             spell_custom_attribute_store: Arc::clone(&spell_custom_attribute_store),
-            serverside_spell_store: Arc::clone(&serverside_spell_store),
             spell_learn_skill_store: Arc::clone(&spell_learn_skill_store),
             spell_learn_spell_store: Arc::clone(&spell_learn_spell_store),
-            pet_levelup_spell_store: Arc::clone(&pet_levelup_spell_store),
-            pet_default_spell_store: Arc::clone(&pet_default_spell_store),
-            pet_family_spell_store: Arc::clone(&pet_family_spell_store),
             spell_proc_store: Arc::clone(&spell_proc_store),
             spell_required_store: Arc::clone(&spell_required_store),
             spell_threat_store: Arc::clone(&spell_threat_store),
@@ -4762,7 +4755,6 @@ async fn run_inner(
             spell_radius_store: Arc::clone(&spell_radius_store),
             spell_range_store: Arc::clone(&spell_range_store),
             spell_target_position_store: Arc::clone(&spell_target_position_store),
-            spell_totem_model_store: Arc::clone(&spell_totem_model_store),
             movie_store: Arc::clone(&movie_store),
             script_name_interner: Arc::clone(&script_name_interner),
         },
@@ -4805,7 +4797,6 @@ async fn run_inner(
             spell_shapeshift_form_store: Arc::clone(&spell_shapeshift_form_store),
             vehicle_store: Arc::clone(&vehicle_store),
             vehicle_seat_store: Arc::clone(&vehicle_seat_store),
-            vehicle_template_store: Arc::clone(&vehicle_template_store),
             vehicle_accessory_store: Arc::clone(&vehicle_accessory_store),
             terrain_swap_store: Arc::clone(&terrain_swap_store),
             phase_store: Arc::clone(&phase_store),

@@ -3575,6 +3575,20 @@ fn session_resources_requires_named_capability_bundles() {
         !resources_source.contains("Option<"),
         "every inner production capability must also be required by its Rust type"
     );
+    for retired_test_only_catalog in [
+        "pet_default_spell_store",
+        "pet_family_spell_store",
+        "pet_levelup_spell_store",
+        "serverside_spell_store",
+        "spell_enchant_proc_store",
+        "spell_totem_model_store",
+        "vehicle_template_store",
+    ] {
+        assert!(
+            !resources_source.contains(retired_test_only_catalog),
+            "test-only catalog {retired_test_only_catalog} must not be projected into production sessions"
+        );
+    }
     assert_eq!(
         session_factory_source
             .matches("install_into_session_like_cpp(&mut session")
