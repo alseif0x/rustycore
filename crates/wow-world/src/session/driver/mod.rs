@@ -212,9 +212,13 @@ impl WorldSession {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
         self.flush_packet_spoof_ban_like_cpp().await;
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
-        self.process_represented_session_commands_like_cpp().await;
+        self.process_represented_session_commands_with_catalogs_like_cpp(catalogs)
+            .await;
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
-        self.process_pending_creature_kills_like_cpp().await;
+        self.process_pending_creature_kills_with_generator_like_cpp(
+            catalogs.id_generators.item.as_ref(),
+        )
+        .await;
 
         // ── Spell casting tick ─────────────────────────────────────────
         // Check if an active spell cast has completed and execute it.
@@ -223,21 +227,33 @@ impl WorldSession {
             if let Some(player_guid) = self.player_guid() {
                 self.close_retired_active_loot_windows_like_cpp(player_guid);
             }
-            self.tick_represented_loot_rolls_like_cpp().await;
+            self.tick_represented_loot_rolls_with_generator_like_cpp(
+                catalogs.id_generators.item.as_ref(),
+            )
+            .await;
             self.tick_represented_gameobject_update_like_cpp();
             self.send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp();
             self.send_represented_capture_point_removed_from_last_update_like_cpp();
             self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
-            self.tick_active_spell_cast().await;
-            self.tick_pending_spell_cast_request_like_cpp().await;
+            self.tick_active_spell_cast_with_generator_like_cpp(
+                catalogs.id_generators.item.as_ref(),
+            )
+            .await;
+            self.tick_pending_spell_cast_request_with_generator_like_cpp(
+                catalogs.id_generators.item.as_ref(),
+            )
+            .await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
             self.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp();
         }
 
         // Check for instance link delivery (ConnectTo flow)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
-        self.poll_instance_link_with_module_registry_like_cpp(catalogs.modules.as_ref())
-            .await;
+        self.poll_instance_link_with_module_registry_like_cpp(
+            catalogs.id_generators.item.as_ref(),
+            catalogs.modules.as_ref(),
+        )
+        .await;
 
         // Process pending creature/gameobject spawn (async DB query)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
@@ -264,7 +280,10 @@ impl WorldSession {
         }
 
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
-        self.process_pending_periodic_player_save_like_cpp().await;
+        self.process_pending_periodic_player_save_with_generator_like_cpp(
+            catalogs.id_generators.item.as_ref(),
+        )
+        .await;
     }
 
     #[cfg(test)]
@@ -274,7 +293,9 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    fn session_handler_catalogs_for_test_like_cpp(&self) -> SessionHandlerCatalogsLikeCpp {
+    pub(crate) fn session_handler_catalogs_for_test_like_cpp(
+        &self,
+    ) -> SessionHandlerCatalogsLikeCpp {
         let empty_catalogs = SessionHandlerCatalogsLikeCpp::default();
         let catalogs = self
             .object_mgr_catalogs_like_cpp

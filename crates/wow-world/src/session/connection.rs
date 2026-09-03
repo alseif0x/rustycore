@@ -139,14 +139,18 @@ impl WorldSession {
     /// login claim stay here, because neither is transport.
     pub(super) async fn poll_instance_link_with_module_registry_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
     ) {
         match self.connection.poll_instance_link(self.account_id) {
             InstanceLinkPollOutcome::Pending => {}
             InstanceLinkPollOutcome::Attached => {
                 // Continue the player login sequence on the instance socket
-                self.handle_continue_player_login_with_module_registry_like_cpp(modules)
-                    .await;
+                self.handle_continue_player_login_with_module_registry_like_cpp(
+                    item_guid_generator,
+                    modules,
+                )
+                .await;
             }
             InstanceLinkPollOutcome::Failed => {
                 self.player_loading = None;
@@ -161,8 +165,12 @@ impl WorldSession {
             .module_registry_like_cpp
             .clone()
             .unwrap_or_else(|| std::sync::Arc::new(wow_module_api::ModuleRegistry::new()));
-        self.poll_instance_link_with_module_registry_like_cpp(modules.as_ref())
-            .await;
+        let generators = self.id_generators_for_test_like_cpp();
+        self.poll_instance_link_with_module_registry_like_cpp(
+            generators.item.as_ref(),
+            modules.as_ref(),
+        )
+        .await;
     }
 
     /// Send a server packet on the **realm** connection.

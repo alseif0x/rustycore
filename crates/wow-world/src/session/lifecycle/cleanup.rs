@@ -77,14 +77,27 @@ impl WorldSession {
         self.clear_inventory_items_and_objects_like_cpp();
     }
 
-    pub async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
-        self.wait_for_active_loot_persistence_like_cpp().await;
+    pub async fn cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
+        self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
+            .await;
         if let Some(player_guid) = self.player_guid()
             && self.has_active_loot_views_like_cpp()
         {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.cleanup_shared_runtime_state();
+    }
+
+    #[cfg(test)]
+    pub async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+            generators.item.as_ref(),
+        )
+        .await;
     }
     /// Remove this session from the player registry.
     /// Called on logout or disconnect.

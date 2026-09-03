@@ -99,7 +99,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_use_toy",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_use_toy(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_use_toy_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -288,7 +297,11 @@ impl crate::session::WorldSession {
     /// the represented spell executor, but preserves the C++ toy metadata that
     /// must reach `SpellCastData`.
 
-    pub async fn handle_use_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_use_toy_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match UseToy::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -415,7 +428,8 @@ impl crate::session::WorldSession {
                 metadata,
             });
         } else if let Err(error) = self
-            .execute_spell_with_visual_and_target_data_with_metadata(
+            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                item_guid_generator,
                 request.cast.spell_id,
                 target_guid,
                 server_cast_id,
@@ -511,5 +525,12 @@ impl crate::session::WorldSession {
         } else {
             self.remove_account_toy_like_cpp(destroyed_entry_id);
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_use_toy(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_use_toy_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 }

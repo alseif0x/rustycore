@@ -806,7 +806,11 @@ impl WorldSession {
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
     /// C++ refs: `WorldSession::HandleBinderActivateOpcode` /
     /// `WorldSession::SendBindPoint` (`Handlers/NPCHandler.cpp:373-402`).
-    pub async fn handle_binder_activate(&mut self, hello: Hello) {
+    pub async fn handle_binder_activate_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        hello: Hello,
+    ) {
         info!(
             "BinderActivate {:?} account {}",
             hello.unit, self.account_id
@@ -853,7 +857,8 @@ impl WorldSession {
         if let Some(player_guid) = self.player_guid() {
             let cast_id = self.next_represented_spell_cast_guid_like_cpp(BIND_SPELL_ID_LIKE_CPP);
             if let Err(error) = self
-                .execute_spell_with_visual_and_target_data_with_metadata(
+                .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                    item_guid_generator,
                     BIND_SPELL_ID_LIKE_CPP,
                     player_guid,
                     cast_id,
@@ -1291,6 +1296,13 @@ impl WorldSession {
                 warn!("Failed to update realmcharacters: {reason}");
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_binder_activate(&mut self, hello: Hello) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_binder_activate_with_generator_like_cpp(generators.item.as_ref(), hello)
+            .await;
     }
 
     pub(crate) async fn load_character_spell_history_packets_like_cpp(
@@ -2141,6 +2153,7 @@ impl WorldSession {
     /// tutorials, and time-zone packets during `HandlePlayerLogin`.
     pub(super) async fn send_login_sequence(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         guid: ObjectGuid,
         race: u8,
         class: u8,
@@ -2220,6 +2233,7 @@ impl WorldSession {
         let account_mount_login_partials = self.account_mount_login_partial_rows_like_cpp();
         if !self
             .send_handle_player_login_packets_like_cpp(
+                item_guid_generator,
                 guid,
                 position,
                 map_id,

@@ -8,8 +8,26 @@
 use super::*;
 
 impl WorldSession {
+    #[cfg(test)]
     pub(super) async fn store_quest_source_item_like_cpp(
         &mut self,
+        entry_id: u32,
+        quantity: u32,
+        dest: &[ItemPosCount],
+    ) -> Option<QuestSourceItemStoreOutcomeLikeCpp> {
+        let generator = self.item_guid_generator_like_cpp_for_bridge()?;
+        self.store_quest_source_item_with_generator_like_cpp(
+            generator.as_ref(),
+            entry_id,
+            quantity,
+            dest,
+        )
+        .await
+    }
+
+    pub(super) async fn store_quest_source_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quantity: u32,
         dest: &[ItemPosCount],
@@ -27,7 +45,8 @@ impl WorldSession {
             .represented_quest_complete_status_updates_like_cpp()
             .len();
         if let Some(bound_preflight) = self
-            .apply_quest_source_item_bound_objective_preflight_like_cpp(
+            .apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+                item_guid_generator,
                 entry_id,
                 quest_log_item_id,
                 quantity,
@@ -85,8 +104,11 @@ impl WorldSession {
                 self.get_inventory_item_by_pos(bag, slot).is_none()
             })
             .count();
-        let Some(allocated_new_item_guids) =
-            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        let Some(allocated_new_item_guids) = self
+            .allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                new_item_count,
+            )
         else {
             warn!(
                 account = self.account_id,
@@ -338,7 +360,8 @@ impl WorldSession {
             .copied()
             .unwrap_or(0);
         let changed_non_bound_quest_ids = self
-            .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+            .apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
                 entry_id,
                 quest_log_item_id,
                 quantity,
@@ -385,6 +408,7 @@ impl WorldSession {
 
     async fn store_quest_reward_item_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quantity: u32,
         dest: &[ItemPosCount],
@@ -435,8 +459,11 @@ impl WorldSession {
                 self.get_inventory_item_by_pos(bag, slot).is_none()
             })
             .count();
-        let Some(allocated_new_item_guids) =
-            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        let Some(allocated_new_item_guids) = self
+            .allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                new_item_count,
+            )
         else {
             warn!(
                 account = self.account_id,
@@ -721,6 +748,7 @@ impl WorldSession {
 
     async fn store_fixed_quest_reward_items_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         for (item_id, count) in quest.reward_items.iter().zip(quest.reward_amounts.iter()) {
@@ -736,7 +764,7 @@ impl WorldSession {
                 return false;
             }
             if !self
-                .store_quest_reward_item_like_cpp(*item_id, *count, &dest)
+                .store_quest_reward_item_like_cpp(item_guid_generator, *item_id, *count, &dest)
                 .await
             {
                 return false;
@@ -748,6 +776,7 @@ impl WorldSession {
 
     async fn store_chosen_quest_reward_item_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
@@ -783,7 +812,7 @@ impl WorldSession {
                 return false;
             }
             if !self
-                .store_quest_reward_item_like_cpp(*item_id, *count, &dest)
+                .store_quest_reward_item_like_cpp(item_guid_generator, *item_id, *count, &dest)
                 .await
             {
                 return false;
@@ -795,6 +824,7 @@ impl WorldSession {
 
     async fn store_quest_package_reward_entry_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry: &QuestPackageItemEntry,
     ) -> bool {
         let Ok(item_id) = u32::try_from(entry.item_id) else {
@@ -813,12 +843,18 @@ impl WorldSession {
             return false;
         }
 
-        self.store_quest_reward_item_like_cpp(item_id, entry.item_quantity, &dest)
-            .await
+        self.store_quest_reward_item_like_cpp(
+            item_guid_generator,
+            item_id,
+            entry.item_quantity,
+            &dest,
+        )
+        .await
     }
 
     async fn store_quest_package_reward_items_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
@@ -862,14 +898,20 @@ impl WorldSession {
             }
 
             has_filtered_quest_package_reward = true;
-            if !self.store_quest_package_reward_entry_like_cpp(&entry).await {
+            if !self
+                .store_quest_package_reward_entry_like_cpp(item_guid_generator, &entry)
+                .await
+            {
                 return false;
             }
         }
 
         if !has_filtered_quest_package_reward {
             for entry in fallback_entries {
-                if !self.store_quest_package_reward_entry_like_cpp(&entry).await {
+                if !self
+                    .store_quest_package_reward_entry_like_cpp(item_guid_generator, &entry)
+                    .await
+                {
                     return false;
                 }
             }
@@ -1972,8 +2014,28 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     pub(super) async fn reward_represented_quest_like_cpp(
         &mut self,
+        quest: &wow_data::quest::QuestTemplate,
+        quest_giver_guid: ObjectGuid,
+        choice: QuestChoiceItemLikeCpp,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.reward_represented_quest_with_generator_like_cpp(
+            generator.as_ref(),
+            quest,
+            quest_giver_guid,
+            choice,
+        )
+        .await
+    }
+
+    pub(super) async fn reward_represented_quest_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         quest_giver_guid: ObjectGuid,
         choice: QuestChoiceItemLikeCpp,
@@ -2003,7 +2065,10 @@ impl WorldSession {
 
         self.remove_represented_timed_quest_like_cpp(quest_id);
 
-        if !self.store_fixed_quest_reward_items_like_cpp(quest).await {
+        if !self
+            .store_fixed_quest_reward_items_like_cpp(item_guid_generator, quest)
+            .await
+        {
             debug!(
                 account = self.account_id,
                 quest_id,
@@ -2013,7 +2078,7 @@ impl WorldSession {
         }
 
         if !self
-            .store_chosen_quest_reward_item_like_cpp(quest, choice)
+            .store_chosen_quest_reward_item_like_cpp(item_guid_generator, quest, choice)
             .await
         {
             debug!(
@@ -2026,7 +2091,7 @@ impl WorldSession {
         }
 
         if !self
-            .store_quest_package_reward_items_like_cpp(quest, choice)
+            .store_quest_package_reward_items_like_cpp(item_guid_generator, quest, choice)
             .await
         {
             debug!(

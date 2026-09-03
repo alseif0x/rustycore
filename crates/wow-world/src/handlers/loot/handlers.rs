@@ -24,7 +24,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_item",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_item(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move {
+            session
+                .handle_loot_item_with_generator_like_cpp(
+                    catalogs.id_generators.item.as_ref(),
+                    pkt,
+                )
+                .await
+        }),
     }
 }
 
@@ -34,7 +41,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_money",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_money(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_loot_money_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -54,10 +70,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_roll",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::loot::LootRoll::read(&mut pkt) {
-                    Ok(roll) => session.handle_loot_roll(roll).await,
+                    Ok(roll) => {
+                        session
+                            .handle_loot_roll_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                roll,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read LootRoll: {e}"),
                 }
             })
@@ -71,10 +94,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_master_loot_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::loot::MasterLootItem::read(&mut pkt) {
-                    Ok(master_loot_item) => session.handle_master_loot_item(master_loot_item).await,
+                    Ok(master_loot_item) => {
+                        session
+                            .handle_master_loot_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                master_loot_item,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read MasterLootItem: {e}"),
                 }
             })
@@ -138,6 +168,30 @@ inventory::submit! {
 }
 
 impl WorldSession {
+    #[cfg(test)]
+    pub async fn handle_loot_item(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_loot_item_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_loot_roll(&mut self, roll: LootRoll) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_loot_roll_with_generator_like_cpp(generators.item.as_ref(), roll)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_master_loot_item(&mut self, master_loot_item: MasterLootItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_master_loot_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            master_loot_item,
+        )
+        .await;
+    }
+
     /// CMSG_LOOT_UNIT — player right-clicks a dead creature to loot it.
     pub async fn handle_loot_unit(&mut self, mut pkt: wow_packet::WorldPacket) {
         let req = match LootUnit::read(&mut pkt) {
@@ -291,7 +345,11 @@ impl WorldSession {
     }
 
     /// CMSG_LOOT_ITEM — player clicks to take a specific item from the loot.
-    pub async fn handle_loot_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_loot_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match LootItemPkt::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -461,7 +519,8 @@ impl WorldSession {
             };
 
             let stored = if let Some(claim) = claim.as_ref() {
-                self.store_claimed_direct_loot_item_from_owner_like_cpp(
+                self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                    item_guid_generator,
                     &entry,
                     dungeon_encounter_id,
                     owner_guid,
@@ -470,7 +529,8 @@ impl WorldSession {
                 )
                 .await
             } else {
-                self.store_direct_loot_item_from_owner_like_cpp(
+                self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                    item_guid_generator,
                     &entry,
                     dungeon_encounter_id,
                     owner_guid,
@@ -486,8 +546,10 @@ impl WorldSession {
                 // the session tracker before its JoinHandle completed. Apply
                 // it here on the normal path; logout/disconnect and the
                 // session tick drain the same completion after cancellation.
-                self.apply_pending_durable_item_loot_completions_like_cpp()
-                    .await;
+                self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+                    item_guid_generator,
+                )
+                .await;
                 debug!(
                     account = self.account_id,
                     item = entry.item_id,
@@ -559,7 +621,11 @@ impl WorldSession {
     }
 
     /// CMSG_LOOT_MONEY — player takes money from the current loot view.
-    pub async fn handle_loot_money(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_loot_money_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match LootMoney::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -826,8 +892,11 @@ impl WorldSession {
                     continue;
                 }
                 if let Some(application) = local_application {
-                    self.handle_apply_loot_money_like_cpp_command(application)
-                        .await;
+                    self.handle_apply_loot_money_with_generator_like_cpp_command(
+                        item_guid_generator,
+                        application,
+                    )
+                    .await;
                 }
                 // The detached worker has already committed the authority and
                 // queued the durable runtime applications.  Returning to the
@@ -891,8 +960,10 @@ impl WorldSession {
                     }
                 }
                 if apply_balance || publish {
-                    self.drain_represented_quest_objective_progress_like_cpp()
-                        .await;
+                    self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                        item_guid_generator,
+                    )
+                    .await;
                 }
                 continue;
             }
@@ -972,8 +1043,10 @@ impl WorldSession {
                     );
                 }
             }
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
         }
 
         for loot_guid in item_release {
@@ -987,6 +1060,13 @@ impl WorldSession {
         }
 
         let _ = player_guid;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_loot_money(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_loot_money_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 
     /// CMSG_LOOT_RELEASE — player closes the loot window.
@@ -1020,13 +1100,21 @@ impl WorldSession {
     /// canonical roll state. Rust does not yet port that state machine, so this
     /// represented handler preserves the current wire behavior without emitting
     /// synthetic errors.
-    pub async fn handle_loot_roll(&mut self, roll: LootRoll) {
+    pub async fn handle_loot_roll_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        roll: LootRoll,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
 
         if self
-            .represented_player_vote_on_loot_roll_like_cpp(&roll, player_guid)
+            .represented_player_vote_on_loot_roll_with_generator_like_cpp(
+                item_guid_generator,
+                &roll,
+                player_guid,
+            )
             .await
         {
             return;
@@ -1051,7 +1139,11 @@ impl WorldSession {
     /// master looter with `LOOT_ERROR_DIDNT_KILL`. Current Rust group state has
     /// loot method `MASTER_LOOT` and the stored master-looter GUID matching the
     /// current player.
-    pub async fn handle_master_loot_item(&mut self, master_loot_item: MasterLootItem) {
+    pub async fn handle_master_loot_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        master_loot_item: MasterLootItem,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
@@ -1232,7 +1324,8 @@ impl WorldSession {
             };
             if master_loot_item.target == player_guid {
                 let stored = if let Some(claim) = claim.as_ref() {
-                    self.store_claimed_direct_loot_item_from_owner_like_cpp(
+                    self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                        item_guid_generator,
                         &entry,
                         dungeon_encounter_id,
                         owner_guid,
@@ -1241,7 +1334,8 @@ impl WorldSession {
                     )
                     .await
                 } else {
-                    self.store_direct_loot_item_from_owner_like_cpp(
+                    self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                        item_guid_generator,
                         &entry,
                         dungeon_encounter_id,
                         owner_guid,
@@ -2105,8 +2199,9 @@ impl WorldSession {
         );
     }
 
-    pub(crate) async fn handle_represented_loot_roll_vote_command_like_cpp(
+    pub(crate) async fn handle_represented_loot_roll_vote_command_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         command: LootRollVoteCommand,
     ) {
         let roll_key = (command.loot_obj, command.loot_list_id);
@@ -2127,7 +2222,8 @@ impl WorldSession {
         };
 
         let _ = self
-            .represented_player_vote_on_loot_roll_with_pass_state_like_cpp(
+            .represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
+                item_guid_generator,
                 &roll,
                 command.voter_guid,
                 command.pass_on_group_loot,
@@ -2135,8 +2231,9 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_apply_loot_money_like_cpp_command(
+    pub(crate) async fn handle_apply_loot_money_with_generator_like_cpp_command(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         command: ApplyLootMoneyLikeCppCommand,
     ) {
         if self.player_guid() != Some(command.recipient) {
@@ -2169,6 +2266,7 @@ impl WorldSession {
         let durable_applied_amount = command.durable_applied_amount.load(Ordering::Acquire);
         let _ = self
             .apply_durable_represented_loot_money_payout_like_cpp(
+                item_guid_generator,
                 command.amount,
                 durable_applied_amount,
                 command.sole_looter,
@@ -2176,6 +2274,19 @@ impl WorldSession {
                 publish,
             )
             .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn handle_apply_loot_money_like_cpp_command(
+        &mut self,
+        command: ApplyLootMoneyLikeCppCommand,
+    ) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_apply_loot_money_with_generator_like_cpp_command(
+            generators.item.as_ref(),
+            command,
+        )
+        .await;
     }
 
     pub(crate) fn handle_notify_loot_money_removed_like_cpp_command(
@@ -2202,8 +2313,9 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn handle_represented_master_loot_give_command_like_cpp(
+    pub(crate) async fn handle_represented_master_loot_give_command_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         command: MasterLootGiveCommand,
     ) {
         let Some(player_guid) = self.player_guid() else {
@@ -2232,7 +2344,8 @@ impl WorldSession {
         }
 
         let stored = if let Some(claim) = command.claim.as_ref() {
-            self.store_claimed_direct_loot_item_from_owner_like_cpp(
+            self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entry,
                 command.dungeon_encounter_id,
                 command.loot_owner,
@@ -2241,7 +2354,8 @@ impl WorldSession {
             )
             .await
         } else {
-            self.store_direct_loot_item_from_owner_like_cpp(
+            self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entry,
                 command.dungeon_encounter_id,
                 command.loot_owner,
@@ -2267,8 +2381,9 @@ impl WorldSession {
         let _ = command.result_tx.send(result);
     }
 
-    pub(crate) async fn handle_represented_loot_roll_store_winner_command_like_cpp(
+    pub(crate) async fn handle_represented_loot_roll_store_winner_command_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         command: LootRollStoreWinnerCommand,
     ) {
         let Some(player_guid) = self.player_guid() else {
@@ -2304,7 +2419,8 @@ impl WorldSession {
         }
 
         let stored = if command.is_disenchant {
-            self.store_direct_disenchant_batch_like_cpp(
+            self.store_direct_disenchant_batch_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entries,
                 command.dungeon_encounter_id,
                 command.claim.as_ref(),
@@ -2324,7 +2440,8 @@ impl WorldSession {
             )
             .await
         } else if let Some(claim) = command.claim.as_ref() {
-            self.store_claimed_direct_loot_item_from_owner_like_cpp(
+            self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entries[0],
                 command.dungeon_encounter_id,
                 command.loot_owner,
@@ -2333,7 +2450,8 @@ impl WorldSession {
             )
             .await
         } else {
-            self.store_direct_loot_item_from_owner_like_cpp(
+            self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entries[0],
                 command.dungeon_encounter_id,
                 command.loot_owner,

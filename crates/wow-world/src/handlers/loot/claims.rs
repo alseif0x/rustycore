@@ -1066,8 +1066,32 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     pub(super) async fn store_claimed_direct_loot_item_from_owner_like_cpp(
         &mut self,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        claim: &LootClaimLease,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+            owner_guid,
+            loot_obj,
+            claim,
+        )
+        .await
+    }
+
+    pub(super) async fn store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
         owner_guid: ObjectGuid,
@@ -1077,7 +1101,8 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        self.store_direct_loot_item_with_source_like_cpp(
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            item_guid_generator,
             loot_entry,
             dungeon_encounter_id,
             owner_guid.is_item().then_some(owner_guid),

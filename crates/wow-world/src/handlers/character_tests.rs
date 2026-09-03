@@ -2374,9 +2374,11 @@ async fn handle_player_login_prelude_resends_account_state_and_orders_packets_li
     ];
     session.set_player_guid(Some(guid));
     session.load_tutorials_data_values_like_cpp(Some(tutorials));
+    let generators = session.id_generators_for_test_like_cpp();
     assert!(
         session
             .send_handle_player_login_packets_like_cpp(
+                generators.item.as_ref(),
                 guid,
                 &Position::new(1.0, 2.0, 3.0, 4.0),
                 571,
@@ -3565,10 +3567,12 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
             ..Default::default()
         }
     }));
+    let generators = session.id_generators_for_test_like_cpp();
 
     assert!(
         !session
             .send_login_sequence(
+                generators.item.as_ref(),
                 guid,
                 1,
                 1,

@@ -239,8 +239,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_trainer_buy_spell",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_trainer_buy_spell(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_trainer_buy_spell_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -534,7 +541,11 @@ impl WorldSession {
     /// Revalidates the immutable offer under the exclusive character-money
     /// boundary, commits its fee and prepared acquisition once, then publishes
     /// the C++ money/visual/learning order from the committed result.
-    pub async fn handle_trainer_buy_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_trainer_buy_spell_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match TrainerBuySpellRequest::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -624,7 +635,8 @@ impl WorldSession {
             std::collections::BTreeMap::new(),
         ) && crate::spell_acquisition::snapshot_has_pending_durable_save_like_cpp(&snapshot)
         {
-            self.save_current_player_to_db_like_cpp().await;
+            self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+                .await;
         }
         // Close detached money admission and reconcile every previously
         // admitted payout before deriving the price, balance or acquisition
@@ -673,7 +685,8 @@ impl WorldSession {
                 // Issue #161: the recoverable saga owns the battle-pet
                 // branch end to end (admission, charge, durable command,
                 // one pet, completion, compensation and publication).
-                self.execute_battle_pet_trainer_purchase_like_cpp(
+                self.execute_battle_pet_trainer_purchase_with_generator_like_cpp(
+                    item_guid_generator,
                     money_persistence,
                     trainer_guid,
                     trainer_id as u32,
@@ -909,8 +922,10 @@ impl WorldSession {
             return;
         }
         drop(money_persistence);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
 
         info!(
             account = self.account_id,
@@ -920,6 +935,13 @@ impl WorldSession {
             remaining_money = new_money,
             "Trainer purchase committed and published"
         );
+    }
+
+    #[cfg(test)]
+    pub async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_trainer_buy_spell_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 }
 

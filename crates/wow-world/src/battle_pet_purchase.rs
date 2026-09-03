@@ -232,8 +232,9 @@ impl WorldSession {
     /// the C++ `Trainer::TeachSpell` battle-pet order (money update,
     /// `SMSG_BATTLE_PET_UPDATES`, dependent `SMSG_LEARNED_SPELLS`) with the
     /// trainer visual kits suppressed (`Trainer.cpp:108,121-125`).
-    pub(crate) async fn execute_battle_pet_trainer_purchase_like_cpp(
+    pub(crate) async fn execute_battle_pet_trainer_purchase_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
         trainer_guid: ObjectGuid,
         trainer_id: u32,
@@ -392,8 +393,10 @@ impl WorldSession {
             }
         }
         drop(money_persistence);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
 
         // T2: apply once through the #160 owner; its Login DB transaction
         // revalidates fence, lease and per-species capacity and writes pet +
@@ -447,6 +450,7 @@ impl WorldSession {
             }
             Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
                 self.compensate_battle_pet_purchase_like_cpp(
+                    item_guid_generator,
                     &owner,
                     lease_id,
                     player_guid,
@@ -467,14 +471,34 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) async fn execute_battle_pet_trainer_purchase_like_cpp(
+        &mut self,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        trainer_guid: ObjectGuid,
+        trainer_id: u32,
+        offer: PreparedBattlePetTrainerOfferLikeCpp,
+    ) -> BattlePetPurchaseExecutionLikeCpp {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_battle_pet_trainer_purchase_with_generator_like_cpp(
+            generators.item.as_ref(),
+            money_persistence,
+            trainer_guid,
+            trainer_id,
+            offer,
+        )
+        .await
+    }
+
     /// Login recovery: resume every unconverged durable command of this
     /// character, oldest first, bounded by
     /// `BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP`. Runs inline
     /// during the login burst (no background task) and is cancellation-safe:
     /// every step is either a committed transition or leaves a resumable
     /// durable state for the next login.
-    pub(crate) async fn recover_battle_pet_trainer_purchases_like_cpp(
+    pub(crate) async fn recover_battle_pet_trainer_purchases_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> Option<BattlePetPurchaseRecoveryLikeCpp> {
         let (owner, lease_id) = self.battle_pet_account_owner_lease_like_cpp()?;
         let store = self.battle_pet_purchase_store_like_cpp()?;
@@ -556,6 +580,7 @@ impl WorldSession {
                 ) {
                     match self
                         .compensate_battle_pet_purchase_like_cpp(
+                            item_guid_generator,
                             &owner,
                             lease_id,
                             player_guid,
@@ -591,6 +616,7 @@ impl WorldSession {
                 BattlePetPurchaseStatusLikeCpp::CompensationPending => {
                     match self
                         .compensate_battle_pet_purchase_like_cpp(
+                            item_guid_generator,
                             &owner,
                             lease_id,
                             player_guid,
@@ -665,6 +691,7 @@ impl WorldSession {
                         Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
                             match self
                                 .compensate_battle_pet_purchase_like_cpp(
+                                    item_guid_generator,
                                     &owner,
                                     lease_id,
                                     player_guid,
@@ -785,6 +812,15 @@ impl WorldSession {
         Some(summary)
     }
 
+    #[cfg(test)]
+    pub(crate) async fn recover_battle_pet_trainer_purchases_like_cpp(
+        &mut self,
+    ) -> Option<BattlePetPurchaseRecoveryLikeCpp> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.recover_battle_pet_trainer_purchases_with_generator_like_cpp(generators.item.as_ref())
+            .await
+    }
+
     /// The C++ `AddPet` materialization inputs for one admission, frozen
     /// into the durable command so recovery never re-rolls.
     fn battle_pet_trainer_selection_like_cpp(
@@ -895,6 +931,7 @@ impl WorldSession {
     /// forbids the refund and completes the command instead.
     async fn compensate_battle_pet_purchase_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         owner: &Arc<BattlePetAccountOwnerLikeCpp>,
         lease_id: BattlePetLeaseIdLikeCpp,
         player_guid: ObjectGuid,
@@ -1095,8 +1132,10 @@ impl WorldSession {
                     );
                 }
                 drop(refund_guard);
-                self.drain_represented_quest_objective_progress_like_cpp()
-                    .await;
+                self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
+                )
+                .await;
                 BattlePetPurchaseExecutionLikeCpp::Compensated
             }
             Ok(BattlePetPurchaseCompensationOutcomeLikeCpp::ConflictedCompleted) => {

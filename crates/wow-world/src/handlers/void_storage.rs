@@ -39,8 +39,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_void_storage_unlock",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_void_storage_unlock(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_void_storage_unlock_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -594,7 +601,11 @@ impl WorldSession {
         }
     }
 
-    pub async fn handle_void_storage_unlock(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_void_storage_unlock_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: WorldPacket,
+    ) {
         let Ok(unlock) = UnlockVoidStorage::read(&mut pkt) else {
             return;
         };
@@ -662,11 +673,20 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_void_storage_unlock(&mut self, pkt: WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_void_storage_unlock_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 
     pub async fn handle_void_storage_query(&mut self, mut pkt: WorldPacket) {
@@ -959,7 +979,7 @@ impl WorldSession {
                 continue;
             }
             let Some((db_guid, item_guid)) = self
-                .allocate_item_instance_guids_like_cpp(1)
+                .allocate_item_instance_guids_with_generator_like_cpp(generators.item.as_ref(), 1)
                 .and_then(|mut ids| ids.pop())
             else {
                 self.send_void_storage_transfer_result_like_cpp(
@@ -1516,8 +1536,10 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            generators.item.as_ref(),
+        )
+        .await;
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }

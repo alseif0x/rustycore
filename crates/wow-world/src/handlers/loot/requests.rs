@@ -134,8 +134,36 @@ impl WorldSession {
         );
     }
 
+    #[cfg(test)]
     pub(super) async fn store_represented_disenchant_loot_winner_like_cpp(
         &mut self,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+        entry: &LootEntry,
+        winner_guid: ObjectGuid,
+        dungeon_encounter_id: u32,
+        claim: Option<&LootClaimLease>,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_represented_disenchant_loot_winner_with_generator_like_cpp(
+            generator.as_ref(),
+            owner_guid,
+            loot_obj,
+            loot_list_id,
+            entry,
+            winner_guid,
+            dungeon_encounter_id,
+            claim,
+        )
+        .await
+    }
+
+    pub(super) async fn store_represented_disenchant_loot_winner_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         owner_guid: ObjectGuid,
         loot_obj: ObjectGuid,
         loot_list_id: u8,
@@ -171,7 +199,8 @@ impl WorldSession {
 
         if self.player_guid() == Some(winner_guid) {
             return self
-                .store_direct_disenchant_batch_like_cpp(
+                .store_direct_disenchant_batch_with_generator_like_cpp(
+                    item_guid_generator,
                     &disenchant_entries,
                     dungeon_encounter_id,
                     claim,
@@ -926,12 +955,31 @@ impl WorldSession {
         self.clear_active_loot_guid_if(owner_guid);
     }
 
+    #[cfg(test)]
     pub(super) async fn store_direct_loot_item_like_cpp(
         &mut self,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
     ) -> bool {
-        self.store_direct_loot_item_with_source_like_cpp(
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_loot_item_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_loot_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+    ) -> bool {
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            item_guid_generator,
             loot_entry,
             dungeon_encounter_id,
             None,
@@ -985,8 +1033,30 @@ impl WorldSession {
     /// This bounded divergence keeps C++ generation/inventory rules but plans
     /// every material before creating one SQL transaction.  The detached
     /// transaction worker owns the original roll claim through COMMIT.
+    #[cfg(test)]
     pub(super) async fn store_direct_disenchant_batch_like_cpp(
         &mut self,
+        loot_entries: &[LootEntry],
+        dungeon_encounter_id: u32,
+        claim: Option<&LootClaimLease>,
+        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_disenchant_batch_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entries,
+            dungeon_encounter_id,
+            claim,
+            claim_commit_context,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_disenchant_batch_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         loot_entries: &[LootEntry],
         dungeon_encounter_id: u32,
         claim: Option<&LootClaimLease>,
@@ -1275,9 +1345,10 @@ impl WorldSession {
 
         let mut created_new_stacks = Vec::with_capacity(planned_new_stacks.len());
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) =
-                self.allocate_item_instance_guids_like_cpp(planned_new_stacks.len())
-            else {
+            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                planned_new_stacks.len(),
+            ) else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "disenchant item grant has no process-wide item GUID allocator"
@@ -1427,7 +1498,8 @@ impl WorldSession {
                 .try_into()
                 .unwrap_or(0);
             let mut changed_quest_ids = self
-                .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+                .apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
                     grant.entry.item_id,
                     quest_log_item_id,
                     grant.entry.quantity,
@@ -1562,13 +1634,34 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     pub(super) async fn store_direct_loot_item_from_owner_like_cpp(
         &mut self,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
         owner_guid: ObjectGuid,
     ) -> bool {
-        self.store_direct_loot_item_with_source_like_cpp(
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+            owner_guid,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_loot_item_from_owner_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+    ) -> bool {
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            item_guid_generator,
             loot_entry,
             dungeon_encounter_id,
             owner_guid.is_item().then_some(owner_guid),
@@ -1578,8 +1671,32 @@ impl WorldSession {
         .await
     }
 
+    #[cfg(test)]
     pub(super) async fn store_direct_loot_item_with_source_like_cpp(
         &mut self,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+        stored_item_loot_source: Option<ObjectGuid>,
+        claim: Option<&LootClaimLease>,
+        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+            stored_item_loot_source,
+            claim,
+            claim_commit_context,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_loot_item_with_source_and_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
         stored_item_loot_source: Option<ObjectGuid>,
@@ -1693,7 +1810,8 @@ impl WorldSession {
             }
             if let Some(plan) = bound_objective_plan.as_ref() {
                 let applied = self
-                    .apply_quest_source_item_bound_objective_preflight_like_cpp(
+                    .apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+                        item_guid_generator,
                         item_id,
                         quest_log_item_id,
                         count,
@@ -1832,7 +1950,8 @@ impl WorldSession {
             }
 
             let applied = self
-                .apply_quest_source_item_bound_objective_preflight_like_cpp(
+                .apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+                    item_guid_generator,
                     item_id,
                     quest_log_item_id,
                     count,
@@ -1996,9 +2115,10 @@ impl WorldSession {
 
         let mut created_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) =
-                self.allocate_item_instance_guids_like_cpp(planned_new_stacks.len())
-            else {
+            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                planned_new_stacks.len(),
+            ) else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "loot item grant has no process-wide item GUID allocator"
@@ -2174,7 +2294,8 @@ impl WorldSession {
         }
 
         let mut changed_quest_ids = self
-            .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+            .apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
                 item_id,
                 quest_log_item_id,
                 count,

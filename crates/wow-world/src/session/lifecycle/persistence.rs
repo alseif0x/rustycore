@@ -704,7 +704,10 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
+    pub(crate) async fn save_current_player_to_db_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         // C++ `Player::SaveToDB` delays the next autosave for manual, code, and
         // autosave callers before it appends statements.
         self.reset_player_save_timer_like_cpp();
@@ -713,8 +716,11 @@ impl WorldSession {
         let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
         trace!(fence = "player.save.mutations_closed", "persistence fence");
         self.wait_for_durable_item_loot_persistence_like_cpp().await;
-        self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(false)
-            .await;
+        self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
+            item_guid_generator,
+            false,
+        )
+        .await;
         let money_state_is_determinate = self
             .reconcile_durable_loot_money_before_save_like_cpp()
             .await;
@@ -723,8 +729,10 @@ impl WorldSession {
             // reset metadata, inventory, or other absolute state. Do not let a
             // disconnect/autosave restore any pre-COMMIT runtime snapshot.
             drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
             return;
         }
         trace!(
@@ -738,8 +746,10 @@ impl WorldSession {
             );
             drop(money_mutation_lock);
             drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
             return;
         }
 
@@ -753,8 +763,10 @@ impl WorldSession {
             );
             drop(money_mutation_lock);
             drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
             return;
         };
         let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
@@ -766,8 +778,10 @@ impl WorldSession {
             );
             drop(money_mutation_lock);
             drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
             return;
         };
 
@@ -779,8 +793,10 @@ impl WorldSession {
             );
             drop(money_mutation_lock);
             drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
             return;
         };
         let mut cancellation_fence =
@@ -826,7 +842,16 @@ impl WorldSession {
         }
         drop(money_mutation_lock);
         drop(money_save_fence);
-        self.drain_represented_quest_objective_progress_like_cpp()
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.save_current_player_to_db_with_generator_like_cpp(generators.item.as_ref())
             .await;
     }
 }

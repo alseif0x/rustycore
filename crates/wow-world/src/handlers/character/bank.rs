@@ -8,6 +8,20 @@
 use super::*;
 
 impl WorldSession {
+    #[cfg(test)]
+    pub async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_autobank_item_with_generator_like_cpp(generators.item.as_ref(), packet)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_autostore_bank_item_with_generator_like_cpp(generators.item.as_ref(), packet)
+            .await;
+    }
+
     pub(super) fn send_show_bank_like_cpp(&mut self, banker_guid: ObjectGuid) {
         use wow_packet::packets::misc::NpcInteractionOpenResult;
 
@@ -47,7 +61,11 @@ impl WorldSession {
     /// CMSG_AUTOBANK_ITEM — player moves an inventory item into bank storage.
     ///
     /// C++ ref: `WorldSession::HandleAutoBankItemOpcode`.
-    pub async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
+    pub async fn handle_autobank_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        packet: AutoBankItem,
+    ) {
         if !self.represented_can_use_current_bank_like_cpp() {
             debug!(
                 bag = packet.bag,
@@ -65,6 +83,7 @@ impl WorldSession {
             slot: packet.slot,
         };
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
             packet.bag,
             packet.slot,
             NULL_BAG,
@@ -79,7 +98,11 @@ impl WorldSession {
     /// CMSG_AUTOSTORE_BANK_ITEM — player moves a bank item back to inventory, or inventory to bank.
     ///
     /// C++ ref: `WorldSession::HandleAutoStoreBankItemOpcode`.
-    pub async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
+    pub async fn handle_autostore_bank_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        packet: AutoStoreBankItem,
+    ) {
         if !self.represented_can_use_current_bank_like_cpp() {
             debug!(
                 bag = packet.bag,
@@ -98,6 +121,7 @@ impl WorldSession {
             slot: packet.slot,
         };
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
             packet.bag,
             packet.slot,
             NULL_BAG,
@@ -117,9 +141,10 @@ impl WorldSession {
     /// that coherent state. Rust must cross SQL here because detached group
     /// payouts use the character money row as their durable cap authority, so
     /// persist both fields atomically before publishing either runtime field.
-    pub(crate) async fn handle_buy_bank_slot_with_prices_like_cpp(
+    pub(crate) async fn handle_buy_bank_slot_with_prices_and_generator_like_cpp(
         &mut self,
         prices: &wow_data::BankBagSlotPricesStore,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         buy: BuyBankSlot,
     ) {
         let Some(player_guid) = self.player_guid() else {
@@ -246,8 +271,10 @@ impl WorldSession {
             new_money,
             None,
         ));
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
     }
 
     #[cfg(test)]
@@ -256,8 +283,13 @@ impl WorldSession {
             .bank_bag_slot_prices_store_for_test_like_cpp()
             .cloned()
             .unwrap_or_else(|| Arc::new(wow_data::BankBagSlotPricesStore::from_entries([])));
-        self.handle_buy_bank_slot_with_prices_like_cpp(prices.as_ref(), buy)
-            .await;
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_buy_bank_slot_with_prices_and_generator_like_cpp(
+            prices.as_ref(),
+            generators.item.as_ref(),
+            buy,
+        )
+        .await;
     }
 
     /// CMSG_CHANGE_BANK_BAG_SLOT_FLAG — player toggles an ActivePlayer bank bag flag.

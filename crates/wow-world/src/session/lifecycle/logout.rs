@@ -21,7 +21,10 @@ use tracing::info;
 use super::super::{SessionState, WorldSession};
 
 impl WorldSession {
-    pub async fn save_disconnect_player_to_db_like_cpp(&mut self) {
+    pub async fn save_disconnect_player_to_db_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             self.mark_login_account_offline_on_disconnect_like_cpp()
                 .await;
@@ -34,12 +37,14 @@ impl WorldSession {
             "Saving player on disconnect"
         );
         self.set_player_logout_like_cpp(true);
-        self.wait_for_active_loot_persistence_like_cpp().await;
+        self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
+            .await;
         if self.has_active_loot_views_like_cpp() {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.clear_buyback_on_logout().await;
-        self.save_current_player_to_db_like_cpp().await;
+        self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+            .await;
         self.save_account_mounts_like_cpp().await;
         self.save_account_toys_like_cpp().await;
         self.save_account_heirlooms_like_cpp().await;
@@ -54,6 +59,13 @@ impl WorldSession {
             guid = player_guid.counter(),
             "Finished disconnect save"
         );
+    }
+
+    #[cfg(test)]
+    pub async fn save_disconnect_player_to_db_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.save_disconnect_player_to_db_with_generator_like_cpp(generators.item.as_ref())
+            .await;
     }
     pub(crate) fn set_player_logout_like_cpp(&mut self, player_logout: bool) {
         self.player_logout_like_cpp = player_logout;

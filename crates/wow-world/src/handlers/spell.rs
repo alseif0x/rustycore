@@ -105,6 +105,7 @@ inventory::submit! {
                 session
                     .handle_cast_spell_with_area_trigger_catalogs_like_cpp(
                         catalogs.area_triggers.as_ref(),
+                        catalogs.id_generators.item.as_ref(),
                         pkt,
                     )
                     .await
@@ -209,7 +210,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_self_res",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_self_res(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_self_res_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -239,7 +249,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_spell_click",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_spell_click(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_spell_click_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -492,6 +511,7 @@ impl WorldSession {
     pub async fn handle_cast_spell_with_area_trigger_catalogs_like_cpp(
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let player_guid = match self.player_guid() {
@@ -774,7 +794,8 @@ impl WorldSession {
                 "Instant cast, executing immediately"
             );
             if let Err(e) = self
-                .execute_spell_with_visual_and_target_data_with_metadata(
+                .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                    item_guid_generator,
                     spell_id,
                     target_guid,
                     cast_id,
@@ -810,8 +831,13 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_cast_spell(&mut self, pkt: wow_packet::WorldPacket) {
         let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
-        self.handle_cast_spell_with_area_trigger_catalogs_like_cpp(&catalogs, pkt)
-            .await;
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_cast_spell_with_area_trigger_catalogs_like_cpp(
+            &catalogs,
+            generators.item.as_ref(),
+            pkt,
+        )
+        .await;
     }
 
     /// Handle `CMSG_OPEN_ITEM`.
@@ -2084,7 +2110,11 @@ impl WorldSession {
     /// represents the packet shape plus spellclick stores/conditions/visibility;
     /// executing spellclick casts, vehicle seat handling, and AI callbacks stays
     /// in the next bounded runtime slice.
-    pub async fn handle_spell_click(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_spell_click_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let spell_click = match SpellClick::read(&mut pkt) {
             Ok(spell_click) => spell_click,
             Err(e) => {
@@ -2113,7 +2143,11 @@ impl WorldSession {
             "CMSG_SPELL_CLICK represented execution plan"
         );
         let outcome = self
-            .execute_represented_spell_click_plan_like_cpp(spell_click.unit_guid, &plan)
+            .execute_represented_spell_click_plan_with_generator_like_cpp(
+                item_guid_generator,
+                spell_click.unit_guid,
+                &plan,
+            )
             .await;
         debug!(
             account = self.account_id,
@@ -2126,6 +2160,13 @@ impl WorldSession {
             failed_casts = outcome.failed_casts,
             "CMSG_SPELL_CLICK represented execution outcome"
         );
+    }
+
+    #[cfg(test)]
+    pub async fn handle_spell_click(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_spell_click_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 
     /// Handle `CMSG_CANCEL_CAST` — player cancels an in-progress cast.
@@ -2303,7 +2344,11 @@ impl WorldSession {
     }
 
     /// Handle `CMSG_SELF_RES`.
-    pub async fn handle_self_res(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_self_res_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match SelfRes::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -2324,12 +2369,23 @@ impl WorldSession {
             return;
         };
         if self
-            .execute_spell(request.spell_id, player_guid)
+            .execute_spell_with_generator_like_cpp(
+                item_guid_generator,
+                request.spell_id,
+                player_guid,
+            )
             .await
             .is_ok()
         {
             self.remove_represented_self_res_spell_like_cpp(request.spell_id);
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_self_res(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_self_res_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 
     /// Handle `CMSG_PET_CANCEL_AURA`.

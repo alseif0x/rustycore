@@ -4643,6 +4643,7 @@ async fn run_inner(
                 modules: Arc::clone(&modules),
                 id_generators: Arc::new(wow_world::session::SessionIdGeneratorsLikeCpp {
                     player: Arc::clone(&guid_generator),
+                    item: Arc::clone(&item_guid_generator),
                     equipment_set: Arc::clone(&equipment_set_guid_generator),
                     void_storage_item: Arc::clone(&void_storage_item_id_generator),
                 }),
@@ -4650,7 +4651,6 @@ async fn run_inner(
             gameobject_template_lifecycle_store: Arc::clone(&gameobject_template_lifecycle_store),
             persistence,
             trainer_store: Arc::clone(&trainer_data_store),
-            item_guid_generator: Arc::clone(&item_guid_generator),
             instance_lock_mgr: Arc::clone(&instance_lock_mgr),
         },
         inventory: SessionInventoryCapabilitiesLikeCpp {

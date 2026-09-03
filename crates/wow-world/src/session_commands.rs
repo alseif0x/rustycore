@@ -16,11 +16,15 @@
 //! property is the reason the arms moved intact rather than becoming thunks.
 
 use crate::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
-use crate::session::{SessionState, WorldSession};
+use crate::session::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
 impl WorldSession {
     /// Apply one committed command, in the order the mailbox presented it.
-    pub(crate) async fn apply_session_command_like_cpp(&mut self, command: SessionCommand) {
+    pub(crate) async fn apply_session_command_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+        command: SessionCommand,
+    ) {
         match command {
             SessionCommand::KickLikeCpp(command) => {
                 self.kick(&command.reason);
@@ -49,22 +53,35 @@ impl WorldSession {
                 self.handle_reconcile_pvp_combat_expiry_like_cpp(command);
             }
             SessionCommand::ApplyLootMoneyLikeCpp(command) => {
-                self.handle_apply_loot_money_like_cpp_command(command).await;
+                self.handle_apply_loot_money_with_generator_like_cpp_command(
+                    catalogs.id_generators.item.as_ref(),
+                    command,
+                )
+                .await;
             }
             SessionCommand::NotifyLootMoneyRemovedLikeCpp(command) => {
                 self.handle_notify_loot_money_removed_like_cpp_command(command);
             }
             SessionCommand::MasterLootGive(command) => {
-                self.handle_represented_master_loot_give_command_like_cpp(command)
-                    .await;
+                self.handle_represented_master_loot_give_command_with_generator_like_cpp(
+                    catalogs.id_generators.item.as_ref(),
+                    command,
+                )
+                .await;
             }
             SessionCommand::LootRollStoreWinner(command) => {
-                self.handle_represented_loot_roll_store_winner_command_like_cpp(command)
-                    .await;
+                self.handle_represented_loot_roll_store_winner_command_with_generator_like_cpp(
+                    catalogs.id_generators.item.as_ref(),
+                    command,
+                )
+                .await;
             }
             SessionCommand::LootRollVote(command) => {
-                self.handle_represented_loot_roll_vote_command_like_cpp(command)
-                    .await;
+                self.handle_represented_loot_roll_vote_command_with_generator_like_cpp(
+                    catalogs.id_generators.item.as_ref(),
+                    command,
+                )
+                .await;
             }
             SessionCommand::ResetSeasonalQuestStatus(command) => {
                 let _ = self.reset_seasonal_quest_status_like_cpp(

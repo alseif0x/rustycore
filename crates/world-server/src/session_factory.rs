@@ -385,7 +385,9 @@ pub(super) async fn create_session(
         if !run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state.as_ref(),
             WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
-            session.save_disconnect_player_to_db_like_cpp(),
+            session.save_disconnect_player_to_db_with_generator_like_cpp(
+                resources.core.handler_catalogs.id_generators.item.as_ref(),
+            ),
         )
         .await
         {
@@ -398,7 +400,9 @@ pub(super) async fn create_session(
         if !run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state.as_ref(),
             WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
-            session.cleanup_shared_runtime_state_on_disconnect_like_cpp(),
+            session.cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+                resources.core.handler_catalogs.id_generators.item.as_ref(),
+            ),
         )
         .await
         {
@@ -409,9 +413,15 @@ pub(super) async fn create_session(
             );
         }
     } else {
-        session.save_disconnect_player_to_db_like_cpp().await;
         session
-            .cleanup_shared_runtime_state_on_disconnect_like_cpp()
+            .save_disconnect_player_to_db_with_generator_like_cpp(
+                resources.core.handler_catalogs.id_generators.item.as_ref(),
+            )
+            .await;
+        session
+            .cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+                resources.core.handler_catalogs.id_generators.item.as_ref(),
+            )
             .await;
     }
     drop(active_session_registration);

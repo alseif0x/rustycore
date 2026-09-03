@@ -358,13 +358,29 @@ impl WorldSession {
     /// into runtime state before disconnect can persist a stale snapshot. C++
     /// auto-releases only when `Loot::isLooted()` (zero coins and no visible
     /// items) and the owner GUID is an Item.
+    pub(crate) async fn apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
+        self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
+            item_guid_generator,
+            true,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
     pub(crate) async fn apply_pending_durable_item_loot_completions_like_cpp(&mut self) {
-        self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(true)
-            .await;
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+            generators.item.as_ref(),
+        )
+        .await;
     }
 
     pub(crate) async fn apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         drain_money_objectives: bool,
     ) {
         let completions = self.take_durable_item_loot_completions_like_cpp();
@@ -440,8 +456,10 @@ impl WorldSession {
                     }
                 }
                 if drain_money_objectives && (apply_balance || publish) {
-                    self.drain_represented_quest_objective_progress_like_cpp()
-                        .await;
+                    self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                        item_guid_generator,
+                    )
+                    .await;
                 }
                 continue;
             }
@@ -521,7 +539,10 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn wait_for_active_loot_persistence_like_cpp(&mut self) {
+    pub(crate) async fn wait_for_active_loot_persistence_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         let mut authorities = Vec::<OwnedLootAuthority>::new();
         for authority in self.active_loot_view_authorities_like_cpp.values() {
             if authorities
@@ -536,7 +557,16 @@ impl WorldSession {
             authority.wait_for_persisting_claims_like_cpp().await;
         }
         self.wait_for_durable_item_loot_persistence_like_cpp().await;
-        self.apply_pending_durable_item_loot_completions_like_cpp()
+        self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn wait_for_active_loot_persistence_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.wait_for_active_loot_persistence_with_generator_like_cpp(generators.item.as_ref())
             .await;
     }
 

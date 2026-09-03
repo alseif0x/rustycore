@@ -57,16 +57,51 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     pub(crate) async fn complete_represented_quest_after_add_if_ready_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        self.complete_represented_quest_after_objective_if_ready_like_cpp(quest, 0)
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.complete_represented_quest_after_add_with_generator_like_cpp(generator.as_ref(), quest)
             .await
     }
 
+    pub(crate) async fn complete_represented_quest_after_add_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> bool {
+        self.complete_represented_quest_after_objective_with_generator_like_cpp(
+            item_guid_generator,
+            quest,
+            0,
+        )
+        .await
+    }
+
+    #[cfg(test)]
     pub(crate) async fn complete_represented_quest_after_objective_if_ready_like_cpp(
         &mut self,
+        quest: &wow_data::quest::QuestTemplate,
+        ignored_objective_id: u32,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.complete_represented_quest_after_objective_with_generator_like_cpp(
+            generator.as_ref(),
+            quest,
+            ignored_objective_id,
+        )
+        .await
+    }
+
+    pub(crate) async fn complete_represented_quest_after_objective_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         ignored_objective_id: u32,
     ) -> bool {
@@ -100,7 +135,12 @@ impl WorldSession {
                 quantity: 0,
             };
             let rewarded = self
-                .reward_represented_quest_like_cpp(quest, quest_giver_guid, choice)
+                .reward_represented_quest_with_generator_like_cpp(
+                    item_guid_generator,
+                    quest,
+                    quest_giver_guid,
+                    choice,
+                )
                 .await;
             if rewarded {
                 if let Some(evidence) = self
@@ -111,7 +151,12 @@ impl WorldSession {
                 {
                     evidence.tracking_event_auto_reward_unrepresented = false;
                 }
-                Box::pin(self.drain_represented_quest_objective_progress_like_cpp()).await;
+                Box::pin(
+                    self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                        item_guid_generator,
+                    ),
+                )
+                .await;
             }
         }
 
@@ -201,6 +246,7 @@ impl WorldSession {
 
     pub(super) async fn add_quest_confirm_accept_local_state_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         let Some(slot) = self.first_free_quest_slot_like_cpp() else {
@@ -228,8 +274,11 @@ impl WorldSession {
         {
             return false;
         }
-        self.complete_represented_quest_after_add_if_ready_like_cpp(quest)
-            .await;
+        self.complete_represented_quest_after_add_with_generator_like_cpp(
+            item_guid_generator,
+            quest,
+        )
+        .await;
         self.save_represented_quest_status_like_cpp(quest.id).await;
         self.sync_player_registry_state_like_cpp();
         true

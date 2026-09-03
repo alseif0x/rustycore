@@ -48,7 +48,11 @@ inventory::submit! {
         handler: |session, catalogs, pkt| {
             Box::pin(async move {
                 session
-                    .handle_game_obj_use_with_catalogs_like_cpp(catalogs.object_mgr.as_ref(), pkt)
+                    .handle_game_obj_use_with_catalogs_like_cpp(
+                        catalogs.object_mgr.as_ref(),
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
                     .await
             })
         },
@@ -75,6 +79,7 @@ impl crate::session::WorldSession {
     pub(crate) async fn handle_game_obj_use_with_catalogs_like_cpp(
         &mut self,
         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let gameobject_guid = match pkt.read_packed_guid() {
@@ -416,7 +421,8 @@ impl crate::session::WorldSession {
             GAMEOBJECT_TYPE_GOOBER => {
                 if let Some(source) = template.goober_use_source_like_cpp() {
                     if self
-                        .use_represented_gameobject_goober_preamble_like_cpp(
+                        .use_represented_gameobject_goober_preamble_with_generator_like_cpp(
+                            item_guid_generator,
                             gameobject_guid,
                             gameobject_access.entry,
                             gameobject_access.position,
@@ -444,6 +450,7 @@ impl crate::session::WorldSession {
             }
 
             self.open_represented_gameobject_chest_with_template_money_like_cpp(
+                item_guid_generator,
                 gameobject_guid,
                 source,
                 (row.min_money, row.max_money),
@@ -489,7 +496,10 @@ impl crate::session::WorldSession {
             .world_query_catalogs_like_cpp()
             .cloned()
             .unwrap_or_default();
-        self.handle_game_obj_use_with_catalogs_like_cpp(&catalogs, pkt)
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.handle_game_obj_use_with_catalogs_like_cpp(&catalogs, generator.as_ref(), pkt)
             .await;
     }
 

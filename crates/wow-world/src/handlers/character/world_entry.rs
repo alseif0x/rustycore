@@ -85,7 +85,11 @@ impl WorldSession {
     /// Else, 20-second countdown.
     ///
     /// For now we always allow instant logout (simplified).
-    pub async fn handle_logout_request(&mut self, req: LogoutRequest) {
+    pub async fn handle_logout_request_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        req: LogoutRequest,
+    ) {
         info!(
             "LogoutRequest (idle={}) from account {}",
             req.idle_logout, self.account_id
@@ -104,13 +108,15 @@ impl WorldSession {
         self.logout_time = None;
 
         if let Some(player_guid) = self.player_guid() {
-            self.wait_for_active_loot_persistence_like_cpp().await;
+            self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
+                .await;
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
 
         // Trinity clears buyback slots before SaveToDB; persisted buyback items must not survive logout.
         self.clear_buyback_on_logout().await;
-        self.save_current_player_to_db_like_cpp().await;
+        self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+            .await;
         self.save_account_mounts_like_cpp().await;
         self.save_account_toys_like_cpp().await;
         self.save_account_heirlooms_like_cpp().await;
@@ -153,6 +159,13 @@ impl WorldSession {
         info!("Player logged out for account {}", self.account_id);
     }
 
+    #[cfg(test)]
+    pub async fn handle_logout_request(&mut self, req: LogoutRequest) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_logout_request_with_generator_like_cpp(generators.item.as_ref(), req)
+            .await;
+    }
+
     /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.
     pub async fn handle_logout_cancel(&mut self) {
         info!("LogoutCancel from account {}", self.account_id);
@@ -166,6 +179,7 @@ impl WorldSession {
     /// Sends ResumeComms and the full login sequence after the instance socket is connected.
     pub async fn handle_continue_player_login_with_module_registry_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
     ) {
         let guid: ObjectGuid = match self.player_loading() {
@@ -2551,6 +2565,7 @@ impl WorldSession {
 
         if !self
             .send_login_sequence(
+                item_guid_generator,
                 guid,
                 race,
                 class,
@@ -2589,8 +2604,10 @@ impl WorldSession {
         let applied_first_login_like_cpp =
             self.apply_represented_first_login_flag_if_needed_like_cpp();
         if applied_first_login_like_cpp {
-            self.apply_represented_first_login_cast_spells_like_cpp()
-                .await;
+            self.apply_represented_first_login_cast_spells_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
             self.apply_represented_first_login_explored_zones_like_cpp();
             self.apply_represented_first_login_reputation_like_cpp();
         }
@@ -2684,6 +2701,7 @@ impl WorldSession {
     /// `BattlePetMgr::SendJournalLockStatus`.
     pub(super) async fn send_handle_player_login_packets_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         guid: ObjectGuid,
         position: &Position,
         map_id: i32,
@@ -2761,7 +2779,8 @@ impl WorldSession {
         {
             return false;
         }
-        self.recover_battle_pet_trainer_purchases_like_cpp().await;
+        self.recover_battle_pet_trainer_purchases_with_generator_like_cpp(item_guid_generator)
+            .await;
         if !self
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await

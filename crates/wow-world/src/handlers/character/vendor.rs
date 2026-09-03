@@ -8,6 +8,33 @@
 use super::*;
 
 impl WorldSession {
+    #[cfg(test)]
+    pub async fn handle_buy_item(&mut self, buy: BuyItem) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.handle_buy_item_with_generator_like_cpp(generator.as_ref(), buy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_sell_item(&mut self, sell: SellItem) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.handle_sell_item_with_generator_like_cpp(generator.as_ref(), sell)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_item_purchase_refund(&mut self, refund: ItemPurchaseRefund) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.handle_item_purchase_refund_with_generator_like_cpp(generator.as_ref(), refund)
+            .await;
+    }
+
     pub(super) fn vendor_stock_now_secs() -> u64 {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -310,7 +337,11 @@ impl WorldSession {
 
     /// CMSG_REPAIR_ITEM — player repairs item at a repair vendor.
     /// C++ ref: WorldSession::HandleRepairItemOpcode.
-    pub async fn handle_repair_item(&mut self, repair: RepairItem) {
+    pub async fn handle_repair_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        repair: RepairItem,
+    ) {
         let Some(repair_npc) = self.represented_npc_can_interact_with_like_cpp(
             repair.npc_guid,
             NPCFlags1::REPAIR.bits(),
@@ -334,7 +365,8 @@ impl WorldSession {
 
         if !repair.item_guid.is_empty() {
             let repaired = self
-                .repair_inventory_item_durability_like_cpp(
+                .repair_inventory_item_durability_with_generator_like_cpp(
+                    item_guid_generator,
                     repair.item_guid,
                     true,
                     discount_mod,
@@ -353,7 +385,8 @@ impl WorldSession {
 
         if repair.use_guild_bank {
             let repaired = self
-                .repair_all_inventory_item_durability_with_guild_bank_like_cpp(
+                .repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
+                    item_guid_generator,
                     discount_mod,
                     repair_cost_rate,
                 )
@@ -368,7 +401,8 @@ impl WorldSession {
         }
 
         let repaired = self
-            .repair_all_inventory_item_durability_with_player_money_like_cpp(
+            .repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
+                item_guid_generator,
                 discount_mod,
                 repair_cost_rate,
             )
@@ -381,11 +415,22 @@ impl WorldSession {
         );
     }
 
+    #[cfg(test)]
+    pub async fn handle_repair_item(&mut self, repair: RepairItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_repair_item_with_generator_like_cpp(generators.item.as_ref(), repair)
+            .await;
+    }
+
     /// Handle CMSG_BUY_ITEM — player buys an item from a vendor.
     ///
     /// C++ refs: `HandleBuyItemOpcode` (`Handlers/ItemHandler.cpp:530-564`)
     /// delegates to `Player::BuyItemFromVendorSlot` (`Player.cpp:22362+`).
-    pub async fn handle_buy_item(&mut self, buy: BuyItem) {
+    pub async fn handle_buy_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        buy: BuyItem,
+    ) {
         use wow_packet::packets::update::{ItemCreateData, UpdateObject};
 
         debug!(
@@ -903,8 +948,11 @@ impl WorldSession {
                 !inventory_items.contains_key(&slot)
             })
             .count();
-        let Some(allocated_new_item_guids) =
-            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        let Some(allocated_new_item_guids) = self
+            .allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                new_item_count,
+            )
         else {
             warn!(
                 count = new_item_count,
@@ -1210,8 +1258,10 @@ impl WorldSession {
         };
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
         for &(currency_id, amount) in &extended_cost_currency_costs {
             let Some(quantity) = self
                 .player_currency_quantity(currency_id)
@@ -1312,7 +1362,11 @@ impl WorldSession {
     /// Handle CMSG_BUY_BACK_ITEM — player buys back an item from a vendor.
     ///
     /// C++ ref: `WorldSession::HandleBuybackItem`.
-    pub async fn handle_buy_back_item(&mut self, buyback: BuyBackItem) {
+    pub async fn handle_buy_back_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        buyback: BuyBackItem,
+    ) {
         use wow_packet::packets::update::UpdateObject;
 
         debug!(
@@ -1533,8 +1587,10 @@ impl WorldSession {
         }
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
 
         for &(_, item_guid, new_count) in &existing_updates {
             self.send_packet(&UpdateObject::item_stack_count_update(
@@ -1557,10 +1613,21 @@ impl WorldSession {
         );
     }
 
+    #[cfg(test)]
+    pub async fn handle_buy_back_item(&mut self, buyback: BuyBackItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_buy_back_item_with_generator_like_cpp(generators.item.as_ref(), buyback)
+            .await;
+    }
+
     /// Handle CMSG_SELL_ITEM — player sells an item to a vendor.
     ///
     /// C++ ref: `HandleSellItemOpcode` (`Handlers/ItemHandler.cpp:365+`).
-    pub async fn handle_sell_item(&mut self, sell: SellItem) {
+    pub async fn handle_sell_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        sell: SellItem,
+    ) {
         use wow_packet::packets::update::UpdateObject;
 
         debug!(
@@ -1725,7 +1792,7 @@ impl WorldSession {
             }
             SellItemAmountAction::PartialStack { remaining, amount } => {
                 let Some((new_db_guid, new_item_guid)) = self
-                    .allocate_item_instance_guids_like_cpp(1)
+                    .allocate_item_instance_guids_with_generator_like_cpp(item_guid_generator, 1)
                     .and_then(|mut allocated| allocated.pop())
                 else {
                     warn!("SellItem: process-wide item GUID allocator is unavailable");
@@ -1863,8 +1930,10 @@ impl WorldSession {
         }
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
 
         info!(
             "SellItem: player {:?} sold {}x item {} from slot {} for {} copper (total: {})",
@@ -1921,7 +1990,11 @@ impl WorldSession {
     /// Handle CMSG_ITEM_PURCHASE_REFUND.
     ///
     /// C++ ref: `ItemHandler.HandleItemRefund` -> `Player::RefundItem`.
-    pub async fn handle_item_purchase_refund(&mut self, refund: ItemPurchaseRefund) {
+    pub async fn handle_item_purchase_refund_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        refund: ItemPurchaseRefund,
+    ) {
         const REFUND_RESULT_OK: u8 = 0;
         const REFUND_RESULT_ERR_GENERIC: u8 = 10;
 
@@ -2229,9 +2302,10 @@ impl WorldSession {
         let mut created_new_stacks = Vec::new();
         let mut persistence_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) =
-                self.allocate_item_instance_guids_like_cpp(planned_new_stacks.len())
-            else {
+            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                planned_new_stacks.len(),
+            ) else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "ItemPurchaseRefund: process-wide item GUID allocator is unavailable"
@@ -2369,8 +2443,10 @@ impl WorldSession {
         }
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
         if money_overflow {
             self.send_equip_error(InventoryResult::TooMuchGold, None, None, 0, 0);
         }

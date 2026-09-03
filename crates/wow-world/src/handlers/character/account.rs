@@ -409,10 +409,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_logout_request",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::LogoutRequest::read(&mut pkt) {
-                    Ok(req) => session.handle_logout_request(req).await,
+                    Ok(req) => {
+                        session
+                            .handle_logout_request_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                req,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read LogoutRequest: {e}"),
                 }
             })
@@ -695,10 +702,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_buy_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::BuyItem::read(&mut pkt) {
-                    Ok(buy) => session.handle_buy_item(buy).await,
+                    Ok(buy) => {
+                        session
+                            .handle_buy_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                buy,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BuyItem: {e}"),
                 }
             })
@@ -712,10 +726,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_buy_back_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::BuyBackItem::read(&mut pkt) {
-                    Ok(buyback) => session.handle_buy_back_item(buyback).await,
+                    Ok(buyback) => {
+                        session
+                            .handle_buy_back_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                buyback,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BuyBackItem: {e}"),
                 }
             })
@@ -729,10 +750,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_sell_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::SellItem::read(&mut pkt) {
-                    Ok(sell) => session.handle_sell_item(sell).await,
+                    Ok(sell) => {
+                        session
+                            .handle_sell_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                sell,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read SellItem: {e}"),
                 }
             })
@@ -746,10 +774,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_item_purchase_refund",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::ItemPurchaseRefund::read(&mut pkt) {
-                    Ok(refund) => session.handle_item_purchase_refund(refund).await,
+                    Ok(refund) => {
+                        session
+                            .handle_item_purchase_refund_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                refund,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read ItemPurchaseRefund: {e}"),
                 }
             })
@@ -792,10 +827,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_autobank_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AutoBankItem::read(&mut pkt) {
-                    Ok(packet) => session.handle_autobank_item(packet).await,
+                    Ok(packet) => {
+                        session
+                            .handle_autobank_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                packet,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutobankItem: {e}"),
                 }
             })
@@ -809,10 +851,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_autostore_bank_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AutoStoreBankItem::read(&mut pkt) {
-                    Ok(packet) => session.handle_autostore_bank_item(packet).await,
+                    Ok(packet) => {
+                        session
+                            .handle_autostore_bank_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                packet,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutostoreBankItem: {e}"),
                 }
             })
@@ -831,8 +880,9 @@ inventory::submit! {
                 match wow_packet::packets::misc::BuyBankSlot::read(&mut pkt) {
                     Ok(buy) => {
                         session
-                            .handle_buy_bank_slot_with_prices_like_cpp(
+                            .handle_buy_bank_slot_with_prices_and_generator_like_cpp(
                                 catalogs.bank_bag_slot_prices.as_ref(),
+                                catalogs.id_generators.item.as_ref(),
                                 buy,
                             )
                             .await
@@ -867,10 +917,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_binder_activate",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
-                    Ok(hello) => session.handle_binder_activate(hello).await,
+                    Ok(hello) => {
+                        session
+                            .handle_binder_activate_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                hello,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BinderActivate: {e}"),
                 }
             })
@@ -944,10 +1001,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_repair_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::RepairItem::read(&mut pkt) {
-                    Ok(repair) => session.handle_repair_item(repair).await,
+                    Ok(repair) => {
+                        session
+                            .handle_repair_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                repair,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read RepairItem: {e}"),
                 }
             })
@@ -997,10 +1061,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_swap_inv_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::SwapInvItem::read(&mut pkt) {
-                    Ok(swap) => session.handle_swap_inv_item(swap).await,
+                    Ok(swap) => {
+                        session
+                            .handle_swap_inv_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                swap,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read SwapInvItem: {e}"),
                 }
             })
@@ -1014,10 +1085,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_auto_equip_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::AutoEquipItem::read(&mut pkt) {
-                    Ok(equip) => session.handle_auto_equip_item(equip).await,
+                    Ok(equip) => {
+                        session
+                            .handle_auto_equip_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                equip,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutoEquipItem: {e}"),
                 }
             })
@@ -1031,10 +1109,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_auto_equip_item_slot",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::AutoEquipItemSlot::read(&mut pkt) {
-                    Ok(equip) => session.handle_auto_equip_item_slot(equip).await,
+                    Ok(equip) => {
+                        session
+                            .handle_auto_equip_item_slot_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                equip,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutoEquipItemSlot: {e}"),
                 }
             })
@@ -1048,10 +1133,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_swap_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::SwapItem::read(&mut pkt) {
-                    Ok(swap) => session.handle_swap_item(swap).await,
+                    Ok(swap) => {
+                        session
+                            .handle_swap_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                swap,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read SwapItem: {e}"),
                 }
             })
@@ -1065,10 +1157,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_auto_store_bag_item",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::AutoStoreBagItem::read(&mut pkt) {
-                    Ok(store) => session.handle_auto_store_bag_item(store).await,
+                    Ok(store) => {
+                        session
+                            .handle_auto_store_bag_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                store,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutoStoreBagItem: {e}"),
                 }
             })

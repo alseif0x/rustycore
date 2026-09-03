@@ -69,8 +69,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_accept_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_accept_quest(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_quest_giver_accept_quest_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -137,8 +144,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_request_reward",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_request_reward(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_quest_giver_request_reward_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -161,8 +175,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_choose_reward",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_choose_reward(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_quest_giver_choose_reward_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -197,8 +218,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_quest_confirm_accept",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_confirm_accept(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_quest_confirm_accept_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -421,7 +449,18 @@ impl WorldSession {
     /// CMSG_QUEST_GIVER_ACCEPT_QUEST — player clicks "Accept" in the quest details dialog.
     /// Saves quest to characters DB and confirms to the client.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverAcceptQuest
-    pub async fn handle_quest_giver_accept_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
+    #[cfg(test)]
+    pub async fn handle_quest_giver_accept_quest(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_quest_giver_accept_quest_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
+    }
+
+    pub async fn handle_quest_giver_accept_quest_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let (guid, quest_id, start_cheat) = match read_quest_giver_accept_quest_like_cpp(&mut pkt) {
             Ok(packet) => packet,
             Err(_) => {
@@ -512,8 +551,11 @@ impl WorldSession {
             return;
         }
 
-        self.complete_represented_quest_after_add_if_ready_like_cpp(quest)
-            .await;
+        self.complete_represented_quest_after_add_with_generator_like_cpp(
+            item_guid_generator,
+            quest,
+        )
+        .await;
 
         // Save to DB after AddQuestAndCheckCompletion-style completion, unless
         // RewardQuest already removed/rewarded the quest.
@@ -576,7 +618,18 @@ impl WorldSession {
     /// + Character DB status save + PlayerRegistry snapshot sync from `Player::AddQuest`. Real
     /// `StoreNewItem`/`SendNewItem`, criteria/completion, timed/PvP, scripts, and `SendQuestUpdate`
     /// packet fanout remain explicit no-mutation boundaries.
-    pub async fn handle_quest_confirm_accept(&mut self, mut pkt: wow_packet::WorldPacket) {
+    #[cfg(test)]
+    pub async fn handle_quest_confirm_accept(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_quest_confirm_accept_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
+    }
+
+    pub async fn handle_quest_confirm_accept_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let packet = match QuestConfirmAccept::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {
@@ -840,7 +893,7 @@ impl WorldSession {
 
             if let Some(source_item_no_grant_reason) = source_item_no_grant_reason {
                 if !self
-                    .add_quest_confirm_accept_local_state_like_cpp(&quest)
+                    .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
                     .await
                 {
                     record(
@@ -873,7 +926,7 @@ impl WorldSession {
             }
 
             if !self
-                .add_quest_confirm_accept_local_state_like_cpp(&quest)
+                .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
                 .await
             {
                 record(
@@ -890,7 +943,8 @@ impl WorldSession {
             }
 
             let Some(source_item_store_outcome) = self
-                .store_quest_source_item_like_cpp(
+                .store_quest_source_item_with_generator_like_cpp(
+                    item_guid_generator,
                     quest.source_item_id,
                     source_item_count,
                     &source_item_dest,
@@ -935,7 +989,7 @@ impl WorldSession {
         }
 
         if !self
-            .add_quest_confirm_accept_local_state_like_cpp(&quest)
+            .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
             .await
         {
             record(
@@ -2174,7 +2228,21 @@ impl WorldSession {
     /// Legacy non-canonical note: QuestHandler.HandleQuestgiverRequestReward
     /// Sent when player right-clicks a quest-ender NPC and has the quest in Complete status.
     /// Server responds with SMSG_QUEST_GIVER_OFFER_REWARD_MESSAGE (reward selection dialog).
-    pub async fn handle_quest_giver_request_reward(&mut self, mut pkt: wow_packet::WorldPacket) {
+    #[cfg(test)]
+    pub async fn handle_quest_giver_request_reward(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_quest_giver_request_reward_with_generator_like_cpp(
+            generators.item.as_ref(),
+            pkt,
+        )
+        .await;
+    }
+
+    pub async fn handle_quest_giver_request_reward_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
             Err(_) => {
@@ -2246,8 +2314,11 @@ impl WorldSession {
             let completion_evidence_start = self
                 .represented_quest_complete_status_updates_like_cpp
                 .len();
-            self.complete_represented_quest_after_add_if_ready_like_cpp(&quest)
-                .await;
+            self.complete_represented_quest_after_add_with_generator_like_cpp(
+                item_guid_generator,
+                &quest,
+            )
+            .await;
             self.save_represented_quest_statuses_completed_after_like_cpp(
                 completion_evidence_start,
             )
@@ -2448,7 +2519,21 @@ impl WorldSession {
     /// CMSG_QUEST_GIVER_CHOOSE_REWARD — player clicks "Complete Quest" in reward dialog.
     /// Gives XP, gold, items. Removes quest from active log.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverChooseReward
-    pub async fn handle_quest_giver_choose_reward(&mut self, mut pkt: wow_packet::WorldPacket) {
+    #[cfg(test)]
+    pub async fn handle_quest_giver_choose_reward(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_quest_giver_choose_reward_with_generator_like_cpp(
+            generators.item.as_ref(),
+            pkt,
+        )
+        .await;
+    }
+
+    pub async fn handle_quest_giver_choose_reward_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
             Err(_) => {
@@ -2595,10 +2680,20 @@ impl WorldSession {
         }
 
         let rewarded = self
-            .reward_represented_quest_like_cpp(&quest, guid, choice)
+            .reward_represented_quest_with_generator_like_cpp(
+                item_guid_generator,
+                &quest,
+                guid,
+                choice,
+            )
             .await;
         if rewarded {
-            Box::pin(self.drain_represented_quest_objective_progress_like_cpp()).await;
+            Box::pin(
+                self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
+                ),
+            )
+            .await;
         }
     }
 

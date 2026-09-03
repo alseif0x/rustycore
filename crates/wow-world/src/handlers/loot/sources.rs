@@ -14,6 +14,7 @@ use super::*;
 impl WorldSession {
     pub(crate) async fn open_represented_gameobject_chest_with_template_money_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
         template_money: (u32, u32),
@@ -41,6 +42,7 @@ impl WorldSession {
             });
             if source.should_autostore_push_loot_like_cpp() {
                 self.autostore_represented_gameobject_chest_push_loot_like_cpp(
+                    item_guid_generator,
                     gameobject_guid,
                     source,
                 )
@@ -1836,7 +1838,9 @@ impl WorldSession {
             .and_then(|catalogs| catalogs.gameobject.get(gameobject_guid.entry()))
             .map(|row| (row.min_money, row.max_money))
             .unwrap_or((0, 0));
+        let generators = self.id_generators_for_test_like_cpp();
         self.open_represented_gameobject_chest_with_template_money_like_cpp(
+            generators.item.as_ref(),
             gameobject_guid,
             source,
             template_money,
@@ -2186,6 +2190,7 @@ impl WorldSession {
 
     async fn autostore_represented_gameobject_chest_push_loot_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
     ) -> bool {
@@ -2208,7 +2213,11 @@ impl WorldSession {
         let mut all_stored = true;
         for entry in items {
             if !self
-                .store_direct_loot_item_like_cpp(&entry, source.dungeon_encounter_id)
+                .store_direct_loot_item_with_generator_like_cpp(
+                    item_guid_generator,
+                    &entry,
+                    source.dungeon_encounter_id,
+                )
                 .await
             {
                 all_stored = false;

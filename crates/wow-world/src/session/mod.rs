@@ -320,6 +320,7 @@ pub struct AreaTriggerCatalogsLikeCpp {
 /// but never own an allocator or return a value after a later failure.
 pub struct SessionIdGeneratorsLikeCpp {
     pub player: Arc<ObjectGuidGenerator>,
+    pub item: Arc<ObjectGuidGenerator>,
     pub equipment_set: Arc<EquipmentSetGuidGeneratorLikeCpp>,
     pub void_storage_item: Arc<VoidStorageItemIdGeneratorLikeCpp>,
 }
@@ -329,6 +330,7 @@ impl Default for SessionIdGeneratorsLikeCpp {
     fn default() -> Self {
         Self {
             player: Arc::new(ObjectGuidGenerator::new(HighGuid::Player, 1)),
+            item: Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)),
             equipment_set: Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
             void_storage_item: Arc::new(VoidStorageItemIdGeneratorLikeCpp::new(1)),
         }
@@ -5766,8 +5768,8 @@ pub struct WorldSession {
     // Process-owned GUID generators retained only as test fixtures.
     #[cfg(test)]
     guid_generator: Option<Arc<ObjectGuidGenerator>>,
-    // Process-wide C++ ObjectMgr generator for new item instances. Its
-    // cross-vertical allocation paths move in the next coherent owner cut.
+    // Process-wide C++ ObjectMgr generator retained only as a test fixture.
+    #[cfg(test)]
     item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator shared by equipment and transmog sets.
     #[cfg(test)]
@@ -8075,6 +8077,7 @@ impl WorldSession {
             )]),
             #[cfg(test)]
             guid_generator: None,
+            #[cfg(test)]
             item_guid_generator_like_cpp: None,
             #[cfg(test)]
             equipment_set_guid_generator_like_cpp: None,
@@ -15013,8 +15016,9 @@ impl WorldSession {
         plan
     }
 
-    pub(crate) async fn execute_represented_spell_click_plan_like_cpp(
+    pub(crate) async fn execute_represented_spell_click_plan_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_guid: ObjectGuid,
         plan: &RepresentedSpellClickPlanLikeCpp,
     ) -> RepresentedSpellClickExecutionOutcomeLikeCpp {
@@ -15096,7 +15100,8 @@ impl WorldSession {
             let cast_id = self.next_represented_spell_cast_guid_like_cpp(spell_id);
 
             let result = self
-                .execute_spell_with_visual_and_target_data(
+                .execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+                    item_guid_generator,
                     spell_id,
                     target_guid,
                     cast_id,
@@ -15146,6 +15151,21 @@ impl WorldSession {
         }
 
         outcome
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn execute_represented_spell_click_plan_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        plan: &RepresentedSpellClickPlanLikeCpp,
+    ) -> RepresentedSpellClickExecutionOutcomeLikeCpp {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_represented_spell_click_plan_with_generator_like_cpp(
+            generators.item.as_ref(),
+            creature_guid,
+            plan,
+        )
+        .await
     }
 
     async fn execute_represented_spell_click_clickee_caster_like_cpp(
@@ -17678,6 +17698,7 @@ impl WorldSession {
 
     /// Install the process-wide C++
     /// `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
+    #[cfg(test)]
     pub fn set_item_guid_generator_like_cpp(&mut self, generator: Arc<ObjectGuidGenerator>) {
         assert_eq!(
             generator.high_guid(),
@@ -17711,6 +17732,10 @@ impl WorldSession {
         let defaults = SessionIdGeneratorsLikeCpp::default();
         SessionIdGeneratorsLikeCpp {
             player: self.guid_generator.clone().unwrap_or(defaults.player),
+            item: self
+                .item_guid_generator_like_cpp
+                .clone()
+                .unwrap_or(defaults.item),
             equipment_set: self
                 .equipment_set_guid_generator_like_cpp
                 .clone()
@@ -17727,6 +17752,13 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<EquipmentSetGuidGeneratorLikeCpp>> {
         self.equipment_set_guid_generator_like_cpp.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn item_guid_generator_like_cpp_for_bridge(
+        &self,
+    ) -> Option<Arc<ObjectGuidGenerator>> {
+        self.item_guid_generator_like_cpp.clone()
     }
 
     /// Install the Player lifecycle persistence port. Composition supplies the
@@ -23203,8 +23235,9 @@ impl WorldSession {
     }
 
     /// C++ `Player::DurabilityRepair(pos, takeCost, discountMod)` for one represented item.
-    pub(crate) async fn repair_inventory_item_durability_like_cpp(
+    pub(crate) async fn repair_inventory_item_durability_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         item_guid: ObjectGuid,
         take_cost: bool,
         discount: f32,
@@ -23300,8 +23333,10 @@ impl WorldSession {
             }
             let repaired = self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid);
             drop(money_persistence);
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
             return repaired;
         } else if let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) {
             match port
@@ -23327,6 +23362,25 @@ impl WorldSession {
         }
 
         self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn repair_inventory_item_durability_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        take_cost: bool,
+        discount: f32,
+        repair_cost_rate: f32,
+    ) -> bool {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.repair_inventory_item_durability_with_generator_like_cpp(
+            generators.item.as_ref(),
+            item_guid,
+            take_cost,
+            discount,
+            repair_cost_rate,
+        )
+        .await
     }
 
     fn apply_inventory_item_durability_repair_runtime_like_cpp(
@@ -23380,8 +23434,9 @@ impl WorldSession {
     }
 
     /// C++ `Player::DurabilityRepairAll(takeCost=true, guildBank=false)` for represented items.
-    pub(crate) async fn repair_all_inventory_item_durability_with_player_money_like_cpp(
+    pub(crate) async fn repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         discount: f32,
         repair_cost_rate: f32,
     ) -> bool {
@@ -23481,14 +23536,32 @@ impl WorldSession {
             repaired_any |= self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid);
         }
         drop(money_persistence);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
         repaired_any
     }
 
-    /// C++ `Player::DurabilityRepairAll(takeCost=true, guildBank=true)` for represented items.
-    pub(crate) async fn repair_all_inventory_item_durability_with_guild_bank_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn repair_all_inventory_item_durability_with_player_money_like_cpp(
         &mut self,
+        discount: f32,
+        repair_cost_rate: f32,
+    ) -> bool {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
+            generators.item.as_ref(),
+            discount,
+            repair_cost_rate,
+        )
+        .await
+    }
+
+    /// C++ `Player::DurabilityRepairAll(takeCost=true, guildBank=true)` for represented items.
+    pub(crate) async fn repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         discount: f32,
         repair_cost_rate: f32,
     ) -> bool {
@@ -23517,7 +23590,13 @@ impl WorldSession {
 
             total_cost = new_total_cost;
             repaired_any |= self
-                .repair_inventory_item_durability_like_cpp(item_guid, false, 0.0, repair_cost_rate)
+                .repair_inventory_item_durability_with_generator_like_cpp(
+                    item_guid_generator,
+                    item_guid,
+                    false,
+                    0.0,
+                    repair_cost_rate,
+                )
                 .await;
         }
 
@@ -23532,6 +23611,21 @@ impl WorldSession {
             },
         );
         repaired_any || total_cost == 0
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn repair_all_inventory_item_durability_with_guild_bank_like_cpp(
+        &mut self,
+        discount: f32,
+        repair_cost_rate: f32,
+    ) -> bool {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
+            generators.item.as_ref(),
+            discount,
+            repair_cost_rate,
+        )
+        .await
     }
 
     fn repairable_inventory_item_costs_like_cpp(
@@ -32257,7 +32351,10 @@ impl WorldSession {
         )
     }
 
-    async fn process_pending_periodic_player_save_like_cpp(&mut self) {
+    async fn process_pending_periodic_player_save_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         if !self.pending_periodic_player_save_like_cpp || self.state != SessionState::LoggedIn {
             return;
         }
@@ -32265,7 +32362,15 @@ impl WorldSession {
             return;
         }
 
-        self.save_current_player_to_db_like_cpp().await;
+        self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+            .await;
+    }
+
+    #[cfg(test)]
+    async fn process_pending_periodic_player_save_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.process_pending_periodic_player_save_with_generator_like_cpp(generators.item.as_ref())
+            .await;
     }
 
     pub(crate) fn player_talent_runtime_snapshot_like_cpp(
@@ -32858,7 +32963,10 @@ impl WorldSession {
     /// `CONFIG_START_ALL_EXPLORED` / `CONFIG_START_ALL_REP`. This slice uses the
     /// represented spell executor; full triggered-cast semantics still depend on
     /// the remaining Spell runtime port.
-    pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {
+    pub(crate) async fn apply_represented_first_login_cast_spells_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) -> usize {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
@@ -32882,7 +32990,11 @@ impl WorldSession {
         let mut cast_count = 0usize;
         for spell_id in spells {
             if self
-                .execute_spell(spell_id as i32, player_guid)
+                .execute_spell_with_generator_like_cpp(
+                    item_guid_generator,
+                    spell_id as i32,
+                    player_guid,
+                )
                 .await
                 .is_ok()
             {
@@ -32891,6 +33003,15 @@ impl WorldSession {
         }
 
         cast_count
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_represented_first_login_cast_spells_with_generator_like_cpp(
+            generators.item.as_ref(),
+        )
+        .await
     }
 
     /// Represented C++ `Player::LearnCustomSpells` / `CONFIG_START_ALL_SPELLS`.
@@ -34705,6 +34826,7 @@ impl WorldSession {
 
     async fn update_represented_storing_value_quest_objective_progress_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         objective_type: u8,
         object_id: i32,
         add_count: i32,
@@ -34835,7 +34957,10 @@ impl WorldSession {
                 continue;
             };
             let completed = self
-                .complete_represented_quest_after_add_if_ready_like_cpp(&quest)
+                .complete_represented_quest_after_add_with_generator_like_cpp(
+                    item_guid_generator,
+                    &quest,
+                )
                 .await;
             if completed {
                 if self.represented_player_quest_status_like_cpp(quest_id)
@@ -34856,6 +34981,7 @@ impl WorldSession {
 
     async fn update_represented_storing_flag_quest_objective_progress_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         objective_type: u8,
         object_id: i32,
         add_count: i32,
@@ -34946,7 +35072,11 @@ impl WorldSession {
                 continue;
             };
             let completed = self
-                .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
+                .complete_represented_quest_after_objective_with_generator_like_cpp(
+                    item_guid_generator,
+                    &quest,
+                    objective_id,
+                )
                 .await;
             if completed {
                 if self.represented_player_quest_status_like_cpp(quest_id)
@@ -34967,6 +35097,7 @@ impl WorldSession {
 
     async fn update_represented_money_quest_objective_progress_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         old_money: u64,
         new_money: u64,
     ) {
@@ -35071,7 +35202,11 @@ impl WorldSession {
                 continue;
             };
             let completed = self
-                .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
+                .complete_represented_quest_after_objective_with_generator_like_cpp(
+                    item_guid_generator,
+                    &quest,
+                    objective_id,
+                )
                 .await;
             if completed {
                 quests_to_save.push(quest_id);
@@ -35093,6 +35228,7 @@ impl WorldSession {
 
     async fn update_represented_currency_quest_objective_progress_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         currency_id: u32,
         change: i32,
     ) {
@@ -35203,7 +35339,11 @@ impl WorldSession {
                 continue;
             };
             let completed = self
-                .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
+                .complete_represented_quest_after_objective_with_generator_like_cpp(
+                    item_guid_generator,
+                    &quest,
+                    objective_id,
+                )
                 .await;
             if completed {
                 quests_to_save.push(quest_id);
@@ -35225,6 +35365,7 @@ impl WorldSession {
 
     async fn update_represented_reputation_quest_objective_progress_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         objective_type: u8,
         faction_id: u32,
         change: i32,
@@ -35352,7 +35493,11 @@ impl WorldSession {
                 continue;
             };
             let completed = self
-                .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
+                .complete_represented_quest_after_objective_with_generator_like_cpp(
+                    item_guid_generator,
+                    &quest,
+                    objective_id,
+                )
                 .await;
             if completed {
                 quests_to_save.push(quest_id);
@@ -35374,13 +35519,15 @@ impl WorldSession {
 
     /// Called when the player kills a creature. Checks all active kill-objective quests
     /// and updates progress. Sends SMSG_QUEST_UPDATE_ADD_CREDIT if progress was made.
-    pub(crate) async fn on_creature_killed(
+    pub(crate) async fn on_creature_killed_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_entry: u32,
         creature_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_MONSTER.
         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+            item_guid_generator,
             0,
             creature_entry as i32,
             1,
@@ -35389,13 +35536,32 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) async fn kill_credit_gameobject_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn on_creature_killed(
         &mut self,
+        creature_entry: u32,
+        creature_guid: wow_core::ObjectGuid,
+    ) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.on_creature_killed_with_generator_like_cpp(
+            generator.as_ref(),
+            creature_entry,
+            creature_guid,
+        )
+        .await;
+    }
+
+    pub(crate) async fn kill_credit_gameobject_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         gameobject_entry: u32,
         gameobject_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_GAMEOBJECT.
         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+            item_guid_generator,
             2,
             gameobject_entry as i32,
             1,
@@ -35404,12 +35570,31 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) async fn killed_player_credit_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn kill_credit_gameobject_like_cpp(
         &mut self,
+        gameobject_entry: u32,
+        gameobject_guid: wow_core::ObjectGuid,
+    ) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.kill_credit_gameobject_with_generator_like_cpp(
+            generator.as_ref(),
+            gameobject_entry,
+            gameobject_guid,
+        )
+        .await;
+    }
+
+    pub(crate) async fn killed_player_credit_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         victim_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_PLAYERKILLS with ObjectID 0.
         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+            item_guid_generator,
             QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP,
             0,
             1,
@@ -35418,13 +35603,27 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) async fn talked_to_creature_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn killed_player_credit_like_cpp(
         &mut self,
+        victim_guid: wow_core::ObjectGuid,
+    ) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.killed_player_credit_with_generator_like_cpp(generator.as_ref(), victim_guid)
+            .await;
+    }
+
+    pub(crate) async fn talked_to_creature_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_entry: u32,
         creature_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_TALKTO.
         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+            item_guid_generator,
             3,
             creature_entry as i32,
             1,
@@ -35433,15 +35632,49 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) async fn kill_credit_criteria_tree_objective_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn talked_to_creature_like_cpp(
         &mut self,
+        creature_entry: u32,
+        creature_guid: wow_core::ObjectGuid,
+    ) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.talked_to_creature_with_generator_like_cpp(
+            generator.as_ref(),
+            creature_entry,
+            creature_guid,
+        )
+        .await;
+    }
+
+    pub(crate) async fn kill_credit_criteria_tree_objective_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         criteria_tree_id: u32,
     ) {
         // C++ QUEST_OBJECTIVE_CRITERIA_TREE.
         self.update_represented_storing_flag_quest_objective_progress_like_cpp(
+            item_guid_generator,
             14,
             criteria_tree_id as i32,
             1,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn kill_credit_criteria_tree_objective_like_cpp(
+        &mut self,
+        criteria_tree_id: u32,
+    ) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.kill_credit_criteria_tree_objective_with_generator_like_cpp(
+            generator.as_ref(),
+            criteria_tree_id,
         )
         .await;
     }
@@ -35454,7 +35687,10 @@ impl WorldSession {
             .push_back(event);
     }
 
-    pub(crate) async fn drain_represented_quest_objective_progress_like_cpp(&mut self) {
+    pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         if self.represented_quest_objective_progress_draining_like_cpp {
             return;
         }
@@ -35470,7 +35706,9 @@ impl WorldSession {
                     new_money,
                 } => {
                     self.update_represented_money_quest_objective_progress_like_cpp(
-                        old_money, new_money,
+                        item_guid_generator,
+                        old_money,
+                        new_money,
                     )
                     .await;
                 }
@@ -35480,11 +35718,13 @@ impl WorldSession {
                 } => {
                     let object_id = i32::try_from(currency_id).unwrap_or(i32::MAX);
                     self.update_represented_currency_quest_objective_progress_like_cpp(
+                        item_guid_generator,
                         currency_id,
                         change,
                     )
                     .await;
                     self.update_represented_storing_value_quest_objective_progress_like_cpp(
+                        item_guid_generator,
                         QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP,
                         object_id,
                         change,
@@ -35492,6 +35732,7 @@ impl WorldSession {
                     )
                     .await;
                     self.update_represented_storing_value_quest_objective_progress_like_cpp(
+                        item_guid_generator,
                         QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP,
                         object_id,
                         change,
@@ -35505,18 +35746,21 @@ impl WorldSession {
                 } => {
                     let object_id = i32::try_from(faction_id).unwrap_or(i32::MAX);
                     self.update_represented_reputation_quest_objective_progress_like_cpp(
+                        item_guid_generator,
                         QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP,
                         faction_id,
                         change,
                     )
                     .await;
                     self.update_represented_reputation_quest_objective_progress_like_cpp(
+                        item_guid_generator,
                         QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP,
                         faction_id,
                         change,
                     )
                     .await;
                     self.update_represented_storing_value_quest_objective_progress_like_cpp(
+                        item_guid_generator,
                         QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP,
                         object_id,
                         change,
@@ -35529,6 +35773,16 @@ impl WorldSession {
         self.represented_quest_objective_progress_draining_like_cpp = false;
     }
 
+    #[cfg(test)]
+    pub(crate) async fn drain_represented_quest_objective_progress_like_cpp(&mut self) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(generator.as_ref())
+            .await;
+    }
+
+    #[cfg(test)]
     pub(crate) async fn money_changed_like_cpp(&mut self, new_money: u64) {
         let Some(old_money) = self.resolved_player_money_like_cpp() else {
             return;
@@ -35543,6 +35797,7 @@ impl WorldSession {
             .await;
     }
 
+    #[cfg(test)]
     pub(crate) async fn apply_player_money_change_like_cpp(
         &mut self,
         old_money: u64,
@@ -35697,6 +35952,7 @@ impl WorldSession {
     /// a durable fee/talent reset with the old session state still live.
     pub(crate) async fn publish_committed_represented_talent_reset_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         committed: CommittedRepresentedTalentResetLikeCpp,
         request: RepresentedConfirmRespecWipeLikeCpp,
         visual_spell_id: u32,
@@ -35763,8 +36019,10 @@ impl WorldSession {
         }
 
         drop(money_persistence);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
     }
 
     fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
@@ -35806,6 +36064,7 @@ impl WorldSession {
         reset_cost.saturating_add(5 * gold).min(50 * gold)
     }
 
+    #[cfg(test)]
     pub(crate) async fn currency_changed_like_cpp(&mut self, currency_id: u32, change: i32) {
         self.enqueue_represented_quest_objective_progress_like_cpp(
             RepresentedQuestObjectiveProgressEventLikeCpp::CurrencyChanged {
@@ -35817,6 +36076,7 @@ impl WorldSession {
             .await;
     }
 
+    #[cfg(test)]
     pub(crate) async fn reputation_changed_like_cpp(&mut self, faction_id: u32, change: i32) {
         self.enqueue_represented_quest_objective_progress_like_cpp(
             RepresentedQuestObjectiveProgressEventLikeCpp::ReputationChanged { faction_id, change },
@@ -36619,14 +36879,14 @@ impl WorldSession {
     /// the next value.  Rust sessions execute concurrently, so the shared
     /// `ObjectGuidGenerator` uses an atomic fetch-add.  Allocations are never
     /// returned after a later persistence failure, matching C++ Item creation.
-    pub(crate) fn allocate_item_instance_guids_like_cpp(
+    pub(crate) fn allocate_item_instance_guids_with_generator_like_cpp(
         &self,
+        generator: &ObjectGuidGenerator,
         count: usize,
     ) -> Option<Vec<(u64, ObjectGuid)>> {
         if count == 0 {
             return Some(Vec::new());
         }
-        let generator = self.item_guid_generator_like_cpp.as_ref()?;
         if generator.high_guid() != HighGuid::Item {
             return None;
         }
@@ -36639,6 +36899,15 @@ impl WorldSession {
                 Some((db_guid, ObjectGuid::create_item(realm_id, counter)))
             })
             .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn allocate_item_instance_guids_like_cpp(
+        &self,
+        count: usize,
+    ) -> Option<Vec<(u64, ObjectGuid)>> {
+        let generator = self.item_guid_generator_like_cpp.as_deref()?;
+        self.allocate_item_instance_guids_with_generator_like_cpp(generator, count)
     }
 
     /// Set the session manager for ConnectTo flow.
@@ -39014,7 +39283,10 @@ impl WorldSession {
         }
     }
 
-    async fn process_pending_creature_kills_like_cpp(&mut self) {
+    async fn process_pending_creature_kills_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         let mut pending = std::mem::take(&mut self.pending_creature_kill_loot_like_cpp);
         pending.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
         pending.dedup();
@@ -39056,8 +39328,12 @@ impl WorldSession {
                 reward.creature_level,
                 reputation_rate,
             );
-            self.on_creature_killed(reward.creature_entry, reward.creature_guid)
-                .await;
+            self.on_creature_killed_with_generator_like_cpp(
+                item_guid_generator,
+                reward.creature_entry,
+                reward.creature_guid,
+            )
+            .await;
             #[cfg(test)]
             self.record_represented_creature_kill_hooks_like_cpp(
                 reward.killer_guid,
@@ -44116,8 +44392,9 @@ impl WorldSession {
     }
 
     /// C++ `Player::ApplyItemObtainSpells(item, true)` after `_StoreItem`.
-    pub(crate) async fn apply_inventory_item_obtain_spells_like_cpp(
+    pub(crate) async fn apply_inventory_item_obtain_spells_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         item_entry: u32,
     ) -> Vec<i32> {
         if self
@@ -44152,11 +44429,28 @@ impl WorldSession {
             if visible_auras.values().any(|aura| aura.spell_id == spell_id) {
                 continue;
             }
-            if self.execute_spell(spell_id, player_guid).await.is_ok() {
+            if self
+                .execute_spell_with_generator_like_cpp(item_guid_generator, spell_id, player_guid)
+                .await
+                .is_ok()
+            {
                 applied.push(spell_id);
             }
         }
         applied
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn apply_inventory_item_obtain_spells_like_cpp(
+        &mut self,
+        item_entry: u32,
+    ) -> Vec<i32> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_inventory_item_obtain_spells_with_generator_like_cpp(
+            generators.item.as_ref(),
+            item_entry,
+        )
+        .await
     }
 
     /// C++ `Player::RemoveItem` clears main-hand-only enchantments when the
@@ -56399,8 +56693,9 @@ impl WorldSession {
         true
     }
 
-    pub(crate) async fn use_represented_gameobject_goober_preamble_like_cpp(
+    pub(crate) async fn use_represented_gameobject_goober_preamble_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         gameobject_guid: ObjectGuid,
         gameobject_entry: u32,
         gameobject_position: Position,
@@ -56485,8 +56780,12 @@ impl WorldSession {
                     },
                 );
                 if Some(credit_guid) == self.player_guid() {
-                    self.kill_credit_gameobject_like_cpp(gameobject_entry, gameobject_guid)
-                        .await;
+                    self.kill_credit_gameobject_with_generator_like_cpp(
+                        item_guid_generator,
+                        gameobject_entry,
+                        gameobject_guid,
+                    )
+                    .await;
                 }
             }
         }
@@ -56502,6 +56801,27 @@ impl WorldSession {
         }
 
         true
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn use_represented_gameobject_goober_preamble_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        gameobject_entry: u32,
+        gameobject_position: Position,
+        player_guid: ObjectGuid,
+        source: wow_entities::GooberUseSource,
+    ) -> bool {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.use_represented_gameobject_goober_preamble_with_generator_like_cpp(
+            generators.item.as_ref(),
+            gameobject_guid,
+            gameobject_entry,
+            gameobject_position,
+            player_guid,
+            source,
+        )
+        .await
     }
 
     pub(crate) fn use_represented_gameobject_goober_state_like_cpp(
@@ -59828,7 +60148,10 @@ impl WorldSession {
         self.represented_pending_spell_cast_request_like_cpp = Some(request);
     }
 
-    pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
+    pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         let Some(request) = self.represented_pending_spell_cast_request_like_cpp.clone() else {
             return;
         };
@@ -59854,7 +60177,8 @@ impl WorldSession {
 
         self.represented_pending_spell_cast_request_like_cpp = None;
         if let Err(error) = self
-            .execute_spell_with_visual_and_target_data_with_metadata(
+            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                item_guid_generator,
                 request.spell_id,
                 request.target_guid,
                 request.cast_id,
@@ -59878,6 +60202,13 @@ impl WorldSession {
                 fail_arg2: 0,
             });
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.tick_pending_spell_cast_request_with_generator_like_cpp(generators.item.as_ref())
+            .await;
     }
 
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
@@ -68190,7 +68521,10 @@ impl WorldSession {
     ///
     /// If `active_spell_cast` is set and its cast time has elapsed, this method
     /// executes the spell (applies effects, cooldowns, etc.) and clears the cast state.
-    pub(crate) async fn tick_active_spell_cast(&mut self) {
+    pub(crate) async fn tick_active_spell_cast_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
         let Some(ref cast_state) = self.active_spell_cast.clone() else {
             return;
         };
@@ -68213,7 +68547,8 @@ impl WorldSession {
 
             // ← AQUÍ: Ejecutar spell
             if let Err(e) = self
-                .execute_spell_with_visual_and_target_data_with_metadata(
+                .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                    item_guid_generator,
                     spell_id,
                     target,
                     cast_id,
@@ -68236,6 +68571,13 @@ impl WorldSession {
                 });
             }
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn tick_active_spell_cast(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.tick_active_spell_cast_with_generator_like_cpp(generators.item.as_ref())
+            .await;
     }
 
     /// Called every ~100ms. Handles auto-attack swing timer (player → creature).
@@ -68727,14 +69069,16 @@ impl WorldSession {
     ///
     /// Called for instant-cast spells. Delegates to execute_spell_with_visual
     /// with default cast_id and visual.
-    pub async fn execute_spell(
+    pub async fn execute_spell_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
         use wow_packet::packets::spell::SpellCastVisual;
 
-        self.execute_spell_with_visual(
+        self.execute_spell_with_visual_and_generator_like_cpp(
+            item_guid_generator,
             spell_id,
             target_guid,
             ObjectGuid::EMPTY,
@@ -68746,15 +69090,28 @@ impl WorldSession {
         .await
     }
 
-    pub async fn execute_spell_with_target_data(
+    #[cfg(test)]
+    pub async fn execute_spell(
         &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_spell_with_generator_like_cpp(generators.item.as_ref(), spell_id, target_guid)
+            .await
+    }
+
+    pub async fn execute_spell_with_target_data_and_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         target_guid: ObjectGuid,
         target_data: SpellTargetData,
     ) -> Result<(), &'static str> {
         use wow_packet::packets::spell::SpellCastVisual;
 
-        self.execute_spell_with_visual_and_target_data(
+        self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+            item_guid_generator,
             spell_id,
             target_guid,
             ObjectGuid::EMPTY,
@@ -68767,18 +69124,37 @@ impl WorldSession {
         .await
     }
 
+    #[cfg(test)]
+    pub async fn execute_spell_with_target_data(
+        &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        target_data: SpellTargetData,
+    ) -> Result<(), &'static str> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_spell_with_target_data_and_generator_like_cpp(
+            generators.item.as_ref(),
+            spell_id,
+            target_guid,
+            target_data,
+        )
+        .await
+    }
+
     /// Execute a spell with full visual/cast info — apply effects, set cooldown, send SMSG_SPELL_GO.
     ///
     /// Called after cast time completes or for instant-cast spells.
     /// Supports: instakill (type 1), damage (type 2), aura application (type 6), heal (type 10).
-    pub async fn execute_spell_with_visual(
+    pub async fn execute_spell_with_visual_and_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         target_guid: ObjectGuid,
         cast_id: ObjectGuid,
         spell_visual: wow_packet::packets::spell::SpellCastVisual,
     ) -> Result<(), &'static str> {
-        self.execute_spell_with_visual_and_target_data(
+        self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+            item_guid_generator,
             spell_id,
             target_guid,
             cast_id,
@@ -68789,6 +69165,25 @@ impl WorldSession {
                 item: ObjectGuid::EMPTY,
                 ..SpellTargetData::default()
             },
+        )
+        .await
+    }
+
+    #[cfg(test)]
+    pub async fn execute_spell_with_visual(
+        &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        cast_id: ObjectGuid,
+        spell_visual: wow_packet::packets::spell::SpellCastVisual,
+    ) -> Result<(), &'static str> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_spell_with_visual_and_generator_like_cpp(
+            generators.item.as_ref(),
+            spell_id,
+            target_guid,
+            cast_id,
+            spell_visual,
         )
         .await
     }
@@ -68807,15 +69202,17 @@ impl WorldSession {
         )
     }
 
-    pub async fn execute_spell_with_visual_and_target_data(
+    pub async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         target_guid: ObjectGuid,
         cast_id: ObjectGuid,
         spell_visual: wow_packet::packets::spell::SpellCastVisual,
         target_data: SpellTargetData,
     ) -> Result<(), &'static str> {
-        self.execute_spell_with_visual_and_target_data_with_metadata(
+        self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+            item_guid_generator,
             spell_id,
             target_guid,
             cast_id,
@@ -68826,8 +69223,53 @@ impl WorldSession {
         .await
     }
 
+    #[cfg(test)]
+    pub async fn execute_spell_with_visual_and_target_data(
+        &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        cast_id: ObjectGuid,
+        spell_visual: wow_packet::packets::spell::SpellCastVisual,
+        target_data: SpellTargetData,
+    ) -> Result<(), &'static str> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+            generators.item.as_ref(),
+            spell_id,
+            target_guid,
+            cast_id,
+            spell_visual,
+            target_data,
+        )
+        .await
+    }
+
+    #[cfg(test)]
     pub async fn execute_spell_with_visual_and_target_data_with_metadata(
         &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        cast_id: ObjectGuid,
+        spell_visual: wow_packet::packets::spell::SpellCastVisual,
+        target_data: SpellTargetData,
+        metadata: SpellCastMetadata,
+    ) -> Result<(), &'static str> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+            generators.item.as_ref(),
+            spell_id,
+            target_guid,
+            cast_id,
+            spell_visual,
+            target_data,
+            metadata,
+        )
+        .await
+    }
+
+    pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         target_guid: ObjectGuid,
         cast_id: ObjectGuid,
@@ -69224,7 +69666,8 @@ impl WorldSession {
             match direct_effect_type {
                 x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
-                    self.apply_instakill_like_cpp(spell_id, target_guid).await?;
+                    self.apply_instakill_like_cpp(item_guid_generator, spell_id, target_guid)
+                        .await?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                     if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
@@ -69332,6 +69775,7 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH => {
                     self.apply_health_leech_like_cpp(
+                        item_guid_generator,
                         spell_id,
                         direct_effect_base_points,
                         target_guid,
@@ -69472,6 +69916,7 @@ impl WorldSession {
                     || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL => {}
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE => {
                     self.apply_quest_complete_effect_like_cpp(
+                        item_guid_generator,
                         target_guid,
                         direct_effect_misc_value_1,
                     )
@@ -69479,6 +69924,7 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT => {
                     self.apply_kill_credit_effect_like_cpp(
+                        item_guid_generator,
                         target_guid,
                         direct_effect_misc_value_1,
                         false,
@@ -69487,6 +69933,7 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2 => {
                     self.apply_kill_credit_effect_like_cpp(
+                        item_guid_generator,
                         target_guid,
                         direct_effect_misc_value_1,
                         true,
@@ -69496,6 +69943,7 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
                         self.apply_damage_from_caster_like_cpp(
+                            item_guid_generator,
                             Some(spell_id),
                             caster_guid,
                             target_guid,
@@ -73077,6 +73525,7 @@ impl WorldSession {
 
     async fn apply_health_leech_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         damage: i32,
         target_guid: ObjectGuid,
@@ -73104,8 +73553,13 @@ impl WorldSession {
         };
 
         if damage_amount > 0 {
-            self.apply_damage(Some(spell_id), target_guid, damage_amount)
-                .await?;
+            self.apply_damage_with_generator_like_cpp(
+                item_guid_generator,
+                Some(spell_id),
+                target_guid,
+                damage_amount,
+            )
+            .await?;
         }
         if effective_damage > 0 && self.resolved_player_is_alive_like_cpp() == Some(true) {
             self.apply_heal(Some(spell_id), player_guid, effective_damage)
@@ -74067,6 +74521,7 @@ impl WorldSession {
 
     async fn apply_quest_complete_effect_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         target_guid: ObjectGuid,
         quest_id: i32,
     ) -> Result<(), &'static str> {
@@ -74118,8 +74573,11 @@ impl WorldSession {
             if should_send_event_complete {
                 self.send_packet(&wow_packet::packets::quest::QuestUpdateComplete { quest_id });
             }
-            self.complete_represented_quest_after_add_if_ready_like_cpp(&quest)
-                .await;
+            self.complete_represented_quest_after_add_with_generator_like_cpp(
+                item_guid_generator,
+                &quest,
+            )
+            .await;
         } else if (quest.flags & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP_LOCAL) != 0 {
             if self
                 .mutate_player_quest_gameplay_like_cpp(|quests| {
@@ -74145,6 +74603,7 @@ impl WorldSession {
 
     async fn apply_kill_credit_effect_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         target_guid: ObjectGuid,
         creature_entry: i32,
         group_reward_like_cpp: bool,
@@ -74172,13 +74631,18 @@ impl WorldSession {
                 "Represented SPELL_EFFECT_KILL_CREDIT2 applies current-session credit only; C++ group fanout remains unrepresented"
             );
         }
-        self.on_creature_killed(creature_entry, ObjectGuid::EMPTY)
-            .await;
+        self.on_creature_killed_with_generator_like_cpp(
+            item_guid_generator,
+            creature_entry,
+            ObjectGuid::EMPTY,
+        )
+        .await;
         Ok(())
     }
 
     async fn apply_instakill_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
@@ -74197,24 +74661,54 @@ impl WorldSession {
             caster,
             spell_id,
         });
-        self.apply_damage(Some(spell_id), target_guid, current_hp)
-            .await
+        self.apply_damage_with_generator_like_cpp(
+            item_guid_generator,
+            Some(spell_id),
+            target_guid,
+            current_hp,
+        )
+        .await
     }
 
     /// Helper: apply damage to target creature.
+    async fn apply_damage_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        spell_id: Option<i32>,
+        target_guid: ObjectGuid,
+        damage_amount: u32,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        self.apply_damage_from_caster_like_cpp(
+            item_guid_generator,
+            spell_id,
+            player_guid,
+            target_guid,
+            damage_amount,
+        )
+        .await
+    }
+
+    #[cfg(test)]
     async fn apply_damage(
         &mut self,
         spell_id: Option<i32>,
         target_guid: ObjectGuid,
         damage_amount: u32,
     ) -> Result<(), &'static str> {
-        let player_guid = self.player_guid().ok_or("No player GUID")?;
-        self.apply_damage_from_caster_like_cpp(spell_id, player_guid, target_guid, damage_amount)
-            .await
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_damage_with_generator_like_cpp(
+            generators.item.as_ref(),
+            spell_id,
+            target_guid,
+            damage_amount,
+        )
+        .await
     }
 
     async fn apply_damage_from_caster_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: Option<i32>,
         caster_guid: ObjectGuid,
         target_guid: ObjectGuid,
@@ -74437,7 +74931,8 @@ impl WorldSession {
                     mob_level,
                     reputation_rate,
                 );
-                self.on_creature_killed(entry, guid).await;
+                self.on_creature_killed_with_generator_like_cpp(item_guid_generator, entry, guid)
+                    .await;
                 #[cfg(test)]
                 self.record_represented_creature_kill_hooks_like_cpp(player_guid, guid);
             }

@@ -145,6 +145,7 @@ impl WorldSession {
 
     pub(super) async fn apply_durable_represented_loot_money_payout_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         notified_amount: u64,
         durable_applied_amount: u64,
         sole_looter: bool,
@@ -185,8 +186,10 @@ impl WorldSession {
             });
         }
         if apply_money || publish {
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
         }
 
         ApplyLootMoneyResultLikeCpp::Applied

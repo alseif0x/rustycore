@@ -3604,6 +3604,7 @@ fn session_resources_requires_named_capability_bundles() {
     }
     for retired_session_generator in [
         "pub(super) guid_generator:",
+        "pub(super) item_guid_generator:",
         "pub(super) equipment_set_guid_generator:",
         "pub(super) void_storage_item_id_generator:",
     ] {

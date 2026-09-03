@@ -34,8 +34,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_confirm_respec_wipe",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_confirm_respec_wipe(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_confirm_respec_wipe_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -109,7 +116,11 @@ impl WorldSession {
     /// then runs `Player::ResetTalents`, sends talent data, and casts the
     /// visual spell. Rust keeps this as represented state until trainer-class
     /// matching, criteria/DB persistence, and visual cast runtime are canonical.
-    pub async fn handle_confirm_respec_wipe(&mut self, mut packet: WorldPacket) {
+    pub async fn handle_confirm_respec_wipe_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut packet: WorldPacket,
+    ) {
         let request = match ConfirmRespecWipe::read(&mut packet) {
             Ok(request) => request,
             Err(error) => {
@@ -145,6 +156,7 @@ impl WorldSession {
         };
 
         self.publish_committed_represented_talent_reset_like_cpp(
+            item_guid_generator,
             committed,
             RepresentedConfirmRespecWipeLikeCpp {
                 respec_master: request.respec_master,
@@ -153,6 +165,13 @@ impl WorldSession {
             UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP,
         )
         .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_confirm_respec_wipe(&mut self, packet: WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_confirm_respec_wipe_with_generator_like_cpp(generators.item.as_ref(), packet)
+            .await;
     }
 
     fn represented_can_confirm_respec_wipe_like_cpp(

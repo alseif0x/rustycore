@@ -253,13 +253,15 @@ impl WorldSession {
         quest_log_item_id
     }
 
-    pub(crate) async fn apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+    pub(crate) async fn apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quest_log_item_id: u32,
         count: u32,
     ) -> Vec<u32> {
         self.apply_quest_item_added_objective_progress_filtered_like_cpp(
+            item_guid_generator,
             entry_id,
             quest_log_item_id,
             count,
@@ -268,15 +270,34 @@ impl WorldSession {
         .await
     }
 
-    /// C++ `Player::ItemAddedQuestCheck(entry, count)` without a bound-item
-    /// filter, as used by bank withdrawals after `StoreItem`.
-    pub(crate) async fn apply_quest_item_added_objective_progress_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
         &mut self,
         entry_id: u32,
         quest_log_item_id: u32,
         count: u32,
     ) -> Vec<u32> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+            generators.item.as_ref(),
+            entry_id,
+            quest_log_item_id,
+            count,
+        )
+        .await
+    }
+
+    /// C++ `Player::ItemAddedQuestCheck(entry, count)` without a bound-item
+    /// filter, as used by bank withdrawals after `StoreItem`.
+    pub(crate) async fn apply_quest_item_added_objective_progress_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> Vec<u32> {
         self.apply_quest_item_added_objective_progress_filtered_like_cpp(
+            item_guid_generator,
             entry_id,
             quest_log_item_id,
             count,
@@ -285,8 +306,26 @@ impl WorldSession {
         .await
     }
 
+    #[cfg(test)]
+    pub(crate) async fn apply_quest_item_added_objective_progress_like_cpp(
+        &mut self,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> Vec<u32> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_quest_item_added_objective_progress_with_generator_like_cpp(
+            generators.item.as_ref(),
+            entry_id,
+            quest_log_item_id,
+            count,
+        )
+        .await
+    }
+
     async fn apply_quest_item_added_objective_progress_filtered_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quest_log_item_id: u32,
         count: u32,
@@ -431,7 +470,10 @@ impl WorldSession {
         for quest_id in quests_to_complete {
             if let Some(quest) = quest_store.get(quest_id).cloned() {
                 let completed = self
-                    .complete_represented_quest_after_add_if_ready_like_cpp(&quest)
+                    .complete_represented_quest_after_add_with_generator_like_cpp(
+                        item_guid_generator,
+                        &quest,
+                    )
                     .await;
                 if completed
                     && self
@@ -859,8 +901,9 @@ impl WorldSession {
         quests.into_iter().map(|(_, quest_id)| quest_id).collect()
     }
 
-    pub(super) async fn apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
+    pub(super) async fn apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest_store: &QuestStore,
         object_id: i32,
         count_i32: i32,
@@ -943,16 +986,37 @@ impl WorldSession {
 
         for quest_id in quests_to_complete {
             if let Some(quest) = quest_store.get(quest_id).cloned() {
-                self.complete_represented_quest_after_add_if_ready_like_cpp(&quest)
-                    .await;
+                self.complete_represented_quest_after_add_with_generator_like_cpp(
+                    item_guid_generator,
+                    &quest,
+                )
+                .await;
             }
         }
 
         updated_counts
     }
 
-    pub(crate) async fn apply_quest_source_item_bound_objective_preflight_like_cpp(
+    #[cfg(test)]
+    pub(super) async fn apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
         &mut self,
+        quest_store: &QuestStore,
+        object_id: i32,
+        count_i32: i32,
+    ) -> Vec<(u32, i32)> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+            generators.item.as_ref(),
+            quest_store,
+            object_id,
+            count_i32,
+        )
+        .await
+    }
+
+    pub(crate) async fn apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quest_log_item_id: u32,
         count: u32,
@@ -966,7 +1030,8 @@ impl WorldSession {
         let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);
         let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
         let mut updated_counts = self
-            .apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
+            .apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+                item_guid_generator,
                 quest_store.as_ref(),
                 entry_object_id,
                 count_i32,
@@ -976,7 +1041,8 @@ impl WorldSession {
         if quest_log_item_id != 0 && updated_counts.len() != 1 {
             let quest_log_object_id = i32::try_from(quest_log_item_id).unwrap_or(i32::MAX);
             updated_counts.extend(
-                self.apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
+                self.apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+                    item_guid_generator,
                     quest_store.as_ref(),
                     quest_log_object_id,
                     count_i32,
@@ -1014,5 +1080,22 @@ impl WorldSession {
             no_grant: true,
             changed_quest_ids,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn apply_quest_source_item_bound_objective_preflight_like_cpp(
+        &mut self,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> Option<QuestSourceItemBoundPreflightLikeCpp> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+            generators.item.as_ref(),
+            entry_id,
+            quest_log_item_id,
+            count,
+        )
+        .await
     }
 }
