@@ -5859,6 +5859,7 @@ pub struct WorldSession {
     /// Creature kills observed from synchronous melee ticks and completed in `process_pending`.
     pending_creature_kill_loot_like_cpp: Vec<ObjectGuid>,
     pending_creature_kill_rewards_like_cpp: Vec<PendingCreatureKillRewardLikeCpp>,
+    #[cfg(test)]
     represented_creature_kill_events_like_cpp: Vec<RepresentedCreatureKillEventLikeCpp>,
 
     /// In-memory inventory: slot → (item ObjectGuid, entry_id, db_guid).
@@ -7566,6 +7567,7 @@ struct PendingCreatureKillRewardLikeCpp {
     creature_level: u8,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedCreatureKillEventLikeCpp {
     KillerProc {
@@ -8059,6 +8061,7 @@ impl WorldSession {
             pending_creature_spawn: None,
             pending_creature_kill_loot_like_cpp: Vec::new(),
             pending_creature_kill_rewards_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_creature_kill_events_like_cpp: Vec::new(),
             #[cfg(test)]
             inventory_items: HashMap::new(),
@@ -34155,6 +34158,8 @@ impl WorldSession {
         creature_level: u8,
         kill_reward_rate: f32,
     ) {
+        #[cfg(not(test))]
+        let _ = creature_guid;
         if faction_id == 0 {
             return;
         }
@@ -34233,6 +34238,9 @@ impl WorldSession {
         if let Some(packet) = packet {
             self.send_packet(&packet);
         }
+        #[cfg(not(test))]
+        let _ = outcome;
+        #[cfg(test)]
         if outcome.applied {
             self.represented_creature_kill_events_like_cpp.push(
                 RepresentedCreatureKillEventLikeCpp::CreatureKillReputationAwarded {
@@ -38646,6 +38654,7 @@ impl WorldSession {
             );
             self.on_creature_killed(reward.creature_entry, reward.creature_guid)
                 .await;
+            #[cfg(test)]
             self.record_represented_creature_kill_hooks_like_cpp(
                 reward.killer_guid,
                 reward.creature_guid,
@@ -48854,6 +48863,7 @@ impl WorldSession {
         self.movement_jump_proc_requests_like_cpp
     }
 
+    #[cfg(test)]
     fn record_represented_creature_kill_hooks_like_cpp(
         &mut self,
         attacker_guid: ObjectGuid,
@@ -50326,6 +50336,8 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
         creature_guid: ObjectGuid,
     ) -> Option<wow_entities::UnitValuesUpdate> {
+        #[cfg(not(test))]
+        let _ = attacker_guid;
         let lootable = self
             .loot_table
             .get(&creature_guid)
@@ -50336,17 +50348,21 @@ impl WorldSession {
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
             creature.creature.unit().values_update()
         })?;
+        #[cfg(test)]
         self.represented_creature_kill_events_like_cpp.push(
             RepresentedCreatureKillEventLikeCpp::DeathStateJustDied {
                 victim_guid: creature_guid,
             },
         );
+        #[cfg(test)]
         self.represented_creature_kill_events_like_cpp.push(
             RepresentedCreatureKillEventLikeCpp::ZoneScriptUnitDeath {
                 unit_guid: creature_guid,
             },
         );
+        #[cfg(test)]
         self.record_represented_tapper_pet_killed_unit_hooks_like_cpp(creature_guid);
+        #[cfg(test)]
         self.represented_creature_kill_events_like_cpp.push(
             RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
                 creature_guid,
@@ -50355,6 +50371,7 @@ impl WorldSession {
                 skinnable: can_skin,
             },
         );
+        #[cfg(test)]
         self.represented_creature_kill_events_like_cpp.push(
             RepresentedCreatureKillEventLikeCpp::CreatureOnHealthDepletedAi {
                 creature_guid,
@@ -50362,12 +50379,14 @@ impl WorldSession {
                 is_kill: true,
             },
         );
+        #[cfg(test)]
         self.represented_creature_kill_events_like_cpp.push(
             RepresentedCreatureKillEventLikeCpp::CreatureJustDiedAi {
                 creature_guid,
                 killer_guid: attacker_guid,
             },
         );
+        #[cfg(test)]
         if attacker_guid.is_player() {
             self.represented_creature_kill_events_like_cpp.push(
                 RepresentedCreatureKillEventLikeCpp::ScriptMgrOnCreatureKill {
@@ -50379,6 +50398,7 @@ impl WorldSession {
         Some(values_update)
     }
 
+    #[cfg(test)]
     fn record_represented_tapper_pet_killed_unit_hooks_like_cpp(
         &mut self,
         creature_guid: ObjectGuid,
@@ -73980,6 +74000,7 @@ impl WorldSession {
                     reputation_rate,
                 );
                 self.on_creature_killed(entry, guid).await;
+                #[cfg(test)]
                 self.record_represented_creature_kill_hooks_like_cpp(player_guid, guid);
             }
             if let Some(death_values_update) = self
