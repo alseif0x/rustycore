@@ -324,6 +324,10 @@ impl WorldSession {
             player_rest_rates: Arc::new(self.player_rest_rate_policy_for_test_like_cpp()),
             creature_spawns: Arc::new(self.creature_spawn_catalogs_for_test_like_cpp()),
             progression: Arc::new(self.progression_catalogs_for_test_like_cpp()),
+            battle_pet_trainer_selection: self
+                .battle_pet_selection_store_like_cpp()
+                .cloned()
+                .unwrap_or(empty_catalogs.battle_pet_trainer_selection),
             chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),

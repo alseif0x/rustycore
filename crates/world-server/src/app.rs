@@ -4690,6 +4690,7 @@ async fn run_inner(
                         0,
                     ),
                 }),
+                battle_pet_trainer_selection: Arc::clone(&battle_pet_selection_store),
                 chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
                     addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
                     fake_message_preventing: world_config_bool(
@@ -4846,7 +4847,6 @@ async fn run_inner(
             trinity_string_store: Arc::clone(&trinity_string_store),
             heirloom_store: Arc::clone(&heirloom_store),
             toy_store: Arc::clone(&toy_store),
-            battle_pet_selection_store: Arc::clone(&battle_pet_selection_store),
             combat_ratings_game_table: Arc::clone(&combat_ratings_game_table),
             shield_block_regular_game_table: Arc::clone(&shield_block_regular_game_table),
             transmog_set_item_store: Arc::clone(&transmog_set_item_store),

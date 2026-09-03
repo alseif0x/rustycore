@@ -244,6 +244,7 @@ inventory::submit! {
                 session
                     .handle_trainer_buy_spell_with_generator_like_cpp(
                         catalogs.id_generators.item.as_ref(),
+                        catalogs.battle_pet_trainer_selection.as_ref(),
                         pkt,
                     )
                     .await
@@ -544,6 +545,7 @@ impl WorldSession {
     pub async fn handle_trainer_buy_spell_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        battle_pet_selection_store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let req = match TrainerBuySpellRequest::read(&mut pkt) {
@@ -687,6 +689,7 @@ impl WorldSession {
                 // one pet, completion, compensation and publication).
                 self.execute_battle_pet_trainer_purchase_with_generator_like_cpp(
                     item_guid_generator,
+                    battle_pet_selection_store,
                     money_persistence,
                     trainer_guid,
                     trainer_id as u32,
@@ -940,8 +943,18 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_trainer_buy_spell_with_generator_like_cpp(generators.item.as_ref(), pkt)
-            .await;
+        let selection = self
+            .battle_pet_selection_store_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| {
+                Arc::new(wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp::default())
+            });
+        self.handle_trainer_buy_spell_with_generator_like_cpp(
+            generators.item.as_ref(),
+            selection.as_ref(),
+            pkt,
+        )
+        .await;
     }
 }
 

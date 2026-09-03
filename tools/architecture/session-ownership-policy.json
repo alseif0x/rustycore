@@ -266,8 +266,10 @@
           "name": "battle_pet_selection_store_like_cpp",
           "type": "Option < Arc < wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battle_pet_species_state_store",
@@ -6214,7 +6216,7 @@
           "kind": "method",
           "name": "battle_pet_trainer_selection_like_cpp",
           "visibility": "private",
-          "signature": "fn battle_pet_trainer_selection_like_cpp (& self , species_entry : & wow_data :: BattlePetSpeciesEntry ,) -> Option < BattlePetTrainerSelectionLikeCpp >",
+          "signature": "fn battle_pet_trainer_selection_like_cpp (& self , store : & wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp , species_entry : & wow_data :: BattlePetSpeciesEntry ,) -> Option < BattlePetTrainerSelectionLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6269,7 +6271,7 @@
           "kind": "method",
           "name": "execute_battle_pet_trainer_purchase_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn execute_battle_pet_trainer_purchase_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , money_persistence : ExclusivePlayerMoneyPersistenceLikeCpp , trainer_guid : ObjectGuid , trainer_id : u32 , offer : PreparedBattlePetTrainerOfferLikeCpp ,) -> BattlePetPurchaseExecutionLikeCpp",
+          "signature": "async fn execute_battle_pet_trainer_purchase_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , battle_pet_selection_store : & wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp , money_persistence : ExclusivePlayerMoneyPersistenceLikeCpp , trainer_guid : ObjectGuid , trainer_id : u32 , offer : PreparedBattlePetTrainerOfferLikeCpp ,) -> BattlePetPurchaseExecutionLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19929,7 +19931,7 @@
           "kind": "method",
           "name": "handle_trainer_buy_spell_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_trainer_buy_spell_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_trainer_buy_spell_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , battle_pet_selection_store : & wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23772,8 +23774,10 @@
           "name": "battle_pet_selection_store_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_selection_store_like_cpp (& self ,) -> Option < & Arc < wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -45383,8 +45387,10 @@
           "name": "set_battle_pet_selection_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_battle_pet_selection_store_like_cpp (& mut self , store : Arc < wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -75993,7 +75999,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d06a85a52628dd0c28b0a9ffaf616ac7:len=97082|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a700aaf058d2da84ac28b53a6c7b82af:len=97097|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

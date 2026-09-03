@@ -57,10 +57,6 @@ pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) trinity_string_store: Arc<wow_data::TrinityStringStoreLikeCpp>,
     pub(super) heirloom_store: Arc<wow_data::HeirloomStore>,
     pub(super) toy_store: Arc<wow_data::ToyStore>,
-    /// World-DB battle-pet breed/quality tables for trainer purchase
-    /// materialization (issue #161).
-    pub(super) battle_pet_selection_store:
-        Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
     pub(super) combat_ratings_game_table: Arc<wow_data::CombatRatingsGameTableLikeCpp>,
     pub(super) shield_block_regular_game_table: Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>,
     pub(super) transmog_set_item_store: Arc<wow_data::TransmogSetItemStore>,
@@ -100,8 +96,6 @@ impl SessionInventoryCapabilitiesLikeCpp {
         session.set_trinity_string_store(Arc::clone(&self.trinity_string_store));
         session.set_heirloom_store(Arc::clone(&self.heirloom_store));
         session.set_toy_store(Arc::clone(&self.toy_store));
-        session
-            .set_battle_pet_selection_store_like_cpp(Arc::clone(&self.battle_pet_selection_store));
         session.set_combat_ratings_game_table(Arc::clone(&self.combat_ratings_game_table));
         session
             .set_shield_block_regular_game_table(Arc::clone(&self.shield_block_regular_game_table));

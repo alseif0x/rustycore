@@ -601,6 +601,8 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub player_rest_rates: Arc<PlayerRestRatePolicyLikeCpp>,
     pub creature_spawns: Arc<CreatureSpawnCatalogsLikeCpp>,
     pub progression: Arc<ProgressionCatalogsLikeCpp>,
+    pub battle_pet_trainer_selection:
+        Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
     pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
@@ -627,6 +629,9 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             player_rest_rates: Arc::new(PlayerRestRatePolicyLikeCpp::default()),
             creature_spawns: Arc::new(CreatureSpawnCatalogsLikeCpp::default()),
             progression: Arc::new(ProgressionCatalogsLikeCpp::default()),
+            battle_pet_trainer_selection: Arc::new(
+                wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp::default(),
+            ),
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
             support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
@@ -7199,6 +7204,7 @@ pub struct WorldSession {
     battle_pet_account_attachment_like_cpp: Option<BattlePetAccountAttachmentLikeCpp>,
     /// World-DB breed/quality selection tables for battle-pet trainer
     /// purchases (issue #161), loaded once at bootstrap.
+    #[cfg(test)]
     battle_pet_selection_store_like_cpp:
         Option<Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>>,
     /// Deterministic purchase selection override for saga tests (#161).
@@ -8238,6 +8244,7 @@ impl WorldSession {
             battle_pet_species_store: None,
             #[cfg(test)]
             battle_pet_species_state_store: None,
+            #[cfg(test)]
             battle_pet_selection_store_like_cpp: None,
             #[cfg(test)]
             battle_pet_purchase_selection_override_like_cpp: None,
@@ -18416,6 +18423,7 @@ impl WorldSession {
     }
 
     /// Set the world-DB battle-pet breed/quality selection store (#161).
+    #[cfg(test)]
     pub fn set_battle_pet_selection_store_like_cpp(
         &mut self,
         store: Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
@@ -18423,6 +18431,7 @@ impl WorldSession {
         self.battle_pet_selection_store_like_cpp = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn battle_pet_selection_store_like_cpp(
         &self,
     ) -> Option<&Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>> {
