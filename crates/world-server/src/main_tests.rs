@@ -3464,7 +3464,7 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     .concat();
     let propagation_needle = [
         "session.set_max_primary_trade_skills_like_cpp(",
-        "resources.max_primary_trade_skills);",
+        "resources.progression.max_primary_trade_skills);",
     ]
     .concat();
     assert!(
@@ -3503,19 +3503,61 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
         );
     }
     assert!(
+        resources_source.contains("core: SessionCoreCapabilitiesLikeCpp"),
+        "SessionResources must require the core capability bundle"
+    );
+    assert!(
         resources_source
             .contains("persistence: wow_world::session::SessionPersistencePortsLikeCpp"),
-        "SessionResources must carry one complete persistence graph"
+        "the core capability bundle must carry one complete persistence graph"
     );
     assert!(
         session_factory_source.contains(
-            "session.set_required_persistence_capabilities_like_cpp(resources.persistence.clone())"
+            "session.set_required_persistence_capabilities_like_cpp(resources.core.persistence.clone())"
         ),
         "create_session must install the complete graph atomically"
     );
     assert!(
         !session_factory_source.contains("if let Some(ref port) = resources."),
         "production session construction must not silently omit persistence capabilities"
+    );
+}
+
+#[test]
+fn session_resources_requires_named_capability_bundles() {
+    let resources_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
+    )
+    .expect("SessionResources source should be readable");
+    let session_resources = resources_source
+        .split("pub(super) struct SessionResources {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionResources declaration should be present");
+
+    for required_bundle in [
+        "core: SessionCoreCapabilitiesLikeCpp",
+        "inventory: SessionInventoryCapabilitiesLikeCpp",
+        "player: SessionPlayerCatalogCapabilitiesLikeCpp",
+        "spells: SessionSpellCatalogCapabilitiesLikeCpp",
+        "world: SessionWorldCatalogCapabilitiesLikeCpp",
+        "progression: SessionProgressionCapabilitiesLikeCpp",
+        "runtime: SessionRuntimePolicyCapabilitiesLikeCpp",
+        "realm: SessionRealmCapabilitiesLikeCpp",
+    ] {
+        assert!(
+            session_resources.contains(required_bundle),
+            "missing required capability bundle {required_bundle}"
+        );
+    }
+    assert_eq!(
+        session_resources.matches("pub(super)").count(),
+        8,
+        "the outer construction contract must not regress into a field-by-field service locator"
+    );
+    assert!(
+        !session_resources.contains("Option<"),
+        "named capability bundles must be mandatory at production construction"
     );
 }
 

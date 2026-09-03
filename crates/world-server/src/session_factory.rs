@@ -274,268 +274,274 @@ pub(super) async fn create_session(
         id: active_session_id,
     };
     let account_id = account.id;
-    session.set_object_mgr_catalogs_like_cpp(Arc::clone(&resources.object_mgr_catalogs));
-    session.set_required_persistence_capabilities_like_cpp(resources.persistence.clone());
+    session.set_object_mgr_catalogs_like_cpp(Arc::clone(&resources.core.object_mgr_catalogs));
+    session.set_required_persistence_capabilities_like_cpp(resources.core.persistence.clone());
     session.set_remote_address_like_cpp(account.client_address.map(|addr| addr.to_string()));
     session.set_battlenet_account_id(account.battlenet_account_id);
     session.set_recruiter_id_like_cpp(account.recruiter);
     session.set_is_a_recruiter_like_cpp(account.is_a_recruiter);
     session.set_mute_time_like_cpp(account.mute_time);
-    if let Some(ref generator) = resources.guid_generator {
+    if let Some(ref generator) = resources.core.guid_generator {
         session.set_guid_generator(Arc::clone(generator));
     }
-    if let Some(ref generator) = resources.item_guid_generator {
+    if let Some(ref generator) = resources.core.item_guid_generator {
         session.set_item_guid_generator_like_cpp(Arc::clone(generator));
     }
-    if let Some(ref generator) = resources.equipment_set_guid_generator {
+    if let Some(ref generator) = resources.core.equipment_set_guid_generator {
         session.set_equipment_set_guid_generator_like_cpp(Arc::clone(generator));
     }
-    if let Some(ref generator) = resources.void_storage_item_id_generator {
+    if let Some(ref generator) = resources.core.void_storage_item_id_generator {
         session.set_void_storage_item_id_generator_like_cpp(Arc::clone(generator));
     }
-    if let Some(ref mgr) = resources.instance_lock_mgr {
+    if let Some(ref mgr) = resources.core.instance_lock_mgr {
         session.set_instance_lock_mgr(Arc::clone(mgr));
     }
-    if let Some(ref store) = resources.trainer_store {
+    if let Some(ref store) = resources.core.trainer_store {
         session.set_trainer_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.bank_bag_slot_prices_store {
+    if let Some(ref store) = resources.inventory.bank_bag_slot_prices_store {
         session.set_bank_bag_slot_prices_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.currency_types_store {
+    if let Some(ref store) = resources.inventory.currency_types_store {
         session.set_currency_types_store(Arc::clone(store));
     }
-    if let Some(ref stores) = resources.import_price_stores {
+    if let Some(ref stores) = resources.inventory.import_price_stores {
         session.set_import_price_stores(Arc::clone(stores));
     }
-    if let Some(ref store) = resources.emotes_store {
+    if let Some(ref store) = resources.inventory.emotes_store {
         session.set_emotes_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.emotes_text_store {
+    if let Some(ref store) = resources.inventory.emotes_text_store {
         session.set_emotes_text_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_class_store {
+    if let Some(ref store) = resources.inventory.item_class_store {
         session.set_item_class_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_currency_cost_store {
+    if let Some(ref store) = resources.inventory.item_currency_cost_store {
         session.set_item_currency_cost_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_extended_cost_store {
+    if let Some(ref store) = resources.inventory.item_extended_cost_store {
         session.set_item_extended_cost_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_store {
+    if let Some(ref store) = resources.inventory.item_store {
         session.set_item_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_child_equipment_store {
+    if let Some(ref store) = resources.inventory.item_child_equipment_store {
         session.set_item_child_equipment_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_appearance_store {
+    if let Some(ref store) = resources.inventory.item_appearance_store {
         session.set_item_appearance_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_modified_appearance_store {
+    if let Some(ref store) = resources.inventory.item_modified_appearance_store {
         session.set_item_modified_appearance_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_search_name_store {
+    if let Some(ref store) = resources.inventory.item_search_name_store {
         session.set_item_search_name_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.trinity_string_store {
+    if let Some(ref store) = resources.inventory.trinity_string_store {
         session.set_trinity_string_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.heirloom_store {
+    if let Some(ref store) = resources.inventory.heirloom_store {
         session.set_heirloom_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.toy_store {
+    if let Some(ref store) = resources.inventory.toy_store {
         session.set_toy_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.battle_pet_breed_quality_store {
+    if let Some(ref store) = resources.inventory.battle_pet_breed_quality_store {
         session.set_battle_pet_breed_quality_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.battle_pet_breed_state_store {
+    if let Some(ref store) = resources.inventory.battle_pet_breed_state_store {
         session.set_battle_pet_breed_state_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.battle_pet_species_store {
+    if let Some(ref store) = resources.inventory.battle_pet_species_store {
         session.set_battle_pet_species_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.battle_pet_selection_store {
+    if let Some(ref store) = resources.inventory.battle_pet_selection_store {
         session.set_battle_pet_selection_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.battle_pet_species_state_store {
+    if let Some(ref store) = resources.inventory.battle_pet_species_state_store {
         session.set_battle_pet_species_state_store(Arc::clone(store));
     }
-    if let Some(ref table) = resources.battle_pet_xp_game_table {
+    if let Some(ref table) = resources.inventory.battle_pet_xp_game_table {
         session.set_battle_pet_xp_game_table(Arc::clone(table));
     }
-    if let Some(ref table) = resources.combat_ratings_game_table {
+    if let Some(ref table) = resources.inventory.combat_ratings_game_table {
         session.set_combat_ratings_game_table(Arc::clone(table));
     }
-    if let Some(ref table) = resources.shield_block_regular_game_table {
+    if let Some(ref table) = resources.inventory.shield_block_regular_game_table {
         session.set_shield_block_regular_game_table(Arc::clone(table));
     }
-    if let Some(ref store) = resources.transmog_set_item_store {
+    if let Some(ref store) = resources.inventory.transmog_set_item_store {
         session.set_transmog_set_item_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_price_base_store {
+    if let Some(ref store) = resources.inventory.item_price_base_store {
         session.set_item_price_base_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_limit_category_store {
+    if let Some(ref store) = resources.inventory.item_limit_category_store {
         session.set_item_limit_category_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_limit_category_condition_store {
+    if let Some(ref store) = resources.inventory.item_limit_category_condition_store {
         session.set_item_limit_category_condition_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.player_create_info_store {
+    if let Some(ref store) = resources.inventory.player_create_info_store {
         session.set_player_create_info_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.player_create_cast_spell_store {
+    if let Some(ref store) = resources.inventory.player_create_cast_spell_store {
         session.set_player_create_cast_spell_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.player_create_custom_spell_store {
+    if let Some(ref store) = resources.inventory.player_create_custom_spell_store {
         session.set_player_create_custom_spell_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.player_stats {
+    if let Some(ref store) = resources.inventory.player_stats {
         session.set_player_stats(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_bonus_db2_store {
+    if let Some(ref store) = resources.inventory.item_bonus_db2_store {
         session.set_item_bonus_db2_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.pvp_item_store {
+    if let Some(ref store) = resources.inventory.pvp_item_store {
         session.set_pvp_item_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_set_store {
+    if let Some(ref store) = resources.inventory.item_set_store {
         session.set_item_set_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_set_spell_store {
+    if let Some(ref store) = resources.inventory.item_set_spell_store {
         session.set_item_set_spell_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_stats_store {
+    if let Some(ref store) = resources.inventory.item_stats_store {
         session.set_item_stats_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.durability_costs_store {
+    if let Some(ref store) = resources.inventory.durability_costs_store {
         session.set_durability_costs_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.durability_quality_store {
+    if let Some(ref store) = resources.inventory.durability_quality_store {
         session.set_durability_quality_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_effect_store {
+    if let Some(ref store) = resources.inventory.item_effect_store {
         session.set_item_effect_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_random_suffix_store {
+    if let Some(ref store) = resources.inventory.item_random_suffix_store {
         session.set_item_random_suffix_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_random_properties_store {
+    if let Some(ref store) = resources.inventory.item_random_properties_store {
         session.set_item_random_properties_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_spec_override_store {
+    if let Some(ref store) = resources.inventory.item_spec_override_store {
         session.set_item_spec_override_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.rand_prop_points_store {
+    if let Some(ref store) = resources.inventory.rand_prop_points_store {
         session.set_rand_prop_points_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_random_enchantment_template_store {
+    if let Some(ref store) = resources.inventory.item_random_enchantment_template_store {
         session.set_item_random_enchantment_template_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.item_disenchant_loot_store {
+    if let Some(ref store) = resources.inventory.item_disenchant_loot_store {
         session.set_item_disenchant_loot_store(Arc::clone(store));
     }
-    if let Some(ref stores) = resources.loot_stores {
+    if let Some(ref stores) = resources.inventory.loot_stores {
         session.set_loot_stores(Arc::clone(stores));
     }
-    if let Some(ref store) = resources.condition_store {
+    if let Some(ref store) = resources.player.condition_store {
         session.set_condition_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.player_condition_store {
+    if let Some(ref store) = resources.player.player_condition_store {
         session.set_player_condition_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.adventure_map_poi_store {
+    if let Some(ref store) = resources.player.adventure_map_poi_store {
         session.set_adventure_map_poi_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.content_tuning_store {
+    if let Some(ref store) = resources.player.content_tuning_store {
         session.set_content_tuning_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.curve_store {
+    if let Some(ref store) = resources.player.curve_store {
         session.set_curve_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.curve_point_store {
+    if let Some(ref store) = resources.player.curve_point_store {
         session.set_curve_point_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.scaling_stat_distribution_store {
+    if let Some(ref store) = resources.player.scaling_stat_distribution_store {
         session.set_scaling_stat_distribution_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.scaling_stat_values_store {
+    if let Some(ref store) = resources.player.scaling_stat_values_store {
         session.set_scaling_stat_values_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.disable_mgr {
+    if let Some(ref store) = resources.player.disable_mgr {
         session.set_disable_mgr(Arc::clone(store));
     }
-    if let Some(ref store) = resources.difficulty_store {
+    if let Some(ref store) = resources.player.difficulty_store {
         session.set_difficulty_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.lock_store {
+    if let Some(ref store) = resources.player.lock_store {
         session.set_lock_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_item_enchantment_store {
+    if let Some(ref store) = resources.player.spell_item_enchantment_store {
         session.set_spell_item_enchantment_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_item_enchantment_condition_store {
+    if let Some(ref store) = resources.player.spell_item_enchantment_condition_store {
         session.set_spell_item_enchantment_condition_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.gem_properties_store {
+    if let Some(ref store) = resources.player.gem_properties_store {
         session.set_gem_properties_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_enchant_proc_store {
+    if let Some(ref store) = resources.player.spell_enchant_proc_store {
         session.set_spell_enchant_proc_store(Arc::clone(store));
     }
-    if let Some(ref cache) = resources.hotfix_blob_cache {
+    if let Some(ref cache) = resources.player.hotfix_blob_cache {
         session.set_hotfix_blob_cache(Arc::clone(cache));
     }
-    if let Some(ref store) = resources.tact_key_store {
+    if let Some(ref store) = resources.player.tact_key_store {
         session.set_tact_key_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.skill_store {
+    if let Some(ref store) = resources.player.skill_store {
         session.set_skill_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.trait_definition_store {
+    if let Some(ref store) = resources.player.trait_definition_store {
         session.set_trait_definition_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.trait_node_entry_store {
+    if let Some(ref store) = resources.player.trait_node_entry_store {
         session.set_trait_node_entry_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.skill_line_store {
+    if let Some(ref store) = resources.player.skill_line_store {
         session.set_skill_line_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.skill_tiers_store {
+    if let Some(ref store) = resources.player.skill_tiers_store {
         session.set_skill_tiers_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.talent_store {
+    if let Some(ref store) = resources.player.talent_store {
         session.set_talent_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.talent_tab_store {
+    if let Some(ref store) = resources.player.talent_tab_store {
         session.set_talent_tab_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.num_talents_at_level_store {
+    if let Some(ref store) = resources.player.num_talents_at_level_store {
         session.set_num_talents_at_level_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.glyph_properties_store {
+    if let Some(ref store) = resources.player.glyph_properties_store {
         session.set_glyph_properties_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.chr_races_store {
+    if let Some(ref store) = resources.player.chr_races_store {
         session.set_chr_races_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.chr_classes_store {
+    if let Some(ref store) = resources.player.chr_classes_store {
         session.set_chr_classes_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.power_type_store {
+    if let Some(ref store) = resources.player.power_type_store {
         session.set_power_type_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_store {
+    if let Some(ref store) = resources.spells.spell_store {
         session.set_spell_store(Arc::clone(store));
     }
-    if let Some(ref catalog) = resources.spell_acquisition_catalog {
+    if let Some(ref catalog) = resources.spells.spell_acquisition_catalog {
         session.set_spell_acquisition_catalog(Arc::clone(catalog));
     }
     if let (Some(casts), Some(crafts)) = (
-        resources.spell_acquisition_safe_cast_spell_ids.as_ref(),
-        resources.spell_acquisition_valid_craft_spell_ids.as_ref(),
+        resources
+            .spells
+            .spell_acquisition_safe_cast_spell_ids
+            .as_ref(),
+        resources
+            .spells
+            .spell_acquisition_valid_craft_spell_ids
+            .as_ref(),
     ) {
         session.set_spell_acquisition_static_authority_like_cpp(
             casts.iter().copied(),
@@ -543,10 +549,16 @@ pub(super) async fn create_session(
         );
     }
     if let (Some(exact), Some(all_ranks), Some(legacy), Some(rejected_linked_triggers)) = (
-        resources.spell_script_exact_spell_ids.as_ref(),
-        resources.spell_script_all_rank_root_spell_ids.as_ref(),
-        resources.legacy_spell_script_spell_ids.as_ref(),
-        resources.spell_linked_rejected_trigger_spell_ids.as_ref(),
+        resources.spells.spell_script_exact_spell_ids.as_ref(),
+        resources
+            .spells
+            .spell_script_all_rank_root_spell_ids
+            .as_ref(),
+        resources.spells.legacy_spell_script_spell_ids.as_ref(),
+        resources
+            .spells
+            .spell_linked_rejected_trigger_spell_ids
+            .as_ref(),
     ) {
         session.set_spell_runtime_script_authority_like_cpp(
             Arc::clone(exact),
@@ -555,343 +567,358 @@ pub(super) async fn create_session(
             Arc::clone(rejected_linked_triggers),
         );
     }
-    if let Some(ref store) = resources.spell_levels_store {
+    if let Some(ref store) = resources.spells.spell_levels_store {
         session.set_spell_levels_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_chain_store {
+    if let Some(ref store) = resources.spells.spell_chain_store {
         session.set_spell_chain_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_category_store {
+    if let Some(ref store) = resources.spells.spell_category_store {
         session.set_spell_category_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.npc_spell_click_store {
+    if let Some(ref store) = resources.spells.npc_spell_click_store {
         session.set_npc_spell_click_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_aura_options_store {
+    if let Some(ref store) = resources.spells.spell_aura_options_store {
         session.set_spell_aura_options_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_aura_restrictions_store {
+    if let Some(ref store) = resources.spells.spell_aura_restrictions_store {
         session.set_spell_aura_restrictions_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_target_restrictions_store {
+    if let Some(ref store) = resources.spells.spell_target_restrictions_store {
         session.set_spell_target_restrictions_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_equipped_items_store {
+    if let Some(ref store) = resources.spells.spell_equipped_items_store {
         session.set_spell_equipped_items_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_misc_store {
+    if let Some(ref store) = resources.spells.spell_misc_store {
         session.set_spell_misc_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_group_store {
+    if let Some(ref store) = resources.spells.spell_group_store {
         session.set_spell_group_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_group_stack_rule_store {
+    if let Some(ref store) = resources.spells.spell_group_stack_rule_store {
         session.set_spell_group_stack_rule_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_linked_store {
+    if let Some(ref store) = resources.spells.spell_linked_store {
         session.set_spell_linked_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_pet_aura_store {
+    if let Some(ref store) = resources.spells.spell_pet_aura_store {
         session.set_spell_pet_aura_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_area_store {
+    if let Some(ref store) = resources.spells.spell_area_store {
         session.set_spell_area_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_custom_attribute_store {
+    if let Some(ref store) = resources.spells.spell_custom_attribute_store {
         session.set_spell_custom_attribute_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.serverside_spell_store {
+    if let Some(ref store) = resources.spells.serverside_spell_store {
         session.set_serverside_spell_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_learn_skill_store {
+    if let Some(ref store) = resources.spells.spell_learn_skill_store {
         session.set_spell_learn_skill_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_learn_spell_store {
+    if let Some(ref store) = resources.spells.spell_learn_spell_store {
         session.set_spell_learn_spell_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.pet_levelup_spell_store {
+    if let Some(ref store) = resources.spells.pet_levelup_spell_store {
         session.set_pet_levelup_spell_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.pet_default_spell_store {
+    if let Some(ref store) = resources.spells.pet_default_spell_store {
         session.set_pet_default_spell_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.pet_family_spell_store {
+    if let Some(ref store) = resources.spells.pet_family_spell_store {
         session.set_pet_family_spell_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_proc_store {
+    if let Some(ref store) = resources.spells.spell_proc_store {
         session.set_spell_proc_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_required_store {
+    if let Some(ref store) = resources.spells.spell_required_store {
         session.set_spell_required_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_threat_store {
+    if let Some(ref store) = resources.spells.spell_threat_store {
         session.set_spell_threat_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_duration_store {
+    if let Some(ref store) = resources.spells.spell_duration_store {
         session.set_spell_duration_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_radius_store {
+    if let Some(ref store) = resources.spells.spell_radius_store {
         session.set_spell_radius_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_range_store {
+    if let Some(ref store) = resources.spells.spell_range_store {
         session.set_spell_range_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_target_position_store {
+    if let Some(ref store) = resources.spells.spell_target_position_store {
         session.set_spell_target_position_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_totem_model_store {
+    if let Some(ref store) = resources.spells.spell_totem_model_store {
         session.set_spell_totem_model_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.movie_store {
+    if let Some(ref store) = resources.spells.movie_store {
         session.set_movie_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.script_name_interner {
+    if let Some(ref store) = resources.spells.script_name_interner {
         session.set_script_name_interner(Arc::clone(store));
     }
-    if let Some(ref store) = resources.area_table_store {
+    if let Some(ref store) = resources.world.area_table_store {
         session.set_area_table_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.fishing_base_skill_store {
+    if let Some(ref store) = resources.world.fishing_base_skill_store {
         session.set_fishing_base_skill_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.area_trigger_db2_store {
+    if let Some(ref store) = resources.world.area_trigger_db2_store {
         session.set_area_trigger_db2_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.area_trigger_store {
+    if let Some(ref store) = resources.world.area_trigger_store {
         session.set_area_trigger_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.area_trigger_script_store {
+    if let Some(ref store) = resources.world.area_trigger_script_store {
         session.set_area_trigger_script_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.tavern_area_trigger_store {
+    if let Some(ref store) = resources.world.tavern_area_trigger_store {
         session.set_tavern_area_trigger_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.graveyard_store {
+    if let Some(ref store) = resources.world.graveyard_store {
         session.set_graveyard_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.chr_specialization_store {
+    if let Some(ref store) = resources.world.chr_specialization_store {
         session.set_chr_specialization_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.dungeon_encounter_store {
+    if let Some(ref store) = resources.world.dungeon_encounter_store {
         session.set_dungeon_encounter_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.map_store {
+    if let Some(ref store) = resources.world.map_store {
         session.set_map_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.world_safe_loc_store {
+    if let Some(ref store) = resources.world.world_safe_loc_store {
         session.set_world_safe_loc_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.map_difficulty_store {
+    if let Some(ref store) = resources.world.map_difficulty_store {
         session.set_map_difficulty_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.map_difficulty_x_condition_store {
+    if let Some(ref store) = resources.world.map_difficulty_x_condition_store {
         session.set_map_difficulty_x_condition_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.access_requirement_store {
+    if let Some(ref store) = resources.world.access_requirement_store {
         session.set_access_requirement_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.lfg_dungeons_store {
+    if let Some(ref store) = resources.world.lfg_dungeons_store {
         session.set_lfg_dungeons_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.lfg_dungeon_store_like_cpp {
+    if let Some(ref store) = resources.world.lfg_dungeon_store_like_cpp {
         session.set_lfg_dungeon_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.battlemaster_list_store {
+    if let Some(ref store) = resources.world.battlemaster_list_store {
         session.set_battlemaster_list_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_template_lifecycle_store {
+    if let Some(ref store) = resources.world.creature_template_lifecycle_store {
         session.set_creature_template_lifecycle_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_template_mount_store {
+    if let Some(ref store) = resources.world.creature_template_mount_store {
         session.set_creature_template_mount_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_equipment_store {
+    if let Some(ref store) = resources.world.creature_equipment_store {
         session.set_creature_equipment_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_display_info_store {
+    if let Some(ref store) = resources.world.creature_display_info_store {
         session.set_creature_display_info_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_display_info_extra_store {
+    if let Some(ref store) = resources.world.creature_display_info_extra_store {
         session.set_creature_display_info_extra_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.gameobject_display_info_store {
+    if let Some(ref store) = resources.world.gameobject_display_info_store {
         session.set_gameobject_display_info_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_model_info_store {
+    if let Some(ref store) = resources.world.creature_model_info_store {
         session.set_creature_model_info_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_addon_store {
+    if let Some(ref store) = resources.world.creature_addon_store {
         session.set_creature_addon_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_difficulty_store {
+    if let Some(ref store) = resources.world.creature_difficulty_store {
         session.set_creature_difficulty_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_base_stats_store {
+    if let Some(ref store) = resources.world.creature_base_stats_store {
         session.set_creature_base_stats_store_like_cpp(Arc::clone(store));
     }
-    session.set_creature_health_rates_like_cpp(resources.creature_health_rates);
-    if let Some(ref store) = resources.creature_model_data_store {
+    session.set_creature_health_rates_like_cpp(resources.world.creature_health_rates);
+    if let Some(ref store) = resources.world.creature_model_data_store {
         session.set_creature_model_data_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.mount_store {
+    if let Some(ref store) = resources.world.mount_store {
         session.set_mount_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.mount_definition_store {
+    if let Some(ref store) = resources.world.mount_definition_store {
         session.set_mount_definition_store_like_cpp(Arc::clone(store));
     }
-    if let Some(ref store) = resources.mount_capability_store {
+    if let Some(ref store) = resources.world.mount_capability_store {
         session.set_mount_capability_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.mount_type_x_capability_store {
+    if let Some(ref store) = resources.world.mount_type_x_capability_store {
         session.set_mount_type_x_capability_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.mount_x_display_store {
+    if let Some(ref store) = resources.world.mount_x_display_store {
         session.set_mount_x_display_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.spell_shapeshift_form_store {
+    if let Some(ref store) = resources.world.spell_shapeshift_form_store {
         session.set_spell_shapeshift_form_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.vehicle_store {
+    if let Some(ref store) = resources.world.vehicle_store {
         session.set_vehicle_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.vehicle_seat_store {
+    if let Some(ref store) = resources.world.vehicle_seat_store {
         session.set_vehicle_seat_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.vehicle_template_store {
+    if let Some(ref store) = resources.world.vehicle_template_store {
         session.set_vehicle_template_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.vehicle_accessory_store {
+    if let Some(ref store) = resources.world.vehicle_accessory_store {
         session.set_vehicle_accessory_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.terrain_swap_store {
+    if let Some(ref store) = resources.world.terrain_swap_store {
         session.set_terrain_swap_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.phase_store {
+    if let Some(ref store) = resources.world.phase_store {
         session.set_phase_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.phase_group_store {
+    if let Some(ref store) = resources.world.phase_group_store {
         session.set_phase_group_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.quest_store {
+    if let Some(ref store) = resources.progression.quest_store {
         session.set_quest_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.quest_xp_store {
+    if let Some(ref store) = resources.progression.quest_xp_store {
         session.set_quest_xp_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.quest_money_reward_store {
+    if let Some(ref store) = resources.progression.quest_money_reward_store {
         session.set_quest_money_reward_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.quest_v2_store {
+    if let Some(ref store) = resources.progression.quest_v2_store {
         session.set_quest_v2_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.quest_info_store {
+    if let Some(ref store) = resources.progression.quest_info_store {
         session.set_quest_info_store(Arc::clone(store));
     }
-    session.set_quest_low_level_hide_diff_like_cpp(resources.quest_low_level_hide_diff);
-    session.set_quest_high_level_hide_diff_like_cpp(resources.quest_high_level_hide_diff);
-    if let Some(ref store) = resources.quest_package_item_store {
+    session.set_quest_low_level_hide_diff_like_cpp(resources.runtime.quest_low_level_hide_diff);
+    session.set_quest_high_level_hide_diff_like_cpp(resources.runtime.quest_high_level_hide_diff);
+    if let Some(ref store) = resources.progression.quest_package_item_store {
         session.set_quest_package_item_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.quest_faction_reward_store {
+    if let Some(ref store) = resources.progression.quest_faction_reward_store {
         session.set_quest_faction_reward_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.progression_faction_store {
+    if let Some(ref store) = resources.progression.progression_faction_store {
         session.set_faction_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.faction_template_store {
+    if let Some(ref store) = resources.progression.faction_template_store {
         session.set_faction_template_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.friendship_rep_reaction_store {
+    if let Some(ref store) = resources.progression.friendship_rep_reaction_store {
         session.set_friendship_rep_reaction_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.paragon_reputation_store {
+    if let Some(ref store) = resources.progression.paragon_reputation_store {
         session.set_paragon_reputation_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.reputation_reward_rate_store {
+    if let Some(ref store) = resources.progression.reputation_reward_rate_store {
         session.set_reputation_reward_rate_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.creature_onkill_reputation_store {
+    if let Some(ref store) = resources.progression.creature_onkill_reputation_store {
         session.set_creature_onkill_reputation_store(Arc::clone(store));
     }
-    if let Some(ref store) = resources.reputation_spillover_template_store {
+    if let Some(ref store) = resources.progression.reputation_spillover_template_store {
         session.set_reputation_spillover_template_store(Arc::clone(store));
     }
-    if let Some(ref table) = resources.player_xp_table {
+    if let Some(ref table) = resources.progression.player_xp_table {
         session.set_player_xp_table(Arc::clone(table));
     }
-    if let Some(ref store) = resources.exploration_base_xp_store {
+    if let Some(ref store) = resources.progression.exploration_base_xp_store {
         session.set_exploration_base_xp_store_like_cpp(Arc::clone(store));
     }
-    session.set_exploration_xp_rate_like_cpp(resources.exploration_xp_rate);
+    session.set_exploration_xp_rate_like_cpp(resources.progression.exploration_xp_rate);
     session.set_rested_xp_config_like_cpp(
-        resources.max_player_level_config,
-        resources.rest_offline_wilderness_rate,
-        resources.rest_offline_tavern_or_city_rate,
-        resources.rest_ingame_rate,
+        resources.progression.max_player_level_config,
+        resources.progression.rest_offline_wilderness_rate,
+        resources.progression.rest_offline_tavern_or_city_rate,
+        resources.progression.rest_ingame_rate,
     );
-    session.set_max_primary_trade_skills_like_cpp(resources.max_primary_trade_skills);
-    session.set_pvp_realm_like_cpp(resources.is_pvp_realm);
-    session.set_ffa_pvp_realm_like_cpp(resources.is_ffa_pvp_realm);
+    session.set_max_primary_trade_skills_like_cpp(resources.progression.max_primary_trade_skills);
+    session.set_pvp_realm_like_cpp(resources.progression.is_pvp_realm);
+    session.set_ffa_pvp_realm_like_cpp(resources.progression.is_ffa_pvp_realm);
     session.set_recruit_a_friend_xp_config_like_cpp(
-        resources.max_recruit_a_friend_bonus_player_level,
-        resources.max_recruit_a_friend_bonus_player_level_difference,
+        resources
+            .progression
+            .max_recruit_a_friend_bonus_player_level,
+        resources
+            .progression
+            .max_recruit_a_friend_bonus_player_level_difference,
     );
-    session.set_min_quest_scaled_xp_ratio_like_cpp(resources.min_quest_scaled_xp_ratio);
-    session.set_min_discovered_scaled_xp_ratio_like_cpp(resources.min_discovered_scaled_xp_ratio);
-    if let Some(ref modules) = resources.module_registry {
+    session.set_min_quest_scaled_xp_ratio_like_cpp(resources.progression.min_quest_scaled_xp_ratio);
+    session.set_min_discovered_scaled_xp_ratio_like_cpp(
+        resources.progression.min_discovered_scaled_xp_ratio,
+    );
+    if let Some(ref modules) = resources.runtime.module_registry {
         session.set_module_registry_like_cpp(Arc::clone(modules));
     }
-    if let Some(ref registry) = resources.player_registry {
+    if let Some(ref registry) = resources.runtime.player_registry {
         session.set_player_registry(Arc::clone(registry));
     }
-    if let Some(sender) = resources.game_event_quest_complete_tx.as_ref() {
+    if let Some(sender) = resources.runtime.game_event_quest_complete_tx.as_ref() {
         session.set_game_event_quest_complete_sender_like_cpp(sender.clone());
     }
-    session.set_loot_drop_rates_like_cpp(resources.loot_drop_rates);
-    session.set_reputation_rates_like_cpp(resources.reputation_rates);
-    session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
-    session.set_reset_schedule_like_cpp(resources.reset_schedule);
-    session.set_no_reset_talent_cost_like_cpp(resources.no_reset_talent_cost);
-    session.set_offhand_check_at_spell_unlearn_like_cpp(resources.offhand_check_at_spell_unlearn);
-    session.set_vmap_indoor_check_like_cpp(resources.vmap_indoor_check);
-    session.set_start_all_explored_like_cpp(resources.start_all_explored);
-    session.set_start_all_reputation_like_cpp(resources.start_all_reputation);
-    session.set_start_all_spells_like_cpp(resources.start_all_spells);
-    session.set_represented_support_enabled_like_cpp(resources.support_enabled);
-    session.set_represented_support_tickets_enabled_like_cpp(resources.support_tickets_enabled);
-    session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
-    session
-        .set_represented_support_complaints_enabled_like_cpp(resources.support_complaints_enabled);
-    session.set_represented_support_suggestions_enabled_like_cpp(
-        resources.support_suggestions_enabled,
+    session.set_loot_drop_rates_like_cpp(resources.runtime.loot_drop_rates);
+    session.set_reputation_rates_like_cpp(resources.runtime.reputation_rates);
+    session.set_repair_cost_rate_like_cpp(resources.runtime.repair_cost_rate);
+    session.set_reset_schedule_like_cpp(resources.runtime.reset_schedule);
+    session.set_no_reset_talent_cost_like_cpp(resources.runtime.no_reset_talent_cost);
+    session.set_offhand_check_at_spell_unlearn_like_cpp(
+        resources.runtime.offhand_check_at_spell_unlearn,
     );
-    session.set_enable_ae_loot_like_cpp(resources.enable_ae_loot);
-    session.set_addon_channel_like_cpp(resources.addon_channel);
-    session.set_server_expansion_like_cpp(resources.server_expansion);
-    session.set_characters_per_realm_like_cpp(resources.characters_per_realm);
-    session.set_declined_names_used_like_cpp(resources.declined_names_used);
+    session.set_vmap_indoor_check_like_cpp(resources.runtime.vmap_indoor_check);
+    session.set_start_all_explored_like_cpp(resources.runtime.start_all_explored);
+    session.set_start_all_reputation_like_cpp(resources.runtime.start_all_reputation);
+    session.set_start_all_spells_like_cpp(resources.runtime.start_all_spells);
+    session.set_represented_support_enabled_like_cpp(resources.runtime.support_enabled);
+    session.set_represented_support_tickets_enabled_like_cpp(
+        resources.runtime.support_tickets_enabled,
+    );
+    session.set_represented_support_bugs_enabled_like_cpp(resources.runtime.support_bugs_enabled);
+    session.set_represented_support_complaints_enabled_like_cpp(
+        resources.runtime.support_complaints_enabled,
+    );
+    session.set_represented_support_suggestions_enabled_like_cpp(
+        resources.runtime.support_suggestions_enabled,
+    );
+    session.set_enable_ae_loot_like_cpp(resources.runtime.enable_ae_loot);
+    session.set_addon_channel_like_cpp(resources.runtime.addon_channel);
+    session.set_server_expansion_like_cpp(resources.runtime.server_expansion);
+    session.set_characters_per_realm_like_cpp(resources.runtime.characters_per_realm);
+    session.set_declined_names_used_like_cpp(resources.runtime.declined_names_used);
     session.set_feature_system_bpay_store_enabled_like_cpp(
-        resources.feature_system_bpay_store_enabled,
+        resources.runtime.feature_system_bpay_store_enabled,
     );
     session.set_feature_system_character_undelete_enabled_like_cpp(
-        resources.feature_system_character_undelete_enabled,
+        resources.runtime.feature_system_character_undelete_enabled,
     );
-    session.set_instance_ignore_raid_like_cpp(resources.instance_ignore_raid);
-    session.set_instance_ignore_level_like_cpp(resources.instance_ignore_level);
-    session.set_max_instances_per_hour_like_cpp(resources.max_instances_per_hour);
-    session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
-    session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
-    session.set_allow_gm_group_like_cpp(resources.allow_gm_group);
+    session.set_instance_ignore_raid_like_cpp(resources.runtime.instance_ignore_raid);
+    session.set_instance_ignore_level_like_cpp(resources.runtime.instance_ignore_level);
+    session.set_max_instances_per_hour_like_cpp(resources.runtime.max_instances_per_hour);
     session
-        .set_allow_two_side_interaction_group_like_cpp(resources.allow_two_side_interaction_group);
-    session.set_party_level_req_like_cpp(resources.party_level_req);
-    session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
-    session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
-    session.set_chat_listen_ranges_like_cpp(resources.chat_listen_ranges);
-    session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
+        .set_chat_fake_message_preventing_like_cpp(resources.runtime.chat_fake_message_preventing);
+    session.set_party_raid_warnings_like_cpp(resources.runtime.party_raid_warnings);
+    session.set_allow_gm_group_like_cpp(resources.runtime.allow_gm_group);
+    session.set_allow_two_side_interaction_group_like_cpp(
+        resources.runtime.allow_two_side_interaction_group,
+    );
+    session.set_party_level_req_like_cpp(resources.runtime.party_level_req);
+    session.set_chat_strict_link_checking_kick_like_cpp(
+        resources.runtime.chat_strict_link_checking_kick,
+    );
+    session.set_chat_level_requirements_like_cpp(resources.runtime.chat_level_requirements);
+    session.set_chat_listen_ranges_like_cpp(resources.runtime.chat_listen_ranges);
+    session.set_chat_flood_config_like_cpp(resources.runtime.chat_flood_config);
     session.set_socket_timeouts_like_cpp(socket_timeouts);
-    session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
-    session.set_player_save_interval_ms_like_cpp(resources.player_save_interval_ms);
+    session.set_packet_spoof_config_like_cpp(resources.runtime.packet_spoof_config);
+    session.set_player_save_interval_ms_like_cpp(resources.runtime.player_save_interval_ms);
     session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config.clone());
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config.clone());
     if let Some(ref pathfinder) = mmap_pathfinder {
@@ -908,8 +935,9 @@ pub(super) async fn create_session(
     let grid_legacy_manager = Arc::clone(&shared_map);
     let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
-    let grid_map_store = resources.map_store.as_ref().map(Arc::clone);
+    let grid_map_store = resources.world.map_store.as_ref().map(Arc::clone);
     let grid_area_trigger_template_store = resources
+        .world
         .area_trigger_template_store
         .as_ref()
         .map(Arc::clone)
@@ -929,15 +957,18 @@ pub(super) async fn create_session(
             )
         },
     ));
-    if let (Some(greg), Some(pinv)) = (&resources.group_registry, &resources.pending_invites) {
+    if let (Some(greg), Some(pinv)) = (
+        &resources.runtime.group_registry,
+        &resources.runtime.pending_invites,
+    ) {
         session.set_group_registry(Arc::clone(greg), Arc::clone(pinv));
     }
     session.set_realm_handle_like_cpp(
-        resources.realm_region,
-        resources.realm_battlegroup,
-        resources.realm_id,
+        resources.realm.realm_region,
+        resources.realm.realm_battlegroup,
+        resources.realm.realm_id,
     );
-    session.set_realm_names_like_cpp(resources.realm_names.iter().cloned());
+    session.set_realm_names_like_cpp(resources.realm.realm_names.iter().cloned());
     match battle_pet_account_registry
         .attach_like_cpp(account.battlenet_account_id)
         .await
@@ -962,8 +993,8 @@ pub(super) async fn create_session(
     // the old /24 approximation only if no usable local network is found.
     let connect_ip = get_address_for_client(
         account.client_address,
-        resources.realm_external_address,
-        resources.realm_local_address,
+        resources.realm.realm_external_address,
+        resources.realm.realm_local_address,
     );
 
     // Configure C++ `SMSG_CONNECT_TO` flow — real clients enter the world on

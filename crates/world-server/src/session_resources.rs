@@ -20,6 +20,18 @@ use wow_world::{
 /// The outer world-server callback captures this aggregate; the listener
 /// neither receives it nor exposes any field through the `wow-network` API.
 pub(super) struct SessionResources {
+    pub(super) core: SessionCoreCapabilitiesLikeCpp,
+    pub(super) inventory: SessionInventoryCapabilitiesLikeCpp,
+    pub(super) player: SessionPlayerCatalogCapabilitiesLikeCpp,
+    pub(super) spells: SessionSpellCatalogCapabilitiesLikeCpp,
+    pub(super) world: SessionWorldCatalogCapabilitiesLikeCpp,
+    pub(super) progression: SessionProgressionCapabilitiesLikeCpp,
+    pub(super) runtime: SessionRuntimePolicyCapabilitiesLikeCpp,
+    pub(super) realm: SessionRealmCapabilitiesLikeCpp,
+}
+
+/// Required process capabilities shared by every admitted session.
+pub(super) struct SessionCoreCapabilitiesLikeCpp {
     /// Required immutable ObjectMgr-style query capability. Construction is
     /// infallible only after every startup catalog loaded successfully.
     pub(super) object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>,
@@ -39,6 +51,10 @@ pub(super) struct SessionResources {
     pub(super) void_storage_item_id_generator:
         Option<Arc<wow_core::VoidStorageItemIdGeneratorLikeCpp>>,
     pub(super) instance_lock_mgr: Option<Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>>,
+}
+
+/// Immutable item, equipment, collection, battle-pet and loot catalogs.
+pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) bank_bag_slot_prices_store: Option<Arc<wow_data::BankBagSlotPricesStore>>,
     pub(super) currency_types_store: Option<Arc<wow_data::CurrencyTypesStore>>,
     pub(super) import_price_stores: Option<Arc<wow_data::ImportPriceStores>>,
@@ -94,6 +110,10 @@ pub(super) struct SessionResources {
     pub(super) item_spec_override_store: Option<Arc<wow_data::ItemSpecOverrideStore>>,
     pub(super) item_disenchant_loot_store: Option<Arc<wow_data::ItemDisenchantLootStore>>,
     pub(super) loot_stores: Option<Arc<wow_loot::LootStores>>,
+}
+
+/// Immutable Player creation, condition, stat and skill catalogs.
+pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) condition_store: Option<Arc<wow_data::ConditionEntriesByTypeStore>>,
     pub(super) player_condition_store: Option<Arc<wow_data::PlayerConditionStore>>,
     pub(super) adventure_map_poi_store: Option<Arc<wow_data::AdventureMapPoiStore>>,
@@ -104,13 +124,6 @@ pub(super) struct SessionResources {
         Option<Arc<wow_data::progression_rewards::ScalingStatDistributionStore>>,
     pub(super) scaling_stat_values_store:
         Option<Arc<wow_data::progression_rewards::ScalingStatValuesStore>>,
-    pub(super) progression_faction_store: Option<Arc<wow_data::progression_rewards::FactionStore>>,
-    pub(super) faction_template_store:
-        Option<Arc<wow_data::progression_rewards::FactionTemplateStore>>,
-    pub(super) friendship_rep_reaction_store:
-        Option<Arc<wow_data::progression_rewards::FriendshipRepReactionStore>>,
-    pub(super) paragon_reputation_store:
-        Option<Arc<wow_data::progression_rewards::ParagonReputationStore>>,
     pub(super) disable_mgr: Option<Arc<wow_data::DisableMgrLikeCpp>>,
     pub(super) difficulty_store: Option<Arc<wow_data::DifficultyStore>>,
     pub(super) lock_store: Option<Arc<wow_data::LockStore>>,
@@ -134,6 +147,10 @@ pub(super) struct SessionResources {
     pub(super) chr_races_store: Option<Arc<wow_data::character_progression::ChrRacesStore>>,
     pub(super) chr_classes_store: Option<Arc<wow_data::character_progression::ChrClassesStore>>,
     pub(super) power_type_store: Option<Arc<wow_data::character_progression::PowerTypeStore>>,
+}
+
+/// Immutable SpellMgr-style catalogs and audited spell authority.
+pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     pub(super) spell_chain_store: Option<Arc<wow_data::SpellChainStoreLikeCpp>>,
     pub(super) spell_store: Option<Arc<wow_data::SpellStore>>,
     /// Process-wide immutable acquisition projection composed from the
@@ -185,6 +202,10 @@ pub(super) struct SessionResources {
     pub(super) spell_totem_model_store: Option<Arc<wow_data::SpellTotemModelStoreLikeCpp>>,
     pub(super) movie_store: Option<Arc<wow_data::MovieStore>>,
     pub(super) script_name_interner: Option<Arc<wow_data::ScriptNameInternerLikeCpp>>,
+}
+
+/// Immutable map, area, creature, mount, vehicle and phase catalogs.
+pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) area_table_store: Option<Arc<wow_data::AreaTableStore>>,
     pub(super) fishing_base_skill_store: Option<Arc<wow_data::FishingBaseSkillStoreLikeCpp>>,
     pub(super) area_trigger_db2_store: Option<Arc<wow_data::AreaTriggerDb2Store>>,
@@ -232,6 +253,10 @@ pub(super) struct SessionResources {
     pub(super) terrain_swap_store: Option<Arc<wow_data::TerrainSwapStore>>,
     pub(super) phase_store: Option<Arc<wow_data::PhaseStore>>,
     pub(super) phase_group_store: Option<Arc<wow_data::PhaseGroupStore>>,
+}
+
+/// Immutable quest/reputation/XP catalogs and progression policy.
+pub(super) struct SessionProgressionCapabilitiesLikeCpp {
     pub(super) quest_store: Option<Arc<wow_data::quest::QuestStore>>,
     pub(super) quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
     pub(super) quest_money_reward_store:
@@ -242,6 +267,13 @@ pub(super) struct SessionResources {
         Option<Arc<wow_data::progression_rewards::QuestPackageItemStore>>,
     pub(super) quest_faction_reward_store:
         Option<Arc<wow_data::progression_rewards::QuestFactionRewardStore>>,
+    pub(super) progression_faction_store: Option<Arc<wow_data::progression_rewards::FactionStore>>,
+    pub(super) faction_template_store:
+        Option<Arc<wow_data::progression_rewards::FactionTemplateStore>>,
+    pub(super) friendship_rep_reaction_store:
+        Option<Arc<wow_data::progression_rewards::FriendshipRepReactionStore>>,
+    pub(super) paragon_reputation_store:
+        Option<Arc<wow_data::progression_rewards::ParagonReputationStore>>,
     pub(super) reputation_reward_rate_store:
         Option<Arc<wow_data::reputation::ReputationRewardRateStoreLikeCpp>>,
     pub(super) creature_onkill_reputation_store:
@@ -276,6 +308,10 @@ pub(super) struct SessionResources {
     pub(super) min_quest_scaled_xp_ratio: u32,
     /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.
     pub(super) min_discovered_scaled_xp_ratio: u32,
+}
+
+/// Runtime registries, module seams and immutable world/session policy.
+pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     /// Shared registry of all active player sessions (for broadcast).
     pub(super) player_registry: Option<Arc<PlayerRegistry>>,
     /// Trusted linked modules composed by the generated compositor (#229).
@@ -352,6 +388,10 @@ pub(super) struct SessionResources {
     pub(super) packet_spoof_config: PacketSpoofConfigLikeCpp,
     /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
     pub(super) player_save_interval_ms: u32,
+}
+
+/// Immutable identity and address snapshot for the selected realm.
+pub(super) struct SessionRealmCapabilitiesLikeCpp {
     pub(super) realm_id: u16,
     /// Region from `realmlist.Region`, used in C++ `RealmHandle::GetAddress()`.
     pub(super) realm_region: u8,

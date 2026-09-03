@@ -115,7 +115,12 @@ mod spell_world_catalog;
 mod trainer_catalog;
 mod vehicle_catalog;
 
-use session_resources::SessionResources;
+use session_resources::{
+    SessionCoreCapabilitiesLikeCpp, SessionInventoryCapabilitiesLikeCpp,
+    SessionPlayerCatalogCapabilitiesLikeCpp, SessionProgressionCapabilitiesLikeCpp,
+    SessionRealmCapabilitiesLikeCpp, SessionResources, SessionRuntimePolicyCapabilitiesLikeCpp,
+    SessionSpellCatalogCapabilitiesLikeCpp, SessionWorldCatalogCapabilitiesLikeCpp,
+};
 
 const WORLD_CONFIG_CANDIDATES: &[&str] = &[
     "worldserver.conf",
