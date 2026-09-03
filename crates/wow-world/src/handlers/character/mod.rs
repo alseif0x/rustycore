@@ -98,7 +98,7 @@ use crate::session::{
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
-    SpellCastMetadata,
+    SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
 #[cfg(test)]
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;

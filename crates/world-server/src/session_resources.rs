@@ -341,29 +341,13 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) start_all_reputation: bool,
     /// C++ `CONFIG_START_ALL_SPELLS` / `PlayerStart.AllSpells`.
     pub(super) start_all_spells: bool,
-    /// C++ `CONFIG_SUPPORT_ENABLED` / `Support.Enabled`.
-    pub(super) support_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_TICKETS_ENABLED` / `Support.TicketsEnabled`.
-    pub(super) support_tickets_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.
-    pub(super) support_bugs_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_COMPLAINTS_ENABLED` / `Support.ComplaintsEnabled`.
-    pub(super) support_complaints_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_SUGGESTIONS_ENABLED` / `Support.SuggestionsEnabled`.
-    pub(super) support_suggestions_enabled: bool,
     pub(super) quest_low_level_hide_diff: u32,
     pub(super) quest_high_level_hide_diff: u32,
     pub(super) enable_ae_loot: bool,
     /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
     pub(super) server_expansion: u8,
-    /// C++ `CONFIG_CHARACTERS_PER_REALM` / `CharactersPerRealm`.
-    pub(super) characters_per_realm: u32,
     /// C++ `CONFIG_DECLINED_NAMES_USED` / `DeclinedNames`.
     pub(super) declined_names_used: bool,
-    /// C++ `CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED`.
-    pub(super) feature_system_bpay_store_enabled: bool,
-    /// C++ `CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED`.
-    pub(super) feature_system_character_undelete_enabled: bool,
     /// C++ `CONFIG_INSTANCE_IGNORE_RAID` / `Instance.IgnoreRaid`.
     pub(super) instance_ignore_raid: bool,
     /// C++ `CONFIG_INSTANCE_IGNORE_LEVEL` / `Instance.IgnoreLevel`.
@@ -593,22 +577,9 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_start_all_explored_like_cpp(self.start_all_explored);
         session.set_start_all_reputation_like_cpp(self.start_all_reputation);
         session.set_start_all_spells_like_cpp(self.start_all_spells);
-        session.set_represented_support_enabled_like_cpp(self.support_enabled);
-        session.set_represented_support_tickets_enabled_like_cpp(self.support_tickets_enabled);
-        session.set_represented_support_bugs_enabled_like_cpp(self.support_bugs_enabled);
-        session
-            .set_represented_support_complaints_enabled_like_cpp(self.support_complaints_enabled);
-        session
-            .set_represented_support_suggestions_enabled_like_cpp(self.support_suggestions_enabled);
         session.set_enable_ae_loot_like_cpp(self.enable_ae_loot);
         session.set_server_expansion_like_cpp(self.server_expansion);
-        session.set_characters_per_realm_like_cpp(self.characters_per_realm);
         session.set_declined_names_used_like_cpp(self.declined_names_used);
-        session
-            .set_feature_system_bpay_store_enabled_like_cpp(self.feature_system_bpay_store_enabled);
-        session.set_feature_system_character_undelete_enabled_like_cpp(
-            self.feature_system_character_undelete_enabled,
-        );
         session.set_instance_ignore_raid_like_cpp(self.instance_ignore_raid);
         session.set_instance_ignore_level_like_cpp(self.instance_ignore_level);
         session.set_max_instances_per_hour_like_cpp(self.max_instances_per_hour);

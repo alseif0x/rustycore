@@ -182,6 +182,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+        feature_policy: &SupportFeaturePolicyLikeCpp,
     ) {
         let guid: ObjectGuid = match self.player_loading() {
             Some(g) => g,
@@ -2566,6 +2567,7 @@ impl WorldSession {
         if !self
             .send_login_sequence(
                 item_guid_generator,
+                feature_policy,
                 guid,
                 race,
                 class,
@@ -2703,6 +2705,7 @@ impl WorldSession {
     pub(super) async fn send_handle_player_login_packets_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        feature_policy: &SupportFeaturePolicyLikeCpp,
         guid: ObjectGuid,
         position: &Position,
         map_id: i32,
@@ -2757,7 +2760,7 @@ impl WorldSession {
         self.send_packet_realm(
             &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
         );
-        self.send_packet_realm(&self.feature_system_status_like_cpp());
+        self.send_packet_realm(&self.feature_system_status_with_policy_like_cpp(feature_policy));
 
         for motd_line in motd_lines_like_cpp(motd) {
             self.send_packet_realm(&ChatServerMessage {

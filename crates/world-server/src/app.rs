@@ -4726,6 +4726,48 @@ async fn run_inner(
                     ),
                     minimum_level: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
                 }),
+                support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp {
+                    support_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_ENABLED",
+                        true,
+                    ),
+                    tickets_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_TICKETS_ENABLED",
+                        false,
+                    ),
+                    bugs_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_BUGS_ENABLED",
+                        false,
+                    ),
+                    complaints_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_COMPLAINTS_ENABLED",
+                        false,
+                    ),
+                    suggestions_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_SUGGESTIONS_ENABLED",
+                        false,
+                    ),
+                    character_undelete_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED",
+                        false,
+                    ),
+                    bpay_store_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
+                        false,
+                    ),
+                    max_characters_per_realm: world_config_u32(
+                        &world_configs,
+                        "CONFIG_CHARACTERS_PER_REALM",
+                        60,
+                    ),
+                }),
                 bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
                 adventure_map_pois: Arc::clone(&adventure_map_poi_store),
                 battlemaster_lists: Arc::clone(&battlemaster_list_typed_store),
@@ -4991,27 +5033,6 @@ async fn run_inner(
             ),
             start_all_reputation: world_config_bool(&world_configs, "CONFIG_START_ALL_REP", false),
             start_all_spells: world_config_bool(&world_configs, "CONFIG_START_ALL_SPELLS", false),
-            support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
-            support_tickets_enabled: world_config_bool(
-                &world_configs,
-                "CONFIG_SUPPORT_TICKETS_ENABLED",
-                false,
-            ),
-            support_bugs_enabled: world_config_bool(
-                &world_configs,
-                "CONFIG_SUPPORT_BUGS_ENABLED",
-                false,
-            ),
-            support_complaints_enabled: world_config_bool(
-                &world_configs,
-                "CONFIG_SUPPORT_COMPLAINTS_ENABLED",
-                false,
-            ),
-            support_suggestions_enabled: world_config_bool(
-                &world_configs,
-                "CONFIG_SUPPORT_SUGGESTIONS_ENABLED",
-                false,
-            ),
             quest_low_level_hide_diff: world_config_u32(
                 &world_configs,
                 "CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF",
@@ -5024,24 +5045,9 @@ async fn run_inner(
             ),
             enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
             server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
-            characters_per_realm: world_config_u32(
-                &world_configs,
-                "CONFIG_CHARACTERS_PER_REALM",
-                60,
-            ),
             declined_names_used: declined_names_used_like_cpp(
                 &world_configs,
                 &cfg_categories_store,
-            ),
-            feature_system_bpay_store_enabled: world_config_bool(
-                &world_configs,
-                "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
-                false,
-            ),
-            feature_system_character_undelete_enabled: world_config_bool(
-                &world_configs,
-                "CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED",
-                false,
             ),
             instance_ignore_raid: world_config_bool(
                 &world_configs,

@@ -3585,6 +3585,7 @@ fn session_resources_requires_named_capability_bundles() {
         "area_trigger_store",
         "bank_bag_slot_prices_store",
         "battlemaster_list_store",
+        "characters_per_realm",
         "chat_fake_message_preventing",
         "chat_flood_config",
         "chat_level_requirements",
@@ -3592,6 +3593,8 @@ fn session_resources_requires_named_capability_bundles() {
         "chat_strict_link_checking_kick",
         "emotes_store",
         "emotes_text_store",
+        "feature_system_bpay_store_enabled",
+        "feature_system_character_undelete_enabled",
         "graveyard_store",
         "import_price_stores",
         "item_class_store",
@@ -3613,6 +3616,11 @@ fn session_resources_requires_named_capability_bundles() {
         "spell_totem_model_store",
         "tact_key_store",
         "tavern_area_trigger_store",
+        "support_bugs_enabled",
+        "support_complaints_enabled",
+        "support_enabled",
+        "support_suggestions_enabled",
+        "support_tickets_enabled",
         "vehicle_template_store",
     ] {
         assert!(
@@ -3672,6 +3680,16 @@ fn session_resources_requires_named_capability_bundles() {
     assert!(
         !resources_source.contains("session.set_party_level_req_like_cpp("),
         "C++ World party policy must be borrowed by handlers instead of copied into WorldSession"
+    );
+    assert!(
+        composition_source.contains(
+            "support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp"
+        ),
+        "the composition root must group C++ SupportMgr and feature-system process policy"
+    );
+    assert!(
+        !resources_source.contains("session.set_represented_support_enabled_like_cpp("),
+        "C++ support policy must be borrowed by handlers instead of copied into WorldSession"
     );
     assert!(
         resources_source

@@ -2154,6 +2154,7 @@ impl WorldSession {
     pub(super) async fn send_login_sequence(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        feature_policy: &SupportFeaturePolicyLikeCpp,
         guid: ObjectGuid,
         race: u8,
         class: u8,
@@ -2234,6 +2235,7 @@ impl WorldSession {
         if !self
             .send_handle_player_login_packets_like_cpp(
                 item_guid_generator,
+                feature_policy,
                 guid,
                 position,
                 map_id,

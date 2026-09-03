@@ -7,6 +7,7 @@ use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_handler::{PacketProcessing, SessionStatus};
 
+use crate::session::SupportFeaturePolicyLikeCpp;
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
@@ -33,8 +34,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gm_ticket_get_system_status",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_gm_ticket_get_system_status(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_gm_ticket_get_system_status_with_policy_like_cpp(
+                        pkt,
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
         },
     }
 }
@@ -67,8 +75,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_submit_user_feedback",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_submit_user_feedback(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_submit_user_feedback_with_policy_like_cpp(
+                        pkt,
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
         },
     }
 }
@@ -79,8 +94,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_support_ticket_submit_bug",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_support_ticket_submit_bug(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_support_ticket_submit_bug_with_policy_like_cpp(
+                        pkt,
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
         },
     }
 }
@@ -91,8 +113,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_support_ticket_submit_complaint",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_support_ticket_submit_complaint(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_support_ticket_submit_complaint_with_policy_like_cpp(
+                        pkt,
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
         },
     }
 }
@@ -103,8 +132,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_support_ticket_submit_suggestion",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_support_ticket_submit_suggestion(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_support_ticket_submit_suggestion_with_policy_like_cpp(
+                        pkt,
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
         },
     }
 }
@@ -115,7 +151,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_bug_report",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_bug_report(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_bug_report_with_policy_like_cpp(
+                        pkt,
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -150,11 +195,15 @@ impl crate::session::WorldSession {
         self.send_packet_realm(&GmTicketCaseStatus::empty());
     }
 
-    pub async fn handle_gm_ticket_get_system_status(&mut self, _pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_gm_ticket_get_system_status_with_policy_like_cpp(
+        &mut self,
+        _pkt: wow_packet::WorldPacket,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) {
         // C++ uses `sSupportMgr->GetSupportSystemStatus()` here, not
         // `GetTicketSystemStatus()`: this disables the whole customer-support UI.
         self.send_packet(&GmTicketSystemStatus::from_support_enabled_like_cpp(
-            self.represented_support_enabled_like_cpp(),
+            policy.support_enabled,
         ));
     }
 
@@ -183,7 +232,11 @@ impl crate::session::WorldSession {
         });
     }
 
-    pub async fn handle_submit_user_feedback(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_submit_user_feedback_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) {
         let feedback = match SubmitUserFeedback::read(&mut pkt) {
             Ok(feedback) => feedback,
             Err(error) => {
@@ -196,10 +249,10 @@ impl crate::session::WorldSession {
         };
 
         if feedback.is_suggestion {
-            if !self.represented_suggestion_system_status_like_cpp() {
+            if !policy.suggestion_system_enabled_like_cpp() {
                 return;
             }
-        } else if !self.represented_bug_system_status_like_cpp() {
+        } else if !policy.bug_system_enabled_like_cpp() {
             return;
         }
 
@@ -208,7 +261,11 @@ impl crate::session::WorldSession {
         // direct response, so the represented enabled branch remains silent.
     }
 
-    pub async fn handle_support_ticket_submit_bug(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_support_ticket_submit_bug_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) {
         let bug = match SupportTicketSubmitBug::read(&mut pkt) {
             Ok(bug) => bug,
             Err(error) => {
@@ -220,7 +277,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if !self.represented_bug_system_status_like_cpp() {
+        if !policy.bug_system_enabled_like_cpp() {
             return;
         }
 
@@ -231,9 +288,10 @@ impl crate::session::WorldSession {
         // packet has no direct response.
     }
 
-    pub async fn handle_support_ticket_submit_complaint(
+    pub(crate) async fn handle_support_ticket_submit_complaint_with_policy_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
+        policy: &SupportFeaturePolicyLikeCpp,
     ) {
         let complaint = match SupportTicketSubmitComplaint::read(&mut pkt) {
             Ok(complaint) => complaint,
@@ -246,7 +304,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if !self.represented_complaint_system_status_like_cpp() {
+        if !policy.complaint_system_enabled_like_cpp() {
             return;
         }
 
@@ -256,9 +314,10 @@ impl crate::session::WorldSession {
         // ticket runtime yet; the packet has no direct response.
     }
 
-    pub async fn handle_support_ticket_submit_suggestion(
+    pub(crate) async fn handle_support_ticket_submit_suggestion_with_policy_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
+        policy: &SupportFeaturePolicyLikeCpp,
     ) {
         let suggestion = match SupportTicketSubmitSuggestion::read(&mut pkt) {
             Ok(suggestion) => suggestion,
@@ -271,7 +330,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if !self.represented_suggestion_system_status_like_cpp() {
+        if !policy.suggestion_system_enabled_like_cpp() {
             return;
         }
 
@@ -281,7 +340,11 @@ impl crate::session::WorldSession {
         // ticket runtime yet; the packet has no direct response.
     }
 
-    pub async fn handle_bug_report(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_bug_report_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) {
         let report = match BugReport::read(&mut pkt) {
             Ok(report) => report,
             Err(error) => {
@@ -290,7 +353,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if !self.represented_bug_system_status_like_cpp() {
+        if !policy.bug_system_enabled_like_cpp() {
             return;
         }
 
@@ -312,6 +375,48 @@ impl crate::session::WorldSession {
                 );
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_gm_ticket_get_system_status(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_gm_ticket_get_system_status_with_policy_like_cpp(pkt, &policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_submit_user_feedback(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_submit_user_feedback_with_policy_like_cpp(pkt, &policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_support_ticket_submit_bug(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_support_ticket_submit_bug_with_policy_like_cpp(pkt, &policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_support_ticket_submit_complaint(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_support_ticket_submit_complaint_with_policy_like_cpp(pkt, &policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_support_ticket_submit_suggestion(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_support_ticket_submit_suggestion_with_policy_like_cpp(pkt, &policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_bug_report(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_bug_report_with_policy_like_cpp(pkt, &policy)
+            .await;
     }
 
     pub async fn handle_object_update_failed(&mut self, mut pkt: wow_packet::WorldPacket) {

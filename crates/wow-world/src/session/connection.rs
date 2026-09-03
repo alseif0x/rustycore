@@ -142,6 +142,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
         player_bootstrap: &super::PlayerBootstrapCatalogsLikeCpp,
+        feature_policy: &super::SupportFeaturePolicyLikeCpp,
     ) {
         match self.connection.poll_instance_link(self.account_id) {
             InstanceLinkPollOutcome::Pending => {}
@@ -151,6 +152,7 @@ impl WorldSession {
                     item_guid_generator,
                     modules,
                     player_bootstrap,
+                    feature_policy,
                 )
                 .await;
             }
@@ -169,10 +171,12 @@ impl WorldSession {
             .unwrap_or_else(|| std::sync::Arc::new(wow_module_api::ModuleRegistry::new()));
         let generators = self.id_generators_for_test_like_cpp();
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
+        let feature_policy = self.support_feature_policy_for_test_like_cpp();
         self.poll_instance_link_with_module_registry_like_cpp(
             generators.item.as_ref(),
             modules.as_ref(),
             &player_bootstrap,
+            &feature_policy,
         )
         .await;
     }

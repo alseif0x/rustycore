@@ -364,6 +364,63 @@ pub struct GroupInvitePolicyLikeCpp {
     pub minimum_level: u32,
 }
 
+/// Process-owned support and feature-system policy borrowed by Session edges.
+///
+/// C++ initializes the support switches in `World.cpp:584-595` and the feature
+/// switches in `World.cpp:1597-1599`. `SupportMgr` and the feature-status send
+/// helpers read that process state; it is not copied into each `WorldSession`.
+#[derive(Debug, Clone, Copy)]
+pub struct SupportFeaturePolicyLikeCpp {
+    pub support_enabled: bool,
+    pub tickets_enabled: bool,
+    pub bugs_enabled: bool,
+    pub complaints_enabled: bool,
+    pub suggestions_enabled: bool,
+    pub character_undelete_enabled: bool,
+    pub bpay_store_enabled: bool,
+    pub max_characters_per_realm: u32,
+}
+
+impl Default for SupportFeaturePolicyLikeCpp {
+    fn default() -> Self {
+        Self {
+            support_enabled: true,
+            tickets_enabled: false,
+            bugs_enabled: false,
+            complaints_enabled: false,
+            suggestions_enabled: false,
+            character_undelete_enabled: false,
+            bpay_store_enabled: false,
+            max_characters_per_realm: 60,
+        }
+    }
+}
+
+impl SupportFeaturePolicyLikeCpp {
+    pub(crate) fn bug_system_enabled_like_cpp(self) -> bool {
+        self.support_enabled && self.bugs_enabled
+    }
+
+    pub(crate) fn complaint_system_enabled_like_cpp(self) -> bool {
+        self.support_enabled && self.complaints_enabled
+    }
+
+    pub(crate) fn suggestion_system_enabled_like_cpp(self) -> bool {
+        self.support_enabled && self.suggestions_enabled
+    }
+
+    fn feature_system_config_like_cpp(self) -> FeatureSystemConfigLikeCpp {
+        FeatureSystemConfigLikeCpp {
+            support_tickets_enabled: self.tickets_enabled,
+            support_bugs_enabled: self.bugs_enabled,
+            support_complaints_enabled: self.complaints_enabled,
+            support_suggestions_enabled: self.suggestions_enabled,
+            char_undelete_enabled: self.character_undelete_enabled,
+            bpay_store_enabled: self.bpay_store_enabled,
+        }
+    }
+}
+
 impl Default for GroupInvitePolicyLikeCpp {
     fn default() -> Self {
         Self {
@@ -466,6 +523,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
+    pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
     pub battlemaster_lists: Arc<BattlemasterListStore>,
@@ -488,6 +546,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
+            support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
             battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
@@ -5510,9 +5569,12 @@ pub struct WorldSession {
     pub expansion: u8,
     pub account_expansion: u8,
     server_expansion_like_cpp: u8,
+    #[cfg(test)]
     characters_per_realm_like_cpp: u32,
     declined_names_used_like_cpp: bool,
+    #[cfg(test)]
     feature_system_bpay_store_enabled_like_cpp: bool,
+    #[cfg(test)]
     feature_system_character_undelete_enabled_like_cpp: bool,
     instance_ignore_raid_like_cpp: bool,
     instance_ignore_level_like_cpp: bool,
@@ -6887,10 +6949,15 @@ pub struct WorldSession {
     represented_movie_like_cpp: Option<u32>,
     #[cfg(test)]
     represented_movie_complete_events_like_cpp: Vec<u32>,
+    #[cfg(test)]
     represented_support_enabled_like_cpp: bool,
+    #[cfg(test)]
     represented_support_tickets_enabled_like_cpp: bool,
+    #[cfg(test)]
     represented_support_bugs_enabled_like_cpp: bool,
+    #[cfg(test)]
     represented_support_complaints_enabled_like_cpp: bool,
+    #[cfg(test)]
     represented_support_suggestions_enabled_like_cpp: bool,
     script_name_interner: Option<Arc<ScriptNameInternerLikeCpp>>,
     #[cfg(test)]
@@ -7992,9 +8059,12 @@ impl WorldSession {
             expansion,
             account_expansion,
             server_expansion_like_cpp: 2,
+            #[cfg(test)]
             characters_per_realm_like_cpp: 60,
             declined_names_used_like_cpp: false,
+            #[cfg(test)]
             feature_system_bpay_store_enabled_like_cpp: false,
+            #[cfg(test)]
             feature_system_character_undelete_enabled_like_cpp: false,
             instance_ignore_raid_like_cpp: false,
             instance_ignore_level_like_cpp: false,
@@ -8860,10 +8930,15 @@ impl WorldSession {
             represented_movie_like_cpp: None,
             #[cfg(test)]
             represented_movie_complete_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_support_enabled_like_cpp: true,
+            #[cfg(test)]
             represented_support_tickets_enabled_like_cpp: false,
+            #[cfg(test)]
             represented_support_bugs_enabled_like_cpp: false,
+            #[cfg(test)]
             represented_support_complaints_enabled_like_cpp: false,
+            #[cfg(test)]
             represented_support_suggestions_enabled_like_cpp: false,
             script_name_interner: None,
             #[cfg(test)]
@@ -23150,6 +23225,7 @@ impl WorldSession {
         self.server_expansion_like_cpp = expansion;
     }
 
+    #[cfg(test)]
     pub fn set_characters_per_realm_like_cpp(&mut self, characters_per_realm: u32) {
         self.characters_per_realm_like_cpp = characters_per_realm;
     }
@@ -23162,10 +23238,12 @@ impl WorldSession {
         self.declined_names_used_like_cpp
     }
 
+    #[cfg(test)]
     pub fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
         self.feature_system_bpay_store_enabled_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_feature_system_character_undelete_enabled_like_cpp(&mut self, enabled: bool) {
         self.feature_system_character_undelete_enabled_like_cpp = enabled;
     }
@@ -30944,85 +31022,121 @@ impl WorldSession {
         &self.represented_movie_complete_events_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_support_enabled_like_cpp(&self) -> bool {
         self.represented_support_enabled_like_cpp
     }
 
+    #[cfg(test)]
     pub fn set_represented_support_enabled_like_cpp(&mut self, enabled: bool) {
         self.represented_support_enabled_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_support_tickets_enabled_like_cpp(&self) -> bool {
         self.represented_support_tickets_enabled_like_cpp
     }
 
+    #[cfg(test)]
     pub fn set_represented_support_tickets_enabled_like_cpp(&mut self, enabled: bool) {
         self.represented_support_tickets_enabled_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_support_bugs_enabled_like_cpp(&self) -> bool {
         self.represented_support_bugs_enabled_like_cpp
     }
 
+    #[cfg(test)]
     pub fn set_represented_support_bugs_enabled_like_cpp(&mut self, enabled: bool) {
         self.represented_support_bugs_enabled_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_bug_system_status_like_cpp(&self) -> bool {
         self.represented_support_enabled_like_cpp && self.represented_support_bugs_enabled_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_support_complaints_enabled_like_cpp(&self) -> bool {
         self.represented_support_complaints_enabled_like_cpp
     }
 
+    #[cfg(test)]
     pub fn set_represented_support_complaints_enabled_like_cpp(&mut self, enabled: bool) {
         self.represented_support_complaints_enabled_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_complaint_system_status_like_cpp(&self) -> bool {
         self.represented_support_enabled_like_cpp
             && self.represented_support_complaints_enabled_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_support_suggestions_enabled_like_cpp(&self) -> bool {
         self.represented_support_suggestions_enabled_like_cpp
     }
 
+    #[cfg(test)]
     pub fn set_represented_support_suggestions_enabled_like_cpp(&mut self, enabled: bool) {
         self.represented_support_suggestions_enabled_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_suggestion_system_status_like_cpp(&self) -> bool {
         self.represented_support_enabled_like_cpp
             && self.represented_support_suggestions_enabled_like_cpp
     }
 
-    fn feature_system_config_like_cpp(&self) -> FeatureSystemConfigLikeCpp {
-        FeatureSystemConfigLikeCpp {
-            support_tickets_enabled: self.represented_support_tickets_enabled_like_cpp(),
-            support_bugs_enabled: self.represented_support_bugs_enabled_like_cpp(),
-            support_complaints_enabled: self.represented_support_complaints_enabled_like_cpp(),
-            support_suggestions_enabled: self.represented_support_suggestions_enabled_like_cpp(),
-            char_undelete_enabled: self.feature_system_character_undelete_enabled_like_cpp,
+    #[cfg(test)]
+    pub(crate) fn support_feature_policy_for_test_like_cpp(&self) -> SupportFeaturePolicyLikeCpp {
+        SupportFeaturePolicyLikeCpp {
+            support_enabled: self.represented_support_enabled_like_cpp,
+            tickets_enabled: self.represented_support_tickets_enabled_like_cpp,
+            bugs_enabled: self.represented_support_bugs_enabled_like_cpp,
+            complaints_enabled: self.represented_support_complaints_enabled_like_cpp,
+            suggestions_enabled: self.represented_support_suggestions_enabled_like_cpp,
+            character_undelete_enabled: self.feature_system_character_undelete_enabled_like_cpp,
             bpay_store_enabled: self.feature_system_bpay_store_enabled_like_cpp,
+            max_characters_per_realm: self.characters_per_realm_like_cpp,
         }
     }
 
-    pub(crate) fn feature_system_status_like_cpp(&self) -> FeatureSystemStatus {
+    pub(crate) fn feature_system_status_with_policy_like_cpp(
+        &self,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) -> FeatureSystemStatus {
         FeatureSystemStatus::from_config_like_cpp(
-            self.feature_system_config_like_cpp(),
+            policy.feature_system_config_like_cpp(),
             !self.can_speak_like_cpp(),
         )
     }
 
+    pub(crate) fn feature_system_status_glue_screen_with_policy_like_cpp(
+        &self,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) -> FeatureSystemStatusGlueScreen {
+        FeatureSystemStatusGlueScreen::from_config_like_cpp(
+            policy.feature_system_config_like_cpp(),
+            policy.max_characters_per_realm as i32,
+            i32::from(self.server_expansion_like_cpp),
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn feature_system_status_like_cpp(&self) -> FeatureSystemStatus {
+        self.feature_system_status_with_policy_like_cpp(
+            &self.support_feature_policy_for_test_like_cpp(),
+        )
+    }
+
+    #[cfg(test)]
     pub(crate) fn feature_system_status_glue_screen_like_cpp(
         &self,
     ) -> FeatureSystemStatusGlueScreen {
-        FeatureSystemStatusGlueScreen::from_config_like_cpp(
-            self.feature_system_config_like_cpp(),
-            self.characters_per_realm_like_cpp as i32,
-            i32::from(self.server_expansion_like_cpp),
+        self.feature_system_status_glue_screen_with_policy_like_cpp(
+            &self.support_feature_policy_for_test_like_cpp(),
         )
     }
 
@@ -41051,7 +41165,10 @@ impl WorldSession {
     /// 6. AccountDataTimes (global)
     /// 7. TutorialFlags
     /// 8. ConnectionStatus (State=1)
-    pub fn send_session_init_packets(&self) {
+    pub fn send_session_init_packets_with_policy_like_cpp(
+        &self,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) {
         use wow_packet::packets::auth::*;
         use wow_packet::packets::misc::*;
 
@@ -41100,7 +41217,7 @@ impl WorldSession {
         self.send_packet(&SetTimeZoneInformation::utc());
 
         // 3. FeatureSystemStatusGlueScreen (character select version, NOT in-game)
-        self.send_packet(&self.feature_system_status_glue_screen_like_cpp());
+        self.send_packet(&self.feature_system_status_glue_screen_with_policy_like_cpp(policy));
 
         // 4. ClientCacheVersion (from world DB version.cache_id = 24081)
         self.send_packet(&ClientCacheVersion {

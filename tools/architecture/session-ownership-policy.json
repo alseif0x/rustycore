@@ -365,8 +365,10 @@
           "name": "characters_per_realm_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "chat_fake_message_preventing_like_cpp",
@@ -847,15 +849,19 @@
           "name": "feature_system_bpay_store_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "feature_system_character_undelete_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "filter_addon_messages",
@@ -4667,36 +4673,46 @@
           "name": "represented_support_bugs_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_support_complaints_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_support_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_support_suggestions_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_support_tickets_enabled_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_talent_reset_cost_like_cpp",
@@ -8481,7 +8497,7 @@
           "kind": "method",
           "name": "send_login_sequence",
           "visibility": "pub (super)",
-          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
+          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , feature_policy : & SupportFeaturePolicyLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8937,7 +8953,7 @@
           "kind": "method",
           "name": "handle_continue_player_login_with_module_registry_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,)",
+          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9065,7 +9081,7 @@
           "kind": "method",
           "name": "send_handle_player_login_packets_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn send_handle_player_login_packets_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , guid : ObjectGuid , position : & Position , map_id : i32 , account_mounts : & [AccountMount] , motd : & str ,) -> bool",
+          "signature": "async fn send_handle_player_login_packets_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , feature_policy : & SupportFeaturePolicyLikeCpp , guid : ObjectGuid , position : & Position , map_id : i32 , account_mounts : & [AccountMount] , motd : & str ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -14388,7 +14404,23 @@
           "kind": "method",
           "name": "handle_bug_report",
           "visibility": "pub",
-          "signature": "async fn handle_bug_report (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_bug_report (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_bug_report_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_bug_report_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15094,7 +15126,23 @@
           "kind": "method",
           "name": "handle_gm_ticket_get_system_status",
           "visibility": "pub",
-          "signature": "async fn handle_gm_ticket_get_system_status (& mut self , _pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_gm_ticket_get_system_status (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_gm_ticket_get_system_status_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_gm_ticket_get_system_status_with_policy_like_cpp (& mut self , _pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16215,7 +16263,23 @@
           "kind": "method",
           "name": "handle_submit_user_feedback",
           "visibility": "pub",
-          "signature": "async fn handle_submit_user_feedback (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_submit_user_feedback (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_submit_user_feedback_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_submit_user_feedback_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16229,7 +16293,23 @@
           "kind": "method",
           "name": "handle_support_ticket_submit_bug",
           "visibility": "pub",
-          "signature": "async fn handle_support_ticket_submit_bug (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_support_ticket_submit_bug (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_support_ticket_submit_bug_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_support_ticket_submit_bug_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16243,7 +16323,23 @@
           "kind": "method",
           "name": "handle_support_ticket_submit_complaint",
           "visibility": "pub",
-          "signature": "async fn handle_support_ticket_submit_complaint (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_support_ticket_submit_complaint (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_support_ticket_submit_complaint_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_support_ticket_submit_complaint_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16257,7 +16353,23 @@
           "kind": "method",
           "name": "handle_support_ticket_submit_suggestion",
           "visibility": "pub",
-          "signature": "async fn handle_support_ticket_submit_suggestion (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_support_ticket_submit_suggestion (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_support_ticket_submit_suggestion_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_support_ticket_submit_suggestion_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27009,20 +27121,24 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "feature_system_config_like_cpp",
-          "visibility": "private",
-          "signature": "fn feature_system_config_like_cpp (& self) -> FeatureSystemConfigLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
+          "name": "feature_system_status_glue_screen_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn feature_system_status_glue_screen_like_cpp (& self ,) -> FeatureSystemStatusGlueScreen",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "feature_system_status_glue_screen_like_cpp",
+          "name": "feature_system_status_glue_screen_with_policy_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn feature_system_status_glue_screen_like_cpp (& self ,) -> FeatureSystemStatusGlueScreen",
+          "signature": "fn feature_system_status_glue_screen_with_policy_like_cpp (& self , policy : & SupportFeaturePolicyLikeCpp ,) -> FeatureSystemStatusGlueScreen",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27036,6 +27152,21 @@
           "name": "feature_system_status_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn feature_system_status_like_cpp (& self) -> FeatureSystemStatus",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "feature_system_status_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn feature_system_status_with_policy_like_cpp (& self , policy : & SupportFeaturePolicyLikeCpp ,) -> FeatureSystemStatus",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -33630,7 +33761,7 @@
           "kind": "method",
           "name": "poll_instance_link_with_module_registry_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp ,)",
+          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37105,8 +37236,10 @@
           "name": "represented_bug_system_status_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_bug_system_status_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37427,8 +37560,10 @@
           "name": "represented_complaint_system_status_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_complaint_system_status_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40504,8 +40639,10 @@
           "name": "represented_suggestion_system_status_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_suggestion_system_status_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40530,8 +40667,10 @@
           "name": "represented_support_bugs_enabled_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_support_bugs_enabled_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40543,8 +40682,10 @@
           "name": "represented_support_complaints_enabled_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_support_complaints_enabled_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40556,8 +40697,10 @@
           "name": "represented_support_enabled_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_support_enabled_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40569,8 +40712,10 @@
           "name": "represented_support_suggestions_enabled_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_support_suggestions_enabled_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40582,8 +40727,10 @@
           "name": "represented_support_tickets_enabled_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_support_tickets_enabled_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -44327,9 +44474,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "send_session_init_packets",
+          "name": "send_session_init_packets_with_policy_like_cpp",
           "visibility": "pub",
-          "signature": "fn send_session_init_packets (& self)",
+          "signature": "fn send_session_init_packets_with_policy_like_cpp (& self , policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45117,8 +45264,10 @@
           "name": "set_characters_per_realm_like_cpp",
           "visibility": "pub",
           "signature": "fn set_characters_per_realm_like_cpp (& mut self , characters_per_realm : u32)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45847,8 +45996,10 @@
           "name": "set_feature_system_bpay_store_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_feature_system_bpay_store_enabled_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45861,8 +46012,10 @@
           "name": "set_feature_system_character_undelete_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_feature_system_character_undelete_enabled_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -49447,8 +49600,10 @@
           "name": "set_represented_support_bugs_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_represented_support_bugs_enabled_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -49461,8 +49616,10 @@
           "name": "set_represented_support_complaints_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_represented_support_complaints_enabled_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -49475,8 +49632,10 @@
           "name": "set_represented_support_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_represented_support_enabled_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -49489,8 +49648,10 @@
           "name": "set_represented_support_suggestions_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_represented_support_suggestions_enabled_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -49503,8 +49664,10 @@
           "name": "set_represented_support_tickets_enabled_like_cpp",
           "visibility": "pub",
           "signature": "fn set_represented_support_tickets_enabled_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -51683,6 +51846,21 @@
           "signature": "fn support_bug_report_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: SupportBugReportPersistencePortLikeCpp > >",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "support_feature_policy_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn support_feature_policy_for_test_like_cpp (& self) -> SupportFeaturePolicyLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -54477,7 +54655,7 @@
           "module": "crate::session_factory",
           "name": "run_world_session_until_disconnect_like_cpp",
           "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , handler_catalogs : & wow_world :: session :: SessionHandlerCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp ,) -> WorldSessionRunOutcomeLikeCpp",
-          "body_fingerprint": "fnv1a64x2:512173597fb36063b21a51439c13a15a:len=1726",
+          "body_fingerprint": "fnv1a64x2:f1a05bf679a96228190c62c85a50146b:len=1802",
           "cfg": [],
           "source_class": "production"
         }
@@ -75393,7 +75571,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c6e70267f3b345f87638abc562649e2b:len=96662|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6c8231125d2c602043fe501c1a5cb0f3:len=96782|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
