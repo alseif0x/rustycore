@@ -3571,6 +3571,10 @@ fn session_resources_requires_named_capability_bundles() {
         !session_resources.contains("Option<"),
         "named capability bundles must be mandatory at production construction"
     );
+    assert!(
+        !resources_source.contains("Option<"),
+        "every inner production capability must also be required by its Rust type"
+    );
     assert_eq!(
         session_factory_source
             .matches("install_into_session_like_cpp(&mut session")
@@ -3596,16 +3600,13 @@ fn session_resources_requires_named_capability_bundles() {
     let construction = composition_source
         .find("let session_resources = SessionResources {")
         .expect("SessionResources construction should exist");
-    let validation = composition_source
-        .find("session_resources.validate_required_like_cpp()?;")
-        .expect("required capability validation should exist");
     let publication = composition_source
         .find("let session_resources = Arc::new(session_resources);")
-        .expect("validated resources should be published through Arc");
+        .expect("fully constructed resources should be published through Arc");
     let listener = composition_source
         .find("wow_network::start_world_listener(")
         .expect("world listener should exist");
-    assert!(construction < validation && validation < publication && publication < listener);
+    assert!(construction < publication && publication < listener);
 }
 
 #[test]

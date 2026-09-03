@@ -308,13 +308,8 @@ pub(super) async fn create_session(
     let grid_legacy_manager = Arc::clone(&shared_map);
     let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
-    let grid_map_store = resources.world.map_store.as_ref().map(Arc::clone);
-    let grid_area_trigger_template_store = resources
-        .world
-        .area_trigger_template_store
-        .as_ref()
-        .map(Arc::clone)
-        .expect("world-server SessionResources must provide AreaTriggerTemplateStore");
+    let grid_map_store = Arc::clone(&resources.world.map_store);
+    let grid_area_trigger_template_store = Arc::clone(&resources.world.area_trigger_template_store);
     session.set_player_grid_load_resolver_like_cpp(Arc::new(
         move |map_id, instance_id, position| {
             ensure_login_player_grid_loaded_like_cpp(
@@ -323,7 +318,7 @@ pub(super) async fn create_session(
                 &grid_spawn_metadata,
                 &grid_loaded_caches,
                 grid_area_trigger_template_store.as_ref(),
-                grid_map_store.as_deref(),
+                Some(grid_map_store.as_ref()),
                 map_id,
                 instance_id,
                 position,
