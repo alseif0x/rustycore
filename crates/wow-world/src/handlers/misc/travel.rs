@@ -52,8 +52,15 @@ inventory::submit! {
         status: SessionStatus::Transfer,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_world_port_response",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_world_port_response(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_world_port_response_with_catalogs_like_cpp(
+                        catalogs.creature_spawns.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -307,7 +314,11 @@ impl crate::session::WorldSession {
     /// Sent after SMSG_NEW_WORLD (which is emitted from handle_suspend_token_response).
     /// We respond with SMSG_RESUME_TOKEN and replay the after-add init.
 
-    pub async fn handle_world_port_response(&mut self, _pkt: wow_packet::WorldPacket) {
+    pub async fn handle_world_port_response_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        _pkt: wow_packet::WorldPacket,
+    ) {
         use wow_packet::packets::misc::ResumeToken;
 
         if !self.represented_far_teleport_pending_like_cpp() {
@@ -393,8 +404,13 @@ impl crate::session::WorldSession {
         self.send_player_self_create_for_teleport_like_cpp().await;
 
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
-        self.send_nearby_creatures(new_map as u16, &new_pos, 0)
-            .await;
+        self.send_nearby_creatures_with_catalogs_like_cpp(
+            creature_spawn_catalogs,
+            new_map as u16,
+            &new_pos,
+            0,
+        )
+        .await;
         self.send_nearby_gameobjects(new_map as u16, &new_pos, 0)
             .await;
         info!(
@@ -407,7 +423,8 @@ impl crate::session::WorldSession {
 
         // SendInitialPacketsAfterAddToMap: post-add phase shift, InitWorldStates resolved for
         // the destination map, the PhasingHandler::OnMapChange phase shift, CUF profiles, auras.
-        self.send_initial_packets_after_add_to_map(
+        self.send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+            creature_spawn_catalogs,
             guid,
             &new_pos,
             new_map as i32,
@@ -434,6 +451,13 @@ impl crate::session::WorldSession {
 
         // Back to LoggedIn — handler dispatch resumes.
         self.set_state(crate::session::SessionState::LoggedIn);
+    }
+
+    #[cfg(test)]
+    pub async fn handle_world_port_response(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_world_port_response_with_catalogs_like_cpp(&catalogs, pkt)
+            .await;
     }
 
     /// CMSG_AREA_TRIGGER — player entered an area trigger.

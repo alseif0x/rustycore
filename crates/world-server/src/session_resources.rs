@@ -239,15 +239,10 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) creature_template_lifecycle_store:
         Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
     pub(super) creature_template_mount_store: Arc<wow_data::CreatureTemplateMountStoreLikeCpp>,
-    pub(super) creature_equipment_store: Arc<wow_data::CreatureEquipmentStoreLikeCpp>,
     pub(super) creature_display_info_store: Arc<wow_data::CreatureDisplayInfoStore>,
     pub(super) creature_display_info_extra_store: Arc<wow_data::CreatureDisplayInfoExtraStore>,
     pub(super) gameobject_display_info_store: Arc<wow_data::GameObjectDisplayInfoStore>,
     pub(super) creature_model_info_store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
-    pub(super) creature_addon_store: Arc<wow_data::CreatureAddonStoreLikeCpp>,
-    pub(super) creature_difficulty_store: Arc<wow_data::CreatureDifficultyStoreLikeCpp>,
-    pub(super) creature_base_stats_store: Arc<wow_data::CreatureBaseStatsStoreLikeCpp>,
-    pub(super) creature_health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp,
     pub(super) creature_model_data_store: Arc<wow_data::CreatureModelDataStore>,
     pub(super) mount_store: Arc<wow_data::MountStore>,
     pub(super) mount_definition_store: Arc<wow_data::MountDefinitionStoreLikeCpp>,
@@ -473,17 +468,12 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
             &self.creature_template_lifecycle_store,
         ));
         session.set_creature_template_mount_store(Arc::clone(&self.creature_template_mount_store));
-        session.set_creature_equipment_store_like_cpp(Arc::clone(&self.creature_equipment_store));
         session.set_creature_display_info_store(Arc::clone(&self.creature_display_info_store));
         session.set_creature_display_info_extra_store(Arc::clone(
             &self.creature_display_info_extra_store,
         ));
         session.set_gameobject_display_info_store(Arc::clone(&self.gameobject_display_info_store));
         session.set_creature_model_info_store(Arc::clone(&self.creature_model_info_store));
-        session.set_creature_addon_store_like_cpp(Arc::clone(&self.creature_addon_store));
-        session.set_creature_difficulty_store_like_cpp(Arc::clone(&self.creature_difficulty_store));
-        session.set_creature_base_stats_store_like_cpp(Arc::clone(&self.creature_base_stats_store));
-        session.set_creature_health_rates_like_cpp(self.creature_health_rates);
         session.set_creature_model_data_store(Arc::clone(&self.creature_model_data_store));
         session.set_mount_store(Arc::clone(&self.mount_store));
         session.set_mount_definition_store_like_cpp(Arc::clone(&self.mount_definition_store));

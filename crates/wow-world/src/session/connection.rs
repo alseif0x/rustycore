@@ -141,6 +141,7 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
+        creature_spawn_catalogs: &super::CreatureSpawnCatalogsLikeCpp,
         player_bootstrap: &super::PlayerBootstrapCatalogsLikeCpp,
         player_rest_rates: &super::PlayerRestRatePolicyLikeCpp,
         feature_policy: &super::SupportFeaturePolicyLikeCpp,
@@ -152,6 +153,7 @@ impl WorldSession {
                 self.handle_continue_player_login_with_module_registry_like_cpp(
                     item_guid_generator,
                     modules,
+                    creature_spawn_catalogs,
                     player_bootstrap,
                     player_rest_rates,
                     feature_policy,
@@ -173,11 +175,13 @@ impl WorldSession {
             .unwrap_or_else(|| std::sync::Arc::new(wow_module_api::ModuleRegistry::new()));
         let generators = self.id_generators_for_test_like_cpp();
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let player_rest_rates = self.player_rest_rate_policy_for_test_like_cpp();
         let feature_policy = self.support_feature_policy_for_test_like_cpp();
         self.poll_instance_link_with_module_registry_like_cpp(
             generators.item.as_ref(),
             modules.as_ref(),
+            &creature_spawn_catalogs,
             &player_bootstrap,
             &player_rest_rates,
             &feature_policy,

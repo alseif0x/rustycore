@@ -89,8 +89,9 @@ macro_rules! register_move {
                 handler: |session, catalogs, pkt| {
                     Box::pin(async move {
                         session
-                            .handle_movement_with_area_trigger_catalogs_like_cpp(
+                            .handle_movement_with_catalogs_like_cpp(
                                 catalogs.area_triggers.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 pkt,
                             )
                             .await
@@ -137,9 +138,10 @@ impl WorldSession {
     ///
     /// Parses MovementInfo, validates it, updates player position,
     /// and queues a broadcast to nearby players.
-    pub async fn handle_movement_with_area_trigger_catalogs_like_cpp(
+    pub async fn handle_movement_with_catalogs_like_cpp(
         &mut self,
-        catalogs: &AreaTriggerCatalogsLikeCpp,
+        area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let opcode = pkt.client_opcode();
@@ -154,13 +156,19 @@ impl WorldSession {
             }
         };
 
-        self.handle_movement_info_with_area_trigger_catalogs_like_cpp(catalogs, opcode, info.info)
-            .await;
+        self.handle_movement_info_with_catalogs_like_cpp(
+            area_trigger_catalogs,
+            creature_spawn_catalogs,
+            opcode,
+            info.info,
+        )
+        .await;
     }
 
-    pub(crate) async fn handle_movement_info_with_area_trigger_catalogs_like_cpp(
+    pub(crate) async fn handle_movement_info_with_catalogs_like_cpp(
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         opcode: Option<ClientOpcodes>,
         mut info: MovementInfo,
     ) {
@@ -463,7 +471,8 @@ impl WorldSession {
 
             // Dynamic visibility update: send new creatures/GOs that came into
             // range and remove those that left. Internally throttled to 50 yards.
-            self.update_visibility().await;
+            self.update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+                .await;
 
             // Check area triggers at the new position
             self.check_area_triggers_with_catalogs_like_cpp(area_trigger_catalogs)
@@ -548,9 +557,14 @@ impl WorldSession {
 
     #[cfg(test)]
     pub async fn handle_movement(&mut self, pkt: wow_packet::WorldPacket) {
-        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
-        self.handle_movement_with_area_trigger_catalogs_like_cpp(&catalogs, pkt)
-            .await;
+        let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_movement_with_catalogs_like_cpp(
+            &area_trigger_catalogs,
+            &creature_spawn_catalogs,
+            pkt,
+        )
+        .await;
     }
 
     #[cfg(test)]
@@ -559,9 +573,15 @@ impl WorldSession {
         opcode: Option<ClientOpcodes>,
         info: MovementInfo,
     ) {
-        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
-        self.handle_movement_info_with_area_trigger_catalogs_like_cpp(&catalogs, opcode, info)
-            .await;
+        let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_movement_info_with_catalogs_like_cpp(
+            &area_trigger_catalogs,
+            &creature_spawn_catalogs,
+            opcode,
+            info,
+        )
+        .await;
     }
 
     fn apply_movement_side_effects_like_cpp(

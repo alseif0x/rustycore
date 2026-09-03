@@ -239,10 +239,12 @@ impl WorldSession {
             self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
             self.tick_active_spell_cast_with_generator_like_cpp(
                 catalogs.id_generators.item.as_ref(),
+                catalogs.creature_spawns.as_ref(),
             )
             .await;
             self.tick_pending_spell_cast_request_with_generator_like_cpp(
                 catalogs.id_generators.item.as_ref(),
+                catalogs.creature_spawns.as_ref(),
             )
             .await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
@@ -254,6 +256,7 @@ impl WorldSession {
         self.poll_instance_link_with_module_registry_like_cpp(
             catalogs.id_generators.item.as_ref(),
             catalogs.modules.as_ref(),
+            catalogs.creature_spawns.as_ref(),
             catalogs.player_bootstrap.as_ref(),
             catalogs.player_rest_rates.as_ref(),
             catalogs.support_feature_policy.as_ref(),
@@ -263,8 +266,13 @@ impl WorldSession {
         // Process pending creature/gameobject spawn (async DB query)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
         if let Some(spawn) = self.pending_creature_spawn.take() {
-            self.send_nearby_creatures(spawn.map_id, &spawn.position, spawn.zone_id)
-                .await;
+            self.send_nearby_creatures_with_catalogs_like_cpp(
+                catalogs.creature_spawns.as_ref(),
+                spawn.map_id,
+                &spawn.position,
+                spawn.zone_id,
+            )
+            .await;
             self.send_nearby_gameobjects(spawn.map_id, &spawn.position, spawn.zone_id)
                 .await;
         }
@@ -313,6 +321,7 @@ impl WorldSession {
             item_valuation: Arc::new(self.item_valuation_catalogs_for_test_like_cpp()),
             player_bootstrap: Arc::new(self.player_bootstrap_catalogs_for_test_like_cpp()),
             player_rest_rates: Arc::new(self.player_rest_rate_policy_for_test_like_cpp()),
+            creature_spawns: Arc::new(self.creature_spawn_catalogs_for_test_like_cpp()),
             chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),

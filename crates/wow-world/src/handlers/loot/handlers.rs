@@ -2188,8 +2188,9 @@ impl WorldSession {
     /// `Player::UpdateVisibilityOf`; this command reuses Rust's represented
     /// `update_visibility` pass instead of sending raw bytes that cannot update
     /// `client_visible_guids_like_cpp`.
-    pub(crate) async fn handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(
+    pub(crate) async fn handle_refresh_visible_world_creatures_with_catalogs_like_cpp_command_like_cpp(
         &mut self,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         command: RefreshVisibleWorldCreaturesLikeCppCommand,
     ) {
         if self.state() != crate::session::SessionState::LoggedIn {
@@ -2206,7 +2207,8 @@ impl WorldSession {
             return;
         }
         self.clear_pending_visibility_refresh_like_cpp();
-        self.force_update_visibility_like_cpp().await;
+        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+            .await;
     }
 
     pub(crate) fn handle_send_repeatable_turn_in_request_items_command_like_cpp(

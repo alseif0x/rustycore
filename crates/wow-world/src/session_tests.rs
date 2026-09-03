@@ -37289,59 +37289,60 @@ fn register_test_creature_mirrored_like_cpp(
 #[test]
 fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_creature_difficulty_store_like_cpp(Arc::new(
-        wow_data::CreatureDifficultyStoreLikeCpp::from_records(
-            [wow_data::CreatureDifficultyRecordLikeCpp {
-                entry: 90_021,
-                difficulty_id: 0,
-                min_level: 5,
-                max_level: 5,
-                health_scaling_expansion: 0,
-                health_modifier: 1.0,
-                mana_modifier: 1.0,
-                armor_modifier: 1.0,
-                damage_modifier: 1.0,
-                creature_difficulty_id: 0,
-                type_flags: 0,
-                type_flags2: 0,
-                loot_id: 0,
-                pickpocket_loot_id: 0,
-                skin_loot_id: 0,
-                gold_min: 0,
-                gold_max: 0,
-                static_flags: [0; 8],
-            }],
-            |_| 1.0,
+    let difficulty = Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::from_records(
+        [wow_data::CreatureDifficultyRecordLikeCpp {
+            entry: 90_021,
+            difficulty_id: 0,
+            min_level: 5,
+            max_level: 5,
+            health_scaling_expansion: 0,
+            health_modifier: 1.0,
+            mana_modifier: 1.0,
+            armor_modifier: 1.0,
+            damage_modifier: 1.0,
+            creature_difficulty_id: 0,
+            type_flags: 0,
+            type_flags2: 0,
+            loot_id: 0,
+            pickpocket_loot_id: 0,
+            skin_loot_id: 0,
+            gold_min: 0,
+            gold_max: 0,
+            static_flags: [0; 8],
+        }],
+        |_| 1.0,
+    ));
+    let base_stats = Arc::new(wow_data::CreatureBaseStatsStoreLikeCpp::from_records([
+        (
+            5,
+            2,
+            wow_data::CreatureBaseStatsRecordLikeCpp {
+                base_health: [100, 100, 100],
+                base_mana: 600,
+                base_armor: 0,
+                attack_power: 0,
+                ranged_attack_power: 0,
+                base_damage: [0.0; 3],
+            },
         ),
-    ));
-    session.set_creature_base_stats_store_like_cpp(Arc::new(
-        wow_data::CreatureBaseStatsStoreLikeCpp::from_records([
-            (
-                5,
-                2,
-                wow_data::CreatureBaseStatsRecordLikeCpp {
-                    base_health: [100, 100, 100],
-                    base_mana: 600,
-                    base_armor: 0,
-                    attack_power: 0,
-                    ranged_attack_power: 0,
-                    base_damage: [0.0; 3],
-                },
-            ),
-            (
-                5,
-                3,
-                wow_data::CreatureBaseStatsRecordLikeCpp {
-                    base_health: [100, 100, 100],
-                    base_mana: 600,
-                    base_armor: 0,
-                    attack_power: 0,
-                    ranged_attack_power: 0,
-                    base_damage: [0.0; 3],
-                },
-            ),
-        ]),
-    ));
+        (
+            5,
+            3,
+            wow_data::CreatureBaseStatsRecordLikeCpp {
+                base_health: [100, 100, 100],
+                base_mana: 600,
+                base_armor: 0,
+                attack_power: 0,
+                ranged_attack_power: 0,
+                base_damage: [0.0; 3],
+            },
+        ),
+    ]));
+    let creature_spawn_catalogs = CreatureSpawnCatalogsLikeCpp {
+        difficulty,
+        base_stats,
+        ..Default::default()
+    };
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([
         wow_data::character_progression::ChrClassesEntry {
             id: 2,
@@ -37387,20 +37388,47 @@ fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp(
         },
     ])));
 
-    let full = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, true, 42, 77);
+    let full = session.creature_create_stats_with_catalogs_like_cpp(
+        &creature_spawn_catalogs,
+        90_021,
+        5,
+        2,
+        0,
+        true,
+        42,
+        77,
+    );
     assert_eq!(
         full.power, 600,
         "C++ SetFullPower(POWER_MANA) uses max/base mana when _regenerateHealth is true"
     );
 
-    let from_spawn = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, false, 42, 77);
+    let from_spawn = session.creature_create_stats_with_catalogs_like_cpp(
+        &creature_spawn_catalogs,
+        90_021,
+        5,
+        2,
+        0,
+        false,
+        42,
+        77,
+    );
     assert_eq!(
         from_spawn.power, 77,
         "C++ SetSpawnHealth copies CreatureData::curmana when _regenerateHealth is false"
     );
     assert_eq!(from_spawn.base_mana, 600);
 
-    let focus = session.creature_create_stats_like_cpp(90_021, 5, 3, 0, false, 42, 77);
+    let focus = session.creature_create_stats_with_catalogs_like_cpp(
+        &creature_spawn_catalogs,
+        90_021,
+        5,
+        3,
+        0,
+        false,
+        42,
+        77,
+    );
     assert_eq!(focus.power_type, PowerType::Focus);
     assert_eq!(focus.max_power, 100);
     assert_eq!(
@@ -45544,10 +45572,12 @@ async fn first_login_cast_spells_use_player_create_mode_before_other_first_login
     ])));
 
     let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawn_catalogs = session.creature_spawn_catalogs_for_test_like_cpp();
     let player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
     let cast_count = session
         .apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             &player_bootstrap,
         )
         .await;

@@ -94,8 +94,11 @@ impl WorldSession {
                 self.handle_send_visible_object_values_update_command_like_cpp(command);
             }
             SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(command) => {
-                self.handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(command)
-                    .await;
+                self.handle_refresh_visible_world_creatures_with_catalogs_like_cpp_command_like_cpp(
+                    catalogs.creature_spawns.as_ref(),
+                    command,
+                )
+                .await;
             }
             SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command) => {
                 self.handle_send_creature_loot_release_values_update_command_like_cpp(command);

@@ -103,8 +103,9 @@ inventory::submit! {
         handler: |session, catalogs, pkt| {
             Box::pin(async move {
                 session
-                    .handle_cast_spell_with_area_trigger_catalogs_like_cpp(
+                    .handle_cast_spell_with_catalogs_like_cpp(
                         catalogs.area_triggers.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
                         catalogs.id_generators.item.as_ref(),
                         pkt,
                     )
@@ -215,6 +216,7 @@ inventory::submit! {
                 session
                     .handle_self_res_with_generator_like_cpp(
                         catalogs.id_generators.item.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
                         pkt,
                     )
                     .await
@@ -254,6 +256,7 @@ inventory::submit! {
                 session
                     .handle_spell_click_with_generator_like_cpp(
                         catalogs.id_generators.item.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
                         pkt,
                     )
                     .await
@@ -508,9 +511,10 @@ impl WorldSession {
     /// 2. Validate cooldown.
     /// 3. If cast_time > 0: initiate cast (SMSG_SPELL_START), wait for tick_active_spell_cast().
     /// 4. If instant: execute immediately.
-    pub async fn handle_cast_spell_with_area_trigger_catalogs_like_cpp(
+    pub async fn handle_cast_spell_with_catalogs_like_cpp(
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
     ) {
@@ -584,8 +588,9 @@ impl WorldSession {
         // after validating the `SpellInfo` and before the spell cast request
         // continues.
         if let Some(move_update) = req.move_update.clone() {
-            self.handle_movement_info_with_area_trigger_catalogs_like_cpp(
+            self.handle_movement_info_with_catalogs_like_cpp(
                 area_trigger_catalogs,
+                creature_spawn_catalogs,
                 Some(ClientOpcodes::MoveStop),
                 move_update,
             )
@@ -796,6 +801,7 @@ impl WorldSession {
             if let Err(e) = self
                 .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     target_guid,
                     cast_id,
@@ -830,10 +836,12 @@ impl WorldSession {
 
     #[cfg(test)]
     pub async fn handle_cast_spell(&mut self, pkt: wow_packet::WorldPacket) {
-        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_cast_spell_with_area_trigger_catalogs_like_cpp(
-            &catalogs,
+        self.handle_cast_spell_with_catalogs_like_cpp(
+            &area_trigger_catalogs,
+            &creature_spawn_catalogs,
             generators.item.as_ref(),
             pkt,
         )
@@ -2113,6 +2121,7 @@ impl WorldSession {
     pub async fn handle_spell_click_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let spell_click = match SpellClick::read(&mut pkt) {
@@ -2145,6 +2154,7 @@ impl WorldSession {
         let outcome = self
             .execute_represented_spell_click_plan_with_generator_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 spell_click.unit_guid,
                 &plan,
             )
@@ -2165,8 +2175,13 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_spell_click(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_spell_click_with_generator_like_cpp(generators.item.as_ref(), pkt)
-            .await;
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_spell_click_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            pkt,
+        )
+        .await;
     }
 
     /// Handle `CMSG_CANCEL_CAST` — player cancels an in-progress cast.
@@ -2347,6 +2362,7 @@ impl WorldSession {
     pub async fn handle_self_res_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let request = match SelfRes::read(&mut pkt) {
@@ -2371,6 +2387,7 @@ impl WorldSession {
         if self
             .execute_spell_with_generator_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 request.spell_id,
                 player_guid,
             )
@@ -2384,8 +2401,13 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_self_res(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_self_res_with_generator_like_cpp(generators.item.as_ref(), pkt)
-            .await;
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_self_res_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            pkt,
+        )
+        .await;
     }
 
     /// Handle `CMSG_PET_CANCEL_AURA`.

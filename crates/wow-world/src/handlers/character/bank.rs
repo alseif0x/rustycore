@@ -11,15 +11,25 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_autobank_item_with_generator_like_cpp(generators.item.as_ref(), packet)
-            .await;
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_autobank_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            packet,
+        )
+        .await;
     }
 
     #[cfg(test)]
     pub async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_autostore_bank_item_with_generator_like_cpp(generators.item.as_ref(), packet)
-            .await;
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_autostore_bank_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            packet,
+        )
+        .await;
     }
 
     pub(super) fn send_show_bank_like_cpp(&mut self, banker_guid: ObjectGuid) {
@@ -64,6 +74,7 @@ impl WorldSession {
     pub async fn handle_autobank_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         packet: AutoBankItem,
     ) {
         if !self.represented_can_use_current_bank_like_cpp() {
@@ -84,6 +95,7 @@ impl WorldSession {
         };
         self.execute_inventory_storage_move_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             packet.bag,
             packet.slot,
             NULL_BAG,
@@ -101,6 +113,7 @@ impl WorldSession {
     pub async fn handle_autostore_bank_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         packet: AutoStoreBankItem,
     ) {
         if !self.represented_can_use_current_bank_like_cpp() {
@@ -122,6 +135,7 @@ impl WorldSession {
         };
         self.execute_inventory_storage_move_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             packet.bag,
             packet.slot,
             NULL_BAG,

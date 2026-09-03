@@ -181,6 +181,7 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
         player_rest_rates: &crate::session::PlayerRestRatePolicyLikeCpp,
         feature_policy: &SupportFeaturePolicyLikeCpp,
@@ -2569,6 +2570,7 @@ impl WorldSession {
         if !self
             .send_login_sequence(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 feature_policy,
                 guid,
                 race,
@@ -2610,6 +2612,7 @@ impl WorldSession {
         if applied_first_login_like_cpp {
             self.apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 player_bootstrap,
             )
             .await;

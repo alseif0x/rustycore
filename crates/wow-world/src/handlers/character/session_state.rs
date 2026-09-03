@@ -366,8 +366,9 @@ impl WorldSession {
             .extend(other_visible_guids);
     }
 
-    pub(super) fn materialize_creature_spawn_row_like_cpp(
+    pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp(
         &mut self,
+        catalogs: &CreatureSpawnCatalogsLikeCpp,
         map_id: u16,
         row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
         viewer_position: &Position,
@@ -486,7 +487,8 @@ impl WorldSession {
             return None;
         }
 
-        let creature_stats = self.creature_create_stats_like_cpp(
+        let creature_stats = self.creature_create_stats_with_catalogs_like_cpp(
+            catalogs,
             entry,
             min_level,
             unit_class,
@@ -495,12 +497,13 @@ impl WorldSession {
             cur_health,
             cur_mana,
         );
-        let addon = self
-            .creature_addon_store_like_cpp()
-            .and_then(|store| store.get_for_creature_like_cpp(spawn_guid, entry));
+        let addon = catalogs.addons.get_for_creature_like_cpp(spawn_guid, entry);
         let addon_fields = Self::creature_addon_create_fields_like_cpp(addon.as_ref());
-        let equipment_fields =
-            self.creature_virtual_items_from_row_like_cpp(entry, row.equipment_id);
+        let equipment_fields = self.creature_virtual_items_from_row_with_catalogs_like_cpp(
+            catalogs,
+            entry,
+            row.equipment_id,
+        );
 
         let guid = if vehicle_id != 0 {
             ObjectGuid::create_vehicle_like_cpp(self.realm_id(), map_id, entry, spawn_guid as i64)
@@ -610,6 +613,24 @@ impl WorldSession {
             default_movement_type,
             waypoint_path_id,
         })
+    }
+
+    #[cfg(test)]
+    pub(super) fn materialize_creature_spawn_row_like_cpp(
+        &mut self,
+        map_id: u16,
+        row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
+        viewer_position: &Position,
+        visibility_range: f32,
+    ) -> Option<MaterializedCreatureSpawnLikeCpp> {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.materialize_creature_spawn_row_with_catalogs_like_cpp(
+            &catalogs,
+            map_id,
+            row,
+            viewer_position,
+            visibility_range,
+        )
     }
 
     pub(super) fn register_materialized_creature_spawn_like_cpp(
@@ -809,6 +830,7 @@ impl WorldSession {
     pub async fn handle_binder_activate_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         hello: Hello,
     ) {
         info!(
@@ -859,6 +881,7 @@ impl WorldSession {
             if let Err(error) = self
                 .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     BIND_SPELL_ID_LIKE_CPP,
                     player_guid,
                     cast_id,
@@ -1301,8 +1324,13 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_binder_activate(&mut self, hello: Hello) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_binder_activate_with_generator_like_cpp(generators.item.as_ref(), hello)
-            .await;
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_binder_activate_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            hello,
+        )
+        .await;
     }
 
     pub(crate) async fn load_character_spell_history_packets_like_cpp(
@@ -1842,8 +1870,9 @@ impl WorldSession {
     /// CUF profiles, auras and the `PhasingHandler::OnMapChange` phase shift. Shared by login
     /// and far teleport (#NEXT.R8.ENTITIES.1229). Reads all data from self; the destination
     /// guid/position/map are passed in.
-    pub(crate) async fn send_initial_packets_after_add_to_map(
+    pub(crate) async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
         &mut self,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         guid: ObjectGuid,
         position: &Position,
         map_id: i32,
@@ -1870,7 +1899,8 @@ impl WorldSession {
         // after logout/relogin at the same position the normal movement-distance
         // throttle can otherwise leave the client with no visible creatures.
         self.sync_current_player_session_visibility_detection_like_cpp();
-        self.force_update_visibility_like_cpp().await;
+        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+            .await;
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
@@ -2154,6 +2184,7 @@ impl WorldSession {
     pub(super) async fn send_login_sequence(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         feature_policy: &SupportFeaturePolicyLikeCpp,
         guid: ObjectGuid,
         race: u8,
@@ -2586,7 +2617,8 @@ impl WorldSession {
         }
 
         // ── Phase 4: SendInitialPacketsAfterAddToMap ──
-        self.send_initial_packets_after_add_to_map(
+        self.send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+            creature_spawn_catalogs,
             guid,
             position,
             map_id,
@@ -2624,6 +2656,25 @@ impl WorldSession {
             guid
         );
         true
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn send_initial_packets_after_add_to_map(
+        &mut self,
+        guid: ObjectGuid,
+        position: &Position,
+        map_id: i32,
+        updateobject_trace_enabled: bool,
+    ) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+            &catalogs,
+            guid,
+            position,
+            map_id,
+            updateobject_trace_enabled,
+        )
+        .await;
     }
 
     /// C++ `Player::LoadFromDB` first attempts go-back/homebind relocation and

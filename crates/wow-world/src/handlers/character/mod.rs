@@ -92,13 +92,13 @@ use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
-    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
-    PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP,
-    RepresentedAlterAppearanceLikeCpp, RepresentedAutoUnequipOffhandLikeCpp,
-    RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
-    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
-    SpellCastMetadata, SupportFeaturePolicyLikeCpp,
+    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, CreatureSpawnCatalogsLikeCpp,
+    GLOBAL_CACHE_MASK_LIKE_CPP, PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
+    REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
+    RepresentedAutoUnequipOffhandLikeCpp, RepresentedBankItemMoveLikeCpp,
+    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedGameObjectUseState,
+    RepresentedHomebindLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
+    RepresentedVoidStorageItemLikeCpp, SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
 #[cfg(test)]
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;

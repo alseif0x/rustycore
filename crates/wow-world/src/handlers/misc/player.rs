@@ -31,7 +31,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_far_sight",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_far_sight(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_far_sight_with_catalogs_like_cpp(
+                        catalogs.creature_spawns.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -164,7 +173,11 @@ inventory::submit! {
 impl crate::session::WorldSession {
     /// C++ `WorldSession::HandleFarSightOpcode`: does not create/remove the
     /// viewpoint; it only switches the represented seer and forces visibility.
-    pub async fn handle_far_sight(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_far_sight_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let far_sight = match FarSight::read(&mut pkt) {
             Ok(far_sight) => far_sight,
             Err(err) => {
@@ -174,7 +187,15 @@ impl crate::session::WorldSession {
         };
 
         self.apply_far_sight_like_cpp(far_sight.enable);
-        self.force_update_visibility_like_cpp().await;
+        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_far_sight(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_far_sight_with_catalogs_like_cpp(&catalogs, pkt)
+            .await;
     }
 
     /// CMSG_SET_SELECTION — client clicked/targeted an object.

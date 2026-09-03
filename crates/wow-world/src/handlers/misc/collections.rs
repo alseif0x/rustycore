@@ -104,6 +104,7 @@ inventory::submit! {
                 session
                     .handle_use_toy_with_generator_like_cpp(
                         catalogs.id_generators.item.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
                         pkt,
                     )
                     .await
@@ -300,6 +301,7 @@ impl crate::session::WorldSession {
     pub async fn handle_use_toy_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let request = match UseToy::read(&mut pkt) {
@@ -430,6 +432,7 @@ impl crate::session::WorldSession {
         } else if let Err(error) = self
             .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 request.cast.spell_id,
                 target_guid,
                 server_cast_id,
@@ -530,7 +533,12 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub async fn handle_use_toy(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_use_toy_with_generator_like_cpp(generators.item.as_ref(), pkt)
-            .await;
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_use_toy_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            pkt,
+        )
+        .await;
     }
 }

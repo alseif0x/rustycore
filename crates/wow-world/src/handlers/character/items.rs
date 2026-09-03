@@ -34,28 +34,44 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_swap_inv_item(&mut self, swap: SwapInvItem) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_swap_inv_item_with_generator_like_cpp(generators.item.as_ref(), swap)
-            .await;
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_swap_inv_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            swap,
+        )
+        .await;
     }
 
     #[cfg(test)]
     pub async fn handle_auto_equip_item(&mut self, equip: AutoEquipItem) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_auto_equip_item_with_generator_like_cpp(generators.item.as_ref(), equip)
-            .await;
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_auto_equip_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            equip,
+        )
+        .await;
     }
 
     #[cfg(test)]
     pub async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_auto_equip_item_slot_with_generator_like_cpp(generators.item.as_ref(), equip)
-            .await;
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_auto_equip_item_slot_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            equip,
+        )
+        .await;
     }
 
     #[cfg(test)]
     pub async fn handle_swap_item(&mut self, swap: wow_packet::packets::item::SwapItem) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_swap_item_with_generator_like_cpp(generators.item.as_ref(), swap)
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_swap_item_with_generator_like_cpp(generators.item.as_ref(), &catalogs, swap)
             .await;
     }
 
@@ -65,12 +81,18 @@ impl WorldSession {
         store: wow_packet::packets::item::AutoStoreBagItem,
     ) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_auto_store_bag_item_with_generator_like_cpp(generators.item.as_ref(), store)
-            .await;
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_auto_store_bag_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            store,
+        )
+        .await;
     }
 
-    pub(super) fn creature_virtual_items_from_row_like_cpp(
+    pub(super) fn creature_virtual_items_from_row_with_catalogs_like_cpp(
         &mut self,
+        catalogs: &CreatureSpawnCatalogsLikeCpp,
         entry: u32,
         persisted_equipment_id: i16,
     ) -> CreatureEquipmentCreateFieldsLikeCpp {
@@ -84,7 +106,8 @@ impl WorldSession {
             };
         }
 
-        if let Some(store) = self.creature_equipment_store_like_cpp().cloned() {
+        {
+            let store = &catalogs.equipment;
             let equipment = if equipment_id == -1 {
                 let count = store.len_for_entry(entry);
                 if count == 0 {
@@ -123,6 +146,20 @@ impl WorldSession {
             original_equipment_id: 0,
             virtual_items: [(0, 0, 0); 3],
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn creature_virtual_items_from_row_like_cpp(
+        &mut self,
+        entry: u32,
+        persisted_equipment_id: i16,
+    ) -> CreatureEquipmentCreateFieldsLikeCpp {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.creature_virtual_items_from_row_with_catalogs_like_cpp(
+            &catalogs,
+            entry,
+            persisted_equipment_id,
+        )
     }
 
     /// Handle CMSG_SAVE_EQUIPMENT_SET.
@@ -353,6 +390,7 @@ impl WorldSession {
     pub(super) async fn execute_inventory_storage_move_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination_bag: u8,
@@ -773,6 +811,7 @@ impl WorldSession {
             let _ = self
                 .apply_inventory_item_obtain_spells_with_generator_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     plan.source.entry_id,
                 )
                 .await;
@@ -1308,6 +1347,7 @@ impl WorldSession {
     async fn execute_inventory_swap_positions_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         src: u16,
         dst: u16,
     ) {
@@ -1320,7 +1360,12 @@ impl WorldSession {
                 return;
             }
             match self
-                .execute_inventory_swap_step_like_cpp(item_guid_generator, step_src, step_dst)
+                .execute_inventory_swap_step_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    step_src,
+                    step_dst,
+                )
                 .await
             {
                 InventorySwapStepLikeCpp::Done => {}
@@ -1490,6 +1535,7 @@ impl WorldSession {
     async fn execute_inventory_auto_unequip_child_item_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         child_bag: u8,
         child_slot: u8,
         child_guid: ObjectGuid,
@@ -1501,6 +1547,7 @@ impl WorldSession {
 
         self.execute_inventory_storage_move_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             child_bag,
             child_slot,
             INVENTORY_SLOT_BAG_0,
@@ -1639,6 +1686,7 @@ impl WorldSession {
     async fn execute_inventory_equip_child_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         plan: InventoryEquipChildPlanLikeCpp,
     ) -> bool {
         if self
@@ -1653,6 +1701,7 @@ impl WorldSession {
         if let Some((bag, slot, target)) = plan.displaced_storage {
             self.execute_inventory_storage_move_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 INVENTORY_SLOT_BAG_0,
                 plan.destination_slot,
                 bag,
@@ -1690,6 +1739,7 @@ impl WorldSession {
     async fn execute_inventory_swap_step_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         src: u16,
         dst: u16,
     ) -> InventorySwapStepLikeCpp {
@@ -1748,6 +1798,7 @@ impl WorldSession {
                 if !self
                     .execute_inventory_auto_unequip_child_item_like_cpp(
                         item_guid_generator,
+                        creature_spawn_catalogs,
                         child_bag,
                         child_slot,
                         child_guid,
@@ -1792,6 +1843,7 @@ impl WorldSession {
                 InventorySwapTargetLikeCpp::Inventory => {
                     self.execute_inventory_storage_move_like_cpp(
                         item_guid_generator,
+                        creature_spawn_catalogs,
                         src_bag,
                         src_slot,
                         dst_bag,
@@ -1805,6 +1857,7 @@ impl WorldSession {
                 InventorySwapTargetLikeCpp::Bank => {
                     self.execute_inventory_storage_move_like_cpp(
                         item_guid_generator,
+                        creature_spawn_catalogs,
                         src_bag,
                         src_slot,
                         dst_bag,
@@ -1818,6 +1871,7 @@ impl WorldSession {
                 InventorySwapTargetLikeCpp::Equipment { dest } => {
                     self.execute_inventory_equip_to_empty_like_cpp(
                         item_guid_generator,
+                        creature_spawn_catalogs,
                         src_bag,
                         src_slot,
                         dest,
@@ -1845,6 +1899,7 @@ impl WorldSession {
             {
                 self.execute_inventory_stack_merge_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     src_bag,
                     src_slot,
                     dst_bag,
@@ -1895,6 +1950,7 @@ impl WorldSession {
 
         self.execute_inventory_real_swap_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             src_bag,
             src_slot,
             dst_bag,
@@ -1911,6 +1967,7 @@ impl WorldSession {
     async fn execute_inventory_equip_to_empty_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination: u16,
@@ -1938,11 +1995,18 @@ impl WorldSession {
         }
         if let Some(plan) = child_plan {
             let _ = self
-                .execute_inventory_equip_child_like_cpp(item_guid_generator, plan)
+                .execute_inventory_equip_child_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    plan,
+                )
                 .await;
         }
-        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(item_guid_generator)
-            .await;
+        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+        )
+        .await;
     }
 
     async fn execute_inventory_equip_to_empty_raw_like_cpp(
@@ -2085,6 +2149,7 @@ impl WorldSession {
     async fn execute_inventory_auto_unequip_offhand_if_need_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
         let Some(reason) = self.represented_auto_unequip_offhand_reason_like_cpp(false) else {
             return;
@@ -2099,6 +2164,7 @@ impl WorldSession {
 
         self.execute_inventory_storage_move_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             INVENTORY_SLOT_BAG_0,
             wow_entities::EQUIPMENT_SLOT_OFFHAND,
             NULL_BAG,
@@ -2132,6 +2198,7 @@ impl WorldSession {
     async fn execute_inventory_stack_merge_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination_bag: u8,
@@ -2283,8 +2350,11 @@ impl WorldSession {
         }
         self.sync_player_registry_state_like_cpp();
         if is_equipment_pos(destination_bag, destination_slot) {
-            self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(item_guid_generator)
-                .await;
+            self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+            )
+            .await;
         }
     }
 
@@ -2322,6 +2392,7 @@ impl WorldSession {
     async fn execute_inventory_real_swap_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination_bag: u8,
@@ -2674,11 +2745,18 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
         for plan in child_plans {
             let _ = self
-                .execute_inventory_equip_child_like_cpp(item_guid_generator, plan)
+                .execute_inventory_equip_child_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    plan,
+                )
                 .await;
         }
-        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(item_guid_generator)
-            .await;
+        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+        )
+        .await;
     }
 
     fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {
@@ -2736,6 +2814,7 @@ impl WorldSession {
     pub async fn handle_swap_inv_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         swap: SwapInvItem,
     ) {
         if swap.inv_update.items.len() != 2 {
@@ -2765,6 +2844,7 @@ impl WorldSession {
         }
         self.execute_inventory_swap_positions_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, swap.src_slot),
             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, swap.dst_slot),
         )
@@ -2775,6 +2855,7 @@ impl WorldSession {
     pub async fn handle_auto_equip_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         equip: AutoEquipItem,
     ) {
         if equip.inv_update.items.len() != 1 {
@@ -2824,6 +2905,7 @@ impl WorldSession {
         else {
             self.execute_inventory_swap_positions_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 source_pos,
                 destination,
             )
@@ -2836,6 +2918,7 @@ impl WorldSession {
         if displaced_is_child {
             self.execute_inventory_swap_positions_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 source_pos,
                 destination,
             )
@@ -2852,6 +2935,7 @@ impl WorldSession {
             SwapItemPreflightResult::ChildRedirect { .. } => {
                 self.execute_inventory_swap_positions_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     source_pos,
                     destination,
                 )
@@ -2878,6 +2962,7 @@ impl WorldSession {
         if exact_displaced_result == InventoryResult::Ok {
             self.execute_inventory_swap_positions_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 source_pos,
                 destination,
             )
@@ -2940,6 +3025,7 @@ impl WorldSession {
 
         self.execute_inventory_storage_move_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             destination_bag,
             destination_slot,
             fallback_bag,
@@ -2957,6 +3043,7 @@ impl WorldSession {
         }
         self.execute_inventory_equip_to_empty_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             equip.pack_slot,
             equip.slot,
             destination,
@@ -2973,6 +3060,7 @@ impl WorldSession {
     pub async fn handle_auto_equip_item_slot_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         equip: AutoEquipItemSlot,
     ) {
         if self.player_guid().is_none() {
@@ -3001,8 +3089,13 @@ impl WorldSession {
         if source == destination {
             return;
         }
-        self.execute_inventory_swap_positions_like_cpp(item_guid_generator, source, destination)
-            .await;
+        self.execute_inventory_swap_positions_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            source,
+            destination,
+        )
+        .await;
     }
 
     /// Handle CMSG_SWAP_ITEM: C++ container-aware swap between two positions.
@@ -3011,6 +3104,7 @@ impl WorldSession {
     pub async fn handle_swap_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         swap: wow_packet::packets::item::SwapItem,
     ) {
         if swap.inv_update.items.len() != 2 {
@@ -3043,8 +3137,13 @@ impl WorldSession {
         {
             return;
         }
-        self.execute_inventory_swap_positions_like_cpp(item_guid_generator, source, destination)
-            .await;
+        self.execute_inventory_swap_positions_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            source,
+            destination,
+        )
+        .await;
     }
 
     /// Handle CMSG_AUTO_STORE_BAG_ITEM: right-click to store item in bag/backpack.
@@ -3054,6 +3153,7 @@ impl WorldSession {
     pub async fn handle_auto_store_bag_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         store: wow_packet::packets::item::AutoStoreBagItem,
     ) {
         let player_guid = match self.player_guid() {
@@ -3109,6 +3209,7 @@ impl WorldSession {
 
         self.execute_inventory_storage_move_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             store.container_slot_a,
             store.slot_a,
             store.container_slot_b,

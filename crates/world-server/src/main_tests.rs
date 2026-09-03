@@ -3687,6 +3687,23 @@ fn session_resources_requires_named_capability_bundles() {
     );
     assert!(
         composition_source
+            .contains("creature_spawns: Arc::new(wow_world::session::CreatureSpawnCatalogsLikeCpp"),
+        "the composition root must group ObjectMgr/World creature materialization catalogs"
+    );
+    for retired_creature_catalog_copy in [
+        "session.set_creature_difficulty_store_like_cpp(",
+        "session.set_creature_base_stats_store_like_cpp(",
+        "session.set_creature_health_rates_like_cpp(",
+        "session.set_creature_addon_store_like_cpp(",
+        "session.set_creature_equipment_store_like_cpp(",
+    ] {
+        assert!(
+            !resources_source.contains(retired_creature_catalog_copy),
+            "process-owned creature catalog {retired_creature_catalog_copy} must be borrowed during materialization"
+        );
+    }
+    assert!(
+        composition_source
             .contains("chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp"),
         "the composition root must group process-owned C++ World chat policy for dispatch"
     );

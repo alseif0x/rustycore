@@ -512,22 +512,28 @@
           "name": "creature_addon_store_like_cpp",
           "type": "Option < Arc < CreatureAddonStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "creature_base_stats_store_like_cpp",
           "type": "Option < Arc < CreatureBaseStatsStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "creature_difficulty_store_like_cpp",
           "type": "Option < Arc < CreatureDifficultyStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "creature_display_info_extra_store",
@@ -547,15 +553,19 @@
           "name": "creature_equipment_store_like_cpp",
           "type": "Option < Arc < CreatureEquipmentStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "creature_health_rates_like_cpp",
           "type": "CreatureClassificationHealthRatesLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "creature_model_data_store",
@@ -5949,6 +5959,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::character::world_entry",
           "trait_path": null,
           "cfg": [],
@@ -6613,7 +6631,7 @@
           "kind": "method",
           "name": "handle_autobank_item_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_autobank_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , packet : AutoBankItem ,)",
+          "signature": "async fn handle_autobank_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , packet : AutoBankItem ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6643,7 +6661,7 @@
           "kind": "method",
           "name": "handle_autostore_bank_item_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_autostore_bank_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , packet : AutoStoreBankItem ,)",
+          "signature": "async fn handle_autostore_bank_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , packet : AutoStoreBankItem ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6840,6 +6858,22 @@
           "name": "creature_virtual_items_from_row_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn creature_virtual_items_from_row_like_cpp (& mut self , entry : u32 , persisted_equipment_id : i16 ,) -> CreatureEquipmentCreateFieldsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::items",
+          "trait_path": null,
+          "kind": "method",
+          "name": "creature_virtual_items_from_row_with_catalogs_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn creature_virtual_items_from_row_with_catalogs_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , entry : u32 , persisted_equipment_id : i16 ,) -> CreatureEquipmentCreateFieldsLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6881,7 +6915,7 @@
           "kind": "method",
           "name": "execute_inventory_auto_unequip_child_item_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_auto_unequip_child_item_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , child_bag : u8 , child_slot : u8 , child_guid : ObjectGuid , hidden_slot : u8 ,) -> bool",
+          "signature": "async fn execute_inventory_auto_unequip_child_item_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , child_bag : u8 , child_slot : u8 , child_guid : ObjectGuid , hidden_slot : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6894,7 +6928,7 @@
           "kind": "method",
           "name": "execute_inventory_auto_unequip_offhand_if_need_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_auto_unequip_offhand_if_need_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,)",
+          "signature": "async fn execute_inventory_auto_unequip_offhand_if_need_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6907,7 +6941,7 @@
           "kind": "method",
           "name": "execute_inventory_equip_child_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_equip_child_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , plan : InventoryEquipChildPlanLikeCpp ,) -> bool",
+          "signature": "async fn execute_inventory_equip_child_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , plan : InventoryEquipChildPlanLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6920,7 +6954,7 @@
           "kind": "method",
           "name": "execute_inventory_equip_to_empty_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_equip_to_empty_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , source_bag : u8 , source_slot : u8 , destination : u16 ,)",
+          "signature": "async fn execute_inventory_equip_to_empty_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , source_bag : u8 , source_slot : u8 , destination : u16 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6946,7 +6980,7 @@
           "kind": "method",
           "name": "execute_inventory_real_swap_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_real_swap_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , source : InventoryItem , destination : InventoryItem , _source_target : InventorySwapTargetLikeCpp , _destination_target : InventorySwapTargetLikeCpp ,)",
+          "signature": "async fn execute_inventory_real_swap_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , source : InventoryItem , destination : InventoryItem , _source_target : InventorySwapTargetLikeCpp , _destination_target : InventorySwapTargetLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6959,7 +6993,7 @@
           "kind": "method",
           "name": "execute_inventory_stack_merge_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_stack_merge_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , source : InventoryItem , destination : InventoryItem ,)",
+          "signature": "async fn execute_inventory_stack_merge_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , source : InventoryItem , destination : InventoryItem ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6972,7 +7006,7 @@
           "kind": "method",
           "name": "execute_inventory_storage_move_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn execute_inventory_storage_move_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp , quest_checks : InventoryStorageQuestChecksLikeCpp , represented_move : Option < RepresentedBankItemMoveLikeCpp > ,)",
+          "signature": "async fn execute_inventory_storage_move_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp , quest_checks : InventoryStorageQuestChecksLikeCpp , represented_move : Option < RepresentedBankItemMoveLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6986,7 +7020,7 @@
           "kind": "method",
           "name": "execute_inventory_swap_positions_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_swap_positions_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , src : u16 , dst : u16 ,)",
+          "signature": "async fn execute_inventory_swap_positions_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , src : u16 , dst : u16 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6999,7 +7033,7 @@
           "kind": "method",
           "name": "execute_inventory_swap_step_like_cpp",
           "visibility": "private",
-          "signature": "async fn execute_inventory_swap_step_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , src : u16 , dst : u16 ,) -> InventorySwapStepLikeCpp",
+          "signature": "async fn execute_inventory_swap_step_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , src : u16 , dst : u16 ,) -> InventorySwapStepLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7058,7 +7092,7 @@
           "kind": "method",
           "name": "handle_auto_equip_item_slot_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_auto_equip_item_slot_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , equip : AutoEquipItemSlot ,)",
+          "signature": "async fn handle_auto_equip_item_slot_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , equip : AutoEquipItemSlot ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7072,7 +7106,7 @@
           "kind": "method",
           "name": "handle_auto_equip_item_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_auto_equip_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , equip : AutoEquipItem ,)",
+          "signature": "async fn handle_auto_equip_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , equip : AutoEquipItem ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7102,7 +7136,7 @@
           "kind": "method",
           "name": "handle_auto_store_bag_item_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_auto_store_bag_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , store : wow_packet :: packets :: item :: AutoStoreBagItem ,)",
+          "signature": "async fn handle_auto_store_bag_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , store : wow_packet :: packets :: item :: AutoStoreBagItem ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7218,7 +7252,7 @@
           "kind": "method",
           "name": "handle_swap_inv_item_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_swap_inv_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , swap : SwapInvItem ,)",
+          "signature": "async fn handle_swap_inv_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , swap : SwapInvItem ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7248,7 +7282,7 @@
           "kind": "method",
           "name": "handle_swap_item_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_swap_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , swap : wow_packet :: packets :: item :: SwapItem ,)",
+          "signature": "async fn handle_swap_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , swap : wow_packet :: packets :: item :: SwapItem ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8149,7 +8183,7 @@
           "kind": "method",
           "name": "handle_binder_activate_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_binder_activate_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , hello : Hello ,)",
+          "signature": "async fn handle_binder_activate_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , hello : Hello ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8302,6 +8336,22 @@
           "name": "materialize_creature_spawn_row_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn materialize_creature_spawn_row_like_cpp (& mut self , map_id : u16 , row : & wow_persistence :: CreatureVisibilityPersistenceRowLikeCpp , viewer_position : & Position , visibility_range : f32 ,) -> Option < MaterializedCreatureSpawnLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::session_state",
+          "trait_path": null,
+          "kind": "method",
+          "name": "materialize_creature_spawn_row_with_catalogs_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn materialize_creature_spawn_row_with_catalogs_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , map_id : u16 , row : & wow_persistence :: CreatureVisibilityPersistenceRowLikeCpp , viewer_position : & Position , visibility_range : f32 ,) -> Option < MaterializedCreatureSpawnLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8468,6 +8518,22 @@
           "name": "send_initial_packets_after_add_to_map",
           "visibility": "pub (crate)",
           "signature": "async fn send_initial_packets_after_add_to_map (& mut self , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::session_state",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_initial_packets_after_add_to_map_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8509,7 +8575,7 @@
           "kind": "method",
           "name": "send_login_sequence",
           "visibility": "pub (super)",
-          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , feature_policy : & SupportFeaturePolicyLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
+          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8910,7 +8976,23 @@
           "kind": "method",
           "name": "send_nearby_creatures",
           "visibility": "pub",
-          "signature": "async fn send_nearby_creatures (& mut self , map_id : u16 , position : & Position , _zone_id : u32)",
+          "signature": "async fn send_nearby_creatures (& mut self , map_id : u16 , position : & Position , zone_id : u32)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_nearby_creatures_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn send_nearby_creatures_with_catalogs_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , map_id : u16 , position : & Position , _zone_id : u32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8939,6 +9021,22 @@
           "name": "update_visibility",
           "visibility": "pub",
           "signature": "async fn update_visibility (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_visibility_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn update_visibility_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8965,7 +9063,7 @@
           "kind": "method",
           "name": "handle_continue_player_login_with_module_registry_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & crate :: session :: PlayerRestRatePolicyLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp ,)",
+          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & crate :: session :: PlayerRestRatePolicyLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -11116,9 +11214,9 @@
           "module": "crate::handlers::loot::handlers",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_refresh_visible_world_creatures_like_cpp_command_like_cpp",
+          "name": "handle_refresh_visible_world_creatures_with_catalogs_like_cpp_command_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_refresh_visible_world_creatures_like_cpp_command_like_cpp (& mut self , command : RefreshVisibleWorldCreaturesLikeCppCommand ,)",
+          "signature": "async fn handle_refresh_visible_world_creatures_with_catalogs_like_cpp_command_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , command : RefreshVisibleWorldCreaturesLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15010,7 +15108,23 @@
           "kind": "method",
           "name": "handle_far_sight",
           "visibility": "pub",
-          "signature": "async fn handle_far_sight (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_far_sight (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_far_sight_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_far_sight_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16593,7 +16707,7 @@
           "kind": "method",
           "name": "handle_use_toy_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_use_toy_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_use_toy_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16635,7 +16749,23 @@
           "kind": "method",
           "name": "handle_world_port_response",
           "visibility": "pub",
-          "signature": "async fn handle_world_port_response (& mut self , _pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_world_port_response (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_world_port_response_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_world_port_response_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , _pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17008,9 +17138,9 @@
           "module": "crate::handlers::movement",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_movement_info_with_area_trigger_catalogs_like_cpp",
+          "name": "handle_movement_info_with_catalogs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_movement_info_with_area_trigger_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , opcode : Option < ClientOpcodes > , mut info : MovementInfo ,)",
+          "signature": "async fn handle_movement_info_with_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , opcode : Option < ClientOpcodes > , mut info : MovementInfo ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17036,9 +17166,9 @@
           "module": "crate::handlers::movement",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_movement_with_area_trigger_catalogs_like_cpp",
+          "name": "handle_movement_with_catalogs_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_movement_with_area_trigger_catalogs_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_movement_with_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19222,9 +19352,9 @@
           "module": "crate::handlers::spell",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_cast_spell_with_area_trigger_catalogs_like_cpp",
+          "name": "handle_cast_spell_with_catalogs_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_cast_spell_with_area_trigger_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_cast_spell_with_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19282,7 +19412,7 @@
           "kind": "method",
           "name": "handle_self_res_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_self_res_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_self_res_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19312,7 +19442,7 @@
           "kind": "method",
           "name": "handle_spell_click_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_spell_click_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_spell_click_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21948,7 +22078,7 @@
           "kind": "method",
           "name": "apply_inventory_item_obtain_spells_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn apply_inventory_item_obtain_spells_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_entry : u32 ,) -> Vec < i32 >",
+          "signature": "async fn apply_inventory_item_obtain_spells_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , item_entry : u32 ,) -> Vec < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22501,7 +22631,7 @@
           "kind": "method",
           "name": "apply_represented_first_login_cast_spells_with_catalogs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn apply_represented_first_login_cast_spells_with_catalogs_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,) -> usize",
+          "signature": "async fn apply_represented_first_login_cast_spells_with_catalogs_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25960,8 +26090,10 @@
           "name": "creature_addon_store_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn creature_addon_store_like_cpp (& self) -> Option < & Arc < CreatureAddonStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25999,6 +26131,21 @@
           "name": "creature_create_stats_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn creature_create_stats_like_cpp (& self , entry : u32 , level : u8 , unit_class : u8 , classification : u32 , regen_health : bool , db_cur_health : u32 , db_cur_mana : u32 ,) -> CreatureCreateStatsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "creature_create_stats_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn creature_create_stats_with_catalogs_like_cpp (& self , catalogs : & CreatureSpawnCatalogsLikeCpp , entry : u32 , level : u8 , unit_class : u8 , classification : u32 , regen_health : bool , db_cur_health : u32 , db_cur_mana : u32 ,) -> CreatureCreateStatsLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26025,8 +26172,10 @@
           "name": "creature_equipment_store_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn creature_equipment_store_like_cpp (& self ,) -> Option < & Arc < CreatureEquipmentStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -26088,6 +26237,21 @@
           "signature": "fn creature_onkill_reputation_store (& self ,) -> Option < & Arc < CreatureOnKillReputationStoreLikeCpp > >",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "creature_spawn_catalogs_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn creature_spawn_catalogs_for_test_like_cpp (& self) -> CreatureSpawnCatalogsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -26949,7 +27113,7 @@
           "kind": "method",
           "name": "execute_represented_spell_click_plan_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn execute_represented_spell_click_plan_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_guid : ObjectGuid , plan : & RepresentedSpellClickPlanLikeCpp ,) -> RepresentedSpellClickExecutionOutcomeLikeCpp",
+          "signature": "async fn execute_represented_spell_click_plan_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , creature_guid : ObjectGuid , plan : & RepresentedSpellClickPlanLikeCpp ,) -> RepresentedSpellClickExecutionOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26977,7 +27141,7 @@
           "kind": "method",
           "name": "execute_spell_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn execute_spell_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
+          "signature": "async fn execute_spell_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27005,7 +27169,7 @@
           "kind": "method",
           "name": "execute_spell_with_target_data_and_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn execute_spell_with_target_data_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , target_guid : ObjectGuid , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
+          "signature": "async fn execute_spell_with_target_data_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27033,7 +27197,7 @@
           "kind": "method",
           "name": "execute_spell_with_visual_and_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn execute_spell_with_visual_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual ,) -> Result < () , & 'static str >",
+          "signature": "async fn execute_spell_with_visual_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27061,7 +27225,7 @@
           "kind": "method",
           "name": "execute_spell_with_visual_and_target_data_and_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
+          "signature": "async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27089,7 +27253,7 @@
           "kind": "method",
           "name": "execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData , metadata : SpellCastMetadata ,) -> Result < () , & 'static str >",
+          "signature": "async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData , metadata : SpellCastMetadata ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27295,9 +27459,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "flush_pending_visibility_refresh_like_cpp",
+          "name": "flush_pending_visibility_refresh_with_catalogs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn flush_pending_visibility_refresh_like_cpp (& mut self)",
+          "signature": "async fn flush_pending_visibility_refresh_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27324,6 +27488,21 @@
           "name": "force_update_visibility_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn force_update_visibility_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "force_update_visibility_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn force_update_visibility_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -33833,7 +34012,7 @@
           "kind": "method",
           "name": "poll_instance_link_with_module_registry_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & super :: PlayerRestRatePolicyLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp ,)",
+          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , creature_spawn_catalogs : & super :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & super :: PlayerRestRatePolicyLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45628,8 +45807,10 @@
           "name": "set_creature_addon_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_creature_addon_store_like_cpp (& mut self , store : Arc < CreatureAddonStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45642,8 +45823,10 @@
           "name": "set_creature_base_stats_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_creature_base_stats_store_like_cpp (& mut self , store : Arc < CreatureBaseStatsStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45656,8 +45839,10 @@
           "name": "set_creature_difficulty_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_creature_difficulty_store_like_cpp (& mut self , store : Arc < CreatureDifficultyStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45698,8 +45883,10 @@
           "name": "set_creature_equipment_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_creature_equipment_store_like_cpp (& mut self , store : Arc < CreatureEquipmentStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45712,8 +45899,10 @@
           "name": "set_creature_health_rates_like_cpp",
           "visibility": "pub",
           "signature": "fn set_creature_health_rates_like_cpp (& mut self , rates : CreatureClassificationHealthRatesLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -52461,7 +52650,7 @@
           "kind": "method",
           "name": "tick_active_spell_cast_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn tick_active_spell_cast_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,)",
+          "signature": "async fn tick_active_spell_cast_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -52528,7 +52717,7 @@
           "kind": "method",
           "name": "tick_pending_spell_cast_request_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn tick_pending_spell_cast_request_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,)",
+          "signature": "async fn tick_pending_spell_cast_request_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -60039,7 +60228,7 @@
           "package": "wow-world",
           "module": "crate::handlers::character::visibility",
           "source": "crates/wow-world/src/handlers/character/visibility.rs",
-          "enclosing": "impl WorldSession::update_visibility",
+          "enclosing": "impl WorldSession::update_visibility_with_catalogs_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
@@ -63172,7 +63361,7 @@
           "package": "wow-world",
           "module": "crate::handlers::movement",
           "source": "crates/wow-world/src/handlers/movement.rs",
-          "enclosing": "impl WorldSession::handle_movement_info_with_area_trigger_catalogs_like_cpp",
+          "enclosing": "impl WorldSession::handle_movement_info_with_catalogs_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
@@ -75697,7 +75886,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4b17290c7603af9c2f143a8706a91b77:len=96872|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5f5eb12e34cc0aec0158c8b275574b37:len=96947|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

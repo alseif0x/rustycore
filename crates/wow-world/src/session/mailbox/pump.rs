@@ -95,7 +95,10 @@ impl WorldSession {
             self.apply_session_command_with_catalogs_like_cpp(catalogs, command)
                 .await;
         }
-        self.flush_pending_visibility_refresh_like_cpp().await;
+        self.flush_pending_visibility_refresh_with_catalogs_like_cpp(
+            catalogs.creature_spawns.as_ref(),
+        )
+        .await;
     }
 
     #[cfg(test)]

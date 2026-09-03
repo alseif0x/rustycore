@@ -834,6 +834,7 @@ inventory::submit! {
                         session
                             .handle_autobank_item_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 packet,
                             )
                             .await
@@ -858,6 +859,7 @@ inventory::submit! {
                         session
                             .handle_autostore_bank_item_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 packet,
                             )
                             .await
@@ -924,6 +926,7 @@ inventory::submit! {
                         session
                             .handle_binder_activate_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 hello,
                             )
                             .await
@@ -1068,6 +1071,7 @@ inventory::submit! {
                         session
                             .handle_swap_inv_item_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 swap,
                             )
                             .await
@@ -1092,6 +1096,7 @@ inventory::submit! {
                         session
                             .handle_auto_equip_item_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 equip,
                             )
                             .await
@@ -1116,6 +1121,7 @@ inventory::submit! {
                         session
                             .handle_auto_equip_item_slot_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 equip,
                             )
                             .await
@@ -1140,6 +1146,7 @@ inventory::submit! {
                         session
                             .handle_swap_item_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 swap,
                             )
                             .await
@@ -1164,6 +1171,7 @@ inventory::submit! {
                         session
                             .handle_auto_store_bag_item_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
                                 store,
                             )
                             .await

@@ -340,6 +340,35 @@ pub struct PlayerRestRatePolicyLikeCpp {
     pub ingame: f32,
 }
 
+/// Process-owned C++ `ObjectMgr` creature materialization catalogs and
+/// `World` creature-health policy.
+///
+/// C++ resolves these through `sObjectMgr`/`sWorld` while `Creature::InitEntry`,
+/// `UpdateLevelDependantStats`, `LoadEquipment`, and `GetCreatureAddon` build a
+/// creature (`Creature.cpp:491-615,1550-1615,1931-1965,2722-2755`). A
+/// `WorldSession` borrows them only while adapting visibility; it owns none of
+/// the stores or rates.
+pub struct CreatureSpawnCatalogsLikeCpp {
+    pub difficulty: Arc<CreatureDifficultyStoreLikeCpp>,
+    pub base_stats: Arc<CreatureBaseStatsStoreLikeCpp>,
+    pub health_rates: CreatureClassificationHealthRatesLikeCpp,
+    pub addons: Arc<CreatureAddonStoreLikeCpp>,
+    pub equipment: Arc<CreatureEquipmentStoreLikeCpp>,
+}
+
+#[cfg(test)]
+impl Default for CreatureSpawnCatalogsLikeCpp {
+    fn default() -> Self {
+        Self {
+            difficulty: Arc::new(CreatureDifficultyStoreLikeCpp::default()),
+            base_stats: Arc::new(CreatureBaseStatsStoreLikeCpp::default()),
+            health_rates: CreatureClassificationHealthRatesLikeCpp::default(),
+            addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
+            equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
+        }
+    }
+}
+
 impl Default for PlayerRestRatePolicyLikeCpp {
     fn default() -> Self {
         Self {
@@ -552,6 +581,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub item_valuation: Arc<ItemValuationCatalogsLikeCpp>,
     pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
     pub player_rest_rates: Arc<PlayerRestRatePolicyLikeCpp>,
+    pub creature_spawns: Arc<CreatureSpawnCatalogsLikeCpp>,
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
     pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
@@ -576,6 +606,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             item_valuation: Arc::new(ItemValuationCatalogsLikeCpp::default()),
             player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
             player_rest_rates: Arc::new(PlayerRestRatePolicyLikeCpp::default()),
+            creature_spawns: Arc::new(CreatureSpawnCatalogsLikeCpp::default()),
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
             support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
@@ -5909,14 +5940,19 @@ pub struct WorldSession {
     championing_faction_like_cpp: u32,
     creature_template_lifecycle_store_like_cpp: Option<Arc<CreatureTemplateLifecycleStoreLikeCpp>>,
     creature_template_mount_store: Option<Arc<CreatureTemplateMountStoreLikeCpp>>,
+    #[cfg(test)]
     creature_equipment_store_like_cpp: Option<Arc<CreatureEquipmentStoreLikeCpp>>,
     creature_display_info_store: Option<Arc<CreatureDisplayInfoStore>>,
     creature_display_info_extra_store: Option<Arc<CreatureDisplayInfoExtraStore>>,
     gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
     creature_model_info_store: Option<Arc<wow_data::CreatureModelInfoStoreLikeCpp>>,
+    #[cfg(test)]
     creature_addon_store_like_cpp: Option<Arc<CreatureAddonStoreLikeCpp>>,
+    #[cfg(test)]
     creature_difficulty_store_like_cpp: Option<Arc<CreatureDifficultyStoreLikeCpp>>,
+    #[cfg(test)]
     creature_base_stats_store_like_cpp: Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
+    #[cfg(test)]
     creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp,
     creature_model_data_store: Option<Arc<CreatureModelDataStore>>,
     mount_store: Option<Arc<MountStore>>,
@@ -8276,14 +8312,19 @@ impl WorldSession {
             championing_faction_like_cpp: 0,
             creature_template_lifecycle_store_like_cpp: None,
             creature_template_mount_store: None,
+            #[cfg(test)]
             creature_equipment_store_like_cpp: None,
             creature_display_info_store: None,
             creature_display_info_extra_store: None,
             gameobject_display_info_store: None,
             creature_model_info_store: None,
+            #[cfg(test)]
             creature_addon_store_like_cpp: None,
+            #[cfg(test)]
             creature_difficulty_store_like_cpp: None,
+            #[cfg(test)]
             creature_base_stats_store_like_cpp: None,
+            #[cfg(test)]
             creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp::default(),
             creature_model_data_store: None,
             mount_store: None,
@@ -15312,6 +15353,7 @@ impl WorldSession {
     pub(crate) async fn execute_represented_spell_click_plan_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         creature_guid: ObjectGuid,
         plan: &RepresentedSpellClickPlanLikeCpp,
     ) -> RepresentedSpellClickExecutionOutcomeLikeCpp {
@@ -15395,6 +15437,7 @@ impl WorldSession {
             let result = self
                 .execute_spell_with_visual_and_target_data_and_generator_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     target_guid,
                     cast_id,
@@ -15453,8 +15496,10 @@ impl WorldSession {
         plan: &RepresentedSpellClickPlanLikeCpp,
     ) -> RepresentedSpellClickExecutionOutcomeLikeCpp {
         let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.execute_represented_spell_click_plan_with_generator_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             creature_guid,
             plan,
         )
@@ -28259,6 +28304,7 @@ impl WorldSession {
         self.creature_template_lifecycle_store_like_cpp.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_creature_equipment_store_like_cpp(
         &mut self,
         store: Arc<CreatureEquipmentStoreLikeCpp>,
@@ -28266,6 +28312,7 @@ impl WorldSession {
         self.creature_equipment_store_like_cpp = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn creature_equipment_store_like_cpp(
         &self,
     ) -> Option<&Arc<CreatureEquipmentStoreLikeCpp>> {
@@ -28298,14 +28345,17 @@ impl WorldSession {
         self.creature_model_info_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_creature_addon_store_like_cpp(&mut self, store: Arc<CreatureAddonStoreLikeCpp>) {
         self.creature_addon_store_like_cpp = Some(store);
     }
 
+    #[cfg(test)]
     pub(crate) fn creature_addon_store_like_cpp(&self) -> Option<&Arc<CreatureAddonStoreLikeCpp>> {
         self.creature_addon_store_like_cpp.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_creature_difficulty_store_like_cpp(
         &mut self,
         store: Arc<CreatureDifficultyStoreLikeCpp>,
@@ -28313,6 +28363,7 @@ impl WorldSession {
         self.creature_difficulty_store_like_cpp = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_creature_base_stats_store_like_cpp(
         &mut self,
         store: Arc<CreatureBaseStatsStoreLikeCpp>,
@@ -28320,11 +28371,35 @@ impl WorldSession {
         self.creature_base_stats_store_like_cpp = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_creature_health_rates_like_cpp(
         &mut self,
         rates: CreatureClassificationHealthRatesLikeCpp,
     ) {
         self.creature_health_rates_like_cpp = rates;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn creature_spawn_catalogs_for_test_like_cpp(&self) -> CreatureSpawnCatalogsLikeCpp {
+        CreatureSpawnCatalogsLikeCpp {
+            difficulty: self
+                .creature_difficulty_store_like_cpp
+                .clone()
+                .unwrap_or_else(|| Arc::new(CreatureDifficultyStoreLikeCpp::default())),
+            base_stats: self
+                .creature_base_stats_store_like_cpp
+                .clone()
+                .unwrap_or_else(|| Arc::new(CreatureBaseStatsStoreLikeCpp::default())),
+            health_rates: self.creature_health_rates_like_cpp,
+            addons: self
+                .creature_addon_store_like_cpp
+                .clone()
+                .unwrap_or_else(|| Arc::new(CreatureAddonStoreLikeCpp::default())),
+            equipment: self
+                .creature_equipment_store_like_cpp
+                .clone()
+                .unwrap_or_else(|| Arc::new(CreatureEquipmentStoreLikeCpp::default())),
+        }
     }
 
     pub(crate) fn creature_create_model_scalars_like_cpp(
@@ -28469,8 +28544,9 @@ impl WorldSession {
         })
     }
 
-    pub(crate) fn creature_create_stats_like_cpp(
+    pub(crate) fn creature_create_stats_with_catalogs_like_cpp(
         &self,
+        catalogs: &CreatureSpawnCatalogsLikeCpp,
         entry: u32,
         level: u8,
         unit_class: u8,
@@ -28481,48 +28557,11 @@ impl WorldSession {
     ) -> CreatureCreateStatsLikeCpp {
         let power_type =
             power_type_from_u8_like_cpp(self.creature_display_power_for_class_like_cpp(unit_class));
-        let db_cur_power = i32::try_from(db_cur_mana).unwrap_or(i32::MAX);
-        let fallback_power = if power_type == PowerType::Mana {
-            wow_data::character_progression::CreatureInitialPowerLikeCpp {
-                max_power: db_cur_power,
-                power: db_cur_power,
-            }
-        } else {
-            self.power_type_store.as_ref().map_or(
-                wow_data::character_progression::CreatureInitialPowerLikeCpp {
-                    max_power: 0,
-                    power: 0,
-                },
-                |store| store.creature_initial_power_like_cpp(power_type as i8, 0, 1.0),
-            )
-        };
-        let Some(difficulty_store) = self.creature_difficulty_store_like_cpp.as_ref() else {
-            let health = i64::from(db_cur_health.max(1));
-            return CreatureCreateStatsLikeCpp {
-                health,
-                max_health: health,
-                power_type,
-                power: fallback_power.power,
-                max_power: fallback_power.max_power,
-                base_mana: 0,
-            };
-        };
-        let Some(base_stats_store) = self.creature_base_stats_store_like_cpp.as_ref() else {
-            let health = i64::from(db_cur_health.max(1));
-            return CreatureCreateStatsLikeCpp {
-                health,
-                max_health: health,
-                power_type,
-                power: fallback_power.power,
-                max_power: fallback_power.max_power,
-                base_mana: 0,
-            };
-        };
-        let difficulty = difficulty_store.get_like_cpp(entry, 0);
+        let difficulty = catalogs.difficulty.get_like_cpp(entry, 0);
 
-        let base_stats = base_stats_store.get_like_cpp(level, unit_class);
-        let health_rate = self
-            .creature_health_rates_like_cpp
+        let base_stats = catalogs.base_stats.get_like_cpp(level, unit_class);
+        let health_rate = catalogs
+            .health_rates
             .modifier_for_classification_like_cpp(classification);
         let max_health = i64::from(
             (base_stats.generate_health_like_cpp(difficulty) as f32 * health_rate) as u32,
@@ -28573,6 +28612,30 @@ impl WorldSession {
             max_power: initial_power.max_power,
             base_mana,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn creature_create_stats_like_cpp(
+        &self,
+        entry: u32,
+        level: u8,
+        unit_class: u8,
+        classification: u32,
+        regen_health: bool,
+        db_cur_health: u32,
+        db_cur_mana: u32,
+    ) -> CreatureCreateStatsLikeCpp {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.creature_create_stats_with_catalogs_like_cpp(
+            &catalogs,
+            entry,
+            level,
+            unit_class,
+            classification,
+            regen_health,
+            db_cur_health,
+            db_cur_mana,
+        )
     }
 
     pub(crate) fn creature_display_power_for_class_like_cpp(&self, unit_class: u8) -> u8 {
@@ -33583,6 +33646,7 @@ impl WorldSession {
     pub(crate) async fn apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
     ) -> usize {
         let Some(player_guid) = self.player_guid() else {
@@ -33605,6 +33669,7 @@ impl WorldSession {
             if self
                 .execute_spell_with_generator_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id as i32,
                     player_guid,
                 )
@@ -33621,9 +33686,11 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {
         let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
         self.apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             &player_bootstrap,
         )
         .await
@@ -45078,6 +45145,7 @@ impl WorldSession {
     pub(crate) async fn apply_inventory_item_obtain_spells_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         item_entry: u32,
     ) -> Vec<i32> {
         if self
@@ -45113,7 +45181,12 @@ impl WorldSession {
                 continue;
             }
             if self
-                .execute_spell_with_generator_like_cpp(item_guid_generator, spell_id, player_guid)
+                .execute_spell_with_generator_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    spell_id,
+                    player_guid,
+                )
                 .await
                 .is_ok()
             {
@@ -45129,8 +45202,10 @@ impl WorldSession {
         item_entry: u32,
     ) -> Vec<i32> {
         let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.apply_inventory_item_obtain_spells_with_generator_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             item_entry,
         )
         .await
@@ -60907,6 +60982,7 @@ impl WorldSession {
     pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
         let Some(request) = self.represented_pending_spell_cast_request_like_cpp.clone() else {
             return;
@@ -60935,6 +61011,7 @@ impl WorldSession {
         if let Err(error) = self
             .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                 item_guid_generator,
+                creature_spawn_catalogs,
                 request.spell_id,
                 request.target_guid,
                 request.cast_id,
@@ -60963,8 +61040,12 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.tick_pending_spell_cast_request_with_generator_like_cpp(generators.item.as_ref())
-            .await;
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.tick_pending_spell_cast_request_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+        )
+        .await;
     }
 
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
@@ -62406,9 +62487,13 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn force_update_visibility_like_cpp(&mut self) {
+    pub(crate) async fn force_update_visibility_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    ) {
         self.last_visibility_pos = None;
-        self.update_visibility().await;
+        self.update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+            .await;
     }
 
     pub(crate) fn clear_pending_visibility_refresh_like_cpp(&self) {
@@ -62416,7 +62501,10 @@ impl WorldSession {
             .store(false, Ordering::Release);
     }
 
-    pub(crate) async fn flush_pending_visibility_refresh_like_cpp(&mut self) {
+    pub(crate) async fn flush_pending_visibility_refresh_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    ) {
         if self.state() != SessionState::LoggedIn {
             return;
         }
@@ -62424,8 +62512,16 @@ impl WorldSession {
             .visibility_refresh_pending_like_cpp
             .swap(false, Ordering::AcqRel)
         {
-            self.force_update_visibility_like_cpp().await;
+            self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+                .await;
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn force_update_visibility_like_cpp(&mut self) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.force_update_visibility_with_catalogs_like_cpp(&catalogs)
+            .await;
     }
 
     /// Kick the session (mark as disconnecting).
@@ -69280,6 +69376,7 @@ impl WorldSession {
     pub(crate) async fn tick_active_spell_cast_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
         let Some(ref cast_state) = self.active_spell_cast.clone() else {
             return;
@@ -69305,6 +69402,7 @@ impl WorldSession {
             if let Err(e) = self
                 .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     target,
                     cast_id,
@@ -69332,8 +69430,12 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) async fn tick_active_spell_cast(&mut self) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.tick_active_spell_cast_with_generator_like_cpp(generators.item.as_ref())
-            .await;
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.tick_active_spell_cast_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+        )
+        .await;
     }
 
     /// Called every ~100ms. Handles auto-attack swing timer (player → creature).
@@ -69828,6 +69930,7 @@ impl WorldSession {
     pub async fn execute_spell_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         spell_id: i32,
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
@@ -69835,6 +69938,7 @@ impl WorldSession {
 
         self.execute_spell_with_visual_and_generator_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             spell_id,
             target_guid,
             ObjectGuid::EMPTY,
@@ -69853,13 +69957,20 @@ impl WorldSession {
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
         let generators = self.id_generators_for_test_like_cpp();
-        self.execute_spell_with_generator_like_cpp(generators.item.as_ref(), spell_id, target_guid)
-            .await
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.execute_spell_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            spell_id,
+            target_guid,
+        )
+        .await
     }
 
     pub async fn execute_spell_with_target_data_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         spell_id: i32,
         target_guid: ObjectGuid,
         target_data: SpellTargetData,
@@ -69868,6 +69979,7 @@ impl WorldSession {
 
         self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             spell_id,
             target_guid,
             ObjectGuid::EMPTY,
@@ -69888,8 +70000,10 @@ impl WorldSession {
         target_data: SpellTargetData,
     ) -> Result<(), &'static str> {
         let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.execute_spell_with_target_data_and_generator_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             spell_id,
             target_guid,
             target_data,
@@ -69904,6 +70018,7 @@ impl WorldSession {
     pub async fn execute_spell_with_visual_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         spell_id: i32,
         target_guid: ObjectGuid,
         cast_id: ObjectGuid,
@@ -69911,6 +70026,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             spell_id,
             target_guid,
             cast_id,
@@ -69934,8 +70050,10 @@ impl WorldSession {
         spell_visual: wow_packet::packets::spell::SpellCastVisual,
     ) -> Result<(), &'static str> {
         let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.execute_spell_with_visual_and_generator_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             spell_id,
             target_guid,
             cast_id,
@@ -69961,6 +70079,7 @@ impl WorldSession {
     pub async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         spell_id: i32,
         target_guid: ObjectGuid,
         cast_id: ObjectGuid,
@@ -69969,6 +70088,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
             item_guid_generator,
+            creature_spawn_catalogs,
             spell_id,
             target_guid,
             cast_id,
@@ -69989,8 +70109,10 @@ impl WorldSession {
         target_data: SpellTargetData,
     ) -> Result<(), &'static str> {
         let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             spell_id,
             target_guid,
             cast_id,
@@ -70011,8 +70133,10 @@ impl WorldSession {
         metadata: SpellCastMetadata,
     ) -> Result<(), &'static str> {
         let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
             generators.item.as_ref(),
+            &creature_spawn_catalogs,
             spell_id,
             target_guid,
             cast_id,
@@ -70026,6 +70150,7 @@ impl WorldSession {
     pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         spell_id: i32,
         target_guid: ObjectGuid,
         cast_id: ObjectGuid,
@@ -70309,7 +70434,8 @@ impl WorldSession {
             }
         }
         if force_visibility_after_add_farsight {
-            self.force_update_visibility_like_cpp().await;
+            self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+                .await;
         }
 
         for effect in spell_info.effects() {
@@ -70384,7 +70510,8 @@ impl WorldSession {
             }
         }
         if force_visibility_after_gameobject_summon {
-            self.force_update_visibility_like_cpp().await;
+            self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+                .await;
         }
 
         let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32, i32)> =
