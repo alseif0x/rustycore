@@ -2145,8 +2145,10 @@
           "name": "player_equipment_inventory_authority_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_faction_template_like_cpp",
@@ -2289,15 +2291,19 @@
           "name": "player_mount_vehicle_accessories_like_cpp",
           "type": "Vec < VehicleAccessory >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_mount_vehicle_id_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_mount_vehicle_kit_like_cpp",
@@ -2312,15 +2318,19 @@
           "name": "player_mount_vehicle_seat_count_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_mount_vehicle_usable_seat_count_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_mounted_like_cpp",
@@ -2498,8 +2508,10 @@
           "name": "player_scale_duration_like_cpp",
           "type": "i32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_skill_non_durable_tombstones_like_cpp",
@@ -3279,8 +3291,10 @@
           "name": "represented_can_swim_to_fly_transition_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_capture_point_removed_delivered_like_cpp",
@@ -3727,8 +3741,10 @@
           "name": "represented_gray_level_script_overrides_like_cpp",
           "type": "HashMap < u8 , u8 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_group_update_sequences_like_cpp",
@@ -3865,8 +3881,10 @@
           "name": "represented_is_outdoors_like_cpp",
           "type": "Option < bool >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_appearance_blocks_like_cpp",
@@ -4037,8 +4055,10 @@
           "name": "represented_mover_fixed_position_vehicle_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_movie_complete_events_like_cpp",
@@ -4234,8 +4254,10 @@
           "name": "represented_player_recent_instances_like_cpp",
           "type": "HashMap < u32 , u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_spell_rows_complete_like_cpp",
@@ -39199,8 +39221,10 @@
           "name": "represented_player_recent_instance_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_player_recent_instance_id_like_cpp (& self , map_id : u32) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -41609,6 +41633,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_can_swim_to_fly_transition_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_can_swim_to_fly_transition_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_championing_faction_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_championing_faction_like_cpp (& self) -> Option < u32 >",
@@ -41905,6 +41940,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_mover_fixed_position_vehicle_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_mover_fixed_position_vehicle_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_pass_on_group_loot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_pass_on_group_loot_like_cpp (& self) -> Option < bool >",
@@ -42161,6 +42207,30 @@
           "name": "resolved_player_power_values_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_player_power_values_like_cpp (& self) -> Option < [i32 ; MAX_POWERS_PER_CLASS] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_recent_instance_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_recent_instance_id_like_cpp (& self , map_id : u32) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_scale_duration_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_scale_duration_like_cpp (& self) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -48593,8 +48663,10 @@
           "name": "set_represented_gray_level_script_override_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_gray_level_script_override_like_cpp (& mut self , player_level : u8 , gray_level : u8 ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48853,7 +48925,7 @@
           "kind": "method",
           "name": "set_represented_player_recent_instance_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_player_recent_instance_like_cpp (& mut self , map_id : u32 , instance_id : u32 ,)",
+          "signature": "fn set_represented_player_recent_instance_like_cpp (& mut self , map_id : u32 , instance_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -74895,7 +74967,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b188f8cba94d4ee8d1e124e0d15dd1b3:len=96227|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e380be442eb7c6e61a7134bf7a84ad55:len=96392|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

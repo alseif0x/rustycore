@@ -7923,6 +7923,82 @@ fn represented_player_recent_instance_tracks_id_by_map_like_cpp() {
 }
 
 #[test]
+fn canonical_player_recent_instances_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_579);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "RecentInstanceOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_player_recent_instance_like_cpp(631, 9_001));
+    assert_eq!(
+        session.resolved_player_recent_instance_id_like_cpp(631),
+        Some(9_001)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_recent_instance_id_like_cpp(631),
+        Some(9_001)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement
+        .gameplay_state_mut()
+        .recent_instances
+        .insert(631, 7_777);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.resolved_player_recent_instance_id_like_cpp(631),
+        None
+    );
+    assert!(!session.set_represented_player_recent_instance_like_cpp(631, 0));
+    assert!(!session.forget_represented_player_recent_instance_like_cpp(631));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .gameplay_state()
+                .recent_instances
+                .get(&631)
+                .copied(),),
+        Some(Some(7_777))
+    );
+}
+
+#[test]
 fn create_map_player_context_uses_solo_recent_instance_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
@@ -32189,6 +32265,16 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
     session.set_movement_force_mod_magnitude_changes_like_cpp(3);
     session.set_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run, 1.5);
     session.set_movement_force_mod_magnitude_like_cpp(1.25);
+    assert!(
+        session
+            .with_owned_player_mut_like_cpp(|player| {
+                let movement = &mut player.gameplay_state_mut().movement_control;
+                movement.can_swim_to_fly_transition = true;
+                movement.mover_fixed_position_vehicle = true;
+                movement.scale_duration = 250;
+            })
+            .is_some()
+    );
     assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
     assert_eq!(session.fall_information_like_cpp(), (1_200, 87.5));
     assert_eq!(
@@ -32208,6 +32294,15 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         Some(1.25)
     );
     assert_eq!(session.movement_counter_like_cpp(), Some(1));
+    assert_eq!(
+        session.resolved_can_swim_to_fly_transition_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(
+        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(session.resolved_player_scale_duration_like_cpp(), Some(250));
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
@@ -32223,6 +32318,15 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         2
     );
     assert_eq!(session.movement_counter_like_cpp(), Some(1));
+    assert_eq!(
+        session.resolved_can_swim_to_fly_transition_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(
+        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(session.resolved_player_scale_duration_like_cpp(), Some(250));
 
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
@@ -32267,7 +32371,15 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         None
     );
     assert_eq!(session.movement_counter_like_cpp(), None);
+    assert_eq!(session.resolved_can_swim_to_fly_transition_like_cpp(), None);
+    assert_eq!(
+        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        None
+    );
+    assert_eq!(session.resolved_player_scale_duration_like_cpp(), None);
     assert!(!session.set_fall_information_like_cpp(2_000, 10.0));
+    assert!(!session.set_represented_can_swim_to_fly_transition_like_cpp(false));
+    session.set_represented_mover_fixed_position_vehicle_like_cpp(false);
     assert_eq!(session.next_movement_counter_like_cpp(), None);
     assert_eq!(
         canonical
@@ -32282,8 +32394,90 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
                     .speed_rate_at_like_cpp(UnitMoveTypeLikeCpp::Run.index()),
                 player.unit().movement_force_mod_magnitude_like_cpp(),
                 player.unit().movement_counter_like_cpp(),
+                player
+                    .gameplay_state()
+                    .movement_control
+                    .can_swim_to_fly_transition,
+                player
+                    .gameplay_state()
+                    .movement_control
+                    .mover_fixed_position_vehicle,
+                player.gameplay_state().movement_control.scale_duration,
             )),
-        Some(((900, 44.0), Some(7), 8, Some(0.75), 0.8, 2))
+        Some(((900, 44.0), Some(7), 8, Some(0.75), 0.8, 2, false, false, 0))
+    );
+}
+
+#[test]
+fn canonical_player_outdoors_state_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_580);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "OutdoorsOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    session.set_represented_is_outdoors_like_cpp(true);
+    assert_eq!(
+        session
+            .player_world_local_state_like_cpp()
+            .and_then(|state| state.is_outdoors),
+        Some(true)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    session.set_represented_is_outdoors_like_cpp(false);
+    assert_eq!(
+        session
+            .player_world_local_state_like_cpp()
+            .and_then(|state| state.is_outdoors),
+        Some(false)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().world_local.is_outdoors = Some(true);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_world_local_state_like_cpp(), None);
+    session.set_represented_is_outdoors_like_cpp(false);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .gameplay_state()
+                .world_local
+                .is_outdoors,),
+        Some(Some(true))
     );
 }
 
@@ -33250,6 +33444,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         pvp_hostile: true,
         pvp_end_timer: Some(123),
         contested_pvp_timer: 456,
+        is_outdoors: Some(true),
     };
     replacement
         .unit_mut()
@@ -33451,6 +33646,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 pvp_hostile: true,
                 pvp_end_timer: Some(123),
                 contested_pvp_timer: 456,
+                is_outdoors: Some(true),
             },
             UnitPvpFlags::PVP,
         ))

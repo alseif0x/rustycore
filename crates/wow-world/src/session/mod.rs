@@ -5679,6 +5679,7 @@ pub struct WorldSession {
     represented_raid_difficulty_id_like_cpp: u32,
     #[cfg(test)]
     represented_legacy_raid_difficulty_id_like_cpp: u32,
+    #[cfg(test)]
     represented_player_recent_instances_like_cpp: HashMap<u32, u32>,
     faction_store: Option<Arc<FactionStore>>,
     friendship_rep_reaction_store: Option<Arc<FriendshipRepReactionStore>>,
@@ -5757,6 +5758,7 @@ pub struct WorldSession {
     player_skill_records_complete_like_cpp: bool,
     #[cfg(test)]
     player_skill_occupied_slots_like_cpp: Option<u16>,
+    #[cfg(test)]
     represented_gray_level_script_overrides_like_cpp: HashMap<u8, u8>,
 
     // Realm ID for GUID creation
@@ -6193,8 +6195,10 @@ pub struct WorldSession {
     #[cfg(test)]
     player_movement_flags_like_cpp: MovementFlag,
     /// Represented C++ `MOVEMENTFLAG2_CAN_SWIM_TO_FLY_TRANS` server-controlled state.
+    #[cfg(test)]
     represented_can_swim_to_fly_transition_like_cpp: bool,
     /// Represented `m_unitMovedByMe->GetVehicle()->GetVehicleInfo()->Flags & VEHICLE_FLAG_FIXED_POSITION`.
+    #[cfg(test)]
     represented_mover_fixed_position_vehicle_like_cpp: bool,
 
     /// Cached character name for chat messages.
@@ -6406,15 +6410,19 @@ pub struct WorldSession {
     #[cfg(test)]
     player_mount_display_id_like_cpp: i32,
     /// Represented vehicle id selected from mount creature template until VehicleKit exists.
+    #[cfg(test)]
     player_mount_vehicle_id_like_cpp: u32,
     /// Legacy handle-less test fixture for C++ `Unit::m_vehicleKit`.
     #[cfg(test)]
     pub(crate) player_mount_vehicle_kit_like_cpp: Option<Vehicle>,
     /// Vehicle accessory rows selected by C++ `Vehicle::InstallAllAccessories(false)`.
+    #[cfg(test)]
     player_mount_vehicle_accessories_like_cpp: Vec<VehicleAccessory>,
     /// Represented number of VehicleSeat rows installed by C++ `Vehicle` constructor.
+    #[cfg(test)]
     player_mount_vehicle_seat_count_like_cpp: u8,
     /// Represented C++ `Vehicle::UsableSeatNum`.
+    #[cfg(test)]
     player_mount_vehicle_usable_seat_count_like_cpp: u8,
     /// Legacy handle-less test fixture for current `VehicleSeatEntry::Flags`.
     #[cfg(test)]
@@ -6542,6 +6550,7 @@ pub struct WorldSession {
     #[cfg(test)]
     player_object_scale_like_cpp: f32,
     /// Represented `UnitData::ScaleDuration` for movement collision-height packets.
+    #[cfg(test)]
     player_scale_duration_like_cpp: i32,
     /// Handle-less fixture for C++ `UnitData::Flags`.
     #[cfg(test)]
@@ -6681,6 +6690,7 @@ pub struct WorldSession {
     /// True only when `SEL_CHAR_EQUIPMENT` succeeded and proved that the active
     /// character has no top-level persisted item rows. Empty runtime inventory
     /// alone is not source proof because malformed rows may be rejected.
+    #[cfg(test)]
     player_equipment_inventory_authority_complete_like_cpp: bool,
     /// Difficulty-selected C++ `AuraEffect` identity captured when the aura is applied.
     #[cfg(test)]
@@ -7094,6 +7104,7 @@ pub struct WorldSession {
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
     vmap_indoor_check_like_cpp: bool,
     /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.
+    #[cfg(test)]
     represented_is_outdoors_like_cpp: Option<bool>,
     /// Fixture-only fallback. Production C++ `ReputationMgr` state is owned by
     /// the generation-checked canonical `Player`.
@@ -8003,6 +8014,7 @@ impl WorldSession {
             represented_raid_difficulty_id_like_cpp: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
             #[cfg(test)]
             represented_legacy_raid_difficulty_id_like_cpp: DIFFICULTY_10_N_LIKE_CPP,
+            #[cfg(test)]
             represented_player_recent_instances_like_cpp: HashMap::new(),
             faction_store: None,
             friendship_rep_reaction_store: None,
@@ -8067,6 +8079,7 @@ impl WorldSession {
             player_skill_records_complete_like_cpp: false,
             #[cfg(test)]
             player_skill_occupied_slots_like_cpp: None,
+            #[cfg(test)]
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
             realm_region: 1,
@@ -8352,7 +8365,9 @@ impl WorldSession {
             player_position: None,
             #[cfg(test)]
             player_movement_flags_like_cpp: MovementFlag::NONE,
+            #[cfg(test)]
             represented_can_swim_to_fly_transition_like_cpp: false,
+            #[cfg(test)]
             represented_mover_fixed_position_vehicle_like_cpp: false,
             player_name: None,
             registered_addon_prefixes: Vec::new(),
@@ -8465,11 +8480,15 @@ impl WorldSession {
             taxi_mounted_like_cpp: false,
             #[cfg(test)]
             player_mount_display_id_like_cpp: 0,
+            #[cfg(test)]
             player_mount_vehicle_id_like_cpp: 0,
             #[cfg(test)]
             player_mount_vehicle_kit_like_cpp: None,
+            #[cfg(test)]
             player_mount_vehicle_accessories_like_cpp: Vec::new(),
+            #[cfg(test)]
             player_mount_vehicle_seat_count_like_cpp: 0,
+            #[cfg(test)]
             player_mount_vehicle_usable_seat_count_like_cpp: 0,
             #[cfg(test)]
             player_vehicle_seat_flags_like_cpp: None,
@@ -8551,6 +8570,7 @@ impl WorldSession {
             player_collision_height_like_cpp: 1.0,
             #[cfg(test)]
             player_object_scale_like_cpp: 1.0,
+            #[cfg(test)]
             player_scale_duration_like_cpp: 0,
             #[cfg(test)]
             player_unit_flags_like_cpp: UnitFlags::PLAYER_CONTROLLED,
@@ -8633,6 +8653,7 @@ impl WorldSession {
             visible_auras: HashMap::new(),
             #[cfg(test)]
             player_aura_authority_complete_like_cpp: false,
+            #[cfg(test)]
             player_equipment_inventory_authority_complete_like_cpp: false,
             #[cfg(test)]
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
@@ -8893,6 +8914,7 @@ impl WorldSession {
             no_reset_talent_cost_like_cpp: false,
             represented_offhand_check_at_spell_unlearn_like_cpp: true,
             vmap_indoor_check_like_cpp: false,
+            #[cfg(test)]
             represented_is_outdoors_like_cpp: None,
             #[cfg(test)]
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
@@ -10361,6 +10383,7 @@ impl WorldSession {
                 pvp_hostile: self.player_pvp_hostile_like_cpp,
                 pvp_end_timer: self.player_pvp_end_timer_like_cpp,
                 contested_pvp_timer: self.player_contested_pvp_timer_like_cpp,
+                is_outdoors: self.represented_is_outdoors_like_cpp,
             };
             player.gameplay_state_mut().vehicle_seat_flags =
                 self.player_vehicle_seat_flags_like_cpp;
@@ -11158,6 +11181,7 @@ impl WorldSession {
                 pvp_hostile: self.player_pvp_hostile_like_cpp,
                 pvp_end_timer: self.player_pvp_end_timer_like_cpp,
                 contested_pvp_timer: self.player_contested_pvp_timer_like_cpp,
+                is_outdoors: self.represented_is_outdoors_like_cpp,
             });
         }
         canonical
@@ -11185,6 +11209,7 @@ impl WorldSession {
             self.player_pvp_hostile_like_cpp = state.pvp_hostile;
             self.player_pvp_end_timer_like_cpp = state.pvp_end_timer;
             self.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer;
+            self.represented_is_outdoors_like_cpp = state.is_outdoors;
             return Some(result);
         }
         canonical
@@ -13536,8 +13561,9 @@ impl WorldSession {
         for side_effect in side_effects {
             match *side_effect {
                 wow_map::CreateMapSideEffect::SetPlayerRecentInstance { instance_id } => {
-                    self.set_represented_player_recent_instance_like_cpp(map_id, instance_id);
-                    summary.player_recent_instance_sets += 1;
+                    if self.set_represented_player_recent_instance_like_cpp(map_id, instance_id) {
+                        summary.player_recent_instance_sets += 1;
+                    }
                 }
                 wow_map::CreateMapSideEffect::SetGroupRecentInstance {
                     owner_guid_counter,
@@ -13683,7 +13709,7 @@ impl WorldSession {
             battleground_id: 0,
             has_battleground: false,
             player_difficulty_id,
-            player_recent_instance_id: self.represented_player_recent_instance_id_like_cpp(map_id),
+            player_recent_instance_id: self.resolved_player_recent_instance_id_like_cpp(map_id)?,
             group,
         })
     }
@@ -22335,7 +22361,9 @@ impl WorldSession {
     }
 
     pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
-        self.represented_is_outdoors_like_cpp = Some(is_outdoors);
+        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
+            state.is_outdoors = Some(is_outdoors);
+        });
     }
 
     pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
@@ -26019,11 +26047,31 @@ impl WorldSession {
     }
 
     /// C++ `Player::GetRecentInstanceId`.
+    pub(crate) fn resolved_player_recent_instance_id_like_cpp(&self, map_id: u32) -> Option<u32> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .recent_instances
+                .get(&map_id)
+                .copied()
+                .unwrap_or(0)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.represented_player_recent_instances_like_cpp
+                    .get(&map_id)
+                    .copied()
+                    .unwrap_or(0),
+            );
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_player_recent_instance_id_like_cpp(&self, map_id: u32) -> u32 {
-        self.represented_player_recent_instances_like_cpp
-            .get(&map_id)
-            .copied()
-            .unwrap_or(0)
+        self.resolved_player_recent_instance_id_like_cpp(map_id)
+            .expect("test Player recent-instance owner must resolve")
     }
 
     /// C++ `Player::SetRecentInstance`.
@@ -26031,18 +26079,43 @@ impl WorldSession {
         &mut self,
         map_id: u32,
         instance_id: u32,
-    ) {
-        self.represented_player_recent_instances_like_cpp
-            .insert(map_id, instance_id);
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .gameplay_state_mut()
+                    .recent_instances
+                    .insert(map_id, instance_id);
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_player_recent_instances_like_cpp
+                .insert(map_id, instance_id);
+            return true;
+        }
+        canonical
     }
 
     pub(crate) fn forget_represented_player_recent_instance_like_cpp(
         &mut self,
         map_id: u32,
     ) -> bool {
-        self.represented_player_recent_instances_like_cpp
-            .remove(&map_id)
-            .is_some()
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player
+                .gameplay_state_mut()
+                .recent_instances
+                .remove(&map_id)
+                .is_some()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self
+                .represented_player_recent_instances_like_cpp
+                .remove(&map_id)
+                .is_some();
+        }
+        canonical.unwrap_or(false)
     }
 
     pub(crate) fn apply_represented_player_instance_reset_result_like_cpp(
@@ -28738,16 +28811,47 @@ impl WorldSession {
     /// or query-error path; this bounded slice authorizes only a proven-empty
     /// persisted result.
     pub(crate) fn begin_player_equipment_inventory_authority_load_like_cpp(&mut self) {
-        self.player_equipment_inventory_authority_complete_like_cpp = false;
+        let _canonical = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .inventory_runtime_mut_like_cpp()
+                    .set_equipment_inventory_authority_complete_like_cpp(false);
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            self.player_equipment_inventory_authority_complete_like_cpp = false;
+        }
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
 
     pub(crate) fn complete_player_equipment_inventory_authority_load_like_cpp(&mut self) {
-        self.player_equipment_inventory_authority_complete_like_cpp = true;
+        let _canonical = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .inventory_runtime_mut_like_cpp()
+                    .set_equipment_inventory_authority_complete_like_cpp(true);
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            self.player_equipment_inventory_authority_complete_like_cpp = true;
+        }
     }
 
     pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(&self) -> bool {
-        self.player_equipment_inventory_authority_complete_like_cpp
+        let canonical = self
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .inventory_runtime_like_cpp()
+                    .equipment_inventory_authority_complete_like_cpp()
+            })
+            .unwrap_or(false);
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.player_equipment_inventory_authority_complete_like_cpp;
+        }
+        canonical
     }
 
     pub(crate) fn begin_player_quest_status_authority_load_like_cpp(&mut self) {
@@ -29360,7 +29464,7 @@ impl WorldSession {
         if !self.player_spell_hit_source_identity_complete_like_cpp()
             || aura_subsystem.spell_hit_aura_authority_tombstoned_like_cpp()
             || !aura_subsystem.persisted_player_aura_authority_complete_like_cpp()
-            || !self.player_equipment_inventory_authority_complete_like_cpp
+            || !self.player_equipment_inventory_authority_complete_like_cpp()
             || self
                 .resolved_represented_guild_id_like_cpp()
                 .is_none_or(|guild_id| guild_id != 0)
@@ -32933,7 +33037,10 @@ impl WorldSession {
             return 0;
         }
 
-        let Some(is_outdoors) = self.represented_is_outdoors_like_cpp else {
+        let Some(is_outdoors) = self
+            .player_world_local_state_like_cpp()
+            .and_then(|state| state.is_outdoors)
+        else {
             return 0;
         };
 
@@ -34243,7 +34350,7 @@ impl WorldSession {
 
     /// Level at which mobs give 0 XP ("gray") — C++ `Trinity::XP::GetGrayLevel`.
     pub(crate) fn gray_level(&self, pl: u8) -> u8 {
-        let mut level = if pl < 7 {
+        let level = if pl < 7 {
             0
         } else if pl < 35 {
             let count = (15..=pl).filter(|level| level % 5 == 0).count() as u8;
@@ -34251,16 +34358,16 @@ impl WorldSession {
         } else {
             pl.saturating_sub(10)
         };
-        if let Some(script_level) = self
+        #[cfg(test)]
+        let level = self
             .represented_gray_level_script_overrides_like_cpp
             .get(&pl)
             .copied()
-        {
-            level = script_level;
-        }
+            .unwrap_or(level);
         level
     }
 
+    #[cfg(test)]
     pub(crate) fn set_represented_gray_level_script_override_like_cpp(
         &mut self,
         player_level: u8,
@@ -38407,20 +38514,25 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.get(vehicle_id))
         else {
-            if self.vehicle_store.is_some() {
-                return false;
+            #[cfg(not(test))]
+            return false;
+            #[cfg(test)]
+            {
+                if self.vehicle_store.is_some() {
+                    return false;
+                }
+                self.player_mount_vehicle_id_like_cpp = vehicle_id;
+                let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
+                self.player_mount_vehicle_accessories_like_cpp = self
+                    .vehicle_accessory_store
+                    .as_ref()
+                    .and_then(|store| store.accessories_for_vehicle_like_cpp(None, creature_entry))
+                    .map(<[VehicleAccessory]>::to_vec)
+                    .unwrap_or_default();
+                self.player_mount_vehicle_seat_count_like_cpp = 0;
+                self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+                return true;
             }
-            self.player_mount_vehicle_id_like_cpp = vehicle_id;
-            let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
-            self.player_mount_vehicle_accessories_like_cpp = self
-                .vehicle_accessory_store
-                .as_ref()
-                .and_then(|store| store.accessories_for_vehicle_like_cpp(None, creature_entry))
-                .map(<[VehicleAccessory]>::to_vec)
-                .unwrap_or_default();
-            self.player_mount_vehicle_seat_count_like_cpp = 0;
-            self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
-            return true;
         };
 
         let seat_defs = self
@@ -38446,13 +38558,17 @@ impl WorldSession {
             .and_then(|store| store.accessories_for_vehicle_like_cpp(None, creature_entry))
             .map(<[VehicleAccessory]>::to_vec)
             .unwrap_or_default();
-        let accessory_plan = vehicle_kit.install_all_accessories_plan_like_cpp(false, &accessories);
-        self.player_mount_vehicle_id_like_cpp = vehicle_id;
-        self.player_mount_vehicle_seat_count_like_cpp =
-            vehicle_kit.seats().len().min(u8::MAX as usize) as u8;
-        self.player_mount_vehicle_usable_seat_count_like_cpp =
-            vehicle_kit.usable_seat_num().min(u32::from(u8::MAX)) as u8;
-        self.player_mount_vehicle_accessories_like_cpp = accessory_plan.accessories;
+        let _accessory_plan =
+            vehicle_kit.install_all_accessories_plan_like_cpp(false, &accessories);
+        #[cfg(test)]
+        {
+            self.player_mount_vehicle_id_like_cpp = vehicle_id;
+            self.player_mount_vehicle_seat_count_like_cpp =
+                vehicle_kit.seats().len().min(u8::MAX as usize) as u8;
+            self.player_mount_vehicle_usable_seat_count_like_cpp =
+                vehicle_kit.usable_seat_num().min(u32::from(u8::MAX)) as u8;
+            self.player_mount_vehicle_accessories_like_cpp = _accessory_plan.accessories;
+        }
         self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = Some(vehicle_kit))
             .is_some()
     }
@@ -38622,6 +38738,10 @@ impl WorldSession {
             return;
         };
 
+        let Some(scale_duration) = self.resolved_player_scale_duration_like_cpp() else {
+            return;
+        };
+
         self.send_packet(&wow_packet::packets::movement::MoveSetCollisionHeight {
             mover_guid: player_guid,
             sequence_index,
@@ -38629,7 +38749,7 @@ impl WorldSession {
             scale: object_scale,
             reason,
             mount_display_id: u32::try_from(mount_display_id).unwrap_or(0),
-            scale_duration: self.player_scale_duration_like_cpp,
+            scale_duration,
         });
 
         use wow_packet::ServerPacket;
@@ -38655,7 +38775,7 @@ impl WorldSession {
             guid: player_guid,
             position: self.player_position_like_cpp()?,
             flags: self.resolved_player_movement_flags_like_cpp()?,
-            flags2: if self.represented_can_swim_to_fly_transition_like_cpp {
+            flags2: if self.resolved_can_swim_to_fly_transition_like_cpp()? {
                 wow_constants::movement::MovementFlag2::CAN_SWIM_TO_FLY_TRANS
             } else {
                 wow_constants::movement::MovementFlag2::NONE
@@ -38718,18 +38838,31 @@ impl WorldSession {
         );
 
         if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) {
-            let vehicle_id = self.player_mount_vehicle_id_like_cpp;
+            let vehicle_id = self
+                .player_mount_vehicle_kit_snapshot_like_cpp()
+                .flatten()
+                .map(|vehicle| vehicle.vehicle_id())
+                .unwrap_or(0);
+            #[cfg(test)]
+            let vehicle_id = if vehicle_id == 0 {
+                self.player_mount_vehicle_id_like_cpp
+            } else {
+                vehicle_id
+            };
             let mount_capability_id = aura.represented_amount;
-            self.player_mount_vehicle_id_like_cpp = 0;
             let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| {
                 if let Some(vehicle_kit) = kit.as_mut() {
                     vehicle_kit.uninstall();
                 }
                 *kit = None;
             });
-            self.player_mount_vehicle_accessories_like_cpp.clear();
-            self.player_mount_vehicle_seat_count_like_cpp = 0;
-            self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+            #[cfg(test)]
+            {
+                self.player_mount_vehicle_id_like_cpp = 0;
+                self.player_mount_vehicle_accessories_like_cpp.clear();
+                self.player_mount_vehicle_seat_count_like_cpp = 0;
+                self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+            }
             if was_mounted {
                 if vehicle_id != 0 {
                     #[cfg(test)]
@@ -40752,7 +40885,7 @@ impl WorldSession {
                 auras.clear_runtime_applications_like_cpp();
                 auras.reset_player_aura_source_authority_like_cpp();
             });
-            self.player_equipment_inventory_authority_complete_like_cpp = false;
+            self.begin_player_equipment_inventory_authority_load_like_cpp();
             #[cfg(test)]
             {
                 self.player_quest_status_authority_complete_like_cpp = false;
@@ -41451,7 +41584,18 @@ impl WorldSession {
     }
 
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
-        self.represented_mover_fixed_position_vehicle_like_cpp = fixed;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .gameplay_state_mut()
+                    .movement_control
+                    .mover_fixed_position_vehicle = fixed;
+            })
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.player_handle_like_cpp.is_none() {
+            self.represented_mover_fixed_position_vehicle_like_cpp = fixed;
+        }
     }
 
     pub(crate) fn set_player_liquid_status_like_cpp(&mut self, status: u32) {
@@ -45310,7 +45454,47 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_can_swim_to_fly_transition_like_cpp(&self) -> bool {
-        self.represented_can_swim_to_fly_transition_like_cpp
+        self.resolved_can_swim_to_fly_transition_like_cpp()
+            .expect("test Player movement owner must resolve")
+    }
+
+    fn resolved_can_swim_to_fly_transition_like_cpp(&self) -> Option<bool> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .movement_control
+                .can_swim_to_fly_transition
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_can_swim_to_fly_transition_like_cpp);
+        }
+        canonical
+    }
+
+    fn resolved_mover_fixed_position_vehicle_like_cpp(&self) -> Option<bool> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .movement_control
+                .mover_fixed_position_vehicle
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_mover_fixed_position_vehicle_like_cpp);
+        }
+        canonical
+    }
+
+    fn resolved_player_scale_duration_like_cpp(&self) -> Option<i32> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.gameplay_state().movement_control.scale_duration
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_scale_duration_like_cpp);
+        }
+        canonical
     }
 
     pub(crate) fn player_liquid_status_like_cpp(&self) -> Option<u32> {
@@ -53554,11 +53738,14 @@ impl WorldSession {
             if !self.set_player_mount_presentation_like_cpp(0, false) {
                 return false;
             }
-            self.player_mount_vehicle_id_like_cpp = 0;
             let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
-            self.player_mount_vehicle_accessories_like_cpp.clear();
-            self.player_mount_vehicle_seat_count_like_cpp = 0;
-            self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+            #[cfg(test)]
+            {
+                self.player_mount_vehicle_id_like_cpp = 0;
+                self.player_mount_vehicle_accessories_like_cpp.clear();
+                self.player_mount_vehicle_seat_count_like_cpp = 0;
+                self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+            }
         }
         true
     }
@@ -57638,8 +57825,10 @@ impl WorldSession {
         wow_anticheat::validate_movement_info(
             movement_info,
             &wow_anticheat::PlayerState {
-                mover_fixed_position_vehicle: self
-                    .represented_mover_fixed_position_vehicle_like_cpp,
+                // Fixed-position is an authorization proof. An unresolved
+                // Player must not preserve a client-supplied ROOT flag.
+                mover_fixed_position_vehicle: self.resolved_mover_fixed_position_vehicle_like_cpp()
+                    == Some(true),
                 // An unresolved/stale Player may not authorize client-only
                 // movement flags. Treat the proof as absent for sanitization,
                 // without claiming that the canonical aura set is empty.
@@ -59397,11 +59586,39 @@ impl WorldSession {
     }
 
     fn set_represented_can_swim_to_fly_transition_like_cpp(&mut self, enable: bool) -> bool {
-        if enable == self.represented_can_swim_to_fly_transition_like_cpp {
+        let canonical_changed = self.with_owned_player_mut_like_cpp(|player| {
+            let value = &mut player
+                .gameplay_state_mut()
+                .movement_control
+                .can_swim_to_fly_transition;
+            if *value == enable {
+                return false;
+            }
+            *value = enable;
+            true
+        });
+        #[cfg(test)]
+        let changed = canonical_changed.unwrap_or_else(|| {
+            if self.player_handle_like_cpp.is_some()
+                || self.represented_can_swim_to_fly_transition_like_cpp == enable
+            {
+                return false;
+            }
+            self.represented_can_swim_to_fly_transition_like_cpp = enable;
+            true
+        });
+        #[cfg(not(test))]
+        let Some(changed) = canonical_changed else {
+            return false;
+        };
+        if !changed {
             return false;
         }
 
-        self.represented_can_swim_to_fly_transition_like_cpp = enable;
+        #[cfg(test)]
+        if canonical_changed.is_some() {
+            self.represented_can_swim_to_fly_transition_like_cpp = enable;
+        }
         self.send_player_move_set_flag_like_cpp(if enable {
             ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly
         } else {

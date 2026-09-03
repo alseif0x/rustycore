@@ -612,6 +612,9 @@ pub struct PlayerWorldLocalState {
     pub pvp_end_timer: Option<i64>,
     /// C++ `Player::m_contestedPvPTimer`.
     pub contested_pvp_timer: u32,
+    /// C++ `WorldObject::IsOutdoors()` result; `None` means terrain/VMAP has
+    /// not established authority for the current position.
+    pub is_outdoors: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3401,6 +3404,9 @@ pub struct PlayerInventoryItem {
 /// mutable owner, including while the Player is detached for a far teleport.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerInventoryRuntime {
+    /// True only after the persisted equipment query completed coherently for
+    /// this Player lifetime. An empty runtime inventory is not source proof.
+    equipment_inventory_authority_complete_like_cpp: bool,
     inventory_items: HashMap<u8, PlayerInventoryItem>,
     buyback_items: HashMap<u8, PlayerInventoryItem>,
     buyback_price: [u32; BUYBACK_SLOT_COUNT],
@@ -3410,6 +3416,14 @@ pub struct PlayerInventoryRuntime {
 }
 
 impl PlayerInventoryRuntime {
+    pub const fn equipment_inventory_authority_complete_like_cpp(&self) -> bool {
+        self.equipment_inventory_authority_complete_like_cpp
+    }
+
+    pub fn set_equipment_inventory_authority_complete_like_cpp(&mut self, complete: bool) {
+        self.equipment_inventory_authority_complete_like_cpp = complete;
+    }
+
     pub fn inventory_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
         &self.inventory_items
     }
@@ -3462,6 +3476,7 @@ impl PlayerInventoryRuntime {
 impl Default for PlayerInventoryRuntime {
     fn default() -> Self {
         Self {
+            equipment_inventory_authority_complete_like_cpp: false,
             inventory_items: HashMap::new(),
             buyback_items: HashMap::new(),
             buyback_price: [0; BUYBACK_SLOT_COUNT],

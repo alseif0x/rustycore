@@ -10,6 +10,18 @@
 #![cfg(test)]
 
 use super::*;
+
+#[test]
+fn inventory_authority_proof_belongs_to_one_player_runtime_like_cpp() {
+    let mut inventory = PlayerInventoryRuntime::default();
+    assert!(!inventory.equipment_inventory_authority_complete_like_cpp());
+
+    inventory.set_equipment_inventory_authority_complete_like_cpp(true);
+    assert!(inventory.equipment_inventory_authority_complete_like_cpp());
+
+    inventory.set_equipment_inventory_authority_complete_like_cpp(false);
+    assert!(!inventory.equipment_inventory_authority_complete_like_cpp());
+}
 use wow_constants::{
     BagFamilyMask, InventoryResult, InventoryType, ItemBondingType, ItemClass, ItemContext,
     ItemFieldFlags, ItemSubClassContainer, ItemSubclassProfession,

@@ -50,6 +50,8 @@ pub struct PlayerGameplayState {
     pub dungeon_difficulty_id: u32,
     pub raid_difficulty_id: u32,
     pub legacy_raid_difficulty_id: u32,
+    /// C++ `Player::m_recentInstances`, keyed by map ID.
+    pub recent_instances: HashMap<u32, u32>,
     pub pass_on_group_loot: bool,
     pub forced_reputation_ranks: Vec<(u32, u8)>,
     /// C++ `ReputationMgr` cached visible/honored/revered/exalted counters.
@@ -319,6 +321,12 @@ pub struct PlayerMovementControlStateLikeCpp {
     pub movement_force_mod_magnitude_changes: u8,
     pub last_fall_time: u32,
     pub last_fall_z: f32,
+    /// Server-owned `MOVEMENTFLAG2_CAN_SWIM_TO_FLY_TRANS` state.
+    pub can_swim_to_fly_transition: bool,
+    /// Whether the vehicle moving this Player has `VEHICLE_FLAG_FIXED_POSITION`.
+    pub mover_fixed_position_vehicle: bool,
+    /// C++ `UnitData::ScaleDuration` used by collision-height movement packets.
+    pub scale_duration: i32,
 }
 
 /// Player/Unit-owned damage gates currently represented by the Rust runtime.
