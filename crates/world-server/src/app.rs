@@ -4624,7 +4624,7 @@ async fn run_inner(
             Arc::clone(&gossip_catalog_persistence_port),
         ),
     );
-    let session_resources = Arc::new(SessionResources {
+    let session_resources = SessionResources {
         core: SessionCoreCapabilitiesLikeCpp {
             object_mgr_catalogs,
             persistence,
@@ -5061,7 +5061,9 @@ async fn run_inner(
             realm_external_address,
             realm_local_address,
         },
-    });
+    };
+    session_resources.validate_required_like_cpp()?;
+    let session_resources = Arc::new(session_resources);
 
     // Create SessionManager for ConnectTo flow
     let session_mgr = Arc::new(SessionManager::new());

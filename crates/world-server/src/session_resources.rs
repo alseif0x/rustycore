@@ -316,8 +316,9 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) player_registry: Option<Arc<PlayerRegistry>>,
     /// Trusted linked modules composed by the generated compositor (#229).
     ///
-    /// Absent for the ordinary zero-module build, in which case no session
-    /// ever consults a registry.
+    /// Production always publishes the registry, including the ordinary empty
+    /// zero-module registry. `Option` remains only for the transitional test
+    /// construction shape and is rejected by `validate_required_like_cpp`.
     pub(super) module_registry: Option<Arc<wow_module_api::ModuleRegistry>>,
     /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
     pub(super) game_event_quest_complete_tx:
@@ -403,4 +404,264 @@ pub(super) struct SessionRealmCapabilitiesLikeCpp {
     pub(super) realm_external_address: [u8; 4],
     /// Local (LAN) IP from `realmlist.localAddress`.
     pub(super) realm_local_address: [u8; 4],
+}
+
+macro_rules! require_capabilities_like_cpp {
+    ($bundle:expr, $bundle_name:literal, $($field:ident),+ $(,)?) => {
+        $(
+            if $bundle.$field.is_none() {
+                anyhow::bail!(
+                    "required {}/{} session capability is unavailable",
+                    $bundle_name,
+                    stringify!($field)
+                );
+            }
+        )+
+    };
+}
+
+impl SessionResources {
+    /// Validate the complete process graph once, before the listener admits a
+    /// connection. The inner `Option`s remain temporarily because the existing
+    /// test builder installs individual fixtures, but production must never
+    /// turn an absent startup catalog into a partially configured session.
+    pub(super) fn validate_required_like_cpp(&self) -> anyhow::Result<()> {
+        require_capabilities_like_cpp!(
+            self.core,
+            "core",
+            trainer_store,
+            guid_generator,
+            item_guid_generator,
+            equipment_set_guid_generator,
+            void_storage_item_id_generator,
+            instance_lock_mgr,
+        );
+        require_capabilities_like_cpp!(
+            self.inventory,
+            "inventory",
+            bank_bag_slot_prices_store,
+            currency_types_store,
+            import_price_stores,
+            emotes_store,
+            emotes_text_store,
+            item_class_store,
+            item_currency_cost_store,
+            item_extended_cost_store,
+            item_appearance_store,
+            item_store,
+            item_child_equipment_store,
+            item_modified_appearance_store,
+            item_search_name_store,
+            trinity_string_store,
+            heirloom_store,
+            toy_store,
+            battle_pet_breed_quality_store,
+            battle_pet_breed_state_store,
+            battle_pet_species_store,
+            battle_pet_selection_store,
+            battle_pet_species_state_store,
+            battle_pet_xp_game_table,
+            combat_ratings_game_table,
+            shield_block_regular_game_table,
+            transmog_set_item_store,
+            item_price_base_store,
+            item_limit_category_store,
+            item_limit_category_condition_store,
+            player_create_info_store,
+            player_create_cast_spell_store,
+            player_create_custom_spell_store,
+            player_stats,
+            item_bonus_db2_store,
+            pvp_item_store,
+            item_set_store,
+            item_set_spell_store,
+            item_stats_store,
+            durability_costs_store,
+            durability_quality_store,
+            item_effect_store,
+            item_random_suffix_store,
+            item_random_properties_store,
+            rand_prop_points_store,
+            item_random_enchantment_template_store,
+            item_spec_override_store,
+            item_disenchant_loot_store,
+            loot_stores,
+        );
+        require_capabilities_like_cpp!(
+            self.player,
+            "player",
+            condition_store,
+            player_condition_store,
+            adventure_map_poi_store,
+            content_tuning_store,
+            curve_store,
+            curve_point_store,
+            scaling_stat_distribution_store,
+            scaling_stat_values_store,
+            disable_mgr,
+            difficulty_store,
+            lock_store,
+            spell_item_enchantment_store,
+            spell_item_enchantment_condition_store,
+            gem_properties_store,
+            spell_enchant_proc_store,
+            hotfix_blob_cache,
+            tact_key_store,
+            skill_store,
+            trait_definition_store,
+            trait_node_entry_store,
+            skill_line_store,
+            skill_tiers_store,
+            talent_store,
+            talent_tab_store,
+            num_talents_at_level_store,
+            glyph_properties_store,
+            chr_races_store,
+            chr_classes_store,
+            power_type_store,
+        );
+        require_capabilities_like_cpp!(
+            self.spells,
+            "spells",
+            spell_chain_store,
+            spell_store,
+            spell_acquisition_catalog,
+            spell_acquisition_safe_cast_spell_ids,
+            spell_acquisition_valid_craft_spell_ids,
+            spell_script_exact_spell_ids,
+            spell_script_all_rank_root_spell_ids,
+            legacy_spell_script_spell_ids,
+            spell_linked_rejected_trigger_spell_ids,
+            spell_levels_store,
+            spell_category_store,
+            npc_spell_click_store,
+            spell_aura_options_store,
+            spell_aura_restrictions_store,
+            spell_target_restrictions_store,
+            spell_equipped_items_store,
+            spell_misc_store,
+            spell_group_store,
+            spell_group_stack_rule_store,
+            spell_linked_store,
+            spell_pet_aura_store,
+            spell_area_store,
+            spell_custom_attribute_store,
+            serverside_spell_store,
+            spell_learn_skill_store,
+            spell_learn_spell_store,
+            pet_levelup_spell_store,
+            pet_default_spell_store,
+            pet_family_spell_store,
+            spell_proc_store,
+            spell_required_store,
+            spell_threat_store,
+            spell_duration_store,
+            spell_radius_store,
+            spell_range_store,
+            spell_target_position_store,
+            spell_totem_model_store,
+            movie_store,
+            script_name_interner,
+        );
+        require_capabilities_like_cpp!(
+            self.world,
+            "world",
+            area_table_store,
+            fishing_base_skill_store,
+            area_trigger_db2_store,
+            area_trigger_store,
+            area_trigger_script_store,
+            tavern_area_trigger_store,
+            graveyard_store,
+            area_trigger_template_store,
+            chr_specialization_store,
+            dungeon_encounter_store,
+            map_store,
+            world_safe_loc_store,
+            map_difficulty_store,
+            map_difficulty_x_condition_store,
+            access_requirement_store,
+            lfg_dungeons_store,
+            lfg_dungeon_store_like_cpp,
+            battlemaster_list_store,
+            creature_template_lifecycle_store,
+            creature_template_mount_store,
+            creature_equipment_store,
+            creature_display_info_store,
+            creature_display_info_extra_store,
+            gameobject_display_info_store,
+            creature_model_info_store,
+            creature_addon_store,
+            creature_difficulty_store,
+            creature_base_stats_store,
+            creature_model_data_store,
+            mount_store,
+            mount_definition_store,
+            mount_capability_store,
+            mount_type_x_capability_store,
+            mount_x_display_store,
+            spell_shapeshift_form_store,
+            vehicle_store,
+            vehicle_seat_store,
+            vehicle_template_store,
+            vehicle_accessory_store,
+            terrain_swap_store,
+            phase_store,
+            phase_group_store,
+        );
+        require_capabilities_like_cpp!(
+            self.progression,
+            "progression",
+            quest_store,
+            quest_xp_store,
+            quest_money_reward_store,
+            quest_v2_store,
+            quest_info_store,
+            quest_package_item_store,
+            quest_faction_reward_store,
+            progression_faction_store,
+            faction_template_store,
+            friendship_rep_reaction_store,
+            paragon_reputation_store,
+            reputation_reward_rate_store,
+            creature_onkill_reputation_store,
+            reputation_spillover_template_store,
+            player_xp_table,
+            exploration_base_xp_store,
+        );
+        require_capabilities_like_cpp!(
+            self.runtime,
+            "runtime",
+            player_registry,
+            module_registry,
+            game_event_quest_complete_tx,
+            group_registry,
+            pending_invites,
+        );
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn missing_required_capability_fails_closed() {
+        struct Fixture {
+            missing: Option<()>,
+        }
+
+        fn validate(fixture: &Fixture) -> anyhow::Result<()> {
+            require_capabilities_like_cpp!(fixture, "fixture", missing);
+            Ok(())
+        }
+
+        let error = validate(&Fixture { missing: None })
+            .expect_err("an absent required capability must reject construction");
+        assert_eq!(
+            error.to_string(),
+            "required fixture/missing session capability is unavailable"
+        );
+        validate(&Fixture { missing: Some(()) })
+            .expect("a present required capability must pass validation");
+    }
 }

@@ -3525,6 +3525,9 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
 
 #[test]
 fn session_resources_requires_named_capability_bundles() {
+    let composition_source =
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
+            .expect("world-server composition source should be readable");
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
@@ -3559,6 +3562,20 @@ fn session_resources_requires_named_capability_bundles() {
         !session_resources.contains("Option<"),
         "named capability bundles must be mandatory at production construction"
     );
+
+    let construction = composition_source
+        .find("let session_resources = SessionResources {")
+        .expect("SessionResources construction should exist");
+    let validation = composition_source
+        .find("session_resources.validate_required_like_cpp()?;")
+        .expect("required capability validation should exist");
+    let publication = composition_source
+        .find("let session_resources = Arc::new(session_resources);")
+        .expect("validated resources should be published through Arc");
+    let listener = composition_source
+        .find("wow_network::start_world_listener(")
+        .expect("world listener should exist");
+    assert!(construction < validation && validation < publication && publication < listener);
 }
 
 #[test]
