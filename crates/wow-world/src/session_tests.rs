@@ -45543,8 +45543,13 @@ async fn first_login_cast_spells_use_player_create_mode_before_other_first_login
         70_001, 70_002,
     ])));
 
+    let generators = session.id_generators_for_test_like_cpp();
+    let player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
     let cast_count = session
-        .apply_represented_first_login_cast_spells_like_cpp()
+        .apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
+            generators.item.as_ref(),
+            &player_bootstrap,
+        )
         .await;
 
     assert_eq!(
@@ -45618,8 +45623,12 @@ fn start_all_spells_applies_custom_player_create_spells_like_cpp() {
     );
 
     session.set_start_all_spells_like_cpp(true);
+    let player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
     assert_eq!(
-        session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+        session.apply_represented_start_all_spells_with_catalogs_like_cpp(
+            &player_bootstrap,
+            &mut known_spells,
+        ),
         1,
         "C++ AddSpell semantics do not duplicate an already known spell"
     );

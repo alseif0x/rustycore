@@ -3595,6 +3595,9 @@ fn session_resources_requires_named_capability_bundles() {
         "pet_default_spell_store",
         "pet_family_spell_store",
         "pet_levelup_spell_store",
+        "player_create_cast_spell_store",
+        "player_create_custom_spell_store",
+        "player_create_info_store",
         "serverside_spell_store",
         "spell_enchant_proc_store",
         "spell_totem_model_store",
@@ -3631,6 +3634,16 @@ fn session_resources_requires_named_capability_bundles() {
     assert!(
         !resources_source.contains("session.set_item_disenchant_loot_store("),
         "item valuation catalogs must be borrowed by loot handlers instead of installed into WorldSession"
+    );
+    assert!(
+        composition_source.contains(
+            "player_bootstrap: Arc::new(wow_world::session::PlayerBootstrapCatalogsLikeCpp"
+        ),
+        "the composition root must group ObjectMgr PlayerInfo data in borrowed login capabilities"
+    );
+    assert!(
+        !resources_source.contains("session.set_player_create_info_store_like_cpp("),
+        "PlayerInfo creation data must be borrowed during login instead of installed into WorldSession"
     );
     assert!(
         resources_source

@@ -181,6 +181,7 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
+        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
     ) {
         let guid: ObjectGuid = match self.player_loading() {
             Some(g) => g,
@@ -393,10 +394,7 @@ impl WorldSession {
             )
         });
         let first_login = at_login_flags & 0x020 != 0;
-        let Some(player_create_info) = self
-            .player_create_info_store_like_cpp()
-            .and_then(|store| store.get(race, class))
-            .copied()
+        let Some(player_create_info) = player_bootstrap.create_info.get(race, class).copied()
         else {
             warn!(
                 player_guid = guid.counter(),
@@ -1888,8 +1886,10 @@ impl WorldSession {
             _ => unreachable!("talent request returned a different row family"),
         }
 
-        let custom_spell_count =
-            self.apply_represented_start_all_spells_like_cpp(&mut known_spells);
+        let custom_spell_count = self.apply_represented_start_all_spells_with_catalogs_like_cpp(
+            player_bootstrap,
+            &mut known_spells,
+        );
         if custom_spell_count > 0 {
             info!(
                 player_guid = guid.counter(),
@@ -2604,8 +2604,9 @@ impl WorldSession {
         let applied_first_login_like_cpp =
             self.apply_represented_first_login_flag_if_needed_like_cpp();
         if applied_first_login_like_cpp {
-            self.apply_represented_first_login_cast_spells_with_generator_like_cpp(
+            self.apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
                 item_guid_generator,
+                player_bootstrap,
             )
             .await;
             self.apply_represented_first_login_explored_zones_like_cpp();

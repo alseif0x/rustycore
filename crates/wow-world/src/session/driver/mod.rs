@@ -253,6 +253,7 @@ impl WorldSession {
         self.poll_instance_link_with_module_registry_like_cpp(
             catalogs.id_generators.item.as_ref(),
             catalogs.modules.as_ref(),
+            catalogs.player_bootstrap.as_ref(),
         )
         .await;
 
@@ -307,6 +308,7 @@ impl WorldSession {
             object_mgr: catalogs,
             area_triggers: Arc::new(self.area_trigger_catalogs_for_test_like_cpp()),
             item_valuation: Arc::new(self.item_valuation_catalogs_for_test_like_cpp()),
+            player_bootstrap: Arc::new(self.player_bootstrap_catalogs_for_test_like_cpp()),
             bank_bag_slot_prices: self
                 .bank_bag_slot_prices_store
                 .clone()

@@ -2098,22 +2098,28 @@
           "name": "player_create_cast_spell_store_like_cpp",
           "type": "Option < Arc < PlayerCreateInfoCastSpellStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_create_custom_spell_store_like_cpp",
           "type": "Option < Arc < PlayerCreateInfoCustomSpellStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_create_info_store_like_cpp",
           "type": "Option < Arc < PlayerCreateInfoStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_create_mode_like_cpp",
@@ -8911,7 +8917,7 @@
           "kind": "method",
           "name": "handle_continue_player_login_with_module_registry_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry ,)",
+          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22168,9 +22174,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_represented_first_login_cast_spells_with_generator_like_cpp",
+          "name": "apply_represented_first_login_cast_spells_with_catalogs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn apply_represented_first_login_cast_spells_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> usize",
+          "signature": "async fn apply_represented_first_login_cast_spells_with_catalogs_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22589,6 +22595,21 @@
           "name": "apply_represented_start_all_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_represented_start_all_spells_like_cpp (& mut self , known_spells : & mut Vec < i32 > ,) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_start_all_spells_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_start_all_spells_with_catalogs_like_cpp (& mut self , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , known_spells : & mut Vec < i32 > ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -31906,6 +31927,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_bootstrap_catalogs_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_bootstrap_catalogs_for_test_like_cpp (& self ,) -> PlayerBootstrapCatalogsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_can_never_see_target_like_cpp",
           "visibility": "private",
           "signature": "fn player_can_never_see_target_like_cpp (& self) -> bool",
@@ -31996,19 +32032,6 @@
           "name": "player_condition_store",
           "visibility": "pub",
           "signature": "fn player_condition_store (& self) -> Option < & Arc < PlayerConditionStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "player_create_info_store_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn player_create_info_store_like_cpp (& self ,) -> Option < & Arc < PlayerCreateInfoStoreLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -33377,7 +33400,7 @@
           "kind": "method",
           "name": "poll_instance_link_with_module_registry_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry ,)",
+          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -47351,8 +47374,10 @@
           "name": "set_player_create_cast_spell_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_player_create_cast_spell_store_like_cpp (& mut self , store : Arc < PlayerCreateInfoCastSpellStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -47365,8 +47390,10 @@
           "name": "set_player_create_custom_spell_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_player_create_custom_spell_store_like_cpp (& mut self , store : Arc < PlayerCreateInfoCustomSpellStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -47379,8 +47406,10 @@
           "name": "set_player_create_info_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_player_create_info_store_like_cpp (& mut self , store : Arc < PlayerCreateInfoStoreLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -75099,7 +75128,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:bbc08efee2442d7af6ce87fd41ff164d:len=96467|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b46d8f6580a0ac88819697dca5e2f82b:len=96512|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -141,6 +141,7 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
+        player_bootstrap: &super::PlayerBootstrapCatalogsLikeCpp,
     ) {
         match self.connection.poll_instance_link(self.account_id) {
             InstanceLinkPollOutcome::Pending => {}
@@ -149,6 +150,7 @@ impl WorldSession {
                 self.handle_continue_player_login_with_module_registry_like_cpp(
                     item_guid_generator,
                     modules,
+                    player_bootstrap,
                 )
                 .await;
             }
@@ -166,9 +168,11 @@ impl WorldSession {
             .clone()
             .unwrap_or_else(|| std::sync::Arc::new(wow_module_api::ModuleRegistry::new()));
         let generators = self.id_generators_for_test_like_cpp();
+        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
         self.poll_instance_link_with_module_registry_like_cpp(
             generators.item.as_ref(),
             modules.as_ref(),
+            &player_bootstrap,
         )
         .await;
     }

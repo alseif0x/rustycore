@@ -312,6 +312,17 @@ pub struct ItemValuationCatalogsLikeCpp {
     pub disenchant_loot: Arc<ItemDisenchantLootStore>,
 }
 
+/// Process-owned C++ `PlayerInfo` creation data borrowed during login.
+///
+/// C++ stores the base row plus `customSpells` and per-create-mode
+/// `castSpells` under `ObjectMgr` (`Globals/ObjectMgr.h:649-663`) and resolves
+/// it through `sObjectMgr->GetPlayerInfo`; it is never session-owned.
+pub struct PlayerBootstrapCatalogsLikeCpp {
+    pub create_info: Arc<PlayerCreateInfoStoreLikeCpp>,
+    pub cast_spells: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
+    pub custom_spells: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
+}
+
 #[cfg(test)]
 impl Default for ItemValuationCatalogsLikeCpp {
     fn default() -> Self {
@@ -326,6 +337,17 @@ impl Default for ItemValuationCatalogsLikeCpp {
             item_classes: Arc::new(ItemClassStore::from_entries([])),
             currency_costs: Arc::new(ItemCurrencyCostStore::from_entries([])),
             disenchant_loot: Arc::new(ItemDisenchantLootStore::from_entries([])),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Default for PlayerBootstrapCatalogsLikeCpp {
+    fn default() -> Self {
+        Self {
+            create_info: Arc::new(PlayerCreateInfoStoreLikeCpp::default()),
+            cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
+            custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
         }
     }
 }
@@ -390,6 +412,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub object_mgr: Arc<ObjectMgrCatalogsLikeCpp>,
     pub area_triggers: Arc<AreaTriggerCatalogsLikeCpp>,
     pub item_valuation: Arc<ItemValuationCatalogsLikeCpp>,
+    pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
     pub battlemaster_lists: Arc<BattlemasterListStore>,
@@ -409,6 +432,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             object_mgr: Arc::new(ObjectMgrCatalogsLikeCpp::default()),
             area_triggers: Arc::new(AreaTriggerCatalogsLikeCpp::default()),
             item_valuation: Arc::new(ItemValuationCatalogsLikeCpp::default()),
+            player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
             battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
@@ -5441,8 +5465,11 @@ pub struct WorldSession {
     start_all_explored_like_cpp: bool,
     start_all_reputation_like_cpp: bool,
     start_all_spells_like_cpp: bool,
+    #[cfg(test)]
     player_create_info_store_like_cpp: Option<Arc<PlayerCreateInfoStoreLikeCpp>>,
+    #[cfg(test)]
     player_create_cast_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCastSpellStoreLikeCpp>>,
+    #[cfg(test)]
     player_create_custom_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>>,
     pub build: u32,
     pub session_key: Vec<u8>,
@@ -7910,8 +7937,11 @@ impl WorldSession {
             start_all_explored_like_cpp: false,
             start_all_reputation_like_cpp: false,
             start_all_spells_like_cpp: false,
+            #[cfg(test)]
             player_create_info_store_like_cpp: None,
+            #[cfg(test)]
             player_create_cast_spell_store_like_cpp: None,
+            #[cfg(test)]
             player_create_custom_spell_store_like_cpp: None,
             build,
             session_key,
@@ -18588,6 +18618,23 @@ impl WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn player_bootstrap_catalogs_for_test_like_cpp(
+        &self,
+    ) -> PlayerBootstrapCatalogsLikeCpp {
+        let mut catalogs = PlayerBootstrapCatalogsLikeCpp::default();
+        if let Some(store) = &self.player_create_info_store_like_cpp {
+            catalogs.create_info = Arc::clone(store);
+        }
+        if let Some(store) = &self.player_create_cast_spell_store_like_cpp {
+            catalogs.cast_spells = Arc::clone(store);
+        }
+        if let Some(store) = &self.player_create_custom_spell_store_like_cpp {
+            catalogs.custom_spells = Arc::clone(store);
+        }
+        catalogs
+    }
+
+    #[cfg(test)]
     pub fn item_buy_price_like_cpp(
         &self,
         item_id: u32,
@@ -21138,6 +21185,7 @@ impl WorldSession {
         self.player_stats.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_player_create_cast_spell_store_like_cpp(
         &mut self,
         store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
@@ -21145,6 +21193,7 @@ impl WorldSession {
         self.player_create_cast_spell_store_like_cpp = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_player_create_info_store_like_cpp(
         &mut self,
         store: Arc<PlayerCreateInfoStoreLikeCpp>,
@@ -21152,12 +21201,7 @@ impl WorldSession {
         self.player_create_info_store_like_cpp = Some(store);
     }
 
-    pub(crate) fn player_create_info_store_like_cpp(
-        &self,
-    ) -> Option<&Arc<PlayerCreateInfoStoreLikeCpp>> {
-        self.player_create_info_store_like_cpp.as_ref()
-    }
-
+    #[cfg(test)]
     pub fn set_player_create_custom_spell_store_like_cpp(
         &mut self,
         store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
@@ -33185,9 +33229,10 @@ impl WorldSession {
     /// `CONFIG_START_ALL_EXPLORED` / `CONFIG_START_ALL_REP`. This slice uses the
     /// represented spell executor; full triggered-cast semantics still depend on
     /// the remaining Spell runtime port.
-    pub(crate) async fn apply_represented_first_login_cast_spells_with_generator_like_cpp(
+    pub(crate) async fn apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
     ) -> usize {
         let Some(player_guid) = self.player_guid() else {
             return 0;
@@ -33195,19 +33240,14 @@ impl WorldSession {
         let Some(create_mode) = self.player_create_mode_like_cpp() else {
             return 0;
         };
-        let spells = self
-            .player_create_cast_spell_store_like_cpp
-            .as_ref()
-            .map(|store| {
-                store
-                    .cast_spells_like_cpp(
-                        self.player_race_like_cpp(),
-                        self.player_class_like_cpp(),
-                        create_mode,
-                    )
-                    .to_vec()
-            })
-            .unwrap_or_default();
+        let spells = player_bootstrap
+            .cast_spells
+            .cast_spells_like_cpp(
+                self.player_race_like_cpp(),
+                self.player_class_like_cpp(),
+                create_mode,
+            )
+            .to_vec();
 
         let mut cast_count = 0usize;
         for spell_id in spells {
@@ -33230,8 +33270,10 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {
         let generators = self.id_generators_for_test_like_cpp();
-        self.apply_represented_first_login_cast_spells_with_generator_like_cpp(
+        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
+        self.apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
             generators.item.as_ref(),
+            &player_bootstrap,
         )
         .await
     }
@@ -33242,26 +33284,19 @@ impl WorldSession {
     /// still needs character_spell persistence semantics. This represented slice
     /// mirrors the login spell snapshot: configured custom spells are included in
     /// `INITIAL_SPELLS` without duplicating spells already loaded from DB/DBC.
-    pub(crate) fn apply_represented_start_all_spells_like_cpp(
+    pub(crate) fn apply_represented_start_all_spells_with_catalogs_like_cpp(
         &mut self,
+        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
         known_spells: &mut Vec<i32>,
     ) -> usize {
         if !self.start_all_spells_like_cpp() {
             return 0;
         }
 
-        let spells = self
-            .player_create_custom_spell_store_like_cpp
-            .as_ref()
-            .map(|store| {
-                store
-                    .custom_spells_like_cpp(
-                        self.player_race_like_cpp(),
-                        self.player_class_like_cpp(),
-                    )
-                    .to_vec()
-            })
-            .unwrap_or_default();
+        let spells = player_bootstrap
+            .custom_spells
+            .custom_spells_like_cpp(self.player_race_like_cpp(), self.player_class_like_cpp())
+            .to_vec();
 
         let mut applied = 0usize;
         for spell_id in spells {
@@ -33278,6 +33313,18 @@ impl WorldSession {
         }
 
         applied
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_represented_start_all_spells_like_cpp(
+        &mut self,
+        known_spells: &mut Vec<i32>,
+    ) -> usize {
+        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
+        self.apply_represented_start_all_spells_with_catalogs_like_cpp(
+            &player_bootstrap,
+            known_spells,
+        )
     }
 
     /// Represented C++ `Player::LearnQuestRewardedSpells`.

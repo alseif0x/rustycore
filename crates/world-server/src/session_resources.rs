@@ -72,10 +72,6 @@ pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) transmog_set_item_store: Arc<wow_data::TransmogSetItemStore>,
     pub(super) item_limit_category_store: Arc<wow_data::ItemLimitCategoryStore>,
     pub(super) item_limit_category_condition_store: Arc<wow_data::ItemLimitCategoryConditionStore>,
-    pub(super) player_create_info_store: Arc<wow_data::PlayerCreateInfoStoreLikeCpp>,
-    pub(super) player_create_cast_spell_store: Arc<wow_data::PlayerCreateInfoCastSpellStoreLikeCpp>,
-    pub(super) player_create_custom_spell_store:
-        Arc<wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp>,
     pub(super) player_stats: Arc<wow_data::PlayerStatsStore>,
     pub(super) item_bonus_db2_store: Arc<wow_data::ItemBonusDb2Store>,
     pub(super) pvp_item_store: Arc<wow_data::PvpItemStore>,
@@ -126,13 +122,6 @@ impl SessionInventoryCapabilitiesLikeCpp {
         session.set_item_limit_category_store(Arc::clone(&self.item_limit_category_store));
         session.set_item_limit_category_condition_store(Arc::clone(
             &self.item_limit_category_condition_store,
-        ));
-        session.set_player_create_info_store_like_cpp(Arc::clone(&self.player_create_info_store));
-        session.set_player_create_cast_spell_store_like_cpp(Arc::clone(
-            &self.player_create_cast_spell_store,
-        ));
-        session.set_player_create_custom_spell_store_like_cpp(Arc::clone(
-            &self.player_create_custom_spell_store,
         ));
         session.set_player_stats(Arc::clone(&self.player_stats));
         session.set_item_bonus_db2_store(Arc::clone(&self.item_bonus_db2_store));

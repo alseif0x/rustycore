@@ -93,11 +93,12 @@ use crate::session::{
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
     CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
-    REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
-    RepresentedAutoUnequipOffhandLikeCpp, RepresentedBankItemMoveLikeCpp,
-    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedGameObjectUseState,
-    RepresentedHomebindLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
-    RepresentedVoidStorageItemLikeCpp, SpellCastMetadata,
+    PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP,
+    RepresentedAlterAppearanceLikeCpp, RepresentedAutoUnequipOffhandLikeCpp,
+    RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
+    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
+    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
+    SpellCastMetadata,
 };
 #[cfg(test)]
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
