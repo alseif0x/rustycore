@@ -33,10 +33,17 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_create_character",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::character::CreateCharacter::read(&mut pkt) {
-                    Ok(create) => session.handle_create_character(create).await,
+                    Ok(create) => {
+                        session
+                            .handle_create_character_with_generator_like_cpp(
+                                catalogs.id_generators.player.as_ref(),
+                                create,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read CreateCharacter: {e}"),
                 }
             })
@@ -193,8 +200,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_save_equipment_set",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_save_equipment_set(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_save_equipment_set_with_generator_like_cpp(
+                        catalogs.id_generators.equipment_set.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }

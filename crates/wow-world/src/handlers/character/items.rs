@@ -93,7 +93,11 @@ impl WorldSession {
     /// then calls `Player::SetEquipmentSet`. Rust mirrors the in-memory dirty
     /// state and new-set `SMSG_EQUIPMENT_SET_ID`; the next full player save
     /// appends `_SaveEquipmentSets`-shaped statements to its transaction.
-    pub async fn handle_save_equipment_set(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_save_equipment_set_with_generator_like_cpp(
+        &mut self,
+        generator: &wow_core::EquipmentSetGuidGeneratorLikeCpp,
+        mut pkt: WorldPacket,
+    ) {
         let request = match SaveEquipmentSet::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -102,7 +106,9 @@ impl WorldSession {
             }
         };
 
-        let Some(saved) = self.save_represented_equipment_set_like_cpp(request.set) else {
+        let Some(saved) =
+            self.save_represented_equipment_set_with_generator_like_cpp(generator, request.set)
+        else {
             return;
         };
 
@@ -113,6 +119,15 @@ impl WorldSession {
                 set_id: saved.set_id,
             });
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_save_equipment_set(&mut self, pkt: WorldPacket) {
+        let Some(generator) = self.equipment_set_guid_generator_for_test_like_cpp() else {
+            return;
+        };
+        self.handle_save_equipment_set_with_generator_like_cpp(generator.as_ref(), pkt)
+            .await;
     }
 
     /// Handle CMSG_ASSIGN_EQUIPMENT_SET_SPEC.

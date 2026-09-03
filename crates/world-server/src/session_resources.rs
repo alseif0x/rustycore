@@ -43,14 +43,9 @@ pub(super) struct SessionCoreCapabilitiesLikeCpp {
     pub(super) persistence: wow_world::session::SessionPersistencePortsLikeCpp,
     /// Process-wide C++ trainer/default-trainer snapshot.
     pub(super) trainer_store: Arc<wow_data::TrainerStoreLikeCpp>,
-    pub(super) guid_generator: Arc<wow_core::ObjectGuidGenerator>,
     /// Process-wide C++ `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
     /// Shared so concurrent item creation cannot reuse `item_instance.guid`.
     pub(super) item_guid_generator: Arc<wow_core::ObjectGuidGenerator>,
-    /// Shared C++ `_equipmentSetGuid` mirror for sets, outfits and sessions.
-    pub(super) equipment_set_guid_generator: Arc<wow_core::EquipmentSetGuidGeneratorLikeCpp>,
-    /// Shared C++ `_voidItemId`, independent from `item_instance.guid`.
-    pub(super) void_storage_item_id_generator: Arc<wow_core::VoidStorageItemIdGeneratorLikeCpp>,
     pub(super) instance_lock_mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
 }
 
@@ -440,14 +435,7 @@ impl SessionCoreCapabilitiesLikeCpp {
             &self.gameobject_template_lifecycle_store,
         ));
         session.set_required_persistence_capabilities_like_cpp(self.persistence.clone());
-        session.set_guid_generator(Arc::clone(&self.guid_generator));
         session.set_item_guid_generator_like_cpp(Arc::clone(&self.item_guid_generator));
-        session.set_equipment_set_guid_generator_like_cpp(Arc::clone(
-            &self.equipment_set_guid_generator,
-        ));
-        session.set_void_storage_item_id_generator_like_cpp(Arc::clone(
-            &self.void_storage_item_id_generator,
-        ));
         session.set_instance_lock_mgr(Arc::clone(&self.instance_lock_mgr));
         session.set_trainer_store_like_cpp(Arc::clone(&self.trainer_store));
     }

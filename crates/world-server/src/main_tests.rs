@@ -3602,6 +3602,21 @@ fn session_resources_requires_named_capability_bundles() {
             "test-only catalog {retired_test_only_catalog} must not be projected into production sessions"
         );
     }
+    for retired_session_generator in [
+        "pub(super) guid_generator:",
+        "pub(super) equipment_set_guid_generator:",
+        "pub(super) void_storage_item_id_generator:",
+    ] {
+        assert!(
+            !resources_source.contains(retired_session_generator),
+            "process-owned generator {retired_session_generator} must be borrowed by the handler instead of installed into WorldSession"
+        );
+    }
+    assert!(
+        composition_source
+            .contains("id_generators: Arc::new(wow_world::session::SessionIdGeneratorsLikeCpp"),
+        "the composition root must group process-owned generators in the borrowed handler capabilities"
+    );
     assert!(
         resources_source
             .contains("handler_catalogs: Arc<wow_world::session::SessionHandlerCatalogsLikeCpp>"),

@@ -314,6 +314,27 @@ pub struct AreaTriggerCatalogsLikeCpp {
     pub script_dispatcher: Option<AreaTriggerScriptDispatcherLikeCpp>,
 }
 
+/// Process-wide ObjectMgr identifier allocators.
+///
+/// C++ initializes these once from database maxima. Sessions consume values
+/// but never own an allocator or return a value after a later failure.
+pub struct SessionIdGeneratorsLikeCpp {
+    pub player: Arc<ObjectGuidGenerator>,
+    pub equipment_set: Arc<EquipmentSetGuidGeneratorLikeCpp>,
+    pub void_storage_item: Arc<VoidStorageItemIdGeneratorLikeCpp>,
+}
+
+#[cfg(test)]
+impl Default for SessionIdGeneratorsLikeCpp {
+    fn default() -> Self {
+        Self {
+            player: Arc::new(ObjectGuidGenerator::new(HighGuid::Player, 1)),
+            equipment_set: Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
+            void_storage_item: Arc::new(VoidStorageItemIdGeneratorLikeCpp::new(1)),
+        }
+    }
+}
+
 #[cfg(test)]
 impl Default for AreaTriggerCatalogsLikeCpp {
     fn default() -> Self {
@@ -344,6 +365,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub lfg_dungeons: Arc<LfgDungeonStoreLikeCpp>,
     pub tact_keys: Arc<TactKeyStore>,
     pub modules: Arc<wow_module_api::ModuleRegistry>,
+    pub id_generators: Arc<SessionIdGeneratorsLikeCpp>,
 }
 
 #[cfg(test)]
@@ -361,6 +383,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             lfg_dungeons: Arc::new(LfgDungeonStoreLikeCpp::default()),
             tact_keys: Arc::new(TactKeyStore::from_entries([])),
             modules: Arc::new(wow_module_api::ModuleRegistry::new()),
+            id_generators: Arc::new(SessionIdGeneratorsLikeCpp::default()),
         }
     }
 }
@@ -5740,13 +5763,17 @@ pub struct WorldSession {
     realm_battlegroup: u8,
     realm_names_like_cpp: BTreeMap<u32, (String, String)>,
 
-    // GUID generator for new characters
+    // Process-owned GUID generators retained only as test fixtures.
+    #[cfg(test)]
     guid_generator: Option<Arc<ObjectGuidGenerator>>,
-    // Process-wide C++ ObjectMgr generator for new item instances.
+    // Process-wide C++ ObjectMgr generator for new item instances. Its
+    // cross-vertical allocation paths move in the next coherent owner cut.
     item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator shared by equipment and transmog sets.
+    #[cfg(test)]
     equipment_set_guid_generator_like_cpp: Option<Arc<EquipmentSetGuidGeneratorLikeCpp>>,
     // Process-wide C++ ObjectMgr generator for character_void_storage.itemId.
+    #[cfg(test)]
     void_storage_item_id_generator_like_cpp: Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
 
     // Characters confirmed for this account
@@ -8046,9 +8073,12 @@ impl WorldSession {
                 0x0101_0001,
                 ("RustyCore".to_string(), "RustyCore".to_string()),
             )]),
+            #[cfg(test)]
             guid_generator: None,
             item_guid_generator_like_cpp: None,
+            #[cfg(test)]
             equipment_set_guid_generator_like_cpp: None,
+            #[cfg(test)]
             void_storage_item_id_generator_like_cpp: None,
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
@@ -9196,10 +9226,20 @@ impl WorldSession {
         .is_some()
     }
 
+    pub(crate) fn next_represented_void_storage_item_id_with_generator_like_cpp(
+        &self,
+        generator: &VoidStorageItemIdGeneratorLikeCpp,
+    ) -> u64 {
+        generator.generate()
+    }
+
+    #[cfg(test)]
     pub(crate) fn next_represented_void_storage_item_id_like_cpp(&self) -> Option<u64> {
         self.void_storage_item_id_generator_like_cpp
-            .as_ref()
-            .map(|generator| generator.generate())
+            .as_deref()
+            .map(|generator| {
+                self.next_represented_void_storage_item_id_with_generator_like_cpp(generator)
+            })
     }
 
     pub(crate) fn represented_void_storage_item_packet_like_cpp(
@@ -9372,14 +9412,9 @@ impl WorldSession {
         self.with_owned_equipment_sets_like_cpp(|sets, _| sets.get(&guid).cloned())?
     }
 
-    fn next_represented_equipment_set_guid_like_cpp(&self) -> Option<u64> {
-        self.equipment_set_guid_generator_like_cpp
-            .as_ref()
-            .map(|generator| generator.generate())
-    }
-
-    pub(crate) fn save_represented_equipment_set_like_cpp(
+    pub(crate) fn save_represented_equipment_set_with_generator_like_cpp(
         &mut self,
+        generator: &EquipmentSetGuidGeneratorLikeCpp,
         mut set: wow_packet::packets::misc::EquipmentSetDataLikeCpp,
     ) -> Option<RepresentedEquipmentSetSavedLikeCpp> {
         if set.set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
@@ -9460,7 +9495,7 @@ impl WorldSession {
 
         let generated_new_guid = set.guid == 0;
         let guid = if generated_new_guid {
-            self.next_represented_equipment_set_guid_like_cpp()?
+            generator.generate()
         } else {
             set.guid
         };
@@ -17636,6 +17671,7 @@ impl WorldSession {
     }
 
     /// Set the GUID generator for new characters.
+    #[cfg(test)]
     pub fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
         self.guid_generator = Some(generator);
     }
@@ -17653,6 +17689,7 @@ impl WorldSession {
 
     /// Install the process-wide C++ `sObjectMgr->GenerateEquipmentSetGuid()`
     /// mirror shared by equipment sets and transmog outfits for every player.
+    #[cfg(test)]
     pub fn set_equipment_set_guid_generator_like_cpp(
         &mut self,
         generator: Arc<EquipmentSetGuidGeneratorLikeCpp>,
@@ -17661,11 +17698,35 @@ impl WorldSession {
     }
 
     /// Install the process-wide C++ `sObjectMgr->GenerateVoidStorageItemId()` mirror.
+    #[cfg(test)]
     pub fn set_void_storage_item_id_generator_like_cpp(
         &mut self,
         generator: Arc<VoidStorageItemIdGeneratorLikeCpp>,
     ) {
         self.void_storage_item_id_generator_like_cpp = Some(generator);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn id_generators_for_test_like_cpp(&self) -> SessionIdGeneratorsLikeCpp {
+        let defaults = SessionIdGeneratorsLikeCpp::default();
+        SessionIdGeneratorsLikeCpp {
+            player: self.guid_generator.clone().unwrap_or(defaults.player),
+            equipment_set: self
+                .equipment_set_guid_generator_like_cpp
+                .clone()
+                .unwrap_or(defaults.equipment_set),
+            void_storage_item: self
+                .void_storage_item_id_generator_like_cpp
+                .clone()
+                .unwrap_or(defaults.void_storage_item),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn equipment_set_guid_generator_for_test_like_cpp(
+        &self,
+    ) -> Option<Arc<EquipmentSetGuidGeneratorLikeCpp>> {
+        self.equipment_set_guid_generator_like_cpp.clone()
     }
 
     /// Install the Player lifecycle persistence port. Composition supplies the
@@ -36545,7 +36606,8 @@ impl WorldSession {
         self.realm_id
     }
 
-    /// Get the GUID generator.
+    /// Get the GUID generator test fixture.
+    #[cfg(test)]
     pub fn guid_generator(&self) -> Option<&Arc<ObjectGuidGenerator>> {
         self.guid_generator.as_ref()
     }

@@ -27,7 +27,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::session::{
     DirectInventoryStorageOverlayLikeCpp, InventoryItem, RepresentedVoidStorageItemLikeCpp,
-    WorldSession,
+    SessionIdGeneratorsLikeCpp, WorldSession,
 };
 
 const VOID_STORAGE_UNLOCK_COST_LIKE_CPP: u64 = 100 * 10_000;
@@ -63,8 +63,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_void_storage_transfer",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_void_storage_transfer(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_void_storage_transfer_with_generators_like_cpp(
+                        catalogs.id_generators.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -687,7 +694,11 @@ impl WorldSession {
         self.send_packet(&contents);
     }
 
-    pub async fn handle_void_storage_transfer(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_void_storage_transfer_with_generators_like_cpp(
+        &mut self,
+        generators: &SessionIdGeneratorsLikeCpp,
+        mut pkt: WorldPacket,
+    ) {
         let Ok(transfer) = VoidStorageTransfer::read(&mut pkt) else {
             return;
         };
@@ -770,12 +781,9 @@ impl WorldSession {
             else {
                 continue;
             };
-            let Some(void_item_id) = self.next_represented_void_storage_item_id_like_cpp() else {
-                self.send_void_storage_transfer_result_like_cpp(
-                    VoidTransferErrorLikeCpp::InternalError1,
-                );
-                return;
-            };
+            let void_item_id = self.next_represented_void_storage_item_id_with_generator_like_cpp(
+                generators.void_storage_item.as_ref(),
+            );
             let Some(void_slot) = (0
                 ..wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP)
                 .find(|candidate| {
@@ -1548,6 +1556,13 @@ impl WorldSession {
             added_items,
         });
         self.send_void_storage_transfer_result_like_cpp(VoidTransferErrorLikeCpp::NoError);
+    }
+
+    #[cfg(test)]
+    pub async fn handle_void_storage_transfer(&mut self, pkt: WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_void_storage_transfer_with_generators_like_cpp(&generators, pkt)
+            .await;
     }
 
     pub async fn handle_void_storage_swap_item(&mut self, mut pkt: WorldPacket) {

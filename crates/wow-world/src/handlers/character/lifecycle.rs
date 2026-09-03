@@ -9,7 +9,11 @@ use super::*;
 
 impl WorldSession {
     /// Handle CMSG_CREATE_CHARACTER — create a new character.
-    pub async fn handle_create_character(&mut self, pkt: CreateCharacter) {
+    pub async fn handle_create_character_with_generator_like_cpp(
+        &mut self,
+        generator: &wow_core::ObjectGuidGenerator,
+        pkt: CreateCharacter,
+    ) {
         let port = match self.character_administration_persistence_port_like_cpp() {
             Some(port) => port,
             None => {
@@ -64,17 +68,7 @@ impl WorldSession {
         }
 
         // Generate new GUID
-        let new_guid_counter = match self.guid_generator() {
-            Some(generator) => generator.generate(),
-            None => {
-                warn!("No GUID generator available");
-                self.send_packet(&CreateChar {
-                    code: response_codes::CHAR_CREATE_ERROR,
-                    guid: ObjectGuid::EMPTY,
-                });
-                return;
-            }
-        };
+        let new_guid_counter = generator.generate();
 
         // Get start position
         let (map_id, x, y, z, o) = start_position(pkt.race);
@@ -157,6 +151,20 @@ impl WorldSession {
                 });
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_create_character(&mut self, pkt: CreateCharacter) {
+        let generator = self.guid_generator().cloned();
+        let Some(generator) = generator else {
+            self.send_packet(&CreateChar {
+                code: response_codes::CHAR_CREATE_ERROR,
+                guid: ObjectGuid::EMPTY,
+            });
+            return;
+        };
+        self.handle_create_character_with_generator_like_cpp(generator.as_ref(), pkt)
+            .await;
     }
 
     /// Handle CMSG_CHAR_DELETE — delete a character.

@@ -778,8 +778,10 @@
           "name": "equipment_set_guid_generator_like_cpp",
           "type": "Option < Arc < EquipmentSetGuidGeneratorLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "expansion",
@@ -951,8 +953,10 @@
           "name": "guid_generator",
           "type": "Option < Arc < ObjectGuidGenerator > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "heirloom_store",
@@ -5751,8 +5755,10 @@
           "name": "void_storage_item_id_generator_like_cpp",
           "type": "Option < Arc < VoidStorageItemIdGeneratorLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "watched_faction_index_like_cpp",
@@ -6966,7 +6972,23 @@
           "kind": "method",
           "name": "handle_save_equipment_set",
           "visibility": "pub",
-          "signature": "async fn handle_save_equipment_set (& mut self , mut pkt : WorldPacket)",
+          "signature": "async fn handle_save_equipment_set (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::items",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_save_equipment_set_with_generator_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_save_equipment_set_with_generator_like_cpp (& mut self , generator : & wow_core :: EquipmentSetGuidGeneratorLikeCpp , mut pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7272,6 +7294,22 @@
           "name": "handle_create_character",
           "visibility": "pub",
           "signature": "async fn handle_create_character (& mut self , pkt : CreateCharacter)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::lifecycle",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_create_character_with_generator_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_create_character_with_generator_like_cpp (& mut self , generator : & wow_core :: ObjectGuidGenerator , pkt : CreateCharacter ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18821,7 +18859,23 @@
           "kind": "method",
           "name": "handle_void_storage_transfer",
           "visibility": "pub",
-          "signature": "async fn handle_void_storage_transfer (& mut self , mut pkt : WorldPacket)",
+          "signature": "async fn handle_void_storage_transfer (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_void_storage_transfer_with_generators_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_void_storage_transfer_with_generators_like_cpp (& mut self , generators : & SessionIdGeneratorsLikeCpp , mut pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25432,6 +25486,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "equipment_set_guid_generator_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn equipment_set_guid_generator_for_test_like_cpp (& self ,) -> Option < Arc < EquipmentSetGuidGeneratorLikeCpp > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "evaluate_packet_spoof_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn evaluate_packet_spoof_like_cpp (& mut self , pkt : & WorldPacket) -> bool",
@@ -26043,8 +26112,10 @@
           "name": "guid_generator",
           "visibility": "pub",
           "signature": "fn guid_generator (& self) -> Option < & Arc < ObjectGuidGenerator > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -26596,6 +26667,21 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "id_generators_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn id_generators_for_test_like_cpp (& self) -> SessionIdGeneratorsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29897,17 +29983,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "next_represented_equipment_set_guid_like_cpp",
-          "visibility": "private",
-          "signature": "fn next_represented_equipment_set_guid_like_cpp (& self) -> Option < u64 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "next_represented_spell_cast_guid_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn next_represented_spell_cast_guid_like_cpp (& self , spell_id : i32) -> ObjectGuid",
@@ -29924,6 +29999,21 @@
           "name": "next_represented_void_storage_item_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn next_represented_void_storage_item_id_like_cpp (& self) -> Option < u64 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "next_represented_void_storage_item_id_with_generator_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn next_represented_void_storage_item_id_with_generator_like_cpp (& self , generator : & VoidStorageItemIdGeneratorLikeCpp ,) -> u64",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41550,9 +41640,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "save_represented_equipment_set_like_cpp",
+          "name": "save_represented_equipment_set_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn save_represented_equipment_set_like_cpp (& mut self , mut set : wow_packet :: packets :: misc :: EquipmentSetDataLikeCpp ,) -> Option < RepresentedEquipmentSetSavedLikeCpp >",
+          "signature": "fn save_represented_equipment_set_with_generator_like_cpp (& mut self , generator : & EquipmentSetGuidGeneratorLikeCpp , mut set : wow_packet :: packets :: misc :: EquipmentSetDataLikeCpp ,) -> Option < RepresentedEquipmentSetSavedLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44042,8 +44132,10 @@
           "name": "set_equipment_set_guid_generator_like_cpp",
           "visibility": "pub",
           "signature": "fn set_equipment_set_guid_generator_like_cpp (& mut self , generator : Arc < EquipmentSetGuidGeneratorLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44355,8 +44447,10 @@
           "name": "set_guid_generator",
           "visibility": "pub",
           "signature": "fn set_guid_generator (& mut self , generator : Arc < ObjectGuidGenerator >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -49114,8 +49208,10 @@
           "name": "set_void_storage_item_id_generator_like_cpp",
           "visibility": "pub",
           "signature": "fn set_void_storage_item_id_generator_like_cpp (& mut self , generator : Arc < VoidStorageItemIdGeneratorLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -73569,7 +73665,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6f23338ca5a4ef7aad44b81f1d07d2ad:len=96167|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a2f4aaf847b70770c209b07213717cd3:len=96212|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
