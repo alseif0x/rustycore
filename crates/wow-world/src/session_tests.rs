@@ -34060,6 +34060,128 @@ fn canonical_player_quest_rewarded_talent_points_follow_detached_and_stale_owner
 }
 
 #[test]
+fn canonical_player_item_modifier_runtime_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_569);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ItemModifierOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level: 100,
+            ..Default::default()
+        })
+    );
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 17 }
+    ));
+    assert!(
+        session
+            .mutate_player_item_modifier_runtime_like_cpp(|runtime| {
+                runtime.item_set_effects.insert(
+                    700,
+                    RepresentedItemSetEffectLikeCpp {
+                        item_set_id: 700,
+                        equipped_items: std::collections::HashSet::from([ObjectGuid::create_item(
+                            1, 88,
+                        )]),
+                        set_bonuses: BTreeSet::from([35]),
+                    },
+                );
+            })
+            .is_some()
+    );
+    assert_eq!(
+        session
+            .represented_item_bonus_state_like_cpp()
+            .shield_block_value,
+        17
+    );
+    assert_eq!(
+        session
+            .represented_item_set_effect_like_cpp(700)
+            .expect("canonical item-set effect")
+            .set_bonuses,
+        BTreeSet::from([35])
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 29 }
+    ));
+    assert!(
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 200,
+            ..Default::default()
+        })
+    );
+    let detached = session
+        .player_item_modifier_runtime_snapshot_like_cpp()
+        .expect("detached canonical item-modifier owner");
+    assert_eq!(detached.bonuses.shield_block_value, 29);
+    assert_eq!(detached.item_level_caps.max_item_level, 200);
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .player_item_modifier_runtime_snapshot_like_cpp()
+            .is_none()
+    );
+    assert!(!session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 99 }
+    ));
+    assert!(
+        !session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 999,
+            ..Default::default()
+        })
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().item_modifiers.clone()
+            }),
+        Some(wow_entities::PlayerItemModifierRuntimeStateLikeCpp::default())
+    );
+}
+
+#[test]
 fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -69873,9 +69995,8 @@ fn represented_item_mods_apply_scaling_weapon_dps_like_cpp() {
             .damage_physical_updates,
         &[wow_constants::WeaponAttackType::BaseAttack]
     );
-    let stat_changes = session
-        .represented_item_bonus_state_like_cpp()
-        .represented_player_stat_changes_like_cpp();
+    let stat_changes =
+        represented_player_stat_changes_like_cpp(&session.represented_item_bonus_state_like_cpp());
     assert_eq!(stat_changes.min_damage, 140.0);
     assert_eq!(stat_changes.max_damage, 260.0);
     assert_eq!(
@@ -70055,9 +70176,8 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
             .stat_buff_updates,
         &[wow_constants::Stats::Strength]
     );
-    let stat_changes = session
-        .represented_item_bonus_state_like_cpp()
-        .represented_player_stat_changes_like_cpp();
+    let stat_changes =
+        represented_player_stat_changes_like_cpp(&session.represented_item_bonus_state_like_cpp());
     assert_eq!(
         stat_changes.stats[wow_constants::Stats::Strength as usize],
         100
@@ -70095,9 +70215,8 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
             .resistances_base[wow_constants::spell::SpellSchools::Normal as usize],
         0
     );
-    let removed_changes = session
-        .represented_item_bonus_state_like_cpp()
-        .represented_player_stat_changes_like_cpp();
+    let removed_changes =
+        represented_player_stat_changes_like_cpp(&session.represented_item_bonus_state_like_cpp());
     assert_eq!(
         removed_changes.stats[wow_constants::Stats::Strength as usize],
         0

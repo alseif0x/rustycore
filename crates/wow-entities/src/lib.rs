@@ -269,8 +269,9 @@ pub use player::{
 pub use player_gameplay_state::{
     PlayerCinematicStateLikeCpp, PlayerCurrency, PlayerCurrencyState,
     PlayerDamageControlStateLikeCpp, PlayerGameplayState, PlayerGossipOptionLikeCpp,
-    PlayerHomebindLikeCpp, PlayerInteractionDataLikeCpp, PlayerMenuStateLikeCpp,
-    PlayerMovementControlStateLikeCpp, PlayerPetLifecycleStateLikeCpp,
+    PlayerHomebindLikeCpp, PlayerInteractionDataLikeCpp, PlayerItemBonusStateLikeCpp,
+    PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp, PlayerItemSetEffectLikeCpp,
+    PlayerMenuStateLikeCpp, PlayerMovementControlStateLikeCpp, PlayerPetLifecycleStateLikeCpp,
     PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
 };
 pub use scene_object::{

@@ -1094,7 +1094,7 @@ impl WorldSession {
         }
 
         if include_represented_item_bonuses {
-            let bonuses = self.represented_item_bonus_state_like_cpp();
+            let bonuses = self.resolved_item_bonus_state_like_cpp()?;
             for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
                 *target = target.saturating_add(amount);
             }

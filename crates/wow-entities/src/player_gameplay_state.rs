@@ -1,5 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+use wow_constants::{Stats, WeaponAttackType};
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
@@ -32,6 +33,8 @@ pub struct PlayerGameplayState {
     pub talents: PlayerTalentRuntimeState,
     /// C++ `Player::_questRewardedTalentPoints`.
     pub quest_rewarded_talent_points: u32,
+    /// C++ `Player::_ApplyItemBonuses` and `Player::ItemSetEff` runtime.
+    pub item_modifiers: PlayerItemModifierRuntimeStateLikeCpp,
     pub action_buttons: Vec<PlayerActionButtonRecord>,
     /// C++ `Player::m_actionButtons` has been hydrated from its authoritative
     /// Character DB query. An empty button list is valid and must remain
@@ -110,6 +113,79 @@ pub struct PlayerGameplayState {
     pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
     pub spell_charges: Vec<PlayerSpellChargeRecord>,
     pub rest: PlayerRestState,
+}
+
+/// Canonical runtime accumulated by C++ `Player::_ApplyItemBonuses`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerItemBonusStateLikeCpp {
+    pub mana_base: i32,
+    pub health_base: i32,
+    pub armor_base: i32,
+    pub armor_total: i32,
+    pub stats_base: [i32; 5],
+    pub attack_power_total: i32,
+    pub ranged_attack_power_total: i32,
+    pub resistances_base: [i32; 7],
+    pub combat_ratings: [i32; 32],
+    pub mana_regen_bonus: i32,
+    pub spell_power_bonus: i32,
+    pub health_regen_bonus: i32,
+    pub spell_penetration_bonus: i32,
+    pub shield_block_base_mod: i32,
+    pub shield_block_value: u32,
+    pub weapon_damage: [[f32; 2]; 3],
+    pub base_attack_time: [u32; 3],
+    pub stat_buff_updates: Vec<Stats>,
+    pub damage_physical_updates: Vec<WeaponAttackType>,
+}
+
+impl Default for PlayerItemBonusStateLikeCpp {
+    fn default() -> Self {
+        Self {
+            mana_base: 0,
+            health_base: 0,
+            armor_base: 0,
+            armor_total: 0,
+            stats_base: [0; 5],
+            attack_power_total: 0,
+            ranged_attack_power_total: 0,
+            resistances_base: [0; 7],
+            combat_ratings: [0; 32],
+            mana_regen_bonus: 0,
+            spell_power_bonus: 0,
+            health_regen_bonus: 0,
+            spell_penetration_bonus: 0,
+            shield_block_base_mod: 0,
+            shield_block_value: 0,
+            weapon_damage: [[0.0; 2]; 3],
+            base_attack_time: [0; 3],
+            stat_buff_updates: Vec::new(),
+            damage_physical_updates: Vec::new(),
+        }
+    }
+}
+
+/// Canonical C++ `ItemSetEffect` projection. DB2 row IDs replace pointers.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerItemSetEffectLikeCpp {
+    pub item_set_id: u32,
+    pub equipped_items: HashSet<ObjectGuid>,
+    pub set_bonuses: BTreeSet<u32>,
+}
+
+/// Player-owned item level limits consumed by `Item::GetItemLevel(Player const*)`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PlayerItemLevelCapsLikeCpp {
+    pub min_item_level_cutoff: u32,
+    pub min_item_level: u32,
+    pub max_item_level: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PlayerItemModifierRuntimeStateLikeCpp {
+    pub bonuses: PlayerItemBonusStateLikeCpp,
+    pub item_set_effects: HashMap<u32, PlayerItemSetEffectLikeCpp>,
+    pub item_level_caps: PlayerItemLevelCapsLikeCpp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

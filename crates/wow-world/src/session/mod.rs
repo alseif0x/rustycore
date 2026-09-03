@@ -2477,12 +2477,7 @@ pub(crate) struct RepresentedItemBonusActionLikeCpp {
 
 const ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP: u32 = 0x01;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct RepresentedItemSetEffectLikeCpp {
-    pub item_set_id: u32,
-    pub equipped_items: HashSet<ObjectGuid>,
-    pub set_bonuses: BTreeSet<u32>,
-}
+pub(crate) type RepresentedItemSetEffectLikeCpp = wow_entities::PlayerItemSetEffectLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedItemSetSpellEventLikeCpp {
@@ -2502,83 +2497,34 @@ pub(crate) struct RepresentedItemSetAuraRefreshEventLikeCpp {
     pub form_change: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RepresentedItemBonusStateLikeCpp {
-    pub mana_base: i32,
-    pub health_base: i32,
-    pub armor_base: i32,
-    pub armor_total: i32,
-    pub stats_base: [i32; 5],
-    pub attack_power_total: i32,
-    pub ranged_attack_power_total: i32,
-    pub resistances_base: [i32; 7],
-    pub combat_ratings: [i32; 32],
-    pub mana_regen_bonus: i32,
-    pub spell_power_bonus: i32,
-    pub health_regen_bonus: i32,
-    pub spell_penetration_bonus: i32,
-    pub shield_block_base_mod: i32,
-    pub shield_block_value: u32,
-    pub weapon_damage: [[f32; 2]; 3],
-    pub base_attack_time: [u32; 3],
-    pub stat_buff_updates: Vec<Stats>,
-    pub damage_physical_updates: Vec<WeaponAttackType>,
-}
+pub(crate) type RepresentedItemBonusStateLikeCpp = wow_entities::PlayerItemBonusStateLikeCpp;
 
-impl Default for RepresentedItemBonusStateLikeCpp {
-    fn default() -> Self {
-        Self {
-            mana_base: 0,
-            health_base: 0,
-            armor_base: 0,
-            armor_total: 0,
-            stats_base: [0; 5],
-            attack_power_total: 0,
-            ranged_attack_power_total: 0,
-            resistances_base: [0; 7],
-            combat_ratings: [0; 32],
-            mana_regen_bonus: 0,
-            spell_power_bonus: 0,
-            health_regen_bonus: 0,
-            spell_penetration_bonus: 0,
-            shield_block_base_mod: 0,
-            shield_block_value: 0,
-            weapon_damage: [[0.0; 2]; 3],
-            base_attack_time: [0; 3],
-            stat_buff_updates: Vec::new(),
-            damage_physical_updates: Vec::new(),
-        }
-    }
-}
+fn represented_player_stat_changes_like_cpp(
+    state: &RepresentedItemBonusStateLikeCpp,
+) -> wow_packet::packets::update::PlayerStatChanges {
+    let mut changes = wow_packet::packets::update::PlayerStatChanges {
+        base_mana: state.mana_base,
+        base_health: state.health_base,
+        attack_power: state.attack_power_total,
+        ranged_attack_power: state.ranged_attack_power_total,
+        stats: state.stats_base,
+        stat_pos_buff: state.stats_base,
+        armor: state.armor_base + state.armor_total + state.resistances_base[0],
+        combat_ratings: state.combat_ratings,
+        spell_power: state.spell_power_bonus,
+        shield_block: i32::try_from(state.shield_block_value).unwrap_or(i32::MAX),
+        ..Default::default()
+    };
 
-impl RepresentedItemBonusStateLikeCpp {
-    fn represented_player_stat_changes_like_cpp(
-        &self,
-    ) -> wow_packet::packets::update::PlayerStatChanges {
-        let mut changes = wow_packet::packets::update::PlayerStatChanges {
-            base_mana: self.mana_base,
-            base_health: self.health_base,
-            attack_power: self.attack_power_total,
-            ranged_attack_power: self.ranged_attack_power_total,
-            stats: self.stats_base,
-            stat_pos_buff: self.stats_base,
-            armor: self.armor_base + self.armor_total + self.resistances_base[0],
-            combat_ratings: self.combat_ratings,
-            spell_power: self.spell_power_bonus,
-            shield_block: i32::try_from(self.shield_block_value).unwrap_or(i32::MAX),
-            ..Default::default()
-        };
-
-        changes.min_damage =
-            self.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][0];
-        changes.max_damage =
-            self.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][1];
-        changes.min_ranged_damage =
-            self.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][0];
-        changes.max_ranged_damage =
-            self.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][1];
-        changes
-    }
+    changes.min_damage =
+        state.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][0];
+    changes.max_damage =
+        state.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][1];
+    changes.min_ranged_damage =
+        state.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][0];
+    changes.max_ranged_damage =
+        state.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][1];
+    changes
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5493,6 +5439,7 @@ pub struct WorldSession {
 
     // Player level stats store (race/class/level → base stats)
     player_stats: Option<Arc<PlayerStatsStore>>,
+    #[cfg(test)]
     represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp,
     /// Handle-less compatibility for older tests. Production C++
     /// `Player::_usePvpItemLevels` lives on the canonical Player.
@@ -5917,10 +5864,15 @@ pub struct WorldSession {
     current_buyback_slot: u8,
     #[cfg(test)]
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
+    #[cfg(test)]
     represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
+    #[cfg(test)]
     represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp,
+    #[cfg(test)]
     represented_item_set_effects_like_cpp: HashMap<u32, RepresentedItemSetEffectLikeCpp>,
+    #[cfg(test)]
     represented_item_set_spell_events_like_cpp: Vec<RepresentedItemSetSpellEventLikeCpp>,
+    #[cfg(test)]
     represented_item_set_aura_refresh_events_like_cpp:
         Vec<RepresentedItemSetAuraRefreshEventLikeCpp>,
     #[cfg(test)]
@@ -7274,12 +7226,7 @@ pub(crate) struct RepresentedPlayerConditionContextLikeCpp {
 
 /// Represented subset of C++ `Player::m_unitData` item-level cap fields
 /// consumed by `Item::GetItemLevel(Player const*)`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct RepresentedItemLevelCapsLikeCpp {
-    pub min_item_level_cutoff: u32,
-    pub min_item_level: u32,
-    pub max_item_level: u32,
-}
+pub(crate) type RepresentedItemLevelCapsLikeCpp = wow_entities::PlayerItemLevelCapsLikeCpp;
 
 impl RepresentedPlayerConditionContextLikeCpp {
     pub(crate) fn as_context<'a>(
@@ -7918,6 +7865,7 @@ impl WorldSession {
             item_limit_category_store: None,
             item_limit_category_condition_store: None,
             player_stats: None,
+            #[cfg(test)]
             represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp::default(),
             #[cfg(test)]
             represented_using_pvp_item_levels_like_cpp: false,
@@ -8188,10 +8136,15 @@ impl WorldSession {
             current_buyback_slot: BUYBACK_SLOT_START,
             #[cfg(test)]
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_item_bonus_actions_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp::default(),
+            #[cfg(test)]
             represented_item_set_effects_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_item_set_spell_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_item_set_aura_refresh_events_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
@@ -20776,11 +20729,54 @@ impl WorldSession {
         self.item_stats_store = Some(store);
     }
 
+    fn player_item_modifier_runtime_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.gameplay_state().item_modifiers.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerItemModifierRuntimeStateLikeCpp {
+                bonuses: self.represented_item_bonus_state_like_cpp.clone(),
+                item_set_effects: self.represented_item_set_effects_like_cpp.clone(),
+                item_level_caps: self.represented_item_level_caps_like_cpp,
+            });
+        }
+        canonical
+    }
+
+    fn mutate_player_item_modifier_runtime_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerItemModifierRuntimeStateLikeCpp) -> R,
+    ) -> Option<R> {
+        let mut mutate = Some(mutate);
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut state = self.player_item_modifier_runtime_snapshot_like_cpp()?;
+            let result =
+                mutate
+                    .take()
+                    .expect("test item-modifier mutation executes once")(&mut state);
+            self.represented_item_bonus_state_like_cpp = state.bonuses;
+            self.represented_item_set_effects_like_cpp = state.item_set_effects;
+            self.represented_item_level_caps_like_cpp = state.item_level_caps;
+            return Some(result);
+        }
+        self.with_owned_player_mut_like_cpp(|player| {
+            mutate
+                .take()
+                .expect("Player item-modifier mutation executes once")(
+                &mut player.gameplay_state_mut().item_modifiers,
+            )
+        })
+    }
+
     pub(crate) fn set_represented_item_level_caps_like_cpp(
         &mut self,
         caps: RepresentedItemLevelCapsLikeCpp,
-    ) {
-        self.represented_item_level_caps_like_cpp = caps;
+    ) -> bool {
+        self.mutate_player_item_modifier_runtime_like_cpp(|state| state.item_level_caps = caps)
+            .is_some()
     }
 
     pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) -> bool {
@@ -20892,7 +20888,7 @@ impl WorldSession {
         item_guid: ObjectGuid,
         slot: u8,
         apply: bool,
-    ) {
+    ) -> usize {
         #[cfg(test)]
         {
             self.represented_item_mod_reapply_events_like_cpp.push(
@@ -20908,16 +20904,16 @@ impl WorldSession {
             .resolved_inventory_item_object_like_cpp(item_guid)
             .map(|item| item.object().entry())
         else {
-            return;
+            return 0;
         };
         let Some(item_stats_store) = self.item_stats_store.as_ref().cloned() else {
-            return;
+            return 0;
         };
-        let action_start = self.represented_item_bonus_actions_like_cpp.len();
+        let mut planned_actions = Vec::new();
 
         let scaling_context = self.represented_scaling_stat_context_like_cpp(item_entry);
         if let Some(context) = scaling_context {
-            self.represented_item_bonus_actions_like_cpp.extend(
+            planned_actions.extend(
                 item_scaling_stat_bonus_actions_like_cpp(
                     &context.stat_id,
                     &context.bonus,
@@ -20932,31 +20928,27 @@ impl WorldSession {
                 }),
             );
             if context.spell_bonus > 0 {
-                self.represented_item_bonus_actions_like_cpp.push(
-                    RepresentedItemBonusActionLikeCpp {
-                        item_guid,
-                        slot,
-                        action: ApplyEnchantmentEffectAction::SpellPowerBonus {
-                            amount: context.spell_bonus as u32,
-                            apply,
-                        },
+                planned_actions.push(RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action: ApplyEnchantmentEffectAction::SpellPowerBonus {
+                        amount: context.spell_bonus as u32,
+                        apply,
                     },
-                );
+                });
             } else if context.spell_bonus < 0 {
-                self.represented_item_bonus_actions_like_cpp.push(
-                    RepresentedItemBonusActionLikeCpp {
-                        item_guid,
-                        slot,
-                        action: ApplyEnchantmentEffectAction::UnhandledStatModifier {
-                            item_mod: wow_constants::ItemModType::SpellPower,
-                            amount: context.spell_bonus.unsigned_abs(),
-                            apply,
-                        },
+                planned_actions.push(RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action: ApplyEnchantmentEffectAction::UnhandledStatModifier {
+                        item_mod: wow_constants::ItemModType::SpellPower,
+                        amount: context.spell_bonus.unsigned_abs(),
+                        apply,
                     },
-                );
+                });
             }
         } else if let Some(stat_entry) = item_stats_store.get(item_entry) {
-            self.represented_item_bonus_actions_like_cpp.extend(
+            planned_actions.extend(
                 item_stat_bonus_actions_like_cpp(&stat_entry.stats, apply)
                     .into_iter()
                     .map(|action| RepresentedItemBonusActionLikeCpp {
@@ -20972,7 +20964,7 @@ impl WorldSession {
                 &stat_entry.resistances,
                 scaling_context,
             );
-            self.represented_item_bonus_actions_like_cpp.extend(
+            planned_actions.extend(
                 item_resistance_bonus_actions_like_cpp(&resistances, apply)
                     .into_iter()
                     .map(|action| RepresentedItemBonusActionLikeCpp {
@@ -20989,12 +20981,11 @@ impl WorldSession {
                     item_shield_block_bonus_action_like_cpp(shield_block_value, true, apply)
                 })
         {
-            self.represented_item_bonus_actions_like_cpp
-                .push(RepresentedItemBonusActionLikeCpp {
-                    item_guid,
-                    slot,
-                    action,
-                });
+            planned_actions.push(RepresentedItemBonusActionLikeCpp {
+                item_guid,
+                slot,
+                action,
+            });
         }
 
         if let (Some(weapon), Some(inventory_type)) = (
@@ -21003,7 +20994,7 @@ impl WorldSession {
         ) {
             let (min_damage, max_damage) =
                 self.represented_weapon_damage_bounds_like_cpp(item_entry, weapon);
-            self.represented_item_bonus_actions_like_cpp.extend(
+            planned_actions.extend(
                 item_weapon_damage_actions_like_cpp(
                     slot,
                     inventory_type,
@@ -21025,13 +21016,14 @@ impl WorldSession {
             );
         }
 
-        let planned_actions: Vec<_> = self.represented_item_bonus_actions_like_cpp[action_start..]
-            .iter()
-            .map(|planned| planned.action)
-            .collect();
-        for action in planned_actions {
-            self.apply_represented_item_bonus_action_state_like_cpp(action);
+        #[cfg(test)]
+        self.represented_item_bonus_actions_like_cpp
+            .extend(planned_actions.iter().cloned());
+        let action_count = planned_actions.len();
+        for planned in planned_actions {
+            self.apply_represented_item_bonus_action_state_like_cpp(planned.action);
         }
+        action_count
     }
 
     pub(crate) fn record_destroyed_inventory_item_mod_remove_like_cpp(
@@ -21050,9 +21042,7 @@ impl WorldSession {
             return false;
         }
 
-        let action_start = self.represented_item_bonus_actions_like_cpp.len();
-        self.record_represented_item_mods_like_cpp(item_guid, slot, false);
-        self.represented_item_bonus_actions_like_cpp.len() != action_start
+        self.record_represented_item_mods_like_cpp(item_guid, slot, false) != 0
     }
 
     pub(crate) fn record_direct_inventory_item_set_remove_like_cpp(
@@ -21073,56 +21063,74 @@ impl WorldSession {
         item_guid: ObjectGuid,
         apply: bool,
     ) -> bool {
+        !self
+            .record_represented_items_set_item_events_like_cpp(item_guid, apply)
+            .is_empty()
+    }
+
+    fn record_represented_items_set_item_events_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        apply: bool,
+    ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
         let Some(item_entry) = self
             .resolved_inventory_item_object_like_cpp(item_guid)
             .map(|item| item.object().entry())
         else {
-            return false;
+            return Vec::new();
         };
         let Some(item_set) = self.item_set_for_item_id_like_cpp(item_entry).cloned() else {
-            return false;
+            return Vec::new();
         };
 
-        if apply {
+        let events = if apply {
             self.record_represented_add_items_set_item_like_cpp(item_guid, &item_set)
         } else {
             self.record_represented_remove_items_set_item_like_cpp(item_guid, &item_set)
-        }
+        };
+        #[cfg(test)]
+        self.represented_item_set_spell_events_like_cpp
+            .extend(events.iter().copied());
+        events
     }
 
     fn record_represented_add_items_set_item_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
         item_set: &wow_data::ItemSetEntry,
-    ) -> bool {
+    ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
         if item_set.required_skill != 0 {
             let Some(skill_value) =
                 self.resolved_player_skill_value_like_cpp(item_set.required_skill as u16)
             else {
-                return false;
+                return Vec::new();
             };
             if skill_value < item_set.required_skill_rank {
-                return false;
+                return Vec::new();
             }
         }
         if item_set.set_flags & ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP != 0 {
-            return false;
+            return Vec::new();
         }
         if self.represented_heirloom_item_set_bonus_over_level_cap_like_cpp(item_guid) {
-            return false;
+            return Vec::new();
         }
 
-        let before_events = self.represented_item_set_spell_events_like_cpp.len();
-        let equipped_count_after = {
-            let effect = self
-                .represented_item_set_effects_like_cpp
-                .entry(item_set.id)
-                .or_insert_with(|| RepresentedItemSetEffectLikeCpp {
-                    item_set_id: item_set.id,
-                    ..Default::default()
-                });
-            effect.equipped_items.insert(item_guid);
-            effect.equipped_items.len()
+        let mut events = Vec::new();
+        let Some(equipped_count_after) =
+            self.mutate_player_item_modifier_runtime_like_cpp(|state| {
+                let effect = state
+                    .item_set_effects
+                    .entry(item_set.id)
+                    .or_insert_with(|| RepresentedItemSetEffectLikeCpp {
+                        item_set_id: item_set.id,
+                        ..Default::default()
+                    });
+                effect.equipped_items.insert(item_guid);
+                effect.equipped_items.len()
+            })
+        else {
+            return Vec::new();
         };
 
         let primary_spec = self.represented_primary_specialization_id_like_cpp();
@@ -21138,11 +21146,15 @@ impl WorldSession {
             if !self.represented_item_set_spell_exists_like_cpp(item_set_spell.spell_id) {
                 continue;
             }
-            let effect = self
-                .represented_item_set_effects_like_cpp
-                .get_mut(&item_set.id)
-                .expect("item set effect exists after insert");
-            if !effect.set_bonuses.insert(item_set_spell.id) {
+            let inserted = self
+                .mutate_player_item_modifier_runtime_like_cpp(|state| {
+                    state
+                        .item_set_effects
+                        .get_mut(&item_set.id)
+                        .is_some_and(|effect| effect.set_bonuses.insert(item_set_spell.id))
+                })
+                .unwrap_or(false);
+            if !inserted {
                 continue;
             }
             if item_set_spell.chr_spec_id != 0
@@ -21150,18 +21162,16 @@ impl WorldSession {
             {
                 continue;
             }
-            self.represented_item_set_spell_events_like_cpp.push(
-                RepresentedItemSetSpellEventLikeCpp {
-                    item_set_id: item_set.id,
-                    spell_entry_id: item_set_spell.id,
-                    spell_id: item_set_spell.spell_id,
-                    threshold: item_set_spell.threshold,
-                    apply: true,
-                },
-            );
+            events.push(RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: item_set.id,
+                spell_entry_id: item_set_spell.id,
+                spell_id: item_set_spell.spell_id,
+                threshold: item_set_spell.threshold,
+                apply: true,
+            });
         }
 
-        self.represented_item_set_spell_events_like_cpp.len() != before_events
+        events
     }
 
     fn represented_item_set_spell_exists_like_cpp(&self, spell_id: u32) -> bool {
@@ -21255,16 +21265,18 @@ impl WorldSession {
         &mut self,
         item_guid: ObjectGuid,
         item_set: &wow_data::ItemSetEntry,
-    ) -> bool {
-        let Some(effect) = self
-            .represented_item_set_effects_like_cpp
-            .get_mut(&item_set.id)
+    ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
+        let Some(equipped_count_after) = self
+            .mutate_player_item_modifier_runtime_like_cpp(|state| {
+                let effect = state.item_set_effects.get_mut(&item_set.id)?;
+                effect.equipped_items.remove(&item_guid);
+                Some(effect.equipped_items.len())
+            })
+            .flatten()
         else {
-            return false;
+            return Vec::new();
         };
-        effect.equipped_items.remove(&item_guid);
-        let equipped_count_after = effect.equipped_items.len();
-        let before_events = self.represented_item_set_spell_events_like_cpp.len();
+        let mut events = Vec::new();
 
         let spells: Vec<_> = self
             .item_set_spells_like_cpp(item_set.id)
@@ -21275,49 +21287,62 @@ impl WorldSession {
             if usize::from(item_set_spell.threshold) <= equipped_count_after {
                 continue;
             }
-            let Some(effect) = self
-                .represented_item_set_effects_like_cpp
-                .get_mut(&item_set.id)
-            else {
-                continue;
-            };
-            if !effect.set_bonuses.remove(&item_set_spell.id) {
+            let removed = self
+                .mutate_player_item_modifier_runtime_like_cpp(|state| {
+                    state
+                        .item_set_effects
+                        .get_mut(&item_set.id)
+                        .is_some_and(|effect| effect.set_bonuses.remove(&item_set_spell.id))
+                })
+                .unwrap_or(false);
+            if !removed {
                 continue;
             }
-            self.represented_item_set_spell_events_like_cpp.push(
-                RepresentedItemSetSpellEventLikeCpp {
-                    item_set_id: item_set.id,
-                    spell_entry_id: item_set_spell.id,
-                    spell_id: item_set_spell.spell_id,
-                    threshold: item_set_spell.threshold,
-                    apply: false,
-                },
-            );
+            events.push(RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: item_set.id,
+                spell_entry_id: item_set_spell.id,
+                spell_id: item_set_spell.spell_id,
+                threshold: item_set_spell.threshold,
+                apply: false,
+            });
         }
 
-        if self
-            .represented_item_set_effects_like_cpp
-            .get(&item_set.id)
-            .is_some_and(|effect| effect.equipped_items.is_empty())
-        {
-            self.represented_item_set_effects_like_cpp
-                .remove(&item_set.id);
-        }
+        let _ = self.mutate_player_item_modifier_runtime_like_cpp(|state| {
+            if state
+                .item_set_effects
+                .get(&item_set.id)
+                .is_some_and(|effect| effect.equipped_items.is_empty())
+            {
+                state.item_set_effects.remove(&item_set.id);
+            }
+        });
 
-        self.represented_item_set_spell_events_like_cpp.len() != before_events
+        events
     }
 
     pub(crate) fn record_represented_update_item_set_auras_like_cpp(
         &mut self,
         form_change: bool,
     ) -> usize {
-        let before_events = self.represented_item_set_aura_refresh_events_like_cpp.len();
+        let events = self.plan_represented_update_item_set_auras_like_cpp(form_change);
+        #[cfg(test)]
+        self.represented_item_set_aura_refresh_events_like_cpp
+            .extend(events.iter().cloned());
+        events.len()
+    }
+
+    fn plan_represented_update_item_set_auras_like_cpp(
+        &self,
+        form_change: bool,
+    ) -> Vec<RepresentedItemSetAuraRefreshEventLikeCpp> {
+        let mut events = Vec::new();
         let primary_spec = self.represented_primary_specialization_id_like_cpp();
-        let active_effects: Vec<_> = self
-            .represented_item_set_effects_like_cpp
-            .values()
-            .cloned()
-            .collect();
+        let Some(active_effects) = self
+            .player_item_modifier_runtime_snapshot_like_cpp()
+            .map(|state| state.item_set_effects.values().cloned().collect::<Vec<_>>())
+        else {
+            return events;
+        };
 
         for effect in active_effects {
             let active_bonus_ids = effect.set_bonuses.clone();
@@ -21332,46 +21357,40 @@ impl WorldSession {
                 if item_set_spell.chr_spec_id != 0
                     && Some(u32::from(item_set_spell.chr_spec_id)) != primary_spec
                 {
-                    self.represented_item_set_aura_refresh_events_like_cpp.push(
-                        RepresentedItemSetAuraRefreshEventLikeCpp {
-                            item_set_id: effect.item_set_id,
-                            spell_entry_id: item_set_spell.id,
-                            spell_id: item_set_spell.spell_id,
-                            apply: false,
-                            form_change: false,
-                        },
-                    );
+                    events.push(RepresentedItemSetAuraRefreshEventLikeCpp {
+                        item_set_id: effect.item_set_id,
+                        spell_entry_id: item_set_spell.id,
+                        spell_id: item_set_spell.spell_id,
+                        apply: false,
+                        form_change: false,
+                    });
                     continue;
                 }
 
                 let fits_shapeshift =
                     self.represented_equip_spell_fits_shapeshift_like_cpp(item_set_spell.spell_id);
                 if !form_change || !fits_shapeshift {
-                    self.represented_item_set_aura_refresh_events_like_cpp.push(
-                        RepresentedItemSetAuraRefreshEventLikeCpp {
-                            item_set_id: effect.item_set_id,
-                            spell_entry_id: item_set_spell.id,
-                            spell_id: item_set_spell.spell_id,
-                            apply: false,
-                            form_change,
-                        },
-                    );
+                    events.push(RepresentedItemSetAuraRefreshEventLikeCpp {
+                        item_set_id: effect.item_set_id,
+                        spell_entry_id: item_set_spell.id,
+                        spell_id: item_set_spell.spell_id,
+                        apply: false,
+                        form_change,
+                    });
                 }
                 if fits_shapeshift {
-                    self.represented_item_set_aura_refresh_events_like_cpp.push(
-                        RepresentedItemSetAuraRefreshEventLikeCpp {
-                            item_set_id: effect.item_set_id,
-                            spell_entry_id: item_set_spell.id,
-                            spell_id: item_set_spell.spell_id,
-                            apply: true,
-                            form_change,
-                        },
-                    );
+                    events.push(RepresentedItemSetAuraRefreshEventLikeCpp {
+                        item_set_id: effect.item_set_id,
+                        spell_entry_id: item_set_spell.id,
+                        spell_id: item_set_spell.spell_id,
+                        apply: true,
+                        form_change,
+                    });
                 }
             }
         }
 
-        self.represented_item_set_aura_refresh_events_like_cpp.len() - before_events
+        events
     }
 
     pub(crate) fn apply_initial_equipped_item_equip_auras_like_cpp(&mut self) -> Option<usize> {
@@ -21488,10 +21507,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
-        let event_start = self.represented_item_set_spell_events_like_cpp.len();
-        let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
-
-        let events = self.represented_item_set_spell_events_like_cpp[event_start..].to_vec();
+        let events = self.record_represented_items_set_item_events_like_cpp(item_guid, true);
         let mut applied = 0usize;
         for event in events {
             if !event.apply {
@@ -21571,9 +21587,11 @@ impl WorldSession {
         &mut self,
         form_change: bool,
     ) -> usize {
-        let start = self.represented_item_set_aura_refresh_events_like_cpp.len();
-        let recorded = self.record_represented_update_item_set_auras_like_cpp(form_change);
-        let events = self.represented_item_set_aura_refresh_events_like_cpp[start..].to_vec();
+        let events = self.plan_represented_update_item_set_auras_like_cpp(form_change);
+        #[cfg(test)]
+        self.represented_item_set_aura_refresh_events_like_cpp
+            .extend(events.iter().cloned());
+        let recorded = events.len();
         let Some(player_guid) = self.player_guid() else {
             return recorded;
         };
@@ -21616,12 +21634,12 @@ impl WorldSession {
         &self,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
         let player_guid = self.player_guid()?;
+        let bonuses = self.resolved_item_bonus_state_like_cpp()?;
         Some(
             wow_packet::packets::update::UpdateObject::player_stat_update(
                 player_guid,
                 self.player_map_id_like_cpp(),
-                self.represented_item_bonus_state_like_cpp
-                    .represented_player_stat_changes_like_cpp(),
+                represented_player_stat_changes_like_cpp(&bonuses),
             ),
         )
     }
@@ -21657,6 +21675,19 @@ impl WorldSession {
     fn apply_represented_item_bonus_action_state_like_cpp(
         &mut self,
         action: ApplyEnchantmentEffectAction,
+    ) -> bool {
+        self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
+            Self::apply_represented_item_bonus_action_to_state_like_cpp(
+                &mut runtime.bonuses,
+                action,
+            );
+        })
+        .is_some()
+    }
+
+    fn apply_represented_item_bonus_action_to_state_like_cpp(
+        state: &mut RepresentedItemBonusStateLikeCpp,
+        action: ApplyEnchantmentEffectAction,
     ) {
         match action {
             ApplyEnchantmentEffectAction::UnitModifier {
@@ -21664,11 +21695,12 @@ impl WorldSession {
                 modifier,
                 amount,
                 apply,
-            } => self.apply_represented_unit_modifier_like_cpp(unit_mod, modifier, amount, apply),
-            ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat) => self
-                .represented_item_bonus_state_like_cpp
-                .stat_buff_updates
-                .push(stat),
+            } => Self::apply_represented_unit_modifier_like_cpp(
+                state, unit_mod, modifier, amount, apply,
+            ),
+            ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat) => {
+                state.stat_buff_updates.push(stat)
+            }
             ApplyEnchantmentEffectAction::RatingModifier {
                 rating,
                 amount,
@@ -21676,40 +21708,24 @@ impl WorldSession {
             } => {
                 if let Some(index) = represented_combat_rating_index_like_cpp(rating) {
                     apply_represented_i32_delta_like_cpp(
-                        &mut self.represented_item_bonus_state_like_cpp.combat_ratings[index],
+                        &mut state.combat_ratings[index],
                         amount,
                         apply,
                     );
                 }
             }
             ApplyEnchantmentEffectAction::ManaRegenBonus { amount, apply } => {
-                apply_represented_i32_delta_like_cpp(
-                    &mut self.represented_item_bonus_state_like_cpp.mana_regen_bonus,
-                    amount,
-                    apply,
-                );
+                apply_represented_i32_delta_like_cpp(&mut state.mana_regen_bonus, amount, apply);
             }
             ApplyEnchantmentEffectAction::SpellPowerBonus { amount, apply } => {
-                apply_represented_i32_delta_like_cpp(
-                    &mut self.represented_item_bonus_state_like_cpp.spell_power_bonus,
-                    amount,
-                    apply,
-                );
+                apply_represented_i32_delta_like_cpp(&mut state.spell_power_bonus, amount, apply);
             }
             ApplyEnchantmentEffectAction::HealthRegenBonus { amount, apply } => {
-                apply_represented_i32_delta_like_cpp(
-                    &mut self
-                        .represented_item_bonus_state_like_cpp
-                        .health_regen_bonus,
-                    amount,
-                    apply,
-                );
+                apply_represented_i32_delta_like_cpp(&mut state.health_regen_bonus, amount, apply);
             }
             ApplyEnchantmentEffectAction::SpellPenetrationBonus { amount, apply } => {
                 apply_represented_i32_delta_like_cpp(
-                    &mut self
-                        .represented_item_bonus_state_like_cpp
-                        .spell_penetration_bonus,
+                    &mut state.spell_penetration_bonus,
                     amount,
                     apply,
                 );
@@ -21720,16 +21736,13 @@ impl WorldSession {
                 apply,
             } => {
                 apply_represented_i32_delta_like_cpp(
-                    &mut self
-                        .represented_item_bonus_state_like_cpp
-                        .shield_block_base_mod,
+                    &mut state.shield_block_base_mod,
                     amount,
                     apply,
                 );
             }
             ApplyEnchantmentEffectAction::SetShieldBlockValue { amount } => {
-                self.represented_item_bonus_state_like_cpp
-                    .shield_block_value = amount;
+                state.shield_block_value = amount;
             }
             ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
                 attack_type,
@@ -21737,18 +21750,12 @@ impl WorldSession {
                 amount_bits,
             } => {
                 let attack = attack_type as usize;
-                if attack
-                    < self
-                        .represented_item_bonus_state_like_cpp
-                        .weapon_damage
-                        .len()
-                {
+                if attack < state.weapon_damage.len() {
                     let bound = match bound {
                         wow_entities::WeaponDamageBoundLikeCpp::Min => 0,
                         wow_entities::WeaponDamageBoundLikeCpp::Max => 1,
                     };
-                    self.represented_item_bonus_state_like_cpp.weapon_damage[attack][bound] =
-                        f32::from_bits(amount_bits);
+                    state.weapon_damage[attack][bound] = f32::from_bits(amount_bits);
                 }
             }
             ApplyEnchantmentEffectAction::SetBaseAttackTime {
@@ -21756,19 +21763,13 @@ impl WorldSession {
                 time_ms,
             } => {
                 let attack = attack_type as usize;
-                if attack
-                    < self
-                        .represented_item_bonus_state_like_cpp
-                        .base_attack_time
-                        .len()
-                {
-                    self.represented_item_bonus_state_like_cpp.base_attack_time[attack] = time_ms;
+                if attack < state.base_attack_time.len() {
+                    state.base_attack_time[attack] = time_ms;
                 }
             }
-            ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type } => self
-                .represented_item_bonus_state_like_cpp
-                .damage_physical_updates
-                .push(attack_type),
+            ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type } => {
+                state.damage_physical_updates.push(attack_type)
+            }
             ApplyEnchantmentEffectAction::Noop
             | ApplyEnchantmentEffectAction::DeferredCombatSpell
             | ApplyEnchantmentEffectAction::DeferredUseSpell
@@ -21782,7 +21783,7 @@ impl WorldSession {
     }
 
     fn apply_represented_unit_modifier_like_cpp(
-        &mut self,
+        state: &mut RepresentedItemBonusStateLikeCpp,
         unit_mod: wow_entities::ApplyEnchantmentUnitMod,
         modifier: wow_entities::ApplyEnchantmentUnitModifier,
         amount: u32,
@@ -21792,65 +21793,36 @@ impl WorldSession {
             (
                 wow_entities::ApplyEnchantmentUnitMod::Mana,
                 wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-            ) => apply_represented_i32_delta_like_cpp(
-                &mut self.represented_item_bonus_state_like_cpp.mana_base,
-                amount,
-                apply,
-            ),
+            ) => apply_represented_i32_delta_like_cpp(&mut state.mana_base, amount, apply),
             (
                 wow_entities::ApplyEnchantmentUnitMod::Health,
                 wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-            ) => apply_represented_i32_delta_like_cpp(
-                &mut self.represented_item_bonus_state_like_cpp.health_base,
-                amount,
-                apply,
-            ),
+            ) => apply_represented_i32_delta_like_cpp(&mut state.health_base, amount, apply),
             (
                 wow_entities::ApplyEnchantmentUnitMod::Armor,
                 wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-            ) => apply_represented_i32_delta_like_cpp(
-                &mut self.represented_item_bonus_state_like_cpp.armor_base,
-                amount,
-                apply,
-            ),
+            ) => apply_represented_i32_delta_like_cpp(&mut state.armor_base, amount, apply),
             (
                 wow_entities::ApplyEnchantmentUnitMod::Armor,
                 wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-            ) => apply_represented_i32_delta_like_cpp(
-                &mut self.represented_item_bonus_state_like_cpp.armor_total,
-                amount,
-                apply,
-            ),
+            ) => apply_represented_i32_delta_like_cpp(&mut state.armor_total, amount, apply),
             (
                 wow_entities::ApplyEnchantmentUnitMod::AttackPower,
                 wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-            ) => apply_represented_i32_delta_like_cpp(
-                &mut self
-                    .represented_item_bonus_state_like_cpp
-                    .attack_power_total,
-                amount,
-                apply,
-            ),
+            ) => apply_represented_i32_delta_like_cpp(&mut state.attack_power_total, amount, apply),
             (
                 wow_entities::ApplyEnchantmentUnitMod::AttackPowerRanged,
                 wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
             ) => apply_represented_i32_delta_like_cpp(
-                &mut self
-                    .represented_item_bonus_state_like_cpp
-                    .ranged_attack_power_total,
+                &mut state.ranged_attack_power_total,
                 amount,
                 apply,
             ),
             (wow_entities::ApplyEnchantmentUnitMod::Resistance(school), _) => {
                 let school = school as usize;
-                if school
-                    < self
-                        .represented_item_bonus_state_like_cpp
-                        .resistances_base
-                        .len()
-                {
+                if school < state.resistances_base.len() {
                     apply_represented_i32_delta_like_cpp(
-                        &mut self.represented_item_bonus_state_like_cpp.resistances_base[school],
+                        &mut state.resistances_base[school],
                         amount,
                         apply,
                     );
@@ -21863,7 +21835,7 @@ impl WorldSession {
             ) => {
                 if let Some(index) = represented_unit_mod_stat_index_like_cpp(unit_mod) {
                     apply_represented_i32_delta_like_cpp(
-                        &mut self.represented_item_bonus_state_like_cpp.stats_base[index],
+                        &mut state.stats_base[index],
                         amount,
                         apply,
                     );
@@ -23552,8 +23524,11 @@ impl WorldSession {
         // C++ WorldSession::HandlePlayerLogin constructs a fresh Player, so
         // item modifiers from a previous character cannot survive into the
         // next login on the same session.
+        #[cfg(test)]
         self.represented_item_bonus_actions_like_cpp.clear();
-        self.represented_item_bonus_state_like_cpp = RepresentedItemBonusStateLikeCpp::default();
+        let _ = self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
+            runtime.bonuses = RepresentedItemBonusStateLikeCpp::default();
+        });
     }
 
     pub(crate) fn clear_buyback_runtime_like_cpp(&mut self) {
@@ -26909,6 +26884,7 @@ impl WorldSession {
                 slot: slot as u8,
                 action,
             };
+            #[cfg(test)]
             self.represented_item_bonus_actions_like_cpp
                 .push(represented_action.clone());
             let spell_action_applied = self.apply_loaded_enchantment_spell_action_like_cpp(action);
@@ -29402,16 +29378,16 @@ impl WorldSession {
         spell_id: u32,
         threat_entry: Option<SpellThreatEntryLikeCpp>,
         caster_guid: ObjectGuid,
-    ) -> f32 {
+    ) -> Option<f32> {
         if let Some(entry) = threat_entry {
-            let caster_attack_power = (self.player_guid() == Some(caster_guid))
-                .then_some(
-                    self.represented_item_bonus_state_like_cpp
-                        .attack_power_total
-                        .max(0),
-                )
-                .unwrap_or(0);
-            return entry.flat_mod as f32 + entry.ap_pct_mod * caster_attack_power as f32;
+            let caster_attack_power = if self.player_guid() == Some(caster_guid) {
+                self.resolved_item_bonus_state_like_cpp()?
+                    .attack_power_total
+                    .max(0)
+            } else {
+                0
+            };
+            return Some(entry.flat_mod as f32 + entry.ap_pct_mod * caster_attack_power as f32);
         }
 
         let difficulty = self.current_map_difficulty_id_like_cpp();
@@ -29419,30 +29395,32 @@ impl WorldSession {
             & wow_data::SPELL_ATTR0_CU_NO_INITIAL_THREAT_LIKE_CPP
             != 0
         {
-            return 0.0;
+            return Some(0.0);
         }
 
-        self.spell_levels_store
-            .as_deref()
-            .and_then(|store| {
-                let mut difficulty_id = difficulty;
-                let mut visited = HashSet::new();
-                loop {
-                    if let Some(entry) =
-                        store.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id)
-                    {
-                        break Some(entry);
+        Some(
+            self.spell_levels_store
+                .as_deref()
+                .and_then(|store| {
+                    let mut difficulty_id = difficulty;
+                    let mut visited = HashSet::new();
+                    loop {
+                        if let Some(entry) =
+                            store.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id)
+                        {
+                            break Some(entry);
+                        }
+                        if difficulty_id == 0 || !visited.insert(difficulty_id) {
+                            break None;
+                        }
+                        difficulty_id = self
+                            .difficulty_store()
+                            .and_then(|difficulties| difficulties.get(u32::from(difficulty_id)))
+                            .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
                     }
-                    if difficulty_id == 0 || !visited.insert(difficulty_id) {
-                        break None;
-                    }
-                    difficulty_id = self
-                        .difficulty_store()
-                        .and_then(|difficulties| difficulties.get(u32::from(difficulty_id)))
-                        .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
-                }
-            })
-            .map_or(0.0, |entry| f32::from(entry.spell_level.max(0)))
+                })
+                .map_or(0.0, |entry| f32::from(entry.spell_level.max(0))),
+        )
     }
 
     /// Represented single-target `Spell::HandleThreatSpells` pass. This runs
@@ -29496,8 +29474,11 @@ impl WorldSession {
         }
 
         let threat_entry = self.spell_threat_entry_like_cpp(spell_id_u32).copied();
-        let base_amount =
-            self.spell_initial_threat_like_cpp(spell_id_u32, threat_entry, caster_guid);
+        let Some(base_amount) =
+            self.spell_initial_threat_like_cpp(spell_id_u32, threat_entry, caster_guid)
+        else {
+            return;
+        };
         if base_amount == 0.0 {
             return;
         }
@@ -43799,9 +43780,7 @@ impl WorldSession {
             .resolved_inventory_item_object_like_cpp(item_guid)
             .is_some_and(|item| !item.is_broken())
         {
-            let action_start = self.represented_item_bonus_actions_like_cpp.len();
-            self.record_represented_item_mods_like_cpp(item_guid, slot, true);
-            self.represented_item_bonus_actions_like_cpp.len() != action_start
+            self.record_represented_item_mods_like_cpp(item_guid, slot, true) != 0
         } else {
             false
         };
@@ -43822,9 +43801,7 @@ impl WorldSession {
             return false;
         }
 
-        let action_start = self.represented_item_bonus_actions_like_cpp.len();
-        self.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_OFFHAND, false);
-        self.represented_item_bonus_actions_like_cpp.len() != action_start
+        self.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_OFFHAND, false) != 0
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -45684,6 +45661,9 @@ impl WorldSession {
         runtime_item: Option<&Item>,
     ) -> Option<u32> {
         let using_pvp_item_levels = self.resolved_using_pvp_item_levels_like_cpp()?;
+        let caps = self
+            .player_item_modifier_runtime_snapshot_like_cpp()?
+            .item_level_caps;
         let item_stats_store = self.item_stats_store.as_ref()?;
         let random_property_template = item_stats_store.random_property_template(entry_id)?;
         let sparse_template = item_stats_store.sparse_template(entry_id);
@@ -45713,7 +45693,6 @@ impl WorldSession {
                 return item_level;
             }
 
-            let caps = self.represented_item_level_caps_like_cpp;
             if caps.min_item_level != 0
                 && (caps.min_item_level_cutoff == 0
                     || item_level_before_upgrades >= i64::from(caps.min_item_level_cutoff))
@@ -48908,14 +48887,26 @@ impl WorldSession {
     pub(crate) fn represented_item_set_effect_like_cpp(
         &self,
         item_set_id: u32,
-    ) -> Option<&RepresentedItemSetEffectLikeCpp> {
-        self.represented_item_set_effects_like_cpp.get(&item_set_id)
+    ) -> Option<RepresentedItemSetEffectLikeCpp> {
+        self.player_item_modifier_runtime_snapshot_like_cpp()?
+            .item_set_effects
+            .get(&item_set_id)
+            .cloned()
     }
 
-    pub(crate) fn represented_item_bonus_state_like_cpp(
+    #[cfg(test)]
+    pub(crate) fn represented_item_bonus_state_like_cpp(&self) -> RepresentedItemBonusStateLikeCpp {
+        self.resolved_item_bonus_state_like_cpp()
+            .expect("test Player item-bonus owner must resolve")
+    }
+
+    pub(crate) fn resolved_item_bonus_state_like_cpp(
         &self,
-    ) -> &RepresentedItemBonusStateLikeCpp {
-        &self.represented_item_bonus_state_like_cpp
+    ) -> Option<RepresentedItemBonusStateLikeCpp> {
+        Some(
+            self.player_item_modifier_runtime_snapshot_like_cpp()?
+                .bonuses,
+        )
     }
 
     #[cfg(test)]

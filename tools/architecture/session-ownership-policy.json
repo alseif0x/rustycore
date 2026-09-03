@@ -3825,22 +3825,28 @@
           "name": "represented_item_bonus_actions_like_cpp",
           "type": "Vec < RepresentedItemBonusActionLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_bonus_state_like_cpp",
           "type": "RepresentedItemBonusStateLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_level_caps_like_cpp",
           "type": "RepresentedItemLevelCapsLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_mod_reapply_events_like_cpp",
@@ -3855,22 +3861,28 @@
           "name": "represented_item_set_aura_refresh_events_like_cpp",
           "type": "Vec < RepresentedItemSetAuraRefreshEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_set_effects_like_cpp",
           "type": "HashMap < u32 , RepresentedItemSetEffectLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_set_spell_events_like_cpp",
           "type": "Vec < RepresentedItemSetSpellEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_known_titles_like_cpp",
@@ -20857,7 +20869,18 @@
           "kind": "method",
           "name": "apply_represented_item_bonus_action_state_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_represented_item_bonus_action_state_like_cpp (& mut self , action : ApplyEnchantmentEffectAction ,)",
+          "signature": "fn apply_represented_item_bonus_action_state_like_cpp (& mut self , action : ApplyEnchantmentEffectAction ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_item_bonus_action_to_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_represented_item_bonus_action_to_state_like_cpp (state : & mut RepresentedItemBonusStateLikeCpp , action : ApplyEnchantmentEffectAction ,)",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -21138,7 +21161,7 @@
           "kind": "method",
           "name": "apply_represented_unit_modifier_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_represented_unit_modifier_like_cpp (& mut self , unit_mod : wow_entities :: ApplyEnchantmentUnitMod , modifier : wow_entities :: ApplyEnchantmentUnitModifier , amount : u32 , apply : bool ,)",
+          "signature": "fn apply_represented_unit_modifier_like_cpp (state : & mut RepresentedItemBonusStateLikeCpp , unit_mod : wow_entities :: ApplyEnchantmentUnitMod , modifier : wow_entities :: ApplyEnchantmentUnitModifier , amount : u32 , apply : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -29113,6 +29136,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_item_modifier_runtime_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_item_modifier_runtime_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerItemModifierRuntimeStateLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_mount_vehicle_kit_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_mount_vehicle_kit_like_cpp < R > (& mut self , update : impl FnOnce (& mut Option < Vehicle >) -> R ,) -> Option < R >",
@@ -29900,6 +29934,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "plan_represented_update_item_set_auras_like_cpp",
+          "visibility": "private",
+          "signature": "fn plan_represented_update_item_set_auras_like_cpp (& self , form_change : bool ,) -> Vec < RepresentedItemSetAuraRefreshEventLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "plan_store_direct_inventory_item_like_cpp",
           "visibility": "private",
           "signature": "fn plan_store_direct_inventory_item_like_cpp (& self , entry_id : u32 , count : u32 , bag : u8 , slot : u8 , source_item : Option < & Item > , swap : bool , overlays : & [DirectInventoryStorageOverlayLikeCpp] , vacated_positions : & [(u8 , u8)] ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
@@ -30609,6 +30654,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_item_modifier_runtime_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_item_modifier_runtime_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerItemModifierRuntimeStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -32358,7 +32414,7 @@
           "kind": "method",
           "name": "record_represented_add_items_set_item_like_cpp",
           "visibility": "private",
-          "signature": "fn record_represented_add_items_set_item_like_cpp (& mut self , item_guid : ObjectGuid , item_set : & wow_data :: ItemSetEntry ,) -> bool",
+          "signature": "fn record_represented_add_items_set_item_like_cpp (& mut self , item_guid : ObjectGuid , item_set : & wow_data :: ItemSetEntry ,) -> Vec < RepresentedItemSetSpellEventLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -32803,7 +32859,18 @@
           "kind": "method",
           "name": "record_represented_item_mods_like_cpp",
           "visibility": "private",
-          "signature": "fn record_represented_item_mods_like_cpp (& mut self , item_guid : ObjectGuid , slot : u8 , apply : bool ,)",
+          "signature": "fn record_represented_item_mods_like_cpp (& mut self , item_guid : ObjectGuid , slot : u8 , apply : bool ,) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "record_represented_items_set_item_events_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_represented_items_set_item_events_like_cpp (& mut self , item_guid : ObjectGuid , apply : bool ,) -> Vec < RepresentedItemSetSpellEventLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -32918,7 +32985,7 @@
           "kind": "method",
           "name": "record_represented_remove_items_set_item_like_cpp",
           "visibility": "private",
-          "signature": "fn record_represented_remove_items_set_item_like_cpp (& mut self , item_guid : ObjectGuid , item_set : & wow_data :: ItemSetEntry ,) -> bool",
+          "signature": "fn record_represented_remove_items_set_item_like_cpp (& mut self , item_guid : ObjectGuid , item_set : & wow_data :: ItemSetEntry ,) -> Vec < RepresentedItemSetSpellEventLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -36414,9 +36481,11 @@
           "kind": "method",
           "name": "represented_item_bonus_state_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_item_bonus_state_like_cpp (& self ,) -> & RepresentedItemBonusStateLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn represented_item_bonus_state_like_cpp (& self) -> RepresentedItemBonusStateLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -36501,7 +36570,7 @@
           "kind": "method",
           "name": "represented_item_set_effect_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_item_set_effect_like_cpp (& self , item_set_id : u32 ,) -> Option < & RepresentedItemSetEffectLikeCpp >",
+          "signature": "fn represented_item_set_effect_like_cpp (& self , item_set_id : u32 ,) -> Option < RepresentedItemSetEffectLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -39926,6 +39995,19 @@
           "name": "resolved_is_resting_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_is_resting_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_item_bonus_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_item_bonus_state_like_cpp (& self ,) -> Option < RepresentedItemBonusStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46594,7 +46676,7 @@
           "kind": "method",
           "name": "set_represented_item_level_caps_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_represented_item_level_caps_like_cpp (& mut self , caps : RepresentedItemLevelCapsLikeCpp ,)",
+          "signature": "fn set_represented_item_level_caps_like_cpp (& mut self , caps : RepresentedItemLevelCapsLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -48621,7 +48703,7 @@
           "kind": "method",
           "name": "spell_initial_threat_like_cpp",
           "visibility": "private",
-          "signature": "fn spell_initial_threat_like_cpp (& self , spell_id : u32 , threat_entry : Option < SpellThreatEntryLikeCpp > , caster_guid : ObjectGuid ,) -> f32",
+          "signature": "fn spell_initial_threat_like_cpp (& self , spell_id : u32 , threat_entry : Option < SpellThreatEntryLikeCpp > , caster_guid : ObjectGuid ,) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -76154,7 +76236,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f7025e0ce7994a8d1dc0143b50ab9534:len=95488|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e4a668f591716df7e5dae489fa1b0f56:len=95578|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
