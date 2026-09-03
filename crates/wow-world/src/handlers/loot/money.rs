@@ -256,16 +256,6 @@ impl WorldSession {
         }
     }
 
-    pub(super) fn load_gameobject_template_addon_money_loot_like_cpp(
-        &self,
-        gameobject_entry: u32,
-    ) -> (u32, u32) {
-        self.world_query_catalogs_like_cpp()
-            .and_then(|catalogs| catalogs.gameobject.get(gameobject_entry))
-            .map(|row| (row.min_money, row.max_money))
-            .unwrap_or((0, 0))
-    }
-
     pub(super) async fn persist_and_consume_stored_item_money_like_cpp(
         &self,
         item_guid: ObjectGuid,

@@ -2300,7 +2300,6 @@ async fn run_inner(
         gameobject: Arc::new(gameobject_query_catalog),
         gameobject_quest_items: gameobject_quest_item_store,
         page_text: Arc::new(page_text_catalog),
-        gameobject_lifecycle: Arc::clone(&gameobject_template_lifecycle_store),
     });
     info!(
         creatures = object_mgr_catalogs.creature.len(),
@@ -4625,6 +4624,7 @@ async fn run_inner(
     let session_resources = SessionResources {
         core: SessionCoreCapabilitiesLikeCpp {
             object_mgr_catalogs,
+            gameobject_template_lifecycle_store: Arc::clone(&gameobject_template_lifecycle_store),
             persistence,
             trainer_store: Arc::clone(&trainer_data_store),
             guid_generator: Arc::clone(&guid_generator),

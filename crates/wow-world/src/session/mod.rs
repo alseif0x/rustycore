@@ -291,12 +291,12 @@ pub(crate) const REST_STATE_RAF_LINKED_LIKE_CPP: u8 = 6;
 /// handlers. It mirrors C++ ObjectMgr startup stores and contains no database
 /// handle or mutable gameplay state.
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Default))]
 pub struct ObjectMgrCatalogsLikeCpp {
     pub creature: Arc<wow_data::CreatureQueryCatalogLikeCpp>,
     pub gameobject: Arc<wow_data::GameObjectQueryCatalogLikeCpp>,
     pub gameobject_quest_items: Arc<wow_data::GameObjectQuestItemStoreLikeCpp>,
     pub page_text: Arc<wow_data::PageTextCatalogLikeCpp>,
-    pub gameobject_lifecycle: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
 }
 
 #[derive(Debug)]
@@ -6654,7 +6654,10 @@ pub struct WorldSession {
     represented_support_complaints_enabled_like_cpp: bool,
     represented_support_suggestions_enabled_like_cpp: bool,
     script_name_interner: Option<Arc<ScriptNameInternerLikeCpp>>,
+    #[cfg(test)]
     object_mgr_catalogs_like_cpp: Option<Arc<ObjectMgrCatalogsLikeCpp>>,
+    gameobject_template_lifecycle_store_like_cpp:
+        Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
     /// C++ `Player::_pendingSpellCastRequest`, represented separately from
@@ -8580,7 +8583,9 @@ impl WorldSession {
             represented_support_complaints_enabled_like_cpp: false,
             represented_support_suggestions_enabled_like_cpp: false,
             script_name_interner: None,
+            #[cfg(test)]
             object_mgr_catalogs_like_cpp: None,
+            gameobject_template_lifecycle_store_like_cpp: None,
             quest_store: None,
             quest_poi_store_like_cpp: None,
             quest_pool_store: None,
@@ -30367,37 +30372,25 @@ impl WorldSession {
         self.spell_target_position_store = Some(store);
     }
 
-    #[cfg(test)]
     pub fn set_gameobject_template_lifecycle_store(
         &mut self,
         store: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
     ) {
-        match self.object_mgr_catalogs_like_cpp.as_mut() {
-            Some(catalogs) => Arc::make_mut(catalogs).gameobject_lifecycle = store,
-            None => {
-                self.object_mgr_catalogs_like_cpp = Some(Arc::new(ObjectMgrCatalogsLikeCpp {
-                    creature: Arc::default(),
-                    gameobject: Arc::default(),
-                    gameobject_quest_items: Arc::default(),
-                    page_text: Arc::default(),
-                    gameobject_lifecycle: store,
-                }));
-            }
-        }
+        self.gameobject_template_lifecycle_store_like_cpp = Some(store);
     }
 
     pub(crate) fn gameobject_template_lifecycle_store(
         &self,
     ) -> Option<&Arc<GameObjectTemplateLifecycleStoreLikeCpp>> {
-        self.object_mgr_catalogs_like_cpp
-            .as_ref()
-            .map(|catalogs| &catalogs.gameobject_lifecycle)
+        self.gameobject_template_lifecycle_store_like_cpp.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_object_mgr_catalogs_like_cpp(&mut self, catalogs: Arc<ObjectMgrCatalogsLikeCpp>) {
         self.object_mgr_catalogs_like_cpp = Some(catalogs);
     }
 
+    #[cfg(test)]
     pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
         self.object_mgr_catalogs_like_cpp.as_deref()
     }
@@ -71296,10 +71289,7 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(template_store) = self
-            .object_mgr_catalogs_like_cpp
-            .as_deref()
-            .map(|catalogs| catalogs.gameobject_lifecycle.as_ref())
+        let Some(template_store) = self.gameobject_template_lifecycle_store_like_cpp.as_deref()
         else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplateStore,
@@ -71483,10 +71473,7 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(template_store) = self
-            .object_mgr_catalogs_like_cpp
-            .as_deref()
-            .map(|catalogs| catalogs.gameobject_lifecycle.as_ref())
+        let Some(template_store) = self.gameobject_template_lifecycle_store_like_cpp.as_deref()
         else {
             return Some(ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MissingTemplateStore,

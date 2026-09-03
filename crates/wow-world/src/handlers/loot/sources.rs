@@ -12,10 +12,11 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) async fn open_represented_gameobject_chest_like_cpp(
+    pub(crate) async fn open_represented_gameobject_chest_with_template_money_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
+        template_money: (u32, u32),
     ) {
         let Some(player_guid) = self.player_guid() else {
             return;
@@ -80,6 +81,7 @@ impl WorldSession {
             player_guid,
             source,
             &allowed_looters,
+            template_money,
         )
         .await;
         if should_record_generation_effects && self.loot_table.contains_key(&gameobject_guid) {
@@ -1500,6 +1502,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
         source: GameObjectLootSource,
         allowed_looters: &[ObjectGuid],
+        template_money: (u32, u32),
     ) {
         // C++ creates `m_loot` synchronously in `GameObject::Use`
         // (`GameObject.cpp:2559-2575`). Capture the exact map-owned lifetime
@@ -1589,11 +1592,12 @@ impl WorldSession {
                 .as_ref()
                 .map_or(allowed_looters, |looters| looters.as_slice());
             let Some(mut loot) = self
-                .generate_represented_gameobject_chest_loot_like_cpp(
+                .generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
                     gameobject_guid,
                     player_guid,
                     source,
                     generation_allowed_looters,
+                    template_money,
                 )
                 .await
             else {
@@ -1692,12 +1696,13 @@ impl WorldSession {
         }
     }
 
-    pub(super) async fn generate_represented_gameobject_chest_loot_like_cpp(
+    pub(super) async fn generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
         source: GameObjectLootSource,
         allowed_looters: &[ObjectGuid],
+        template_money: (u32, u32),
     ) -> Option<CreatureLoot> {
         let personal_loot = source.uses_personal_loot_like_cpp();
         let personal_encounter = source.is_personal_encounter_loot_like_cpp();
@@ -1726,8 +1731,7 @@ impl WorldSession {
                 Vec::new()
             })
         };
-        let (min_money, max_money) =
-            self.load_gameobject_template_addon_money_loot_like_cpp(gameobject_guid.entry());
+        let (min_money, max_money) = template_money;
         let coins = self.represented_money_loot_with_rate_like_cpp(
             min_money,
             max_money,
@@ -1819,6 +1823,48 @@ impl WorldSession {
         }
 
         Some(loot)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn open_represented_gameobject_chest_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        source: GameObjectLootSource,
+    ) {
+        let template_money = self
+            .world_query_catalogs_like_cpp()
+            .and_then(|catalogs| catalogs.gameobject.get(gameobject_guid.entry()))
+            .map(|row| (row.min_money, row.max_money))
+            .unwrap_or((0, 0));
+        self.open_represented_gameobject_chest_with_template_money_like_cpp(
+            gameobject_guid,
+            source,
+            template_money,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub(super) async fn generate_represented_gameobject_chest_loot_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        source: GameObjectLootSource,
+        allowed_looters: &[ObjectGuid],
+    ) -> Option<CreatureLoot> {
+        let template_money = self
+            .world_query_catalogs_like_cpp()
+            .and_then(|catalogs| catalogs.gameobject.get(gameobject_guid.entry()))
+            .map(|row| (row.min_money, row.max_money))
+            .unwrap_or((0, 0));
+        self.generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
+            gameobject_guid,
+            player_guid,
+            source,
+            allowed_looters,
+            template_money,
+        )
+        .await
     }
 
     fn represented_gameobject_personal_encounter_tappers_like_cpp(

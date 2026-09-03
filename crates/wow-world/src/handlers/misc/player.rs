@@ -31,7 +31,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_far_sight",
-        handler: |session, pkt| Box::pin(async move { session.handle_far_sight(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_far_sight(pkt).await }),
     }
 }
 
@@ -41,7 +41,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_selection",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_selection(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_selection(pkt).await }),
     }
 }
 
@@ -51,7 +51,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_stand_state_change",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_stand_state_change(pkt).await })
         },
     }
@@ -63,7 +63,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_time",
-        handler: |session, _pkt| Box::pin(async move { session.handle_query_time().await }),
+        handler: |session, _catalogs, _pkt| Box::pin(async move { session.handle_query_time().await }),
     }
 }
 
@@ -73,7 +73,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_next_mail_time",
-        handler: |session, _pkt| {
+        handler: |session, _catalogs, _pkt| {
             Box::pin(async move { session.handle_query_next_mail_time().await })
         },
     }
@@ -85,7 +85,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_action_button",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_action_button(pkt).await })
         },
     }
@@ -97,7 +97,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_difficulty_id",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_difficulty_id(pkt).await })
         },
     }
@@ -109,7 +109,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_toggle_difficulty",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_toggle_difficulty(pkt).await })
         },
     }
@@ -121,7 +121,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_dungeon_difficulty",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_dungeon_difficulty(pkt).await })
         },
     }
@@ -133,7 +133,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_raid_difficulty",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_raid_difficulty(pkt).await })
         },
     }
@@ -145,7 +145,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_title",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_title(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_title(pkt).await }),
     }
 }
 
@@ -155,7 +155,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_get_item_purchase_data",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_get_item_purchase_data(pkt).await })
         },
     }

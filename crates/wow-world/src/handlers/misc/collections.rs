@@ -29,7 +29,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_set_favorite",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_mount_set_favorite(pkt).await })
         },
     }
@@ -41,7 +41,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_special_anim",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_mount_special_anim(pkt).await })
         },
     }
@@ -53,7 +53,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_collection_item_set_favorite",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_collection_item_set_favorite(pkt).await })
         },
     }
@@ -65,7 +65,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_clear_fanfare",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_mount_clear_fanfare(pkt).await })
         },
     }
@@ -77,7 +77,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_toy",
-        handler: |session, pkt| Box::pin(async move { session.handle_add_toy(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_add_toy(pkt).await }),
     }
 }
 
@@ -87,7 +87,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_toy_clear_fanfare",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_toy_clear_fanfare(pkt).await })
         },
     }
@@ -99,7 +99,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_use_toy",
-        handler: |session, pkt| Box::pin(async move { session.handle_use_toy(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_use_toy(pkt).await }),
     }
 }
 

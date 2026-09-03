@@ -14,7 +14,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_unit",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_unit(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_unit(pkt).await }),
     }
 }
 
@@ -24,7 +24,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_item",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_item(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_item(pkt).await }),
     }
 }
 
@@ -34,7 +34,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_money",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_money(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_money(pkt).await }),
     }
 }
 
@@ -44,7 +44,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_release",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_release(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_release(pkt).await }),
     }
 }
 
@@ -54,7 +54,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_roll",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::loot::LootRoll::read(&mut pkt) {
                     Ok(roll) => session.handle_loot_roll(roll).await,
@@ -71,7 +71,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_master_loot_item",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::loot::MasterLootItem::read(&mut pkt) {
                     Ok(master_loot_item) => session.handle_master_loot_item(master_loot_item).await,
@@ -95,7 +95,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_loot_specialization",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 if session
                     .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())

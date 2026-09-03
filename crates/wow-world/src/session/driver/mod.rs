@@ -30,7 +30,9 @@ use std::time::Instant;
 use tracing::{debug, info};
 use wow_packet::WorldPacket;
 
-use super::{ClientOpcodes, RuntimeTickOwner, SessionState, WorldSession};
+use super::{
+    ClientOpcodes, ObjectMgrCatalogsLikeCpp, RuntimeTickOwner, SessionState, WorldSession,
+};
 
 impl WorldSession {
     /// Process queued packets (up to [`MAX_PACKETS_PER_UPDATE`] per call).
@@ -189,7 +191,10 @@ impl WorldSession {
     }
 
     /// Process pending packets asynchronously. Call after `update()`.
-    pub async fn process_pending(&mut self) {
+    pub async fn process_pending_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &ObjectMgrCatalogsLikeCpp,
+    ) {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
         self.flush_packet_spoof_ban_like_cpp().await;
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
@@ -240,10 +245,21 @@ impl WorldSession {
                     "RUST_CEMETERY_TRACE dispatching queued packet"
                 );
             }
-            self.dispatch_packet(pkt).await;
+            self.dispatch_packet(catalogs, pkt).await;
         }
 
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
         self.process_pending_periodic_player_save_like_cpp().await;
+    }
+
+    #[cfg(test)]
+    pub async fn process_pending(&mut self) {
+        let catalogs = self
+            .object_mgr_catalogs_like_cpp
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        self.process_pending_with_catalogs_like_cpp(catalogs.as_ref())
+            .await;
     }
 }

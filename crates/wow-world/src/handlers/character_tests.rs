@@ -93,7 +93,6 @@ fn install_world_query_catalogs_like_cpp(
         )),
         gameobject_quest_items: Arc::new(quest_items),
         page_text: Arc::new(PageTextCatalogLikeCpp::from_rows_like_cpp(pages, [])),
-        gameobject_lifecycle: Arc::default(),
     }));
 }
 

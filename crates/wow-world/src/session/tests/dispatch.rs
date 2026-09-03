@@ -22,7 +22,10 @@ async fn time_sync_response_alias_opcodes_dispatch_to_same_handler_like_cpp() {
         bytes.extend_from_slice(&sent_time.saturating_sub(1).to_le_bytes());
 
         session
-            .dispatch_packet(WorldPacket::from_bytes(&bytes))
+            .dispatch_packet(
+                &ObjectMgrCatalogsLikeCpp::default(),
+                WorldPacket::from_bytes(&bytes),
+            )
             .await;
 
         assert!(

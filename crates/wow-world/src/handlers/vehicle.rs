@@ -178,7 +178,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_dismiss_vehicle",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::MoveDismissVehicle::read(&mut pkt) {
                     Ok(packet) => session.handle_move_dismiss_vehicle(packet).await,
@@ -245,7 +245,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_prev_seat",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::RequestVehiclePrevSeat::read(&mut pkt) {
                     Ok(packet) => session.handle_request_vehicle_prev_seat(packet).await,
@@ -262,7 +262,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_next_seat",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::RequestVehicleNextSeat::read(&mut pkt) {
                     Ok(packet) => session.handle_request_vehicle_next_seat(packet).await,
@@ -279,7 +279,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_change_vehicle_seats",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::MoveChangeVehicleSeats::read(&mut pkt) {
                     Ok(packet) => session.handle_move_change_vehicle_seats(packet).await,
@@ -296,7 +296,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_switch_seat",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::RequestVehicleSwitchSeat::read(&mut pkt) {
                     Ok(packet) => session.handle_request_vehicle_switch_seat(packet).await,
@@ -313,7 +313,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_ride_vehicle_interact",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::RideVehicleInteract::read(&mut pkt) {
                     Ok(packet) => session.handle_ride_vehicle_interact(packet).await,
@@ -330,7 +330,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_eject_passenger",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::EjectPassenger::read(&mut pkt) {
                     Ok(packet) => session.handle_eject_passenger(packet).await,
@@ -347,7 +347,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_exit",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::vehicle::RequestVehicleExit::read(&mut pkt) {
                     Ok(packet) => session.handle_request_vehicle_exit(packet).await,

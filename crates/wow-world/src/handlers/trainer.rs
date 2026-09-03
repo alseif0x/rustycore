@@ -222,7 +222,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_trainer_list",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
                     Ok(hello) => session.handle_trainer_list(hello).await,
@@ -239,7 +239,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_trainer_buy_spell",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_trainer_buy_spell(pkt).await })
         },
     }
@@ -3551,11 +3551,14 @@ mod tests {
             .set_player_trainer_interaction_like_cpp(logged_in.trainer, DEFAULT_TRAINER_ID);
         logged_in
             .session
-            .dispatch_packet(trainer_buy_wire_packet(
-                logged_in.trainer,
-                DEFAULT_TRAINER_ID as i32,
-                MISSING_SPELL,
-            ))
+            .dispatch_packet(
+                &crate::session::ObjectMgrCatalogsLikeCpp::default(),
+                trainer_buy_wire_packet(
+                    logged_in.trainer,
+                    DEFAULT_TRAINER_ID as i32,
+                    MISSING_SPELL,
+                ),
+            )
             .await;
         assert_eq!(
             logged_in.send_rx.try_recv().expect("TrainerBuyFailed"),
@@ -3574,11 +3577,10 @@ mod tests {
             .set_player_trainer_interaction_like_cpp(authed.trainer, DEFAULT_TRAINER_ID);
         authed
             .session
-            .dispatch_packet(trainer_buy_wire_packet(
-                authed.trainer,
-                DEFAULT_TRAINER_ID as i32,
-                MISSING_SPELL,
-            ))
+            .dispatch_packet(
+                &crate::session::ObjectMgrCatalogsLikeCpp::default(),
+                trainer_buy_wire_packet(authed.trainer, DEFAULT_TRAINER_ID as i32, MISSING_SPELL),
+            )
             .await;
         assert!(
             authed.send_rx.try_recv().is_err(),

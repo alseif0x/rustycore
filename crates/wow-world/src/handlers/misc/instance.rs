@@ -27,7 +27,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_raid_info",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_raid_info(pkt).await })
         },
     }
@@ -39,7 +39,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_reset_instances",
-        handler: |session, pkt| Box::pin(async move { session.handle_reset_instances(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_reset_instances(pkt).await }),
     }
 }
 
@@ -49,7 +49,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_instance_lock_response",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_instance_lock_response(pkt).await })
         },
     }

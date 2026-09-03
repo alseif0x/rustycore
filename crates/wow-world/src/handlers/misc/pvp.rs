@@ -22,7 +22,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_battlefield_status",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_battlefield_status(pkt).await })
         },
     }
@@ -34,7 +34,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_hello",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battlemaster_hello(pkt).await })
         },
     }
@@ -46,7 +46,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_list",
-        handler: |session, pkt| Box::pin(async move { session.handle_battlefield_list(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_battlefield_list(pkt).await }),
     }
 }
 
@@ -56,7 +56,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battlemaster_join(pkt).await })
         },
     }
@@ -68,7 +68,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join_arena",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battlemaster_join_arena(pkt).await })
         },
     }
@@ -80,7 +80,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join_skirmish",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battlemaster_join_skirmish(pkt).await })
         },
     }
@@ -92,7 +92,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_port",
-        handler: |session, pkt| Box::pin(async move { session.handle_battlefield_port(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_battlefield_port(pkt).await }),
     }
 }
 
@@ -102,7 +102,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_rated_pvp_info",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_rated_pvp_info(pkt).await })
         },
     }
@@ -114,7 +114,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_leave",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battlefield_leave(pkt).await })
         },
     }
@@ -126,7 +126,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_wargame_invite",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_accept_wargame_invite(pkt).await })
         },
     }
@@ -138,7 +138,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_pvp_rewards",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_pvp_rewards(pkt).await })
         },
     }
@@ -150,7 +150,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_toggle_pvp",
-        handler: |session, pkt| Box::pin(async move { session.handle_toggle_pvp(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_toggle_pvp(pkt).await }),
     }
 }
 
@@ -160,7 +160,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_pvp",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_pvp(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_pvp(pkt).await }),
     }
 }
 

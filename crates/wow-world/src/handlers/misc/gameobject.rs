@@ -33,7 +33,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_close_interaction",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_close_interaction(pkt).await })
         },
     }
@@ -45,7 +45,13 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_game_obj_use",
-        handler: |session, pkt| Box::pin(async move { session.handle_game_obj_use(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_game_obj_use_with_catalogs_like_cpp(catalogs, pkt)
+                    .await
+            })
+        },
     }
 }
 
@@ -55,7 +61,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_game_obj_report_use",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_game_obj_report_use(pkt).await })
         },
     }
@@ -66,7 +72,11 @@ impl crate::session::WorldSession {
 
     /// CMSG_GAME_OBJ_USE — player interacts with a world game object.
     /// C++ ref: `GameObject::Use` dispatches by `GameObjectTemplate::type`.
-    pub async fn handle_game_obj_use(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_game_obj_use_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let gameobject_guid = match pkt.read_packed_guid() {
             Ok(guid) => guid,
             Err(e) => {
@@ -101,11 +111,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        let Some(row) = self
-            .world_query_catalogs_like_cpp()
-            .and_then(|catalogs| catalogs.gameobject.get(gameobject_access.entry))
-            .cloned()
-        else {
+        let Some(row) = catalogs.gameobject.get(gameobject_access.entry).cloned() else {
             return;
         };
 
@@ -437,8 +443,12 @@ impl crate::session::WorldSession {
                 return;
             }
 
-            self.open_represented_gameobject_chest_like_cpp(gameobject_guid, source)
-                .await;
+            self.open_represented_gameobject_chest_with_template_money_like_cpp(
+                gameobject_guid,
+                source,
+                (row.min_money, row.max_money),
+            )
+            .await;
             return;
         }
 
@@ -471,6 +481,16 @@ impl crate::session::WorldSession {
                 );
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_game_obj_use(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_game_obj_use_with_catalogs_like_cpp(&catalogs, pkt)
+            .await;
     }
 
     /// CMSG_GAME_OBJ_REPORT_USE — client reports a game object use event.

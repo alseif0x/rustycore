@@ -34,7 +34,6 @@ fn game_obj_use_test_session_like_cpp(
         )),
         gameobject_quest_items: Arc::new(wow_data::GameObjectQuestItemStoreLikeCpp::default()),
         page_text: Arc::new(wow_data::PageTextCatalogLikeCpp::default()),
-        gameobject_lifecycle: Arc::default(),
     }));
 
     (session, player_guid, gameobject_guid)

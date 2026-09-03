@@ -34,7 +34,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_confirm_respec_wipe",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_confirm_respec_wipe(pkt).await })
         },
     }
@@ -46,7 +46,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_learn_talent",
-        handler: |session, pkt| Box::pin(async move { session.handle_learn_talent(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_learn_talent(pkt).await }),
     }
 }
 

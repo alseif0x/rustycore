@@ -63,18 +63,21 @@ impl WorldSession {
     /// The client sends this automatically after receiving an UpdateObject with
     /// unknown creature entries. Without a response, NPC names don't display
     /// and interaction menus don't work.
-    pub async fn handle_query_creature(&mut self, query: QueryCreature) {
+    pub(crate) async fn handle_query_creature_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+        query: QueryCreature,
+    ) {
         // If already responded, skip — client caches locally after first response
         if self.creature_query_cache.contains(&query.creature_id) {
             return;
         }
         self.creature_query_cache.insert(query.creature_id);
 
-        let row = match self.world_query_catalogs_like_cpp().and_then(|catalogs| {
-            catalogs
-                .creature
-                .resolve_like_cpp(query.creature_id, &self.locale)
-        }) {
+        let row = match catalogs
+            .creature
+            .resolve_like_cpp(query.creature_id, &self.locale)
+        {
             Some(row) => row,
             None => {
                 self.send_packet(&QueryCreatureResponse {
@@ -137,17 +140,26 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
+    pub async fn handle_query_creature(&mut self, query: QueryCreature) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_query_creature_with_catalogs_like_cpp(&catalogs, query)
+            .await;
+    }
+
     /// Handle CMSG_QUERY_GAME_OBJECT — client requests gameobject template data.
-    pub async fn handle_query_game_object(
+    pub(crate) async fn handle_query_game_object_with_catalogs_like_cpp(
         &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
         query: wow_packet::packets::query::QueryGameObject,
     ) {
-        let catalogs = self.world_query_catalogs_like_cpp();
-        let row = match catalogs.and_then(|catalogs| {
-            catalogs
-                .gameobject
-                .resolve_like_cpp(query.game_object_id, &self.locale)
-        }) {
+        let row = match catalogs
+            .gameobject
+            .resolve_like_cpp(query.game_object_id, &self.locale)
+        {
             Some(row) => row,
             None => {
                 self.send_packet(&QueryGameObjectResponse {
@@ -173,11 +185,8 @@ impl WorldSession {
             data: row.data,
             size: row.size,
             quest_items: catalogs
-                .and_then(|catalogs| {
-                    catalogs
-                        .gameobject_quest_items
-                        .get_gameobject_quest_item_list_like_cpp(query.game_object_id)
-                })
+                .gameobject_quest_items
+                .get_gameobject_quest_item_list_like_cpp(query.game_object_id)
                 .into_iter()
                 .flatten()
                 .filter_map(|item| i32::try_from(*item).ok())
@@ -193,20 +202,27 @@ impl WorldSession {
         });
     }
 
-    pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
-        let pages = match self.world_query_catalogs_like_cpp() {
-            Some(catalogs) => catalogs
-                .page_text
-                .resolve_chain_like_cpp(query.page_text_id, &self.locale),
-            None => {
-                self.send_packet(&QueryPageTextResponse {
-                    page_text_id: query.page_text_id,
-                    allow: false,
-                    pages: Vec::new(),
-                });
-                return;
-            }
-        };
+    #[cfg(test)]
+    pub async fn handle_query_game_object(
+        &mut self,
+        query: wow_packet::packets::query::QueryGameObject,
+    ) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_query_game_object_with_catalogs_like_cpp(&catalogs, query)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_page_text_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+        query: QueryPageText,
+    ) {
+        let pages = catalogs
+            .page_text
+            .resolve_chain_like_cpp(query.page_text_id, &self.locale);
 
         let pages = pages
             .into_iter()
@@ -224,6 +240,16 @@ impl WorldSession {
             allow: !pages.is_empty(),
             pages,
         });
+    }
+
+    #[cfg(test)]
+    pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_query_page_text_with_catalogs_like_cpp(&catalogs, query)
+            .await;
     }
 
     pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {

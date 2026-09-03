@@ -6632,6 +6632,26 @@ async fn represented_gameobject_chest_loot_carries_cpp_source_metadata() {
 }
 
 #[tokio::test]
+async fn represented_gameobject_chest_uses_resolved_template_money_like_cpp() {
+    let mut session = make_session();
+    let gameobject_guid = test_gameobject_guid(91_022);
+    attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
+
+    let loot = session
+        .generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
+            gameobject_guid,
+            ObjectGuid::create_player(1, 42),
+            GameObjectLootSource::default(),
+            &[],
+            (123, 123),
+        )
+        .await
+        .expect("canonical owner map allocates a LootObject");
+
+    assert_eq!(loot.coins, 123);
+}
+
+#[tokio::test]
 async fn represented_non_encounter_personal_chest_keeps_two_session_pools_independent_like_cpp() {
     let (mut first, _first_rx) = make_session_with_send_capacity(8);
     let (mut second, _second_rx) = make_session_with_send_capacity(8);

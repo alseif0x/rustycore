@@ -214,7 +214,9 @@ async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_ga
     logged_in.set_state(SessionState::LoggedIn);
     logged_in.set_player_guid(Some(player));
 
-    logged_in.dispatch_packet(packet(target)).await;
+    logged_in
+        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(target))
+        .await;
 
     let result = send_rx.try_recv().expect("PartyCommandResult");
     assert_eq!(
@@ -225,7 +227,9 @@ async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_ga
 
     let (mut authed, _pkt_tx, send_rx) = make_session();
     authed.set_player_guid(Some(player));
-    authed.dispatch_packet(packet(target)).await;
+    authed
+        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(target))
+        .await;
     assert!(
         send_rx.try_recv().is_err(),
         "LoggedIn metadata must reject PartyUninvite while the session is Authed"
@@ -258,7 +262,9 @@ async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_log
     let (mut logged_in, _pkt_tx, send_rx) = make_session();
     logged_in.set_state(SessionState::LoggedIn);
     logged_in.set_player_guid(Some(mover));
-    logged_in.dispatch_packet(packet(mover)).await;
+    logged_in
+        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(mover))
+        .await;
 
     assert_eq!(take_move_set_vehicle_rec_id_ack_handler_calls_for_test(), 1);
     assert!(
@@ -268,7 +274,9 @@ async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_log
 
     let (mut authed, _pkt_tx, send_rx) = make_session();
     authed.set_player_guid(Some(mover));
-    authed.dispatch_packet(packet(mover)).await;
+    authed
+        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(mover))
+        .await;
 
     assert_eq!(
         take_move_set_vehicle_rec_id_ack_handler_calls_for_test(),
@@ -303,7 +311,10 @@ async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
     let bytes = packet.data().to_vec();
 
     session
-        .dispatch_packet(WorldPacket::from_bytes(&bytes))
+        .dispatch_packet(
+            &ObjectMgrCatalogsLikeCpp::default(),
+            WorldPacket::from_bytes(&bytes),
+        )
         .await;
 
     let mut anim = WorldPacket::from_bytes(&send_rx.try_recv().expect("anim emote"));

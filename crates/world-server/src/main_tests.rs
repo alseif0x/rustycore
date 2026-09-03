@@ -3589,6 +3589,23 @@ fn session_resources_requires_named_capability_bundles() {
             "test-only catalog {retired_test_only_catalog} must not be projected into production sessions"
         );
     }
+    assert!(
+        resources_source
+            .contains("object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>"),
+        "the composition owner must retain the required immutable ObjectMgr query catalogs"
+    );
+    assert!(
+        !resources_source.contains("session.set_object_mgr_catalogs_like_cpp("),
+        "ObjectMgr query catalogs must not be projected into production WorldSession state"
+    );
+    assert!(
+        session_factory_source.contains("resources.core.object_mgr_catalogs.as_ref()"),
+        "the outer driver must borrow the process-owned ObjectMgr catalogs for dispatch"
+    );
+    assert!(
+        session_factory_source.contains("process_pending_with_catalogs_like_cpp"),
+        "the driver must pass immutable catalogs explicitly instead of installing a session locator"
+    );
     assert_eq!(
         session_factory_source
             .matches("install_into_session_like_cpp(&mut session")

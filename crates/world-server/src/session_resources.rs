@@ -36,6 +36,8 @@ pub(super) struct SessionCoreCapabilitiesLikeCpp {
     /// Required immutable ObjectMgr-style query capability. Construction is
     /// infallible only after every startup catalog loaded successfully.
     pub(super) object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>,
+    pub(super) gameobject_template_lifecycle_store:
+        Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
     /// Complete production persistence graph. Its four nested capabilities
     /// encode the C++ owner boundary and replace the optional resource slots.
     pub(super) persistence: wow_world::session::SessionPersistencePortsLikeCpp,
@@ -455,7 +457,9 @@ pub(super) struct SessionRealmCapabilitiesLikeCpp {
 impl SessionCoreCapabilitiesLikeCpp {
     /// Installs the required process capabilities as one composition-root operation.
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
-        session.set_object_mgr_catalogs_like_cpp(Arc::clone(&self.object_mgr_catalogs));
+        session.set_gameobject_template_lifecycle_store(Arc::clone(
+            &self.gameobject_template_lifecycle_store,
+        ));
         session.set_required_persistence_capabilities_like_cpp(self.persistence.clone());
         session.set_guid_generator(Arc::clone(&self.guid_generator));
         session.set_item_guid_generator_like_cpp(Arc::clone(&self.item_guid_generator));
