@@ -79,6 +79,7 @@ impl WorldSession {
             SessionCommand::LootRollVote(command) => {
                 self.handle_represented_loot_roll_vote_command_with_generator_like_cpp(
                     catalogs.id_generators.item.as_ref(),
+                    catalogs.item_valuation.as_ref(),
                     command,
                 )
                 .await;

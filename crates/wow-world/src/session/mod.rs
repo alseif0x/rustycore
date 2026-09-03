@@ -299,6 +299,37 @@ pub struct ObjectMgrCatalogsLikeCpp {
     pub page_text: Arc<wow_data::PageTextCatalogLikeCpp>,
 }
 
+/// Process-owned DB2 catalogs used by C++'s static item valuation helpers.
+///
+/// C++ reads these globals directly in `Item::GetBuyPrice`,
+/// `Item::GetSellPrice`, and `Item::GetDisenchantLoot`
+/// (`Entities/Item/Item.cpp:1732-1969`); `WorldSession` owns none of them.
+pub struct ItemValuationCatalogsLikeCpp {
+    pub import_prices: Arc<ImportPriceStores>,
+    pub price_base: Arc<ItemPriceBaseStore>,
+    pub item_classes: Arc<ItemClassStore>,
+    pub currency_costs: Arc<ItemCurrencyCostStore>,
+    pub disenchant_loot: Arc<ItemDisenchantLootStore>,
+}
+
+#[cfg(test)]
+impl Default for ItemValuationCatalogsLikeCpp {
+    fn default() -> Self {
+        Self {
+            import_prices: Arc::new(ImportPriceStores {
+                armor: wow_data::ImportPriceArmorStore::from_entries([]),
+                quality: wow_data::ImportPriceQualityStore::from_entries([]),
+                shield: wow_data::ImportPriceShieldStore::from_entries([]),
+                weapon: wow_data::ImportPriceWeaponStore::from_entries([]),
+            }),
+            price_base: Arc::new(ItemPriceBaseStore::from_entries([])),
+            item_classes: Arc::new(ItemClassStore::from_entries([])),
+            currency_costs: Arc::new(ItemCurrencyCostStore::from_entries([])),
+            disenchant_loot: Arc::new(ItemDisenchantLootStore::from_entries([])),
+        }
+    }
+}
+
 /// Process-owned area-trigger lookup and extension capability.
 ///
 /// C++ reads the DB2/ObjectMgr stores and the ScriptMgr hook while handling
@@ -358,6 +389,7 @@ impl Default for AreaTriggerCatalogsLikeCpp {
 pub struct SessionHandlerCatalogsLikeCpp {
     pub object_mgr: Arc<ObjectMgrCatalogsLikeCpp>,
     pub area_triggers: Arc<AreaTriggerCatalogsLikeCpp>,
+    pub item_valuation: Arc<ItemValuationCatalogsLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
     pub battlemaster_lists: Arc<BattlemasterListStore>,
@@ -376,6 +408,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
         Self {
             object_mgr: Arc::new(ObjectMgrCatalogsLikeCpp::default()),
             area_triggers: Arc::new(AreaTriggerCatalogsLikeCpp::default()),
+            item_valuation: Arc::new(ItemValuationCatalogsLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
             battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
@@ -5468,6 +5501,7 @@ pub struct WorldSession {
     currency_types_store: Option<Arc<CurrencyTypesStore>>,
 
     // Import price stores (ImportPrice*.db2 data)
+    #[cfg(test)]
     import_price_stores: Option<Arc<ImportPriceStores>>,
 
     // Emotes.db2 / EmotesText.db2 stores used by C++ chat text-emote handling.
@@ -5477,9 +5511,11 @@ pub struct WorldSession {
     emotes_text_store: Option<Arc<EmotesTextStore>>,
 
     // Item class store (ItemClass.db2 data)
+    #[cfg(test)]
     item_class_store: Option<Arc<ItemClassStore>>,
 
     // Item currency cost store (ItemCurrencyCost.db2 data)
+    #[cfg(test)]
     item_currency_cost_store: Option<Arc<ItemCurrencyCostStore>>,
 
     // Item extended cost store (ItemExtendedCost.db2 data)
@@ -5526,6 +5562,7 @@ pub struct WorldSession {
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
     // Item price base store (ItemPriceBase.db2 data)
+    #[cfg(test)]
     item_price_base_store: Option<Arc<ItemPriceBaseStore>>,
 
     // Item limit category store (ItemLimitCategory.db2 data)
@@ -5570,6 +5607,7 @@ pub struct WorldSession {
     item_spec_override_store: Option<Arc<ItemSpecOverrideStore>>,
 
     // ItemDisenchantLoot store (ItemDisenchantLoot.db2 data)
+    #[cfg(test)]
     item_disenchant_loot_store: Option<Arc<ItemDisenchantLootStore>>,
 
     // C++ LootTemplates_* store foundation.
@@ -7902,12 +7940,15 @@ impl WorldSession {
             #[cfg(test)]
             bank_bag_slot_prices_store: None,
             currency_types_store: None,
+            #[cfg(test)]
             import_price_stores: None,
             #[cfg(test)]
             emotes_store: None,
             #[cfg(test)]
             emotes_text_store: None,
+            #[cfg(test)]
             item_class_store: None,
+            #[cfg(test)]
             item_currency_cost_store: None,
             item_extended_cost_store: None,
             item_store: None,
@@ -7929,6 +7970,7 @@ impl WorldSession {
             combat_ratings_game_table: None,
             shield_block_regular_game_table: None,
             transmog_set_item_store: None,
+            #[cfg(test)]
             item_price_base_store: None,
             item_limit_category_store: None,
             item_limit_category_condition_store: None,
@@ -7951,6 +7993,7 @@ impl WorldSession {
             rand_prop_points_store: None,
             item_random_enchantment_template_store: None,
             item_spec_override_store: None,
+            #[cfg(test)]
             item_disenchant_loot_store: None,
             loot_stores: None,
             condition_store: None,
@@ -18214,6 +18257,7 @@ impl WorldSession {
     }
 
     /// Set the C++ ImportPrice*.db2 stores for this session.
+    #[cfg(test)]
     pub fn set_import_price_stores(&mut self, stores: Arc<ImportPriceStores>) {
         self.import_price_stores = Some(stores);
     }
@@ -18241,23 +18285,29 @@ impl WorldSession {
     }
 
     /// C++ `sImportPriceQualityStore.LookupEntry(quality + 1)`.
+    #[cfg(test)]
     pub fn import_price_quality_factor_like_cpp(&self, quality: u32) -> Option<f32> {
-        self.import_price_stores
-            .as_ref()
-            .and_then(|stores| stores.quality.get(quality + 1))
+        self.item_valuation_catalogs_for_test_like_cpp()
+            .import_prices
+            .quality
+            .get(quality + 1)
             .map(|entry| entry.data)
     }
 
     /// Set the C++ ItemPriceBase.db2 store for this session.
+    #[cfg(test)]
     pub fn set_item_price_base_store(&mut self, store: Arc<ItemPriceBaseStore>) {
         self.item_price_base_store = Some(store);
     }
 
     /// C++ `sItemPriceBaseStore.LookupEntry(itemLevel)`.
-    pub fn item_price_base_like_cpp(&self, item_level: u32) -> Option<(f32, f32)> {
-        self.item_price_base_store
-            .as_ref()
-            .and_then(|store| store.get(item_level))
+    fn item_price_base_with_catalogs_like_cpp(
+        catalogs: &ItemValuationCatalogsLikeCpp,
+        item_level: u32,
+    ) -> Option<(f32, f32)> {
+        catalogs
+            .price_base
+            .get(item_level)
             .map(|entry| (entry.armor, entry.weapon))
     }
 
@@ -18316,8 +18366,9 @@ impl WorldSession {
     ///
     /// This preserves the contrasted branch behavior where `standardPrice`
     /// remains false even after the calculated-price path.
-    pub fn item_buy_price_like_cpp(
+    fn item_buy_price_with_catalogs_like_cpp(
         &self,
+        catalogs: &ItemValuationCatalogsLikeCpp,
         item_id: u32,
         quality: u32,
         item_level: u32,
@@ -18331,15 +18382,16 @@ impl WorldSession {
             return Some((sparse.buy_price, standard_price));
         }
 
-        let stores = self.import_price_stores.as_ref()?;
+        let stores = catalogs.import_prices.as_ref();
         let quality_price = match stores.quality.get(quality + 1) {
             Some(entry) => entry.data,
             None => return Some((0, standard_price)),
         };
-        let (base_armor, base_weapon) = match self.item_price_base_like_cpp(item_level) {
-            Some(base) => base,
-            None => return Some((0, standard_price)),
-        };
+        let (base_armor, base_weapon) =
+            match Self::item_price_base_with_catalogs_like_cpp(catalogs, item_level) {
+                Some(base) => base,
+                None => return Some((0, standard_price)),
+            };
 
         let mut inventory_type =
             <InventoryType as num_traits::FromPrimitive>::from_i8(sparse.inventory_type)
@@ -18432,8 +18484,9 @@ impl WorldSession {
     }
 
     /// C++ `Item::GetSellPrice(proto, quality, itemLevel)`.
-    pub fn item_sell_price_like_cpp(
+    fn item_sell_price_with_catalogs_like_cpp(
         &self,
+        catalogs: &ItemValuationCatalogsLikeCpp,
         item_id: u32,
         quality: u32,
         item_level: u32,
@@ -18445,10 +18498,13 @@ impl WorldSession {
             return Some(sparse.sell_price);
         }
 
-        let (cost, standard_price) = self.item_buy_price_like_cpp(item_id, quality, item_level)?;
+        let (cost, standard_price) =
+            self.item_buy_price_with_catalogs_like_cpp(catalogs, item_id, quality, item_level)?;
         if standard_price {
-            let price_modifier =
-                self.item_class_price_modifier_like_cpp(u32::from(basic.class_id))?;
+            let price_modifier = catalogs
+                .item_classes
+                .get_by_old_enum(u32::from(basic.class_id))?
+                .price_modifier;
             let buy_count = sparse.vendor_stack_count.max(1);
             Some((cost as f32 * price_modifier / buy_count as f32) as u32)
         } else {
@@ -18460,8 +18516,9 @@ impl WorldSession {
     ///
     /// `can_disenchant_bonus` represents `BonusData::CanDisenchant`, which is
     /// not yet a canonical Rust item-bonus subsystem.
-    pub fn item_disenchant_loot_like_cpp(
+    pub(crate) fn item_disenchant_loot_with_catalogs_like_cpp(
         &self,
+        catalogs: &ItemValuationCatalogsLikeCpp,
         item_id: u32,
         quality: u32,
         item_level: u32,
@@ -18490,14 +18547,15 @@ impl WorldSession {
             return None;
         }
 
-        if self.item_sell_price_like_cpp(item_id, quality, item_level) == Some(0)
-            && !self.has_item_currency_cost_like_cpp(item_id)
+        if self.item_sell_price_with_catalogs_like_cpp(catalogs, item_id, quality, item_level)
+            == Some(0)
+            && !catalogs.currency_costs.has_item_currency_cost(item_id)
         {
             return None;
         }
 
-        let store = self.item_disenchant_loot_store.as_ref()?;
-        store
+        catalogs
+            .disenchant_loot
             .find_for_item_like_cpp(
                 u32::from(basic.class_id),
                 basic.subclass_id as i8,
@@ -18508,29 +18566,84 @@ impl WorldSession {
             .map(|entry| (entry.id, entry.skill_required))
     }
 
+    #[cfg(test)]
+    pub(crate) fn item_valuation_catalogs_for_test_like_cpp(&self) -> ItemValuationCatalogsLikeCpp {
+        let mut catalogs = ItemValuationCatalogsLikeCpp::default();
+        if let Some(store) = &self.import_price_stores {
+            catalogs.import_prices = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_price_base_store {
+            catalogs.price_base = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_class_store {
+            catalogs.item_classes = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_currency_cost_store {
+            catalogs.currency_costs = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_disenchant_loot_store {
+            catalogs.disenchant_loot = Arc::clone(store);
+        }
+        catalogs
+    }
+
+    #[cfg(test)]
+    pub fn item_buy_price_like_cpp(
+        &self,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+    ) -> Option<(u32, bool)> {
+        self.item_buy_price_with_catalogs_like_cpp(
+            &self.item_valuation_catalogs_for_test_like_cpp(),
+            item_id,
+            quality,
+            item_level,
+        )
+    }
+
+    #[cfg(test)]
+    pub fn item_sell_price_like_cpp(
+        &self,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+    ) -> Option<u32> {
+        self.item_sell_price_with_catalogs_like_cpp(
+            &self.item_valuation_catalogs_for_test_like_cpp(),
+            item_id,
+            quality,
+            item_level,
+        )
+    }
+
+    #[cfg(test)]
+    pub fn item_disenchant_loot_like_cpp(
+        &self,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+        can_disenchant_bonus: bool,
+    ) -> Option<(u32, u16)> {
+        self.item_disenchant_loot_with_catalogs_like_cpp(
+            &self.item_valuation_catalogs_for_test_like_cpp(),
+            item_id,
+            quality,
+            item_level,
+            can_disenchant_bonus,
+        )
+    }
+
     /// Set the item class store for this session.
+    #[cfg(test)]
     pub fn set_item_class_store(&mut self, store: Arc<ItemClassStore>) {
         self.item_class_store = Some(store);
     }
 
-    /// C++ `sDB2Manager.GetItemClassByOldEnum(itemClass)`.
-    pub fn item_class_price_modifier_like_cpp(&self, item_class: u32) -> Option<f32> {
-        self.item_class_store
-            .as_ref()
-            .and_then(|store| store.get_by_old_enum(item_class))
-            .map(|entry| entry.price_modifier)
-    }
-
     /// Set the item currency cost store for this session.
+    #[cfg(test)]
     pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
         self.item_currency_cost_store = Some(store);
-    }
-
-    /// C++ `sDB2Manager.HasItemCurrencyCost(itemId)`.
-    pub fn has_item_currency_cost_like_cpp(&self, item_id: u32) -> bool {
-        self.item_currency_cost_store
-            .as_ref()
-            .is_some_and(|store| store.has_item_currency_cost(item_id))
     }
 
     /// Set the item extended cost store for this session.
@@ -25834,11 +25947,13 @@ impl WorldSession {
     }
 
     /// Set the item disenchant loot store for this session.
+    #[cfg(test)]
     pub fn set_item_disenchant_loot_store(&mut self, store: Arc<ItemDisenchantLootStore>) {
         self.item_disenchant_loot_store = Some(store);
     }
 
     /// Get the item disenchant loot store reference.
+    #[cfg(test)]
     pub fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
         self.item_disenchant_loot_store.as_ref()
     }

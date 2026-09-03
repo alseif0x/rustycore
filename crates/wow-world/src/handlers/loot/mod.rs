@@ -123,11 +123,12 @@ use crate::conditions::{
 };
 use crate::session::{
     DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
-    DurableLootItemFanoutLikeCpp, InventoryItem, LootMoneyDeliveryAddressLikeCpp,
-    LootMoneyPersistenceErrorLikeCpp, LootMoneyViewerFanoutLikeCpp,
-    RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect, RepresentedLootRollState,
-    RepresentedLootRollVote, RepresentedQuestObjectiveProgressEventLikeCpp, SessionState,
-    WorldSession, loot_money_durable_outcome_like_cpp,
+    DurableLootItemFanoutLikeCpp, InventoryItem, ItemValuationCatalogsLikeCpp,
+    LootMoneyDeliveryAddressLikeCpp, LootMoneyPersistenceErrorLikeCpp,
+    LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
+    RepresentedLootRollState, RepresentedLootRollVote,
+    RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
+    loot_money_durable_outcome_like_cpp,
 };
 
 const LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP: u8 = 0;

@@ -983,8 +983,10 @@
           "name": "import_price_stores",
           "type": "Option < Arc < ImportPriceStores > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "in_combat",
@@ -1080,22 +1082,28 @@
           "name": "item_class_store",
           "type": "Option < Arc < ItemClassStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "item_currency_cost_store",
           "type": "Option < Arc < ItemCurrencyCostStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "item_disenchant_loot_store",
           "type": "Option < Arc < ItemDisenchantLootStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "item_effect_store",
@@ -1145,8 +1153,10 @@
           "name": "item_price_base_store",
           "type": "Option < Arc < ItemPriceBaseStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "item_random_enchantment_template_store",
@@ -10792,7 +10802,7 @@
           "kind": "method",
           "name": "handle_loot_roll_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_loot_roll_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , roll : LootRoll ,)",
+          "signature": "async fn handle_loot_roll_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , roll : LootRoll ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10806,7 +10816,23 @@
           "kind": "method",
           "name": "handle_loot_unit",
           "visibility": "pub",
-          "signature": "async fn handle_loot_unit (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_loot_unit (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::handlers",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_loot_unit_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_loot_unit_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10906,7 +10932,7 @@
           "kind": "method",
           "name": "handle_represented_loot_roll_vote_command_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_represented_loot_roll_vote_command_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , command : LootRollVoteCommand ,)",
+          "signature": "async fn handle_represented_loot_roll_vote_command_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , command : LootRollVoteCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -11839,7 +11865,23 @@
           "kind": "method",
           "name": "represented_on_loot_opened_like_cpp",
           "visibility": "pub (super)",
-          "signature": "fn represented_on_loot_opened_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid , mut response : LootResponse ,)",
+          "signature": "fn represented_on_loot_opened_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid , response : LootResponse ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::requests",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_on_loot_opened_with_catalogs_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn represented_on_loot_opened_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , player_guid : ObjectGuid , mut response : LootResponse ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12031,7 +12073,7 @@
           "kind": "method",
           "name": "store_represented_disenchant_loot_winner_with_generator_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn store_represented_disenchant_loot_winner_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner_guid : ObjectGuid , dungeon_encounter_id : u32 , claim : Option < & LootClaimLease > ,) -> bool",
+          "signature": "async fn store_represented_disenchant_loot_winner_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner_guid : ObjectGuid , dungeon_encounter_id : u32 , claim : Option < & LootClaimLease > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12112,7 +12154,7 @@
           "kind": "method",
           "name": "finish_represented_loot_roll_like_cpp",
           "visibility": "private",
-          "signature": "async fn finish_represented_loot_roll_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner : Option < (ObjectGuid , RepresentedLootRollVote) > , finished_state : Option < & RepresentedLootRollState > ,)",
+          "signature": "async fn finish_represented_loot_roll_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner : Option < (ObjectGuid , RepresentedLootRollVote) > , finished_state : Option < & RepresentedLootRollState > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12203,7 +12245,7 @@
           "kind": "method",
           "name": "represented_loot_roll_disenchant_skill_required_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_loot_roll_disenchant_skill_required_like_cpp (& self , item_id : u32 ,) -> Option < u16 >",
+          "signature": "fn represented_loot_roll_disenchant_skill_required_like_cpp (& self , item_valuation : & ItemValuationCatalogsLikeCpp , item_id : u32 ,) -> Option < u16 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12259,7 +12301,7 @@
           "kind": "method",
           "name": "represented_player_vote_on_loot_roll_with_generator_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn represented_player_vote_on_loot_roll_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , roll : & LootRoll , player_guid : ObjectGuid ,) -> bool",
+          "signature": "async fn represented_player_vote_on_loot_roll_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , roll : & LootRoll , player_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12273,7 +12315,7 @@
           "kind": "method",
           "name": "represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , roll : & LootRoll , player_guid : ObjectGuid , pass_on_group_loot : bool ,) -> bool",
+          "signature": "async fn represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , roll : & LootRoll , player_guid : ObjectGuid , pass_on_group_loot : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12303,7 +12345,7 @@
           "kind": "method",
           "name": "represented_start_group_loot_rolls_on_first_open_like_cpp",
           "visibility": "pub (super)",
-          "signature": "fn represented_start_group_loot_rolls_on_first_open_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid ,)",
+          "signature": "fn represented_start_group_loot_rolls_on_first_open_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , player_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12371,7 +12413,7 @@
           "kind": "method",
           "name": "store_represented_loot_roll_winner_item_like_cpp",
           "visibility": "private",
-          "signature": "async fn store_represented_loot_roll_winner_item_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner_guid : ObjectGuid , winner_vote : RepresentedLootRollVote , claim : Option < LootClaimLease > ,)",
+          "signature": "async fn store_represented_loot_roll_winner_item_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner_guid : ObjectGuid , winner_vote : RepresentedLootRollVote , claim : Option < LootClaimLease > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12400,7 +12442,7 @@
           "kind": "method",
           "name": "tick_represented_loot_rolls_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn tick_represented_loot_rolls_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,)",
+          "signature": "async fn tick_represented_loot_rolls_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12817,6 +12859,22 @@
           "name": "open_represented_fishing_hole_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn open_represented_fishing_hole_like_cpp (& mut self , gameobject_guid : ObjectGuid , gameobject_entry : u32 , loot_id : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::sources",
+          "trait_path": null,
+          "kind": "method",
+          "name": "open_represented_fishing_hole_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn open_represented_fishing_hole_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , gameobject_guid : ObjectGuid , gameobject_entry : u32 , loot_id : u32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12831,6 +12889,22 @@
           "name": "open_represented_fishing_node_loot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn open_represented_fishing_node_loot_like_cpp (& mut self , gameobject_guid : ObjectGuid , area_id : u32 , junk : bool ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::sources",
+          "trait_path": null,
+          "kind": "method",
+          "name": "open_represented_fishing_node_loot_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn open_represented_fishing_node_loot_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , gameobject_guid : ObjectGuid , area_id : u32 , junk : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12860,7 +12934,7 @@
           "kind": "method",
           "name": "open_represented_gameobject_chest_with_template_money_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn open_represented_gameobject_chest_with_template_money_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , gameobject_guid : ObjectGuid , source : GameObjectLootSource , template_money : (u32 , u32) ,)",
+          "signature": "async fn open_represented_gameobject_chest_with_template_money_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , gameobject_guid : ObjectGuid , source : GameObjectLootSource , template_money : (u32 , u32) ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12874,7 +12948,7 @@
           "kind": "method",
           "name": "open_represented_gameobject_personal_loot_like_cpp",
           "visibility": "private",
-          "signature": "async fn open_represented_gameobject_personal_loot_like_cpp (& mut self , gameobject_guid : ObjectGuid , loot_id : u32 , loot_type : u8 , replace_existing : bool ,)",
+          "signature": "async fn open_represented_gameobject_personal_loot_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , gameobject_guid : ObjectGuid , loot_id : u32 , loot_type : u8 , replace_existing : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12888,6 +12962,22 @@
           "name": "open_represented_gathering_node_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn open_represented_gathering_node_like_cpp (& mut self , gameobject_guid : ObjectGuid , gameobject_entry : u32 , source : GatheringNodeUseSource ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::sources",
+          "trait_path": null,
+          "kind": "method",
+          "name": "open_represented_gathering_node_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn open_represented_gathering_node_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , gameobject_guid : ObjectGuid , gameobject_entry : u32 , source : GatheringNodeUseSource ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -14734,7 +14824,7 @@
           "kind": "method",
           "name": "handle_game_obj_use_with_catalogs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_game_obj_use_with_catalogs_like_cpp (& mut self , catalogs : & crate :: session :: ObjectMgrCatalogsLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_game_obj_use_with_catalogs_like_cpp (& mut self , catalogs : & crate :: session :: ObjectMgrCatalogsLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & crate :: session :: ItemValuationCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27524,19 +27614,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "has_item_currency_cost_like_cpp",
-          "visibility": "pub",
-          "signature": "fn has_item_currency_cost_like_cpp (& self , item_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "has_parked_realm_send_channel",
           "visibility": "pub (crate)",
           "signature": "fn has_parked_realm_send_channel (& self) -> bool",
@@ -27731,8 +27808,10 @@
           "name": "import_price_quality_factor_like_cpp",
           "visibility": "pub",
           "signature": "fn import_price_quality_factor_like_cpp (& self , quality : u32) -> Option < f32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -28504,11 +28583,24 @@
           "name": "item_buy_price_like_cpp",
           "visibility": "pub",
           "signature": "fn item_buy_price_like_cpp (& self , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < (u32 , bool) >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "item_buy_price_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn item_buy_price_with_catalogs_like_cpp (& self , catalogs : & ItemValuationCatalogsLikeCpp , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < (u32 , bool) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -28527,24 +28619,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "item_class_price_modifier_like_cpp",
-          "visibility": "pub",
-          "signature": "fn item_class_price_modifier_like_cpp (& self , item_class : u32) -> Option < f32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "item_disenchant_loot_like_cpp",
           "visibility": "pub",
           "signature": "fn item_disenchant_loot_like_cpp (& self , item_id : u32 , quality : u32 , item_level : u32 , can_disenchant_bonus : bool ,) -> Option < (u32 , u16) >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -28556,6 +28637,21 @@
           "name": "item_disenchant_loot_store",
           "visibility": "pub",
           "signature": "fn item_disenchant_loot_store (& self) -> Option < & Arc < ItemDisenchantLootStore > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "item_disenchant_loot_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn item_disenchant_loot_with_catalogs_like_cpp (& self , catalogs : & ItemValuationCatalogsLikeCpp , item_id : u32 , quality : u32 , item_level : u32 , can_disenchant_bonus : bool ,) -> Option < (u32 , u16) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28711,14 +28807,12 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "item_price_base_like_cpp",
-          "visibility": "pub",
-          "signature": "fn item_price_base_like_cpp (& self , item_level : u32) -> Option < (f32 , f32) >",
+          "name": "item_price_base_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn item_price_base_with_catalogs_like_cpp (catalogs : & ItemValuationCatalogsLikeCpp , item_level : u32 ,) -> Option < (f32 , f32) >",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -28803,11 +28897,24 @@
           "name": "item_sell_price_like_cpp",
           "visibility": "pub",
           "signature": "fn item_sell_price_like_cpp (& self , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "item_sell_price_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn item_sell_price_with_catalogs_like_cpp (& self , catalogs : & ItemValuationCatalogsLikeCpp , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -29099,6 +29206,21 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "item_valuation_catalogs_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn item_valuation_catalogs_for_test_like_cpp (& self) -> ItemValuationCatalogsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45742,8 +45864,10 @@
           "name": "set_import_price_stores",
           "visibility": "pub",
           "signature": "fn set_import_price_stores (& mut self , stores : Arc < ImportPriceStores >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45924,8 +46048,10 @@
           "name": "set_item_class_store",
           "visibility": "pub",
           "signature": "fn set_item_class_store (& mut self , store : Arc < ItemClassStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45938,8 +46064,10 @@
           "name": "set_item_currency_cost_store",
           "visibility": "pub",
           "signature": "fn set_item_currency_cost_store (& mut self , store : Arc < ItemCurrencyCostStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45952,8 +46080,10 @@
           "name": "set_item_disenchant_loot_store",
           "visibility": "pub",
           "signature": "fn set_item_disenchant_loot_store (& mut self , store : Arc < ItemDisenchantLootStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -46052,8 +46182,10 @@
           "name": "set_item_price_base_store",
           "visibility": "pub",
           "signature": "fn set_item_price_base_store (& mut self , store : Arc < ItemPriceBaseStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -74967,7 +75099,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e380be442eb7c6e61a7134bf7a84ad55:len=96392|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:bbc08efee2442d7af6ce87fd41ff164d:len=96467|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

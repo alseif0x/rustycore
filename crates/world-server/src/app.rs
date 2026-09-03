@@ -4632,6 +4632,13 @@ async fn run_inner(
                     taverns: Arc::clone(&tavern_area_trigger_store),
                     script_dispatcher: None,
                 }),
+                item_valuation: Arc::new(wow_world::session::ItemValuationCatalogsLikeCpp {
+                    import_prices: Arc::clone(&import_price_stores),
+                    price_base: Arc::clone(&item_price_base_store),
+                    item_classes: Arc::clone(&item_class_store),
+                    currency_costs: Arc::clone(&item_currency_cost_store),
+                    disenchant_loot: Arc::clone(&item_disenchant_loot_store),
+                }),
                 bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
                 adventure_map_pois: Arc::clone(&adventure_map_poi_store),
                 battlemaster_lists: Arc::clone(&battlemaster_list_typed_store),
@@ -4655,9 +4662,6 @@ async fn run_inner(
         },
         inventory: SessionInventoryCapabilitiesLikeCpp {
             currency_types_store: Arc::clone(&currency_types_store),
-            import_price_stores: Arc::clone(&import_price_stores),
-            item_class_store: Arc::clone(&item_class_store),
-            item_currency_cost_store: Arc::clone(&item_currency_cost_store),
             item_extended_cost_store: Arc::clone(&item_extended_cost_store),
             item_store: Arc::clone(&item_store),
             item_child_equipment_store: Arc::clone(&item_child_equipment_store),
@@ -4676,7 +4680,6 @@ async fn run_inner(
             combat_ratings_game_table: Arc::clone(&combat_ratings_game_table),
             shield_block_regular_game_table: Arc::clone(&shield_block_regular_game_table),
             transmog_set_item_store: Arc::clone(&transmog_set_item_store),
-            item_price_base_store: Arc::clone(&item_price_base_store),
             item_limit_category_store: Arc::clone(&item_limit_category_store),
             item_limit_category_condition_store: Arc::clone(&item_limit_category_condition_store),
             player_create_info_store: Arc::clone(&player_create_info_store),
@@ -4698,7 +4701,6 @@ async fn run_inner(
             item_random_enchantment_template_store: Arc::clone(
                 &item_random_enchantment_template_store,
             ),
-            item_disenchant_loot_store: Arc::clone(&item_disenchant_loot_store),
             loot_stores: Arc::clone(&loot_stores),
         },
         player: SessionPlayerCatalogCapabilitiesLikeCpp {

@@ -58,8 +58,10 @@ impl WorldSession {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return false;
         };
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
         self.represented_player_vote_on_loot_roll_with_generator_like_cpp(
             generator.as_ref(),
+            &item_valuation,
             roll,
             player_guid,
         )
@@ -69,6 +71,7 @@ impl WorldSession {
     pub(super) async fn represented_player_vote_on_loot_roll_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         roll: &LootRoll,
         player_guid: ObjectGuid,
     ) -> bool {
@@ -77,6 +80,7 @@ impl WorldSession {
         };
         self.represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
             item_guid_generator,
+            item_valuation,
             roll,
             player_guid,
             pass_on_group_loot,
@@ -94,8 +98,10 @@ impl WorldSession {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return false;
         };
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
         self.represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
             generator.as_ref(),
+            &item_valuation,
             roll,
             player_guid,
             pass_on_group_loot,
@@ -106,6 +112,7 @@ impl WorldSession {
     pub(super) async fn represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         roll: &LootRoll,
         player_guid: ObjectGuid,
         pass_on_group_loot: bool,
@@ -190,6 +197,7 @@ impl WorldSession {
         if let Some(winner) = finish {
             self.finish_represented_loot_roll_like_cpp(
                 item_guid_generator,
+                item_valuation,
                 loot_guid,
                 roll.loot_list_id,
                 &entry,
@@ -251,6 +259,7 @@ impl WorldSession {
     async fn finish_represented_loot_roll_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         loot_obj: ObjectGuid,
         loot_list_id: u8,
         entry: &LootEntry,
@@ -380,6 +389,7 @@ impl WorldSession {
         );
         self.store_represented_loot_roll_winner_item_like_cpp(
             item_guid_generator,
+            item_valuation,
             owner_guid,
             loot_obj,
             loot_list_id,
@@ -648,6 +658,7 @@ impl WorldSession {
     async fn store_represented_loot_roll_winner_item_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         owner_guid: ObjectGuid,
         loot_obj: ObjectGuid,
         loot_list_id: u8,
@@ -672,6 +683,7 @@ impl WorldSession {
             if self
                 .store_represented_disenchant_loot_winner_with_generator_like_cpp(
                     item_guid_generator,
+                    item_valuation,
                     owner_guid,
                     loot_obj,
                     loot_list_id,
@@ -856,6 +868,7 @@ impl WorldSession {
 
     pub(super) fn represented_start_group_loot_rolls_on_first_open_like_cpp(
         &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
@@ -889,6 +902,7 @@ impl WorldSession {
                             (
                                 self.item_template_flags2(entry.item_id),
                                 self.represented_loot_roll_disenchant_skill_required_like_cpp(
+                                    item_valuation,
                                     entry.item_id,
                                 ),
                             ),
@@ -1103,13 +1117,18 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) async fn tick_represented_loot_rolls_like_cpp(&mut self) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.tick_represented_loot_rolls_with_generator_like_cpp(generators.item.as_ref())
-            .await;
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.tick_represented_loot_rolls_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &item_valuation,
+        )
+        .await;
     }
 
     pub(crate) async fn tick_represented_loot_rolls_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
     ) {
         let now = Instant::now();
         let roll_keys: Vec<(ObjectGuid, u8)> =
@@ -1153,6 +1172,7 @@ impl WorldSession {
             let winner = represented_loot_roll_current_winner_like_cpp(&state);
             self.finish_represented_loot_roll_like_cpp(
                 item_guid_generator,
+                item_valuation,
                 loot_obj,
                 loot_list_id,
                 &entry,
@@ -1183,12 +1203,14 @@ impl WorldSession {
 
     fn represented_loot_roll_disenchant_skill_required_like_cpp(
         &self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         item_id: u32,
     ) -> Option<u16> {
         let template = self
             .item_stats_store()
             .and_then(|store| store.random_property_template(item_id))?;
-        self.item_disenchant_loot_like_cpp(
+        self.item_disenchant_loot_with_catalogs_like_cpp(
+            item_valuation,
             item_id,
             template.quality as u32,
             u32::from(template.item_level),

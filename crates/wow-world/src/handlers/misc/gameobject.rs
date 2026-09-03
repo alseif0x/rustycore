@@ -51,6 +51,7 @@ inventory::submit! {
                     .handle_game_obj_use_with_catalogs_like_cpp(
                         catalogs.object_mgr.as_ref(),
                         catalogs.id_generators.item.as_ref(),
+                        catalogs.item_valuation.as_ref(),
                         pkt,
                     )
                     .await
@@ -80,6 +81,7 @@ impl crate::session::WorldSession {
         &mut self,
         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &crate::session::ItemValuationCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let gameobject_guid = match pkt.read_packed_guid() {
@@ -251,7 +253,8 @@ impl crate::session::WorldSession {
                     });
                 match loot_request {
                     Some(LOOT_TYPE_FISHING_LIKE_CPP) => {
-                        self.open_represented_fishing_node_loot_like_cpp(
+                        self.open_represented_fishing_node_loot_with_catalogs_like_cpp(
+                            item_valuation,
                             gameobject_guid,
                             area_id,
                             false,
@@ -259,7 +262,8 @@ impl crate::session::WorldSession {
                         .await;
                     }
                     Some(LOOT_TYPE_FISHING_JUNK_LIKE_CPP) => {
-                        self.open_represented_fishing_node_loot_like_cpp(
+                        self.open_represented_fishing_node_loot_with_catalogs_like_cpp(
+                            item_valuation,
                             gameobject_guid,
                             area_id,
                             true,
@@ -451,6 +455,7 @@ impl crate::session::WorldSession {
 
             self.open_represented_gameobject_chest_with_template_money_like_cpp(
                 item_guid_generator,
+                item_valuation,
                 gameobject_guid,
                 source,
                 (row.min_money, row.max_money),
@@ -462,7 +467,8 @@ impl crate::session::WorldSession {
         let loot_id = template.get_loot_id_like_cpp();
         match go_type {
             GAMEOBJECT_TYPE_FISHING_HOLE if loot_id != 0 => {
-                self.open_represented_fishing_hole_like_cpp(
+                self.open_represented_fishing_hole_with_catalogs_like_cpp(
+                    item_valuation,
                     gameobject_guid,
                     gameobject_access.entry,
                     loot_id,
@@ -471,7 +477,8 @@ impl crate::session::WorldSession {
             }
             GAMEOBJECT_TYPE_GATHERING_NODE => {
                 if let Some(source) = template.gathering_node_use_source_like_cpp() {
-                    self.open_represented_gathering_node_like_cpp(
+                    self.open_represented_gathering_node_with_catalogs_like_cpp(
+                        item_valuation,
                         gameobject_guid,
                         gameobject_access.entry,
                         source,
@@ -499,8 +506,14 @@ impl crate::session::WorldSession {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return;
         };
-        self.handle_game_obj_use_with_catalogs_like_cpp(&catalogs, generator.as_ref(), pkt)
-            .await;
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.handle_game_obj_use_with_catalogs_like_cpp(
+            &catalogs,
+            generator.as_ref(),
+            &item_valuation,
+            pkt,
+        )
+        .await;
     }
 
     /// CMSG_GAME_OBJ_REPORT_USE — client reports a game object use event.

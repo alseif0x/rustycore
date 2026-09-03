@@ -3585,6 +3585,11 @@ fn session_resources_requires_named_capability_bundles() {
         "emotes_store",
         "emotes_text_store",
         "graveyard_store",
+        "import_price_stores",
+        "item_class_store",
+        "item_currency_cost_store",
+        "item_disenchant_loot_store",
+        "item_price_base_store",
         "lfg_dungeon_store_like_cpp",
         "module_registry",
         "pet_default_spell_store",
@@ -3617,6 +3622,15 @@ fn session_resources_requires_named_capability_bundles() {
         composition_source
             .contains("id_generators: Arc::new(wow_world::session::SessionIdGeneratorsLikeCpp"),
         "the composition root must group process-owned generators in the borrowed handler capabilities"
+    );
+    assert!(
+        composition_source
+            .contains("item_valuation: Arc::new(wow_world::session::ItemValuationCatalogsLikeCpp"),
+        "the composition root must group process-owned item valuation stores in borrowed handler capabilities"
+    );
+    assert!(
+        !resources_source.contains("session.set_item_disenchant_loot_store("),
+        "item valuation catalogs must be borrowed by loot handlers instead of installed into WorldSession"
     );
     assert!(
         resources_source

@@ -49,9 +49,6 @@ pub(super) struct SessionCoreCapabilitiesLikeCpp {
 /// Immutable item, equipment, collection, battle-pet and loot catalogs.
 pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) currency_types_store: Arc<wow_data::CurrencyTypesStore>,
-    pub(super) import_price_stores: Arc<wow_data::ImportPriceStores>,
-    pub(super) item_class_store: Arc<wow_data::ItemClassStore>,
-    pub(super) item_currency_cost_store: Arc<wow_data::ItemCurrencyCostStore>,
     pub(super) item_extended_cost_store: Arc<wow_data::ItemExtendedCostStore>,
     pub(super) item_appearance_store: Arc<wow_data::ItemAppearanceStore>,
     pub(super) item_store: Arc<wow_data::ItemStore>,
@@ -73,7 +70,6 @@ pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) combat_ratings_game_table: Arc<wow_data::CombatRatingsGameTableLikeCpp>,
     pub(super) shield_block_regular_game_table: Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>,
     pub(super) transmog_set_item_store: Arc<wow_data::TransmogSetItemStore>,
-    pub(super) item_price_base_store: Arc<wow_data::ItemPriceBaseStore>,
     pub(super) item_limit_category_store: Arc<wow_data::ItemLimitCategoryStore>,
     pub(super) item_limit_category_condition_store: Arc<wow_data::ItemLimitCategoryConditionStore>,
     pub(super) player_create_info_store: Arc<wow_data::PlayerCreateInfoStoreLikeCpp>,
@@ -95,7 +91,6 @@ pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) item_random_enchantment_template_store:
         Arc<wow_data::ItemRandomEnchantmentTemplateStore>,
     pub(super) item_spec_override_store: Arc<wow_data::ItemSpecOverrideStore>,
-    pub(super) item_disenchant_loot_store: Arc<wow_data::ItemDisenchantLootStore>,
     pub(super) loot_stores: Arc<wow_loot::LootStores>,
 }
 
@@ -105,9 +100,6 @@ impl SessionInventoryCapabilitiesLikeCpp {
     /// that every member is present before the listener is published.
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
         session.set_currency_types_store(Arc::clone(&self.currency_types_store));
-        session.set_import_price_stores(Arc::clone(&self.import_price_stores));
-        session.set_item_class_store(Arc::clone(&self.item_class_store));
-        session.set_item_currency_cost_store(Arc::clone(&self.item_currency_cost_store));
         session.set_item_extended_cost_store(Arc::clone(&self.item_extended_cost_store));
         session.set_item_store(Arc::clone(&self.item_store));
         session.set_item_child_equipment_store(Arc::clone(&self.item_child_equipment_store));
@@ -131,7 +123,6 @@ impl SessionInventoryCapabilitiesLikeCpp {
         session
             .set_shield_block_regular_game_table(Arc::clone(&self.shield_block_regular_game_table));
         session.set_transmog_set_item_store(Arc::clone(&self.transmog_set_item_store));
-        session.set_item_price_base_store(Arc::clone(&self.item_price_base_store));
         session.set_item_limit_category_store(Arc::clone(&self.item_limit_category_store));
         session.set_item_limit_category_condition_store(Arc::clone(
             &self.item_limit_category_condition_store,
@@ -159,7 +150,6 @@ impl SessionInventoryCapabilitiesLikeCpp {
         session.set_item_random_enchantment_template_store(Arc::clone(
             &self.item_random_enchantment_template_store,
         ));
-        session.set_item_disenchant_loot_store(Arc::clone(&self.item_disenchant_loot_store));
         session.set_loot_stores(Arc::clone(&self.loot_stores));
     }
 }

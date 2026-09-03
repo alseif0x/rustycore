@@ -14,7 +14,11 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_unit",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_unit(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move {
+            session
+                .handle_loot_unit_with_catalogs_like_cpp(catalogs.item_valuation.as_ref(), pkt)
+                .await
+        }),
     }
 }
 
@@ -77,6 +81,7 @@ inventory::submit! {
                         session
                             .handle_loot_roll_with_generator_like_cpp(
                                 catalogs.id_generators.item.as_ref(),
+                                catalogs.item_valuation.as_ref(),
                                 roll,
                             )
                             .await
@@ -178,8 +183,13 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_loot_roll(&mut self, roll: LootRoll) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_loot_roll_with_generator_like_cpp(generators.item.as_ref(), roll)
-            .await;
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.handle_loot_roll_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &item_valuation,
+            roll,
+        )
+        .await;
     }
 
     #[cfg(test)]
@@ -193,7 +203,18 @@ impl WorldSession {
     }
 
     /// CMSG_LOOT_UNIT — player right-clicks a dead creature to loot it.
-    pub async fn handle_loot_unit(&mut self, mut pkt: wow_packet::WorldPacket) {
+    #[cfg(test)]
+    pub async fn handle_loot_unit(&mut self, pkt: wow_packet::WorldPacket) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.handle_loot_unit_with_catalogs_like_cpp(&item_valuation, pkt)
+            .await;
+    }
+
+    pub async fn handle_loot_unit_with_catalogs_like_cpp(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match LootUnit::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -263,7 +284,12 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(req.unit);
-        self.represented_on_loot_opened_like_cpp(req.unit, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            req.unit,
+            player_guid,
+            response,
+        );
 
         if !ae_owner_guids.is_empty() {
             self.send_packet(&AELootTargetsAck);
@@ -274,7 +300,12 @@ impl WorldSession {
                     .await
                 {
                     self.add_active_loot_view_owner_like_cpp(owner_guid);
-                    self.represented_on_loot_opened_like_cpp(owner_guid, player_guid, response);
+                    self.represented_on_loot_opened_with_catalogs_like_cpp(
+                        item_valuation,
+                        owner_guid,
+                        player_guid,
+                        response,
+                    );
                     self.send_packet(&AELootTargetsAck);
                 }
             }
@@ -1103,6 +1134,7 @@ impl WorldSession {
     pub async fn handle_loot_roll_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         roll: LootRoll,
     ) {
         let Some(player_guid) = self.player_guid() else {
@@ -1112,6 +1144,7 @@ impl WorldSession {
         if self
             .represented_player_vote_on_loot_roll_with_generator_like_cpp(
                 item_guid_generator,
+                item_valuation,
                 &roll,
                 player_guid,
             )
@@ -2202,6 +2235,7 @@ impl WorldSession {
     pub(crate) async fn handle_represented_loot_roll_vote_command_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         command: LootRollVoteCommand,
     ) {
         let roll_key = (command.loot_obj, command.loot_list_id);
@@ -2224,6 +2258,7 @@ impl WorldSession {
         let _ = self
             .represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
                 item_guid_generator,
+                item_valuation,
                 &roll,
                 command.voter_guid,
                 command.pass_on_group_loot,

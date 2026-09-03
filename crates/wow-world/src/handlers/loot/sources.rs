@@ -15,6 +15,7 @@ impl WorldSession {
     pub(crate) async fn open_represented_gameobject_chest_with_template_money_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
         template_money: (u32, u32),
@@ -145,11 +146,17 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(gameobject_guid);
-        self.represented_on_loot_opened_like_cpp(gameobject_guid, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            gameobject_guid,
+            player_guid,
+            response,
+        );
     }
 
-    pub(crate) async fn open_represented_fishing_hole_like_cpp(
+    pub(crate) async fn open_represented_fishing_hole_with_catalogs_like_cpp(
         &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         gameobject_entry: u32,
         loot_id: u32,
@@ -160,6 +167,7 @@ impl WorldSession {
             && self.resolved_player_is_alive_like_cpp() == Some(true)
             && self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid);
         self.open_represented_gameobject_personal_loot_like_cpp(
+            item_valuation,
             gameobject_guid,
             loot_id,
             LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
@@ -178,8 +186,26 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn open_represented_fishing_node_loot_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn open_represented_fishing_hole_like_cpp(
         &mut self,
+        gameobject_guid: ObjectGuid,
+        gameobject_entry: u32,
+        loot_id: u32,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.open_represented_fishing_hole_with_catalogs_like_cpp(
+            &item_valuation,
+            gameobject_guid,
+            gameobject_entry,
+            loot_id,
+        )
+        .await;
+    }
+
+    pub(crate) async fn open_represented_fishing_node_loot_with_catalogs_like_cpp(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         area_id: u32,
         junk: bool,
@@ -297,11 +323,34 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(gameobject_guid);
-        self.represented_on_loot_opened_like_cpp(gameobject_guid, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            gameobject_guid,
+            player_guid,
+            response,
+        );
     }
 
-    pub(crate) async fn open_represented_gathering_node_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn open_represented_fishing_node_loot_like_cpp(
         &mut self,
+        gameobject_guid: ObjectGuid,
+        area_id: u32,
+        junk: bool,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.open_represented_fishing_node_loot_with_catalogs_like_cpp(
+            &item_valuation,
+            gameobject_guid,
+            area_id,
+            junk,
+        )
+        .await;
+    }
+
+    pub(crate) async fn open_represented_gathering_node_with_catalogs_like_cpp(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         gameobject_entry: u32,
         source: GatheringNodeUseSource,
@@ -328,6 +377,7 @@ impl WorldSession {
         }
 
         self.open_represented_gameobject_personal_loot_like_cpp(
+            item_valuation,
             gameobject_guid,
             source.loot_id,
             LOOT_TYPE_CHEST_LIKE_CPP,
@@ -699,6 +749,23 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) async fn open_represented_gathering_node_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        gameobject_entry: u32,
+        source: GatheringNodeUseSource,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.open_represented_gathering_node_with_catalogs_like_cpp(
+            &item_valuation,
+            gameobject_guid,
+            gameobject_entry,
+            source,
+        )
+        .await;
+    }
+
     fn record_represented_gameobject_use_effects_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -744,6 +811,7 @@ impl WorldSession {
 
     async fn open_represented_gameobject_personal_loot_like_cpp(
         &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         loot_id: u32,
         loot_type: u8,
@@ -878,7 +946,12 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(gameobject_guid);
-        self.represented_on_loot_opened_like_cpp(gameobject_guid, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            gameobject_guid,
+            player_guid,
+            response,
+        );
     }
 
     pub(super) fn sync_represented_gameobject_loot_to_canonical_like_cpp(
@@ -1839,8 +1912,10 @@ impl WorldSession {
             .map(|row| (row.min_money, row.max_money))
             .unwrap_or((0, 0));
         let generators = self.id_generators_for_test_like_cpp();
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
         self.open_represented_gameobject_chest_with_template_money_like_cpp(
             generators.item.as_ref(),
+            &item_valuation,
             gameobject_guid,
             source,
             template_money,

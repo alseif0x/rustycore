@@ -148,8 +148,10 @@ impl WorldSession {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return false;
         };
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
         self.store_represented_disenchant_loot_winner_with_generator_like_cpp(
             generator.as_ref(),
+            &item_valuation,
             owner_guid,
             loot_obj,
             loot_list_id,
@@ -164,6 +166,7 @@ impl WorldSession {
     pub(super) async fn store_represented_disenchant_loot_winner_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         owner_guid: ObjectGuid,
         loot_obj: ObjectGuid,
         loot_list_id: u8,
@@ -178,7 +181,8 @@ impl WorldSession {
         else {
             return false;
         };
-        let Some((disenchant_id, _)) = self.item_disenchant_loot_like_cpp(
+        let Some((disenchant_id, _)) = self.item_disenchant_loot_with_catalogs_like_cpp(
+            item_valuation,
             entry.item_id,
             template.quality as u32,
             u32::from(template.item_level),
@@ -291,8 +295,9 @@ impl WorldSession {
         })
     }
 
-    pub(super) fn represented_on_loot_opened_like_cpp(
+    pub(super) fn represented_on_loot_opened_with_catalogs_like_cpp(
         &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
         mut response: LootResponse,
@@ -401,6 +406,7 @@ impl WorldSession {
         match loot_method {
             LOOT_METHOD_GROUP_LIKE_CPP | LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP => {
                 self.represented_start_group_loot_rolls_on_first_open_like_cpp(
+                    item_valuation,
                     owner_guid,
                     player_guid,
                 );
@@ -414,6 +420,22 @@ impl WorldSession {
             }
             _ => {}
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn represented_on_loot_opened_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        response: LootResponse,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            &item_valuation,
+            owner_guid,
+            player_guid,
+            response,
+        );
     }
 
     /// True only while a request still belongs to the exact object lifetime

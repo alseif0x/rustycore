@@ -9441,7 +9441,10 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     );
 
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    session.handle_loot_unit(loot_unit_packet(owner_guid)).await;
+    let item_valuation = session.item_valuation_catalogs_for_test_like_cpp();
+    session
+        .handle_loot_unit_with_catalogs_like_cpp(&item_valuation, loot_unit_packet(owner_guid))
+        .await;
 
     let response = send_rx.try_recv().unwrap();
     let mut response = WorldPacket::from_bytes(&response);

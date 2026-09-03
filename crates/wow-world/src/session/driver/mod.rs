@@ -229,6 +229,7 @@ impl WorldSession {
             }
             self.tick_represented_loot_rolls_with_generator_like_cpp(
                 catalogs.id_generators.item.as_ref(),
+                catalogs.item_valuation.as_ref(),
             )
             .await;
             self.tick_represented_gameobject_update_like_cpp();
@@ -305,6 +306,7 @@ impl WorldSession {
         let catalogs = SessionHandlerCatalogsLikeCpp {
             object_mgr: catalogs,
             area_triggers: Arc::new(self.area_trigger_catalogs_for_test_like_cpp()),
+            item_valuation: Arc::new(self.item_valuation_catalogs_for_test_like_cpp()),
             bank_bag_slot_prices: self
                 .bank_bag_slot_prices_store
                 .clone()
