@@ -34206,6 +34206,27 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
 
     assert!(session.set_player_aura_authority_complete_like_cpp(true));
     assert!(
+        session.insert_player_visible_aura_like_cpp(AuraApplication {
+            spell_id: 43_621,
+            difficulty_id: 0,
+            caster_guid: player_guid,
+            slot: 8,
+            duration_total: 30_000,
+            duration_remaining: 20_000,
+            stack_count: 1,
+            aura_flags: 0,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: Some(RepresentedAuraEffectLikeCpp::SafeFall),
+            represented_amount: 7,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        })
+    );
+    assert!(
         session
             .mutate_player_aura_subsystem_like_cpp(|auras| {
                 auras.insert_threat_snapshot_like_cpp(
@@ -34227,6 +34248,24 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
     assert_eq!(
         session.resolved_player_aura_authority_complete_like_cpp(),
         Some(true)
+    );
+    assert_eq!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("detached canonical visible-aura owner")[&8]
+            .represented_amount,
+        7
+    );
+    assert_eq!(
+        session
+            .mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.runtime_application_mut_like_cpp(8).map(|aura| {
+                    aura.represented_amount = 21;
+                    aura.represented_amount
+                })
+            })
+            .flatten(),
+        Some(21)
     );
     session.tombstone_player_spell_hit_aura_authority_like_cpp();
     let detached = session
@@ -34259,6 +34298,17 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
         None
     );
     assert!(!session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(
+        session
+            .mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras
+                    .runtime_application_mut_like_cpp(8)
+                    .map(|aura| aura.represented_amount = 99)
+            })
+            .flatten()
+            .is_none()
+    );
+    assert!(session.remove_player_visible_aura_like_cpp(8).is_none());
     let replacement_auras = canonical
         .lock()
         .unwrap()
@@ -34269,6 +34319,7 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
     assert!(!replacement_auras.persisted_player_aura_authority_complete_like_cpp());
     assert!(!replacement_auras.spell_hit_aura_authority_tombstoned_like_cpp());
     assert!(replacement_auras.threat_snapshot_like_cpp(4).is_none());
+    assert!(replacement_auras.runtime_applications_like_cpp().is_empty());
 }
 
 #[test]

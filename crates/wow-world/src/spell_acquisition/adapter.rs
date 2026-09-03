@@ -310,12 +310,13 @@ impl crate::session::WorldSession {
         // the current self-target where the session owns exact aura-spell
         // presence. A definite cast failure happens after fee/visuals in C++;
         // state-based rows remain unavailable until Unit AuraState is owned.
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let aura_restriction_result = self
             .spell_aura_restrictions_store()?
             .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
             .map_or(TrainerAuraRestrictionResultLikeCpp::Pass, |restriction| {
                 trainer_aura_restriction_result_like_cpp(restriction, |required_spell_id| {
-                    self.visible_auras
+                    visible_auras
                         .values()
                         .any(|aura| aura.spell_id == required_spell_id)
                 })
@@ -455,8 +456,9 @@ impl crate::session::WorldSession {
         no_immunities: bool,
     ) -> Option<u32> {
         let linked = self.spell_linked_store_like_cpp()?;
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let mut immunized_effect_mask = 0_u32;
-        for aura in self.visible_auras.values() {
+        for aura in visible_auras.values() {
             let aura_spell_id = u32::try_from(aura.spell_id).ok().filter(|id| *id != 0)?;
             if linked
                 .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Aura, aura_spell_id)

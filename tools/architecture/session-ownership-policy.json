@@ -5656,8 +5656,10 @@
           "name": "visible_auras",
           "type": "HashMap < u8 , AuraApplication >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "vmap_indoor_check_like_cpp",
@@ -20788,7 +20790,7 @@
           "kind": "method",
           "name": "apply_represented_forward_speed_adjustments_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_represented_forward_speed_adjustments_like_cpp (& self , move_type : UnitMoveTypeLikeCpp , mut speed : f32 ,) -> f32",
+          "signature": "fn apply_represented_forward_speed_adjustments_like_cpp (& self , move_type : UnitMoveTypeLikeCpp , mut speed : f32 ,) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -26055,7 +26057,7 @@
           "kind": "method",
           "name": "has_recently_dropped_flag_debuff_like_cpp",
           "visibility": "private",
-          "signature": "fn has_recently_dropped_flag_debuff_like_cpp (& self) -> bool",
+          "signature": "fn has_recently_dropped_flag_debuff_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -26067,8 +26069,10 @@
           "name": "has_represented_aura_effect_like_cpp",
           "visibility": "private",
           "signature": "fn has_represented_aura_effect_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -26078,8 +26082,10 @@
           "name": "has_represented_aura_effect_with_misc_value_like_cpp",
           "visibility": "private",
           "signature": "fn has_represented_aura_effect_with_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -26342,6 +26348,19 @@
           "name": "insert_inventory_item_object",
           "visibility": "pub (crate)",
           "signature": "fn insert_inventory_item_object (& mut self , item : Item) -> Option < Item >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "insert_player_visible_aura_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn insert_player_visible_aura_like_cpp (& mut self , aura : AuraApplication) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28649,7 +28668,7 @@
           "kind": "method",
           "name": "max_negative_represented_aura_amount_like_cpp",
           "visibility": "private",
-          "signature": "fn max_negative_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> i32",
+          "signature": "fn max_negative_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -28673,7 +28692,7 @@
           "kind": "method",
           "name": "max_represented_aura_amount_like_cpp",
           "visibility": "private",
-          "signature": "fn max_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp) -> i32",
+          "signature": "fn max_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -29399,6 +29418,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "next_player_visible_aura_slot_like_cpp",
+          "visibility": "private",
+          "signature": "fn next_player_visible_aura_slot_like_cpp (& self) -> Option < u8 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -30465,6 +30495,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_has_visible_aura_spell_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_has_visible_aura_spell_like_cpp (& self , spell_id : i32) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -33658,6 +33699,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "remove_player_visible_aura_like_cpp",
+          "visibility": "private",
+          "signature": "fn remove_player_visible_aura_like_cpp (& mut self , slot : u8) -> Option < AuraApplication >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "remove_represented_active_talent_side_effects_like_cpp",
           "visibility": "private",
           "signature": "fn remove_represented_active_talent_side_effects_like_cpp (& mut self , talent_id : u32 , rank : u8)",
@@ -33797,7 +33849,7 @@
           "kind": "method",
           "name": "remove_represented_mounted_auras_by_type_like_cpp",
           "visibility": "private",
-          "signature": "fn remove_represented_mounted_auras_by_type_like_cpp (& mut self)",
+          "signature": "fn remove_represented_mounted_auras_by_type_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -33860,7 +33912,7 @@
           "kind": "method",
           "name": "remove_represented_stealth_or_invisibility_auras_by_type_like_cpp",
           "visibility": "private",
-          "signature": "fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp (& mut self) -> usize",
+          "signature": "fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp (& mut self ,) -> Option < usize >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -34575,7 +34627,7 @@
           "kind": "method",
           "name": "represented_backward_speed_rate_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_backward_speed_rate_like_cpp (& self) -> f32",
+          "signature": "fn represented_backward_speed_rate_like_cpp (& self) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -35528,7 +35580,7 @@
           "kind": "method",
           "name": "represented_disallowed_mount_form_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_disallowed_mount_form_like_cpp (& self) -> Option < u32 >",
+          "signature": "fn represented_disallowed_mount_form_like_cpp (& self) -> Option < Option < u32 > >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -38403,7 +38455,7 @@
           "kind": "method",
           "name": "represented_swim_speed_rate_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_swim_speed_rate_like_cpp (& self) -> f32",
+          "signature": "fn represented_swim_speed_rate_like_cpp (& self) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -38686,8 +38738,10 @@
           "name": "represented_total_stat_buff_multipliers_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_total_stat_buff_multipliers_like_cpp (& self) -> [f32 ; 5]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38696,22 +38750,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_total_stat_multiplier_for_stat_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_total_stat_multiplier_for_stat_like_cpp (& self , stat : usize , uses_misc_value_b : bool ,) -> f32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_total_stat_multipliers_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_total_stat_multipliers_like_cpp (& self) -> [f32 ; 5]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38853,7 +38898,7 @@
           "kind": "method",
           "name": "represented_transform_spell_allows_mount_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_transform_spell_allows_mount_like_cpp (& self) -> bool",
+          "signature": "fn represented_transform_spell_allows_mount_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -39944,6 +39989,28 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_has_represented_aura_effect_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_has_represented_aura_effect_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_has_represented_aura_effect_with_misc_value_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_has_represented_aura_effect_with_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_in_combat_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_in_combat_like_cpp (& self) -> Option < bool >",
@@ -40460,6 +40527,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_visible_auras_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_visible_auras_like_cpp (& self ,) -> Option < HashMap < u8 , AuraApplication > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_vitals_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_vitals_like_cpp (& self) -> Option < (u32 , u32 , bool) >",
@@ -40546,6 +40626,76 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_represented_total_stat_buff_multipliers_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_represented_total_stat_buff_multipliers_like_cpp (& self ,) -> Option < [f32 ; 5] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_represented_total_stat_multiplier_for_stat_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_represented_total_stat_multiplier_for_stat_like_cpp (& self , stat : usize , uses_misc_value_b : bool ,) -> Option < f32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_represented_total_stat_multipliers_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_represented_total_stat_multipliers_like_cpp (& self) -> Option < [f32 ; 5] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_total_represented_aura_modifier_by_misc_value_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> Option < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_total_represented_aura_modifier_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_total_represented_aura_modifier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_total_represented_aura_multiplier_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_total_represented_aura_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < f32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -49801,7 +49951,7 @@
           "kind": "method",
           "name": "total_represented_aura_amount_like_cpp",
           "visibility": "private",
-          "signature": "fn total_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp) -> i32",
+          "signature": "fn total_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -49812,18 +49962,7 @@
           "kind": "method",
           "name": "total_represented_aura_amount_multiplier_like_cpp",
           "visibility": "private",
-          "signature": "fn total_represented_aura_amount_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> f32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "total_represented_aura_modifier_by_misc_value_like_cpp",
-          "visibility": "private",
-          "signature": "fn total_represented_aura_modifier_by_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> i32",
+          "signature": "fn total_represented_aura_amount_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -49835,8 +49974,10 @@
           "name": "total_represented_aura_modifier_like_cpp",
           "visibility": "private",
           "signature": "fn total_represented_aura_modifier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> i32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -49846,8 +49987,10 @@
           "name": "total_represented_aura_multiplier_like_cpp",
           "visibility": "private",
           "signature": "fn total_represented_aura_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> f32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -76279,7 +76422,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5b915b5d9fa83179b7c2b91beaeb627e:len=95623|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a949c1ee1cc59eb25d25532fff21ef45:len=95676|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

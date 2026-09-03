@@ -1145,9 +1145,10 @@ impl WorldSession {
                 attack_power_per_strength,
                 attack_power_per_agility,
                 ranged_attack_power_per_agility,
-                stat_total_multipliers: self.represented_total_stat_multipliers_like_cpp(),
+                stat_total_multipliers: self
+                    .resolved_represented_total_stat_multipliers_like_cpp()?,
                 stat_buff_total_multipliers: self
-                    .represented_total_stat_buff_multipliers_like_cpp(),
+                    .resolved_represented_total_stat_buff_multipliers_like_cpp()?,
                 gear_stats: gear.stats,
                 gear_health: gear.health,
                 gear_mana: gear.mana,

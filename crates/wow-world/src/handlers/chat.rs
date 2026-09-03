@@ -1237,9 +1237,12 @@ impl WorldSession {
     }
 
     fn has_gm_silence_aura_like_cpp(&self) -> bool {
-        self.visible_auras
-            .values()
-            .any(|aura| aura.spell_id == GM_SILENCE_AURA_LIKE_CPP)
+        self.resolved_player_visible_auras_like_cpp()
+            .is_some_and(|auras| {
+                auras
+                    .values()
+                    .any(|aura| aura.spell_id == GM_SILENCE_AURA_LIKE_CPP)
+            })
     }
 
     fn send_gm_silence_notification_like_cpp(&self) {

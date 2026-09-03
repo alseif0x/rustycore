@@ -1260,7 +1260,6 @@ mod tests {
             80,
             0,
         ));
-        session.set_player_aura_authority_complete_like_cpp(true);
         session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
         session.set_skill_store(Arc::new(
             SkillStore::from_skill_line_abilities_and_race_class_like_cpp([], []),
@@ -1323,6 +1322,7 @@ mod tests {
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        assert!(session.set_player_aura_authority_complete_like_cpp(true));
         // The production login path hydrates `Player::SetFactionForRace`
         // before publishing the Player. This synthetic fixture has no
         // ChrRaces store, so install the exact canonical prerequisite here.
@@ -1422,9 +1422,8 @@ mod tests {
                 player.unit_mut().add_unit_state(UnitState::DIED.bits());
             })
             .expect("canonical player");
-        session.visible_auras.insert(
-            slot,
-            AuraApplication {
+        assert!(
+            session.insert_player_visible_aura_like_cpp(AuraApplication {
                 spell_id: 5384,
                 difficulty_id: 0,
                 caster_guid: player_guid,
@@ -1442,15 +1441,15 @@ mod tests {
                 represented_misc_value: None,
                 represented_multiplier: 1.0,
                 applied_at: Instant::now(),
-            },
+            })
         );
+        assert!(session.set_player_aura_authority_complete_like_cpp(true));
     }
 
     fn seed_unclassified_active_aura(session: &mut WorldSession, slot: u8) {
         let player_guid = session.player_guid().expect("active player");
-        session.visible_auras.insert(
-            slot,
-            AuraApplication {
+        assert!(
+            session.insert_player_visible_aura_like_cpp(AuraApplication {
                 spell_id: 999,
                 difficulty_id: 0,
                 caster_guid: player_guid,
@@ -1468,8 +1467,9 @@ mod tests {
                 represented_misc_value: None,
                 represented_multiplier: 1.0,
                 applied_at: Instant::now(),
-            },
+            })
         );
+        assert!(session.set_player_aura_authority_complete_like_cpp(true));
     }
 
     fn install_wrapper_and_aura_catalog(
@@ -1711,7 +1711,13 @@ mod tests {
                 .player_trainer_interaction_matches_like_cpp(fixture.other_trainer, 17),
             "a missing ObjectMgr mapping must not replace a prior published window"
         );
-        assert!(fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.send_rx.try_recv().is_err());
     }
@@ -1778,7 +1784,13 @@ mod tests {
             fixture.trainer,
             DEFAULT_TRAINER_ID as i32
         ));
-        assert!(!fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            !fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(!canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.send_rx.try_recv().is_err());
     }
@@ -1957,7 +1969,6 @@ mod tests {
         fixture
             .session
             .set_loot_money_persistence_test_result_like_cpp(true);
-
         fixture
             .session
             .handle_trainer_buy_spell(trainer_buy_packet(
@@ -2643,6 +2654,20 @@ mod tests {
                 },
             ]),
         ));
+        assert_eq!(
+            fixture
+                .session
+                .resolved_player_aura_authority_complete_like_cpp(),
+            Some(true),
+            "trainer fixture must accredit the canonical Player aura load"
+        );
+        assert!(
+            fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .is_some(),
+            "trainer fixture must resolve the canonical Player aura owner"
+        );
         fixture
             .session
             .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
@@ -3583,7 +3608,13 @@ mod tests {
             "removing feign death publishes its aura update"
         );
         assert!(fixture.send_rx.try_recv().is_err());
-        assert!(!fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            !fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(!canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.session.player_trainer_interaction_matches_like_cpp(
             fixture.trainer,
@@ -3609,7 +3640,13 @@ mod tests {
             .await;
 
         assert!(fixture.send_rx.try_recv().is_err());
-        assert!(fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.session.player_trainer_interaction_matches_like_cpp(
             fixture.trainer,

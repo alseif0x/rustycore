@@ -6549,7 +6549,9 @@ pub struct WorldSession {
     movement_speed_ack_events_like_cpp: Vec<MovementSpeedAckEventLikeCpp>,
 
     // ── Aura system ───────────────────────────────────────────────
-    /// All visible auras on the player: slot (0-254) → AuraApplication
+    /// Legacy fixture mirror for tests that construct a Session without a
+    /// canonical Player owner.
+    #[cfg(test)]
     pub(crate) visible_auras: HashMap<u8, AuraApplication>,
     /// True only after both persisted aura tables were read successfully for
     /// the active character. Absence is evidence only while this is complete.
@@ -7374,52 +7376,11 @@ fn currency_max_quantity_cpp(entry: &CurrencyTypesEntry, currency: &PlayerCurren
     max_quantity
 }
 
-/// An aura applied to the player.
-#[derive(Debug, Clone)]
-pub struct AuraApplication {
-    /// Spell ID of the aura
-    pub spell_id: i32,
-    /// Difficulty whose C++ `SpellInfo` was selected when the aura was created.
-    pub difficulty_id: u8,
-    /// GUID of the unit that cast the aura
-    pub caster_guid: ObjectGuid,
-    /// Aura slot (0-254)
-    pub slot: u8,
-    /// Total duration in milliseconds (0 = permanent)
-    pub duration_total: u32,
-    /// Remaining duration in milliseconds
-    pub duration_remaining: u32,
-    /// Stack count
-    pub stack_count: u8,
-    /// Aura flags (bitmask)
-    pub aura_flags: u32,
-    /// C++ `AuraApplication::GetEffectMask()` snapshot.
-    pub effect_mask: u32,
-    /// Trinity SpellAuraInterruptFlags bitmask used by represented removal paths.
-    pub aura_interrupt_flags: u32,
-    /// Trinity SpellAuraInterruptFlags2 bitmask used by represented removal paths.
-    pub aura_interrupt_flags2: u32,
-    /// Represented Trinity aura effect queried directly by movement/fall handlers.
-    pub represented_effect: Option<RepresentedAuraEffectLikeCpp>,
-    /// C++ `GetTotalAuraModifier` amount for represented integer aura effects.
-    pub represented_amount: i32,
-    /// C++ `AuraEffect::GetAmount()` snapshots keyed by effect index for party aura points.
-    pub represented_effect_amounts: Vec<RepresentedAuraEffectAmountLikeCpp>,
-    /// C++ aura misc value used by represented `GetTotalAuraModifierByMiscValue` lookups.
-    pub represented_misc_value: Option<i32>,
-    /// C++ `GetTotalAuraMultiplier` factor for represented multiplier aura effects.
-    pub represented_multiplier: f32,
-    /// Monotonic timestamp when this aura was applied — used for expiry checks.
-    pub applied_at: Instant,
-}
+pub use wow_entities::AuraApplicationLikeCpp as AuraApplication;
 
 type CanonicalThreatAuraSnapshotLikeCpp = wow_entities::AuraThreatSnapshotLikeCpp;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RepresentedAuraEffectAmountLikeCpp {
-    pub effect_index: u8,
-    pub amount: i32,
-}
+pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp};
 
 fn represented_aura_effect_amounts_like_cpp(
     effect: &wow_data::SpellEffectInfo,
@@ -7540,47 +7501,6 @@ pub(crate) struct RepresentedSpellFocusObjectLikeCpp {
     pub map_key: wow_map::MapKey,
     pub position: Position,
     pub source: wow_entities::SpellFocusUseSource,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RepresentedAuraEffectLikeCpp {
-    FeignDeath,
-    FeatherFall,
-    Hover,
-    SafeFall,
-    Fly,
-    Ghost,
-    Invisibility,
-    Mounted,
-    SwimSpeed,
-    Speed,
-    SpeedAlways,
-    SpeedNotStack,
-    UseNormalMovementSpeed,
-    DecreaseSpeed,
-    MinimumSpeed,
-    MinimumSpeedRate,
-    MountedSpeed,
-    MountedSpeedAlways,
-    MountedSpeedNotStack,
-    FlightSpeed,
-    VehicleFlightSpeed,
-    MountedFlightSpeed,
-    MountedFlightSpeedAlways,
-    FlightSpeedNotStack,
-    ModifyFallDamagePct,
-    ModDetectRange,
-    ModDetectedRange,
-    ModFactionReputationGain,
-    ModScale,
-    ModSpeedNoControl,
-    ModBattlePetXpPct,
-    ModReputationGain,
-    ModRestedXpConsumption,
-    ModTotalStatPercentage,
-    ProvideSpellFocus,
-    Stealth,
-    WaterWalk,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8548,6 +8468,7 @@ impl WorldSession {
             movement_force_mod_magnitude_like_cpp: 1.0,
             #[cfg(test)]
             movement_speed_ack_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             visible_auras: HashMap::new(),
             #[cfg(test)]
             player_aura_authority_complete_like_cpp: false,
@@ -16803,14 +16724,17 @@ impl WorldSession {
     }
 
     pub(crate) fn send_initial_player_auras_like_cpp(&self) {
-        if self.visible_auras.is_empty() {
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return;
+        };
+        if visible_auras.is_empty() {
             return;
         }
         let Some(player_guid) = self.player_guid() else {
             return;
         };
 
-        let mut visible: Vec<_> = self.visible_auras.values().collect();
+        let mut visible: Vec<_> = visible_auras.values().collect();
         visible.sort_by_key(|aura| aura.slot);
         let auras = visible
             .into_iter()
@@ -20818,9 +20742,8 @@ impl WorldSession {
     }
 
     fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
-        self.visible_auras
-            .values()
-            .any(|aura| aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP)
+        self.player_has_visible_aura_spell_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP)
+            .unwrap_or(false)
     }
 
     pub(crate) fn update_represented_item_level_area_based_scaling_like_cpp(&mut self) -> bool {
@@ -21518,11 +21441,7 @@ impl WorldSession {
             let Ok(spell_id) = i32::try_from(event.spell_id) else {
                 continue;
             };
-            if self
-                .visible_auras
-                .values()
-                .any(|aura| aura.spell_id == spell_id)
-            {
+            if self.player_has_visible_aura_spell_like_cpp(spell_id) != Some(false) {
                 continue;
             }
             let effect_mask = self
@@ -21604,10 +21523,7 @@ impl WorldSession {
             };
             if event.apply {
                 if event.form_change
-                    && self
-                        .visible_auras
-                        .values()
-                        .any(|aura| aura.spell_id == spell_id)
+                    && self.player_has_visible_aura_spell_like_cpp(spell_id) != Some(false)
                 {
                     continue;
                 }
@@ -26940,8 +26856,10 @@ impl WorldSession {
                 let Ok(spell_id) = i32::try_from(spell_id) else {
                     return false;
                 };
-                let slots = self
-                    .visible_auras
+                let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+                    return false;
+                };
+                let slots = visible_auras
                     .values()
                     .filter_map(|aura| {
                         (aura.spell_id == spell_id && aura.caster_guid == item_guid)
@@ -28220,6 +28138,9 @@ impl WorldSession {
             if self.player_spell_hit_aura_authority_tombstoned_like_cpp {
                 auras.tombstone_spell_hit_aura_authority_like_cpp();
             }
+            for aura in self.visible_auras.values().cloned() {
+                auras.insert_runtime_application_like_cpp(aura);
+            }
             for (&slot, snapshot) in &self.canonical_threat_aura_snapshots_like_cpp {
                 auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
             }
@@ -28244,6 +28165,7 @@ impl WorldSession {
                 auras.persisted_player_aura_authority_complete_like_cpp();
             self.player_spell_hit_aura_authority_tombstoned_like_cpp =
                 auras.spell_hit_aura_authority_tombstoned_like_cpp();
+            self.visible_auras = auras.runtime_applications_like_cpp().clone();
             self.canonical_threat_aura_snapshots_like_cpp.clear();
             for slot in 0..=u8::MAX {
                 if let Some(snapshot) = auras.threat_snapshot_like_cpp(slot) {
@@ -28275,6 +28197,41 @@ impl WorldSession {
     pub(crate) fn resolved_player_aura_authority_complete_like_cpp(&self) -> Option<bool> {
         self.player_aura_subsystem_snapshot_like_cpp()
             .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
+    }
+
+    pub(crate) fn resolved_player_visible_auras_like_cpp(
+        &self,
+    ) -> Option<HashMap<u8, AuraApplication>> {
+        self.player_aura_subsystem_snapshot_like_cpp()
+            .map(|auras| auras.runtime_applications_like_cpp().clone())
+    }
+
+    pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
+        self.mutate_player_aura_subsystem_like_cpp(|auras| {
+            auras.insert_runtime_application_like_cpp(aura);
+        })
+        .is_some()
+    }
+
+    fn player_has_visible_aura_spell_like_cpp(&self, spell_id: i32) -> Option<bool> {
+        self.player_aura_subsystem_snapshot_like_cpp().map(|auras| {
+            auras
+                .runtime_applications_like_cpp()
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+        })
+    }
+
+    fn next_player_visible_aura_slot_like_cpp(&self) -> Option<u8> {
+        let auras = self.player_aura_subsystem_snapshot_like_cpp()?;
+        (0..u8::MAX).find(|slot| !auras.runtime_applications_like_cpp().contains_key(slot))
+    }
+
+    fn remove_player_visible_aura_like_cpp(&mut self, slot: u8) -> Option<AuraApplication> {
+        self.mutate_player_aura_subsystem_like_cpp(|auras| {
+            auras.remove_runtime_application_like_cpp(slot)
+        })
+        .flatten()
     }
 
     /// Begin hydrating the persisted equipment/inventory source for the active
@@ -28597,10 +28554,10 @@ impl WorldSession {
             let Some(required_spell_id) = spell_area.aura_spell.checked_abs() else {
                 return true;
             };
-            let has_aura = self
-                .visible_auras
-                .values()
-                .any(|aura| aura.spell_id == required_spell_id);
+            let Some(has_aura) = self.player_has_visible_aura_spell_like_cpp(required_spell_id)
+            else {
+                return false;
+            };
             if (spell_area.aura_spell > 0 && !has_aura) || (spell_area.aura_spell < 0 && has_aura) {
                 return false;
             }
@@ -28923,8 +28880,8 @@ impl WorldSession {
             || !self.represented_war_mode_update_zone_aura_source_is_empty_like_cpp()
             || !self.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp()
             || !self.represented_update_zone_script_aura_source_is_hit_inert_like_cpp()
-            || !self
-                .visible_auras
+            || !aura_subsystem
+                .runtime_applications_like_cpp()
                 .values()
                 .all(|aura| self.player_visible_aura_is_spell_hit_inert_like_cpp(aura))
             || self
@@ -31410,11 +31367,16 @@ impl WorldSession {
             return (0, 0);
         };
         let rested_bonus = (current_rest_bonus as u32).min(xp);
+        let Some(rested_consumption_modifier) = self
+            .resolved_total_represented_aura_modifier_like_cpp(
+                RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
+            )
+        else {
+            return (0, 0);
+        };
         let rested_loss = Self::apply_represented_pct_modifier_to_u32_like_cpp(
             rested_bonus,
-            self.total_represented_aura_modifier_like_cpp(
-                RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
-            ),
+            rested_consumption_modifier,
         );
         // Both C++ RestMgr implementations call SetRestBonus unconditionally,
         // including when the float bonus truncates to a zero integer award.
@@ -32642,8 +32604,10 @@ impl WorldSession {
         &mut self,
         spell_id: i32,
     ) -> usize {
-        let slots = self
-            .visible_auras
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return 0;
+        };
+        let slots = visible_auras
             .values()
             .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
             .collect::<Vec<_>>();
@@ -33799,16 +33763,16 @@ impl WorldSession {
         let mut rep_mod = if no_quest_bonus {
             0.0
         } else {
-            self.total_represented_aura_modifier_like_cpp(
+            self.resolved_total_represented_aura_modifier_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModReputationGain,
-            ) as f32
+            )? as f32
         };
 
         if source == ReputationGainSourceLikeCpp::Kill {
-            rep_mod += self.total_represented_aura_modifier_by_misc_value_like_cpp(
+            rep_mod += self.resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModFactionReputationGain,
                 faction_id as i32,
-            ) as f32;
+            )? as f32;
         }
 
         percent += if rep > 0 { rep_mod } else { -rep_mod };
@@ -36612,15 +36576,10 @@ impl WorldSession {
         effect_mask: u32,
         send_update: bool,
     ) -> Result<(), &'static str> {
-        // Find a free slot (0-254)
-        let mut slot = 0u8;
-        while self.visible_auras.contains_key(&slot) && slot < 255 {
-            slot += 1;
-        }
-
-        if slot >= 255 {
-            return Err("No free aura slots");
-        }
+        // Find a free slot (0-254) on the canonical Unit owner.
+        let slot = self
+            .next_player_visible_aura_slot_like_cpp()
+            .ok_or("No free aura slots or missing Player aura owner")?;
 
         // Preserve the represented StatSystem-relevant multiplier on the same
         // AuraApplication. C++ AuraEffect::HandleModTotalPercentStat uses
@@ -36715,8 +36674,9 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.visible_auras.insert(slot, aura);
+        if !self.insert_player_visible_aura_like_cpp(aura) {
+            return Err("Missing Player aura owner");
+        }
         self.sync_canonical_threat_relevant_aura_like_cpp(
             spell_id,
             caster_guid,
@@ -36867,7 +36827,12 @@ impl WorldSession {
     }
 
     fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self) {
-        let auras = self.visible_auras.values().cloned().collect::<Vec<_>>();
+        let Some(auras) = self
+            .resolved_player_visible_auras_like_cpp()
+            .map(|auras| auras.into_values().collect::<Vec<_>>())
+        else {
+            return;
+        };
         for aura in auras {
             self.sync_canonical_threat_relevant_aura_like_cpp(
                 aura.spell_id,
@@ -37004,10 +36969,7 @@ impl WorldSession {
         for spell_id in self.known_spells_like_cpp().to_vec() {
             if spell_id <= 0
                 || !spell_store.is_passive_like_cpp(spell_id)
-                || self
-                    .visible_auras
-                    .values()
-                    .any(|aura| aura.spell_id == spell_id)
+                || self.player_has_visible_aura_spell_like_cpp(spell_id) != Some(false)
             {
                 continue;
             }
@@ -37164,10 +37126,8 @@ impl WorldSession {
                     break;
                 };
                 if spell_store.is_passive_like_cpp(previous_spell_i32)
-                    && !self
-                        .visible_auras
-                        .values()
-                        .any(|aura| aura.spell_id == previous_spell_i32)
+                    && self.player_has_visible_aura_spell_like_cpp(previous_spell_i32)
+                        == Some(false)
                     && self.represented_login_passive_spell_cast_gate_like_cpp(previous_spell_i32)
                     && let Some(spell_info) = spell_store.get(previous_spell_i32).cloned()
                 {
@@ -37375,14 +37335,9 @@ impl WorldSession {
             .map(|(_, vehicle_id)| vehicle_id)
             .unwrap_or(0);
 
-        let mut slot = 0u8;
-        while self.visible_auras.contains_key(&slot) && slot < 255 {
-            slot += 1;
-        }
-
-        if slot >= 255 {
-            return Err("No free aura slots");
-        }
+        let slot = self
+            .next_player_visible_aura_slot_like_cpp()
+            .ok_or("No free aura slots or missing Player aura owner")?;
 
         let aura = AuraApplication {
             spell_id,
@@ -37407,8 +37362,9 @@ impl WorldSession {
         if !self.set_player_mount_presentation_like_cpp(display_id, true) {
             return Err("Missing Player presentation owner");
         }
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.visible_auras.insert(slot, aura);
+        if !self.insert_player_visible_aura_like_cpp(aura) {
+            return Err("Missing Player aura owner");
+        }
         if self.create_player_mount_vehicle_kit_like_cpp(vehicle_id, creature_entry) {
             #[cfg(test)]
             {
@@ -37577,8 +37533,10 @@ impl WorldSession {
         else {
             return;
         };
-        let slots: Vec<u8> = self
-            .visible_auras
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return;
+        };
+        let slots: Vec<u8> = visible_auras
             .values()
             .filter_map(|aura| (aura.spell_id == mod_spell_aura_id).then_some(aura.slot))
             .collect();
@@ -37603,14 +37561,9 @@ impl WorldSession {
         caster_guid: ObjectGuid,
         effect: &wow_data::SpellEffectInfo,
     ) -> Result<(), &'static str> {
-        let mut slot = 0u8;
-        while self.visible_auras.contains_key(&slot) && slot < 255 {
-            slot += 1;
-        }
-
-        if slot >= 255 {
-            return Err("No free aura slots");
-        }
+        let slot = self
+            .next_player_visible_aura_slot_like_cpp()
+            .ok_or("No free aura slots or missing Player aura owner")?;
 
         let aura = AuraApplication {
             spell_id,
@@ -37632,8 +37585,9 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.visible_auras.insert(slot, aura);
+        if !self.insert_player_visible_aura_like_cpp(aura) {
+            return Err("Missing Player aura owner");
+        }
         self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001, 0x1);
 
         Ok(())
@@ -37645,14 +37599,9 @@ impl WorldSession {
         caster_guid: ObjectGuid,
         effect: &wow_data::SpellEffectInfo,
     ) -> Result<(), &'static str> {
-        let mut slot = 0u8;
-        while self.visible_auras.contains_key(&slot) && slot < 255 {
-            slot += 1;
-        }
-
-        if slot >= 255 {
-            return Err("No free aura slots");
-        }
+        let slot = self
+            .next_player_visible_aura_slot_like_cpp()
+            .ok_or("No free aura slots or missing Player aura owner")?;
 
         let multiplier = 1.0 + (effect.effect_base_points as f32 / 100.0);
         let aura = AuraApplication {
@@ -37675,8 +37624,9 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.visible_auras.insert(slot, aura);
+        if !self.insert_player_visible_aura_like_cpp(aura) {
+            return Err("Missing Player aura owner");
+        }
         self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001, 0x1);
 
         Ok(())
@@ -37690,14 +37640,9 @@ impl WorldSession {
         represented_effect: RepresentedAuraEffectLikeCpp,
         duration_ms: u32,
     ) -> Result<(), &'static str> {
-        let mut slot = 0u8;
-        while self.visible_auras.contains_key(&slot) && slot < 255 {
-            slot += 1;
-        }
-
-        if slot >= 255 {
-            return Err("No free aura slots");
-        }
+        let slot = self
+            .next_player_visible_aura_slot_like_cpp()
+            .ok_or("No free aura slots or missing Player aura owner")?;
 
         let aura = AuraApplication {
             spell_id,
@@ -37719,8 +37664,9 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.visible_auras.insert(slot, aura);
+        if !self.insert_player_visible_aura_like_cpp(aura) {
+            return Err("Missing Player aura owner");
+        }
         self.send_aura_update_applied(
             spell_id,
             slot,
@@ -38032,23 +37978,25 @@ impl WorldSession {
 
     /// Remove an aura by slot and send SMSG_AURA_UPDATE.
     pub fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        let mounted_aura = self.visible_auras.get(&slot).is_some_and(|aura| {
-            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
-        });
+        let mounted_aura = self
+            .resolved_player_visible_auras_like_cpp()
+            .and_then(|auras| auras.get(&slot).cloned())
+            .is_some_and(|aura| {
+                aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+            });
         let was_mounted = if mounted_aura {
             self.resolved_player_mounted_like_cpp()
                 .ok_or("Missing Player presentation owner")?
         } else {
             false
         };
-        let Some(aura) = self.visible_auras.remove(&slot) else {
+        let Some(aura) = self.remove_player_visible_aura_like_cpp(slot) else {
             return Err("Aura slot not found");
         };
         if mounted_aura && !self.set_player_mount_presentation_like_cpp(0, false) {
-            self.visible_auras.insert(slot, aura);
+            let _ = self.insert_player_visible_aura_like_cpp(aura);
             return Err("Missing Player presentation owner");
         }
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.sync_canonical_threat_relevant_aura_like_cpp(
             aura.spell_id,
             aura.caster_guid,
@@ -38193,9 +38141,11 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store.as_ref() else {
             return 0;
         };
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return 0;
+        };
 
-        let slots: Vec<u8> = self
-            .visible_auras
+        let slots: Vec<u8> = visible_auras
             .values()
             .filter_map(|aura| {
                 spell_store
@@ -38245,8 +38195,10 @@ impl WorldSession {
             return false;
         }
 
-        let slots: Vec<u8> = self
-            .visible_auras
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return false;
+        };
+        let slots: Vec<u8> = visible_auras
             .iter()
             .filter_map(|(slot, aura)| {
                 (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::FeignDeath))
@@ -38291,8 +38243,10 @@ impl WorldSession {
         represented_effect: RepresentedAuraEffectLikeCpp,
     ) -> usize {
         let no_aura_cancel = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
-        let slots: Vec<u8> = self
-            .visible_auras
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return 0;
+        };
+        let slots: Vec<u8> = visible_auras
             .values()
             .filter_map(|aura| {
                 // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
@@ -38335,8 +38289,10 @@ impl WorldSession {
             return 0;
         }
 
-        let slots: Vec<u8> = self
-            .visible_auras
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return 0;
+        };
+        let slots: Vec<u8> = visible_auras
             .values()
             .filter_map(|aura| {
                 if aura.spell_id != spell_id {
@@ -38375,8 +38331,10 @@ impl WorldSession {
         flags: u32,
         flags2: u32,
     ) -> usize {
-        let slots: Vec<u8> = self
-            .visible_auras
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return 0;
+        };
+        let slots: Vec<u8> = visible_auras
             .values()
             .filter(|aura| {
                 (flags != 0 && aura.aura_interrupt_flags & flags != 0)
@@ -38395,13 +38353,15 @@ impl WorldSession {
     /// Check all active auras for expiry and remove those whose duration has elapsed.
     /// Called from the synchronous tick loop (~every 200ms via creature_tick).
     pub(crate) fn tick_auras(&mut self) {
-        if self.visible_auras.is_empty() {
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return;
+        };
+        if visible_auras.is_empty() {
             return;
         }
 
         // Collect expired slots (avoid borrow conflict)
-        let expired: Vec<u8> = self
-            .visible_auras
+        let expired: Vec<u8> = visible_auras
             .values()
             .filter(|a| {
                 // Permanent auras (duration_total == 0) never expire
@@ -38412,11 +38372,7 @@ impl WorldSession {
             .collect();
 
         for slot in expired {
-            let spell_id = self
-                .visible_auras
-                .get(&slot)
-                .map(|a| a.spell_id)
-                .unwrap_or(0);
+            let spell_id = visible_auras.get(&slot).map(|a| a.spell_id).unwrap_or(0);
             let _ = self.remove_aura(slot);
             debug!(
                 account = self.account_id,
@@ -40055,8 +40011,8 @@ impl WorldSession {
             // Player, not the authenticated WorldSession. Clear both at the
             // identity boundary so a later character cannot inherit positive
             // or negative aura-spell authority from the previous one.
-            self.visible_auras.clear();
             let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.clear_runtime_applications_like_cpp();
                 auras.reset_player_aura_source_authority_like_cpp();
             });
             self.player_equipment_inventory_authority_complete_like_cpp = false;
@@ -42322,13 +42278,9 @@ impl WorldSession {
                 };
             }
 
-            let mut slot = 0u8;
-            while self.visible_auras.contains_key(&slot) && slot < u8::MAX {
-                slot = slot.saturating_add(1);
-            }
-            if slot == u8::MAX {
+            let Some(slot) = self.next_player_visible_aura_slot_like_cpp() else {
                 break;
-            }
+            };
 
             let caster_guid = if row.caster_guid.is_empty() {
                 player_guid
@@ -42362,13 +42314,9 @@ impl WorldSession {
                 row.effect_mask,
                 &represented_effect_amounts,
             );
-            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+            let installed = self.mutate_player_aura_subsystem_like_cpp(|auras| {
                 auras.insert_threat_snapshot_like_cpp(slot, canonical_snapshot);
-            });
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-            self.visible_auras.insert(
-                slot,
-                AuraApplication {
+                auras.insert_runtime_application_like_cpp(AuraApplication {
                     spell_id,
                     difficulty_id: row.difficulty,
                     caster_guid,
@@ -42386,8 +42334,11 @@ impl WorldSession {
                     represented_misc_value: None,
                     represented_multiplier: 1.0,
                     applied_at: Instant::now(),
-                },
-            );
+                });
+            });
+            if installed.is_none() {
+                break;
+            }
             self.send_aura_update_applied(
                 spell_id,
                 slot,
@@ -43700,13 +43651,12 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return Vec::new();
         };
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return Vec::new();
+        };
         let mut applied = Vec::new();
         for spell_id in spell_ids {
-            if self
-                .visible_auras
-                .values()
-                .any(|aura| aura.spell_id == spell_id)
-            {
+            if visible_auras.values().any(|aura| aura.spell_id == spell_id) {
                 continue;
             }
             if self.execute_spell(spell_id, player_guid).await.is_ok() {
@@ -45104,8 +45054,8 @@ impl WorldSession {
             })
             .collect();
         let auras = self
-            .visible_auras
-            .values()
+            .resolved_player_visible_auras_like_cpp()?
+            .into_values()
             .filter_map(|aura| {
                 Some(PlayerConditionAuraLikeCpp {
                     spell_id: u32::try_from(aura.spell_id).ok()?,
@@ -46184,6 +46134,9 @@ impl WorldSession {
                 .map(|entry| i32::from(entry.parent_map_id))
                 .unwrap_or(-1),
         };
+        let visible_auras = self
+            .resolved_player_visible_auras_like_cpp()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::Aura)?;
 
         capability_store
             .select_for_mount_type_with_reject_like_cpp(
@@ -46194,7 +46147,7 @@ impl WorldSession {
                     area_store.is_in_area_like_cpp(area_id, u32::from(required_area_id))
                 },
                 |aura_id| {
-                    self.visible_auras
+                    visible_auras
                         .values()
                         .any(|aura| u32::try_from(aura.spell_id).ok() == Some(aura_id))
                 },
@@ -48052,16 +48005,22 @@ impl WorldSession {
         if z_diff < 14.57
             || !player_is_alive
             || self.player_is_game_master_like_cpp() == Some(true)
-            || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Hover)
-            || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::FeatherFall)
-            || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
+            || self.resolved_has_represented_aura_effect_like_cpp(
+                RepresentedAuraEffectLikeCpp::Hover,
+            )?
+            || self.resolved_has_represented_aura_effect_like_cpp(
+                RepresentedAuraEffectLikeCpp::FeatherFall,
+            )?
+            || self
+                .resolved_has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)?
             || damage_control.normal_damage_immune
         {
             return None;
         }
 
-        let safe_fall =
-            self.total_represented_aura_modifier_like_cpp(RepresentedAuraEffectLikeCpp::SafeFall);
+        let safe_fall = self.resolved_total_represented_aura_modifier_like_cpp(
+            RepresentedAuraEffectLikeCpp::SafeFall,
+        )?;
         let damage_percent = 0.018 * (z_diff - safe_fall as f32) - 0.2426;
         if damage_percent <= 0.0 {
             return None;
@@ -48072,14 +48031,10 @@ impl WorldSession {
             damage = 0;
         }
         damage = (damage as f32
-            * self.total_represented_aura_multiplier_like_cpp(
+            * self.resolved_total_represented_aura_multiplier_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModifyFallDamagePct,
-            )) as u32;
-        if self
-            .visible_auras
-            .values()
-            .any(|aura| aura.spell_id == 43_621)
-        {
+            )?) as u32;
+        if self.player_has_visible_aura_spell_like_cpp(43_621)? {
             damage = max_health / 2;
         }
         damage = damage.min(max_health);
@@ -48124,57 +48079,104 @@ impl WorldSession {
         Some(event)
     }
 
-    fn has_represented_aura_effect_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> bool {
-        self.visible_auras
-            .values()
-            .any(|aura| aura.represented_effect == Some(effect))
+    fn resolved_has_represented_aura_effect_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<bool> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .any(|aura| aura.represented_effect == Some(effect))
+        })
     }
 
+    #[cfg(test)]
+    fn has_represented_aura_effect_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> bool {
+        self.resolved_has_represented_aura_effect_like_cpp(effect)
+            .expect("test Player aura owner must resolve")
+    }
+
+    fn resolved_has_represented_aura_effect_with_misc_value_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+        misc_value: i32,
+    ) -> Option<bool> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras.values().any(|aura| {
+                aura.represented_effect == Some(effect)
+                    && aura.represented_misc_value == Some(misc_value)
+            })
+        })
+    }
+
+    #[cfg(test)]
     fn has_represented_aura_effect_with_misc_value_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
         misc_value: i32,
     ) -> bool {
-        self.visible_auras.values().any(|aura| {
-            aura.represented_effect == Some(effect)
-                && aura.represented_misc_value == Some(misc_value)
+        self.resolved_has_represented_aura_effect_with_misc_value_like_cpp(effect, misc_value)
+            .expect("test Player aura owner must resolve")
+    }
+
+    fn resolved_total_represented_aura_modifier_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<i32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .map(|aura| aura.represented_amount)
+                .sum()
         })
     }
 
+    #[cfg(test)]
     fn total_represented_aura_modifier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> i32 {
-        self.visible_auras
-            .values()
-            .filter(|aura| aura.represented_effect == Some(effect))
-            .map(|aura| aura.represented_amount)
-            .sum()
+        self.resolved_total_represented_aura_modifier_like_cpp(effect)
+            .expect("test Player aura owner must resolve")
     }
 
-    fn total_represented_aura_modifier_by_misc_value_like_cpp(
+    fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
         misc_value: i32,
-    ) -> i32 {
-        self.visible_auras
-            .values()
-            .filter(|aura| {
-                aura.represented_effect == Some(effect)
-                    && aura.represented_misc_value == Some(misc_value)
-            })
-            .map(|aura| aura.represented_amount)
-            .sum()
+    ) -> Option<i32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| {
+                    aura.represented_effect == Some(effect)
+                        && aura.represented_misc_value == Some(misc_value)
+                })
+                .map(|aura| aura.represented_amount)
+                .sum()
+        })
     }
 
+    fn resolved_total_represented_aura_multiplier_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<f32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
+        })
+    }
+
+    #[cfg(test)]
     fn total_represented_aura_multiplier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> f32 {
-        self.visible_auras
-            .values()
-            .filter(|aura| aura.represented_effect == Some(effect))
-            .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
+        self.resolved_total_represented_aura_multiplier_like_cpp(effect)
+            .expect("test Player aura owner must resolve")
     }
 
     fn aura_has_total_stat_percentage_effect_like_cpp(&self, aura: &AuraApplication) -> bool {
@@ -48211,19 +48213,18 @@ impl WorldSession {
         })
     }
 
-    fn represented_total_stat_multiplier_for_stat_like_cpp(
+    fn resolved_represented_total_stat_multiplier_for_stat_like_cpp(
         &self,
         stat: usize,
         uses_misc_value_b: bool,
-    ) -> f32 {
-        let Some(spell_store) = self.spell_store() else {
-            return 1.0;
-        };
+    ) -> Option<f32> {
+        let spell_store = self.spell_store()?;
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE;
         let mut multiplier = 1.0f32;
         let mut same_effect_spell_groups = BTreeMap::<u32, i32>::new();
 
-        for aura in self.visible_auras.values() {
+        for aura in visible_auras.values() {
             let Some(spell) = spell_store.get(aura.spell_id) else {
                 continue;
             };
@@ -48273,24 +48274,45 @@ impl WorldSession {
         for amount in same_effect_spell_groups.into_values() {
             multiplier += multiplier * amount as f32 / 100.0;
         }
-        multiplier
+        Some(multiplier)
     }
 
+    pub(crate) fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
+        let mut multipliers = [1.0; 5];
+        for (stat, multiplier) in multipliers.iter_mut().enumerate() {
+            *multiplier =
+                self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, true)?;
+        }
+        Some(multipliers)
+    }
+
+    pub(crate) fn resolved_represented_total_stat_buff_multipliers_like_cpp(
+        &self,
+    ) -> Option<[f32; 5]> {
+        let mut multipliers = [1.0; 5];
+        for (stat, multiplier) in multipliers.iter_mut().enumerate() {
+            *multiplier =
+                self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, false)?;
+        }
+        Some(multipliers)
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_total_stat_multipliers_like_cpp(&self) -> [f32; 5] {
-        std::array::from_fn(|stat| {
-            self.represented_total_stat_multiplier_for_stat_like_cpp(stat, true)
-        })
+        self.resolved_represented_total_stat_multipliers_like_cpp()
+            .expect("test Player aura owner must resolve")
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_total_stat_buff_multipliers_like_cpp(&self) -> [f32; 5] {
-        std::array::from_fn(|stat| {
-            self.represented_total_stat_multiplier_for_stat_like_cpp(stat, false)
-        })
+        self.resolved_represented_total_stat_buff_multipliers_like_cpp()
+            .expect("test Player aura owner must resolve")
     }
 
     #[cfg(test)]
     pub(crate) fn visible_aura_slot_for_spell_like_cpp(&self, spell_id: i32) -> Option<u8> {
-        self.visible_auras
+        self.resolved_player_visible_auras_like_cpp()
+            .expect("test Player aura owner must resolve")
             .values()
             .find_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
     }
@@ -48437,6 +48459,9 @@ impl WorldSession {
         let state = change.state;
         let spell_store = self.spell_store.as_ref().map(Arc::clone);
         let difficulty_store = self.difficulty_store.as_ref().map(Arc::clone);
+        let Some(represented_visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
+        };
         let spell_difficulty_id = self
             .current_canonical_player_map_difficulty_id_like_cpp()
             .unwrap_or(0);
@@ -48596,7 +48621,7 @@ impl WorldSession {
         let mut represented_removed_slots = Vec::new();
         if state == UnitStandStateType::Stand {
             represented_removed_slots.extend(
-                self.visible_auras
+                represented_visible_auras
                     .values()
                     .filter(|aura| {
                         let snapshot_matches = aura.aura_interrupt_flags & standing_flag != 0;
@@ -50732,18 +50757,20 @@ impl WorldSession {
         .unwrap_or(false)
     }
 
-    fn has_recently_dropped_flag_debuff_like_cpp(&self) -> bool {
+    fn has_recently_dropped_flag_debuff_like_cpp(&self) -> Option<bool> {
         const SPELL_RECENTLY_DROPPED_ALLIANCE_FLAG: i32 = 42_792;
         const SPELL_RECENTLY_DROPPED_HORDE_FLAG: i32 = 50_326;
         const SPELL_RECENTLY_DROPPED_NEUTRAL_FLAG: i32 = 50_327;
 
-        self.visible_auras.values().any(|aura| {
-            matches!(
-                aura.spell_id,
-                SPELL_RECENTLY_DROPPED_ALLIANCE_FLAG
-                    | SPELL_RECENTLY_DROPPED_HORDE_FLAG
-                    | SPELL_RECENTLY_DROPPED_NEUTRAL_FLAG
-            )
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras.values().any(|aura| {
+                matches!(
+                    aura.spell_id,
+                    SPELL_RECENTLY_DROPPED_ALLIANCE_FLAG
+                        | SPELL_RECENTLY_DROPPED_HORDE_FLAG
+                        | SPELL_RECENTLY_DROPPED_NEUTRAL_FLAG
+                )
+            })
         })
     }
 
@@ -50789,7 +50816,12 @@ impl WorldSession {
             return false;
         }
 
-        if self.has_recently_dropped_flag_debuff_like_cpp() {
+        let Some(has_recently_dropped_flag_debuff) =
+            self.has_recently_dropped_flag_debuff_like_cpp()
+        else {
+            return false;
+        };
+        if has_recently_dropped_flag_debuff {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
@@ -52660,7 +52692,9 @@ impl WorldSession {
         }
 
         if !gameobject_usable_mounted {
-            self.remove_represented_mounted_auras_by_type_like_cpp();
+            if !self.remove_represented_mounted_auras_by_type_like_cpp() {
+                return false;
+            }
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::RemoveMountedAuras {
                     gameobject_guid,
@@ -52691,9 +52725,11 @@ impl WorldSession {
         !handled
     }
 
-    fn remove_represented_mounted_auras_by_type_like_cpp(&mut self) {
-        let mounted_slots: Vec<u8> = self
-            .visible_auras
+    fn remove_represented_mounted_auras_by_type_like_cpp(&mut self) -> bool {
+        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+            return false;
+        };
+        let mounted_slots: Vec<u8> = visible_auras
             .iter()
             .filter_map(|(slot, aura)| {
                 (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
@@ -52705,11 +52741,11 @@ impl WorldSession {
         }
 
         let Some(mounted) = self.resolved_player_mounted_like_cpp() else {
-            return;
+            return false;
         };
         if mounted {
             if !self.set_player_mount_presentation_like_cpp(0, false) {
-                return;
+                return false;
             }
             self.player_mount_vehicle_id_like_cpp = 0;
             let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
@@ -52717,11 +52753,14 @@ impl WorldSession {
             self.player_mount_vehicle_seat_count_like_cpp = 0;
             self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
         }
+        true
     }
 
-    fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp(&mut self) -> usize {
-        let slots: Vec<u8> = self
-            .visible_auras
+    fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp(
+        &mut self,
+    ) -> Option<usize> {
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
+        let slots: Vec<u8> = visible_auras
             .iter()
             .filter_map(|(slot, aura)| {
                 matches!(
@@ -52736,7 +52775,7 @@ impl WorldSession {
         for slot in slots {
             let _ = self.remove_aura(slot);
         }
-        removed
+        Some(removed)
     }
 
     pub(crate) fn apply_represented_gameobject_cooldown_like_cpp(
@@ -53944,7 +53983,12 @@ impl WorldSession {
             return false;
         }
 
-        self.remove_represented_stealth_or_invisibility_auras_by_type_like_cpp();
+        if self
+            .remove_represented_stealth_or_invisibility_auras_by_type_like_cpp()
+            .is_none()
+        {
+            return false;
+        }
         self.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
                 gameobject_guid,
@@ -53999,7 +54043,12 @@ impl WorldSession {
             _ => BattlegroundFlagDropClickTarget::None,
         };
 
-        self.remove_represented_stealth_or_invisibility_auras_by_type_like_cpp();
+        if self
+            .remove_represented_stealth_or_invisibility_auras_by_type_like_cpp()
+            .is_none()
+        {
+            return false;
+        }
         self.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
                 gameobject_guid,
@@ -55745,7 +55794,9 @@ impl WorldSession {
             }
         }
 
-        self.remove_represented_mounted_auras_by_type_like_cpp();
+        if !self.remove_represented_mounted_auras_by_type_like_cpp() {
+            return false;
+        }
         self.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::RemoveMountedAuras {
                 gameobject_guid,
@@ -56756,20 +56807,27 @@ impl WorldSession {
             &wow_anticheat::PlayerState {
                 mover_fixed_position_vehicle: self
                     .represented_mover_fixed_position_vehicle_like_cpp,
-                has_hover_aura: self
-                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Hover),
-                has_water_walk_aura: self
-                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::WaterWalk),
-                has_ghost_aura: self
-                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Ghost),
-                has_feather_fall_aura: self.has_represented_aura_effect_like_cpp(
+                // An unresolved/stale Player may not authorize client-only
+                // movement flags. Treat the proof as absent for sanitization,
+                // without claiming that the canonical aura set is empty.
+                has_hover_aura: self.resolved_has_represented_aura_effect_like_cpp(
+                    RepresentedAuraEffectLikeCpp::Hover,
+                ) == Some(true),
+                has_water_walk_aura: self.resolved_has_represented_aura_effect_like_cpp(
+                    RepresentedAuraEffectLikeCpp::WaterWalk,
+                ) == Some(true),
+                has_ghost_aura: self.resolved_has_represented_aura_effect_like_cpp(
+                    RepresentedAuraEffectLikeCpp::Ghost,
+                ) == Some(true),
+                has_feather_fall_aura: self.resolved_has_represented_aura_effect_like_cpp(
                     RepresentedAuraEffectLikeCpp::FeatherFall,
-                ),
-                has_fly_aura: self
-                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly),
-                has_mounted_flight_speed_aura: self.has_represented_aura_effect_like_cpp(
+                ) == Some(true),
+                has_fly_aura: self.resolved_has_represented_aura_effect_like_cpp(
+                    RepresentedAuraEffectLikeCpp::Fly,
+                ) == Some(true),
+                has_mounted_flight_speed_aura: self.resolved_has_represented_aura_effect_like_cpp(
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-                ),
+                ) == Some(true),
                 is_player_security: self.player_is_game_master_like_cpp() != Some(true),
             },
         )
@@ -58073,47 +58131,61 @@ impl WorldSession {
             .expect("test Player movement-speed owner must resolve")
     }
 
-    fn max_represented_aura_amount_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> i32 {
-        self.visible_auras
-            .values()
-            .filter(|aura| aura.represented_effect == Some(effect))
-            .map(|aura| aura.represented_amount)
-            .filter(|amount| *amount > 0)
-            .max()
-            .unwrap_or(0)
+    fn max_represented_aura_amount_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<i32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .map(|aura| aura.represented_amount)
+                .filter(|amount| *amount > 0)
+                .max()
+                .unwrap_or(0)
+        })
     }
 
     fn max_negative_represented_aura_amount_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
-    ) -> i32 {
-        self.visible_auras
-            .values()
-            .filter(|aura| aura.represented_effect == Some(effect))
-            .map(|aura| aura.represented_amount)
-            .filter(|amount| *amount < 0)
-            .min()
-            .unwrap_or(0)
+    ) -> Option<i32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .map(|aura| aura.represented_amount)
+                .filter(|amount| *amount < 0)
+                .min()
+                .unwrap_or(0)
+        })
     }
 
     fn total_represented_aura_amount_multiplier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
-    ) -> f32 {
-        self.visible_auras
-            .values()
-            .filter(|aura| aura.represented_effect == Some(effect))
-            .fold(1.0, |multiplier, aura| {
-                multiplier * (1.0 + aura.represented_amount.max(0) as f32 / 100.0)
-            })
+    ) -> Option<f32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .fold(1.0, |multiplier, aura| {
+                    multiplier * (1.0 + aura.represented_amount.max(0) as f32 / 100.0)
+                })
+        })
     }
 
-    fn total_represented_aura_amount_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> i32 {
-        self.visible_auras
-            .values()
-            .filter(|aura| aura.represented_effect == Some(effect))
-            .map(|aura| aura.represented_amount)
-            .sum()
+    fn total_represented_aura_amount_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<i32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .map(|aura| aura.represented_amount)
+                .sum()
+        })
     }
 
     fn represented_run_speed_rate_like_cpp(&self) -> Option<f32> {
@@ -58131,31 +58203,29 @@ impl WorldSession {
                 RepresentedAuraEffectLikeCpp::SpeedNotStack,
             )
         };
-        let main_mod = self.max_represented_aura_amount_like_cpp(main_mod_effect);
-        let stack_bonus = self.total_represented_aura_amount_multiplier_like_cpp(stack_effect);
+        let main_mod = self.max_represented_aura_amount_like_cpp(main_mod_effect)?;
+        let stack_bonus = self.total_represented_aura_amount_multiplier_like_cpp(stack_effect)?;
         let not_stack_bonus = 1.0
             + self
-                .max_represented_aura_amount_like_cpp(not_stack_effect)
+                .max_represented_aura_amount_like_cpp(not_stack_effect)?
                 .max(0) as f32
                 / 100.0;
 
         let speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
-        Some(
-            self.apply_represented_forward_speed_adjustments_like_cpp(
-                UnitMoveTypeLikeCpp::Run,
-                speed,
-            ),
-        )
+        Some(self.apply_represented_forward_speed_adjustments_like_cpp(
+            UnitMoveTypeLikeCpp::Run,
+            speed,
+        )?)
     }
 
     fn apply_represented_forward_speed_adjustments_like_cpp(
         &self,
         move_type: UnitMoveTypeLikeCpp,
         mut speed: f32,
-    ) -> f32 {
+    ) -> Option<f32> {
         let normal_speed_cap = self.max_represented_aura_amount_like_cpp(
             RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
-        ) as f32
+        )? as f32
             / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
         if normal_speed_cap > 0.0 && speed > normal_speed_cap {
             speed = normal_speed_cap;
@@ -58163,7 +58233,7 @@ impl WorldSession {
         if move_type == UnitMoveTypeLikeCpp::Run {
             let minimum_speed_rate = self.max_represented_aura_amount_like_cpp(
                 RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
-            ) as f32
+            )? as f32
                 / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
             if speed < minimum_speed_rate {
                 speed = minimum_speed_rate;
@@ -58171,18 +58241,18 @@ impl WorldSession {
         }
         let slow = self.max_negative_represented_aura_amount_like_cpp(
             RepresentedAuraEffectLikeCpp::DecreaseSpeed,
-        );
+        )?;
         if slow < 0 {
             speed *= 1.0 + slow as f32 / 100.0;
         }
         let minimum_speed = self
-            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)
+            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)?
             as f32
             / 100.0;
         if speed < minimum_speed {
             speed = minimum_speed;
         }
-        speed
+        Some(speed)
     }
 
     fn represented_flight_speed_rate_like_cpp(&self) -> Option<f32> {
@@ -58191,18 +58261,18 @@ impl WorldSession {
             (
                 self.max_represented_aura_amount_like_cpp(
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-                ),
+                )?,
                 self.total_represented_aura_amount_multiplier_like_cpp(
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
-                ),
+                )?,
             )
         } else {
             (
                 self.total_represented_aura_amount_like_cpp(
                     RepresentedAuraEffectLikeCpp::FlightSpeed,
-                ) + self.total_represented_aura_amount_like_cpp(
+                )? + self.total_represented_aura_amount_like_cpp(
                     RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
-                ),
+                )?,
                 1.0,
             )
         };
@@ -58210,7 +58280,7 @@ impl WorldSession {
             + self
                 .max_represented_aura_amount_like_cpp(
                     RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
-                )
+                )?
                 .max(0) as f32
                 / 100.0;
 
@@ -58218,34 +58288,34 @@ impl WorldSession {
         Some(self.apply_represented_forward_speed_adjustments_like_cpp(
             UnitMoveTypeLikeCpp::Flight,
             speed,
-        ))
+        )?)
     }
 
-    fn represented_swim_speed_rate_like_cpp(&self) -> f32 {
+    fn represented_swim_speed_rate_like_cpp(&self) -> Option<f32> {
         let speed = 1.0
             + self
-                .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::SwimSpeed)
+                .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::SwimSpeed)?
                 .max(0) as f32
                 / 100.0;
         self.apply_represented_forward_speed_adjustments_like_cpp(UnitMoveTypeLikeCpp::Swim, speed)
     }
 
-    fn represented_backward_speed_rate_like_cpp(&self) -> f32 {
+    fn represented_backward_speed_rate_like_cpp(&self) -> Option<f32> {
         let mut speed = 1.0;
         let slow = self.max_negative_represented_aura_amount_like_cpp(
             RepresentedAuraEffectLikeCpp::DecreaseSpeed,
-        );
+        )?;
         if slow < 0 {
             speed *= 1.0 + slow as f32 / 100.0;
         }
         let minimum_speed = self
-            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)
+            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)?
             as f32
             / 100.0;
         if speed < minimum_speed {
             speed = minimum_speed;
         }
-        speed
+        Some(speed)
     }
 
     fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
@@ -58263,14 +58333,16 @@ impl WorldSession {
     }
 
     fn recompute_represented_swim_speed_rate_like_cpp(&mut self) {
-        self.set_player_movement_speed_rate_and_notify_like_cpp(
-            UnitMoveTypeLikeCpp::Swim,
-            self.represented_swim_speed_rate_like_cpp(),
-        );
+        let Some(speed) = self.represented_swim_speed_rate_like_cpp() else {
+            return;
+        };
+        self.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Swim, speed);
     }
 
     fn recompute_represented_backward_speed_rates_like_cpp(&mut self) {
-        let speed = self.represented_backward_speed_rate_like_cpp();
+        let Some(speed) = self.represented_backward_speed_rate_like_cpp() else {
+            return;
+        };
         self.set_player_movement_speed_rate_and_notify_like_cpp(
             UnitMoveTypeLikeCpp::RunBack,
             speed,
@@ -58506,11 +58578,23 @@ impl WorldSession {
     }
 
     fn update_represented_flight_flags_for_flight_aura_like_cpp(&mut self, apply: bool) {
-        let should_enable = apply
-            || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
-            || self.has_represented_aura_effect_like_cpp(
-                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-            );
+        let should_enable = if apply {
+            true
+        } else {
+            let Some(has_fly) = self
+                .resolved_has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
+            else {
+                return;
+            };
+            let Some(has_mounted_flight_speed) = self
+                .resolved_has_represented_aura_effect_like_cpp(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                )
+            else {
+                return;
+            };
+            has_fly || has_mounted_flight_speed
+        };
         self.set_represented_can_swim_to_fly_transition_like_cpp(should_enable);
         let can_fly_changed = self.set_represented_can_fly_like_cpp(should_enable);
         if !should_enable && can_fly_changed {
@@ -68062,9 +68146,14 @@ impl WorldSession {
         let mut aggro_guid: Option<wow_core::ObjectGuid> = None;
         let player_combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
         let player_level = self.player_level_like_cpp();
-        let player_detected_range_aura_mod = self.total_represented_aura_modifier_like_cpp(
-            RepresentedAuraEffectLikeCpp::ModDetectedRange,
-        ) as f32;
+        let Some(player_detected_range_aura_mod) = self
+            .resolved_total_represented_aura_modifier_like_cpp(
+                RepresentedAuraEffectLikeCpp::ModDetectedRange,
+            )
+        else {
+            return;
+        };
+        let player_detected_range_aura_mod = player_detected_range_aura_mod as f32;
         let aggro_config = self.legacy_creature_aggro_config_like_cpp.clone();
 
         for guid in guids {
@@ -68257,12 +68346,16 @@ impl WorldSession {
             effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
                 || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
         });
-        let represented_spell_focus_aura_satisfies_check_cast = spell_info
-            .requires_spell_focus_like_cpp()
-            && self.has_represented_aura_effect_with_misc_value_like_cpp(
-                RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
-                i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
-            );
+        let represented_spell_focus_aura_satisfies_check_cast =
+            if spell_info.requires_spell_focus_like_cpp() {
+                self.resolved_has_represented_aura_effect_with_misc_value_like_cpp(
+                    RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
+                    i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
+                )
+                .ok_or("Canonical Player aura owner unavailable")?
+            } else {
+                false
+            };
         let represented_focus_object = if spell_info.requires_spell_focus_like_cpp()
             && has_represented_gameobject_summon_effect
             && !represented_spell_focus_aura_satisfies_check_cast
@@ -69741,7 +69834,7 @@ impl WorldSession {
                 ));
             }
 
-            if let Some(disallowed_source_id) = self.represented_disallowed_mount_form_like_cpp() {
+            if let Some(disallowed_source_id) = self.represented_disallowed_mount_form_like_cpp()? {
                 self.send_packet(&MountResult {
                     result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
                 });
@@ -69811,16 +69904,17 @@ impl WorldSession {
         None
     }
 
-    fn represented_disallowed_mount_form_like_cpp(&self) -> Option<u32> {
-        if self.represented_transform_spell_allows_mount_like_cpp() {
-            return None;
+    fn represented_disallowed_mount_form_like_cpp(&self) -> Option<Option<u32>> {
+        if self.represented_transform_spell_allows_mount_like_cpp()? {
+            return Some(None);
         }
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
 
         if let (Some(spell_store), Some(shapeshift_form_store)) = (
             self.spell_store(),
             self.spell_shapeshift_form_store.as_ref(),
         ) {
-            for aura in self.visible_auras.values() {
+            for aura in visible_auras.values() {
                 let Some(spell_info) = spell_store.get(aura.spell_id) else {
                     continue;
                 };
@@ -69834,10 +69928,10 @@ impl WorldSession {
                         continue;
                     };
                     let Some(form) = shapeshift_form_store.get(form_id) else {
-                        return Some(form_id);
+                        return Some(Some(form_id));
                     };
                     if form.flags & SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP == 0 {
-                        return Some(form_id);
+                        return Some(Some(form_id));
                     }
                 }
             }
@@ -69845,23 +69939,23 @@ impl WorldSession {
 
         let (display_id, native_display_id) = self.canonical_player_display_ids_like_cpp()?;
         if display_id == 0 || display_id == native_display_id {
-            return None;
+            return Some(None);
         }
 
         let Some(display_store) = self.creature_display_info_store.as_ref() else {
-            return None;
+            return Some(None);
         };
         let Some(display_extra_store) = self.creature_display_info_extra_store.as_ref() else {
-            return None;
+            return Some(None);
         };
         let Some(display) = display_store.get(display_id) else {
-            return Some(display_id);
+            return Some(Some(display_id));
         };
         let Ok(display_extra_id) = u32::try_from(display.extended_display_info_id) else {
-            return Some(display_id);
+            return Some(Some(display_id));
         };
         let Some(display_extra) = display_extra_store.get(display_extra_id) else {
-            return Some(display_id);
+            return Some(Some(display_id));
         };
 
         if let (Some(model_store), Some(chr_races_store)) = (
@@ -69881,19 +69975,18 @@ impl WorldSession {
                 .and_then(|race_id| chr_races_store.get(race_id))
                 .is_some_and(|race| race.flags & CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP == 0);
             if model_cannot_mount && race_cannot_mount {
-                return Some(display_id);
+                return Some(Some(display_id));
             }
         }
 
-        None
+        Some(None)
     }
 
-    fn represented_transform_spell_allows_mount_like_cpp(&self) -> bool {
-        let Some(spell_store) = self.spell_store() else {
-            return false;
-        };
+    fn represented_transform_spell_allows_mount_like_cpp(&self) -> Option<bool> {
+        let spell_store = self.spell_store()?;
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
 
-        self.visible_auras.values().any(|aura| {
+        Some(visible_auras.values().any(|aura| {
             let Some(spell_info) = spell_store.get(aura.spell_id) else {
                 return false;
             };
@@ -69906,7 +69999,7 @@ impl WorldSession {
                     aura.spell_id,
                     wow_data::spell::attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED,
                 )
-        })
+        }))
     }
 
     async fn apply_effect_teleport_units_like_cpp(
