@@ -303,7 +303,7 @@ impl crate::session::WorldSession {
         // An empty aura map proves absence only after both persisted aura
         // tables completed successfully during login. This authority is also
         // required before resolving positive/negative aura-spell gates.
-        if !self.player_aura_authority_complete_like_cpp() {
+        if self.resolved_player_aura_authority_complete_like_cpp() != Some(true) {
             return None;
         }
         // Startup proves only DIFFICULTY_NONE. Resolve the active row against

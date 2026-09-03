@@ -34182,6 +34182,96 @@ fn canonical_player_item_modifier_runtime_follows_detached_and_stale_ownership_l
 }
 
 #[test]
+fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_570);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "AuraAuthorityOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(
+        session
+            .mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.insert_threat_snapshot_like_cpp(
+                    4,
+                    wow_entities::AuraThreatSnapshotLikeCpp::new([7, 11], vec![(1, 13, 17, 19)]),
+                );
+            })
+            .is_some()
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_aura_authority_complete_like_cpp(),
+        Some(true)
+    );
+    session.tombstone_player_spell_hit_aura_authority_like_cpp();
+    let detached = session
+        .player_aura_subsystem_snapshot_like_cpp()
+        .expect("detached canonical aura owner");
+    assert!(detached.spell_hit_aura_authority_tombstoned_like_cpp());
+    assert_eq!(
+        detached
+            .threat_snapshot_like_cpp(4)
+            .expect("canonical threat snapshot")
+            .effects(),
+        &[(1, 13, 17, 19)]
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(session.player_aura_subsystem_snapshot_like_cpp().is_none());
+    assert_eq!(
+        session.resolved_player_aura_authority_complete_like_cpp(),
+        None
+    );
+    assert!(!session.set_player_aura_authority_complete_like_cpp(true));
+    let replacement_auras = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(replacement_handle, |player| {
+            player.unit().subsystems().auras.clone()
+        })
+        .expect("replacement aura owner");
+    assert!(!replacement_auras.persisted_player_aura_authority_complete_like_cpp());
+    assert!(!replacement_auras.spell_hit_aura_authority_tombstoned_like_cpp());
+    assert!(replacement_auras.threat_snapshot_like_cpp(4).is_none());
+}
+
+#[test]
 fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

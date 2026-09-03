@@ -13,6 +13,13 @@ use super::*;
 /// packet emission, or update-field masking by itself.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct AuraSubsystem {
+    /// Both persisted Player aura row families were read successfully for
+    /// this Player lifetime. Empty runtime containers are authoritative only
+    /// while this proof is present.
+    persisted_player_aura_authority_complete_like_cpp: bool,
+    /// Permanent fail-closed marker for a Player lifetime whose login cast
+    /// closure could not be retained losslessly.
+    spell_hit_aura_authority_tombstoned_like_cpp: bool,
     /// Whether every aura source omitted from this canonical Unit has been
     /// proven inert for the bounded spell-hit resolution.
     ///
@@ -26,6 +33,8 @@ pub struct AuraSubsystem {
     /// This proof is intentionally separate from spell-hit authority: the two
     /// consumers depend on different C++ aura families.
     spell_cast_log_aura_authority_inert_like_cpp: bool,
+    /// Difficulty-selected aura metadata used by the canonical threat owner.
+    threat_snapshots_like_cpp: HashMap<u8, AuraThreatSnapshotLikeCpp>,
     pub owned_auras: Vec<OwnedAuraRef>,
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
@@ -49,6 +58,31 @@ pub struct AuraSubsystem {
     pub proc_depth: u16,
     pub proc_chain_length: i32,
     pub diminishing: [DiminishingReturnState; DIMINISHING_MAX],
+}
+
+/// Immutable, difficulty-selected C++ `AuraEffect` metadata retained beside
+/// the owning Unit aura application rather than on its WorldSession adapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuraThreatSnapshotLikeCpp {
+    interrupt_flags: [u32; 2],
+    effects: Vec<(u32, i32, i32, i32)>,
+}
+
+impl AuraThreatSnapshotLikeCpp {
+    pub fn new(interrupt_flags: [u32; 2], effects: Vec<(u32, i32, i32, i32)>) -> Self {
+        Self {
+            interrupt_flags,
+            effects,
+        }
+    }
+
+    pub const fn interrupt_flags(&self) -> [u32; 2] {
+        self.interrupt_flags
+    }
+
+    pub fn effects(&self) -> &[(u32, i32, i32, i32)] {
+        &self.effects
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,6 +202,52 @@ impl VisibleAuraApplicationLikeCpp {
 }
 
 impl AuraSubsystem {
+    pub const fn persisted_player_aura_authority_complete_like_cpp(&self) -> bool {
+        self.persisted_player_aura_authority_complete_like_cpp
+    }
+
+    pub fn set_persisted_player_aura_authority_complete_like_cpp(&mut self, complete: bool) {
+        self.persisted_player_aura_authority_complete_like_cpp = complete;
+        if !complete {
+            self.invalidate_spell_hit_aura_authority_like_cpp();
+        }
+    }
+
+    pub const fn spell_hit_aura_authority_tombstoned_like_cpp(&self) -> bool {
+        self.spell_hit_aura_authority_tombstoned_like_cpp
+    }
+
+    pub fn tombstone_spell_hit_aura_authority_like_cpp(&mut self) {
+        self.spell_hit_aura_authority_tombstoned_like_cpp = true;
+        self.invalidate_spell_hit_aura_authority_like_cpp();
+    }
+
+    pub fn reset_player_aura_source_authority_like_cpp(&mut self) {
+        self.persisted_player_aura_authority_complete_like_cpp = false;
+        self.spell_hit_aura_authority_tombstoned_like_cpp = false;
+        self.threat_snapshots_like_cpp.clear();
+        self.invalidate_spell_hit_aura_authority_like_cpp();
+    }
+
+    pub fn threat_snapshot_like_cpp(&self, slot: u8) -> Option<&AuraThreatSnapshotLikeCpp> {
+        self.threat_snapshots_like_cpp.get(&slot)
+    }
+
+    pub fn insert_threat_snapshot_like_cpp(
+        &mut self,
+        slot: u8,
+        snapshot: AuraThreatSnapshotLikeCpp,
+    ) {
+        self.threat_snapshots_like_cpp.insert(slot, snapshot);
+    }
+
+    pub fn remove_threat_snapshot_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<AuraThreatSnapshotLikeCpp> {
+        self.threat_snapshots_like_cpp.remove(&slot)
+    }
+
     pub fn set_spell_hit_aura_authority_inert_like_cpp(&mut self, inert: bool) {
         self.spell_hit_aura_authority_inert_like_cpp = inert;
     }

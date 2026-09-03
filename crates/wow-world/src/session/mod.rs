@@ -6457,6 +6457,7 @@ pub struct WorldSession {
     player_zone_area_authority_complete_like_cpp: bool,
     /// Permanent fail-closed marker for this C++ Player lifetime after a login
     /// cast closure that Rust did not retain losslessly (currently FIRST).
+    #[cfg(test)]
     player_spell_hit_aura_authority_tombstoned_like_cpp: bool,
     /// `MoveSplineDone` taxi decisions recorded until full Taxi/MotionMaster runtime exists.
     #[cfg(test)]
@@ -6552,12 +6553,14 @@ pub struct WorldSession {
     pub(crate) visible_auras: HashMap<u8, AuraApplication>,
     /// True only after both persisted aura tables were read successfully for
     /// the active character. Absence is evidence only while this is complete.
+    #[cfg(test)]
     player_aura_authority_complete_like_cpp: bool,
     /// True only when `SEL_CHAR_EQUIPMENT` succeeded and proved that the active
     /// character has no top-level persisted item rows. Empty runtime inventory
     /// alone is not source proof because malformed rows may be rejected.
     player_equipment_inventory_authority_complete_like_cpp: bool,
     /// Difficulty-selected C++ `AuraEffect` identity captured when the aura is applied.
+    #[cfg(test)]
     canonical_threat_aura_snapshots_like_cpp: HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
     // ── Spell casting ──────────────────────────────────────────────
@@ -7410,11 +7413,7 @@ pub struct AuraApplication {
     pub applied_at: Instant,
 }
 
-#[derive(Debug, Clone)]
-struct CanonicalThreatAuraSnapshotLikeCpp {
-    interrupt_flags: [u32; 2],
-    effects: Vec<(u32, i32, i32, i32)>,
-}
+type CanonicalThreatAuraSnapshotLikeCpp = wow_entities::AuraThreatSnapshotLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedAuraEffectAmountLikeCpp {
@@ -8494,6 +8493,7 @@ impl WorldSession {
             player_area_id_like_cpp: 0,
             #[cfg(test)]
             player_zone_area_authority_complete_like_cpp: false,
+            #[cfg(test)]
             player_spell_hit_aura_authority_tombstoned_like_cpp: false,
             #[cfg(test)]
             move_spline_done_taxi_events_like_cpp: Vec::new(),
@@ -8549,8 +8549,10 @@ impl WorldSession {
             #[cfg(test)]
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
+            #[cfg(test)]
             player_aura_authority_complete_like_cpp: false,
             player_equipment_inventory_authority_complete_like_cpp: false,
+            #[cfg(test)]
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
             spell_store: None,
             spell_acquisition_catalog: None,
@@ -28206,15 +28208,73 @@ impl WorldSession {
         self.spell_aura_restrictions_store.as_ref()
     }
 
-    pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) {
-        self.player_aura_authority_complete_like_cpp = complete;
-        if !complete {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+    fn player_aura_subsystem_snapshot_like_cpp(&self) -> Option<wow_entities::AuraSubsystem> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().subsystems().auras.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let mut auras = wow_entities::AuraSubsystem::default();
+            auras.set_persisted_player_aura_authority_complete_like_cpp(
+                self.player_aura_authority_complete_like_cpp,
+            );
+            if self.player_spell_hit_aura_authority_tombstoned_like_cpp {
+                auras.tombstone_spell_hit_aura_authority_like_cpp();
+            }
+            for (&slot, snapshot) in &self.canonical_threat_aura_snapshots_like_cpp {
+                auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
+            }
+            return Some(auras);
         }
+        canonical
     }
 
+    fn mutate_player_aura_subsystem_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::AuraSubsystem) -> R,
+    ) -> Option<R> {
+        let mut mutate = Some(mutate);
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut auras = self.player_aura_subsystem_snapshot_like_cpp()?;
+            let result =
+                mutate
+                    .take()
+                    .expect("test Player aura mutation executes once")(&mut auras);
+            self.player_aura_authority_complete_like_cpp =
+                auras.persisted_player_aura_authority_complete_like_cpp();
+            self.player_spell_hit_aura_authority_tombstoned_like_cpp =
+                auras.spell_hit_aura_authority_tombstoned_like_cpp();
+            self.canonical_threat_aura_snapshots_like_cpp.clear();
+            for slot in 0..=u8::MAX {
+                if let Some(snapshot) = auras.threat_snapshot_like_cpp(slot) {
+                    self.canonical_threat_aura_snapshots_like_cpp
+                        .insert(slot, snapshot.clone());
+                }
+            }
+            return Some(result);
+        }
+        self.with_owned_player_mut_like_cpp(|player| {
+            mutate.take().expect("Player aura mutation executes once")(
+                &mut player.unit_mut().subsystems_mut().auras,
+            )
+        })
+    }
+
+    pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
+        self.mutate_player_aura_subsystem_like_cpp(|auras| {
+            auras.set_persisted_player_aura_authority_complete_like_cpp(complete);
+        })
+        .is_some()
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_aura_authority_complete_like_cpp(&self) -> bool {
         self.player_aura_authority_complete_like_cpp
+    }
+
+    pub(crate) fn resolved_player_aura_authority_complete_like_cpp(&self) -> Option<bool> {
+        self.player_aura_subsystem_snapshot_like_cpp()
+            .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
     }
 
     /// Begin hydrating the persisted equipment/inventory source for the active
@@ -28262,8 +28322,9 @@ impl WorldSession {
     }
 
     pub(crate) fn tombstone_player_spell_hit_aura_authority_like_cpp(&mut self) {
-        self.player_spell_hit_aura_authority_tombstoned_like_cpp = true;
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+            auras.tombstone_spell_hit_aura_authority_like_cpp();
+        });
     }
 
     pub(crate) fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
@@ -28834,9 +28895,12 @@ impl WorldSession {
         &self,
         difficulty_id: u8,
     ) -> bool {
+        let Some(aura_subsystem) = self.player_aura_subsystem_snapshot_like_cpp() else {
+            return false;
+        };
         if !self.player_spell_hit_source_identity_complete_like_cpp()
-            || self.player_spell_hit_aura_authority_tombstoned_like_cpp
-            || !self.player_aura_authority_complete_like_cpp
+            || aura_subsystem.spell_hit_aura_authority_tombstoned_like_cpp()
+            || !aura_subsystem.persisted_player_aura_authority_complete_like_cpp()
             || !self.player_equipment_inventory_authority_complete_like_cpp
             || self
                 .resolved_represented_guild_id_like_cpp()
@@ -36743,10 +36807,7 @@ impl WorldSession {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        CanonicalThreatAuraSnapshotLikeCpp {
-            interrupt_flags,
-            effects,
-        }
+        CanonicalThreatAuraSnapshotLikeCpp::new(interrupt_flags, effects)
     }
 
     fn sync_canonical_threat_relevant_aura_like_cpp(
@@ -36759,59 +36820,47 @@ impl WorldSession {
         apply: bool,
     ) {
         if !apply {
-            self.canonical_threat_aura_snapshots_like_cpp.remove(&slot);
             let Ok(spell_id) = u32::try_from(spell_id) else {
                 return;
             };
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.remove_threat_snapshot_like_cpp(slot);
                 for effect_index in 0..u32::BITS {
                     let effect_bit = 1u32 << effect_index;
                     if effect_mask & effect_bit != 0 {
-                        player.unit_mut().subsystems_mut().auras.remove_applied(
-                            wow_entities::AppliedAuraRef::new(
-                                spell_id,
-                                caster_guid,
-                                slot,
-                                effect_bit,
-                            ),
-                        );
+                        auras.remove_applied(wow_entities::AppliedAuraRef::new(
+                            spell_id,
+                            caster_guid,
+                            slot,
+                            effect_bit,
+                        ));
                     }
                 }
             });
             return;
         }
-        let snapshot = if let Some(snapshot) = self
-            .canonical_threat_aura_snapshots_like_cpp
-            .get(&slot)
-            .cloned()
-        {
-            snapshot
-        } else {
-            let difficulty = self.current_map_difficulty_id_like_cpp();
-            let snapshot = self.canonical_threat_aura_snapshot_for_difficulty_like_cpp(
-                spell_id,
-                difficulty,
-                effect_mask,
-                represented_effect_amounts,
-            );
-            self.canonical_threat_aura_snapshots_like_cpp
-                .insert(slot, snapshot.clone());
-            snapshot
-        };
+        let snapshot = self
+            .player_aura_subsystem_snapshot_like_cpp()
+            .and_then(|auras| auras.threat_snapshot_like_cpp(slot).cloned())
+            .unwrap_or_else(|| {
+                let difficulty = self.current_map_difficulty_id_like_cpp();
+                self.canonical_threat_aura_snapshot_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    effect_mask,
+                    represented_effect_amounts,
+                )
+            });
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return;
         };
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            for (effect_bit, aura_type, amount, misc_value) in snapshot.effects {
+        let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+            auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
+            let interrupt_flags = snapshot.interrupt_flags();
+            for &(effect_bit, aura_type, amount, misc_value) in snapshot.effects() {
                 let aura =
                     wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_bit);
-                let auras = &mut player.unit_mut().subsystems_mut().auras;
-                auras.register_applied_aura(
-                    aura,
-                    None,
-                    snapshot.interrupt_flags[0],
-                    snapshot.interrupt_flags[1],
-                );
+                auras.register_applied_aura(aura, None, interrupt_flags[0], interrupt_flags[1]);
                 auras.register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
             }
         });
@@ -40007,9 +40056,10 @@ impl WorldSession {
             // identity boundary so a later character cannot inherit positive
             // or negative aura-spell authority from the previous one.
             self.visible_auras.clear();
-            self.player_aura_authority_complete_like_cpp = false;
+            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.reset_player_aura_source_authority_like_cpp();
+            });
             self.player_equipment_inventory_authority_complete_like_cpp = false;
-            self.player_spell_hit_aura_authority_tombstoned_like_cpp = false;
             #[cfg(test)]
             {
                 self.player_quest_status_authority_complete_like_cpp = false;
@@ -42312,8 +42362,9 @@ impl WorldSession {
                 row.effect_mask,
                 &represented_effect_amounts,
             );
-            self.canonical_threat_aura_snapshots_like_cpp
-                .insert(slot, canonical_snapshot);
+            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.insert_threat_snapshot_like_cpp(slot, canonical_snapshot);
+            });
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
             self.visible_auras.insert(
                 slot,

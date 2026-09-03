@@ -325,8 +325,10 @@
           "name": "canonical_threat_aura_snapshots_like_cpp",
           "type": "HashMap < u8 , CanonicalThreatAuraSnapshotLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "championing_faction_like_cpp",
@@ -1944,8 +1946,10 @@
           "name": "player_aura_authority_complete_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_bank_bag_slot_count_like_cpp",
@@ -2508,8 +2512,10 @@
           "name": "player_spell_hit_aura_authority_tombstoned_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_stand_state_like_cpp",
@@ -29079,6 +29085,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_aura_subsystem_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_aura_subsystem_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: AuraSubsystem) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_battleground_state_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_battleground_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerBattlegroundState) -> R ,) -> Option < R >",
@@ -30050,8 +30067,10 @@
           "name": "player_aura_authority_complete_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_aura_authority_complete_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30063,6 +30082,17 @@
           "name": "player_aura_info_like_cpp",
           "visibility": "private",
           "signature": "fn player_aura_info_like_cpp (aura : & AuraApplication , player_level : u8 , map_id : u16 ,) -> wow_packet :: packets :: misc :: AuraInfoLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_aura_subsystem_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_aura_subsystem_snapshot_like_cpp (& self) -> Option < wow_entities :: AuraSubsystem >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -40079,6 +40109,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_aura_authority_complete_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_aura_authority_complete_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_bank_bag_slot_count_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_bank_bag_slot_count_like_cpp (& self) -> Option < u8 >",
@@ -44997,7 +45040,7 @@
           "kind": "method",
           "name": "set_player_aura_authority_complete_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_aura_authority_complete_like_cpp (& mut self , complete : bool)",
+          "signature": "fn set_player_aura_authority_complete_like_cpp (& mut self , complete : bool) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -76236,7 +76279,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e4a668f591716df7e5dae489fa1b0f56:len=95578|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5b915b5d9fa83179b7c2b91beaeb627e:len=95623|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
