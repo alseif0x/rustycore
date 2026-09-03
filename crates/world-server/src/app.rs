@@ -4643,6 +4643,34 @@ async fn run_inner(
                     create_info: Arc::clone(&player_create_info_store),
                     cast_spells: Arc::clone(&player_create_cast_spell_store),
                     custom_spells: Arc::clone(&player_create_custom_spell_store),
+                    start_all_spells: world_config_bool(
+                        &world_configs,
+                        "CONFIG_START_ALL_SPELLS",
+                        false,
+                    ),
+                    start_all_explored: world_config_bool(
+                        &world_configs,
+                        "CONFIG_START_ALL_EXPLORED",
+                        false,
+                    ),
+                    start_all_reputation: world_config_bool(
+                        &world_configs,
+                        "CONFIG_START_ALL_REP",
+                        false,
+                    ),
+                }),
+                player_rest_rates: Arc::new(wow_world::session::PlayerRestRatePolicyLikeCpp {
+                    offline_wilderness: world_config_f32(
+                        &world_configs,
+                        "RATE_REST_OFFLINE_IN_WILDERNESS",
+                        1.0,
+                    ),
+                    offline_tavern_or_city: world_config_f32(
+                        &world_configs,
+                        "RATE_REST_OFFLINE_IN_TAVERN_OR_CITY",
+                        1.0,
+                    ),
+                    ingame: world_config_f32(&world_configs, "RATE_REST_INGAME", 1.0),
                 }),
                 chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
                     addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
@@ -4984,17 +5012,6 @@ async fn run_inner(
                 "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE",
                 4,
             ),
-            rest_offline_wilderness_rate: world_config_f32(
-                &world_configs,
-                "RATE_REST_OFFLINE_IN_WILDERNESS",
-                1.0,
-            ),
-            rest_offline_tavern_or_city_rate: world_config_f32(
-                &world_configs,
-                "RATE_REST_OFFLINE_IN_TAVERN_OR_CITY",
-                1.0,
-            ),
-            rest_ingame_rate: world_config_f32(&world_configs, "RATE_REST_INGAME", 1.0),
             min_quest_scaled_xp_ratio: world_config_u32(
                 &world_configs,
                 "CONFIG_MIN_QUEST_SCALED_XP_RATIO",
@@ -5026,13 +5043,6 @@ async fn run_inner(
                 true,
             ),
             vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),
-            start_all_explored: world_config_bool(
-                &world_configs,
-                "CONFIG_START_ALL_EXPLORED",
-                false,
-            ),
-            start_all_reputation: world_config_bool(&world_configs, "CONFIG_START_ALL_REP", false),
-            start_all_spells: world_config_bool(&world_configs, "CONFIG_START_ALL_SPELLS", false),
             quest_low_level_hide_diff: world_config_u32(
                 &world_configs,
                 "CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF",

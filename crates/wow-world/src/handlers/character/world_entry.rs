@@ -182,6 +182,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         modules: &wow_module_api::ModuleRegistry,
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+        player_rest_rates: &crate::session::PlayerRestRatePolicyLikeCpp,
         feature_policy: &SupportFeaturePolicyLikeCpp,
     ) {
         let guid: ObjectGuid = match self.player_loading() {
@@ -926,7 +927,8 @@ impl WorldSession {
             let _ = self.apply_represented_group_leader_flag_like_cpp();
         }
         self.load_represented_xp_rest_bonus_like_cpp(saved_rest_state, saved_rest_bonus);
-        let applied_rest_bonus = self.apply_offline_xp_rest_bonus_like_cpp(
+        let applied_rest_bonus = self.apply_offline_xp_rest_bonus_with_policy_like_cpp(
+            player_rest_rates,
             saved_logout_time_secs,
             Self::current_game_time_secs_like_cpp(),
             saved_logout_was_resting,
@@ -2611,8 +2613,10 @@ impl WorldSession {
                 player_bootstrap,
             )
             .await;
-            self.apply_represented_first_login_explored_zones_like_cpp();
-            self.apply_represented_first_login_reputation_like_cpp();
+            self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
+                player_bootstrap,
+            );
+            self.apply_represented_first_login_reputation_with_catalogs_like_cpp(player_bootstrap);
         }
 
         // C++ processes reset-at-login and first-login casts after the initial

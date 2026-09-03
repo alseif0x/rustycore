@@ -45622,8 +45622,8 @@ fn start_all_spells_applies_custom_player_create_spells_like_cpp() {
             .is_empty()
     );
 
-    session.set_start_all_spells_like_cpp(true);
-    let player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
+    let mut player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
+    player_bootstrap.start_all_spells = true;
     assert_eq!(
         session.apply_represented_start_all_spells_with_catalogs_like_cpp(
             &player_bootstrap,
@@ -57659,20 +57659,27 @@ fn player_save_requires_complete_skill_authority_before_delete_all_like_cpp() {
 
 #[test]
 fn rested_xp_uses_configured_rest_rates_like_cpp() {
+    let policy = PlayerRestRatePolicyLikeCpp {
+        offline_wilderness: 2.0,
+        offline_tavern_or_city: 3.0,
+        ingame: 4.0,
+    };
     let (mut wilderness, _, _) = make_session();
     wilderness.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
     wilderness.set_player_next_level_xp_like_cpp(72_000);
-    wilderness.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+    wilderness.set_max_player_level_config_like_cpp(80);
     wilderness.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     let (mut tavern, _, _) = make_session();
     tavern.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
     tavern.set_player_next_level_xp_like_cpp(72_000);
-    tavern.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+    tavern.set_max_player_level_config_like_cpp(80);
     tavern.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
-    let wilderness_extra = wilderness.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, false);
-    let tavern_extra = tavern.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, true);
+    let wilderness_extra =
+        wilderness.apply_offline_xp_rest_bonus_with_policy_like_cpp(&policy, 1_000, 4_600, false);
+    let tavern_extra =
+        tavern.apply_offline_xp_rest_bonus_with_policy_like_cpp(&policy, 1_000, 4_600, true);
 
     assert!((wilderness_extra - 223.2).abs() < 0.01);
     assert!((tavern_extra - 1_350.0).abs() < 0.01);
@@ -57680,12 +57687,13 @@ fn rested_xp_uses_configured_rest_rates_like_cpp() {
     let (mut online, _, _) = make_session();
     online.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
     online.set_player_next_level_xp_like_cpp(72_000);
-    online.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+    online.set_max_player_level_config_like_cpp(80);
     online.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(online.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
     online.represented_rest_time_secs_like_cpp = 1_000;
 
-    let (online_extra, _) = online.update_represented_online_xp_rest_bonus_like_cpp(1_010);
+    let (online_extra, _) =
+        online.update_represented_online_xp_rest_bonus_with_policy_like_cpp(&policy, 1_010);
 
     assert!((online_extra - 5.0).abs() < 0.01);
 }

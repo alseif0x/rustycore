@@ -3663,6 +3663,28 @@ fn session_resources_requires_named_capability_bundles() {
         !resources_source.contains("session.set_player_create_info_store_like_cpp("),
         "PlayerInfo creation data must be borrowed during login instead of installed into WorldSession"
     );
+    for retired_player_start_copy in [
+        "session.set_start_all_explored_like_cpp(",
+        "session.set_start_all_reputation_like_cpp(",
+        "session.set_start_all_spells_like_cpp(",
+    ] {
+        assert!(
+            !resources_source.contains(retired_player_start_copy),
+            "C++ World player-start policy {retired_player_start_copy} must be borrowed during Player bootstrap"
+        );
+    }
+    assert!(
+        composition_source.contains(
+            "player_rest_rates: Arc::new(wow_world::session::PlayerRestRatePolicyLikeCpp"
+        ),
+        "the composition root must group C++ World rest rates in one borrowed Player policy"
+    );
+    assert!(
+        !resources_source.contains("rest_offline_wilderness_rate: f32")
+            && !resources_source.contains("rest_offline_tavern_or_city_rate: f32")
+            && !resources_source.contains("rest_ingame_rate: f32"),
+        "C++ World rest rates must not remain in the SessionResources installation graph"
+    );
     assert!(
         composition_source
             .contains("chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp"),

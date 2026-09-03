@@ -321,6 +321,33 @@ pub struct PlayerBootstrapCatalogsLikeCpp {
     pub create_info: Arc<PlayerCreateInfoStoreLikeCpp>,
     pub cast_spells: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
     pub custom_spells: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
+    /// C++ `World` policy consumed by `Player::LearnCustomSpells`.
+    pub start_all_spells: bool,
+    /// C++ `World` policy consumed by the first-login `Player` path.
+    pub start_all_explored: bool,
+    /// C++ `World` policy consumed by the first-login `Player` path.
+    pub start_all_reputation: bool,
+}
+
+/// Process-owned C++ `World` rates borrowed by `Player`/`RestMgr` transitions.
+///
+/// C++ reads these from `sWorld` at `Player.cpp:17898-17899` and
+/// `RestMgr.cpp:139-151`; a session does not own private copies.
+#[derive(Debug, Clone, Copy)]
+pub struct PlayerRestRatePolicyLikeCpp {
+    pub offline_wilderness: f32,
+    pub offline_tavern_or_city: f32,
+    pub ingame: f32,
+}
+
+impl Default for PlayerRestRatePolicyLikeCpp {
+    fn default() -> Self {
+        Self {
+            offline_wilderness: 1.0,
+            offline_tavern_or_city: 1.0,
+            ingame: 1.0,
+        }
+    }
 }
 
 /// Process-owned C++ `World` chat policy borrowed by chat handlers.
@@ -456,6 +483,9 @@ impl Default for PlayerBootstrapCatalogsLikeCpp {
             create_info: Arc::new(PlayerCreateInfoStoreLikeCpp::default()),
             cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
             custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
+            start_all_spells: false,
+            start_all_explored: false,
+            start_all_reputation: false,
         }
     }
 }
@@ -521,6 +551,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub area_triggers: Arc<AreaTriggerCatalogsLikeCpp>,
     pub item_valuation: Arc<ItemValuationCatalogsLikeCpp>,
     pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
+    pub player_rest_rates: Arc<PlayerRestRatePolicyLikeCpp>,
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
     pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
@@ -544,6 +575,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             area_triggers: Arc::new(AreaTriggerCatalogsLikeCpp::default()),
             item_valuation: Arc::new(ItemValuationCatalogsLikeCpp::default()),
             player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
+            player_rest_rates: Arc::new(PlayerRestRatePolicyLikeCpp::default()),
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
             support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
@@ -5579,8 +5611,11 @@ pub struct WorldSession {
     instance_ignore_raid_like_cpp: bool,
     instance_ignore_level_like_cpp: bool,
     max_instances_per_hour_like_cpp: u32,
+    #[cfg(test)]
     start_all_explored_like_cpp: bool,
+    #[cfg(test)]
     start_all_reputation_like_cpp: bool,
+    #[cfg(test)]
     start_all_spells_like_cpp: bool,
     #[cfg(test)]
     player_create_info_store_like_cpp: Option<Arc<PlayerCreateInfoStoreLikeCpp>>,
@@ -6054,10 +6089,13 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_loaded_player_flags_applied_like_cpp: bool,
     /// C++ `RATE_REST_OFFLINE_IN_WILDERNESS`.
+    #[cfg(test)]
     rest_offline_wilderness_rate_like_cpp: f32,
     /// C++ `RATE_REST_OFFLINE_IN_TAVERN_OR_CITY`.
+    #[cfg(test)]
     rest_offline_tavern_or_city_rate_like_cpp: f32,
     /// C++ `RATE_REST_INGAME`.
+    #[cfg(test)]
     rest_ingame_rate_like_cpp: f32,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     /// Production money lives exclusively in `Player::ActivePlayerData::Coinage`.
@@ -8069,8 +8107,11 @@ impl WorldSession {
             instance_ignore_raid_like_cpp: false,
             instance_ignore_level_like_cpp: false,
             max_instances_per_hour_like_cpp: 5,
+            #[cfg(test)]
             start_all_explored_like_cpp: false,
+            #[cfg(test)]
             start_all_reputation_like_cpp: false,
+            #[cfg(test)]
             start_all_spells_like_cpp: false,
             #[cfg(test)]
             player_create_info_store_like_cpp: None,
@@ -8351,8 +8392,11 @@ impl WorldSession {
             represented_loaded_player_flags_ex_like_cpp: None,
             #[cfg(test)]
             represented_loaded_player_flags_applied_like_cpp: false,
+            #[cfg(test)]
             rest_offline_wilderness_rate_like_cpp: 1.0,
+            #[cfg(test)]
             rest_offline_tavern_or_city_rate_like_cpp: 1.0,
+            #[cfg(test)]
             rest_ingame_rate_like_cpp: 1.0,
             #[cfg(test)]
             player_gold: 0,
@@ -18781,7 +18825,19 @@ impl WorldSession {
         if let Some(store) = &self.player_create_custom_spell_store_like_cpp {
             catalogs.custom_spells = Arc::clone(store);
         }
+        catalogs.start_all_spells = self.start_all_spells_like_cpp;
+        catalogs.start_all_explored = self.start_all_explored_like_cpp;
+        catalogs.start_all_reputation = self.start_all_reputation_like_cpp;
         catalogs
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_rest_rate_policy_for_test_like_cpp(&self) -> PlayerRestRatePolicyLikeCpp {
+        PlayerRestRatePolicyLikeCpp {
+            offline_wilderness: self.rest_offline_wilderness_rate_like_cpp,
+            offline_tavern_or_city: self.rest_offline_tavern_or_city_rate_like_cpp,
+            ingame: self.rest_ingame_rate_like_cpp,
+        }
     }
 
     #[cfg(test)]
@@ -22695,26 +22751,32 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
     pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
         self.start_all_explored_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
         self.start_all_reputation_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_start_all_spells_like_cpp(&mut self, enabled: bool) {
         self.start_all_spells_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
         self.start_all_explored_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
         self.start_all_reputation_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn start_all_spells_like_cpp(&self) -> bool {
         self.start_all_spells_like_cpp
     }
@@ -32149,8 +32211,9 @@ impl WorldSession {
         Some(self.resolved_player_next_level_xp_like_cpp()? as f32 / 72_000.0 * bubble)
     }
 
-    pub(crate) fn apply_offline_xp_rest_bonus_like_cpp(
+    pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
         logout_time_secs: u64,
         now_secs: u64,
         was_logout_resting: bool,
@@ -32170,10 +32233,9 @@ impl WorldSession {
         }
 
         let bubble = if was_logout_resting {
-            REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP
-                * self.rest_offline_tavern_or_city_rate_like_cpp
+            REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP * policy.offline_tavern_or_city
         } else {
-            REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * self.rest_offline_wilderness_rate_like_cpp
+            REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * policy.offline_wilderness
         };
         let Some(extra_per_sec) = self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble)
         else {
@@ -32184,7 +32246,27 @@ impl WorldSession {
         extra
     }
 
-    fn update_represented_online_xp_rest_bonus_like_cpp(&mut self, now_secs: u64) -> (f32, u8) {
+    #[cfg(test)]
+    pub(crate) fn apply_offline_xp_rest_bonus_like_cpp(
+        &mut self,
+        logout_time_secs: u64,
+        now_secs: u64,
+        was_logout_resting: bool,
+    ) -> f32 {
+        let policy = self.player_rest_rate_policy_for_test_like_cpp();
+        self.apply_offline_xp_rest_bonus_with_policy_like_cpp(
+            &policy,
+            logout_time_secs,
+            now_secs,
+            was_logout_resting,
+        )
+    }
+
+    fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        now_secs: u64,
+    ) -> (f32, u8) {
         let Some(rest_time) = self
             .player_rest_state_snapshot_like_cpp()
             .map(|state| state.rest_time_secs)
@@ -32207,7 +32289,7 @@ impl WorldSession {
         {
             return (0.0, 0);
         }
-        let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * self.rest_ingame_rate_like_cpp;
+        let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
         let Some(extra_per_sec) = self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble)
         else {
             return (0.0, 0);
@@ -32217,26 +32299,56 @@ impl WorldSession {
         (extra, nested_mask)
     }
 
-    fn tick_represented_online_xp_rest_bonus_like_cpp(&mut self, now_secs: u64) {
+    #[cfg(test)]
+    fn update_represented_online_xp_rest_bonus_like_cpp(&mut self, now_secs: u64) -> (f32, u8) {
+        let policy = self.player_rest_rate_policy_for_test_like_cpp();
+        self.update_represented_online_xp_rest_bonus_with_policy_like_cpp(&policy, now_secs)
+    }
+
+    fn tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        now_secs: u64,
+    ) {
         // C++ `RestMgr::Update` freezes the elapsed-time update behind
         // `roll_chance_i(3)`. Use the session's runtime RNG so the gate is
         // probabilistic in production and seedable in focused tests.
         let update_roll_passed = self.represented_urand_u32_like_cpp(1, 100) <= 3;
-        self.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(now_secs, update_roll_passed);
+        self.tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
+            policy,
+            now_secs,
+            update_roll_passed,
+        );
     }
 
-    fn tick_represented_online_xp_rest_bonus_with_roll_like_cpp(
+    fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
         &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
         now_secs: u64,
         update_roll_passed: bool,
     ) {
         if !update_roll_passed {
             return;
         }
-        let (_, nested_mask) = self.update_represented_online_xp_rest_bonus_like_cpp(now_secs);
+        let (_, nested_mask) =
+            self.update_represented_online_xp_rest_bonus_with_policy_like_cpp(policy, now_secs);
         if nested_mask != 0 {
             self.send_represented_rest_info_update_like_cpp(nested_mask);
         }
+    }
+
+    #[cfg(test)]
+    fn tick_represented_online_xp_rest_bonus_with_roll_like_cpp(
+        &mut self,
+        now_secs: u64,
+        update_roll_passed: bool,
+    ) {
+        let policy = self.player_rest_rate_policy_for_test_like_cpp();
+        self.tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
+            &policy,
+            now_secs,
+            update_roll_passed,
+        );
     }
 
     fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
@@ -33528,7 +33640,7 @@ impl WorldSession {
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
         known_spells: &mut Vec<i32>,
     ) -> usize {
-        if !self.start_all_spells_like_cpp() {
+        if !player_bootstrap.start_all_spells {
             return 0;
         }
 
@@ -33683,8 +33795,11 @@ impl WorldSession {
         removed
     }
 
-    pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
-        if !self.start_all_reputation_like_cpp() {
+    pub(crate) fn apply_represented_first_login_reputation_with_catalogs_like_cpp(
+        &mut self,
+        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+    ) -> usize {
+        if !player_bootstrap.start_all_reputation {
             return 0;
         }
 
@@ -33740,9 +33855,18 @@ impl WorldSession {
         applied
     }
 
+    #[cfg(test)]
+    pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
+        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
+        self.apply_represented_first_login_reputation_with_catalogs_like_cpp(&player_bootstrap)
+    }
+
     /// C++ `Player::AddExploredZones` loop for `CONFIG_START_ALL_EXPLORED` on first login.
-    pub(crate) fn apply_represented_first_login_explored_zones_like_cpp(&mut self) -> usize {
-        if !self.start_all_explored_like_cpp() {
+    pub(crate) fn apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
+        &mut self,
+        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+    ) -> usize {
+        if !player_bootstrap.start_all_explored {
             return 0;
         }
 
@@ -33769,6 +33893,12 @@ impl WorldSession {
         }
         self.send_player_values_update_like_cpp(&update);
         applied
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_represented_first_login_explored_zones_like_cpp(&mut self) -> usize {
+        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
+        self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(&player_bootstrap)
     }
 
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
@@ -36668,6 +36798,11 @@ impl WorldSession {
         self.exploration_xp_rate_like_cpp = rate.max(0.0);
     }
 
+    pub fn set_max_player_level_config_like_cpp(&mut self, max_player_level_config: u32) {
+        self.max_player_level_config_like_cpp = max_player_level_config;
+    }
+
+    #[cfg(test)]
     pub fn set_rested_xp_config_like_cpp(
         &mut self,
         max_player_level_config: u32,

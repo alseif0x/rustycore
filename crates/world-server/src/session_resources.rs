@@ -302,12 +302,6 @@ pub(super) struct SessionProgressionCapabilitiesLikeCpp {
     pub(super) max_recruit_a_friend_bonus_player_level: u32,
     /// C++ `CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE`.
     pub(super) max_recruit_a_friend_bonus_player_level_difference: u32,
-    /// C++ `sWorld->getRate(RATE_REST_OFFLINE_IN_WILDERNESS)`.
-    pub(super) rest_offline_wilderness_rate: f32,
-    /// C++ `sWorld->getRate(RATE_REST_OFFLINE_IN_TAVERN_OR_CITY)`.
-    pub(super) rest_offline_tavern_or_city_rate: f32,
-    /// C++ `sWorld->getRate(RATE_REST_INGAME)`.
-    pub(super) rest_ingame_rate: f32,
     /// C++ `CONFIG_MIN_QUEST_SCALED_XP_RATIO`.
     pub(super) min_quest_scaled_xp_ratio: u32,
     /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.
@@ -335,12 +329,6 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) offhand_check_at_spell_unlearn: bool,
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` / `vmap.enableIndoorCheck`.
     pub(super) vmap_indoor_check: bool,
-    /// C++ `CONFIG_START_ALL_EXPLORED` / `PlayerStart.MapsExplored`.
-    pub(super) start_all_explored: bool,
-    /// C++ `CONFIG_START_ALL_REP` / `PlayerStart.AllReputation`.
-    pub(super) start_all_reputation: bool,
-    /// C++ `CONFIG_START_ALL_SPELLS` / `PlayerStart.AllSpells`.
-    pub(super) start_all_spells: bool,
     pub(super) quest_low_level_hide_diff: u32,
     pub(super) quest_high_level_hide_diff: u32,
     pub(super) enable_ae_loot: bool,
@@ -536,12 +524,7 @@ impl SessionProgressionCapabilitiesLikeCpp {
         session.set_player_xp_table(Arc::clone(&self.player_xp_table));
         session.set_exploration_base_xp_store_like_cpp(Arc::clone(&self.exploration_base_xp_store));
         session.set_exploration_xp_rate_like_cpp(self.exploration_xp_rate);
-        session.set_rested_xp_config_like_cpp(
-            self.max_player_level_config,
-            self.rest_offline_wilderness_rate,
-            self.rest_offline_tavern_or_city_rate,
-            self.rest_ingame_rate,
-        );
+        session.set_max_player_level_config_like_cpp(self.max_player_level_config);
         session.set_max_primary_trade_skills_like_cpp(self.max_primary_trade_skills);
         session.set_pvp_realm_like_cpp(self.is_pvp_realm);
         session.set_ffa_pvp_realm_like_cpp(self.is_ffa_pvp_realm);
@@ -574,9 +557,6 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_no_reset_talent_cost_like_cpp(self.no_reset_talent_cost);
         session.set_offhand_check_at_spell_unlearn_like_cpp(self.offhand_check_at_spell_unlearn);
         session.set_vmap_indoor_check_like_cpp(self.vmap_indoor_check);
-        session.set_start_all_explored_like_cpp(self.start_all_explored);
-        session.set_start_all_reputation_like_cpp(self.start_all_reputation);
-        session.set_start_all_spells_like_cpp(self.start_all_spells);
         session.set_enable_ae_loot_like_cpp(self.enable_ae_loot);
         session.set_server_expansion_like_cpp(self.server_expansion);
         session.set_declined_names_used_like_cpp(self.declined_names_used);

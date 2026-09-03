@@ -165,7 +165,8 @@ impl WorldSession {
             self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
                 catalogs.area_triggers.db2.as_ref(),
             );
-            self.tick_represented_online_xp_rest_bonus_like_cpp(
+            self.tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
+                catalogs.player_rest_rates.as_ref(),
                 Self::current_game_time_secs_like_cpp(),
             );
             let _ = self.set_represented_can_delay_teleport_like_cpp(false);
@@ -254,6 +255,7 @@ impl WorldSession {
             catalogs.id_generators.item.as_ref(),
             catalogs.modules.as_ref(),
             catalogs.player_bootstrap.as_ref(),
+            catalogs.player_rest_rates.as_ref(),
             catalogs.support_feature_policy.as_ref(),
         )
         .await;
@@ -310,6 +312,7 @@ impl WorldSession {
             area_triggers: Arc::new(self.area_trigger_catalogs_for_test_like_cpp()),
             item_valuation: Arc::new(self.item_valuation_catalogs_for_test_like_cpp()),
             player_bootstrap: Arc::new(self.player_bootstrap_catalogs_for_test_like_cpp()),
+            player_rest_rates: Arc::new(self.player_rest_rate_policy_for_test_like_cpp()),
             chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),

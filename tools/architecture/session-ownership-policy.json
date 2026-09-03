@@ -5077,22 +5077,28 @@
           "name": "rest_ingame_rate_like_cpp",
           "type": "f32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "rest_offline_tavern_or_city_rate_like_cpp",
           "type": "f32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "rest_offline_wilderness_rate_like_cpp",
           "type": "f32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "rewarded_quests",
@@ -5497,22 +5503,28 @@
           "name": "start_all_explored_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "start_all_reputation_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "start_all_spells_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "state",
@@ -8953,7 +8965,7 @@
           "kind": "method",
           "name": "handle_continue_player_login_with_module_registry_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp ,)",
+          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & crate :: session :: PlayerRestRatePolicyLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22261,6 +22273,21 @@
           "name": "apply_offline_xp_rest_bonus_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_offline_xp_rest_bonus_like_cpp (& mut self , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_offline_xp_rest_bonus_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_offline_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22488,6 +22515,21 @@
           "name": "apply_represented_first_login_explored_zones_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_represented_first_login_explored_zones_like_cpp (& mut self) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_first_login_explored_zones_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_first_login_explored_zones_with_catalogs_like_cpp (& mut self , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22514,6 +22556,21 @@
           "name": "apply_represented_first_login_reputation_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_represented_first_login_reputation_like_cpp (& mut self) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_first_login_reputation_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_first_login_reputation_with_catalogs_like_cpp (& mut self , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -33307,6 +33364,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_rest_rate_policy_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_rest_rate_policy_for_test_like_cpp (& self) -> PlayerRestRatePolicyLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_rest_state_snapshot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_rest_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerRestState >",
@@ -33761,7 +33833,7 @@
           "kind": "method",
           "name": "poll_instance_link_with_module_registry_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp ,)",
+          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & super :: PlayerRestRatePolicyLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -47114,6 +47186,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_max_player_level_config_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_max_player_level_config_like_cpp (& mut self , max_player_level_config : u32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_max_primary_trade_skills_like_cpp",
           "visibility": "pub",
           "signature": "fn set_max_primary_trade_skills_like_cpp (& mut self , configured : u8)",
@@ -49908,8 +49994,10 @@
           "name": "set_rested_xp_config_like_cpp",
           "visibility": "pub",
           "signature": "fn set_rested_xp_config_like_cpp (& mut self , max_player_level_config : u32 , rest_offline_wilderness_rate : f32 , rest_offline_tavern_or_city_rate : f32 , rest_ingame_rate : f32 ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -50616,8 +50704,10 @@
           "name": "set_start_all_explored_like_cpp",
           "visibility": "pub",
           "signature": "fn set_start_all_explored_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -50630,8 +50720,10 @@
           "name": "set_start_all_reputation_like_cpp",
           "visibility": "pub",
           "signature": "fn set_start_all_reputation_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -50644,8 +50736,10 @@
           "name": "set_start_all_spells_like_cpp",
           "visibility": "pub",
           "signature": "fn set_start_all_spells_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -51729,8 +51823,10 @@
           "name": "start_all_explored_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn start_all_explored_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -51742,8 +51838,10 @@
           "name": "start_all_reputation_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn start_all_reputation_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -51755,8 +51853,10 @@
           "name": "start_all_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn start_all_spells_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -52463,9 +52563,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "tick_represented_online_xp_rest_bonus_like_cpp",
+          "name": "tick_represented_online_xp_rest_bonus_with_policy_like_cpp",
           "visibility": "private",
-          "signature": "fn tick_represented_online_xp_rest_bonus_like_cpp (& mut self , now_secs : u64)",
+          "signature": "fn tick_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp",
+          "visibility": "private",
+          "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 , update_roll_passed : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -52477,8 +52588,10 @@
           "name": "tick_represented_online_xp_rest_bonus_with_roll_like_cpp",
           "visibility": "private",
           "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_like_cpp (& mut self , now_secs : u64 , update_roll_passed : bool ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -53154,6 +53267,19 @@
           "name": "update_represented_online_xp_rest_bonus_like_cpp",
           "visibility": "private",
           "signature": "fn update_represented_online_xp_rest_bonus_like_cpp (& mut self , now_secs : u64) -> (f32 , u8)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_represented_online_xp_rest_bonus_with_policy_like_cpp",
+          "visibility": "private",
+          "signature": "fn update_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -75571,7 +75697,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6c8231125d2c602043fe501c1a5cb0f3:len=96782|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4b17290c7603af9c2f143a8706a91b77:len=96872|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
