@@ -806,7 +806,7 @@ impl WorldSession {
                     xp_difficulty,
                 )
             })
-            .unwrap_or(0)
+            .unwrap_or_default()
     }
 
     async fn open_represented_gameobject_personal_loot_like_cpp(

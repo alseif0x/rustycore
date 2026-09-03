@@ -59511,7 +59511,10 @@ fn give_xp_runtime_updates_canonical_progression_and_client_fields_like_cpp() {
         10,
         0,
     );
-    session.set_player_next_level_xp_like_cpp(50);
+    let mut player_xp_table = vec![0; 82];
+    player_xp_table[10] = 50;
+    player_xp_table[11] = 75;
+    session.set_player_xp_table(Arc::new(player_xp_table));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
     assert!(session.ensure_canonical_player_owner_for_map_like_cpp(
         wow_map::MapKey::new(1, 0),
@@ -59541,7 +59544,7 @@ fn give_xp_runtime_updates_canonical_progression_and_client_fields_like_cpp() {
                 .active_player_data_changes_mask()
                 .is_set(wow_entities::ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,),
         )),
-        Some((11, 0, 50, -1, true, true, true, true))
+        Some((11, 0, 75, -1, true, true, true, true))
     );
     assert!(drain_server_packet_bytes(&send_rx).iter().any(|bytes| {
         WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::UpdateObject)

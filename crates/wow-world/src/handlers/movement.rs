@@ -34,8 +34,9 @@ use wow_packet::packets::movement::{
 
 use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::session::{
-    AreaTriggerCatalogsLikeCpp, SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
-    SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP, WorldSession,
+    AreaTriggerCatalogsLikeCpp, ProgressionCatalogsLikeCpp,
+    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
+    WorldSession,
 };
 
 // C++ `HandleMoveSetVehicleRecAck` has no session-visible side effect, so
@@ -92,6 +93,7 @@ macro_rules! register_move {
                             .handle_movement_with_catalogs_like_cpp(
                                 catalogs.area_triggers.as_ref(),
                                 catalogs.creature_spawns.as_ref(),
+                                catalogs.progression.as_ref(),
                                 pkt,
                             )
                             .await
@@ -142,6 +144,7 @@ impl WorldSession {
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        progression: &ProgressionCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let opcode = pkt.client_opcode();
@@ -159,6 +162,7 @@ impl WorldSession {
         self.handle_movement_info_with_catalogs_like_cpp(
             area_trigger_catalogs,
             creature_spawn_catalogs,
+            progression,
             opcode,
             info.info,
         )
@@ -169,6 +173,7 @@ impl WorldSession {
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        progression: &ProgressionCatalogsLikeCpp,
         opcode: Option<ClientOpcodes>,
         mut info: MovementInfo,
     ) {
@@ -457,8 +462,11 @@ impl WorldSession {
                     area_id
                 }
             };
-            self.check_area_explore_and_outdoor_represented_like_cpp(area_id)
-                .await;
+            self.check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
+                progression,
+                area_id,
+            )
+            .await;
             // Keep the broadcast registry in sync so chat range checks are accurate.
             self.update_registry_position();
             trace!(
@@ -559,9 +567,11 @@ impl WorldSession {
     pub async fn handle_movement(&mut self, pkt: wow_packet::WorldPacket) {
         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = self.progression_catalogs_for_test_like_cpp();
         self.handle_movement_with_catalogs_like_cpp(
             &area_trigger_catalogs,
             &creature_spawn_catalogs,
+            &progression,
             pkt,
         )
         .await;
@@ -575,9 +585,11 @@ impl WorldSession {
     ) {
         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = self.progression_catalogs_for_test_like_cpp();
         self.handle_movement_info_with_catalogs_like_cpp(
             &area_trigger_catalogs,
             &creature_spawn_catalogs,
+            &progression,
             opcode,
             info,
         )

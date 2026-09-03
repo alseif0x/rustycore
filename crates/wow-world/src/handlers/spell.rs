@@ -106,6 +106,7 @@ inventory::submit! {
                     .handle_cast_spell_with_catalogs_like_cpp(
                         catalogs.area_triggers.as_ref(),
                         catalogs.creature_spawns.as_ref(),
+                        catalogs.progression.as_ref(),
                         catalogs.id_generators.item.as_ref(),
                         pkt,
                     )
@@ -515,6 +516,7 @@ impl WorldSession {
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        progression: &crate::session::ProgressionCatalogsLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
     ) {
@@ -591,6 +593,7 @@ impl WorldSession {
             self.handle_movement_info_with_catalogs_like_cpp(
                 area_trigger_catalogs,
                 creature_spawn_catalogs,
+                progression,
                 Some(ClientOpcodes::MoveStop),
                 move_update,
             )
@@ -838,10 +841,12 @@ impl WorldSession {
     pub async fn handle_cast_spell(&mut self, pkt: wow_packet::WorldPacket) {
         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = self.progression_catalogs_for_test_like_cpp();
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_cast_spell_with_catalogs_like_cpp(
             &area_trigger_catalogs,
             &creature_spawn_catalogs,
+            &progression,
             generators.item.as_ref(),
             pkt,
         )

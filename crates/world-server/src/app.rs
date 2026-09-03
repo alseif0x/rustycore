@@ -4679,6 +4679,16 @@ async fn run_inner(
                     addons: Arc::clone(&creature_addon_store),
                     equipment: Arc::clone(&creature_equipment_store),
                 }),
+                progression: Arc::new(wow_world::session::ProgressionCatalogsLikeCpp {
+                    player_xp: Arc::clone(&player_xp_table),
+                    exploration_base_xp: Arc::clone(&exploration_base_xp_store),
+                    exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
+                    min_discovered_scaled_xp_ratio: world_config_u32(
+                        &world_configs,
+                        "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
+                        0,
+                    ),
+                }),
                 chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
                     addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
                     fake_message_preventing: world_config_bool(
@@ -4969,9 +4979,9 @@ async fn run_inner(
             phase_group_store: Arc::clone(&phase_group_store),
         },
         progression: SessionProgressionCapabilitiesLikeCpp {
-            quest_store: Arc::clone(&quest_store),
             quest_xp_store: Arc::clone(&quest_xp_store),
             quest_money_reward_store: Arc::clone(&quest_money_reward_store),
+            quest_store: Arc::clone(&quest_store),
             quest_v2_store: Arc::clone(&quest_v2_store),
             quest_info_store: Arc::clone(&quest_info_store),
             quest_package_item_store: Arc::clone(&quest_package_item_store),
@@ -4983,11 +4993,11 @@ async fn run_inner(
             reputation_reward_rate_store: Arc::clone(&reputation_reward_rate_store),
             creature_onkill_reputation_store: Arc::clone(&creature_onkill_reputation_store),
             reputation_spillover_template_store: Arc::clone(&reputation_spillover_template_store),
-            player_xp_table: Arc::clone(&player_xp_table),
-            exploration_base_xp_store: Arc::clone(&exploration_base_xp_store),
-            exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
-            // `WorldConfigSet` resolves the external `MaxPlayerLevel` key and indexes
-            // the validated value by the matching C++ enum name.
+            min_quest_scaled_xp_ratio: world_config_u32(
+                &world_configs,
+                "CONFIG_MIN_QUEST_SCALED_XP_RATIO",
+                0,
+            ),
             max_player_level_config: world_config_u32(
                 &world_configs,
                 "CONFIG_MAX_PLAYER_LEVEL",
@@ -5013,16 +5023,6 @@ async fn run_inner(
                 &world_configs,
                 "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE",
                 4,
-            ),
-            min_quest_scaled_xp_ratio: world_config_u32(
-                &world_configs,
-                "CONFIG_MIN_QUEST_SCALED_XP_RATIO",
-                0,
-            ),
-            min_discovered_scaled_xp_ratio: world_config_u32(
-                &world_configs,
-                "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
-                0,
             ),
         },
         runtime: SessionRuntimePolicyCapabilitiesLikeCpp {

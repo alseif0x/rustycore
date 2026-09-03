@@ -25,6 +25,7 @@ mod visibility;
 mod vitals;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::PlayerGameplayState;
 use bitflags::bitflags;
@@ -3704,6 +3705,7 @@ pub struct Player {
     inventory: Box<PlayerInventoryStorage>,
     inventory_runtime: Box<PlayerInventoryRuntime>,
     gameplay_state: PlayerGameplayState,
+    player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
     active_player_data_changes: UpdateMask,
     rest_info_change_masks: [u8; 2],
@@ -3743,6 +3745,7 @@ impl Player {
             inventory: Box::default(),
             inventory_runtime: Box::default(),
             gameplay_state: PlayerGameplayState::default(),
+            player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),
             rest_info_change_masks: [0; 2],

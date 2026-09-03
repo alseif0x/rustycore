@@ -184,6 +184,7 @@ impl WorldSession {
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
         player_rest_rates: &crate::session::PlayerRestRatePolicyLikeCpp,
+        progression: &crate::session::ProgressionCatalogsLikeCpp,
         feature_policy: &SupportFeaturePolicyLikeCpp,
     ) {
         let guid: ObjectGuid = match self.player_loading() {
@@ -874,7 +875,7 @@ impl WorldSession {
             ),
             _ => unreachable!("group-membership request returned a different row family"),
         }
-        self.refresh_next_level_xp();
+        self.refresh_next_level_xp_with_catalogs_like_cpp(progression);
         self.clamp_loaded_player_xp_to_next_level_like_cpp();
         if saved_character_map_is_battleground {
             // Rust does not yet have a live BattlegroundMgr roster/status
@@ -2131,7 +2132,7 @@ impl WorldSession {
             self.set_player_transport_position_like_cpp(None);
             None
         };
-        self.refresh_next_level_xp();
+        self.refresh_next_level_xp_with_catalogs_like_cpp(progression);
         // NOTE: known_spells is stored below after DBC merge (see "Merge DBC auto-learned spells")
 
         // C++ login query set includes CHAR_SEL_CHARACTER_REPUTATION and

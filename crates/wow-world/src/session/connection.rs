@@ -144,6 +144,7 @@ impl WorldSession {
         creature_spawn_catalogs: &super::CreatureSpawnCatalogsLikeCpp,
         player_bootstrap: &super::PlayerBootstrapCatalogsLikeCpp,
         player_rest_rates: &super::PlayerRestRatePolicyLikeCpp,
+        progression: &super::ProgressionCatalogsLikeCpp,
         feature_policy: &super::SupportFeaturePolicyLikeCpp,
     ) {
         match self.connection.poll_instance_link(self.account_id) {
@@ -156,6 +157,7 @@ impl WorldSession {
                     creature_spawn_catalogs,
                     player_bootstrap,
                     player_rest_rates,
+                    progression,
                     feature_policy,
                 )
                 .await;
@@ -177,6 +179,7 @@ impl WorldSession {
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let player_rest_rates = self.player_rest_rate_policy_for_test_like_cpp();
+        let progression = self.progression_catalogs_for_test_like_cpp();
         let feature_policy = self.support_feature_policy_for_test_like_cpp();
         self.poll_instance_link_with_module_registry_like_cpp(
             generators.item.as_ref(),
@@ -184,6 +187,7 @@ impl WorldSession {
             &creature_spawn_catalogs,
             &player_bootstrap,
             &player_rest_rates,
+            &progression,
             &feature_policy,
         )
         .await;

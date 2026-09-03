@@ -8,6 +8,21 @@
 use super::*;
 
 impl Player {
+    /// Install the immutable process-owned `player_xp_for_level` view used by
+    /// C++ `Player::GiveLevel`. The canonical Player retains only the shared
+    /// read handle, so active and far-teleport-detached residence use the same
+    /// table without a Session mirror.
+    pub fn install_player_xp_table_like_cpp(&mut self, table: Arc<Vec<u32>>) {
+        self.player_xp_table_like_cpp = Some(table);
+    }
+
+    pub fn player_xp_for_level_like_cpp(&self, level: u8) -> Option<u32> {
+        self.player_xp_table_like_cpp
+            .as_ref()?
+            .get(usize::from(level))
+            .copied()
+    }
+
     pub fn spell_runtime_like_cpp(&self) -> &PlayerSpellRuntimeState {
         &self.gameplay_state().spells
     }

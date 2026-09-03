@@ -356,6 +356,21 @@ pub struct CreatureSpawnCatalogsLikeCpp {
     pub equipment: Arc<CreatureEquipmentStoreLikeCpp>,
 }
 
+/// Process-owned player-level and exploration XP catalogs plus immutable World policy.
+///
+/// C++ resolves these through ObjectMgr world tables and `sWorld` while
+/// adapting Player progression operations. A `WorldSession` borrows this
+/// capability for the operation; it does not own a copy of any catalog or
+/// configuration value.
+#[derive(Clone)]
+#[cfg_attr(test, derive(Default))]
+pub struct ProgressionCatalogsLikeCpp {
+    pub player_xp: Arc<Vec<u32>>,
+    pub exploration_base_xp: Arc<ExplorationBaseXpStoreLikeCpp>,
+    pub exploration_xp_rate: f32,
+    pub min_discovered_scaled_xp_ratio: u32,
+}
+
 #[cfg(test)]
 impl Default for CreatureSpawnCatalogsLikeCpp {
     fn default() -> Self {
@@ -582,6 +597,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
     pub player_rest_rates: Arc<PlayerRestRatePolicyLikeCpp>,
     pub creature_spawns: Arc<CreatureSpawnCatalogsLikeCpp>,
+    pub progression: Arc<ProgressionCatalogsLikeCpp>,
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
     pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
@@ -607,6 +623,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
             player_rest_rates: Arc::new(PlayerRestRatePolicyLikeCpp::default()),
             creature_spawns: Arc::new(CreatureSpawnCatalogsLikeCpp::default()),
+            progression: Arc::new(ProgressionCatalogsLikeCpp::default()),
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
             support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
@@ -7088,10 +7105,14 @@ pub struct WorldSession {
     pub(crate) quest_info_store: Option<Arc<QuestInfoStore>>,
     pub(crate) quest_package_item_store: Option<Arc<QuestPackageItemStore>>,
     pub(crate) quest_faction_reward_store: Option<Arc<QuestFactionRewardStore>>,
+    #[cfg(test)]
     pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
+    #[cfg(test)]
     pub(crate) exploration_base_xp_store: Option<Arc<ExplorationBaseXpStoreLikeCpp>>,
+    #[cfg(test)]
     pub(crate) exploration_xp_rate_like_cpp: f32,
     pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
+    #[cfg(test)]
     pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     /// Active quests for this player: quest_id → status.
     #[cfg(test)]
@@ -8483,10 +8504,14 @@ impl WorldSession {
             player_xp: 0,
             #[cfg(test)]
             player_next_level_xp: 400,
+            #[cfg(test)]
             player_xp_table: None,
+            #[cfg(test)]
             exploration_base_xp_store: None,
+            #[cfg(test)]
             exploration_xp_rate_like_cpp: 1.0,
             min_quest_scaled_xp_ratio_like_cpp: 0,
+            #[cfg(test)]
             min_discovered_scaled_xp_ratio_like_cpp: 0,
             #[cfg(test)]
             selection_guid: None,
@@ -33522,8 +33547,9 @@ impl WorldSession {
     /// `CONFIG_VMAP_INDOOR_CHECK` aura-removal branch when a represented
     /// `WorldObject::IsOutdoors()` value is available. Terrain/VMAP ownership of
     /// the outdoors state remains a map-runtime gap.
-    pub(crate) async fn check_area_explore_and_outdoor_represented_like_cpp(
+    pub(crate) async fn check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
         &mut self,
+        progression: &ProgressionCatalogsLikeCpp,
         area_id: u32,
     ) -> bool {
         if self.resolved_player_is_alive_like_cpp() != Some(true) {
@@ -33580,17 +33606,14 @@ impl WorldSession {
             let xp = if self.player_level_like_cpp() >= max_level {
                 0
             } else {
-                self.exploration_base_xp_store
-                    .as_ref()
-                    .map(|store| {
-                        store.exploration_xp_reward_like_cpp(
-                            self.player_level_like_cpp(),
-                            area_entry.exploration_level,
-                            self.exploration_xp_rate_like_cpp,
-                            self.min_discovered_scaled_xp_ratio_like_cpp,
-                        )
-                    })
-                    .unwrap_or(0)
+                progression
+                    .exploration_base_xp
+                    .exploration_xp_reward_like_cpp(
+                        self.player_level_like_cpp(),
+                        area_entry.exploration_level,
+                        progression.exploration_xp_rate,
+                        progression.min_discovered_scaled_xp_ratio,
+                    )
             };
 
             if xp != 0 {
@@ -33603,6 +33626,19 @@ impl WorldSession {
         }
 
         true
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn check_area_explore_and_outdoor_represented_like_cpp(
+        &mut self,
+        area_id: u32,
+    ) -> bool {
+        let progression = self.progression_catalogs_for_test_like_cpp();
+        self.check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
+            &progression,
+            area_id,
+        )
+        .await
     }
 
     fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(&mut self) -> usize {
@@ -34779,6 +34815,10 @@ impl WorldSession {
             let mut power_delta = [0i32; 10];
             power_delta[0] = base_mana_delta;
 
+            let Some(next_level_xp) = self.resolved_player_xp_for_level_like_cpp(new_level) else {
+                return false;
+            };
+
             // Send SMSG_LEVELUP_INFO — "Ding!" popup.
             // C++ registers SMSG_LEVEL_UP_INFO on CONNECTION_TYPE_REALM too.
             self.send_packet_realm(&LevelUpInfo {
@@ -34790,7 +34830,7 @@ impl WorldSession {
             });
 
             self.set_player_level_like_cpp(new_level);
-            self.refresh_next_level_xp();
+            self.set_player_next_level_xp_like_cpp(next_level_xp);
             self.send_level_up_stat_update_like_cpp();
         }
 
@@ -36849,11 +36889,13 @@ impl WorldSession {
     }
 
     /// Set the player XP table (xp required per level).
+    #[cfg(test)]
     pub fn set_player_xp_table(&mut self, table: Arc<Vec<u32>>) {
         self.player_xp_table = Some(table);
         self.refresh_next_level_xp();
     }
 
+    #[cfg(test)]
     pub fn set_exploration_base_xp_store_like_cpp(
         &mut self,
         store: Arc<ExplorationBaseXpStoreLikeCpp>,
@@ -36861,6 +36903,7 @@ impl WorldSession {
         self.exploration_base_xp_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_exploration_xp_rate_like_cpp(&mut self, rate: f32) {
         self.exploration_xp_rate_like_cpp = rate.max(0.0);
     }
@@ -36917,16 +36960,53 @@ impl WorldSession {
         self.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
     }
 
+    #[cfg(test)]
     pub fn set_min_discovered_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
         self.min_discovered_scaled_xp_ratio_like_cpp = ratio.min(100);
     }
 
-    /// Update player_next_level_xp from the table based on current level.
-    pub(crate) fn refresh_next_level_xp(&mut self) {
+    #[cfg(test)]
+    pub(crate) fn progression_catalogs_for_test_like_cpp(&self) -> ProgressionCatalogsLikeCpp {
+        let mut catalogs = ProgressionCatalogsLikeCpp::default();
         if let Some(table) = &self.player_xp_table {
-            let lvl = self.player_level_like_cpp() as usize;
-            self.set_player_next_level_xp_like_cpp(table.get(lvl).copied().unwrap_or(u32::MAX));
+            catalogs.player_xp = Arc::clone(table);
         }
+        if let Some(store) = &self.exploration_base_xp_store {
+            catalogs.exploration_base_xp = Arc::clone(store);
+        }
+        catalogs.exploration_xp_rate = self.exploration_xp_rate_like_cpp;
+        catalogs.min_discovered_scaled_xp_ratio = self.min_discovered_scaled_xp_ratio_like_cpp;
+        catalogs
+    }
+
+    /// Update player_next_level_xp from the table based on current level.
+    pub(crate) fn refresh_next_level_xp_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &ProgressionCatalogsLikeCpp,
+    ) {
+        let lvl = self.player_level_like_cpp() as usize;
+        let next_level_xp = catalogs.player_xp.get(lvl).copied().unwrap_or(u32::MAX);
+        let table = Arc::clone(&catalogs.player_xp);
+        let installed = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.install_player_xp_table_like_cpp(table);
+            })
+            .is_some();
+        if installed {
+            self.set_player_next_level_xp_like_cpp(next_level_xp);
+        }
+        #[cfg(test)]
+        if !installed && self.player_handle_like_cpp.is_none() {
+            self.set_player_next_level_xp_like_cpp(next_level_xp);
+        }
+        #[cfg(not(test))]
+        let _ = installed;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn refresh_next_level_xp(&mut self) {
+        let catalogs = self.progression_catalogs_for_test_like_cpp();
+        self.refresh_next_level_xp_with_catalogs_like_cpp(&catalogs);
     }
 
     /// C++ `Player::InitStatsForLevel` repairs an invalid persisted XP value
@@ -36999,7 +37079,6 @@ impl WorldSession {
                 self.min_quest_scaled_xp_ratio_like_cpp,
             )
         } else {
-            // Fallback if DB2 not loaded
             const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
             XP_TABLE[difficulty.min(9) as usize]
         }
@@ -46290,6 +46369,21 @@ impl WorldSession {
         canonical
     }
 
+    fn resolved_player_xp_for_level_like_cpp(&self, level: u8) -> Option<u32> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.player_xp_for_level_like_cpp(level))
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none() {
+            return self
+                .player_xp_table
+                .as_ref()
+                .and_then(|table| table.get(usize::from(level)).copied())
+                .or_else(|| self.resolved_player_next_level_xp_like_cpp());
+        }
+        canonical
+    }
+
     pub(crate) fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.active_data().next_level_xp.max(0) as u32);
@@ -48403,7 +48497,7 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
+    pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {
         #[cfg(test)]
         {
             self.temporary_pet_resummon_requests_like_cpp = self
@@ -48428,8 +48522,6 @@ impl WorldSession {
         let stable_info = load_info
             .filter(|info| info.pet_number == pet_number)
             .and_then(|_| self.represented_pet_stable_info_by_number_like_cpp(pet_number));
-        let player_xp_table = self.player_xp_table.clone();
-
         let inserted_guid = stable_info.and_then(|info| {
             let owner_guid = self.player_guid()?;
             let map_id = u32::from(self.player_map_id_like_cpp());
@@ -48481,9 +48573,8 @@ impl WorldSession {
                 pet.creature_mut().unit_mut().set_level(info.level);
             }
             pet.set_pet_experience(info.experience);
-            if let Some(next_level_experience) = player_xp_table
-                .as_ref()
-                .and_then(|table| table.get(info.level as usize).copied())
+            if let Some(next_level_experience) = self
+                .resolved_player_xp_for_level_like_cpp(info.level)
                 .map(Pet::pet_next_level_xp_for_owner_level)
             {
                 pet.set_pet_next_level_experience(next_level_experience);
@@ -48686,6 +48777,11 @@ impl WorldSession {
                 self.represented_pet_react_state_like_cpp = info.react_state as u8;
             }
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
+        self.resummon_pet_temporary_unsummoned_like_cpp();
     }
 
     #[cfg(test)]
@@ -59116,7 +59212,7 @@ impl WorldSession {
             self.update_player_pvp_like_cpp(false, true);
         }
 
-        self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+        self.resummon_pet_temporary_unsummoned_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         #[cfg(test)]
         {

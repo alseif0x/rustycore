@@ -259,6 +259,7 @@ impl WorldSession {
             catalogs.creature_spawns.as_ref(),
             catalogs.player_bootstrap.as_ref(),
             catalogs.player_rest_rates.as_ref(),
+            catalogs.progression.as_ref(),
             catalogs.support_feature_policy.as_ref(),
         )
         .await;
@@ -322,6 +323,7 @@ impl WorldSession {
             player_bootstrap: Arc::new(self.player_bootstrap_catalogs_for_test_like_cpp()),
             player_rest_rates: Arc::new(self.player_rest_rate_policy_for_test_like_cpp()),
             creature_spawns: Arc::new(self.creature_spawn_catalogs_for_test_like_cpp()),
+            progression: Arc::new(self.progression_catalogs_for_test_like_cpp()),
             chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),

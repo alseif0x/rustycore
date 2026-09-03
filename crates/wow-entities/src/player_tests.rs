@@ -3971,6 +3971,19 @@ fn active_player_fields_and_inventory_slots_mark_cpp_bits() {
 }
 
 #[test]
+fn canonical_player_retains_the_shared_level_xp_catalog_like_cpp() {
+    let mut player = Player::new(None, false);
+    let table = std::sync::Arc::new(vec![0, 400, 900]);
+
+    player.install_player_xp_table_like_cpp(std::sync::Arc::clone(&table));
+
+    assert_eq!(player.player_xp_for_level_like_cpp(1), Some(400));
+    assert_eq!(player.player_xp_for_level_like_cpp(2), Some(900));
+    assert_eq!(player.player_xp_for_level_like_cpp(3), None);
+    assert_eq!(std::sync::Arc::strong_count(&table), 2);
+}
+
+#[test]
 fn add_honor_xp_matches_cpp_level_gate_threshold_and_max_shape() {
     let mut low_level = Player::new(None, false);
     assert!(!low_level.add_honor_xp_like_cpp(100, PLAYER_LEVEL_MIN_HONOR_LIKE_CPP - 1));

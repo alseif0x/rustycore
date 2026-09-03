@@ -357,7 +357,7 @@ impl crate::session::WorldSession {
         // transition cannot be written into a discarded Session fallback.
         let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         self.update_registry_position();
-        self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+        self.resummon_pet_temporary_unsummoned_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
 
         // SMSG_NEW_WORLD was already sent from handle_suspend_token_response (C++ sends it in

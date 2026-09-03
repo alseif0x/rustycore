@@ -258,11 +258,13 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) phase_group_store: Arc<wow_data::PhaseGroupStore>,
 }
 
-/// Immutable quest/reputation/XP catalogs and progression policy.
+/// Immutable quest and reputation catalogs not yet borrowed by their owning
+/// operation. Player-level and exploration XP already travel through the
+/// owning progression capability instead of being installed into `WorldSession`.
 pub(super) struct SessionProgressionCapabilitiesLikeCpp {
-    pub(super) quest_store: Arc<wow_data::quest::QuestStore>,
     pub(super) quest_xp_store: Arc<wow_data::quest_xp::QuestXpStore>,
     pub(super) quest_money_reward_store: Arc<wow_data::progression_rewards::QuestMoneyRewardStore>,
+    pub(super) quest_store: Arc<wow_data::quest::QuestStore>,
     pub(super) quest_v2_store: Arc<wow_data::progression_rewards::QuestV2Store>,
     pub(super) quest_info_store: Arc<wow_data::progression_rewards::QuestInfoStore>,
     pub(super) quest_package_item_store: Arc<wow_data::progression_rewards::QuestPackageItemStore>,
@@ -279,28 +281,13 @@ pub(super) struct SessionProgressionCapabilitiesLikeCpp {
         Arc<wow_data::reputation::CreatureOnKillReputationStoreLikeCpp>,
     pub(super) reputation_spillover_template_store:
         Arc<wow_data::reputation::RepSpilloverTemplateStoreLikeCpp>,
-    /// XP required per level: index = level (1-based), value = xp_needed.
-    pub(super) player_xp_table: Arc<Vec<u32>>,
-    /// C++ `ObjectMgr::_baseXPTable` used by area exploration XP.
-    pub(super) exploration_base_xp_store: Arc<wow_data::ExplorationBaseXpStoreLikeCpp>,
-    /// C++ `sWorld->getRate(RATE_XP_EXPLORE)`.
-    pub(super) exploration_xp_rate: f32,
-    /// C++ `CONFIG_MAX_PLAYER_LEVEL`.
-    pub(super) max_player_level_config: u32,
-    /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`.
-    pub(super) max_primary_trade_skills: u8,
-    /// C++ PvP/RP-PvP/FFA-PvP `CONFIG_GAME_TYPE` classification.
-    pub(super) is_pvp_realm: bool,
-    /// C++ `World::IsFFAPvPRealm()` classification.
-    pub(super) is_ffa_pvp_realm: bool,
-    /// C++ `CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL`.
-    pub(super) max_recruit_a_friend_bonus_player_level: u32,
-    /// C++ `CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE`.
-    pub(super) max_recruit_a_friend_bonus_player_level_difference: u32,
-    /// C++ `CONFIG_MIN_QUEST_SCALED_XP_RATIO`.
     pub(super) min_quest_scaled_xp_ratio: u32,
-    /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.
-    pub(super) min_discovered_scaled_xp_ratio: u32,
+    pub(super) max_player_level_config: u32,
+    pub(super) max_primary_trade_skills: u8,
+    pub(super) is_pvp_realm: bool,
+    pub(super) is_ffa_pvp_realm: bool,
+    pub(super) max_recruit_a_friend_bonus_player_level: u32,
+    pub(super) max_recruit_a_friend_bonus_player_level_difference: u32,
 }
 
 /// Runtime registries, module seams and immutable world/session policy.
@@ -491,11 +478,10 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
 }
 
 impl SessionProgressionCapabilitiesLikeCpp {
-    /// Installs this complete capability group after bootstrap construction.
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
-        session.set_quest_store(Arc::clone(&self.quest_store));
         session.set_quest_xp_store(Arc::clone(&self.quest_xp_store));
         session.set_quest_money_reward_store(Arc::clone(&self.quest_money_reward_store));
+        session.set_quest_store(Arc::clone(&self.quest_store));
         session.set_quest_v2_store(Arc::clone(&self.quest_v2_store));
         session.set_quest_info_store(Arc::clone(&self.quest_info_store));
         session.set_quest_package_item_store(Arc::clone(&self.quest_package_item_store));
@@ -511,9 +497,7 @@ impl SessionProgressionCapabilitiesLikeCpp {
         session.set_reputation_spillover_template_store(Arc::clone(
             &self.reputation_spillover_template_store,
         ));
-        session.set_player_xp_table(Arc::clone(&self.player_xp_table));
-        session.set_exploration_base_xp_store_like_cpp(Arc::clone(&self.exploration_base_xp_store));
-        session.set_exploration_xp_rate_like_cpp(self.exploration_xp_rate);
+        session.set_min_quest_scaled_xp_ratio_like_cpp(self.min_quest_scaled_xp_ratio);
         session.set_max_player_level_config_like_cpp(self.max_player_level_config);
         session.set_max_primary_trade_skills_like_cpp(self.max_primary_trade_skills);
         session.set_pvp_realm_like_cpp(self.is_pvp_realm);
@@ -522,8 +506,6 @@ impl SessionProgressionCapabilitiesLikeCpp {
             self.max_recruit_a_friend_bonus_player_level,
             self.max_recruit_a_friend_bonus_player_level_difference,
         );
-        session.set_min_quest_scaled_xp_ratio_like_cpp(self.min_quest_scaled_xp_ratio);
-        session.set_min_discovered_scaled_xp_ratio_like_cpp(self.min_discovered_scaled_xp_ratio);
     }
 }
 
