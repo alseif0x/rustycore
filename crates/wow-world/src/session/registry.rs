@@ -21,7 +21,7 @@ use wow_constants::ClientOpcodes;
 use wow_handler::{HandlerFuture, PacketProcessing, SessionStatus};
 use wow_packet::WorldPacket;
 
-use super::{ObjectMgrCatalogsLikeCpp, WorldSession};
+use super::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
 /// The call a registered opcode performs.
 ///
@@ -30,7 +30,7 @@ use super::{ObjectMgrCatalogsLikeCpp, WorldSession};
 /// closure coerces to this type, which keeps a registration one literal.
 pub type PacketHandlerFn = for<'a> fn(
     &'a mut WorldSession,
-    &'a ObjectMgrCatalogsLikeCpp,
+    &'a SessionHandlerCatalogsLikeCpp,
     WorldPacket,
 ) -> HandlerFuture<'a, ()>;
 

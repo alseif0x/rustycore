@@ -215,7 +215,7 @@ async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_ga
     logged_in.set_player_guid(Some(player));
 
     logged_in
-        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(target))
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(target))
         .await;
 
     let result = send_rx.try_recv().expect("PartyCommandResult");
@@ -228,7 +228,7 @@ async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_ga
     let (mut authed, _pkt_tx, send_rx) = make_session();
     authed.set_player_guid(Some(player));
     authed
-        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(target))
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(target))
         .await;
     assert!(
         send_rx.try_recv().is_err(),
@@ -263,7 +263,7 @@ async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_log
     logged_in.set_state(SessionState::LoggedIn);
     logged_in.set_player_guid(Some(mover));
     logged_in
-        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(mover))
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(mover))
         .await;
 
     assert_eq!(take_move_set_vehicle_rec_id_ack_handler_calls_for_test(), 1);
@@ -275,7 +275,7 @@ async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_log
     let (mut authed, _pkt_tx, send_rx) = make_session();
     authed.set_player_guid(Some(mover));
     authed
-        .dispatch_packet(&ObjectMgrCatalogsLikeCpp::default(), packet(mover))
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(mover))
         .await;
 
     assert_eq!(
@@ -293,13 +293,16 @@ async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
     session.set_state(SessionState::LoggedIn);
     session.set_player_guid(Some(player_guid));
     session.player_name = Some("Emoter".to_string());
-    session.set_emotes_text_store_like_cpp(Arc::new(wow_data::EmotesTextStore::from_entries([
-        wow_data::EmotesTextEntry {
-            id: 101,
-            name: "wave".to_string(),
-            emote_id: 3,
-        },
-    ])));
+    let catalogs = SessionHandlerCatalogsLikeCpp {
+        emotes_text: Arc::new(wow_data::EmotesTextStore::from_entries([
+            wow_data::EmotesTextEntry {
+                id: 101,
+                name: "wave".to_string(),
+                emote_id: 3,
+            },
+        ])),
+        ..SessionHandlerCatalogsLikeCpp::default()
+    };
 
     let mut packet = WorldPacket::new_empty();
     packet.write_uint16(ClientOpcodes::SendTextEmote as u16);
@@ -311,10 +314,7 @@ async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
     let bytes = packet.data().to_vec();
 
     session
-        .dispatch_packet(
-            &ObjectMgrCatalogsLikeCpp::default(),
-            WorldPacket::from_bytes(&bytes),
-        )
+        .dispatch_packet(&catalogs, WorldPacket::from_bytes(&bytes))
         .await;
 
     let mut anim = WorldPacket::from_bytes(&send_rx.try_recv().expect("anim emote"));

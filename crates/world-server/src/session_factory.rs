@@ -139,7 +139,7 @@ where
 
 pub(super) async fn run_world_session_until_disconnect_like_cpp(
     session: &mut WorldSession,
-    object_mgr_catalogs: &wow_world::session::ObjectMgrCatalogsLikeCpp,
+    handler_catalogs: &wow_world::session::SessionHandlerCatalogsLikeCpp,
     account_id: u32,
     active_session_registry: &ActiveWorldSessionRegistryLikeCpp,
     cancellation: &ActiveWorldSessionCancellationLikeCpp,
@@ -180,7 +180,7 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
 
             let count = session.update(diff_ms);
             session
-                .process_pending_with_catalogs_like_cpp(object_mgr_catalogs)
+                .process_pending_with_catalogs_like_cpp(handler_catalogs)
                 .await;
             (count, session.is_disconnecting())
         });
@@ -364,7 +364,7 @@ pub(super) async fn create_session(
 
     if run_world_session_until_disconnect_like_cpp(
         &mut session,
-        resources.core.object_mgr_catalogs.as_ref(),
+        resources.core.handler_catalogs.as_ref(),
         account_id,
         active_session_registry.as_ref(),
         session_cancellation.as_ref(),

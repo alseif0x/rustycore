@@ -31,7 +31,7 @@ use tracing::{debug, info};
 use wow_packet::WorldPacket;
 
 use super::{
-    ClientOpcodes, ObjectMgrCatalogsLikeCpp, RuntimeTickOwner, SessionState, WorldSession,
+    ClientOpcodes, RuntimeTickOwner, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession,
 };
 
 impl WorldSession {
@@ -193,7 +193,7 @@ impl WorldSession {
     /// Process pending packets asynchronously. Call after `update()`.
     pub async fn process_pending_with_catalogs_like_cpp(
         &mut self,
-        catalogs: &ObjectMgrCatalogsLikeCpp,
+        catalogs: &SessionHandlerCatalogsLikeCpp,
     ) {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
         self.flush_packet_spoof_ban_like_cpp().await;
@@ -254,12 +254,28 @@ impl WorldSession {
 
     #[cfg(test)]
     pub async fn process_pending(&mut self) {
+        let empty_catalogs = SessionHandlerCatalogsLikeCpp::default();
         let catalogs = self
             .object_mgr_catalogs_like_cpp
             .as_ref()
             .cloned()
             .unwrap_or_default();
-        self.process_pending_with_catalogs_like_cpp(catalogs.as_ref())
-            .await;
+        let catalogs = SessionHandlerCatalogsLikeCpp {
+            object_mgr: catalogs,
+            bank_bag_slot_prices: self
+                .bank_bag_slot_prices_store
+                .clone()
+                .unwrap_or(empty_catalogs.bank_bag_slot_prices),
+            emotes: self.emotes_store.clone().unwrap_or(empty_catalogs.emotes),
+            emotes_text: self
+                .emotes_text_store
+                .clone()
+                .unwrap_or(empty_catalogs.emotes_text),
+            tact_keys: self
+                .tact_key_store
+                .clone()
+                .unwrap_or(empty_catalogs.tact_keys),
+        };
+        self.process_pending_with_catalogs_like_cpp(&catalogs).await;
     }
 }

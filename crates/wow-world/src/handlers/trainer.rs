@@ -3552,7 +3552,7 @@ mod tests {
         logged_in
             .session
             .dispatch_packet(
-                &crate::session::ObjectMgrCatalogsLikeCpp::default(),
+                &crate::session::SessionHandlerCatalogsLikeCpp::default(),
                 trainer_buy_wire_packet(
                     logged_in.trainer,
                     DEFAULT_TRAINER_ID as i32,
@@ -3578,7 +3578,7 @@ mod tests {
         authed
             .session
             .dispatch_packet(
-                &crate::session::ObjectMgrCatalogsLikeCpp::default(),
+                &crate::session::SessionHandlerCatalogsLikeCpp::default(),
                 trainer_buy_wire_packet(authed.trainer, DEFAULT_TRAINER_ID as i32, MISSING_SPELL),
             )
             .await;

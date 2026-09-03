@@ -303,10 +303,17 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_db_query_bulk",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::DbQueryBulk::read(&mut pkt) {
-                    Ok(query) => session.handle_db_query_bulk(query).await,
+                    Ok(query) => {
+                        session
+                            .handle_db_query_bulk_with_tact_keys_like_cpp(
+                                catalogs.tact_keys.as_ref(),
+                                query,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read DbQueryBulk: {e}"),
                 }
             })
@@ -420,7 +427,10 @@ inventory::submit! {
                 match wow_packet::packets::query::QueryCreature::read(&mut pkt) {
                     Ok(query) => {
                         session
-                            .handle_query_creature_with_catalogs_like_cpp(catalogs, query)
+                            .handle_query_creature_with_catalogs_like_cpp(
+                                catalogs.object_mgr.as_ref(),
+                                query,
+                            )
                             .await
                     }
                     Err(e) => tracing::warn!("Failed to read QueryCreature: {e}"),
@@ -441,7 +451,10 @@ inventory::submit! {
                 match wow_packet::packets::query::QueryGameObject::read(&mut pkt) {
                     Ok(query) => {
                         session
-                            .handle_query_game_object_with_catalogs_like_cpp(catalogs, query)
+                            .handle_query_game_object_with_catalogs_like_cpp(
+                                catalogs.object_mgr.as_ref(),
+                                query,
+                            )
                             .await
                     }
                     Err(e) => tracing::warn!("Failed to read QueryGameObject: {e}"),
@@ -496,7 +509,10 @@ inventory::submit! {
                 match wow_packet::packets::query::QueryPageText::read(&mut pkt) {
                     Ok(query) => {
                         session
-                            .handle_query_page_text_with_catalogs_like_cpp(catalogs, query)
+                            .handle_query_page_text_with_catalogs_like_cpp(
+                                catalogs.object_mgr.as_ref(),
+                                query,
+                            )
                             .await
                     }
                     Err(e) => tracing::warn!("Failed to read QueryPageText: {e}"),
@@ -796,10 +812,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_buy_bank_slot",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::BuyBankSlot::read(&mut pkt) {
-                    Ok(buy) => session.handle_buy_bank_slot(buy).await,
+                    Ok(buy) => {
+                        session
+                            .handle_buy_bank_slot_with_prices_like_cpp(
+                                catalogs.bank_bag_slot_prices.as_ref(),
+                                buy,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BuyBankSlot: {e}"),
                 }
             })

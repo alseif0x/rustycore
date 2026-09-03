@@ -117,7 +117,11 @@ impl WorldSession {
     /// that coherent state. Rust must cross SQL here because detached group
     /// payouts use the character money row as their durable cap authority, so
     /// persist both fields atomically before publishing either runtime field.
-    pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
+    pub(crate) async fn handle_buy_bank_slot_with_prices_like_cpp(
+        &mut self,
+        prices: &wow_data::BankBagSlotPricesStore,
+        buy: BuyBankSlot,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
@@ -136,7 +140,7 @@ impl WorldSession {
             return;
         };
         let next_slot = u32::from(current_bank_slots) + 1;
-        let Some(price) = self.bank_bag_slot_price_like_cpp(next_slot) else {
+        let Some(price) = prices.get(next_slot).map(|entry| entry.cost) else {
             debug!(
                 next_slot,
                 account = self.account_id,
@@ -243,6 +247,16 @@ impl WorldSession {
             None,
         ));
         self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
+        let prices = self
+            .bank_bag_slot_prices_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| Arc::new(wow_data::BankBagSlotPricesStore::from_entries([])));
+        self.handle_buy_bank_slot_with_prices_like_cpp(prices.as_ref(), buy)
             .await;
     }
 

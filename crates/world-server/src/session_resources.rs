@@ -33,9 +33,9 @@ pub(super) struct SessionResources {
 
 /// Required process capabilities shared by every admitted session.
 pub(super) struct SessionCoreCapabilitiesLikeCpp {
-    /// Required immutable ObjectMgr-style query capability. Construction is
-    /// infallible only after every startup catalog loaded successfully.
-    pub(super) object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>,
+    /// Required immutable catalogs borrowed by the outer packet driver for
+    /// one dispatch. Production sessions never retain this aggregate.
+    pub(super) handler_catalogs: Arc<wow_world::session::SessionHandlerCatalogsLikeCpp>,
     pub(super) gameobject_template_lifecycle_store:
         Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
     /// Complete production persistence graph. Its four nested capabilities
@@ -56,11 +56,8 @@ pub(super) struct SessionCoreCapabilitiesLikeCpp {
 
 /// Immutable item, equipment, collection, battle-pet and loot catalogs.
 pub(super) struct SessionInventoryCapabilitiesLikeCpp {
-    pub(super) bank_bag_slot_prices_store: Arc<wow_data::BankBagSlotPricesStore>,
     pub(super) currency_types_store: Arc<wow_data::CurrencyTypesStore>,
     pub(super) import_price_stores: Arc<wow_data::ImportPriceStores>,
-    pub(super) emotes_store: Arc<wow_data::EmotesStore>,
-    pub(super) emotes_text_store: Arc<wow_data::EmotesTextStore>,
     pub(super) item_class_store: Arc<wow_data::ItemClassStore>,
     pub(super) item_currency_cost_store: Arc<wow_data::ItemCurrencyCostStore>,
     pub(super) item_extended_cost_store: Arc<wow_data::ItemExtendedCostStore>,
@@ -115,11 +112,8 @@ impl SessionInventoryCapabilitiesLikeCpp {
     /// composition-root operation. Production startup has already validated
     /// that every member is present before the listener is published.
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
-        session.set_bank_bag_slot_prices_store(Arc::clone(&self.bank_bag_slot_prices_store));
         session.set_currency_types_store(Arc::clone(&self.currency_types_store));
         session.set_import_price_stores(Arc::clone(&self.import_price_stores));
-        session.set_emotes_store_like_cpp(Arc::clone(&self.emotes_store));
-        session.set_emotes_text_store_like_cpp(Arc::clone(&self.emotes_text_store));
         session.set_item_class_store(Arc::clone(&self.item_class_store));
         session.set_item_currency_cost_store(Arc::clone(&self.item_currency_cost_store));
         session.set_item_extended_cost_store(Arc::clone(&self.item_extended_cost_store));
@@ -198,7 +192,6 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
         Arc<wow_data::SpellItemEnchantmentConditionStore>,
     pub(super) gem_properties_store: Arc<wow_data::GemPropertiesStore>,
     pub(super) hotfix_blob_cache: Arc<wow_data::HotfixBlobCache>,
-    pub(super) tact_key_store: Arc<wow_data::TactKeyStore>,
     pub(super) skill_store: Arc<wow_data::SkillStore>,
     pub(super) trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
     pub(super) trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
@@ -495,7 +488,6 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         ));
         session.set_gem_properties_store(Arc::clone(&self.gem_properties_store));
         session.set_hotfix_blob_cache(Arc::clone(&self.hotfix_blob_cache));
-        session.set_tact_key_store(Arc::clone(&self.tact_key_store));
         session.set_skill_store(Arc::clone(&self.skill_store));
         session.set_trait_definition_store(Arc::clone(&self.trait_definition_store));
         session.set_trait_node_entry_store(Arc::clone(&self.trait_node_entry_store));

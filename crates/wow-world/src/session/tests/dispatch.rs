@@ -23,7 +23,7 @@ async fn time_sync_response_alias_opcodes_dispatch_to_same_handler_like_cpp() {
 
         session
             .dispatch_packet(
-                &ObjectMgrCatalogsLikeCpp::default(),
+                &SessionHandlerCatalogsLikeCpp::default(),
                 WorldPacket::from_bytes(&bytes),
             )
             .await;

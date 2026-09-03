@@ -4623,7 +4623,13 @@ async fn run_inner(
     );
     let session_resources = SessionResources {
         core: SessionCoreCapabilitiesLikeCpp {
-            object_mgr_catalogs,
+            handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
+                object_mgr: object_mgr_catalogs,
+                bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
+                emotes: Arc::clone(&emotes_store),
+                emotes_text: Arc::clone(&emotes_text_store),
+                tact_keys: Arc::clone(&tact_key_store),
+            }),
             gameobject_template_lifecycle_store: Arc::clone(&gameobject_template_lifecycle_store),
             persistence,
             trainer_store: Arc::clone(&trainer_data_store),
@@ -4634,11 +4640,8 @@ async fn run_inner(
             instance_lock_mgr: Arc::clone(&instance_lock_mgr),
         },
         inventory: SessionInventoryCapabilitiesLikeCpp {
-            bank_bag_slot_prices_store: Arc::clone(&bank_bag_slot_prices_store),
             currency_types_store: Arc::clone(&currency_types_store),
             import_price_stores: Arc::clone(&import_price_stores),
-            emotes_store: Arc::clone(&emotes_store),
-            emotes_text_store: Arc::clone(&emotes_text_store),
             item_class_store: Arc::clone(&item_class_store),
             item_currency_cost_store: Arc::clone(&item_currency_cost_store),
             item_extended_cost_store: Arc::clone(&item_extended_cost_store),
@@ -4702,7 +4705,6 @@ async fn run_inner(
             ),
             gem_properties_store: Arc::clone(&gem_properties_store),
             hotfix_blob_cache: Arc::clone(&hotfix_blob_cache),
-            tact_key_store: Arc::clone(&tact_key_store),
             skill_store: Arc::clone(&skill_store),
             trait_definition_store: Arc::clone(&trait_definition_store),
             trait_node_entry_store: Arc::clone(&trait_node_entry_store),

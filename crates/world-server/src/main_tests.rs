@@ -3576,12 +3576,16 @@ fn session_resources_requires_named_capability_bundles() {
         "every inner production capability must also be required by its Rust type"
     );
     for retired_test_only_catalog in [
+        "bank_bag_slot_prices_store",
+        "emotes_store",
+        "emotes_text_store",
         "pet_default_spell_store",
         "pet_family_spell_store",
         "pet_levelup_spell_store",
         "serverside_spell_store",
         "spell_enchant_proc_store",
         "spell_totem_model_store",
+        "tact_key_store",
         "vehicle_template_store",
     ] {
         assert!(
@@ -3591,16 +3595,16 @@ fn session_resources_requires_named_capability_bundles() {
     }
     assert!(
         resources_source
-            .contains("object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>"),
-        "the composition owner must retain the required immutable ObjectMgr query catalogs"
+            .contains("handler_catalogs: Arc<wow_world::session::SessionHandlerCatalogsLikeCpp>"),
+        "the composition owner must retain the required immutable dispatch catalogs"
     );
     assert!(
         !resources_source.contains("session.set_object_mgr_catalogs_like_cpp("),
         "ObjectMgr query catalogs must not be projected into production WorldSession state"
     );
     assert!(
-        session_factory_source.contains("resources.core.object_mgr_catalogs.as_ref()"),
-        "the outer driver must borrow the process-owned ObjectMgr catalogs for dispatch"
+        session_factory_source.contains("resources.core.handler_catalogs.as_ref()"),
+        "the outer driver must borrow the process-owned catalogs for dispatch"
     );
     assert!(
         session_factory_source.contains("process_pending_with_catalogs_like_cpp"),

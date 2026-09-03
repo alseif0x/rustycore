@@ -207,8 +207,10 @@
           "name": "bank_bag_slot_prices_store",
           "type": "Option < Arc < BankBagSlotPricesStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battle_pet_account_attachment_like_cpp",
@@ -739,15 +741,19 @@
           "name": "emotes_store",
           "type": "Option < Arc < EmotesStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "emotes_text_store",
           "type": "Option < Arc < EmotesTextStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "enable_ae_loot_like_cpp",
@@ -5428,8 +5434,10 @@
           "name": "tact_key_store",
           "type": "Option < Arc < TactKeyStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "talent_store",
@@ -6486,6 +6494,22 @@
           "name": "handle_buy_bank_slot",
           "visibility": "pub",
           "signature": "async fn handle_buy_bank_slot (& mut self , buy : BuyBankSlot)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::bank",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_buy_bank_slot_with_prices_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_buy_bank_slot_with_prices_like_cpp (& mut self , prices : & wow_data :: BankBagSlotPricesStore , buy : BuyBankSlot ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7421,6 +7445,22 @@
           "name": "handle_db_query_bulk",
           "visibility": "pub",
           "signature": "async fn handle_db_query_bulk (& mut self , query : wow_packet :: packets :: misc :: DbQueryBulk)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_db_query_bulk_with_tact_keys_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_db_query_bulk_with_tact_keys_like_cpp (& mut self , tact_keys : & wow_data :: TactKeyStore , query : wow_packet :: packets :: misc :: DbQueryBulk ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8952,7 +8992,23 @@
           "kind": "method",
           "name": "handle_text_emote",
           "visibility": "pub",
-          "signature": "async fn handle_text_emote (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_text_emote (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_text_emote_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_text_emote_with_catalogs_like_cpp (& mut self , emotes_text : & wow_data :: EmotesTextStore , emotes : & wow_data :: EmotesStore , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9136,7 +9192,7 @@
           "kind": "method",
           "name": "spell_visual_kit_ids_for_emote_command_like_cpp",
           "visibility": "private",
-          "signature": "fn spell_visual_kit_ids_for_emote_command_like_cpp (& self , emote : i32 , client_spell_visual_kit_ids : & [i32] ,) -> Vec < i32 >",
+          "signature": "fn spell_visual_kit_ids_for_emote_command_like_cpp (& self , emotes : & wow_data :: EmotesStore , emote : i32 , client_spell_visual_kit_ids : & [i32] ,) -> Vec < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21636,11 +21692,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "bank_bag_slot_price_like_cpp",
+          "name": "bank_bag_slot_prices_store_for_test_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn bank_bag_slot_price_like_cpp (& self , slot : u32) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn bank_bag_slot_prices_store_for_test_like_cpp (& self ,) -> Option < & Arc < BankBagSlotPricesStore > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -24901,7 +24959,7 @@
           "kind": "method",
           "name": "dispatch_packet",
           "visibility": "pub (crate)",
-          "signature": "async fn dispatch_packet (& mut self , catalogs : & super :: ObjectMgrCatalogsLikeCpp , mut pkt : WorldPacket ,)",
+          "signature": "async fn dispatch_packet (& mut self , catalogs : & super :: SessionHandlerCatalogsLikeCpp , mut pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25040,11 +25098,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "emotes_store_like_cpp",
+          "name": "emotes_store_for_test_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn emotes_store_like_cpp (& self) -> Option < & Arc < EmotesStore > >",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn emotes_store_for_test_like_cpp (& self) -> Option < & Arc < EmotesStore > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25053,11 +25113,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "emotes_text_store_like_cpp",
+          "name": "emotes_text_store_for_test_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn emotes_text_store_like_cpp (& self) -> Option < & Arc < EmotesTextStore > >",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn emotes_text_store_for_test_like_cpp (& self) -> Option < & Arc < EmotesTextStore > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -31891,7 +31953,7 @@
           "kind": "method",
           "name": "process_pending_with_catalogs_like_cpp",
           "visibility": "pub",
-          "signature": "async fn process_pending_with_catalogs_like_cpp (& mut self , catalogs : & ObjectMgrCatalogsLikeCpp ,)",
+          "signature": "async fn process_pending_with_catalogs_like_cpp (& mut self , catalogs : & SessionHandlerCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42757,8 +42819,10 @@
           "name": "set_bank_bag_slot_prices_store",
           "visibility": "pub",
           "signature": "fn set_bank_bag_slot_prices_store (& mut self , store : Arc < BankBagSlotPricesStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -43654,8 +43718,10 @@
           "name": "set_emotes_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_emotes_store_like_cpp (& mut self , store : Arc < EmotesStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -43668,8 +43734,10 @@
           "name": "set_emotes_text_store_like_cpp",
           "visibility": "pub",
           "signature": "fn set_emotes_text_store_like_cpp (& mut self , store : Arc < EmotesTextStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48438,8 +48506,10 @@
           "name": "set_tact_key_store",
           "visibility": "pub",
           "signature": "fn set_tact_key_store (& mut self , store : Arc < TactKeyStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -49806,11 +49876,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "tact_key_store",
-          "visibility": "pub",
-          "signature": "fn tact_key_store (& self) -> Option < & Arc < TactKeyStore > >",
-          "cfg": [],
-          "source_class": "production",
+          "name": "tact_key_store_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn tact_key_store_for_test_like_cpp (& self) -> Option < & Arc < TactKeyStore > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -52279,7 +52351,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:da3ce29ce35b51aa92d873e4ec645861:len=5622",
+      "body_fingerprint": "fnv1a64x2:000743020eb809705347e1710f8039c3:len=5619",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -52292,8 +52364,8 @@
         {
           "module": "crate::session_factory",
           "name": "run_world_session_until_disconnect_like_cpp",
-          "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , object_mgr_catalogs : & wow_world :: session :: ObjectMgrCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp ,) -> WorldSessionRunOutcomeLikeCpp",
-          "body_fingerprint": "fnv1a64x2:4b1b87cb9cecf61c7977a19e48517d27:len=1687",
+          "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , handler_catalogs : & wow_world :: session :: SessionHandlerCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp ,) -> WorldSessionRunOutcomeLikeCpp",
+          "body_fingerprint": "fnv1a64x2:6d9ad9cd49f27eacb18d832336fa3bdf:len=1684",
           "cfg": [],
           "source_class": "production"
         }
@@ -64897,7 +64969,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:da3ce29ce35b51aa92d873e4ec645861:len=5622|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:000743020eb809705347e1710f8039c3:len=5619|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73209,7 +73281,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a5cfb1612a49152f4d2a1e86922319f8:len=96105|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:cf3aaccdde18ef79dfac3cbeafc0bffa:len=96165|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -48,7 +48,7 @@ inventory::submit! {
         handler: |session, catalogs, pkt| {
             Box::pin(async move {
                 session
-                    .handle_game_obj_use_with_catalogs_like_cpp(catalogs, pkt)
+                    .handle_game_obj_use_with_catalogs_like_cpp(catalogs.object_mgr.as_ref(), pkt)
                     .await
             })
         },

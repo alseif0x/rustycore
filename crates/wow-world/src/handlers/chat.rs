@@ -262,7 +262,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_text_emote",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_text_emote(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_text_emote_with_catalogs_like_cpp(
+                        catalogs.emotes_text.as_ref(),
+                        catalogs.emotes.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -888,7 +898,12 @@ impl WorldSession {
     /// Handle CMSG_SEND_TEXT_EMOTE — player performs a text emote (/wave, /dance…).
     ///
     /// C++ ref: `WorldSession::HandleTextEmoteOpcode`.
-    pub async fn handle_text_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_text_emote_with_catalogs_like_cpp(
+        &mut self,
+        emotes_text: &wow_data::EmotesTextStore,
+        emotes: &wow_data::EmotesStore,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let msg = match CTextEmote::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
@@ -907,9 +922,8 @@ impl WorldSession {
         let Some(text_emote_id) = u32::try_from(msg.emote_id).ok() else {
             return;
         };
-        let Some(emote) = self
-            .emotes_text_store_like_cpp()
-            .and_then(|store| store.get(text_emote_id))
+        let Some(emote) = emotes_text
+            .get(text_emote_id)
             .map(|entry| i32::from(entry.emote_id))
         else {
             return;
@@ -952,6 +966,7 @@ impl WorldSession {
                 guid: player_guid,
                 emote_id: emote,
                 spell_visual_kit_ids: self.spell_visual_kit_ids_for_emote_command_like_cpp(
+                    emotes,
                     emote,
                     &msg.spell_visual_kit_ids,
                 ),
@@ -980,15 +995,15 @@ impl WorldSession {
 
     fn spell_visual_kit_ids_for_emote_command_like_cpp(
         &self,
+        emotes: &wow_data::EmotesStore,
         emote: i32,
         client_spell_visual_kit_ids: &[i32],
     ) -> Vec<i32> {
         let Some(emote_id) = u32::try_from(emote).ok() else {
             return Vec::new();
         };
-        let is_mount_special = self
-            .emotes_store_like_cpp()
-            .and_then(|store| store.get(emote_id))
+        let is_mount_special = emotes
+            .get(emote_id)
             .map(|entry| {
                 entry.anim_id == ANIM_MOUNT_SPECIAL_LIKE_CPP
                     || entry.anim_id == ANIM_MOUNT_SELF_SPECIAL_LIKE_CPP
@@ -1000,6 +1015,20 @@ impl WorldSession {
         } else {
             Vec::new()
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_text_emote(&mut self, pkt: wow_packet::WorldPacket) {
+        let emotes_text = self
+            .emotes_text_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(wow_data::EmotesTextStore::from_entries([])));
+        let emotes = self
+            .emotes_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(wow_data::EmotesStore::from_entries([])));
+        self.handle_text_emote_with_catalogs_like_cpp(emotes_text.as_ref(), emotes.as_ref(), pkt)
+            .await;
     }
 
     fn publish_player_emote_state_like_cpp(&mut self, emote_state: u32) {

@@ -7,7 +7,7 @@ impl super::WorldSession {
     /// Dispatch a single packet to its registered handler.
     pub(crate) async fn dispatch_packet(
         &mut self,
-        catalogs: &super::ObjectMgrCatalogsLikeCpp,
+        catalogs: &super::SessionHandlerCatalogsLikeCpp,
         mut pkt: WorldPacket,
     ) {
         let opcode_raw = pkt.opcode_raw();

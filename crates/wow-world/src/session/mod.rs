@@ -299,6 +299,31 @@ pub struct ObjectMgrCatalogsLikeCpp {
     pub page_text: Arc<wow_data::PageTextCatalogLikeCpp>,
 }
 
+/// Immutable process-owned catalogs that packet handlers may borrow for one
+/// dispatch. Each registration narrows this aggregate to the exact catalog its
+/// handler consumes; production `WorldSession` never stores the aggregate.
+#[derive(Clone)]
+pub struct SessionHandlerCatalogsLikeCpp {
+    pub object_mgr: Arc<ObjectMgrCatalogsLikeCpp>,
+    pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
+    pub emotes: Arc<EmotesStore>,
+    pub emotes_text: Arc<EmotesTextStore>,
+    pub tact_keys: Arc<TactKeyStore>,
+}
+
+#[cfg(test)]
+impl Default for SessionHandlerCatalogsLikeCpp {
+    fn default() -> Self {
+        Self {
+            object_mgr: Arc::new(ObjectMgrCatalogsLikeCpp::default()),
+            bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
+            emotes: Arc::new(EmotesStore::from_entries([])),
+            emotes_text: Arc::new(EmotesTextStore::from_entries([])),
+            tact_keys: Arc::new(TactKeyStore::from_entries([])),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) enum LootMoneyPersistenceErrorLikeCpp {
     MissingPlayer,
@@ -5370,6 +5395,7 @@ pub struct WorldSession {
     trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
 
     // BankBagSlotPrices.db2 store used by C++ HandleBuyBankSlotOpcode.
+    #[cfg(test)]
     bank_bag_slot_prices_store: Option<Arc<BankBagSlotPricesStore>>,
 
     // Currency types store (CurrencyTypes.db2 data)
@@ -5379,7 +5405,9 @@ pub struct WorldSession {
     import_price_stores: Option<Arc<ImportPriceStores>>,
 
     // Emotes.db2 / EmotesText.db2 stores used by C++ chat text-emote handling.
+    #[cfg(test)]
     emotes_store: Option<Arc<EmotesStore>>,
+    #[cfg(test)]
     emotes_text_store: Option<Arc<EmotesTextStore>>,
 
     // Item class store (ItemClass.db2 data)
@@ -5515,6 +5543,7 @@ pub struct WorldSession {
 
     // Hotfix blob cache: raw DB2 record bytes for DBReply responses
     hotfix_blob_cache: Option<Arc<HotfixBlobCache>>,
+    #[cfg(test)]
     tact_key_store: Option<Arc<TactKeyStore>>,
 
     // Skill store (auto-learned spells from SkillLineAbility.db2 + SkillRaceClassInfo.db2)
@@ -7781,10 +7810,13 @@ impl WorldSession {
             homebind_persistence_tx_like_cpp: None,
             persistence_ports_like_cpp: Box::default(),
             trainer_store_like_cpp: None,
+            #[cfg(test)]
             bank_bag_slot_prices_store: None,
             currency_types_store: None,
             import_price_stores: None,
+            #[cfg(test)]
             emotes_store: None,
+            #[cfg(test)]
             emotes_text_store: None,
             item_class_store: None,
             item_currency_cost_store: None,
@@ -7849,6 +7881,7 @@ impl WorldSession {
             #[cfg(test)]
             spell_enchant_proc_store: None,
             hotfix_blob_cache: None,
+            #[cfg(test)]
             tact_key_store: None,
             skill_store: None,
             trait_definition_store: None,
@@ -17980,16 +18013,16 @@ impl WorldSession {
     }
 
     /// Set the C++ BankBagSlotPrices.db2 store for this session.
+    #[cfg(test)]
     pub fn set_bank_bag_slot_prices_store(&mut self, store: Arc<BankBagSlotPricesStore>) {
         self.bank_bag_slot_prices_store = Some(store);
     }
 
-    /// C++ `sBankBagSlotPricesStore.LookupEntry(slot)`.
-    pub(crate) fn bank_bag_slot_price_like_cpp(&self, slot: u32) -> Option<u32> {
-        self.bank_bag_slot_prices_store
-            .as_ref()
-            .and_then(|store| store.get(slot))
-            .map(|entry| entry.cost)
+    #[cfg(test)]
+    pub(crate) fn bank_bag_slot_prices_store_for_test_like_cpp(
+        &self,
+    ) -> Option<&Arc<BankBagSlotPricesStore>> {
+        self.bank_bag_slot_prices_store.as_ref()
     }
 
     /// Set the currency types store for this session.
@@ -18008,20 +18041,24 @@ impl WorldSession {
     }
 
     /// Set the C++ Emotes.db2 store for `Unit::HandleEmoteCommand`.
+    #[cfg(test)]
     pub fn set_emotes_store_like_cpp(&mut self, store: Arc<EmotesStore>) {
         self.emotes_store = Some(store);
     }
 
-    pub(crate) fn emotes_store_like_cpp(&self) -> Option<&Arc<EmotesStore>> {
+    #[cfg(test)]
+    pub(crate) fn emotes_store_for_test_like_cpp(&self) -> Option<&Arc<EmotesStore>> {
         self.emotes_store.as_ref()
     }
 
     /// Set the C++ EmotesText.db2 store for `HandleTextEmoteOpcode`.
+    #[cfg(test)]
     pub fn set_emotes_text_store_like_cpp(&mut self, store: Arc<EmotesTextStore>) {
         self.emotes_text_store = Some(store);
     }
 
-    pub(crate) fn emotes_text_store_like_cpp(&self) -> Option<&Arc<EmotesTextStore>> {
+    #[cfg(test)]
+    pub(crate) fn emotes_text_store_for_test_like_cpp(&self) -> Option<&Arc<EmotesTextStore>> {
         self.emotes_text_store.as_ref()
     }
 
@@ -27127,11 +27164,13 @@ impl WorldSession {
     }
 
     /// Set the TactKey.db2 store for typed SMSG_DB_REPLY serialization.
+    #[cfg(test)]
     pub fn set_tact_key_store(&mut self, store: Arc<TactKeyStore>) {
         self.tact_key_store = Some(store);
     }
 
-    pub fn tact_key_store(&self) -> Option<&Arc<TactKeyStore>> {
+    #[cfg(test)]
+    pub(crate) fn tact_key_store_for_test_like_cpp(&self) -> Option<&Arc<TactKeyStore>> {
         self.tact_key_store.as_ref()
     }
 
