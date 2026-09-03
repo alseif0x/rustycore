@@ -393,9 +393,42 @@ fn registry_like_cpp(
         qualities,
         breed_states,
         species_states,
+        Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([])),
         7,
         0x0102_0007,
     )
+}
+
+#[test]
+fn account_owner_is_the_single_battle_pet_catalog_consumer_like_cpp() {
+    let (species, qualities, breed_states, species_states) = stores_like_cpp(0);
+    let owner = BattlePetAccountOwnerLikeCpp::from_loaded_like_cpp(
+        77,
+        7,
+        0x0102_0007,
+        Arc::new(FakePersistenceLikeCpp::default()),
+        species,
+        qualities,
+        breed_states,
+        species_states,
+        Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([
+            wow_data::BattlePetXpEntryLikeCpp {
+                wins: 1.0,
+                xp: 321.0,
+            },
+        ])),
+        LoadedBattlePetAccountLikeCpp {
+            pets: Vec::new(),
+            slots: Vec::new(),
+        },
+    );
+
+    assert!(owner.species_entry_like_cpp(11).is_some());
+    assert!(
+        !owner.species_has_flag_like_cpp(11, BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP,)
+    );
+    assert!(owner.calculate_stats_like_cpp(7, 11, 1, 1).is_some());
+    assert_eq!(owner.xp_per_level_like_cpp(1), Some(321));
 }
 
 fn add_request_like_cpp(key: u8, species: u32, owner: u64) -> BattlePetAddRequestLikeCpp {
@@ -689,6 +722,7 @@ fn loaded_rows_apply_cpp_species_owner_capacity_and_slot_validation_like_cpp() {
         qualities,
         breed_states,
         species_states,
+        Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([])),
         loaded,
     );
     let state = owner.state.lock().expect("battle-pet account state");
@@ -714,6 +748,7 @@ fn unique_species_criteria_count_keeps_pending_removed_pets_like_cpp() {
         qualities,
         breed_states,
         species_states,
+        Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([])),
         LoadedBattlePetAccountLikeCpp {
             pets: vec![
                 durable_pet_row_like_cpp(1, 11, None),
@@ -790,6 +825,7 @@ async fn cross_process_lease_handoff_reloads_before_next_realm_mutates() {
         qualities.clone(),
         breed_states.clone(),
         species_states.clone(),
+        Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([])),
         7,
         0x0102_0007,
     );
@@ -799,6 +835,7 @@ async fn cross_process_lease_handoff_reloads_before_next_realm_mutates() {
         qualities,
         breed_states,
         species_states,
+        Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([])),
         8,
         0x0102_0008,
     );

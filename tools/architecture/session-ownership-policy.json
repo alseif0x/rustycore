@@ -239,15 +239,19 @@
           "name": "battle_pet_breed_quality_store",
           "type": "Option < Arc < BattlePetBreedQualityStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battle_pet_breed_state_store",
           "type": "Option < Arc < BattlePetBreedStateStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battle_pet_purchase_selection_override_like_cpp",
@@ -269,22 +273,28 @@
           "name": "battle_pet_species_state_store",
           "type": "Option < Arc < BattlePetSpeciesStateStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battle_pet_species_store",
           "type": "Option < Arc < BattlePetSpeciesStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battle_pet_xp_game_table",
           "type": "Option < Arc < BattlePetXpGameTableLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "battlemaster_list_store",
@@ -45311,8 +45321,10 @@
           "name": "set_battle_pet_breed_quality_store",
           "visibility": "pub",
           "signature": "fn set_battle_pet_breed_quality_store (& mut self , store : Arc < BattlePetBreedQualityStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45325,8 +45337,10 @@
           "name": "set_battle_pet_breed_state_store",
           "visibility": "pub",
           "signature": "fn set_battle_pet_breed_state_store (& mut self , store : Arc < BattlePetBreedStateStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45383,8 +45397,10 @@
           "name": "set_battle_pet_species_state_store",
           "visibility": "pub",
           "signature": "fn set_battle_pet_species_state_store (& mut self , store : Arc < BattlePetSpeciesStateStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45397,8 +45413,10 @@
           "name": "set_battle_pet_species_store",
           "visibility": "pub",
           "signature": "fn set_battle_pet_species_store (& mut self , store : Arc < BattlePetSpeciesStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45411,8 +45429,10 @@
           "name": "set_battle_pet_xp_game_table",
           "visibility": "pub",
           "signature": "fn set_battle_pet_xp_game_table (& mut self , table : Arc < BattlePetXpGameTableLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -75973,7 +75993,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:2009f366cb298c20e07abb544457270b:len=97007|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d06a85a52628dd0c28b0a9ffaf616ac7:len=97082|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

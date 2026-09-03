@@ -92,9 +92,7 @@ use wow_data::character_progression::{ChrClassesStore, ChrRacesStore, PowerTypeS
 use wow_data::trait_tree::{TraitDefinitionStore, TraitNodeEntryStore};
 use wow_data::{
     AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerDb2Store,
-    AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore,
-    BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
-    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, BattlemasterListStore,
+    AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore, BattlemasterListStore,
     ChrSpecializationStore, CinematicSequencesStore, CombatRatingsGameTableLikeCpp,
     ConditionEntriesByTypeStore, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
     CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
@@ -138,7 +136,7 @@ use wow_data::{
     TalentStore, TalentTabStore, TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp,
     TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    WorldSafeLocStore, calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
+    WorldSafeLocStore, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -155,6 +153,11 @@ use wow_data::{
         SPELL_CLICK_USER_RAID_LIKE_CPP, UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
+};
+#[cfg(test)]
+use wow_data::{
+    BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
+    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, calculate_battle_pet_stats_like_cpp,
 };
 #[cfg(test)]
 use wow_data::{
@@ -5773,10 +5776,15 @@ pub struct WorldSession {
     toy_store: Option<Arc<ToyStore>>,
 
     // Battle-pet stat stores used by C++ `BattlePet::CalculateStats`.
+    #[cfg(test)]
     battle_pet_breed_quality_store: Option<Arc<BattlePetBreedQualityStore>>,
+    #[cfg(test)]
     battle_pet_breed_state_store: Option<Arc<BattlePetBreedStateStore>>,
+    #[cfg(test)]
     battle_pet_species_store: Option<Arc<BattlePetSpeciesStore>>,
+    #[cfg(test)]
     battle_pet_species_state_store: Option<Arc<BattlePetSpeciesStateStore>>,
+    #[cfg(test)]
     battle_pet_xp_game_table: Option<Arc<BattlePetXpGameTableLikeCpp>>,
 
     // C++ `sCombatRatingsGameTable` used by `Player::GetRatingMultiplier`.
@@ -8222,13 +8230,18 @@ impl WorldSession {
             trinity_string_store: None,
             heirloom_store: None,
             toy_store: None,
+            #[cfg(test)]
             battle_pet_breed_quality_store: None,
+            #[cfg(test)]
             battle_pet_breed_state_store: None,
+            #[cfg(test)]
             battle_pet_species_store: None,
+            #[cfg(test)]
             battle_pet_species_state_store: None,
             battle_pet_selection_store_like_cpp: None,
             #[cfg(test)]
             battle_pet_purchase_selection_override_like_cpp: None,
+            #[cfg(test)]
             battle_pet_xp_game_table: None,
             combat_ratings_game_table: None,
             shield_block_regular_game_table: None,
@@ -18455,10 +18468,17 @@ impl WorldSession {
         &self,
         species: u32,
     ) -> Option<wow_data::BattlePetSpeciesEntry> {
-        self.battle_pet_species_store
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment.owner_like_cpp().species_entry_like_cpp(species);
+        }
+        #[cfg(test)]
+        return self
+            .battle_pet_species_store
             .as_ref()
             .and_then(|store| store.get(species))
-            .cloned()
+            .cloned();
+        #[cfg(not(test))]
+        None
     }
 
     /// Quarantine this session after an unreconcilable battle-pet purchase
@@ -19614,22 +19634,27 @@ impl WorldSession {
         self.toy_store.as_ref()
     }
 
+    #[cfg(test)]
     pub fn set_battle_pet_breed_quality_store(&mut self, store: Arc<BattlePetBreedQualityStore>) {
         self.battle_pet_breed_quality_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_battle_pet_breed_state_store(&mut self, store: Arc<BattlePetBreedStateStore>) {
         self.battle_pet_breed_state_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_battle_pet_species_store(&mut self, store: Arc<BattlePetSpeciesStore>) {
         self.battle_pet_species_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_battle_pet_species_state_store(&mut self, store: Arc<BattlePetSpeciesStateStore>) {
         self.battle_pet_species_state_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_battle_pet_xp_game_table(&mut self, table: Arc<BattlePetXpGameTableLikeCpp>) {
         self.battle_pet_xp_game_table = Some(table);
     }
@@ -19659,21 +19684,31 @@ impl WorldSession {
         quality: u8,
         level: u16,
     ) -> Option<RepresentedBattlePetCalculatedStatsLikeCpp> {
-        let stats = calculate_battle_pet_stats_like_cpp(
-            breed,
-            species,
-            quality,
-            level,
-            self.battle_pet_breed_state_store.as_ref()?,
-            self.battle_pet_species_state_store.as_ref()?,
-            self.battle_pet_breed_quality_store.as_ref()?,
-        )?;
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment
+                .owner_like_cpp()
+                .calculate_stats_like_cpp(breed, species, quality, level);
+        }
+        #[cfg(test)]
+        {
+            let stats = calculate_battle_pet_stats_like_cpp(
+                breed,
+                species,
+                quality,
+                level,
+                self.battle_pet_breed_state_store.as_ref()?,
+                self.battle_pet_species_state_store.as_ref()?,
+                self.battle_pet_breed_quality_store.as_ref()?,
+            )?;
 
-        Some(RepresentedBattlePetCalculatedStatsLikeCpp {
-            max_health: stats.max_health,
-            power: stats.power,
-            speed: stats.speed,
-        })
+            Some(RepresentedBattlePetCalculatedStatsLikeCpp {
+                max_health: stats.max_health,
+                power: stats.power,
+                speed: stats.speed,
+            })
+        }
+        #[cfg(not(test))]
+        None
     }
 
     /// Set the transmog set item store for this session.
@@ -23064,24 +23099,38 @@ impl WorldSession {
 
     fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
         let canonical = self
-            .battle_pet_xp_game_table
+            .battle_pet_account_attachment_like_cpp
             .as_ref()
-            .and_then(|table| table.xp_per_level_like_cpp(level));
+            .and_then(|attachment| attachment.owner_like_cpp().xp_per_level_like_cpp(level));
         #[cfg(test)]
         return canonical.or_else(|| {
-            self.represented_battle_pet_xp_per_level_like_cpp
-                .get(&level)
-                .copied()
+            self.battle_pet_xp_game_table
+                .as_ref()
+                .and_then(|table| table.xp_per_level_like_cpp(level))
+                .or_else(|| {
+                    self.represented_battle_pet_xp_per_level_like_cpp
+                        .get(&level)
+                        .copied()
+                })
         });
         #[cfg(not(test))]
         canonical
     }
 
     fn battle_pet_species_has_flag_like_cpp(&self, species: u32, flag: i32) -> bool {
-        self.battle_pet_species_store
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment
+                .owner_like_cpp()
+                .species_has_flag_like_cpp(species, flag);
+        }
+        #[cfg(test)]
+        return self
+            .battle_pet_species_store
             .as_ref()
             .and_then(|store| store.get(species))
-            .is_some_and(|entry| entry.has_flag_like_cpp(flag))
+            .is_some_and(|entry| entry.has_flag_like_cpp(flag));
+        #[cfg(not(test))]
+        false
     }
 
     pub(crate) fn represented_faction_reaction_to_like_cpp(
@@ -71504,11 +71553,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(species_entry) = self
-            .battle_pet_species_store
-            .as_ref()
-            .and_then(|store| store.get(modifiers.species_id))
-            .cloned()
+        let Some(species_entry) = self.battle_pet_species_entry_like_cpp(modifiers.species_id)
         else {
             return;
         };
@@ -71676,11 +71721,7 @@ impl WorldSession {
                 continue;
             };
 
-            if let Some(species) = self
-                .battle_pet_species_store
-                .as_ref()
-                .and_then(|store| store.get(pet.species))
-            {
+            if let Some(species) = self.battle_pet_species_entry_like_cpp(pet.species) {
                 let battle_pet_type = effect.effect_misc_value_1 as u32;
                 if battle_pet_type != 0 {
                     let type_mask = 1u32

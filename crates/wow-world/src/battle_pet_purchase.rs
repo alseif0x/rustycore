@@ -2699,6 +2699,7 @@ mod executor_tests {
                 qualities,
                 breed_states,
                 species_states,
+                Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([])),
                 REALM_ID,
                 VIRTUAL_REALM,
             ),
