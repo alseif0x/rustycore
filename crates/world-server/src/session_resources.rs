@@ -155,7 +155,6 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) glyph_properties_store: Arc<wow_data::GlyphPropertiesStore>,
     pub(super) chr_races_store: Arc<wow_data::character_progression::ChrRacesStore>,
     pub(super) chr_classes_store: Arc<wow_data::character_progression::ChrClassesStore>,
-    pub(super) power_type_store: Arc<wow_data::character_progression::PowerTypeStore>,
 }
 
 /// Immutable SpellMgr-style catalogs and audited spell authority.
@@ -298,8 +297,6 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) enable_ae_loot: bool,
     /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
     pub(super) server_expansion: u8,
-    /// C++ `CONFIG_DECLINED_NAMES_USED` / `DeclinedNames`.
-    pub(super) declined_names_used: bool,
     /// C++ `CONFIG_INSTANCE_IGNORE_RAID` / `Instance.IgnoreRaid`.
     pub(super) instance_ignore_raid: bool,
     /// C++ `CONFIG_INSTANCE_IGNORE_LEVEL` / `Instance.IgnoreLevel`.
@@ -369,7 +366,6 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         session.set_glyph_properties_store(Arc::clone(&self.glyph_properties_store));
         session.set_chr_races_store(Arc::clone(&self.chr_races_store));
         session.set_chr_classes_store(Arc::clone(&self.chr_classes_store));
-        session.set_power_type_store(Arc::clone(&self.power_type_store));
     }
 }
 
@@ -513,7 +509,6 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_vmap_indoor_check_like_cpp(self.vmap_indoor_check);
         session.set_enable_ae_loot_like_cpp(self.enable_ae_loot);
         session.set_server_expansion_like_cpp(self.server_expansion);
-        session.set_declined_names_used_like_cpp(self.declined_names_used);
         session.set_instance_ignore_raid_like_cpp(self.instance_ignore_raid);
         session.set_instance_ignore_level_like_cpp(self.instance_ignore_level);
         session.set_max_instances_per_hour_like_cpp(self.max_instances_per_hour);

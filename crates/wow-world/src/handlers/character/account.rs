@@ -23,7 +23,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_enum_characters",
-        handler: |session, _catalogs, _pkt| Box::pin(async move { session.handle_enum_characters().await }),
+        handler: |session, catalogs, _pkt| {
+            Box::pin(async move {
+                session
+                    .handle_enum_characters_with_policy_like_cpp(
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -1236,7 +1244,10 @@ inventory::submit! {
 
 impl WorldSession {
     /// Handle CMSG_ENUM_CHARACTERS — list characters for this account.
-    pub async fn handle_enum_characters(&mut self) {
+    pub async fn handle_enum_characters_with_policy_like_cpp(
+        &mut self,
+        policy: &crate::session::SupportFeaturePolicyLikeCpp,
+    ) {
         let port = match self.character_enumeration_persistence_port_like_cpp() {
             Some(port) => port,
             None => {
@@ -1255,7 +1266,7 @@ impl WorldSession {
 
         let request = CharacterEnumerationRequestLikeCpp {
             account_id: self.account_id,
-            declined_names_used: self.declined_names_used_like_cpp(),
+            declined_names_used: policy.declined_names_used,
         };
         let (rows, cleanup_error) = match port.load_character_enumeration_like_cpp(request).await {
             CharacterEnumerationLoadOutcomeLikeCpp::Loaded {
@@ -1303,7 +1314,7 @@ impl WorldSession {
                 row.at_login_flags,
                 row.banned_guid,
                 (!row.declined_genitive.is_empty()).then_some(row.declined_genitive.as_str()),
-                self.declined_names_used_like_cpp(),
+                policy.declined_names_used,
             );
             let (pet_display_id, pet_level, pet_family) = enum_character_pet_data_like_cpp(
                 row.player_flags,
@@ -1400,6 +1411,13 @@ impl WorldSession {
             characters,
             race_unlock_data,
         });
+    }
+
+    #[cfg(test)]
+    pub async fn handle_enum_characters(&mut self) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_enum_characters_with_policy_like_cpp(&policy)
+            .await;
     }
 
     /// Build and send SMSG_CONNECT_TO to the client.

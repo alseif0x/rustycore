@@ -696,8 +696,10 @@
           "name": "declined_names_used_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "delayed_operations_processed_like_cpp",
@@ -2745,8 +2747,10 @@
           "name": "power_type_store",
           "type": "Option < Arc < PowerTypeStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "pvp_item_store",
@@ -6384,6 +6388,22 @@
           "name": "handle_enum_characters",
           "visibility": "pub",
           "signature": "async fn handle_enum_characters (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_enum_characters_with_policy_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_enum_characters_with_policy_like_cpp (& mut self , policy : & crate :: session :: SupportFeaturePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26637,8 +26657,10 @@
           "name": "declined_names_used_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn declined_names_used_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -46146,8 +46168,10 @@
           "name": "set_declined_names_used_like_cpp",
           "visibility": "pub",
           "signature": "fn set_declined_names_used_like_cpp (& mut self , used : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48981,8 +49005,10 @@
           "name": "set_power_type_store",
           "visibility": "pub",
           "signature": "fn set_power_type_store (& mut self , store : Arc < PowerTypeStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -75999,7 +76025,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a700aaf058d2da84ac28b53a6c7b82af:len=97097|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0c0fe073e03fc384716d9db6fa3674df:len=97127|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

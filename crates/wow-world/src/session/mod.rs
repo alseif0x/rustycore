@@ -357,6 +357,7 @@ pub struct CreatureSpawnCatalogsLikeCpp {
     pub health_rates: CreatureClassificationHealthRatesLikeCpp,
     pub addons: Arc<CreatureAddonStoreLikeCpp>,
     pub equipment: Arc<CreatureEquipmentStoreLikeCpp>,
+    pub power_types: Arc<PowerTypeStore>,
 }
 
 /// Process-owned player-level and exploration XP catalogs plus immutable World policy.
@@ -383,6 +384,7 @@ impl Default for CreatureSpawnCatalogsLikeCpp {
             health_rates: CreatureClassificationHealthRatesLikeCpp::default(),
             addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
             equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
+            power_types: Arc::new(PowerTypeStore::from_entries([])),
         }
     }
 }
@@ -453,6 +455,7 @@ pub struct SupportFeaturePolicyLikeCpp {
     pub character_undelete_enabled: bool,
     pub bpay_store_enabled: bool,
     pub max_characters_per_realm: u32,
+    pub declined_names_used: bool,
 }
 
 impl Default for SupportFeaturePolicyLikeCpp {
@@ -466,6 +469,7 @@ impl Default for SupportFeaturePolicyLikeCpp {
             character_undelete_enabled: false,
             bpay_store_enabled: false,
             max_characters_per_realm: 60,
+            declined_names_used: false,
         }
     }
 }
@@ -5659,6 +5663,7 @@ pub struct WorldSession {
     server_expansion_like_cpp: u8,
     #[cfg(test)]
     characters_per_realm_like_cpp: u32,
+    #[cfg(test)]
     declined_names_used_like_cpp: bool,
     #[cfg(test)]
     feature_system_bpay_store_enabled_like_cpp: bool,
@@ -7035,6 +7040,7 @@ pub struct WorldSession {
     #[cfg(test)]
     spell_totem_model_store: Option<Arc<SpellTotemModelStoreLikeCpp>>,
     chr_classes_store: Option<Arc<ChrClassesStore>>,
+    #[cfg(test)]
     power_type_store: Option<Arc<PowerTypeStore>>,
     chr_races_store: Option<Arc<ChrRacesStore>>,
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
@@ -8170,6 +8176,7 @@ impl WorldSession {
             server_expansion_like_cpp: 2,
             #[cfg(test)]
             characters_per_realm_like_cpp: 60,
+            #[cfg(test)]
             declined_names_used_like_cpp: false,
             #[cfg(test)]
             feature_system_bpay_store_enabled_like_cpp: false,
@@ -9042,6 +9049,7 @@ impl WorldSession {
             #[cfg(test)]
             spell_totem_model_store: None,
             chr_classes_store: None,
+            #[cfg(test)]
             power_type_store: None,
             chr_races_store: None,
             cinematic_sequences_store: None,
@@ -23420,10 +23428,12 @@ impl WorldSession {
         self.characters_per_realm_like_cpp = characters_per_realm;
     }
 
+    #[cfg(test)]
     pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
         self.declined_names_used_like_cpp = used;
     }
 
+    #[cfg(test)]
     pub(crate) fn declined_names_used_like_cpp(&self) -> bool {
         self.declined_names_used_like_cpp
     }
@@ -28482,6 +28492,10 @@ impl WorldSession {
                 .creature_equipment_store_like_cpp
                 .clone()
                 .unwrap_or_else(|| Arc::new(CreatureEquipmentStoreLikeCpp::default())),
+            power_types: self
+                .power_type_store
+                .clone()
+                .unwrap_or_else(|| Arc::new(PowerTypeStore::from_entries([]))),
         }
     }
 
@@ -28658,25 +28672,10 @@ impl WorldSession {
         };
 
         let base_mana = i32::try_from(base_stats.base_mana).unwrap_or(i32::MAX);
-        let initial_power = self.power_type_store.as_ref().map_or_else(
-            || {
-                let max_power = if power_type == PowerType::Mana {
-                    i32::try_from(base_stats.generate_mana_like_cpp(difficulty)).unwrap_or(i32::MAX)
-                } else {
-                    0
-                };
-                wow_data::character_progression::CreatureInitialPowerLikeCpp {
-                    max_power,
-                    power: max_power,
-                }
-            },
-            |store| {
-                store.creature_initial_power_like_cpp(
-                    power_type as i8,
-                    base_mana,
-                    difficulty.mana_modifier,
-                )
-            },
+        let initial_power = catalogs.power_types.creature_initial_power_like_cpp(
+            power_type as i8,
+            base_mana,
+            difficulty.mana_modifier,
         );
         // C++ `Creature::SetSpawnHealth` only applies the `curmana` column through
         // `SetPower(POWER_MANA, ...)`. A Focus/Energy/Rage creature keeps the
@@ -30999,6 +30998,7 @@ impl WorldSession {
         self.chr_classes_store = Some(store);
     }
 
+    #[cfg(test)]
     pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
         self.power_type_store = Some(store);
     }
@@ -31308,6 +31308,7 @@ impl WorldSession {
             character_undelete_enabled: self.feature_system_character_undelete_enabled_like_cpp,
             bpay_store_enabled: self.feature_system_bpay_store_enabled_like_cpp,
             max_characters_per_realm: self.characters_per_realm_like_cpp,
+            declined_names_used: self.declined_names_used_like_cpp,
         }
     }
 

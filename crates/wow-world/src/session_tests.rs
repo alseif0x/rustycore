@@ -37338,11 +37338,6 @@ fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp(
             },
         ),
     ]));
-    let creature_spawn_catalogs = CreatureSpawnCatalogsLikeCpp {
-        difficulty,
-        base_stats,
-        ..Default::default()
-    };
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([
         wow_data::character_progression::ChrClassesEntry {
             id: 2,
@@ -37355,7 +37350,7 @@ fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp(
             ..Default::default()
         },
     ])));
-    session.set_power_type_store(Arc::new(PowerTypeStore::from_entries([
+    let power_types = Arc::new(PowerTypeStore::from_entries([
         wow_data::character_progression::PowerTypeEntry {
             id: 800,
             name_global_string_tag: String::new(),
@@ -37386,7 +37381,13 @@ fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp(
             regen_combat: 0.0,
             flags: 0x0020 | 0x0080,
         },
-    ])));
+    ]));
+    let creature_spawn_catalogs = CreatureSpawnCatalogsLikeCpp {
+        difficulty,
+        base_stats,
+        power_types,
+        ..Default::default()
+    };
 
     let full = session.creature_create_stats_with_catalogs_like_cpp(
         &creature_spawn_catalogs,
