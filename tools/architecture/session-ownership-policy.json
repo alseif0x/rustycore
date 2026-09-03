@@ -43,8 +43,10 @@
           "name": "account_mounts_like_cpp",
           "type": "HashMap < i32 , u8 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "account_name",
@@ -2782,15 +2784,19 @@
           "name": "represented_account_heirlooms_like_cpp",
           "type": "BTreeMap < u32 , AccountHeirloomDataLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_account_toys_like_cpp",
           "type": "BTreeMap < u32 , u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_action_buttons_like_cpp",
@@ -3587,8 +3593,10 @@
           "name": "represented_favorite_item_appearances_like_cpp",
           "type": "HashMap < u32 , FavoriteAppearanceStateLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_favorite_known_spells_like_cpp",
@@ -3819,15 +3827,19 @@
           "name": "represented_item_appearance_blocks_like_cpp",
           "type": "Vec < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_appearances_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_item_bonus_actions_like_cpp",
@@ -4650,8 +4662,10 @@
           "name": "represented_temporary_item_appearances_like_cpp",
           "type": "HashMap < u32 , HashSet < ObjectGuid > >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_temporary_unsummoned_pet_number_like_cpp",
@@ -4801,8 +4815,10 @@
           "name": "represented_transmog_illusions_like_cpp",
           "type": "HashSet < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_unique_gameobject_uses",
@@ -18799,8 +18815,10 @@
           "name": "account_heirloom_bonus_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn account_heirloom_bonus_like_cpp (& self , item_id : u32) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -18837,7 +18855,7 @@
           "kind": "method",
           "name": "account_heirloom_save_rows_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn account_heirloom_save_rows_like_cpp (& self) -> Vec < AccountHeirloomSaveRowLikeCpp >",
+          "signature": "fn account_heirloom_save_rows_like_cpp (& self ,) -> Option < Vec < AccountHeirloomSaveRowLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18861,7 +18879,7 @@
           "kind": "method",
           "name": "account_item_appearance_save_plan_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn account_item_appearance_save_plan_like_cpp (& mut self ,) -> AccountItemAppearanceSavePlanLikeCpp",
+          "signature": "fn account_item_appearance_save_plan_like_cpp (& mut self ,) -> Option < AccountItemAppearanceSavePlanLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18900,7 +18918,7 @@
           "kind": "method",
           "name": "account_mount_save_rows_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn account_mount_save_rows_like_cpp (& self) -> Vec < AccountMountSaveRowLikeCpp >",
+          "signature": "fn account_mount_save_rows_like_cpp (& self ,) -> Option < Vec < AccountMountSaveRowLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18980,7 +18998,7 @@
           "kind": "method",
           "name": "account_toy_save_rows_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn account_toy_save_rows_like_cpp (& self) -> Vec < AccountToySaveRowLikeCpp >",
+          "signature": "fn account_toy_save_rows_like_cpp (& self) -> Option < Vec < AccountToySaveRowLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19006,7 +19024,7 @@
           "kind": "method",
           "name": "account_transmog_illusion_save_plan_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn account_transmog_illusion_save_plan_like_cpp (& self ,) -> AccountTransmogIllusionSavePlanLikeCpp",
+          "signature": "fn account_transmog_illusion_save_plan_like_cpp (& self ,) -> Option < AccountTransmogIllusionSavePlanLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29149,6 +29167,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_collection_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mutate_player_collection_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerCollectionStateLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_difficulty_preferences_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_difficulty_preferences_like_cpp < R > (& mut self , f : impl FnOnce (& mut u32 , & mut u32 , & mut u32) -> R ,) -> Option < R >",
@@ -30244,6 +30275,19 @@
           "name": "player_class_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_class_like_cpp (& self) -> u8",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_collection_state_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_collection_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerCollectionStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -33456,6 +33500,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "remove_account_toy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn remove_account_toy_like_cpp (& mut self , item_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "remove_all_area_triggers_for_current_player_like_cpp",
           "visibility": "private",
           "signature": "fn remove_all_area_triggers_for_current_player_like_cpp (& self ,) -> Option < wow_map :: map :: RemoveAllAreaTriggersForCasterOutcomeLikeCpp >",
@@ -34071,6 +34128,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_player_collection_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn replace_player_collection_state_like_cpp (& mut self , state : wow_entities :: PlayerCollectionStateLikeCpp ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -76438,7 +76506,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:61072cf444a32bb5f2fb887aac25b07e:len=95757|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a5aafc06b28113c5db074c80ad4af39a:len=95877|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

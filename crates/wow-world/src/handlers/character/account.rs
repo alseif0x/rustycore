@@ -1511,9 +1511,18 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account mount save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(rows) = self.account_mount_save_rows_like_cpp() else {
+            return;
+        };
         let save = AccountCollectionSaveLikeCpp::Mounts(
-            self.account_mount_save_rows_like_cpp()
-                .into_iter()
+            rows.into_iter()
                 .map(|row| AccountMountRowLikeCpp {
                     bnet_account_id: row.bnet_account_id,
                     mount_spell_id: row.mount_spell_id,
@@ -1544,9 +1553,18 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account toy save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(rows) = self.account_toy_save_rows_like_cpp() else {
+            return;
+        };
         let save = AccountCollectionSaveLikeCpp::Toys(
-            self.account_toy_save_rows_like_cpp()
-                .into_iter()
+            rows.into_iter()
                 .map(|row| AccountToyRowLikeCpp {
                     bnet_account_id: row.bnet_account_id,
                     item_id: row.item_id,
@@ -1578,9 +1596,18 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account heirloom save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(rows) = self.account_heirloom_save_rows_like_cpp() else {
+            return;
+        };
         let save = AccountCollectionSaveLikeCpp::Heirlooms(
-            self.account_heirloom_save_rows_like_cpp()
-                .into_iter()
+            rows.into_iter()
                 .map(|row| AccountHeirloomRowLikeCpp {
                     bnet_account_id: row.bnet_account_id,
                     item_id: row.item_id,
@@ -1611,7 +1638,16 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
-        let plan = self.account_item_appearance_save_plan_like_cpp();
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account appearance save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(plan) = self.account_item_appearance_save_plan_like_cpp() else {
+            return;
+        };
         if plan.is_empty() {
             return;
         }
@@ -1647,7 +1683,16 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
-        let plan = self.account_transmog_illusion_save_plan_like_cpp();
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account illusion save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(plan) = self.account_transmog_illusion_save_plan_like_cpp() else {
+            return;
+        };
         if plan.is_empty() {
             return;
         }

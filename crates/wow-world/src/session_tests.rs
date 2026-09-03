@@ -21578,7 +21578,7 @@ fn account_mount_load_adds_faction_counterpart_like_cpp() {
     assert!(session.known_spells_like_cpp().contains(&101));
     assert_eq!(
         session.account_mount_save_rows_like_cpp(),
-        vec![
+        Some(vec![
             AccountMountSaveRowLikeCpp {
                 bnet_account_id: 77,
                 mount_spell_id: 100,
@@ -21589,7 +21589,7 @@ fn account_mount_load_adds_faction_counterpart_like_cpp() {
                 mount_spell_id: 101,
                 flags: 2,
             },
-        ],
+        ]),
         "C++ CollectionMgr::SaveAccountMounts persists the final std::map collection, including faction-specific mounts"
     );
 }
@@ -34398,6 +34398,121 @@ fn canonical_player_trait_config_authority_follows_detached_and_stale_ownership_
     assert!(!replacement_runtime.trait_config_rows_complete);
     assert!(!replacement_runtime.trait_entry_rows_complete);
     assert!(!replacement_runtime.trait_entry_rows_empty);
+}
+
+#[test]
+fn canonical_player_collection_authority_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_572);
+    let temporary_item_guid = ObjectGuid::create_item(1, 9_001);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CollectionOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session
+            .mutate_player_collection_state_like_cpp(|collections| {
+                collections.mounts.insert(100, 1);
+                collections.heirlooms.insert(
+                    200,
+                    wow_entities::PlayerAccountHeirloomDataLikeCpp {
+                        flags: 2,
+                        bonus_id: 3,
+                    },
+                );
+                collections.toys.insert(300, 4);
+                collections.item_appearances.insert(400);
+                collections.item_appearance_blocks.push(5);
+                collections
+                    .temporary_item_appearances
+                    .entry(401)
+                    .or_default()
+                    .insert(temporary_item_guid);
+                collections
+                    .favorite_item_appearances
+                    .insert(400, wow_entities::PlayerFavoriteAppearanceStateLikeCpp::New);
+                collections.transmog_illusions.insert(500);
+            })
+            .is_some()
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    let detached = session
+        .player_collection_state_snapshot_like_cpp()
+        .expect("detached canonical collection owner");
+    assert_eq!(detached.mounts.get(&100), Some(&1));
+    assert_eq!(
+        detached.heirlooms.get(&200).map(|data| data.bonus_id),
+        Some(3)
+    );
+    assert_eq!(detached.toys.get(&300), Some(&4));
+    assert!(detached.item_appearances.contains(&400));
+    assert_eq!(detached.item_appearance_blocks, vec![5]);
+    assert_eq!(
+        detached.temporary_item_appearances.get(&401),
+        Some(&HashSet::from([temporary_item_guid]))
+    );
+    assert!(detached.favorite_item_appearances.contains_key(&400));
+    assert!(detached.transmog_illusions.contains(&500));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .player_collection_state_snapshot_like_cpp()
+            .is_none()
+    );
+    assert!(
+        session
+            .mutate_player_collection_state_like_cpp(|collections| {
+                collections.mounts.insert(999, 0);
+            })
+            .is_none(),
+        "a stale Session generation must not mutate collection authority"
+    );
+    let replacement_collections = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(replacement_handle, |player| {
+            player.gameplay_state().collections.clone()
+        })
+        .expect("replacement collection owner");
+    assert_eq!(
+        replacement_collections,
+        wow_entities::PlayerCollectionStateLikeCpp::default()
+    );
 }
 
 #[test]
@@ -64882,11 +64997,11 @@ fn account_heirloom_rows_filter_by_heirloom_store_like_cpp() {
     );
     assert_eq!(
         session.account_heirloom_save_rows_like_cpp(),
-        vec![AccountHeirloomSaveRowLikeCpp {
+        Some(vec![AccountHeirloomSaveRowLikeCpp {
             bnet_account_id: 77,
             item_id: 44_000,
             flags: 0x03,
-        }],
+        }]),
         "C++ CollectionMgr::SaveAccountHeirlooms appends the battlenet account id to the LoginDatabase transaction"
     );
     assert_eq!(
@@ -65267,7 +65382,7 @@ fn account_toy_rows_preserve_cpp_flags_like_cpp() {
     );
     assert_eq!(
         session.account_toy_save_rows_like_cpp(),
-        vec![
+        Some(vec![
             AccountToySaveRowLikeCpp {
                 bnet_account_id: 77,
                 item_id: 30_000,
@@ -65280,7 +65395,7 @@ fn account_toy_rows_preserve_cpp_flags_like_cpp() {
                 is_favorite: false,
                 has_fanfare: true,
             },
-        ],
+        ]),
         "C++ CollectionMgr::SaveAccountToys appends the battlenet account id to the LoginDatabase transaction"
     );
     assert_eq!(
@@ -69035,7 +69150,9 @@ fn account_item_appearance_save_plan_matches_collection_mgr_state_transitions_li
         .represented_favorite_item_appearances_like_cpp
         .insert(97, FavoriteAppearanceStateLikeCpp::Unchanged);
 
-    let plan = session.account_item_appearance_save_plan_like_cpp();
+    let plan = session
+        .account_item_appearance_save_plan_like_cpp()
+        .expect("resolved collection owner");
 
     assert_eq!(
         plan.appearance_blocks,
@@ -69078,7 +69195,9 @@ fn account_transmog_illusion_save_plan_writes_non_empty_blocks_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_represented_account_transmog_illusions_like_cpp([(2, 1_u32 << 3)]);
 
-    let plan = session.account_transmog_illusion_save_plan_like_cpp();
+    let plan = session
+        .account_transmog_illusion_save_plan_like_cpp()
+        .expect("resolved collection owner");
 
     assert_eq!(
         plan.illusion_blocks,

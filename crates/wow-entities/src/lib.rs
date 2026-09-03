@@ -267,8 +267,9 @@ pub use player::{
     item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 pub use player_gameplay_state::{
-    PlayerCinematicStateLikeCpp, PlayerCurrency, PlayerCurrencyState,
-    PlayerDamageControlStateLikeCpp, PlayerGameplayState, PlayerGossipOptionLikeCpp,
+    PlayerAccountHeirloomDataLikeCpp, PlayerCinematicStateLikeCpp, PlayerCollectionStateLikeCpp,
+    PlayerCurrency, PlayerCurrencyState, PlayerDamageControlStateLikeCpp,
+    PlayerFavoriteAppearanceStateLikeCpp, PlayerGameplayState, PlayerGossipOptionLikeCpp,
     PlayerHomebindLikeCpp, PlayerInteractionDataLikeCpp, PlayerItemBonusStateLikeCpp,
     PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp, PlayerItemSetEffectLikeCpp,
     PlayerMenuStateLikeCpp, PlayerMovementControlStateLikeCpp, PlayerPetLifecycleStateLikeCpp,

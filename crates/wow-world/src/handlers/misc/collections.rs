@@ -509,8 +509,7 @@ impl crate::session::WorldSession {
                 destroyed_entry_id, bag, slot, self.account_id
             );
         } else {
-            self.represented_account_toys_like_cpp
-                .remove(&destroyed_entry_id);
+            self.remove_account_toy_like_cpp(destroyed_entry_id);
         }
     }
 }

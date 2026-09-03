@@ -3221,19 +3221,8 @@ pub(crate) enum RepresentedTransmogCriteriaEvent {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FavoriteAppearanceStateLikeCpp {
-    New,
-    Removed,
-    Unchanged,
-}
-
-/// C++ `CollectionMgr::HeirloomData`, represented until the full collection manager owns it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AccountHeirloomDataLikeCpp {
-    pub(crate) flags: u32,
-    pub(crate) bonus_id: u32,
-}
+pub(crate) use wow_entities::PlayerAccountHeirloomDataLikeCpp as AccountHeirloomDataLikeCpp;
+pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct AccountItemAppearanceSavePlanLikeCpp {
@@ -6061,6 +6050,7 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_armor_proficiency_like_cpp: u32,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
+    #[cfg(test)]
     account_mounts_like_cpp: HashMap<i32, u8>,
     /// Login snapshot of the player's spell history + charge packets. C++ reads these
     /// live from `Player::GetSpellHistory()` in `SendInitialPacketsBeforeAddToMap`; Rust
@@ -6756,21 +6746,28 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) seasonal_quest_changed_like_cpp: bool,
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
+    #[cfg(test)]
     pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, AccountHeirloomDataLikeCpp>,
     /// C++ `CollectionMgr::_toys`, represented until account collection runtime is complete.
+    #[cfg(test)]
     pub(crate) represented_account_toys_like_cpp: BTreeMap<u32, u32>,
     /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
+    #[cfg(test)]
     pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
     /// C++ `CollectionMgr::LoadAccountItemAppearances` block vector used by
     /// `ActivePlayerData::Transmog`. This preserves sparse `blobIndex` rows
     /// that cannot be recovered from `_appearances` alone.
+    #[cfg(test)]
     pub(crate) represented_item_appearance_blocks_like_cpp: Vec<u32>,
     /// C++ `CollectionMgr::_temporaryAppearances`, represented until account collection persistence is ported.
+    #[cfg(test)]
     pub(crate) represented_temporary_item_appearances_like_cpp: HashMap<u32, HashSet<ObjectGuid>>,
     /// C++ `CollectionMgr::_favoriteAppearances`, represented until account collection persistence is ported.
+    #[cfg(test)]
     pub(crate) represented_favorite_item_appearances_like_cpp:
         HashMap<u32, FavoriteAppearanceStateLikeCpp>,
     /// C++ `CollectionMgr::_transmogIllusions`, represented until account collection runtime is complete.
+    #[cfg(test)]
     pub(crate) represented_transmog_illusions_like_cpp: HashSet<u32>,
     /// C++ `BattlePetMgr::_pets`, represented minimally until full battle-pet runtime is ported.
     /// Production sessions use `battle_pet_account_attachment_like_cpp`; this
@@ -8205,6 +8202,7 @@ impl WorldSession {
             represented_weapon_proficiency_like_cpp: 0,
             #[cfg(test)]
             represented_armor_proficiency_like_cpp: 0,
+            #[cfg(test)]
             account_mounts_like_cpp: HashMap::new(),
             #[cfg(test)]
             represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
@@ -8603,12 +8601,19 @@ impl WorldSession {
             seasonal_quests_like_cpp: BTreeMap::new(),
             #[cfg(test)]
             seasonal_quest_changed_like_cpp: false,
+            #[cfg(test)]
             represented_account_heirlooms_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_account_toys_like_cpp: BTreeMap::new(),
+            #[cfg(test)]
             represented_item_appearances_like_cpp: HashSet::new(),
+            #[cfg(test)]
             represented_item_appearance_blocks_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_temporary_item_appearances_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
+            #[cfg(test)]
             represented_transmog_illusions_like_cpp: HashSet::new(),
             #[cfg(test)]
             represented_battle_pets_like_cpp: HashMap::new(),
@@ -10324,6 +10329,20 @@ impl WorldSession {
                 self.represented_void_storage_items_like_cpp.to_vec();
             player.gameplay_state_mut().void_storage_loaded =
                 self.represented_void_storage_loaded_like_cpp;
+            player.gameplay_state_mut().collections = wow_entities::PlayerCollectionStateLikeCpp {
+                mounts: self.account_mounts_like_cpp.clone(),
+                heirlooms: self.represented_account_heirlooms_like_cpp.clone(),
+                toys: self.represented_account_toys_like_cpp.clone(),
+                item_appearances: self.represented_item_appearances_like_cpp.clone(),
+                item_appearance_blocks: self.represented_item_appearance_blocks_like_cpp.clone(),
+                temporary_item_appearances: self
+                    .represented_temporary_item_appearances_like_cpp
+                    .clone(),
+                favorite_item_appearances: self
+                    .represented_favorite_item_appearances_like_cpp
+                    .clone(),
+                transmog_illusions: self.represented_transmog_illusions_like_cpp.clone(),
+            };
         }
         player
             .unit_mut()
@@ -19014,6 +19033,69 @@ impl WorldSession {
             .collect()
     }
 
+    pub(crate) fn player_collection_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerCollectionStateLikeCpp> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.gameplay_state().collections.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerCollectionStateLikeCpp {
+                mounts: self.account_mounts_like_cpp.clone(),
+                heirlooms: self.represented_account_heirlooms_like_cpp.clone(),
+                toys: self.represented_account_toys_like_cpp.clone(),
+                item_appearances: self.represented_item_appearances_like_cpp.clone(),
+                item_appearance_blocks: self.represented_item_appearance_blocks_like_cpp.clone(),
+                temporary_item_appearances: self
+                    .represented_temporary_item_appearances_like_cpp
+                    .clone(),
+                favorite_item_appearances: self
+                    .represented_favorite_item_appearances_like_cpp
+                    .clone(),
+                transmog_illusions: self.represented_transmog_illusions_like_cpp.clone(),
+            });
+        }
+        canonical
+    }
+
+    fn replace_player_collection_state_like_cpp(
+        &mut self,
+        state: wow_entities::PlayerCollectionStateLikeCpp,
+    ) -> bool {
+        let canonical = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player.gameplay_state_mut().collections = state.clone();
+            })
+            .is_some();
+        #[cfg(test)]
+        {
+            self.account_mounts_like_cpp = state.mounts.clone();
+            self.represented_account_heirlooms_like_cpp = state.heirlooms.clone();
+            self.represented_account_toys_like_cpp = state.toys.clone();
+            self.represented_item_appearances_like_cpp = state.item_appearances.clone();
+            self.represented_item_appearance_blocks_like_cpp = state.item_appearance_blocks.clone();
+            self.represented_temporary_item_appearances_like_cpp =
+                state.temporary_item_appearances.clone();
+            self.represented_favorite_item_appearances_like_cpp =
+                state.favorite_item_appearances.clone();
+            self.represented_transmog_illusions_like_cpp = state.transmog_illusions.clone();
+            if self.player_handle_like_cpp.is_none() {
+                return true;
+            }
+        }
+        canonical
+    }
+
+    pub(crate) fn mutate_player_collection_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerCollectionStateLikeCpp) -> R,
+    ) -> Option<R> {
+        let mut state = self.player_collection_state_snapshot_like_cpp()?;
+        let result = mutate(&mut state);
+        self.replace_player_collection_state_like_cpp(state)
+            .then_some(result)
+    }
+
     /// Bounded C++ `CollectionMgr::AddItemAppearance`.
     pub fn add_item_appearance_like_cpp(
         &mut self,
@@ -19023,7 +19105,8 @@ impl WorldSession {
         let bit_index = item_modified_appearance_id % 32;
         let flag = 1_u32.checked_shl(bit_index)?;
         let had_temporary = self
-            .represented_temporary_item_appearances_like_cpp
+            .player_collection_state_snapshot_like_cpp()?
+            .temporary_item_appearances
             .contains_key(&item_modified_appearance_id);
 
         let result = self.mutate_canonical_player_like_cpp(|player| {
@@ -19039,12 +19122,16 @@ impl WorldSession {
             added_flag.then(|| player.values_update(true))
         })??;
 
-        self.represented_item_appearances_like_cpp
-            .insert(item_modified_appearance_id);
-        if had_temporary {
-            self.represented_temporary_item_appearances_like_cpp
-                .remove(&item_modified_appearance_id);
-        }
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            collections
+                .item_appearances
+                .insert(item_modified_appearance_id);
+            if had_temporary {
+                collections
+                    .temporary_item_appearances
+                    .remove(&item_modified_appearance_id);
+            }
+        })?;
         self.update_represented_transmog_criteria_like_cpp(item_modified_appearance_id);
         Some(result)
     }
@@ -19264,9 +19351,12 @@ impl WorldSession {
             return false;
         }
 
-        !self
-            .represented_item_appearances_like_cpp
-            .contains(&item_modified_appearance_id)
+        self.player_collection_state_snapshot_like_cpp()
+            .is_some_and(|collections| {
+                !collections
+                    .item_appearances
+                    .contains(&item_modified_appearance_id)
+            })
     }
 
     fn item_spec_class_mask_from_overrides_like_cpp(&self, item_id: u32) -> Option<u32> {
@@ -19371,15 +19461,18 @@ impl WorldSession {
 
     /// C++ `CollectionMgr::HasItemAppearance`.
     pub fn has_item_appearance_like_cpp(&self, item_modified_appearance_id: u32) -> (bool, bool) {
-        if self
-            .represented_item_appearances_like_cpp
+        let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
+            return (false, false);
+        };
+        if collections
+            .item_appearances
             .contains(&item_modified_appearance_id)
         {
             return (true, false);
         }
 
-        if self
-            .represented_temporary_item_appearances_like_cpp
+        if collections
+            .temporary_item_appearances
             .contains_key(&item_modified_appearance_id)
         {
             return (true, true);
@@ -19393,7 +19486,7 @@ impl WorldSession {
         &mut self,
         heirloom_rows: impl IntoIterator<Item = (u32, u32)>,
     ) {
-        self.represented_account_heirlooms_like_cpp.clear();
+        let mut heirlooms = BTreeMap::new();
         for (item_id, flags) in heirloom_rows {
             let bonus_id = match self.heirloom_store.as_ref() {
                 Some(store) => {
@@ -19404,33 +19497,46 @@ impl WorldSession {
                 }
                 None => 0,
             };
-            self.represented_account_heirlooms_like_cpp
-                .insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id });
+            heirlooms.insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id });
         }
+        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
+            collections.heirlooms = heirlooms;
+        });
     }
 
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
-        self.represented_account_heirlooms_like_cpp
-            .iter()
-            .map(|(&item_id, data)| (item_id, data.flags))
-            .collect()
+        self.player_collection_state_snapshot_like_cpp()
+            .map(|collections| {
+                collections
+                    .heirlooms
+                    .into_iter()
+                    .map(|(item_id, data)| (item_id, data.flags))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
-    pub(crate) fn account_heirloom_save_rows_like_cpp(&self) -> Vec<AccountHeirloomSaveRowLikeCpp> {
+    pub(crate) fn account_heirloom_save_rows_like_cpp(
+        &self,
+    ) -> Option<Vec<AccountHeirloomSaveRowLikeCpp>> {
         let bnet_account_id = self.battlenet_account_id();
-        self.account_heirloom_rows_like_cpp()
-            .into_iter()
-            .map(|(item_id, flags)| AccountHeirloomSaveRowLikeCpp {
-                bnet_account_id,
-                item_id,
-                flags,
-            })
-            .collect()
+        Some(
+            self.player_collection_state_snapshot_like_cpp()?
+                .heirlooms
+                .into_iter()
+                .map(|(item_id, data)| AccountHeirloomSaveRowLikeCpp {
+                    bnet_account_id,
+                    item_id,
+                    flags: data.flags,
+                })
+                .collect(),
+        )
     }
 
     /// C++ `CollectionMgr::GetHeirloomBonus`.
+    #[cfg(test)]
     pub(crate) fn account_heirloom_bonus_like_cpp(&self, item_id: u32) -> u32 {
         self.represented_account_heirlooms_like_cpp
             .get(&item_id)
@@ -19440,23 +19546,33 @@ impl WorldSession {
 
     /// C++ `CollectionMgr::GetAccountHeirlooms` full update payload.
     pub(crate) fn account_heirloom_packet_rows_like_cpp(&self) -> Vec<AccountHeirloom> {
-        self.represented_account_heirlooms_like_cpp
-            .iter()
-            .filter_map(|(&item_id, data)| {
-                Some(AccountHeirloom {
-                    item_id: i32::try_from(item_id).ok()?,
-                    flags: data.flags,
-                })
+        self.player_collection_state_snapshot_like_cpp()
+            .map(|collections| {
+                collections
+                    .heirlooms
+                    .into_iter()
+                    .filter_map(|(item_id, data)| {
+                        Some(AccountHeirloom {
+                            item_id: i32::try_from(item_id).ok()?,
+                            flags: data.flags,
+                        })
+                    })
+                    .collect()
             })
-            .collect()
+            .unwrap_or_default()
     }
 
     /// C++ `CollectionMgr::LoadHeirlooms` active-player create data order.
     pub(crate) fn account_heirloom_active_player_rows_like_cpp(&self) -> Vec<(i32, u32)> {
-        self.represented_account_heirlooms_like_cpp
-            .iter()
-            .filter_map(|(&item_id, data)| Some((i32::try_from(item_id).ok()?, data.flags)))
-            .collect()
+        self.player_collection_state_snapshot_like_cpp()
+            .map(|collections| {
+                collections
+                    .heirlooms
+                    .into_iter()
+                    .filter_map(|(item_id, data)| Some((i32::try_from(item_id).ok()?, data.flags)))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     fn account_heirloom_update_opcode_resolved_like_cpp() -> bool {
@@ -19483,16 +19599,16 @@ impl WorldSession {
 
     /// C++ `CollectionMgr::AddHeirloom` / `UpdateAccountHeirlooms`.
     pub(crate) fn add_account_heirloom_like_cpp(&mut self, item_id: u32, flags: u32) -> bool {
-        if self
-            .represented_account_heirlooms_like_cpp
-            .contains_key(&item_id)
-        {
-            return false;
-        }
-
-        self.represented_account_heirlooms_like_cpp
-            .insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id: 0 });
-        true
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            if collections.heirlooms.contains_key(&item_id) {
+                return false;
+            }
+            collections
+                .heirlooms
+                .insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id: 0 });
+            true
+        })
+        .unwrap_or(false)
     }
 
     /// C++ `Player::AddHeirloom`, called from `CollectionMgr::AddHeirloom`
@@ -19521,7 +19637,8 @@ impl WorldSession {
             .get_by_item_id_like_cpp(item_id)?
             .clone();
         let current_flags = self
-            .represented_account_heirlooms_like_cpp
+            .player_collection_state_snapshot_like_cpp()?
+            .heirlooms
             .get(&item_id)?
             .flags;
         let active_item_id = i32::try_from(item_id).ok()?;
@@ -19547,11 +19664,12 @@ impl WorldSession {
                 .then(|| player.values_update(true))
         })??;
 
-        let data = self
-            .represented_account_heirlooms_like_cpp
-            .get_mut(&item_id)?;
-        data.flags = flags;
-        data.bonus_id = bonus_id;
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            let data = collections.heirlooms.get_mut(&item_id)?;
+            data.flags = flags;
+            data.bonus_id = bonus_id;
+            Some(())
+        })??;
         Some(update)
     }
 
@@ -19585,7 +19703,9 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let heirloom_store = Arc::clone(self.heirloom_store.as_ref()?);
         let heirloom = heirloom_store.get_by_item_id_like_cpp(item_id)?;
-        self.represented_account_heirlooms_like_cpp.get(&item_id)?;
+        self.player_collection_state_snapshot_like_cpp()?
+            .heirlooms
+            .get(&item_id)?;
 
         let mut heirloom_item_id = u32::try_from(heirloom.static_upgraded_item_id).ok()?;
         let mut new_item_id = 0_u32;
@@ -19627,14 +19747,16 @@ impl WorldSession {
             (set_item && set_flags).then(|| player.values_update(true))
         })??;
 
-        self.represented_account_heirlooms_like_cpp.remove(&item_id);
-        self.represented_account_heirlooms_like_cpp.insert(
-            new_item_id,
-            AccountHeirloomDataLikeCpp {
-                flags: 0,
-                bonus_id: 0,
-            },
-        );
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            collections.heirlooms.remove(&item_id);
+            collections.heirlooms.insert(
+                new_item_id,
+                AccountHeirloomDataLikeCpp {
+                    flags: 0,
+                    bonus_id: 0,
+                },
+            );
+        })?;
         Some(update)
     }
 
@@ -19643,7 +19765,7 @@ impl WorldSession {
         &mut self,
         toy_rows: impl IntoIterator<Item = (u32, bool, bool)>,
     ) {
-        self.represented_account_toys_like_cpp.clear();
+        let mut toys = BTreeMap::new();
         for (item_id, is_favorite, has_fanfare) in toy_rows {
             let mut flags = 0_u32;
             if is_favorite {
@@ -19652,65 +19774,86 @@ impl WorldSession {
             if has_fanfare {
                 flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
             }
-            self.represented_account_toys_like_cpp
-                .insert(item_id, flags);
+            toys.insert(item_id, flags);
         }
+        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
+            collections.toys = toys;
+        });
     }
 
     /// C++ `CollectionMgr::SaveAccountToys`.
     pub(crate) fn account_toy_rows_like_cpp(&self) -> Vec<(u32, bool, bool)> {
-        self.represented_account_toys_like_cpp
-            .iter()
-            .map(|(&item_id, &flags)| {
-                (
-                    item_id,
-                    (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                    (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
-                )
+        self.player_collection_state_snapshot_like_cpp()
+            .map(|collections| {
+                collections
+                    .toys
+                    .into_iter()
+                    .map(|(item_id, flags)| {
+                        (
+                            item_id,
+                            (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                            (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                        )
+                    })
+                    .collect()
             })
-            .collect()
+            .unwrap_or_default()
     }
 
     /// C++ `CollectionMgr::SaveAccountToys`.
-    pub(crate) fn account_toy_save_rows_like_cpp(&self) -> Vec<AccountToySaveRowLikeCpp> {
+    pub(crate) fn account_toy_save_rows_like_cpp(&self) -> Option<Vec<AccountToySaveRowLikeCpp>> {
         let bnet_account_id = self.battlenet_account_id();
-        self.account_toy_rows_like_cpp()
-            .into_iter()
-            .map(
-                |(item_id, is_favorite, has_fanfare)| AccountToySaveRowLikeCpp {
+        Some(
+            self.player_collection_state_snapshot_like_cpp()?
+                .toys
+                .into_iter()
+                .map(|(item_id, flags)| AccountToySaveRowLikeCpp {
                     bnet_account_id,
                     item_id,
-                    is_favorite,
-                    has_fanfare,
-                },
-            )
-            .collect()
+                    is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                    has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                })
+                .collect(),
+        )
     }
 
     /// C++ `CollectionMgr::GetAccountToys` full update payload.
     pub(crate) fn account_toy_packet_rows_like_cpp(&self) -> Vec<AccountToy> {
-        self.represented_account_toys_like_cpp
-            .iter()
-            .map(|(&item_id, &flags)| AccountToy {
-                item_id,
-                is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+        self.player_collection_state_snapshot_like_cpp()
+            .map(|collections| {
+                collections
+                    .toys
+                    .into_iter()
+                    .map(|(item_id, flags)| AccountToy {
+                        item_id,
+                        is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                        has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                    })
+                    .collect()
             })
-            .collect()
+            .unwrap_or_default()
     }
 
     /// C++ `CollectionMgr::LoadToys` active-player create data order.
     pub(crate) fn account_toy_active_player_rows_like_cpp(&self) -> Vec<i32> {
-        self.represented_account_toys_like_cpp
-            .keys()
-            .filter_map(|&item_id| i32::try_from(item_id).ok())
-            .collect()
+        self.player_collection_state_snapshot_like_cpp()
+            .map(|collections| {
+                collections
+                    .toys
+                    .into_keys()
+                    .filter_map(|item_id| i32::try_from(item_id).ok())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// C++ `CollectionMgr::LoadAccountItemAppearances` active-player create data order.
     pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
-        if !self.represented_item_appearance_blocks_like_cpp.is_empty() {
-            return self.represented_item_appearance_blocks_like_cpp.clone();
+        let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
+            return Vec::new();
+        };
+        if !collections.item_appearance_blocks.is_empty() {
+            return collections.item_appearance_blocks;
         }
 
         if let Some(blocks) = self
@@ -19719,13 +19862,12 @@ impl WorldSession {
             return blocks;
         }
 
-        let Some(highest_appearance) = self.represented_item_appearances_like_cpp.iter().max()
-        else {
+        let Some(highest_appearance) = collections.item_appearances.iter().max() else {
             return Vec::new();
         };
 
         let mut blocks = vec![0_u32; (highest_appearance / 32 + 1) as usize];
-        for &item_modified_appearance_id in &self.represented_item_appearances_like_cpp {
+        for &item_modified_appearance_id in &collections.item_appearances {
             let block_index = (item_modified_appearance_id / 32) as usize;
             let bit_index = item_modified_appearance_id % 32;
             if let Some(flag) = 1_u32.checked_shl(bit_index) {
@@ -19753,8 +19895,8 @@ impl WorldSession {
 
     /// C++ `CollectionMgr::HasToy`.
     pub(crate) fn has_account_toy_like_cpp(&self, item_id: u32) -> bool {
-        self.represented_account_toys_like_cpp
-            .contains_key(&item_id)
+        self.player_collection_state_snapshot_like_cpp()
+            .is_some_and(|collections| collections.toys.contains_key(&item_id))
     }
 
     /// C++ `std::find_if(item->Effects, spellId)` in `HandleUseToy`.
@@ -20058,13 +20200,6 @@ impl WorldSession {
         is_favorite: bool,
         has_fanfare: bool,
     ) -> bool {
-        if self
-            .represented_account_toys_like_cpp
-            .contains_key(&item_id)
-        {
-            return false;
-        }
-
         let mut flags = 0_u32;
         if is_favorite {
             flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
@@ -20072,9 +20207,19 @@ impl WorldSession {
         if has_fanfare {
             flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
         }
-        self.represented_account_toys_like_cpp
-            .insert(item_id, flags);
-        true
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            if collections.toys.contains_key(&item_id) {
+                return false;
+            }
+            collections.toys.insert(item_id, flags);
+            true
+        })
+        .unwrap_or(false)
+    }
+
+    pub(crate) fn remove_account_toy_like_cpp(&mut self, item_id: u32) -> bool {
+        self.mutate_player_collection_state_like_cpp(|state| state.toys.remove(&item_id).is_some())
+            .unwrap_or(false)
     }
 
     /// C++ `Player::AddToy`, called from `CollectionMgr::AddToy` after the
@@ -20092,26 +20237,30 @@ impl WorldSession {
 
     /// C++ `CollectionMgr::ToyClearFanfare`.
     pub(crate) fn toy_clear_fanfare_like_cpp(&mut self, item_id: u32) -> bool {
-        let Some(flags) = self.represented_account_toys_like_cpp.get_mut(&item_id) else {
-            return false;
-        };
-
-        *flags &= !TOY_FLAG_HAS_FANFARE_LIKE_CPP;
-        true
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            let Some(flags) = collections.toys.get_mut(&item_id) else {
+                return false;
+            };
+            *flags &= !TOY_FLAG_HAS_FANFARE_LIKE_CPP;
+            true
+        })
+        .unwrap_or(false)
     }
 
     /// C++ `CollectionMgr::ToySetFavorite`.
     pub(crate) fn toy_set_favorite_like_cpp(&mut self, item_id: u32, favorite: bool) -> bool {
-        let Some(flags) = self.represented_account_toys_like_cpp.get_mut(&item_id) else {
-            return false;
-        };
-
-        if favorite {
-            *flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
-        } else {
-            *flags &= !TOY_FLAG_FAVORITE_LIKE_CPP;
-        }
-        true
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            let Some(flags) = collections.toys.get_mut(&item_id) else {
+                return false;
+            };
+            if favorite {
+                *flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
+            } else {
+                *flags &= !TOY_FLAG_FAVORITE_LIKE_CPP;
+            }
+            true
+        })
+        .unwrap_or(false)
     }
 
     /// C++ `CollectionMgr::LoadAccountItemAppearances`.
@@ -20120,10 +20269,6 @@ impl WorldSession {
         known_appearance_blocks: impl IntoIterator<Item = (u32, u32)>,
         favorite_appearances: impl IntoIterator<Item = u32>,
     ) {
-        self.represented_item_appearances_like_cpp.clear();
-        self.represented_item_appearance_blocks_like_cpp.clear();
-        self.represented_favorite_item_appearances_like_cpp.clear();
-
         let mut blocks = BTreeMap::new();
         for (block_index, appearance_mask) in known_appearance_blocks {
             if appearance_mask != 0 {
@@ -20131,20 +20276,20 @@ impl WorldSession {
             }
         }
 
+        let mut item_appearances = HashSet::new();
         for (&block_index, &appearance_mask) in &blocks {
             for bit_index in 0..32 {
                 if (appearance_mask & (1_u32 << bit_index)) != 0 {
-                    self.represented_item_appearances_like_cpp
-                        .insert(block_index * 32 + bit_index);
+                    item_appearances.insert(block_index * 32 + bit_index);
                 }
             }
         }
 
+        let mut item_appearance_blocks = Vec::new();
         if let Some((&highest_block, _)) = blocks.iter().next_back() {
-            self.represented_item_appearance_blocks_like_cpp = vec![0; highest_block as usize + 1];
+            item_appearance_blocks = vec![0; highest_block as usize + 1];
             for (&block_index, &appearance_mask) in &blocks {
-                self.represented_item_appearance_blocks_like_cpp[block_index as usize] =
-                    appearance_mask;
+                item_appearance_blocks[block_index as usize] = appearance_mask;
             }
 
             self.mutate_canonical_player_like_cpp(|player| {
@@ -20160,20 +20305,24 @@ impl WorldSession {
             });
         }
 
-        for item_modified_appearance_id in favorite_appearances {
-            self.represented_favorite_item_appearances_like_cpp.insert(
-                item_modified_appearance_id,
-                FavoriteAppearanceStateLikeCpp::Unchanged,
-            );
-        }
+        let favorite_item_appearances = favorite_appearances
+            .into_iter()
+            .map(|appearance| (appearance, FavoriteAppearanceStateLikeCpp::Unchanged))
+            .collect();
+        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
+            collections.item_appearances = item_appearances;
+            collections.item_appearance_blocks = item_appearance_blocks;
+            collections.favorite_item_appearances = favorite_item_appearances;
+        });
     }
 
     /// C++ `CollectionMgr::SaveAccountItemAppearances`.
     pub(crate) fn account_item_appearance_save_plan_like_cpp(
         &mut self,
-    ) -> AccountItemAppearanceSavePlanLikeCpp {
+    ) -> Option<AccountItemAppearanceSavePlanLikeCpp> {
+        let mut collections = self.player_collection_state_snapshot_like_cpp()?;
         let mut blocks = BTreeMap::<u32, u32>::new();
-        for &item_modified_appearance_id in &self.represented_item_appearances_like_cpp {
+        for &item_modified_appearance_id in &collections.item_appearances {
             let block_index = item_modified_appearance_id / 32;
             let bit_index = item_modified_appearance_id % 32;
             if let Some(flag) = 1_u32.checked_shl(bit_index) {
@@ -20183,8 +20332,8 @@ impl WorldSession {
 
         let mut favorite_inserts = Vec::new();
         let mut favorite_deletes = Vec::new();
-        let favorite_states = self
-            .represented_favorite_item_appearances_like_cpp
+        let favorite_states = collections
+            .favorite_item_appearances
             .iter()
             .map(|(&appearance, &state)| (appearance, state))
             .collect::<BTreeMap<_, _>>();
@@ -20192,28 +20341,31 @@ impl WorldSession {
             match state {
                 FavoriteAppearanceStateLikeCpp::New => {
                     favorite_inserts.push(item_modified_appearance_id);
-                    self.represented_favorite_item_appearances_like_cpp.insert(
+                    collections.favorite_item_appearances.insert(
                         item_modified_appearance_id,
                         FavoriteAppearanceStateLikeCpp::Unchanged,
                     );
                 }
                 FavoriteAppearanceStateLikeCpp::Removed => {
                     favorite_deletes.push(item_modified_appearance_id);
-                    self.represented_favorite_item_appearances_like_cpp
+                    collections
+                        .favorite_item_appearances
                         .remove(&item_modified_appearance_id);
                 }
                 FavoriteAppearanceStateLikeCpp::Unchanged => {}
             }
         }
 
-        AccountItemAppearanceSavePlanLikeCpp {
+        let plan = AccountItemAppearanceSavePlanLikeCpp {
             appearance_blocks: blocks
                 .into_iter()
                 .filter(|(_, appearance_mask)| *appearance_mask != 0)
                 .collect(),
             favorite_inserts,
             favorite_deletes,
-        }
+        };
+        let _ = self.replace_player_collection_state_like_cpp(collections);
+        Some(plan)
     }
 
     /// C++ `CollectionMgr::SetAppearanceIsFavorite`.
@@ -20225,37 +20377,41 @@ impl WorldSession {
         use FavoriteAppearanceStateLikeCpp::{New, Removed, Unchanged};
         use std::collections::hash_map::Entry;
 
-        let changed = if apply {
-            match self
-                .represented_favorite_item_appearances_like_cpp
-                .entry(item_modified_appearance_id)
-            {
-                Entry::Vacant(entry) => {
-                    entry.insert(New);
-                    true
+        let changed = self
+            .mutate_player_collection_state_like_cpp(|collections| {
+                if apply {
+                    match collections
+                        .favorite_item_appearances
+                        .entry(item_modified_appearance_id)
+                    {
+                        Entry::Vacant(entry) => {
+                            entry.insert(New);
+                            true
+                        }
+                        Entry::Occupied(mut entry) if *entry.get() == Removed => {
+                            entry.insert(Unchanged);
+                            true
+                        }
+                        Entry::Occupied(_) => false,
+                    }
+                } else {
+                    match collections
+                        .favorite_item_appearances
+                        .entry(item_modified_appearance_id)
+                    {
+                        Entry::Occupied(entry) if *entry.get() == New => {
+                            entry.remove();
+                            true
+                        }
+                        Entry::Occupied(mut entry) => {
+                            entry.insert(Removed);
+                            true
+                        }
+                        Entry::Vacant(_) => false,
+                    }
                 }
-                Entry::Occupied(mut entry) if *entry.get() == Removed => {
-                    entry.insert(Unchanged);
-                    true
-                }
-                Entry::Occupied(_) => false,
-            }
-        } else {
-            match self
-                .represented_favorite_item_appearances_like_cpp
-                .entry(item_modified_appearance_id)
-            {
-                Entry::Occupied(entry) if *entry.get() == New => {
-                    entry.remove();
-                    true
-                }
-                Entry::Occupied(mut entry) => {
-                    entry.insert(Removed);
-                    true
-                }
-                Entry::Vacant(_) => false,
-            }
-        };
+            })
+            .unwrap_or(false);
 
         if changed {
             if !Self::account_transmog_update_opcode_resolved_like_cpp() {
@@ -20293,10 +20449,13 @@ impl WorldSession {
             return;
         }
 
-        let favorite_appearances = self
-            .represented_favorite_item_appearances_like_cpp
-            .iter()
-            .filter_map(|(&appearance, &state)| {
+        let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
+            return;
+        };
+        let favorite_appearances = collections
+            .favorite_item_appearances
+            .into_iter()
+            .filter_map(|(appearance, state)| {
                 (state != FavoriteAppearanceStateLikeCpp::Removed).then_some(appearance)
             })
             .collect::<Vec<_>>();
@@ -20314,36 +20473,41 @@ impl WorldSession {
         &mut self,
         known_illusion_blocks: impl IntoIterator<Item = (u32, u32)>,
     ) {
-        self.represented_transmog_illusions_like_cpp.clear();
-
+        let mut illusions = HashSet::new();
         for (block_index, illusion_mask) in known_illusion_blocks {
             for bit_index in 0..32 {
                 if (illusion_mask & (1_u32 << bit_index)) != 0 {
-                    self.represented_transmog_illusions_like_cpp
-                        .insert(block_index * 32 + bit_index);
+                    illusions.insert(block_index * 32 + bit_index);
                 }
             }
         }
 
         for illusion_id in DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP {
-            self.represented_transmog_illusions_like_cpp
-                .insert(illusion_id);
+            illusions.insert(illusion_id);
         }
+        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
+            collections.transmog_illusions = illusions;
+        });
     }
 
     /// C++ `CollectionMgr::HasTransmogIllusion`.
     #[allow(dead_code)]
     pub(crate) fn has_transmog_illusion_like_cpp(&self, transmog_illusion_id: u32) -> bool {
-        self.represented_transmog_illusions_like_cpp
-            .contains(&transmog_illusion_id)
+        self.player_collection_state_snapshot_like_cpp()
+            .is_some_and(|collections| {
+                collections
+                    .transmog_illusions
+                    .contains(&transmog_illusion_id)
+            })
     }
 
     /// C++ `CollectionMgr::SaveAccountTransmogIllusions`.
     pub(crate) fn account_transmog_illusion_save_plan_like_cpp(
         &self,
-    ) -> AccountTransmogIllusionSavePlanLikeCpp {
+    ) -> Option<AccountTransmogIllusionSavePlanLikeCpp> {
         let mut blocks = BTreeMap::<u32, u32>::new();
-        for &illusion_id in &self.represented_transmog_illusions_like_cpp {
+        let collections = self.player_collection_state_snapshot_like_cpp()?;
+        for &illusion_id in &collections.transmog_illusions {
             let block_index = illusion_id / 32;
             let bit_index = illusion_id % 32;
             if let Some(flag) = 1_u32.checked_shl(bit_index) {
@@ -20351,12 +20515,12 @@ impl WorldSession {
             }
         }
 
-        AccountTransmogIllusionSavePlanLikeCpp {
+        Some(AccountTransmogIllusionSavePlanLikeCpp {
             illusion_blocks: blocks
                 .into_iter()
                 .filter(|(_, illusion_mask)| *illusion_mask != 0)
                 .collect(),
-        }
+        })
     }
 
     #[cfg(test)]
@@ -20375,12 +20539,15 @@ impl WorldSession {
         item_modified_appearance_id: u32,
         item_guid: ObjectGuid,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let items_with_appearance = self
-            .represented_temporary_item_appearances_like_cpp
-            .entry(item_modified_appearance_id)
-            .or_default();
-        let was_empty = items_with_appearance.is_empty();
-        items_with_appearance.insert(item_guid);
+        let was_empty = self.mutate_player_collection_state_like_cpp(|collections| {
+            let items = collections
+                .temporary_item_appearances
+                .entry(item_modified_appearance_id)
+                .or_default();
+            let was_empty = items.is_empty();
+            items.insert(item_guid);
+            was_empty
+        })?;
 
         was_empty.then_some(())?;
         self.mutate_canonical_player_like_cpp(|player| {
@@ -20395,19 +20562,19 @@ impl WorldSession {
         item_modified_appearance_id: u32,
         item_guid: ObjectGuid,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let items_with_appearance = self
-            .represented_temporary_item_appearances_like_cpp
-            .get_mut(&item_modified_appearance_id)?;
-        if !items_with_appearance.remove(&item_guid) {
-            return None;
-        }
-
-        if !items_with_appearance.is_empty() {
-            return None;
-        }
-
-        self.represented_temporary_item_appearances_like_cpp
-            .remove(&item_modified_appearance_id);
+        let removed_last = self.mutate_player_collection_state_like_cpp(|collections| {
+            let items = collections
+                .temporary_item_appearances
+                .get_mut(&item_modified_appearance_id)?;
+            if !items.remove(&item_guid) || !items.is_empty() {
+                return None;
+            }
+            collections
+                .temporary_item_appearances
+                .remove(&item_modified_appearance_id);
+            Some(())
+        })??;
+        let _ = removed_last;
         self.mutate_canonical_player_like_cpp(|player| {
             player.remove_conditional_transmog_like_cpp(item_modified_appearance_id);
             player.values_update(true)
@@ -20419,9 +20586,13 @@ impl WorldSession {
         &self,
         item_modified_appearance_id: u32,
     ) -> HashSet<ObjectGuid> {
-        self.represented_temporary_item_appearances_like_cpp
-            .get(&item_modified_appearance_id)
-            .cloned()
+        self.player_collection_state_snapshot_like_cpp()
+            .and_then(|collections| {
+                collections
+                    .temporary_item_appearances
+                    .get(&item_modified_appearance_id)
+                    .cloned()
+            })
             .unwrap_or_default()
     }
 
@@ -41573,10 +41744,13 @@ impl WorldSession {
     }
 
     pub(crate) fn set_account_mounts_like_cpp(&mut self, mounts: Vec<AccountMount>) {
-        self.account_mounts_like_cpp = mounts
+        let mounts = mounts
             .into_iter()
             .map(|mount| (mount.spell_id, mount.flags))
             .collect();
+        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
+            collections.mounts = mounts;
+        });
         self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
     }
@@ -41632,28 +41806,37 @@ impl WorldSession {
             self.add_account_mount_like_cpp(other_faction_spell_id, flags, false);
         }
 
-        match self.account_mounts_like_cpp.entry(spell_id) {
-            std::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(flags);
-                true
+        self.mutate_player_collection_state_like_cpp(|collections| {
+            match collections.mounts.entry(spell_id) {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(flags);
+                    true
+                }
+                std::collections::hash_map::Entry::Occupied(_) => false,
             }
-            std::collections::hash_map::Entry::Occupied(_) => false,
-        }
+        })
+        .unwrap_or(false)
     }
 
     fn expand_account_mount_faction_definitions_like_cpp(&mut self) {
-        let mounts: Vec<(i32, u8)> = self
-            .account_mounts_like_cpp
-            .iter()
-            .map(|(&spell_id, &flags)| (spell_id, flags))
-            .collect();
+        let Some(mounts) = self
+            .player_collection_state_snapshot_like_cpp()
+            .map(|collections| collections.mounts.into_iter().collect::<Vec<_>>())
+        else {
+            return;
+        };
         for (spell_id, flags) in mounts {
             self.add_account_mount_with_faction_counterpart_like_cpp(spell_id, flags);
         }
     }
 
     fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
-        let mut spell_ids: Vec<i32> = self.account_mounts_like_cpp.keys().copied().collect();
+        let Some(mut spell_ids) = self
+            .player_collection_state_snapshot_like_cpp()
+            .map(|collections| collections.mounts.into_keys().collect::<Vec<_>>())
+        else {
+            return 0;
+        };
         spell_ids.sort_unstable();
         spell_ids.dedup();
 
@@ -42430,11 +42613,18 @@ impl WorldSession {
     }
 
     pub(crate) fn account_mount_rows_like_cpp(&self) -> Vec<AccountMount> {
-        let mut mounts = self
-            .account_mounts_like_cpp
-            .iter()
-            .map(|(&spell_id, &flags)| AccountMount { spell_id, flags })
-            .collect::<Vec<_>>();
+        let Some(mut mounts) =
+            self.player_collection_state_snapshot_like_cpp()
+                .map(|collections| {
+                    collections
+                        .mounts
+                        .into_iter()
+                        .map(|(spell_id, flags)| AccountMount { spell_id, flags })
+                        .collect::<Vec<_>>()
+                })
+        else {
+            return Vec::new();
+        };
         mounts.sort_by_key(|mount| mount.spell_id);
         mounts
     }
@@ -42530,18 +42720,24 @@ impl WorldSession {
     }
 
     /// C++ `CollectionMgr::SaveAccountMounts`.
-    pub(crate) fn account_mount_save_rows_like_cpp(&self) -> Vec<AccountMountSaveRowLikeCpp> {
+    pub(crate) fn account_mount_save_rows_like_cpp(
+        &self,
+    ) -> Option<Vec<AccountMountSaveRowLikeCpp>> {
         let bnet_account_id = self.battlenet_account_id();
-        self.account_mount_rows_like_cpp()
+        let mut rows = self
+            .player_collection_state_snapshot_like_cpp()?
+            .mounts
             .into_iter()
-            .filter_map(|mount| {
+            .filter_map(|(spell_id, flags)| {
                 Some(AccountMountSaveRowLikeCpp {
                     bnet_account_id,
-                    mount_spell_id: u32::try_from(mount.spell_id).ok()?,
-                    flags: mount.flags,
+                    mount_spell_id: u32::try_from(spell_id).ok()?,
+                    flags,
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+        rows.sort_by_key(|row| row.mount_spell_id);
+        Some(rows)
     }
 
     pub(crate) fn mount_set_favorite_like_cpp(
@@ -42552,16 +42748,20 @@ impl WorldSession {
         let Ok(spell_id) = i32::try_from(mount_spell_id) else {
             return false;
         };
-        let Some(flags) = self.account_mounts_like_cpp.get_mut(&spell_id) else {
+        let Some(updated_flags) = self
+            .mutate_player_collection_state_like_cpp(|collections| {
+                let flags = collections.mounts.get_mut(&spell_id)?;
+                if is_favorite {
+                    *flags |= 0x01;
+                } else {
+                    *flags &= !0x01;
+                }
+                Some(*flags)
+            })
+            .flatten()
+        else {
             return false;
         };
-
-        if is_favorite {
-            *flags |= 0x01;
-        } else {
-            *flags &= !0x01;
-        }
-        let updated_flags = *flags;
 
         self.send_packet(&AccountMountUpdate::partial(vec![AccountMount {
             spell_id,

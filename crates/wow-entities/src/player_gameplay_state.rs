@@ -113,6 +113,41 @@ pub struct PlayerGameplayState {
     pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
     pub spell_charges: Vec<PlayerSpellChargeRecord>,
     pub rest: PlayerRestState,
+    /// C++ `CollectionMgr` state associated with this Player lifetime in the
+    /// current single-character Session model. The account-wide persistence
+    /// keys remain explicit at the database boundary; mutable collection
+    /// decisions no longer live on the protocol Session shell.
+    pub collections: PlayerCollectionStateLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerFavoriteAppearanceStateLikeCpp {
+    New,
+    Removed,
+    Unchanged,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerAccountHeirloomDataLikeCpp {
+    pub flags: u32,
+    pub bonus_id: u32,
+}
+
+/// Canonical mutable owner for the represented C++ `CollectionMgr` families.
+///
+/// The update-field mirrors themselves remain on `Player::active_data`; this
+/// state owns the account collection decisions, temporary providers and dirty
+/// favorite transitions that feed those fields and persistence.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerCollectionStateLikeCpp {
+    pub mounts: HashMap<i32, u8>,
+    pub heirlooms: BTreeMap<u32, PlayerAccountHeirloomDataLikeCpp>,
+    pub toys: BTreeMap<u32, u32>,
+    pub item_appearances: HashSet<u32>,
+    pub item_appearance_blocks: Vec<u32>,
+    pub temporary_item_appearances: HashMap<u32, HashSet<ObjectGuid>>,
+    pub favorite_item_appearances: HashMap<u32, PlayerFavoriteAppearanceStateLikeCpp>,
+    pub transmog_illusions: HashSet<u32>,
 }
 
 /// Canonical runtime accumulated by C++ `Player::_ApplyItemBonuses`.
