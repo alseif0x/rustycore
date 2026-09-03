@@ -128,8 +128,10 @@
           "name": "addon_channel_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "advanced_combat_logging_enabled_like_cpp",
@@ -366,15 +368,19 @@
           "name": "chat_fake_message_preventing_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "chat_flood_config_like_cpp",
           "type": "ChatFloodConfigLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "chat_flood_data_like_cpp",
@@ -387,22 +393,28 @@
           "name": "chat_level_requirements_like_cpp",
           "type": "ChatLevelRequirementsLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "chat_listen_ranges_like_cpp",
           "type": "ChatListenRangesLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "chat_strict_link_checking_kick_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "chr_classes_store",
@@ -9151,9 +9163,11 @@
           "kind": "method",
           "name": "handle_chat_addon_message",
           "visibility": "pub",
-          "signature": "async fn handle_chat_addon_message (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_chat_addon_message (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -9165,7 +9179,7 @@
           "kind": "method",
           "name": "handle_chat_addon_message_params_like_cpp",
           "visibility": "private",
-          "signature": "fn handle_chat_addon_message_params_like_cpp (& mut self , packet : ChatAddonMessage , target : & str , _channel_guid : ObjectGuid ,)",
+          "signature": "fn handle_chat_addon_message_params_like_cpp (& mut self , packet : ChatAddonMessage , target : & str , _channel_guid : ObjectGuid , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9178,7 +9192,23 @@
           "kind": "method",
           "name": "handle_chat_addon_message_targeted",
           "visibility": "pub",
-          "signature": "async fn handle_chat_addon_message_targeted (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_chat_addon_message_targeted (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_addon_message_targeted_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_addon_message_targeted_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9192,7 +9222,37 @@
           "kind": "method",
           "name": "handle_chat_addon_message_whisper",
           "visibility": "pub",
-          "signature": "async fn handle_chat_addon_message_whisper (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_chat_addon_message_whisper (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_addon_message_whisper_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_addon_message_whisper_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_addon_message_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_addon_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9206,7 +9266,23 @@
           "kind": "method",
           "name": "handle_chat_afk",
           "visibility": "pub",
-          "signature": "async fn handle_chat_afk (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_chat_afk (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_afk_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_afk_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9220,7 +9296,23 @@
           "kind": "method",
           "name": "handle_chat_channel_message",
           "visibility": "pub",
-          "signature": "async fn handle_chat_channel_message (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_chat_channel_message (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_channel_message_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_channel_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9234,7 +9326,23 @@
           "kind": "method",
           "name": "handle_chat_dnd",
           "visibility": "pub",
-          "signature": "async fn handle_chat_dnd (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_chat_dnd (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_dnd_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_dnd_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9248,7 +9356,23 @@
           "kind": "method",
           "name": "handle_chat_emote",
           "visibility": "pub",
-          "signature": "async fn handle_chat_emote (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_chat_emote (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_emote_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_emote_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9262,7 +9386,23 @@
           "kind": "method",
           "name": "handle_chat_message",
           "visibility": "pub",
-          "signature": "async fn handle_chat_message (& mut self , mut pkt : wow_packet :: WorldPacket , msg_type : ChatMsg ,)",
+          "signature": "async fn handle_chat_message (& mut self , pkt : wow_packet :: WorldPacket , msg_type : ChatMsg)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_message_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9318,7 +9458,23 @@
           "kind": "method",
           "name": "handle_chat_whisper",
           "visibility": "pub",
-          "signature": "async fn handle_chat_whisper (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_chat_whisper (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_chat_whisper_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_chat_whisper_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9362,7 +9518,7 @@
           "kind": "method",
           "name": "handle_text_emote_with_catalogs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_text_emote_with_catalogs_like_cpp (& mut self , emotes_text : & wow_data :: EmotesTextStore , emotes : & wow_data :: EmotesStore , mut pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_text_emote_with_catalogs_like_cpp (& mut self , emotes_text : & wow_data :: EmotesTextStore , emotes : & wow_data :: EmotesStore , chat_policy : & ChatPolicyCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9401,9 +9557,9 @@
           "module": "crate::handlers::chat",
           "trait_path": null,
           "kind": "method",
-          "name": "meets_chat_level_req_like_cpp",
+          "name": "meets_chat_level_req_with_policy_like_cpp",
           "visibility": "private",
-          "signature": "fn meets_chat_level_req_like_cpp (& self , msg_type : ChatMsg) -> bool",
+          "signature": "fn meets_chat_level_req_with_policy_like_cpp (& self , msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9414,9 +9570,9 @@
           "module": "crate::handlers::chat",
           "trait_path": null,
           "kind": "method",
-          "name": "meets_whisper_level_req_like_cpp",
+          "name": "meets_whisper_level_req_with_policy_like_cpp",
           "visibility": "private",
-          "signature": "fn meets_whisper_level_req_like_cpp (& self) -> bool",
+          "signature": "fn meets_whisper_level_req_with_policy_like_cpp (& self , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9453,9 +9609,9 @@
           "module": "crate::handlers::chat",
           "trait_path": null,
           "kind": "method",
-          "name": "required_chat_level_like_cpp",
+          "name": "required_chat_level_with_policy_like_cpp",
           "visibility": "private",
-          "signature": "fn required_chat_level_like_cpp (& self , msg_type : ChatMsg) -> Option < u8 >",
+          "signature": "fn required_chat_level_with_policy_like_cpp (msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9557,9 +9713,9 @@
           "module": "crate::handlers::chat",
           "trait_path": null,
           "kind": "method",
-          "name": "validate_hyperlinks_and_maybe_kick_like_cpp",
+          "name": "validate_hyperlinks_and_maybe_kick_with_policy_like_cpp",
           "visibility": "private",
-          "signature": "fn validate_hyperlinks_and_maybe_kick_like_cpp (& mut self , text : & str , context : & str) -> bool",
+          "signature": "fn validate_hyperlinks_and_maybe_kick_with_policy_like_cpp (& mut self , text : & str , context : & str , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -20826,8 +20982,10 @@
           "name": "addon_channel_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn addon_channel_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -24539,8 +24697,10 @@
           "name": "chat_fake_message_preventing_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn chat_fake_message_preventing_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -24552,8 +24712,10 @@
           "name": "chat_flood_config_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn chat_flood_config_like_cpp (& self) -> ChatFloodConfigLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -24565,8 +24727,10 @@
           "name": "chat_level_requirements_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn chat_level_requirements_like_cpp (& self) -> ChatLevelRequirementsLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -24578,8 +24742,25 @@
           "name": "chat_listen_ranges_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn chat_listen_ranges_like_cpp (& self) -> ChatListenRangesLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "chat_policy_catalogs_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn chat_policy_catalogs_for_test_like_cpp (& self) -> ChatPolicyCatalogsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -24591,8 +24772,10 @@
           "name": "chat_strict_link_checking_kick_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn chat_strict_link_checking_kick_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -44404,8 +44587,10 @@
           "name": "set_addon_channel_like_cpp",
           "visibility": "pub",
           "signature": "fn set_addon_channel_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44895,8 +45080,10 @@
           "name": "set_chat_fake_message_preventing_like_cpp",
           "visibility": "pub",
           "signature": "fn set_chat_fake_message_preventing_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44909,8 +45096,10 @@
           "name": "set_chat_flood_config_like_cpp",
           "visibility": "pub",
           "signature": "fn set_chat_flood_config_like_cpp (& mut self , config : ChatFloodConfigLikeCpp)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44923,8 +45112,10 @@
           "name": "set_chat_level_requirements_like_cpp",
           "visibility": "pub",
           "signature": "fn set_chat_level_requirements_like_cpp (& mut self , requirements : ChatLevelRequirementsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44937,8 +45128,10 @@
           "name": "set_chat_listen_ranges_like_cpp",
           "visibility": "pub",
           "signature": "fn set_chat_listen_ranges_like_cpp (& mut self , ranges : ChatListenRangesLikeCpp)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44951,8 +45144,10 @@
           "name": "set_chat_strict_link_checking_kick_like_cpp",
           "visibility": "pub",
           "signature": "fn set_chat_strict_link_checking_kick_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -52792,6 +52987,21 @@
           "name": "update_speak_time_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn update_speak_time_like_cpp (& mut self , index : ChatFloodThrottleIndexLikeCpp)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_speak_time_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn update_speak_time_with_policy_like_cpp (& mut self , index : ChatFloodThrottleIndexLikeCpp , config : ChatFloodConfigLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -59639,11 +59849,11 @@
           "package": "wow-world",
           "module": "crate::handlers::chat",
           "source": "crates/wow-world/src/handlers/chat.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper",
+          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 1
@@ -59652,11 +59862,11 @@
           "package": "wow-world",
           "module": "crate::handlers::chat",
           "source": "crates/wow-world/src/handlers/chat.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper",
+          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry:PlayerRegistry",
           "count": 1
@@ -59665,11 +59875,11 @@
           "package": "wow-world",
           "module": "crate::handlers::chat",
           "source": "crates/wow-world/src/handlers/chat.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper",
+          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "target_info",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "target_info:PlayerRegistry",
           "count": 1
@@ -59678,11 +59888,11 @@
           "package": "wow-world",
           "module": "crate::handlers::chat",
           "source": "crates/wow-world/src/handlers/chat.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper",
+          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "clone",
           "symbol": "cloned",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "cloned()",
           "count": 1
@@ -75128,7 +75338,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b46d8f6580a0ac88819697dca5e2f82b:len=96512|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:87dfa32a357cb9ca50e8cf068fa31b61:len=96602|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

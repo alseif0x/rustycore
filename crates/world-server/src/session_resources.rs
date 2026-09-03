@@ -12,7 +12,6 @@ use wow_social::group::{GroupRegistry, PendingInvites};
 use wow_world::session::directory::PlayerRegistry;
 use wow_world::session::mailbox::GameEventQuestCompleteCommandLikeCpp;
 use wow_world::{
-    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp, WorldSession,
 };
 
@@ -355,7 +354,6 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) quest_low_level_hide_diff: u32,
     pub(super) quest_high_level_hide_diff: u32,
     pub(super) enable_ae_loot: bool,
-    pub(super) addon_channel: bool,
     /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
     pub(super) server_expansion: u8,
     /// C++ `CONFIG_CHARACTERS_PER_REALM` / `CharactersPerRealm`.
@@ -372,7 +370,6 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) instance_ignore_level: bool,
     /// C++ `CONFIG_MAX_INSTANCES_PER_HOUR` / `AccountInstancesPerHour`.
     pub(super) max_instances_per_hour: u32,
-    pub(super) chat_fake_message_preventing: bool,
     pub(super) party_raid_warnings: bool,
     /// C++ `CONFIG_ALLOW_GM_GROUP` / `GM.AllowInvite`.
     pub(super) allow_gm_group: bool,
@@ -380,10 +377,6 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) allow_two_side_interaction_group: bool,
     /// C++ `CONFIG_PARTY_LEVEL_REQ` / `PartyLevelReq`.
     pub(super) party_level_req: u32,
-    pub(super) chat_strict_link_checking_kick: bool,
-    pub(super) chat_level_requirements: ChatLevelRequirementsLikeCpp,
-    pub(super) chat_listen_ranges: ChatListenRangesLikeCpp,
-    pub(super) chat_flood_config: ChatFloodConfigLikeCpp,
     pub(super) packet_spoof_config: PacketSpoofConfigLikeCpp,
     /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
     pub(super) player_save_interval_ms: u32,
@@ -615,7 +608,6 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session
             .set_represented_support_suggestions_enabled_like_cpp(self.support_suggestions_enabled);
         session.set_enable_ae_loot_like_cpp(self.enable_ae_loot);
-        session.set_addon_channel_like_cpp(self.addon_channel);
         session.set_server_expansion_like_cpp(self.server_expansion);
         session.set_characters_per_realm_like_cpp(self.characters_per_realm);
         session.set_declined_names_used_like_cpp(self.declined_names_used);
@@ -627,16 +619,11 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_instance_ignore_raid_like_cpp(self.instance_ignore_raid);
         session.set_instance_ignore_level_like_cpp(self.instance_ignore_level);
         session.set_max_instances_per_hour_like_cpp(self.max_instances_per_hour);
-        session.set_chat_fake_message_preventing_like_cpp(self.chat_fake_message_preventing);
         session.set_party_raid_warnings_like_cpp(self.party_raid_warnings);
         session.set_allow_gm_group_like_cpp(self.allow_gm_group);
         session
             .set_allow_two_side_interaction_group_like_cpp(self.allow_two_side_interaction_group);
         session.set_party_level_req_like_cpp(self.party_level_req);
-        session.set_chat_strict_link_checking_kick_like_cpp(self.chat_strict_link_checking_kick);
-        session.set_chat_level_requirements_like_cpp(self.chat_level_requirements);
-        session.set_chat_listen_ranges_like_cpp(self.chat_listen_ranges);
-        session.set_chat_flood_config_like_cpp(self.chat_flood_config);
         session.set_socket_timeouts_like_cpp(socket_timeouts);
         session.set_packet_spoof_config_like_cpp(self.packet_spoof_config);
         session.set_player_save_interval_ms_like_cpp(self.player_save_interval_ms);

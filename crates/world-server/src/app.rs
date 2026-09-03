@@ -4644,6 +4644,70 @@ async fn run_inner(
                     cast_spells: Arc::clone(&player_create_cast_spell_store),
                     custom_spells: Arc::clone(&player_create_custom_spell_store),
                 }),
+                chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
+                    addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
+                    fake_message_preventing: world_config_bool(
+                        &world_configs,
+                        "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
+                        false,
+                    ),
+                    strict_link_checking_kick: world_config_u8(
+                        &world_configs,
+                        "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK",
+                        0,
+                    ) != 0,
+                    level_requirements: ChatLevelRequirementsLikeCpp {
+                        channel: world_config_u8(
+                            &world_configs,
+                            "CONFIG_CHAT_CHANNEL_LEVEL_REQ",
+                            1,
+                        ),
+                        whisper: world_config_u8(
+                            &world_configs,
+                            "CONFIG_CHAT_WHISPER_LEVEL_REQ",
+                            1,
+                        ),
+                        emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
+                        say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
+                        yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
+                    },
+                    listen_ranges: ChatListenRangesLikeCpp {
+                        say: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_SAY", 25.0),
+                        text_emote: world_config_f32(
+                            &world_configs,
+                            "CONFIG_LISTEN_RANGE_TEXTEMOTE",
+                            25.0,
+                        ),
+                        yell: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
+                    },
+                    flood: ChatFloodConfigLikeCpp {
+                        message_count: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_MESSAGE_COUNT",
+                            10,
+                        ),
+                        message_delay_secs: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_MESSAGE_DELAY",
+                            1,
+                        ),
+                        addon_message_count: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_ADDON_MESSAGE_COUNT",
+                            100,
+                        ),
+                        addon_message_delay_secs: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_ADDON_MESSAGE_DELAY",
+                            1,
+                        ),
+                        mute_time_secs: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_MUTE_TIME",
+                            10,
+                        ),
+                    },
+                }),
                 bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
                 adventure_map_pois: Arc::clone(&adventure_map_poi_store),
                 battlemaster_lists: Arc::clone(&battlemaster_list_typed_store),
@@ -4941,7 +5005,6 @@ async fn run_inner(
                 7,
             ),
             enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
-            addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
             server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
             characters_per_realm: world_config_u32(
                 &world_configs,
@@ -4977,11 +5040,6 @@ async fn run_inner(
                 "CONFIG_MAX_INSTANCES_PER_HOUR",
                 5,
             ),
-            chat_fake_message_preventing: world_config_bool(
-                &world_configs,
-                "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
-                false,
-            ),
             party_raid_warnings: world_config_bool(
                 &world_configs,
                 "CONFIG_CHAT_PARTY_RAID_WARNINGS",
@@ -4994,46 +5052,6 @@ async fn run_inner(
                 false,
             ),
             party_level_req: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
-            chat_strict_link_checking_kick: world_config_u8(
-                &world_configs,
-                "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK",
-                0,
-            ) != 0,
-            chat_level_requirements: ChatLevelRequirementsLikeCpp {
-                channel: world_config_u8(&world_configs, "CONFIG_CHAT_CHANNEL_LEVEL_REQ", 1),
-                whisper: world_config_u8(&world_configs, "CONFIG_CHAT_WHISPER_LEVEL_REQ", 1),
-                emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
-                say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
-                yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
-            },
-            chat_listen_ranges: ChatListenRangesLikeCpp {
-                say: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_SAY", 25.0),
-                text_emote: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_TEXTEMOTE", 25.0),
-                yell: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
-            },
-            chat_flood_config: ChatFloodConfigLikeCpp {
-                message_count: world_config_u32(
-                    &world_configs,
-                    "CONFIG_CHATFLOOD_MESSAGE_COUNT",
-                    10,
-                ),
-                message_delay_secs: world_config_u32(
-                    &world_configs,
-                    "CONFIG_CHATFLOOD_MESSAGE_DELAY",
-                    1,
-                ),
-                addon_message_count: world_config_u32(
-                    &world_configs,
-                    "CONFIG_CHATFLOOD_ADDON_MESSAGE_COUNT",
-                    100,
-                ),
-                addon_message_delay_secs: world_config_u32(
-                    &world_configs,
-                    "CONFIG_CHATFLOOD_ADDON_MESSAGE_DELAY",
-                    1,
-                ),
-                mute_time_secs: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
-            },
             packet_spoof_config: PacketSpoofConfigLikeCpp {
                 policy: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
                 ban_mode: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),

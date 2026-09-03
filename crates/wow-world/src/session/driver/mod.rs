@@ -309,6 +309,7 @@ impl WorldSession {
             area_triggers: Arc::new(self.area_trigger_catalogs_for_test_like_cpp()),
             item_valuation: Arc::new(self.item_valuation_catalogs_for_test_like_cpp()),
             player_bootstrap: Arc::new(self.player_bootstrap_catalogs_for_test_like_cpp()),
+            chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             bank_bag_slot_prices: self
                 .bank_bag_slot_prices_store
                 .clone()

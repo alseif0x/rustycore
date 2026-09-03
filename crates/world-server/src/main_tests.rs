@@ -3577,11 +3577,17 @@ fn session_resources_requires_named_capability_bundles() {
     );
     for retired_test_only_catalog in [
         "adventure_map_poi_store",
+        "addon_channel",
         "area_trigger_db2_store",
         "area_trigger_script_store",
         "area_trigger_store",
         "bank_bag_slot_prices_store",
         "battlemaster_list_store",
+        "chat_fake_message_preventing",
+        "chat_flood_config",
+        "chat_level_requirements",
+        "chat_listen_ranges",
+        "chat_strict_link_checking_kick",
         "emotes_store",
         "emotes_text_store",
         "graveyard_store",
@@ -3644,6 +3650,15 @@ fn session_resources_requires_named_capability_bundles() {
     assert!(
         !resources_source.contains("session.set_player_create_info_store_like_cpp("),
         "PlayerInfo creation data must be borrowed during login instead of installed into WorldSession"
+    );
+    assert!(
+        composition_source
+            .contains("chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp"),
+        "the composition root must group process-owned C++ World chat policy for dispatch"
+    );
+    assert!(
+        !resources_source.contains("session.set_chat_flood_config_like_cpp("),
+        "C++ World chat policy must be borrowed by handlers instead of copied into WorldSession"
     );
     assert!(
         resources_source

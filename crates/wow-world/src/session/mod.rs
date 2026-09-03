@@ -323,6 +323,34 @@ pub struct PlayerBootstrapCatalogsLikeCpp {
     pub custom_spells: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
 }
 
+/// Process-owned C++ `World` chat policy borrowed by chat handlers.
+///
+/// C++ loads these values once into `World::{m_bool,m_int,m_float}_configs`
+/// (`World.cpp:769,785-789,1241-1245,1294-1296,1323-1325`) and handlers read
+/// them through `sWorld`; a `WorldSession` never owns a private policy copy.
+#[derive(Debug, Clone, Copy)]
+pub struct ChatPolicyCatalogsLikeCpp {
+    pub addon_channel: bool,
+    pub fake_message_preventing: bool,
+    pub strict_link_checking_kick: bool,
+    pub level_requirements: ChatLevelRequirementsLikeCpp,
+    pub listen_ranges: ChatListenRangesLikeCpp,
+    pub flood: ChatFloodConfigLikeCpp,
+}
+
+impl Default for ChatPolicyCatalogsLikeCpp {
+    fn default() -> Self {
+        Self {
+            addon_channel: true,
+            fake_message_preventing: false,
+            strict_link_checking_kick: false,
+            level_requirements: ChatLevelRequirementsLikeCpp::default(),
+            listen_ranges: ChatListenRangesLikeCpp::default(),
+            flood: ChatFloodConfigLikeCpp::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 impl Default for ItemValuationCatalogsLikeCpp {
     fn default() -> Self {
@@ -413,6 +441,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub area_triggers: Arc<AreaTriggerCatalogsLikeCpp>,
     pub item_valuation: Arc<ItemValuationCatalogsLikeCpp>,
     pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
+    pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
     pub battlemaster_lists: Arc<BattlemasterListStore>,
@@ -433,6 +462,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             area_triggers: Arc::new(AreaTriggerCatalogsLikeCpp::default()),
             item_valuation: Arc::new(ItemValuationCatalogsLikeCpp::default()),
             player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
+            chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
             battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
@@ -7181,8 +7211,10 @@ pub struct WorldSession {
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     enable_ae_loot_like_cpp: bool,
     /// C++ `CONFIG_ADDON_CHANNEL` represented switch.
+    #[cfg(test)]
     addon_channel_like_cpp: bool,
     /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
+    #[cfg(test)]
     chat_fake_message_preventing_like_cpp: bool,
     /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
     party_raid_warnings_like_cpp: bool,
@@ -7193,12 +7225,16 @@ pub struct WorldSession {
     /// C++ `CONFIG_PARTY_LEVEL_REQ` represented gate.
     party_level_req_like_cpp: u32,
     /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
+    #[cfg(test)]
     chat_strict_link_checking_kick_like_cpp: bool,
     /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
+    #[cfg(test)]
     chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
     /// C++ `CONFIG_LISTEN_RANGE_*` represented nearby-chat ranges.
+    #[cfg(test)]
     chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp,
     /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
+    #[cfg(test)]
     chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
     chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
@@ -8994,15 +9030,21 @@ impl WorldSession {
             #[cfg(test)]
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
+            #[cfg(test)]
             addon_channel_like_cpp: true,
+            #[cfg(test)]
             chat_fake_message_preventing_like_cpp: false,
             party_raid_warnings_like_cpp: false,
             allow_gm_group_like_cpp: false,
             allow_two_side_interaction_group_like_cpp: false,
             party_level_req_like_cpp: 1,
+            #[cfg(test)]
             chat_strict_link_checking_kick_like_cpp: false,
+            #[cfg(test)]
             chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
+            #[cfg(test)]
             chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
+            #[cfg(test)]
             chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),
             chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
@@ -18635,6 +18677,18 @@ impl WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn chat_policy_catalogs_for_test_like_cpp(&self) -> ChatPolicyCatalogsLikeCpp {
+        ChatPolicyCatalogsLikeCpp {
+            addon_channel: self.addon_channel_like_cpp,
+            fake_message_preventing: self.chat_fake_message_preventing_like_cpp,
+            strict_link_checking_kick: self.chat_strict_link_checking_kick_like_cpp,
+            level_requirements: self.chat_level_requirements_like_cpp,
+            listen_ranges: self.chat_listen_ranges_like_cpp,
+            flood: self.chat_flood_config_like_cpp,
+        }
+    }
+
+    #[cfg(test)]
     pub fn item_buy_price_like_cpp(
         &self,
         item_id: u32,
@@ -22964,10 +23018,12 @@ impl WorldSession {
         self.enable_ae_loot_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_addon_channel_like_cpp(&mut self, enabled: bool) {
         self.addon_channel_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
         self.chat_fake_message_preventing_like_cpp = enabled;
     }
@@ -22988,10 +23044,12 @@ impl WorldSession {
         self.party_level_req_like_cpp = level;
     }
 
+    #[cfg(test)]
     pub fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
         self.chat_strict_link_checking_kick_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_chat_level_requirements_like_cpp(
         &mut self,
         requirements: ChatLevelRequirementsLikeCpp,
@@ -22999,10 +23057,12 @@ impl WorldSession {
         self.chat_level_requirements_like_cpp = requirements;
     }
 
+    #[cfg(test)]
     pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
         self.chat_listen_ranges_like_cpp = ranges;
     }
 
+    #[cfg(test)]
     pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
         self.chat_flood_config_like_cpp = config;
     }
@@ -23116,10 +23176,12 @@ impl WorldSession {
         self.enable_ae_loot_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn addon_channel_like_cpp(&self) -> bool {
         self.addon_channel_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
         self.chat_fake_message_preventing_like_cpp
     }
@@ -23140,30 +23202,37 @@ impl WorldSession {
         self.party_level_req_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn chat_strict_link_checking_kick_like_cpp(&self) -> bool {
         self.chat_strict_link_checking_kick_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {
         self.chat_level_requirements_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn chat_listen_ranges_like_cpp(&self) -> ChatListenRangesLikeCpp {
         self.chat_listen_ranges_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
         self.chat_flood_config_like_cpp
     }
 
-    pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
+    pub(crate) fn update_speak_time_with_policy_like_cpp(
+        &mut self,
+        index: ChatFloodThrottleIndexLikeCpp,
+        config: ChatFloodConfigLikeCpp,
+    ) {
         // C++ skips chat spam checks for RBAC_PERM_SKIP_CHECK_CHAT_SPAM. RustyCore
         // has no RBAC store yet; represented GM state is the current session seam.
         if self.player_is_game_master_like_cpp() == Some(true) {
             return;
         }
 
-        let config = self.chat_flood_config_like_cpp();
         let (limit, delay_secs) = match index {
             ChatFloodThrottleIndexLikeCpp::Regular => {
                 (config.message_count, config.message_delay_secs)
@@ -23193,6 +23262,11 @@ impl WorldSession {
         }
 
         data.time = current.saturating_add(i64::from(delay_secs));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
+        self.update_speak_time_with_policy_like_cpp(index, self.chat_flood_config_like_cpp)
     }
 
     pub(crate) fn player_is_game_master_like_cpp(&self) -> Option<bool> {

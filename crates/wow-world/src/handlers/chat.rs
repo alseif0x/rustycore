@@ -37,8 +37,8 @@ use wow_packet::{ClientPacket, ServerPacket};
 use wow_social::group::GroupInfo;
 
 use crate::session::{
-    ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP,
-    WorldSession, player_team_for_race_cpp,
+    ChatFloodThrottleIndexLikeCpp, ChatPolicyCatalogsLikeCpp, PlayerAwayModeLikeCpp,
+    SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP, WorldSession, player_team_for_race_cpp,
 };
 
 const LANG_UNIVERSAL_LIKE_CPP: i32 = 0;
@@ -68,8 +68,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_say",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Say).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Say, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -80,8 +80,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_yell",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Yell).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Yell, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -92,8 +92,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_party",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Party).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Party, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -104,8 +104,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_guild",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Guild).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Guild, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -116,8 +116,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_officer",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Officer).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Officer, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -128,8 +128,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_raid",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Raid).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Raid, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -140,8 +140,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_raid_warning",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::RaidWarning).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::RaidWarning, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -152,8 +152,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_instance",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::InstanceChat).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::InstanceChat, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -164,7 +164,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_whisper",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_chat_whisper(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_whisper_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
 
@@ -174,8 +174,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_channel_message",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_channel_message(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_channel_message_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -186,7 +186,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_afk",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_chat_afk(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_afk_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
 
@@ -196,7 +196,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_dnd",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_chat_dnd(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_dnd_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
 
@@ -242,7 +242,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_emote",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_chat_emote(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_emote_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
 
@@ -268,6 +268,7 @@ inventory::submit! {
                     .handle_text_emote_with_catalogs_like_cpp(
                         catalogs.emotes_text.as_ref(),
                         catalogs.emotes.as_ref(),
+                        catalogs.chat_policy.as_ref(),
                         pkt,
                     )
                     .await
@@ -294,8 +295,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_addon_message",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_addon_message(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_addon_message_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -306,8 +307,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_addon_message_whisper",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_addon_message_whisper(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_chat_addon_message_whisper_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await })
         },
     }
 }
@@ -316,7 +317,12 @@ inventory::submit! {
 
 impl WorldSession {
     /// C++ ref: `WorldSession::ValidateHyperlinksAndMaybeKick`.
-    fn validate_hyperlinks_and_maybe_kick_like_cpp(&mut self, text: &str, context: &str) -> bool {
+    fn validate_hyperlinks_and_maybe_kick_with_policy_like_cpp(
+        &mut self,
+        text: &str,
+        context: &str,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) -> bool {
         if check_all_links_shape_like_cpp(text) {
             return true;
         }
@@ -327,7 +333,7 @@ impl WorldSession {
             "Chat message rejected: invalid hyperlink/control sequence"
         );
 
-        if self.chat_strict_link_checking_kick_like_cpp() {
+        if chat_policy.strict_link_checking_kick {
             self.kick("WorldSession::ValidateHyperlinksAndMaybeKick Invalid chat link");
         }
 
@@ -335,10 +341,11 @@ impl WorldSession {
     }
 
     /// Handle say/yell/party/guild/raid/instance chat messages.
-    pub async fn handle_chat_message(
+    pub(crate) async fn handle_chat_message_with_policy_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
         msg_type: ChatMsg,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
     ) {
         let mut msg = match ChatMessage::read(&mut pkt) {
             Ok(m) => m,
@@ -369,7 +376,10 @@ impl WorldSession {
             return;
         }
         if !matches!(msg_type, ChatMsg::Afk | ChatMsg::Dnd) {
-            self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
+            self.update_speak_time_with_policy_like_cpp(
+                ChatFloodThrottleIndexLikeCpp::Regular,
+                chat_policy.flood,
+            );
         }
         if msg.text.len() > 511 {
             return;
@@ -377,7 +387,7 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
+        if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
                 account = self.account_id,
                 ty = ?msg_type,
@@ -396,7 +406,11 @@ impl WorldSession {
             "Chat message"
         );
 
-        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "chat") {
+        if !self.validate_hyperlinks_and_maybe_kick_with_policy_like_cpp(
+            &msg.text,
+            "chat",
+            chat_policy,
+        ) {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -408,8 +422,10 @@ impl WorldSession {
         {
             return;
         }
-        if !self.meets_chat_level_req_like_cpp(msg_type) {
-            if let Some(required_level) = self.required_chat_level_like_cpp(msg_type) {
+        if !self.meets_chat_level_req_with_policy_like_cpp(msg_type, chat_policy) {
+            if let Some(required_level) =
+                Self::required_chat_level_with_policy_like_cpp(msg_type, chat_policy)
+            {
                 self.send_chat_say_level_notification_like_cpp(required_level);
             }
             return;
@@ -459,7 +475,7 @@ impl WorldSession {
         self.send_packet(&chat);
 
         // Broadcast to nearby players on the same map.
-        let listen_ranges = self.chat_listen_ranges_like_cpp();
+        let listen_ranges = chat_policy.listen_ranges;
         let range = if msg_type == ChatMsg::Yell {
             listen_ranges.yell
         } else {
@@ -469,7 +485,11 @@ impl WorldSession {
     }
 
     /// Handle whisper messages.
-    pub async fn handle_chat_whisper(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_whisper_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let mut msg = match ChatMessageWhisper::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
@@ -496,14 +516,17 @@ impl WorldSession {
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
             return;
         }
-        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
+        self.update_speak_time_with_policy_like_cpp(
+            ChatFloodThrottleIndexLikeCpp::Regular,
+            chat_policy.flood,
+        );
         if msg.text.len() > 511 {
             return;
         }
         if msg.text.is_empty() {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
+        if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
                 account = self.account_id,
                 "Whisper rejected: invalid character/control sequence"
@@ -513,7 +536,11 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "whisper") {
+        if !self.validate_hyperlinks_and_maybe_kick_with_policy_like_cpp(
+            &msg.text,
+            "whisper",
+            chat_policy,
+        ) {
             return;
         }
 
@@ -524,9 +551,9 @@ impl WorldSession {
             "Whisper"
         );
 
-        if !self.meets_whisper_level_req_like_cpp() {
+        if !self.meets_whisper_level_req_with_policy_like_cpp(chat_policy) {
             self.send_chat_whisper_level_notification_like_cpp(
-                self.chat_level_requirements_like_cpp().whisper,
+                chat_policy.level_requirements.whisper,
             );
             return;
         }
@@ -595,7 +622,11 @@ impl WorldSession {
     /// The Rust parser and validation are represented, but the final
     /// ChannelMgr lookup/fanout is intentionally parked until live channels
     /// exist.
-    pub async fn handle_chat_channel_message(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_channel_message_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let mut msg = match ChatMessageChannel::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
@@ -622,11 +653,14 @@ impl WorldSession {
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
             return;
         }
-        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
+        self.update_speak_time_with_policy_like_cpp(
+            ChatFloodThrottleIndexLikeCpp::Regular,
+            chat_policy.flood,
+        );
         if msg.text.len() > 511 || msg.text.is_empty() {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
+        if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
                 account = self.account_id,
                 "Channel chat rejected: invalid character/control sequence"
@@ -636,15 +670,21 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "channel_chat") {
+        if !self.validate_hyperlinks_and_maybe_kick_with_policy_like_cpp(
+            &msg.text,
+            "channel_chat",
+            chat_policy,
+        ) {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
             self.send_gm_silence_notification_like_cpp();
             return;
         }
-        if !self.meets_chat_level_req_like_cpp(ChatMsg::Channel) {
-            if let Some(required_level) = self.required_chat_level_like_cpp(ChatMsg::Channel) {
+        if !self.meets_chat_level_req_with_policy_like_cpp(ChatMsg::Channel, chat_policy) {
+            if let Some(required_level) =
+                Self::required_chat_level_with_policy_like_cpp(ChatMsg::Channel, chat_policy)
+            {
                 self.send_chat_say_level_notification_like_cpp(required_level);
             }
             return;
@@ -679,7 +719,11 @@ impl WorldSession {
     }
 
     /// Handle CMSG_CHAT_MESSAGE_AFK.
-    pub async fn handle_chat_afk(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_afk_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let mut msg = match ChatMessageAfk::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
@@ -691,18 +735,25 @@ impl WorldSession {
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
             return;
         }
-        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
+        self.update_speak_time_with_policy_like_cpp(
+            ChatFloodThrottleIndexLikeCpp::Regular,
+            chat_policy.flood,
+        );
         if msg.text.len() > 511 {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
+        if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
                 account = self.account_id,
                 "AFK message rejected: invalid character/control sequence"
             );
             return;
         }
-        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "afk") {
+        if !self.validate_hyperlinks_and_maybe_kick_with_policy_like_cpp(
+            &msg.text,
+            "afk",
+            chat_policy,
+        ) {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -713,7 +764,11 @@ impl WorldSession {
     }
 
     /// Handle CMSG_CHAT_MESSAGE_DND.
-    pub async fn handle_chat_dnd(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_dnd_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let mut msg = match ChatMessageDnd::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
@@ -728,14 +783,18 @@ impl WorldSession {
         if msg.text.len() > 511 {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
+        if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
                 account = self.account_id,
                 "DND message rejected: invalid character/control sequence"
             );
             return;
         }
-        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "dnd") {
+        if !self.validate_hyperlinks_and_maybe_kick_with_policy_like_cpp(
+            &msg.text,
+            "dnd",
+            chat_policy,
+        ) {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -809,7 +868,11 @@ impl WorldSession {
     }
 
     /// Handle emote text (/e).
-    pub async fn handle_chat_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_emote_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let mut msg = match ChatMessageEmote::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
@@ -827,7 +890,7 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
+        if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
                 account = self.account_id,
                 "Text emote rejected: invalid character/control sequence"
@@ -837,7 +900,11 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "text_emote") {
+        if !self.validate_hyperlinks_and_maybe_kick_with_policy_like_cpp(
+            &msg.text,
+            "text_emote",
+            chat_policy,
+        ) {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -847,10 +914,8 @@ impl WorldSession {
         if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if self.player_level_like_cpp() < self.chat_level_requirements_like_cpp().emote {
-            self.send_chat_say_level_notification_like_cpp(
-                self.chat_level_requirements_like_cpp().emote,
-            );
+        if self.player_level_like_cpp() < chat_policy.level_requirements.emote {
+            self.send_chat_say_level_notification_like_cpp(chat_policy.level_requirements.emote);
             return;
         }
 
@@ -876,7 +941,7 @@ impl WorldSession {
             virtual_realm,
         };
         self.send_packet(&chat);
-        self.broadcast_chat_packet(&chat, self.chat_listen_ranges_like_cpp().text_emote);
+        self.broadcast_chat_packet(&chat, chat_policy.listen_ranges.text_emote);
     }
 
     /// Handle CMSG_EMOTE — client notifies us it cleared its emote state.
@@ -902,6 +967,7 @@ impl WorldSession {
         &mut self,
         emotes_text: &wow_data::EmotesTextStore,
         emotes: &wow_data::EmotesStore,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let msg = match CTextEmote::read(&mut pkt) {
@@ -948,7 +1014,7 @@ impl WorldSession {
             target_guid: msg.target,
         };
 
-        let text_emote_range = self.chat_listen_ranges_like_cpp().text_emote;
+        let text_emote_range = chat_policy.listen_ranges.text_emote;
         let anim_emote = match emote {
             EMOTE_STATE_SLEEP_LIKE_CPP
             | EMOTE_STATE_SIT_LIKE_CPP
@@ -1027,8 +1093,14 @@ impl WorldSession {
             .emotes_store_for_test_like_cpp()
             .cloned()
             .unwrap_or_else(|| std::sync::Arc::new(wow_data::EmotesStore::from_entries([])));
-        self.handle_text_emote_with_catalogs_like_cpp(emotes_text.as_ref(), emotes.as_ref(), pkt)
-            .await;
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_text_emote_with_catalogs_like_cpp(
+            emotes_text.as_ref(),
+            emotes.as_ref(),
+            &chat_policy,
+            pkt,
+        )
+        .await;
     }
 
     fn publish_player_emote_state_like_cpp(&mut self, emote_state: u32) {
@@ -1067,7 +1139,11 @@ impl WorldSession {
     /// Until guild/channel addon routing is ported, parse and validate the C++
     /// packet shape then drop unsupported traffic. This matches disabled addon
     /// channel behavior and prevents unknown-opcode noise during login.
-    pub async fn handle_chat_addon_message(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_addon_message_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let packet = match ChatAddonMessage::read(&mut pkt) {
             Ok(packet) => packet,
             Err(e) => {
@@ -1076,7 +1152,7 @@ impl WorldSession {
             }
         };
 
-        self.handle_chat_addon_message_params_like_cpp(packet, "", ObjectGuid::EMPTY);
+        self.handle_chat_addon_message_params_like_cpp(packet, "", ObjectGuid::EMPTY, chat_policy);
     }
 
     /// CMSG_CHAT_ADDON_MESSAGE_TARGETED.
@@ -1087,7 +1163,11 @@ impl WorldSession {
     /// source marks this packet as `0xBADD`, which is a duplicated unresolved
     /// placeholder in the Rust opcode enum. Keep the parser and handler covered
     /// by direct tests until the real opcode mapping is known.
-    pub async fn handle_chat_addon_message_targeted(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_addon_message_targeted_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let packet = match ChatAddonMessageTargeted::read(&mut pkt) {
             Ok(packet) => packet,
             Err(e) => {
@@ -1103,6 +1183,7 @@ impl WorldSession {
             packet.params,
             &packet.target,
             packet.channel_guid,
+            chat_policy,
         );
     }
 
@@ -1111,18 +1192,22 @@ impl WorldSession {
         packet: ChatAddonMessage,
         target: &str,
         _channel_guid: ObjectGuid,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
     ) {
         if packet.prefix.is_empty() || packet.prefix.len() > 16 {
             return;
         }
 
-        if !self.addon_channel_like_cpp() {
+        if !chat_policy.addon_channel {
             return;
         }
         if !self.can_speak_like_cpp() {
             return;
         }
-        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Addon);
+        self.update_speak_time_with_policy_like_cpp(
+            ChatFloodThrottleIndexLikeCpp::Addon,
+            chat_policy.flood,
+        );
 
         if packet.text.len() > 255 {
             return;
@@ -1172,7 +1257,11 @@ impl WorldSession {
     /// CMSG_CHAT_ADDON_MESSAGE_WHISPER.
     ///
     /// C++ ref: `WorldSession::HandleChatAddonMessageWhisper`.
-    pub async fn handle_chat_addon_message_whisper(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_chat_addon_message_whisper_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) {
         let packet = match ChatAddonMessageWhisper::read(&mut pkt) {
             Ok(packet) => packet,
             Err(e) => {
@@ -1185,7 +1274,7 @@ impl WorldSession {
             return;
         }
 
-        if self.player_level_like_cpp() < self.chat_level_requirements_like_cpp().whisper {
+        if self.player_level_like_cpp() < chat_policy.level_requirements.whisper {
             return;
         }
 
@@ -1255,6 +1344,69 @@ impl WorldSession {
                 packet_bytes: chat.to_bytes(),
             });
         let _ = registry.try_send_current_command(target.registration, command);
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_message(&mut self, pkt: wow_packet::WorldPacket, msg_type: ChatMsg) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_message_with_policy_like_cpp(pkt, msg_type, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_whisper(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_whisper_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_channel_message(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_channel_message_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_afk(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_afk_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_dnd(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_dnd_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_emote(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_emote_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_addon_message(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_addon_message_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_addon_message_targeted(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_addon_message_targeted_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_chat_addon_message_whisper(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        self.handle_chat_addon_message_whisper_with_policy_like_cpp(pkt, &chat_policy)
+            .await;
     }
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -1552,8 +1704,11 @@ fn is_known_language_like_cpp(language: i32) -> bool {
 }
 
 impl WorldSession {
-    fn required_chat_level_like_cpp(&self, msg_type: ChatMsg) -> Option<u8> {
-        let requirements = self.chat_level_requirements_like_cpp();
+    fn required_chat_level_with_policy_like_cpp(
+        msg_type: ChatMsg,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) -> Option<u8> {
+        let requirements = chat_policy.level_requirements;
         match msg_type {
             ChatMsg::Say => Some(requirements.say),
             ChatMsg::Yell => Some(requirements.yell),
@@ -1561,14 +1716,21 @@ impl WorldSession {
         }
     }
 
-    fn meets_chat_level_req_like_cpp(&self, msg_type: ChatMsg) -> bool {
-        self.required_chat_level_like_cpp(msg_type)
+    fn meets_chat_level_req_with_policy_like_cpp(
+        &self,
+        msg_type: ChatMsg,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) -> bool {
+        Self::required_chat_level_with_policy_like_cpp(msg_type, chat_policy)
             .is_none_or(|required| self.player_level_like_cpp() >= required)
     }
 
-    fn meets_whisper_level_req_like_cpp(&self) -> bool {
+    fn meets_whisper_level_req_with_policy_like_cpp(
+        &self,
+        chat_policy: &ChatPolicyCatalogsLikeCpp,
+    ) -> bool {
         self.player_is_game_master_like_cpp() == Some(true)
-            || self.player_level_like_cpp() >= self.chat_level_requirements_like_cpp().whisper
+            || self.player_level_like_cpp() >= chat_policy.level_requirements.whisper
     }
 
     fn send_whisper_away_reply_like_cpp(&mut self, target_name: &str, auto_reply: &str, afk: bool) {
@@ -2433,11 +2595,14 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
         let (far_tx, far_rx) = flume::bounded(8);
-        session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
-            say: 40.0,
-            text_emote: 25.0,
-            yell: 300.0,
-        });
+        let chat_policy = ChatPolicyCatalogsLikeCpp {
+            listen_ranges: ChatListenRangesLikeCpp {
+                say: 40.0,
+                text_emote: 25.0,
+                yell: 300.0,
+            },
+            ..ChatPolicyCatalogsLikeCpp::default()
+        };
         player_registry.register_or_replace(
             nearby,
             broadcast_info_at(
@@ -2454,9 +2619,10 @@ mod tests {
         );
 
         session
-            .handle_chat_message(
+            .handle_chat_message_with_policy_like_cpp(
                 chat_message_packet(ClientOpcodes::ChatMessageSay, "configured say"),
                 ChatMsg::Say,
+                &chat_policy,
             )
             .await;
 
@@ -2921,17 +3087,52 @@ mod tests {
             broadcast_info(nearby, nearby_tx),
             Default::default(),
         );
-        session.set_chat_strict_link_checking_kick_like_cpp(true);
+        let chat_policy = ChatPolicyCatalogsLikeCpp {
+            strict_link_checking_kick: true,
+            ..ChatPolicyCatalogsLikeCpp::default()
+        };
 
         session
-            .handle_chat_message(
+            .handle_chat_message_with_policy_like_cpp(
                 chat_message_packet(ClientOpcodes::ChatMessageSay, "forged |x control"),
                 ChatMsg::Say,
+                &chat_policy,
             )
             .await;
 
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+        assert!(session.is_disconnecting());
+    }
+
+    #[tokio::test]
+    async fn chat_dispatch_borrows_process_policy_instead_of_session_copy_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 355);
+        let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        session.set_state(crate::session::SessionState::LoggedIn);
+        let catalogs = crate::session::SessionHandlerCatalogsLikeCpp {
+            chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp {
+                strict_link_checking_kick: true,
+                ..ChatPolicyCatalogsLikeCpp::default()
+            }),
+            ..crate::session::SessionHandlerCatalogsLikeCpp::default()
+        };
+        let text = "forged |x control";
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_uint16(ClientOpcodes::ChatMessageSay as u16);
+        writer.write_int32(LANG_COMMON_LIKE_CPP);
+        writer.write_bits(text.len() as u32, 11);
+        writer.write_bit(false);
+        writer.write_string(text);
+
+        session
+            .dispatch_packet(
+                &catalogs,
+                wow_packet::WorldPacket::from_bytes(writer.data()),
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
         assert!(session.is_disconnecting());
     }
 
@@ -3486,30 +3687,36 @@ mod tests {
             broadcast_info(nearby, nearby_tx),
             Default::default(),
         );
-        session.set_chat_flood_config_like_cpp(ChatFloodConfigLikeCpp {
-            message_count: 2,
-            message_delay_secs: 60,
-            addon_message_count: 100,
-            addon_message_delay_secs: 1,
-            mute_time_secs: 10,
-        });
+        let chat_policy = ChatPolicyCatalogsLikeCpp {
+            flood: ChatFloodConfigLikeCpp {
+                message_count: 2,
+                message_delay_secs: 60,
+                addon_message_count: 100,
+                addon_message_delay_secs: 1,
+                mute_time_secs: 10,
+            },
+            ..ChatPolicyCatalogsLikeCpp::default()
+        };
 
         session
-            .handle_chat_message(
+            .handle_chat_message_with_policy_like_cpp(
                 chat_message_packet(ClientOpcodes::ChatMessageSay, "first"),
                 ChatMsg::Say,
+                &chat_policy,
             )
             .await;
         session
-            .handle_chat_message(
+            .handle_chat_message_with_policy_like_cpp(
                 chat_message_packet(ClientOpcodes::ChatMessageSay, "second"),
                 ChatMsg::Say,
+                &chat_policy,
             )
             .await;
         session
-            .handle_chat_message(
+            .handle_chat_message_with_policy_like_cpp(
                 chat_message_packet(ClientOpcodes::ChatMessageSay, "third"),
                 ChatMsg::Say,
+                &chat_policy,
             )
             .await;
 
@@ -3840,10 +4047,16 @@ mod tests {
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-        session.set_addon_channel_like_cpp(false);
+        let chat_policy = ChatPolicyCatalogsLikeCpp {
+            addon_channel: false,
+            ..ChatPolicyCatalogsLikeCpp::default()
+        };
 
         session
-            .handle_chat_addon_message(chat_addon_packet(ChatMsg::Party, "ABC", "payload"))
+            .handle_chat_addon_message_with_policy_like_cpp(
+                chat_addon_packet(ChatMsg::Party, "ABC", "payload"),
+                &chat_policy,
+            )
             .await;
 
         assert!(member_command_rx.try_recv().is_err());
