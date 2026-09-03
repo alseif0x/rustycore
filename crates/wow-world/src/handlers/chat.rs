@@ -445,6 +445,7 @@ impl WorldSession {
                 sender_name,
                 msg.text,
                 virtual_realm,
+                chat_policy.party_raid_warnings,
             );
             return;
         }
@@ -1460,6 +1461,7 @@ impl WorldSession {
         sender_name: String,
         text: String,
         virtual_realm: u32,
+        party_raid_warnings: bool,
     ) {
         let Some(group) = self.current_chat_group_like_cpp(sender_guid) else {
             return;
@@ -1486,7 +1488,7 @@ impl WorldSession {
                 (chat_type, None)
             }
             ChatMsg::RaidWarning => {
-                if !(group.is_raid_group() || self.party_raid_warnings_like_cpp())
+                if !(group.is_raid_group() || party_raid_warnings)
                     || !(group.is_leader_like_cpp(sender_guid)
                         || group.is_assistant_like_cpp(sender_guid))
                 {

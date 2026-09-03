@@ -336,6 +336,7 @@ pub struct ChatPolicyCatalogsLikeCpp {
     pub level_requirements: ChatLevelRequirementsLikeCpp,
     pub listen_ranges: ChatListenRangesLikeCpp,
     pub flood: ChatFloodConfigLikeCpp,
+    pub party_raid_warnings: bool,
 }
 
 impl Default for ChatPolicyCatalogsLikeCpp {
@@ -347,6 +348,28 @@ impl Default for ChatPolicyCatalogsLikeCpp {
             level_requirements: ChatLevelRequirementsLikeCpp::default(),
             listen_ranges: ChatListenRangesLikeCpp::default(),
             flood: ChatFloodConfigLikeCpp::default(),
+            party_raid_warnings: false,
+        }
+    }
+}
+
+/// Process-owned C++ `World` policy for party invitation admission.
+///
+/// C++ loads these at `World.cpp:790,913,1163`; `GroupHandler.cpp:78-108`
+/// borrows them through `sWorld` while validating an invitation.
+#[derive(Debug, Clone, Copy)]
+pub struct GroupInvitePolicyLikeCpp {
+    pub allow_gm_group: bool,
+    pub allow_two_side_interaction: bool,
+    pub minimum_level: u32,
+}
+
+impl Default for GroupInvitePolicyLikeCpp {
+    fn default() -> Self {
+        Self {
+            allow_gm_group: false,
+            allow_two_side_interaction: false,
+            minimum_level: 1,
         }
     }
 }
@@ -442,6 +465,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub item_valuation: Arc<ItemValuationCatalogsLikeCpp>,
     pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
+    pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
     pub battlemaster_lists: Arc<BattlemasterListStore>,
@@ -463,6 +487,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             item_valuation: Arc::new(ItemValuationCatalogsLikeCpp::default()),
             player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
+            group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
             battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
@@ -7217,12 +7242,16 @@ pub struct WorldSession {
     #[cfg(test)]
     chat_fake_message_preventing_like_cpp: bool,
     /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
+    #[cfg(test)]
     party_raid_warnings_like_cpp: bool,
     /// C++ `CONFIG_ALLOW_GM_GROUP` represented switch.
+    #[cfg(test)]
     allow_gm_group_like_cpp: bool,
     /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` represented switch.
+    #[cfg(test)]
     allow_two_side_interaction_group_like_cpp: bool,
     /// C++ `CONFIG_PARTY_LEVEL_REQ` represented gate.
+    #[cfg(test)]
     party_level_req_like_cpp: u32,
     /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
     #[cfg(test)]
@@ -9034,9 +9063,13 @@ impl WorldSession {
             addon_channel_like_cpp: true,
             #[cfg(test)]
             chat_fake_message_preventing_like_cpp: false,
+            #[cfg(test)]
             party_raid_warnings_like_cpp: false,
+            #[cfg(test)]
             allow_gm_group_like_cpp: false,
+            #[cfg(test)]
             allow_two_side_interaction_group_like_cpp: false,
+            #[cfg(test)]
             party_level_req_like_cpp: 1,
             #[cfg(test)]
             chat_strict_link_checking_kick_like_cpp: false,
@@ -18685,6 +18718,16 @@ impl WorldSession {
             level_requirements: self.chat_level_requirements_like_cpp,
             listen_ranges: self.chat_listen_ranges_like_cpp,
             flood: self.chat_flood_config_like_cpp,
+            party_raid_warnings: self.party_raid_warnings_like_cpp,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn group_invite_policy_for_test_like_cpp(&self) -> GroupInvitePolicyLikeCpp {
+        GroupInvitePolicyLikeCpp {
+            allow_gm_group: self.allow_gm_group_like_cpp,
+            allow_two_side_interaction: self.allow_two_side_interaction_group_like_cpp,
+            minimum_level: self.party_level_req_like_cpp,
         }
     }
 
@@ -23028,18 +23071,22 @@ impl WorldSession {
         self.chat_fake_message_preventing_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_party_raid_warnings_like_cpp(&mut self, enabled: bool) {
         self.party_raid_warnings_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_allow_gm_group_like_cpp(&mut self, enabled: bool) {
         self.allow_gm_group_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
         self.allow_two_side_interaction_group_like_cpp = enabled;
     }
 
+    #[cfg(test)]
     pub fn set_party_level_req_like_cpp(&mut self, level: u32) {
         self.party_level_req_like_cpp = level;
     }
@@ -23186,18 +23233,22 @@ impl WorldSession {
         self.chat_fake_message_preventing_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
         self.party_raid_warnings_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn allow_gm_group_like_cpp(&self) -> bool {
         self.allow_gm_group_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn allow_two_side_interaction_group_like_cpp(&self) -> bool {
         self.allow_two_side_interaction_group_like_cpp
     }
 
+    #[cfg(test)]
     pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
         self.party_level_req_like_cpp
     }

@@ -43,7 +43,7 @@ use wow_social::group::{
     ReadyCheckEventLikeCpp,
 };
 
-use crate::session::WorldSession;
+use crate::session::{GroupInvitePolicyLikeCpp, WorldSession};
 
 struct RecordingGroupPersistencePortLikeCpp {
     outcome: RepresentedGroupPersistenceOutcomeLikeCpp,
@@ -1513,7 +1513,10 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
 
     session.set_player_guid(Some(inviter));
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
-    session.set_allow_two_side_interaction_group_like_cpp(true);
+    let policy = GroupInvitePolicyLikeCpp {
+        allow_two_side_interaction: true,
+        ..GroupInvitePolicyLikeCpp::default()
+    };
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -1521,7 +1524,10 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
     );
 
     session
-        .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+        .handle_party_invite_with_policy_like_cpp(
+            party_invite_packet(target, &target_name, None, 0),
+            &policy,
+        )
         .await;
 
     assert!(pending_invites.get(&target).is_some());
@@ -1549,7 +1555,10 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
 
     session.set_player_guid(Some(inviter));
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
-    session.set_party_level_req_like_cpp(2);
+    let policy = GroupInvitePolicyLikeCpp {
+        minimum_level: 2,
+        ..GroupInvitePolicyLikeCpp::default()
+    };
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -1557,7 +1566,10 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
     );
 
     session
-        .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+        .handle_party_invite_with_policy_like_cpp(
+            party_invite_packet(target, &target_name, None, 0),
+            &policy,
+        )
         .await;
 
     assert_eq!(

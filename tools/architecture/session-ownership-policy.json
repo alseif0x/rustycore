@@ -153,15 +153,19 @@
           "name": "allow_gm_group_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "allow_two_side_interaction_group_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "area_spirit_healer_guid_like_cpp",
@@ -1856,15 +1860,19 @@
           "name": "party_level_req_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "party_raid_warnings_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "pass_on_group_loot",
@@ -9110,7 +9118,7 @@
           "kind": "method",
           "name": "broadcast_group_chat_like_cpp",
           "visibility": "private",
-          "signature": "fn broadcast_group_chat_like_cpp (& self , requested_type : ChatMsg , language : u32 , sender_guid : ObjectGuid , sender_name : String , text : String , virtual_realm : u32 ,)",
+          "signature": "fn broadcast_group_chat_like_cpp (& self , requested_type : ChatMsg , language : u32 , sender_guid : ObjectGuid , sender_name : String , text : String , virtual_realm : u32 , party_raid_warnings : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9924,9 +9932,11 @@
           "kind": "method",
           "name": "handle_party_invite",
           "visibility": "pub",
-          "signature": "async fn handle_party_invite (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_party_invite (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -9939,6 +9949,20 @@
           "name": "handle_party_invite_response",
           "visibility": "pub",
           "signature": "async fn handle_party_invite_response (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_party_invite_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_party_invite_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & GroupInvitePolicyLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21081,8 +21105,10 @@
           "name": "allow_gm_group_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn allow_gm_group_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21094,8 +21120,10 @@
           "name": "allow_two_side_interaction_group_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn allow_two_side_interaction_group_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -27383,6 +27411,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "group_invite_policy_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn group_invite_policy_for_test_like_cpp (& self) -> GroupInvitePolicyLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "group_loot_money_persistence_port_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn group_loot_money_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: GroupLootMoneyPersistencePortLikeCpp > >",
@@ -31649,8 +31692,10 @@
           "name": "party_level_req_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn party_level_req_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -31675,8 +31720,10 @@
           "name": "party_raid_warnings_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn party_raid_warnings_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -44619,8 +44666,10 @@
           "name": "set_allow_gm_group_like_cpp",
           "visibility": "pub",
           "signature": "fn set_allow_gm_group_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -44633,8 +44682,10 @@
           "name": "set_allow_two_side_interaction_group_like_cpp",
           "visibility": "pub",
           "signature": "fn set_allow_two_side_interaction_group_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -47303,8 +47354,10 @@
           "name": "set_party_level_req_like_cpp",
           "visibility": "pub",
           "signature": "fn set_party_level_req_like_cpp (& mut self , level : u32)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -47317,8 +47370,10 @@
           "name": "set_party_raid_warnings_like_cpp",
           "visibility": "pub",
           "signature": "fn set_party_raid_warnings_like_cpp (& mut self , enabled : bool)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -60681,45 +60736,6 @@
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite",
-          "registry": "PendingInvites",
-          "operation": "accessor",
-          "symbol": "pending_invites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
           "enclosing": "impl WorldSession::handle_party_invite_response",
           "registry": "PlayerRegistry",
           "operation": "accessor",
@@ -60792,6 +60808,45 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "p",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group",
+          "source": "crates/wow-world/src/handlers/group.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group",
+          "source": "crates/wow-world/src/handlers/group.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group",
+          "source": "crates/wow-world/src/handlers/group.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
+          "registry": "PendingInvites",
+          "operation": "accessor",
+          "symbol": "pending_invites",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "pending_invites()",
           "count": 1
         },
         {
@@ -75338,7 +75393,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:87dfa32a357cb9ca50e8cf068fa31b61:len=96602|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c6e70267f3b345f87638abc562649e2b:len=96662|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

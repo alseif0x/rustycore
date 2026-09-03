@@ -3578,6 +3578,8 @@ fn session_resources_requires_named_capability_bundles() {
     for retired_test_only_catalog in [
         "adventure_map_poi_store",
         "addon_channel",
+        "allow_gm_group",
+        "allow_two_side_interaction_group",
         "area_trigger_db2_store",
         "area_trigger_script_store",
         "area_trigger_store",
@@ -3604,6 +3606,8 @@ fn session_resources_requires_named_capability_bundles() {
         "player_create_cast_spell_store",
         "player_create_custom_spell_store",
         "player_create_info_store",
+        "party_level_req",
+        "party_raid_warnings",
         "serverside_spell_store",
         "spell_enchant_proc_store",
         "spell_totem_model_store",
@@ -3659,6 +3663,15 @@ fn session_resources_requires_named_capability_bundles() {
     assert!(
         !resources_source.contains("session.set_chat_flood_config_like_cpp("),
         "C++ World chat policy must be borrowed by handlers instead of copied into WorldSession"
+    );
+    assert!(
+        composition_source
+            .contains("group_invite_policy: Arc::new(wow_world::session::GroupInvitePolicyLikeCpp"),
+        "the composition root must group process-owned C++ World party-invite policy"
+    );
+    assert!(
+        !resources_source.contains("session.set_party_level_req_like_cpp("),
+        "C++ World party policy must be borrowed by handlers instead of copied into WorldSession"
     );
     assert!(
         resources_source

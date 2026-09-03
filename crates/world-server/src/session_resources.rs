@@ -370,13 +370,6 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) instance_ignore_level: bool,
     /// C++ `CONFIG_MAX_INSTANCES_PER_HOUR` / `AccountInstancesPerHour`.
     pub(super) max_instances_per_hour: u32,
-    pub(super) party_raid_warnings: bool,
-    /// C++ `CONFIG_ALLOW_GM_GROUP` / `GM.AllowInvite`.
-    pub(super) allow_gm_group: bool,
-    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` / `AllowTwoSide.Interaction.Group`.
-    pub(super) allow_two_side_interaction_group: bool,
-    /// C++ `CONFIG_PARTY_LEVEL_REQ` / `PartyLevelReq`.
-    pub(super) party_level_req: u32,
     pub(super) packet_spoof_config: PacketSpoofConfigLikeCpp,
     /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
     pub(super) player_save_interval_ms: u32,
@@ -619,11 +612,6 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_instance_ignore_raid_like_cpp(self.instance_ignore_raid);
         session.set_instance_ignore_level_like_cpp(self.instance_ignore_level);
         session.set_max_instances_per_hour_like_cpp(self.max_instances_per_hour);
-        session.set_party_raid_warnings_like_cpp(self.party_raid_warnings);
-        session.set_allow_gm_group_like_cpp(self.allow_gm_group);
-        session
-            .set_allow_two_side_interaction_group_like_cpp(self.allow_two_side_interaction_group);
-        session.set_party_level_req_like_cpp(self.party_level_req);
         session.set_socket_timeouts_like_cpp(socket_timeouts);
         session.set_packet_spoof_config_like_cpp(self.packet_spoof_config);
         session.set_player_save_interval_ms_like_cpp(self.player_save_interval_ms);

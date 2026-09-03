@@ -4707,6 +4707,24 @@ async fn run_inner(
                             10,
                         ),
                     },
+                    party_raid_warnings: world_config_bool(
+                        &world_configs,
+                        "CONFIG_CHAT_PARTY_RAID_WARNINGS",
+                        false,
+                    ),
+                }),
+                group_invite_policy: Arc::new(wow_world::session::GroupInvitePolicyLikeCpp {
+                    allow_gm_group: world_config_bool(
+                        &world_configs,
+                        "CONFIG_ALLOW_GM_GROUP",
+                        false,
+                    ),
+                    allow_two_side_interaction: world_config_bool(
+                        &world_configs,
+                        "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
+                        false,
+                    ),
+                    minimum_level: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
                 }),
                 bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
                 adventure_map_pois: Arc::clone(&adventure_map_poi_store),
@@ -5040,18 +5058,6 @@ async fn run_inner(
                 "CONFIG_MAX_INSTANCES_PER_HOUR",
                 5,
             ),
-            party_raid_warnings: world_config_bool(
-                &world_configs,
-                "CONFIG_CHAT_PARTY_RAID_WARNINGS",
-                false,
-            ),
-            allow_gm_group: world_config_bool(&world_configs, "CONFIG_ALLOW_GM_GROUP", false),
-            allow_two_side_interaction_group: world_config_bool(
-                &world_configs,
-                "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
-                false,
-            ),
-            party_level_req: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
             packet_spoof_config: PacketSpoofConfigLikeCpp {
                 policy: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
                 ban_mode: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),

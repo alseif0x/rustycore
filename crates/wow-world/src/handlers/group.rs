@@ -44,7 +44,7 @@ use wow_social::group::{
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, ReadyCheckEventLikeCpp,
 };
 
-use crate::session::{WorldSession, player_team_for_race_cpp};
+use crate::session::{GroupInvitePolicyLikeCpp, WorldSession, player_team_for_race_cpp};
 
 const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(250);
 
@@ -101,7 +101,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_invite",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_party_invite(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move {
+            session
+                .handle_party_invite_with_policy_like_cpp(
+                    pkt,
+                    catalogs.group_invite_policy.as_ref(),
+                )
+                .await
+        }),
     }
 }
 
@@ -1088,7 +1095,11 @@ impl WorldSession {
     ///   ReadString(name_len)
     ///   ReadString(realm_len)
     ///   [if has_party_index] ReadUInt8
-    pub async fn handle_party_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_party_invite_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        policy: &GroupInvitePolicyLikeCpp,
+    ) {
         info!(account = self.account_id, "handle_party_invite called");
         // — parse —
         let has_party_index = pkt.read_bit().unwrap_or(false);
@@ -1179,7 +1190,7 @@ impl WorldSession {
 
         // C++ `HandlePartyInviteOpcode` rejects inviting GM targets unless
         // `GM.AllowInvite` / `CONFIG_ALLOW_GM_GROUP` is enabled.
-        if !self.allow_gm_group_like_cpp()
+        if !policy.allow_gm_group
             && self.player_is_game_master_like_cpp() != Some(true)
             && target_snapshot.is_game_master
         {
@@ -1187,7 +1198,7 @@ impl WorldSession {
             return;
         }
 
-        if !self.allow_two_side_interaction_group_like_cpp()
+        if !policy.allow_two_side_interaction
             && self.player_is_game_master_like_cpp() != Some(true)
             && player_team_for_race_cpp(self.player_race_like_cpp())
                 != player_team_for_race_cpp(target_snapshot.race)
@@ -1231,7 +1242,7 @@ impl WorldSession {
             return;
         }
 
-        if u32::from(self.player_level_like_cpp()) < self.party_level_req_like_cpp()
+        if u32::from(self.player_level_like_cpp()) < policy.minimum_level
             && !target_social_has_inviter_friend_like_cpp(social_port, real_target_guid, my_guid)
                 .await
         {
@@ -1351,6 +1362,13 @@ impl WorldSession {
             result_data: 0,
             result_guid: ObjectGuid::EMPTY,
         });
+    }
+
+    #[cfg(test)]
+    pub async fn handle_party_invite(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.group_invite_policy_for_test_like_cpp();
+        self.handle_party_invite_with_policy_like_cpp(pkt, &policy)
+            .await;
     }
 
     /// CMSG_PARTY_INVITE_RESPONSE (0x3606)
