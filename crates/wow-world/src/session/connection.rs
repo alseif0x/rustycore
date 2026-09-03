@@ -137,18 +137,32 @@ impl WorldSession {
     ///
     /// The kernel swaps the channels; continuing the login and releasing the
     /// login claim stay here, because neither is transport.
-    pub(super) async fn poll_instance_link(&mut self) {
+    pub(super) async fn poll_instance_link_with_module_registry_like_cpp(
+        &mut self,
+        modules: &wow_module_api::ModuleRegistry,
+    ) {
         match self.connection.poll_instance_link(self.account_id) {
             InstanceLinkPollOutcome::Pending => {}
             InstanceLinkPollOutcome::Attached => {
                 // Continue the player login sequence on the instance socket
-                self.handle_continue_player_login().await;
+                self.handle_continue_player_login_with_module_registry_like_cpp(modules)
+                    .await;
             }
             InstanceLinkPollOutcome::Failed => {
                 self.player_loading = None;
                 self.release_character_login_claim_like_cpp();
             }
         }
+    }
+
+    #[cfg(test)]
+    pub(super) async fn poll_instance_link(&mut self) {
+        let modules = self
+            .module_registry_like_cpp
+            .clone()
+            .unwrap_or_else(|| std::sync::Arc::new(wow_module_api::ModuleRegistry::new()));
+        self.poll_instance_link_with_module_registry_like_cpp(modules.as_ref())
+            .await;
     }
 
     /// Send a server packet on the **realm** connection.

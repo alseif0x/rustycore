@@ -181,29 +181,37 @@
           "name": "area_trigger_db2_store",
           "type": "Option < Arc < AreaTriggerDb2Store > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "area_trigger_script_dispatcher_like_cpp",
           "type": "Option < AreaTriggerScriptDispatcherLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "area_trigger_script_store",
           "type": "Option < Arc < AreaTriggerScriptStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "area_trigger_store",
           "type": "Option < Arc < AreaTriggerStore > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "bank_bag_slot_prices_store",
@@ -1517,8 +1525,10 @@
           "name": "module_registry_like_cpp",
           "type": "Option < Arc < wow_module_api :: ModuleRegistry > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "monthly_quests_completed_like_cpp",
@@ -5465,8 +5475,10 @@
           "name": "tavern_area_trigger_store",
           "type": "Option < Arc < TavernAreaTriggerStoreLikeCpp > >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "taxi_destinations_like_cpp",
@@ -8585,9 +8597,9 @@
           "module": "crate::handlers::character::world_entry",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_continue_player_login",
+          "name": "handle_continue_player_login_with_module_registry_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_continue_player_login (& mut self)",
+          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , modules : & wow_module_api :: ModuleRegistry ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12914,7 +12926,23 @@
           "kind": "method",
           "name": "handle_area_trigger",
           "visibility": "pub",
-          "signature": "async fn handle_area_trigger (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_area_trigger (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_area_trigger_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_area_trigger_with_catalogs_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15946,9 +15974,11 @@
           "kind": "method",
           "name": "handle_movement",
           "visibility": "pub",
-          "signature": "async fn handle_movement (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_movement (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -15974,7 +16004,23 @@
           "kind": "method",
           "name": "handle_movement_info_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_movement_info_like_cpp (& mut self , opcode : Option < ClientOpcodes > , mut info : MovementInfo ,)",
+          "signature": "async fn handle_movement_info_like_cpp (& mut self , opcode : Option < ClientOpcodes > , info : MovementInfo ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_movement_info_with_area_trigger_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_movement_info_with_area_trigger_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , opcode : Option < ClientOpcodes > , mut info : MovementInfo ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15989,6 +16035,20 @@
           "name": "handle_movement_speed_ack",
           "visibility": "pub",
           "signature": "async fn handle_movement_speed_ack (& mut self , opcode : ClientOpcodes , mut pkt : MovementSpeedAck ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_movement_with_area_trigger_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_movement_with_area_trigger_catalogs_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17966,7 +18026,23 @@
           "kind": "method",
           "name": "handle_cast_spell",
           "visibility": "pub",
-          "signature": "async fn handle_cast_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_cast_spell (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cast_spell_with_area_trigger_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_cast_spell_with_area_trigger_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21703,50 +21779,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "area_trigger_db2_entry_like_cpp",
+          "name": "area_trigger_catalogs_for_test_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn area_trigger_db2_entry_like_cpp (& self , trigger_id : u32 ,) -> Option < & wow_data :: AreaTriggerDb2Entry >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "area_trigger_db2_store",
-          "visibility": "pub (crate)",
-          "signature": "fn area_trigger_db2_store (& self) -> Option < & Arc < AreaTriggerDb2Store > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "area_trigger_script_store",
-          "visibility": "pub (crate)",
-          "signature": "fn area_trigger_script_store (& self) -> Option < & Arc < AreaTriggerScriptStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "area_trigger_store",
-          "visibility": "pub",
-          "signature": "fn area_trigger_store (& self) -> Option < & Arc < AreaTriggerStore > >",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn area_trigger_catalogs_for_test_like_cpp (& self) -> AreaTriggerCatalogsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -23542,6 +23581,21 @@
           "name": "check_area_triggers",
           "visibility": "pub",
           "signature": "async fn check_area_triggers (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "check_area_triggers_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn check_area_triggers_with_catalogs_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25085,7 +25139,7 @@
           "kind": "method",
           "name": "dispatch_area_trigger_script_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn dispatch_area_trigger_script_like_cpp (& mut self , script_id : ScriptIdLikeCpp , trigger_id : u32 , entered : bool ,) -> Option < bool >",
+          "signature": "fn dispatch_area_trigger_script_like_cpp (& mut self , dispatcher : Option < & AreaTriggerScriptDispatcherLikeCpp > , script_id : ScriptIdLikeCpp , trigger_id : u32 , entered : bool ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25098,7 +25152,7 @@
           "kind": "method",
           "name": "dispatch_module_player_login_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn dispatch_module_player_login_like_cpp (& self , first_login : bool)",
+          "signature": "fn dispatch_module_player_login_like_cpp (& self , registry : & wow_module_api :: ModuleRegistry , first_login : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26227,6 +26281,21 @@
           "name": "handle_represented_tavern_area_trigger_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_represented_tavern_area_trigger_like_cpp (& mut self , trigger_id : u32 , entered : bool ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_represented_tavern_area_trigger_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_represented_tavern_area_trigger_with_catalog_like_cpp (& mut self , taverns : & TavernAreaTriggerStoreLikeCpp , trigger_id : u32 , entered : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -31999,6 +32068,21 @@
           "name": "poll_instance_link",
           "visibility": "pub (super)",
           "signature": "async fn poll_instance_link (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "poll_instance_link_with_module_registry_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , modules : & wow_module_api :: ModuleRegistry ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36945,7 +37029,7 @@
           "kind": "method",
           "name": "represented_is_tavern_area_trigger_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_is_tavern_area_trigger_like_cpp (& self , trigger_id : u32) -> bool",
+          "signature": "fn represented_is_tavern_area_trigger_like_cpp (& self , taverns : & TavernAreaTriggerStoreLikeCpp , trigger_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41308,6 +41392,19 @@
           "name": "revalidate_represented_tavern_resting_like_cpp",
           "visibility": "private",
           "signature": "fn revalidate_represented_tavern_resting_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "revalidate_represented_tavern_resting_with_catalog_like_cpp",
+          "visibility": "private",
+          "signature": "fn revalidate_represented_tavern_resting_with_catalog_like_cpp (& mut self , area_trigger_db2_store : & AreaTriggerDb2Store ,)",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -42677,6 +42774,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "session_handler_catalogs_for_test_like_cpp",
+          "visibility": "private",
+          "signature": "fn session_handler_catalogs_for_test_like_cpp (& self) -> SessionHandlerCatalogsLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "session_locale_name_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn session_locale_name_like_cpp (& self) -> & str",
@@ -42921,8 +43031,10 @@
           "name": "set_area_trigger_db2_store",
           "visibility": "pub",
           "signature": "fn set_area_trigger_db2_store (& mut self , store : Arc < AreaTriggerDb2Store >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -42935,8 +43047,10 @@
           "name": "set_area_trigger_script_dispatcher_like_cpp",
           "visibility": "pub",
           "signature": "fn set_area_trigger_script_dispatcher_like_cpp (& mut self , dispatcher : AreaTriggerScriptDispatcherLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -42949,8 +43063,10 @@
           "name": "set_area_trigger_script_store",
           "visibility": "pub",
           "signature": "fn set_area_trigger_script_store (& mut self , store : Arc < AreaTriggerScriptStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -42963,8 +43079,10 @@
           "name": "set_area_trigger_store",
           "visibility": "pub",
           "signature": "fn set_area_trigger_store (& mut self , store : Arc < AreaTriggerStore >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -45181,8 +45299,10 @@
           "name": "set_module_registry_like_cpp",
           "visibility": "pub",
           "signature": "fn set_module_registry_like_cpp (& mut self , registry : Arc < wow_module_api :: ModuleRegistry >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48714,8 +48834,10 @@
           "name": "set_tavern_area_trigger_store",
           "visibility": "pub",
           "signature": "fn set_tavern_area_trigger_store (& mut self , store : Arc < TavernAreaTriggerStoreLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -50168,19 +50290,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "tavern_area_trigger_store",
-          "visibility": "pub (crate)",
-          "signature": "fn tavern_area_trigger_store (& self) -> Option < & Arc < TavernAreaTriggerStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "taxi_destinations_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn taxi_destinations_like_cpp (& self) -> Vec < u32 >",
@@ -50846,8 +50955,10 @@
           "name": "update",
           "visibility": "pub",
           "signature": "fn update (& mut self , diff_ms : u32) -> usize",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -51176,6 +51287,19 @@
           "name": "update_visible_spell_clicks_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn update_visible_spell_clicks_like_cpp (& mut self) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_with_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "fn update_with_catalogs_like_cpp (& mut self , diff_ms : u32 , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -52529,7 +52653,7 @@
           "module": "crate::session_factory",
           "name": "run_world_session_until_disconnect_like_cpp",
           "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , handler_catalogs : & wow_world :: session :: SessionHandlerCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp ,) -> WorldSessionRunOutcomeLikeCpp",
-          "body_fingerprint": "fnv1a64x2:6d9ad9cd49f27eacb18d832336fa3bdf:len=1684",
+          "body_fingerprint": "fnv1a64x2:512173597fb36063b21a51439c13a15a:len=1726",
           "cfg": [],
           "source_class": "production"
         }
@@ -60920,7 +61044,7 @@
           "package": "wow-world",
           "module": "crate::handlers::movement",
           "source": "crates/wow-world/src/handlers/movement.rs",
-          "enclosing": "impl WorldSession::handle_movement_info_like_cpp",
+          "enclosing": "impl WorldSession::handle_movement_info_with_area_trigger_catalogs_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
@@ -73445,7 +73569,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:663bea34828920750406ecd596ec792e:len=96225|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6f23338ca5a4ef7aad44b81f1d07d2ad:len=96167|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

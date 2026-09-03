@@ -164,7 +164,10 @@ impl WorldSession {
     ///
     /// Called when the `instance_link_rx` oneshot delivers the new channels.
     /// Sends ResumeComms and the full login sequence after the instance socket is connected.
-    pub async fn handle_continue_player_login(&mut self) {
+    pub async fn handle_continue_player_login_with_module_registry_like_cpp(
+        &mut self,
+        modules: &wow_module_api::ModuleRegistry,
+    ) {
         let guid: ObjectGuid = match self.player_loading() {
             Some(g) => g,
             None => {
@@ -2613,7 +2616,7 @@ impl WorldSession {
         // C++ `sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin)`
         // (`CharacterHandler.cpp:1452`), after the completed login and after
         // the login criteria update. Trusted linked modules observe here.
-        self.dispatch_module_player_login_like_cpp(first_login);
+        self.dispatch_module_player_login_like_cpp(modules, first_login);
     }
 
     /// Build the self CreateObject combat snapshot after C++ login has loaded

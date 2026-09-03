@@ -299,12 +299,42 @@ pub struct ObjectMgrCatalogsLikeCpp {
     pub page_text: Arc<wow_data::PageTextCatalogLikeCpp>,
 }
 
-/// Immutable process-owned catalogs that packet handlers may borrow for one
-/// dispatch. Each registration narrows this aggregate to the exact catalog its
-/// handler consumes; production `WorldSession` never stores the aggregate.
+/// Process-owned area-trigger lookup and extension capability.
+///
+/// C++ reads the DB2/ObjectMgr stores and the ScriptMgr hook while handling
+/// movement/area-trigger transitions; none of those owners belong to a
+/// `WorldSession`. The optional dispatcher represents the legitimate absence
+/// of a linked content script, not a missing production catalog.
+#[derive(Clone)]
+pub struct AreaTriggerCatalogsLikeCpp {
+    pub db2: Arc<AreaTriggerDb2Store>,
+    pub destinations: Arc<AreaTriggerStore>,
+    pub scripts: Arc<AreaTriggerScriptStoreLikeCpp>,
+    pub taverns: Arc<TavernAreaTriggerStoreLikeCpp>,
+    pub script_dispatcher: Option<AreaTriggerScriptDispatcherLikeCpp>,
+}
+
+#[cfg(test)]
+impl Default for AreaTriggerCatalogsLikeCpp {
+    fn default() -> Self {
+        Self {
+            db2: Arc::new(AreaTriggerDb2Store::from_entries([])),
+            destinations: Arc::new(AreaTriggerStore::default()),
+            scripts: Arc::new(AreaTriggerScriptStoreLikeCpp::default()),
+            taverns: Arc::new(TavernAreaTriggerStoreLikeCpp::default()),
+            script_dispatcher: None,
+        }
+    }
+}
+
+/// Immutable process-owned capabilities borrowed by the outer driver for one
+/// session pass. Each driver phase and packet registration narrows this
+/// aggregate to the exact capability it consumes; production `WorldSession`
+/// never stores the aggregate.
 #[derive(Clone)]
 pub struct SessionHandlerCatalogsLikeCpp {
     pub object_mgr: Arc<ObjectMgrCatalogsLikeCpp>,
+    pub area_triggers: Arc<AreaTriggerCatalogsLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
     pub battlemaster_lists: Arc<BattlemasterListStore>,
@@ -313,6 +343,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub graveyards: Arc<GraveyardStore>,
     pub lfg_dungeons: Arc<LfgDungeonStoreLikeCpp>,
     pub tact_keys: Arc<TactKeyStore>,
+    pub modules: Arc<wow_module_api::ModuleRegistry>,
 }
 
 #[cfg(test)]
@@ -320,6 +351,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
     fn default() -> Self {
         Self {
             object_mgr: Arc::new(ObjectMgrCatalogsLikeCpp::default()),
+            area_triggers: Arc::new(AreaTriggerCatalogsLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
             battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
@@ -328,6 +360,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             graveyards: Arc::new(GraveyardStore::default()),
             lfg_dungeons: Arc::new(LfgDungeonStoreLikeCpp::default()),
             tact_keys: Arc::new(TactKeyStore::from_entries([])),
+            modules: Arc::new(wow_module_api::ModuleRegistry::new()),
         }
     }
 }
@@ -5574,10 +5607,15 @@ pub struct WorldSession {
     // C++ ObjectMgr fishing base skill levels loaded from skill_fishing_base_level.
     fishing_base_skill_store: Option<Arc<FishingBaseSkillStoreLikeCpp>>,
 
-    // Area trigger store (collision detection + teleportation)
+    // Area-trigger catalogs are process-owned and borrowed for each
+    // production session pass. These retained fields are test fixtures only.
+    #[cfg(test)]
     area_trigger_db2_store: Option<Arc<AreaTriggerDb2Store>>,
+    #[cfg(test)]
     area_trigger_store: Option<Arc<AreaTriggerStore>>,
+    #[cfg(test)]
     area_trigger_script_store: Option<Arc<AreaTriggerScriptStoreLikeCpp>>,
+    #[cfg(test)]
     area_trigger_script_dispatcher_like_cpp: Option<AreaTriggerScriptDispatcherLikeCpp>,
     #[cfg(test)]
     give_player_xp_script_dispatcher_like_cpp: Option<GivePlayerXpScriptDispatcherLikeCpp>,
@@ -5586,6 +5624,7 @@ pub struct WorldSession {
     /// `session::driver` instead of reimplementing it.
     #[cfg(test)]
     driver_phase_trace_like_cpp: Vec<crate::session::driver::phases::SessionDriverPhaseLikeCpp>,
+    #[cfg(test)]
     tavern_area_trigger_store: Option<Arc<TavernAreaTriggerStoreLikeCpp>>,
 
     // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
@@ -6986,11 +7025,9 @@ pub struct WorldSession {
     /// Per-character fence published to remote loot sources before they begin
     /// mutating this character's durable balance.
     durable_loot_money_persistence_like_cpp: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
-    /// Trusted linked modules, shared read-only for the whole process.
-    ///
-    /// `None` is the zero-module no-op path: no registry is built and the
-    /// login hook is skipped entirely, so capture and state behaviour match a
-    /// server with the feature absent.
+    /// Test fixture for the process-owned linked-module registry. Production
+    /// borrows the required registry from the session driver.
+    #[cfg(test)]
     module_registry_like_cpp: Option<Arc<wow_module_api::ModuleRegistry>>,
     /// Represented pending group/NBG loot rolls keyed by `(LootObj, LootListID)`.
     pub(crate) represented_loot_rolls:
@@ -7903,14 +7940,19 @@ impl WorldSession {
             skill_tiers_store: None,
             area_table_store: None,
             fishing_base_skill_store: None,
+            #[cfg(test)]
             area_trigger_db2_store: None,
+            #[cfg(test)]
             area_trigger_store: None,
+            #[cfg(test)]
             area_trigger_script_store: None,
+            #[cfg(test)]
             area_trigger_script_dispatcher_like_cpp: None,
             #[cfg(test)]
             give_player_xp_script_dispatcher_like_cpp: None,
             #[cfg(test)]
             driver_phase_trace_like_cpp: Vec::new(),
+            #[cfg(test)]
             tavern_area_trigger_store: None,
             #[cfg(test)]
             graveyard_store: None,
@@ -8794,6 +8836,7 @@ impl WorldSession {
             durable_loot_money_persistence_like_cpp: Arc::new(
                 DurableLootMoneyPersistenceTrackerLikeCpp::default(),
             ),
+            #[cfg(test)]
             module_registry_like_cpp: None,
             represented_loot_rolls: std::collections::HashMap::new(),
             #[cfg(test)]
@@ -27193,32 +27236,23 @@ impl WorldSession {
     }
 
     /// Set the DB2-backed area trigger store for this session.
+    #[cfg(test)]
     pub fn set_area_trigger_db2_store(&mut self, store: Arc<AreaTriggerDb2Store>) {
         self.area_trigger_db2_store = Some(store);
     }
 
-    pub(crate) fn area_trigger_db2_store(&self) -> Option<&Arc<AreaTriggerDb2Store>> {
-        self.area_trigger_db2_store.as_ref()
-    }
-
     /// Set the area trigger teleport store for this session.
+    #[cfg(test)]
     pub fn set_area_trigger_store(&mut self, store: Arc<AreaTriggerStore>) {
         self.area_trigger_store = Some(store);
     }
 
-    /// Get the area trigger store reference.
-    pub fn area_trigger_store(&self) -> Option<&Arc<AreaTriggerStore>> {
-        self.area_trigger_store.as_ref()
-    }
-
+    #[cfg(test)]
     pub fn set_area_trigger_script_store(&mut self, store: Arc<AreaTriggerScriptStoreLikeCpp>) {
         self.area_trigger_script_store = Some(store);
     }
 
-    pub(crate) fn area_trigger_script_store(&self) -> Option<&Arc<AreaTriggerScriptStoreLikeCpp>> {
-        self.area_trigger_script_store.as_ref()
-    }
-
+    #[cfg(test)]
     pub fn set_area_trigger_script_dispatcher_like_cpp(
         &mut self,
         dispatcher: AreaTriggerScriptDispatcherLikeCpp,
@@ -27236,33 +27270,49 @@ impl WorldSession {
 
     pub(crate) fn dispatch_area_trigger_script_like_cpp(
         &mut self,
+        dispatcher: Option<&AreaTriggerScriptDispatcherLikeCpp>,
         script_id: ScriptIdLikeCpp,
         trigger_id: u32,
         entered: bool,
     ) -> Option<bool> {
-        let dispatcher = Arc::clone(self.area_trigger_script_dispatcher_like_cpp.as_ref()?);
+        let dispatcher = Arc::clone(dispatcher?);
         Some(dispatcher(self, script_id, trigger_id, entered))
     }
 
+    #[cfg(test)]
     pub fn set_tavern_area_trigger_store(&mut self, store: Arc<TavernAreaTriggerStoreLikeCpp>) {
         self.tavern_area_trigger_store = Some(store);
     }
 
-    pub(crate) fn tavern_area_trigger_store(&self) -> Option<&Arc<TavernAreaTriggerStoreLikeCpp>> {
-        self.tavern_area_trigger_store.as_ref()
-    }
-
-    pub(crate) fn represented_is_tavern_area_trigger_like_cpp(&self, trigger_id: u32) -> bool {
-        self.tavern_area_trigger_store()
-            .is_some_and(|store| store.is_tavern_area_trigger_like_cpp(trigger_id))
-    }
-
-    pub(crate) fn area_trigger_db2_entry_like_cpp(
+    pub(crate) fn represented_is_tavern_area_trigger_like_cpp(
         &self,
+        taverns: &TavernAreaTriggerStoreLikeCpp,
         trigger_id: u32,
-    ) -> Option<&wow_data::AreaTriggerDb2Entry> {
-        self.area_trigger_db2_store()
-            .and_then(|store| store.get(trigger_id))
+    ) -> bool {
+        taverns.is_tavern_area_trigger_like_cpp(trigger_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn area_trigger_catalogs_for_test_like_cpp(&self) -> AreaTriggerCatalogsLikeCpp {
+        AreaTriggerCatalogsLikeCpp {
+            db2: self
+                .area_trigger_db2_store
+                .clone()
+                .unwrap_or_else(|| Arc::new(AreaTriggerDb2Store::from_entries([]))),
+            destinations: self
+                .area_trigger_store
+                .clone()
+                .unwrap_or_else(|| Arc::new(AreaTriggerStore::default())),
+            scripts: self
+                .area_trigger_script_store
+                .clone()
+                .unwrap_or_else(|| Arc::new(AreaTriggerScriptStoreLikeCpp::default())),
+            taverns: self
+                .tavern_area_trigger_store
+                .clone()
+                .unwrap_or_else(|| Arc::new(TavernAreaTriggerStoreLikeCpp::default())),
+            script_dispatcher: self.area_trigger_script_dispatcher_like_cpp.clone(),
+        }
     }
 
     /// C++ `Player::IsInAreaTriggerRadius`.
@@ -31532,7 +31582,10 @@ impl WorldSession {
         }
     }
 
-    fn revalidate_represented_tavern_resting_like_cpp(&mut self) {
+    fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
+        &mut self,
+        area_trigger_db2_store: &AreaTriggerDb2Store,
+    ) {
         let Some(rest) = self.player_rest_state_snapshot_like_cpp() else {
             return;
         };
@@ -31540,8 +31593,8 @@ impl WorldSession {
             return;
         }
 
-        let Some(at_entry) = self
-            .area_trigger_db2_entry_like_cpp(rest.inn_area_trigger_id)
+        let Some(at_entry) = area_trigger_db2_store
+            .get(rest.inn_area_trigger_id)
             .cloned()
         else {
             if self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
@@ -31555,6 +31608,15 @@ impl WorldSession {
         {
             self.send_represented_resting_player_flag_update_like_cpp();
         }
+    }
+
+    #[cfg(test)]
+    fn revalidate_represented_tavern_resting_like_cpp(&mut self) {
+        let db2 = self
+            .area_trigger_db2_store
+            .clone()
+            .unwrap_or_else(|| Arc::new(AreaTriggerDb2Store::from_entries([])));
+        self.revalidate_represented_tavern_resting_with_catalog_like_cpp(db2.as_ref());
     }
 
     fn apply_represented_pct_modifier_to_u32_like_cpp(value: u32, pct: i32) -> u32 {
@@ -31919,12 +31981,13 @@ impl WorldSession {
         self.set_represented_ffa_pvp_flag_like_cpp(true)
     }
 
-    pub(crate) fn handle_represented_tavern_area_trigger_like_cpp(
+    pub(crate) fn handle_represented_tavern_area_trigger_with_catalog_like_cpp(
         &mut self,
+        taverns: &TavernAreaTriggerStoreLikeCpp,
         trigger_id: u32,
         entered: bool,
     ) -> bool {
-        if !self.represented_is_tavern_area_trigger_like_cpp(trigger_id) {
+        if !self.represented_is_tavern_area_trigger_like_cpp(taverns, trigger_id) {
             return false;
         }
 
@@ -31939,6 +32002,23 @@ impl WorldSession {
             self.set_represented_ffa_pvp_flag_like_cpp(!entered);
         }
         true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn handle_represented_tavern_area_trigger_like_cpp(
+        &mut self,
+        trigger_id: u32,
+        entered: bool,
+    ) -> bool {
+        let taverns = self
+            .tavern_area_trigger_store
+            .clone()
+            .unwrap_or_else(|| Arc::new(TavernAreaTriggerStoreLikeCpp::default()));
+        self.handle_represented_tavern_area_trigger_with_catalog_like_cpp(
+            taverns.as_ref(),
+            trigger_id,
+            entered,
+        )
     }
 
     pub(crate) fn send_represented_resting_player_flag_update_like_cpp(&self) {
@@ -38950,13 +39030,14 @@ impl WorldSession {
     /// Manages trigger state to prevent retriggering:
     /// - Entry: when player enters a trigger (was not in one)
     /// - Exit: when player leaves a trigger (was in one, no longer is)
-    pub async fn check_area_triggers(&mut self) {
-        let (Some(pos), Some(store)) = (
-            self.player_position_like_cpp(),
-            self.area_trigger_store.as_ref(),
-        ) else {
+    pub async fn check_area_triggers_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &AreaTriggerCatalogsLikeCpp,
+    ) {
+        let Some(pos) = self.player_position_like_cpp() else {
             return;
         };
+        let store = catalogs.destinations.as_ref();
 
         let (exited_trigger_id, entered_trigger) = {
             // Get all triggers at the current position on the player's current map.
@@ -38979,7 +39060,11 @@ impl WorldSession {
                 trigger_id = prev_trigger_id,
                 "Exited area trigger"
             );
-            self.handle_represented_tavern_area_trigger_like_cpp(prev_trigger_id, false);
+            self.handle_represented_tavern_area_trigger_with_catalog_like_cpp(
+                catalogs.taverns.as_ref(),
+                prev_trigger_id,
+                false,
+            );
             self.active_area_trigger = None;
         }
 
@@ -38993,7 +39078,11 @@ impl WorldSession {
                 );
                 self.active_area_trigger = Some(trigger_id);
 
-                if self.handle_represented_tavern_area_trigger_like_cpp(trigger_id, true) {
+                if self.handle_represented_tavern_area_trigger_with_catalog_like_cpp(
+                    catalogs.taverns.as_ref(),
+                    trigger_id,
+                    true,
+                ) {
                     return;
                 }
 
@@ -39013,6 +39102,13 @@ impl WorldSession {
                 }
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn check_area_triggers(&mut self) {
+        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        self.check_area_triggers_with_catalogs_like_cpp(&catalogs)
+            .await;
     }
 
     /// Teleport the player to a new map and position.
@@ -39864,6 +39960,7 @@ impl WorldSession {
     ///
     /// Composition calls this once after construction. A session that never
     /// receives one keeps the zero-module no-op path.
+    #[cfg(test)]
     pub fn set_module_registry_like_cpp(&mut self, registry: Arc<wow_module_api::ModuleRegistry>) {
         self.module_registry_like_cpp = Some(registry);
     }
@@ -39876,10 +39973,11 @@ impl WorldSession {
     /// discards the batch instead of half-applying it. A rejected batch is
     /// logged and the login continues: a module must not be able to fail a
     /// player's login.
-    pub(crate) fn dispatch_module_player_login_like_cpp(&self, first_login: bool) {
-        let Some(registry) = self.module_registry_like_cpp.as_ref() else {
-            return;
-        };
+    pub(crate) fn dispatch_module_player_login_like_cpp(
+        &self,
+        registry: &wow_module_api::ModuleRegistry,
+        first_login: bool,
+    ) {
         if registry.is_empty() {
             return;
         }

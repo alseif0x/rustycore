@@ -25,6 +25,8 @@ pub(crate) mod phases;
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
 use phases::SessionDriverPhaseLikeCpp;
 
+#[cfg(test)]
+use std::sync::Arc;
 use std::time::Instant;
 
 use tracing::{debug, info};
@@ -38,7 +40,11 @@ impl WorldSession {
     /// Process queued packets (up to [`MAX_PACKETS_PER_UPDATE`] per call).
     ///
     /// Returns the number of packets processed.
-    pub fn update(&mut self, diff_ms: u32) -> usize {
+    pub fn update_with_catalogs_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) -> usize {
         let mut processed = 0;
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainPrimaryPackets);
 
@@ -156,7 +162,9 @@ impl WorldSession {
                 self.tick_auras();
             }
             self.update_player_save_timer_like_cpp(diff_ms);
-            self.revalidate_represented_tavern_resting_like_cpp();
+            self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
+                catalogs.area_triggers.db2.as_ref(),
+            );
             self.tick_represented_online_xp_rest_bonus_like_cpp(
                 Self::current_game_time_secs_like_cpp(),
             );
@@ -188,6 +196,12 @@ impl WorldSession {
         }
 
         processed
+    }
+
+    #[cfg(test)]
+    pub fn update(&mut self, diff_ms: u32) -> usize {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.update_with_catalogs_like_cpp(diff_ms, &catalogs)
     }
 
     /// Process pending packets asynchronously. Call after `update()`.
@@ -222,7 +236,8 @@ impl WorldSession {
 
         // Check for instance link delivery (ConnectTo flow)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
-        self.poll_instance_link().await;
+        self.poll_instance_link_with_module_registry_like_cpp(catalogs.modules.as_ref())
+            .await;
 
         // Process pending creature/gameobject spawn (async DB query)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
@@ -254,6 +269,12 @@ impl WorldSession {
 
     #[cfg(test)]
     pub async fn process_pending(&mut self) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.process_pending_with_catalogs_like_cpp(&catalogs).await;
+    }
+
+    #[cfg(test)]
+    fn session_handler_catalogs_for_test_like_cpp(&self) -> SessionHandlerCatalogsLikeCpp {
         let empty_catalogs = SessionHandlerCatalogsLikeCpp::default();
         let catalogs = self
             .object_mgr_catalogs_like_cpp
@@ -262,6 +283,7 @@ impl WorldSession {
             .unwrap_or_default();
         let catalogs = SessionHandlerCatalogsLikeCpp {
             object_mgr: catalogs,
+            area_triggers: Arc::new(self.area_trigger_catalogs_for_test_like_cpp()),
             bank_bag_slot_prices: self
                 .bank_bag_slot_prices_store
                 .clone()
@@ -291,7 +313,11 @@ impl WorldSession {
                 .tact_key_store
                 .clone()
                 .unwrap_or(empty_catalogs.tact_keys),
+            modules: self
+                .module_registry_like_cpp
+                .clone()
+                .unwrap_or(empty_catalogs.modules),
         };
-        self.process_pending_with_catalogs_like_cpp(&catalogs).await;
+        catalogs
     }
 }

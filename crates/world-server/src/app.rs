@@ -4625,6 +4625,13 @@ async fn run_inner(
         core: SessionCoreCapabilitiesLikeCpp {
             handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
                 object_mgr: object_mgr_catalogs,
+                area_triggers: Arc::new(wow_world::session::AreaTriggerCatalogsLikeCpp {
+                    db2: Arc::clone(&area_trigger_db2_store),
+                    destinations: Arc::clone(&area_trigger_store),
+                    scripts: Arc::clone(&area_trigger_script_store),
+                    taverns: Arc::clone(&tavern_area_trigger_store),
+                    script_dispatcher: None,
+                }),
                 bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
                 adventure_map_pois: Arc::clone(&adventure_map_poi_store),
                 battlemaster_lists: Arc::clone(&battlemaster_list_typed_store),
@@ -4633,6 +4640,7 @@ async fn run_inner(
                 graveyards: Arc::clone(&graveyard_store),
                 lfg_dungeons: Arc::clone(&lfg_dungeon_store_like_cpp),
                 tact_keys: Arc::clone(&tact_key_store),
+                modules: Arc::clone(&modules),
             }),
             gameobject_template_lifecycle_store: Arc::clone(&gameobject_template_lifecycle_store),
             persistence,
@@ -4766,10 +4774,6 @@ async fn run_inner(
         world: SessionWorldCatalogCapabilitiesLikeCpp {
             area_table_store: Arc::clone(&area_table_store),
             fishing_base_skill_store: Arc::clone(&fishing_base_skill_store),
-            area_trigger_db2_store: Arc::clone(&area_trigger_db2_store),
-            area_trigger_store: Arc::clone(&area_trigger_store),
-            area_trigger_script_store: Arc::clone(&area_trigger_script_store),
-            tavern_area_trigger_store: Arc::clone(&tavern_area_trigger_store),
             area_trigger_template_store: Arc::clone(&area_trigger_template_store),
             chr_specialization_store: Arc::clone(&chr_specialization_store),
             dungeon_encounter_store: Arc::clone(&dungeon_encounter_store),
@@ -4874,7 +4878,6 @@ async fn run_inner(
         },
         runtime: SessionRuntimePolicyCapabilitiesLikeCpp {
             player_registry: Arc::clone(&player_registry),
-            module_registry: Arc::clone(&modules),
             game_event_quest_complete_tx: game_event_quest_complete_tx,
             group_registry: Arc::clone(&group_registry),
             pending_invites: Arc::clone(&pending_invites),

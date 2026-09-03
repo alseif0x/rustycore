@@ -15,7 +15,7 @@ use wow_packet::packets::misc::{
     TaxiNodeStatusPkt,
 };
 
-use crate::session::RepresentedActivateTaxiLikeCpp;
+use crate::session::{AreaTriggerCatalogsLikeCpp, RepresentedActivateTaxiLikeCpp};
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -33,7 +33,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_area_trigger",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_area_trigger(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_area_trigger_with_catalogs_like_cpp(
+                        catalogs.area_triggers.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -430,7 +439,11 @@ impl crate::session::WorldSession {
     /// CMSG_AREA_TRIGGER — player entered an area trigger.
     /// C++ ref: `WorldSession::HandleAreaTriggerOpcode`.
 
-    pub async fn handle_area_trigger(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_area_trigger_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &AreaTriggerCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let Ok(trigger_id) = pkt.read_uint32() else {
             warn!(
                 account = self.account_id,
@@ -466,7 +479,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(at_entry) = self.area_trigger_db2_entry_like_cpp(trigger_id).cloned() else {
+        let Some(at_entry) = catalogs.db2.get(trigger_id).cloned() else {
             debug!("Unknown area trigger ID {}", trigger_id);
             return;
         };
@@ -492,12 +505,17 @@ impl crate::session::WorldSession {
 
         // C++ continues unless `ScriptMgr::OnAreaTrigger` returns true. A DB
         // binding alone therefore cannot consume the event.
-        let bound_script_id = self
-            .area_trigger_script_store()
-            .and_then(|store| store.get_script_id_like_cpp(trigger_id))
+        let bound_script_id = catalogs
+            .scripts
+            .get_script_id_like_cpp(trigger_id)
             .filter(|script_id| *script_id != wow_data::ScriptIdLikeCpp::NONE);
         if let Some(script_id) = bound_script_id {
-            match self.dispatch_area_trigger_script_like_cpp(script_id, trigger_id, entered) {
+            match self.dispatch_area_trigger_script_like_cpp(
+                catalogs.script_dispatcher.as_ref(),
+                script_id,
+                trigger_id,
+                entered,
+            ) {
                 Some(true) => return,
                 Some(false) => {}
                 None => warn!(
@@ -509,14 +527,15 @@ impl crate::session::WorldSession {
             }
         }
 
-        if self.handle_represented_tavern_area_trigger_like_cpp(trigger_id, entered) {
+        if self.handle_represented_tavern_area_trigger_with_catalog_like_cpp(
+            catalogs.taverns.as_ref(),
+            trigger_id,
+            entered,
+        ) {
             return;
         }
 
-        let Some(trigger) = self
-            .area_trigger_store()
-            .and_then(|store| store.get_trigger(trigger_id).cloned())
-        else {
+        let Some(trigger) = catalogs.destinations.get_trigger(trigger_id).cloned() else {
             return;
         };
 
@@ -539,6 +558,13 @@ impl crate::session::WorldSession {
             );
             self.teleport_to(target_map, target_pos).await;
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_area_trigger(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        self.handle_area_trigger_with_catalogs_like_cpp(&catalogs, pkt)
+            .await;
     }
 
     fn area_trigger_client_conditions_meet_like_cpp(&mut self, trigger_id: u32) -> bool {

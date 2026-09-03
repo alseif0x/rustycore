@@ -178,7 +178,7 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
                 .min(u128::from(u32::MAX)) as u32;
             last_session_update = now;
 
-            let count = session.update(diff_ms);
+            let count = session.update_with_catalogs_like_cpp(diff_ms, handler_catalogs);
             session
                 .process_pending_with_catalogs_like_cpp(handler_catalogs)
                 .await;

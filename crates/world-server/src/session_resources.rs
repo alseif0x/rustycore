@@ -33,8 +33,8 @@ pub(super) struct SessionResources {
 
 /// Required process capabilities shared by every admitted session.
 pub(super) struct SessionCoreCapabilitiesLikeCpp {
-    /// Required immutable catalogs borrowed by the outer packet driver for
-    /// one dispatch. Production sessions never retain this aggregate.
+    /// Required immutable capabilities borrowed by the outer driver for one
+    /// session pass. Production sessions never retain this aggregate.
     pub(super) handler_catalogs: Arc<wow_world::session::SessionHandlerCatalogsLikeCpp>,
     pub(super) gameobject_template_lifecycle_store:
         Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
@@ -257,10 +257,6 @@ pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
 pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) area_table_store: Arc<wow_data::AreaTableStore>,
     pub(super) fishing_base_skill_store: Arc<wow_data::FishingBaseSkillStoreLikeCpp>,
-    pub(super) area_trigger_db2_store: Arc<wow_data::AreaTriggerDb2Store>,
-    pub(super) area_trigger_store: Arc<wow_data::AreaTriggerStore>,
-    pub(super) area_trigger_script_store: Arc<wow_data::AreaTriggerScriptStoreLikeCpp>,
-    pub(super) tavern_area_trigger_store: Arc<wow_data::TavernAreaTriggerStoreLikeCpp>,
     pub(super) area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     pub(super) chr_specialization_store: Arc<wow_data::ChrSpecializationStore>,
     pub(super) dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>,
@@ -352,12 +348,6 @@ pub(super) struct SessionProgressionCapabilitiesLikeCpp {
 pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     /// Shared registry of all active player sessions (for broadcast).
     pub(super) player_registry: Arc<PlayerRegistry>,
-    /// Trusted linked modules composed by the generated compositor (#229).
-    ///
-    /// Production always publishes the registry, including the ordinary empty
-    /// zero-module registry. Its required type prevents an admitted session
-    /// from observing an absent module capability.
-    pub(super) module_registry: Arc<wow_module_api::ModuleRegistry>,
     /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
     pub(super) game_event_quest_complete_tx: flume::Sender<GameEventQuestCompleteCommandLikeCpp>,
     /// Shared registry of all active groups.
@@ -548,10 +538,6 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
         session.set_area_table_store(Arc::clone(&self.area_table_store));
         session.set_fishing_base_skill_store(Arc::clone(&self.fishing_base_skill_store));
-        session.set_area_trigger_db2_store(Arc::clone(&self.area_trigger_db2_store));
-        session.set_area_trigger_store(Arc::clone(&self.area_trigger_store));
-        session.set_area_trigger_script_store(Arc::clone(&self.area_trigger_script_store));
-        session.set_tavern_area_trigger_store(Arc::clone(&self.tavern_area_trigger_store));
         session.set_chr_specialization_store(Arc::clone(&self.chr_specialization_store));
         session.set_dungeon_encounter_store(Arc::clone(&self.dungeon_encounter_store));
         session.set_map_store(Arc::clone(&self.map_store));
@@ -644,7 +630,6 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
     ) {
         session.set_quest_low_level_hide_diff_like_cpp(self.quest_low_level_hide_diff);
         session.set_quest_high_level_hide_diff_like_cpp(self.quest_high_level_hide_diff);
-        session.set_module_registry_like_cpp(Arc::clone(&self.module_registry));
         session.set_player_registry(Arc::clone(&self.player_registry));
         session.set_game_event_quest_complete_sender_like_cpp(
             self.game_event_quest_complete_tx.clone(),

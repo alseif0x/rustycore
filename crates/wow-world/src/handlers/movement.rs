@@ -34,8 +34,8 @@ use wow_packet::packets::movement::{
 
 use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::session::{
-    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
-    WorldSession,
+    AreaTriggerCatalogsLikeCpp, SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
+    SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP, WorldSession,
 };
 
 // C++ `HandleMoveSetVehicleRecAck` has no session-visible side effect, so
@@ -86,7 +86,16 @@ macro_rules! register_move {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: concat!("handle_movement_", stringify!($opcode)),
-                handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_movement(pkt).await }),
+                handler: |session, catalogs, pkt| {
+                    Box::pin(async move {
+                        session
+                            .handle_movement_with_area_trigger_catalogs_like_cpp(
+                                catalogs.area_triggers.as_ref(),
+                                pkt,
+                            )
+                            .await
+                    })
+                },
             }
         }
     };
@@ -128,7 +137,11 @@ impl WorldSession {
     ///
     /// Parses MovementInfo, validates it, updates player position,
     /// and queues a broadcast to nearby players.
-    pub async fn handle_movement(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_movement_with_area_trigger_catalogs_like_cpp(
+        &mut self,
+        catalogs: &AreaTriggerCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let opcode = pkt.client_opcode();
         let info = match ClientPlayerMovement::read(&mut pkt) {
             Ok(m) => m,
@@ -141,11 +154,13 @@ impl WorldSession {
             }
         };
 
-        self.handle_movement_info_like_cpp(opcode, info.info).await;
+        self.handle_movement_info_with_area_trigger_catalogs_like_cpp(catalogs, opcode, info.info)
+            .await;
     }
 
-    pub(crate) async fn handle_movement_info_like_cpp(
+    pub(crate) async fn handle_movement_info_with_area_trigger_catalogs_like_cpp(
         &mut self,
+        area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         opcode: Option<ClientOpcodes>,
         mut info: MovementInfo,
     ) {
@@ -451,7 +466,8 @@ impl WorldSession {
             self.update_visibility().await;
 
             // Check area triggers at the new position
-            self.check_area_triggers().await;
+            self.check_area_triggers_with_catalogs_like_cpp(area_trigger_catalogs)
+                .await;
         } else {
             let moved = self
                 .mutate_world_creature(mover_guid, |creature| {
@@ -528,6 +544,24 @@ impl WorldSession {
                 "RUST_LOGIN_TRACE movement_applied"
             );
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_movement(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        self.handle_movement_with_area_trigger_catalogs_like_cpp(&catalogs, pkt)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn handle_movement_info_like_cpp(
+        &mut self,
+        opcode: Option<ClientOpcodes>,
+        info: MovementInfo,
+    ) {
+        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        self.handle_movement_info_with_area_trigger_catalogs_like_cpp(&catalogs, opcode, info)
+            .await;
     }
 
     fn apply_movement_side_effects_like_cpp(

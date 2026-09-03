@@ -55,7 +55,9 @@ use wow_packet::packets::spell::{
 use wow_packet::packets::totem::TotemDestroyed;
 
 use crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
-use crate::session::{RepresentedPendingSpellCastRequestLikeCpp, WorldSession};
+use crate::session::{
+    AreaTriggerCatalogsLikeCpp, RepresentedPendingSpellCastRequestLikeCpp, WorldSession,
+};
 
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 1;
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
@@ -98,7 +100,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_cast_spell",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_cast_spell(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_cast_spell_with_area_trigger_catalogs_like_cpp(
+                        catalogs.area_triggers.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -478,7 +489,11 @@ impl WorldSession {
     /// 2. Validate cooldown.
     /// 3. If cast_time > 0: initiate cast (SMSG_SPELL_START), wait for tick_active_spell_cast().
     /// 4. If instant: execute immediately.
-    pub async fn handle_cast_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_cast_spell_with_area_trigger_catalogs_like_cpp(
+        &mut self,
+        area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let player_guid = match self.player_guid() {
             Some(g) => g,
             None => {
@@ -549,8 +564,12 @@ impl WorldSession {
         // after validating the `SpellInfo` and before the spell cast request
         // continues.
         if let Some(move_update) = req.move_update.clone() {
-            self.handle_movement_info_like_cpp(Some(ClientOpcodes::MoveStop), move_update)
-                .await;
+            self.handle_movement_info_with_area_trigger_catalogs_like_cpp(
+                area_trigger_catalogs,
+                Some(ClientOpcodes::MoveStop),
+                move_update,
+            )
+            .await;
         }
 
         // ── Validation: Known spell ─────────────────────────────────────
@@ -786,6 +805,13 @@ impl WorldSession {
                 "Instant spell executed"
             );
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_cast_spell(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        self.handle_cast_spell_with_area_trigger_catalogs_like_cpp(&catalogs, pkt)
+            .await;
     }
 
     /// Handle `CMSG_OPEN_ITEM`.

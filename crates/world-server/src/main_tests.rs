@@ -3577,12 +3577,16 @@ fn session_resources_requires_named_capability_bundles() {
     );
     for retired_test_only_catalog in [
         "adventure_map_poi_store",
+        "area_trigger_db2_store",
+        "area_trigger_script_store",
+        "area_trigger_store",
         "bank_bag_slot_prices_store",
         "battlemaster_list_store",
         "emotes_store",
         "emotes_text_store",
         "graveyard_store",
         "lfg_dungeon_store_like_cpp",
+        "module_registry",
         "pet_default_spell_store",
         "pet_family_spell_store",
         "pet_levelup_spell_store",
@@ -3590,6 +3594,7 @@ fn session_resources_requires_named_capability_bundles() {
         "spell_enchant_proc_store",
         "spell_totem_model_store",
         "tact_key_store",
+        "tavern_area_trigger_store",
         "vehicle_template_store",
     ] {
         assert!(
@@ -3613,6 +3618,10 @@ fn session_resources_requires_named_capability_bundles() {
     assert!(
         session_factory_source.contains("process_pending_with_catalogs_like_cpp"),
         "the driver must pass immutable catalogs explicitly instead of installing a session locator"
+    );
+    assert!(
+        session_factory_source.contains("update_with_catalogs_like_cpp"),
+        "the session pass must borrow runtime catalogs instead of retaining them"
     );
     assert_eq!(
         session_factory_source
