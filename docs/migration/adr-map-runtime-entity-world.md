@@ -280,6 +280,44 @@ that the active record is a Player before removal. This preserves the far-telepo
 rejection in the lifetime coordinator. The outer manager mutex is still the temporary atomicity
 boundary across detached storage and a map runtime; no asynchronous actor handoff is claimed yet.
 
+Step 7 work in progress: active Player relocation enters `MapRuntime` through the
+generation-checked `MapManager::relocate_player_like_cpp` operation. The map updates the one Player
+position and its derived cell membership together; detached and stale handles are rejected by this
+active-map operation. Detached login/teleport preparation still changes the detached Player value
+through the lifetime coordinator. C++ anchors are `Unit::UpdatePosition`
+(`Unit.cpp:12257-12284`) and `Map::PlayerRelocation` (`Map.cpp:1015-1040`). This repairs the prior
+direct-coordinate write that left the Player's cell index at its old location; it is not merely
+a method relocation.
+
+The grid materialization adapter is now constructed once in `world-server::app`, then borrowed by
+movement, embedded spell movement, and login. Session no longer retains its optional resolver or
+setter. This capability extraction preserves the existing grid-load call boundaries and the login
+failure gate before success packets (`Map::EnsureGridLoadedForActiveObject` / `AddPlayerToMap`,
+`Map.cpp:348-363,427-445`). The adapter still bridges canonical and legacy spawn materialization;
+moving that work inside the final runtime and removing public mutable map access remain open.
+
+The architecture hotspot and exact Session inventories have been reconciled after review in
+[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md). The dependency/ownership
+check, architecture self-test and `session-ownership-check check --syntax-only` now pass.
+The checkpoint records 292 production fields and 428 test fixtures, plus all remaining ownership
+debt; this is not terminal #578 acceptance. The exhaustive persistence snapshot is unchanged.
+
+Focused evidence on the aarch64 development host: `cargo test -p wow-map player_owner --lib`
+passes 9 tests, including active cell relocation, detached rejection and stale-generation
+rejection. `cargo check -p wow-world --tests` and `cargo check -p world-server --tests` passed
+with the explicit repository `PROTOC`; formatting and `git diff --check` also passed.
+The `wow-world --lib movement` selection passes 79 tests. The separate
+`unavailable_login_grid_aborts_before_success_login_packets_like_cpp` and
+`cast_spell_applies_embedded_move_update_like_cpp` regressions each pass, preserving the login
+failure publication gate and the spell handler's embedded movement path.
+The complete `wow-world --lib` suite also passes: 3,671 passed, zero failed, one ignored.
+The complete `wow-map --lib` suite passes: 703 passed, zero failed, one ignored.
+`validation-v2 quick --base origin/3.4.3` passes, including the workspace all-targets check
+(manifest `20260904T205853.305624Z-2-quick.json`). After also routing same-map residence through
+MapRuntime, its cell-crossing regression and the full `wow-world --lib` suite pass again
+(3,671 passed, zero failed, one ignored). The release world-server build passes on aarch64.
+Clean-HEAD final validation and live/capture acceptance remain separate pending gates.
+
 1. Complete the isolated gate and record the decision in this ADR.
 2. Introduce a private, non-`Deref` `wow-map::map::entity_world` facade owning the existing
    canonical records; keep the `HashMap` behind it while borrowed-record callers are migrated, with
