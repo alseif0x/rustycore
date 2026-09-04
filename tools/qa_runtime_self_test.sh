@@ -78,6 +78,7 @@ if [[ -n "${WOW_BOT_REPORT:-}" && "${QA_FAKE_NO_LOGIN_REPORT:-0}" != 1 ]]; then
   printf '{"login_only":true,"results":[{"world_auth":true,"enum_characters":true,"player_login_verified":true}]}\n' >"$WOW_BOT_REPORT"
   printf '%s\n' "${WOW_BOT_ENSURE_TEST_ACCOUNTS:-unset}" >"${QA_FAKE_STATE:?}.bot-provisioning"
   printf '%s\n' "${WOW_BOT_EXEC_SHA256:-unset}" >"${QA_FAKE_STATE:?}.bot-sha"
+  printf '%s\n' "${WOW_BOT_STAND_STATE+present}" >"${QA_FAKE_STATE:?}.bot-stand-state"
 fi
 # Record only whether a credential arrived, never its value.
 if [[ -n "${WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL:-}" ]]; then
@@ -330,12 +331,13 @@ check "unapproved login stopped nothing" test ! -f "$WORK/state.log"
 output="$(run_qa --dry-run --allow-runtime-qa --world-exec "$WORK/candidate" login 2>&1)"
 check "login dry run promises restoration" grep -q 'would restore' <<<"$output"
 check "login dry run stopped nothing" test ! -f "$WORK/state.log"
-EXTRA_ENV=(WOW_BOT_LOOT_RACE_SMOKE=1)
+EXTRA_ENV=(WOW_BOT_LOOT_RACE_SMOKE=1 WOW_BOT_STAND_STATE=1)
 run_qa --allow-runtime-qa --world-exec "$WORK/candidate" --report "$WORK/report.json" login >/dev/null
 check "login bot saw candidate" bot_saw_candidate
 check "login restored the original" live_is_original
 check "login report includes successful restoration" grep -q '"outcome":"passed-restored"' "$WORK/report.json"
 check "login disabled inherited loot mode" grep -qx 0 "$WORK/state.bot-mode"
+check "login removes the numeric stand-state override entirely" grep -qx '' "$WORK/state.bot-stand-state"
 check "login disabled account provisioning" grep -qx 0 "$WORK/state.bot-provisioning"
 check "login pinned the bot binary hash" grep -Eq '^[a-f0-9]{64}$' "$WORK/state.bot-sha"
 check "login did not touch loot fixtures" test ! -f "$WORK/state.fixture"

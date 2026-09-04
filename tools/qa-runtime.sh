@@ -377,10 +377,13 @@ run_login() {
         WOW_BOT_*_SMOKE|WOW_BOT_*_CAPTURE|WOW_BOT_ACK_*) export "$name=0" ;;
       esac
     done < <(compgen -v)
+    # The bot parses this numeric override even in login-only mode. Empty is
+    # not absence: remove it instead of exporting an invalid empty integer.
+    unset WOW_BOT_STAND_STATE
     cd "$QA_BOT_DIR"
     exec timeout --foreground --signal=TERM --kill-after=30 "${QA_BOT_TIMEOUT_SECONDS}s" env \
       WOW_BOT_ENV_FILE=/dev/null WOW_BOT_EXEC="$QA_BOT" WOW_BOT_EXEC_SHA256="$bot_sha" \
-      WOW_BOT_GENERATE_LOCAL_PASSWORD=0 WOW_BOT_ENSURE_TEST_ACCOUNTS=0 WOW_BOT_STAND_STATE= \
+      WOW_BOT_GENERATE_LOCAL_PASSWORD=0 WOW_BOT_ENSURE_TEST_ACCOUNTS=0 \
       WORLD_HOST=127.0.0.1 WORLD_PORT="$QA_WORLD_PORT" \
       INSTANCE_HOST=127.0.0.1 INSTANCE_PORT="$QA_INSTANCE_PORT" \
       WOW_BOT_REPORT="$evidence_dir/bot.json" WOW_BOT_LOG="$evidence_dir/bot.log" \
