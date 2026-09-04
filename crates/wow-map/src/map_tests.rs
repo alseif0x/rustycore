@@ -9294,7 +9294,7 @@ fn creature_search_formation_remove_from_map_no_formation_or_not_in_world_noops_
 
     map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(not_in_world).unwrap())
         .unwrap();
-    map.map_objects
+    map.entity_world
         .get_mut(&not_in_world_guid)
         .and_then(MapObjectRecord::creature_mut)
         .unwrap()
@@ -9603,7 +9603,7 @@ fn creature_zone_script_remove_from_map_missing_not_in_world_and_non_creature_no
     let not_in_world_guid = not_in_world.guid();
     map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(not_in_world).unwrap())
         .unwrap();
-    map.map_objects
+    map.entity_world
         .get_mut(&not_in_world_guid)
         .and_then(MapObjectRecord::creature_mut)
         .unwrap()
@@ -10285,7 +10285,7 @@ fn creature_vehicle_remove_from_map_not_in_world_does_not_consume_kit_like_cpp()
     map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
         .unwrap();
     let stored = map
-        .map_objects
+        .entity_world
         .get_mut(&guid)
         .and_then(MapObjectRecord::creature_mut)
         .unwrap();
@@ -11168,7 +11168,7 @@ fn send_object_updates_processes_dynamic_object_data_update_like_cpp() {
     map.insert_map_object_record(MapObjectRecord::new_dynamic_object(dynamic_object).unwrap())
         .unwrap();
 
-    let record = map.map_objects.get_mut(&dynamic_object_guid).unwrap();
+    let record = map.entity_world.get_mut(&dynamic_object_guid).unwrap();
     assert!(!record.object().object().is_object_updated());
     record.dynamic_object_mut().unwrap().set_radius(12.5);
     assert!(record.object().object().is_object_updated());
@@ -11383,7 +11383,7 @@ fn farsight_dynamic_object_create_missing_caster_does_not_mutate_or_consume_low_
         FarsightDynamicObjectCreateStatusLikeCpp::MissingCasterPlayer
     );
     assert_eq!(outcome.dynamic_object_guid, None);
-    assert_eq!(map.map_objects.len(), 0);
+    assert_eq!(map.entity_world.len(), 0);
     assert_eq!(
         map.get_max_low_guid_like_cpp(HighGuid::DynamicObject)
             .unwrap(),
@@ -11406,7 +11406,7 @@ fn farsight_dynamic_object_create_untyped_caster_record_does_not_mutate_like_cpp
         outcome.status,
         FarsightDynamicObjectCreateStatusLikeCpp::MissingCasterPlayer
     );
-    assert_eq!(map.map_objects.len(), 1);
+    assert_eq!(map.entity_world.len(), 1);
     assert_eq!(
         map.get_max_low_guid_like_cpp(HighGuid::DynamicObject)
             .unwrap(),
@@ -11434,7 +11434,7 @@ fn farsight_dynamic_object_create_caster_not_in_world_or_wrong_map_do_not_mutate
         not_in_world.status,
         FarsightDynamicObjectCreateStatusLikeCpp::CasterNotInWorld
     );
-    assert_eq!(not_in_world_map.map_objects.len(), 1);
+    assert_eq!(not_in_world_map.entity_world.len(), 1);
     assert_eq!(
         not_in_world_map
             .get_max_low_guid_like_cpp(HighGuid::DynamicObject)
@@ -11456,7 +11456,7 @@ fn farsight_dynamic_object_create_caster_not_in_world_or_wrong_map_do_not_mutate
         wrong_map_outcome.status,
         FarsightDynamicObjectCreateStatusLikeCpp::CasterWrongMap
     );
-    assert_eq!(wrong_map.map_objects.len(), 1);
+    assert_eq!(wrong_map.entity_world.len(), 1);
     assert_eq!(
         wrong_map
             .get_max_low_guid_like_cpp(HighGuid::DynamicObject)
@@ -11498,7 +11498,7 @@ fn farsight_dynamic_object_create_invalid_destination_preserves_no_mutation_like
             outcome.status,
             FarsightDynamicObjectCreateStatusLikeCpp::InvalidDestination
         );
-        assert_eq!(map.map_objects.len(), 1);
+        assert_eq!(map.entity_world.len(), 1);
         assert_eq!(
             map.get_max_low_guid_like_cpp(HighGuid::DynamicObject)
                 .unwrap(),
@@ -12651,7 +12651,7 @@ fn send_object_updates_clears_in_world_changed_object_like_cpp() {
     let game_object_guid = game_object.world().guid();
     map.insert_map_object_record(MapObjectRecord::new_game_object(game_object).unwrap())
         .unwrap();
-    map.map_objects
+    map.entity_world
         .get_mut(&game_object_guid)
         .unwrap()
         .object_mut()
@@ -17056,7 +17056,7 @@ fn delayed_unit_relocation_for_cells_like_cpp_reads_notify_flags_from_map_store(
         player_notify_guid,
         player_invalid_guid,
     ] {
-        map.map_objects
+        map.entity_world
             .get_mut(&guid)
             .unwrap()
             .object_mut()
@@ -17104,7 +17104,7 @@ fn delayed_unit_relocation_for_cells_uses_player_seer_notify_like_cpp() {
         .unwrap();
     map.add_to_map_like_cpp(AccessorObjectKind::Creature, viewpoint)
         .unwrap();
-    map.map_objects
+    map.entity_world
         .get_mut(&viewpoint_guid)
         .unwrap()
         .object_mut()
@@ -17157,12 +17157,12 @@ fn delayed_unit_relocation_for_cells_uses_player_seer_notify_like_cpp() {
         "CreatureRelocationNotifier must test player->m_seer notify, not the Player notify flag"
     );
 
-    map.map_objects
+    map.entity_world
         .get_mut(&viewpoint_guid)
         .unwrap()
         .object_mut()
         .relocate(Position::xyz(1.0e9, 1.0e9, 0.0));
-    map.map_objects
+    map.entity_world
         .get_mut(&viewpoint_guid)
         .unwrap()
         .object_mut()
@@ -17196,7 +17196,7 @@ fn delayed_unit_relocation_visibility_plans_filter_player_seers_like_cpp() {
     map.add_to_map_like_cpp(AccessorObjectKind::Player, target_clear)
         .unwrap();
     for guid in [source_player_guid, target_needs_notify_guid] {
-        map.map_objects
+        map.entity_world
             .get_mut(&guid)
             .unwrap()
             .object_mut()
@@ -17249,7 +17249,7 @@ fn process_relocation_notifies_like_cpp_selects_delayed_before_resetting_flags()
     map.add_to_map_like_cpp(AccessorObjectKind::Player, player)
         .unwrap();
     for guid in [creature_guid, player_guid] {
-        map.map_objects
+        map.entity_world
             .get_mut(&guid)
             .unwrap()
             .object_mut()
@@ -17328,7 +17328,7 @@ fn delayed_unit_relocation_visibility_plans_use_cpp_max_visibility_visits() {
         notified_creature_guid,
         player_notify_guid,
     ] {
-        map.map_objects
+        map.entity_world
             .get_mut(&guid)
             .unwrap()
             .object_mut()
@@ -17440,7 +17440,7 @@ fn delayed_unit_relocation_visibility_plans_report_missing_player_contexts_like_
         .add_to_map_like_cpp(AccessorObjectKind::Player, player)
         .unwrap()
         .cell;
-    map.map_objects
+    map.entity_world
         .get_mut(&player_guid)
         .unwrap()
         .object_mut()
@@ -17721,7 +17721,7 @@ fn reset_notify_flags_for_cells_like_cpp_resets_only_players_and_creatures() {
     map.add_to_map_like_cpp(AccessorObjectKind::GameObject, gameobject)
         .unwrap();
     for guid in [player_guid, creature_guid, gameobject_guid] {
-        map.map_objects
+        map.entity_world
             .get_mut(&guid)
             .unwrap()
             .object_mut()

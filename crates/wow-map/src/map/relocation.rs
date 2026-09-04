@@ -51,7 +51,7 @@ where
     #[cfg(test)]
     pub(crate) fn test_remove_creature_from_world_keep_cell_like_cpp(&mut self, guid: ObjectGuid) {
         if let Some(creature) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::creature_mut)
         {
@@ -74,7 +74,7 @@ where
         &mut self,
         guid: ObjectGuid,
     ) -> AddObjectToRemoveListOutcomeLikeCpp {
-        let Some(record) = self.map_objects.get_mut(&guid) else {
+        let Some(record) = self.entity_world.get_mut(&guid) else {
             return AddObjectToRemoveListOutcomeLikeCpp {
                 guid,
                 queued: false,
@@ -116,7 +116,7 @@ where
     ///   `remove_from_map_like_cpp(..., true)` to keep physical removal in one
     ///   canonical map path.
     ///
-    /// Scope: source-of-truth is this canonical `Map::map_objects` store. This
+    /// Scope: source-of-truth is this canonical `Map::entity_world` store. This
     /// does not model the exact C++ `Unit::m_areaTrigger` vector ordering,
     /// destroy-packet fanout, ObjectAccessor/session mirrors, AI target list
     /// exits, scripts, DB, or cross-map lookup beyond this map.
@@ -125,7 +125,7 @@ where
         caster_guid: ObjectGuid,
     ) -> RemoveAllAreaTriggersForCasterOutcomeLikeCpp {
         let mut guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 if record.kind() != AccessorObjectKind::AreaTrigger {
@@ -212,7 +212,7 @@ where
             }
 
             if matches!(kind, AccessorObjectKind::Creature | AccessorObjectKind::Pet) {
-                if let Some(record) = self.map_objects.get_mut(&guid) {
+                if let Some(record) = self.entity_world.get_mut(&guid) {
                     outcome.creature_second_cleanup_count +=
                         cleanup_map_object_record_before_delete_like_cpp(record, kind, true);
                 }
@@ -249,7 +249,7 @@ where
     ///   map remove list; Rust reuses `remove_from_map_like_cpp(..., true)` so
     ///   aura and caster-unbind cleanup stays in the canonical remove path.
     ///
-    /// Scope: source-of-truth is this canonical `Map::map_objects` store. This
+    /// Scope: source-of-truth is this canonical `Map::entity_world` store. This
     /// does not model the C++ `Unit::m_dynObj` vector ordering, session fanout,
     /// destroy packets, ObjectAccessor mirrors, scripts, DB, or cross-map
     /// instance lookup beyond this map.
@@ -258,7 +258,7 @@ where
         caster_guid: ObjectGuid,
     ) -> RemoveAllDynamicObjectsForCasterOutcomeLikeCpp {
         let mut guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 if record.kind() != AccessorObjectKind::DynamicObject {
@@ -356,7 +356,7 @@ where
             local_cell.grid_objects.creatures.insert(guid);
         }
 
-        if let Some(record) = self.map_objects.get_mut(&guid) {
+        if let Some(record) = self.entity_world.get_mut(&guid) {
             set_record_temp_world_object_like_cpp(record, on);
         }
 
@@ -487,7 +487,7 @@ where
     }
 
     pub fn remove_map_object(&mut self, guid: ObjectGuid) -> Option<MapObjectRecord> {
-        let record = self.map_objects.remove(&guid)?;
+        let record = self.entity_world.remove(&guid)?;
         self.unindex_map_object_record_by_spawn_id_like_cpp(&record);
         Some(record)
     }
@@ -539,7 +539,7 @@ where
         let mut respawn_time_cleared = 0;
         for guid in &matched_guids {
             if let Some(game_object) = self
-                .map_objects
+                .entity_world
                 .get_mut(guid)
                 .and_then(MapObjectRecord::game_object_mut)
             {
@@ -554,7 +554,7 @@ where
 
         let mut owner_list_entries_removed = 0;
         if let Some(owner) = self
-            .map_objects
+            .entity_world
             .get_mut(&owner_guid)
             .and_then(Self::map_record_unit_mut_like_cpp)
         {
@@ -626,7 +626,7 @@ where
 
         if cleared_owner {
             if let Some(game_object) = self
-                .map_objects
+                .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::game_object_mut)
             {
@@ -640,7 +640,7 @@ where
             aura_cleanup_removed_count,
             creature_ai_callback_represented,
         ) = if owner_found_as_unit_like {
-            self.map_objects
+            self.entity_world
                 .get_mut(&owner_guid_before)
                 .map(|record| {
                     let creature_ai_callback_represented = match record.kind() {
@@ -791,7 +791,7 @@ where
     /// - `Player.cpp:25389-25395` resolves `GetViewpoint()` from
     ///   `FarsightObject` through `TYPEMASK_SEER`.
     ///
-    /// Ownership: only canonical same-map `Map::map_objects` typed records are
+    /// Ownership: only canonical same-map `Map::entity_world` typed records are
     /// consulted/mutated. DynamicObject targets clear only the removing Player's
     /// `FarsightObject` when it still equals the target GUID; this branch never
     /// resolves `DynamicObject::bound_caster()` or toggles DynamicObject caster
@@ -990,7 +990,7 @@ where
             let dynamic_object_caster_viewpoint = should_cleanup_dynamic_object_caster_viewpoint
                 .then(|| self.apply_dynamic_object_caster_viewpoint_like_cpp(guid, false));
             let dynamic_object_remove_cleanup = self
-                .map_objects
+                .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::dynamic_object_mut)
                 .and_then(|dynamic_object| {
@@ -1065,7 +1065,7 @@ where
                 });
             let creature_remove_formation = self.remove_creature_from_formation_like_cpp(guid);
             let creature_unit_remove_from_world = self
-                .map_objects
+                .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::creature_mut)
                 .and_then(|creature| creature.unit_mut().remove_from_world_like_cpp());
@@ -1333,7 +1333,7 @@ where
     /// Live represented C++ `Map::Update` source selection for
     /// `ProcessRelocationNotifies(t_diff)` (`Map.cpp:692-717,797-805,830-905`).
     ///
-    /// Source of truth stays map-owned canonical `map_objects`: typed in-world
+    /// Source of truth stays map-owned canonical `entity_world`: typed in-world
     /// Players become player sources, typed in-world active non-Players become
     /// active object sources, and the existing visit/relocation helpers consume
     /// marked cells and reset notify flags. Unsupported far combat/aura/summon
@@ -1347,7 +1347,7 @@ where
     ) -> ProcessRelocationNotifiesOutcome {
         let mut player_sources = Vec::new();
 
-        for (guid, record) in &self.map_objects {
+        for (guid, record) in self.entity_world.iter() {
             let object = record.object();
             if !object.object().is_in_world() || record.kind() != AccessorObjectKind::Player {
                 continue;

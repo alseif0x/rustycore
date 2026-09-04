@@ -212,16 +212,26 @@ Linux `/proc/self/status` evidence, not an allocation-exact component accounting
 Creature payloads are much larger than the synthetic components, so the percentage must not be
 extrapolated directly.
 
-Decision: use `hecs` for the first private `wow-map` storage slice. Its measured iteration benefit
-and existing borrow/generation machinery justify the memory cost; the custom-store alternative
-would make RustyCore maintain those unsafe-sensitive mechanisms itself. Production equivalence
-tests remain mandatory. A materially different real-workload result can reopen the backend choice
-without changing the single-writer/API boundary.
+Decision: retain `hecs` as the selected entity backend. Its measured iteration benefit and existing
+borrow/generation machinery justify the memory cost; the custom-store alternative would make
+RustyCore maintain those unsafe-sensitive mechanisms itself. Production equivalence tests remain
+mandatory. A materially different real-workload result can reopen the backend choice without
+changing the single-writer/API boundary.
+
+The production audit found one integration constraint that the isolated spike intentionally did
+not model: `Map::map_object_record`, `ObjectAccessorMapSource`, the typed getters, and internal map
+phases return ordinary `&MapObjectRecord` / `&mut MapObjectRecord` references. `hecs` shared-world
+access returns borrow guards, so swapping the backend underneath those signatures would require a
+wide simultaneous API rewrite or unsafe guard elision. Neither is acceptable. The first production
+slice therefore installs a private, non-`Deref` `EntityWorld` facade over the existing `HashMap`.
+Callers are then migrated to owned snapshots, typed commands, or closure-scoped access before the
+facade changes backend. The old and new stores are never run side by side.
 
 ## Migration sequence
 
 1. Complete the isolated gate and record the decision in this ADR.
-2. Introduce a private `wow-map::map::entity_world` facade owning the existing canonical records;
+2. Introduce a private, non-`Deref` `wow-map::map::entity_world` facade owning the existing
+   canonical records; keep the `HashMap` behind it while borrowed-record callers are migrated, with
    no session-facing API and no second store.
 3. Move the GUID index and one low-risk batch family (Creature transform/vitals) behind the facade.
 4. Add the single-writer `MapRuntime` command/outcome driver while preserving current external

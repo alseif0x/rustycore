@@ -645,7 +645,7 @@ impl ManagedMap {
         // C++ `Map::Update` tail immediately follows ProcessRelocationNotifies:
         // `sScriptMgr->OnMapUpdate(this, t_diff)` then the `map_creatures` and
         // `map_gameobjects` metrics (`Map.cpp:804-815`). Rust records only the
-        // boundary invocation and typed canonical counts from `Map::map_objects`;
+        // boundary invocation and typed canonical counts from `Map::entity_world`;
         // no real ScriptMgr dispatch, script callbacks, Prometheus/telemetry,
         // ObjectAccessor, DB, or fanout side effects are claimed.
         self.last_map_update_tail_summary_like_cpp = MapUpdateTailSummaryLikeCpp {

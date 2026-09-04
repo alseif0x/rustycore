@@ -11,6 +11,7 @@
 //! constructors and the helpers the phases build on.
 
 mod game_object;
+mod entity_world;
 mod relocation;
 mod respawn;
 mod scripts_weather;
@@ -24,6 +25,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
+use self::entity_world::EntityWorld;
 use crate::coords::{
     CellCoord, GridCoord, MAX_NUMBER_OF_CELLS, MAX_NUMBER_OF_GRIDS, SIZE_OF_GRID_CELL,
     TOTAL_NUMBER_OF_CELLS_PER_MAP, compute_cell_coord, compute_grid_coord, is_valid_map_coord_2d,
@@ -396,7 +398,7 @@ pub struct DynamicMapTreeModelMutationOutcomeLikeCpp {
 /// Anchor: `GameEventMgr.cpp:1618-1655`. The C++ worker visits every map and
 /// dispatches only exact in-world Creature/GameObject AI callbacks. Rust does
 /// not model SmartAI/`ProcessEventsFor` here; this summary only counts exact
-/// typed `Map::map_objects` candidates and marks dispatch as unrepresented.
+/// typed `Map::entity_world` candidates and marks dispatch as unrepresented.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct GameEventSmartAiScriptCandidateSummaryLikeCpp {
     pub maps_visited: usize,
@@ -417,7 +419,7 @@ pub enum GameObjectUpdateModelStatusLikeCpp {
 /// Represented map-owned result for C++ `GameObject::UpdateModel()`.
 ///
 /// C++ anchor: `GameObject.cpp:3867-3880`. This helper operates only on the
-/// canonical `Map::map_objects` exact typed GameObject record, consumes explicit
+/// canonical `Map::entity_world` exact typed GameObject record, consumes explicit
 /// caller-provided `CreateModel()` evidence, and mutates only represented local
 /// model/flag/collision evidence plus the map-owned represented DynamicMapTree
 /// key set. It does not infer from display/template/DB and does not call
@@ -444,7 +446,7 @@ pub enum GameObjectSetDisplayIdStatusLikeCpp {
 /// Represented map-owned result for C++ `GameObject::SetDisplayId(uint32)`.
 ///
 /// C++ anchor: `GameObject.cpp:3817-3820`. This preserves statement order over
-/// canonical exact typed `Map::map_objects` GameObject records: write
+/// canonical exact typed `Map::entity_world` GameObject records: write
 /// `GameObjectData::DisplayID` first, then call represented `UpdateModel()`.
 /// The model creation evidence remains caller-provided and is never inferred
 /// from display/template/DB.
@@ -467,7 +469,7 @@ pub enum GameObjectSetGoStateStatusLikeCpp {
 /// Represented map-owned result for C++ `GameObject::SetGoState(GOState)`.
 ///
 /// C++ anchor: `GameObject.cpp:3771-3793`. This preserves statement order over
-/// canonical exact typed `Map::map_objects` GameObject records: capture old state,
+/// canonical exact typed `Map::entity_world` GameObject records: capture old state,
 /// write `GameObjectData::State`, then run only the represented `m_model &&
 /// !IsTransport() && IsInWorld()` collision branch. AI/type implementation hooks,
 /// real `GameObjectModel`, BIH/LOS, ObjectAccessor/session fanout, scripts and DB
@@ -494,7 +496,7 @@ pub enum GameObjectSetLootStateStatusLikeCpp {
 /// Represented map-owned result for C++ `GameObject::SetLootState(LootState, Unit*)`.
 ///
 /// C++ anchor: `GameObject.cpp:3683-3709`. This preserves statement order over
-/// canonical exact typed `Map::map_objects` GameObject records: write local loot
+/// canonical exact typed `Map::entity_world` GameObject records: write local loot
 /// state/unit GUID first, expose the unimplemented AI hook as evidence, then
 /// represent only explicit-caller-evidence restock and represented `m_model` collision.
 /// It does not execute real AI, infer `Loot::IsChanged()`, create real
@@ -744,7 +746,7 @@ pub struct RepresentedUnitValuesUpdateLikeCpp {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SendObjectUpdatesSummaryLikeCpp {
-    /// Objects in canonical `Map::map_objects` with represented
+    /// Objects in canonical `Map::entity_world` with represented
     /// `Object::m_objectUpdated` set at snapshot time. Rust does not yet own the
     /// exact C++ `_updateObjects` pointer set, so this is a represented snapshot.
     pub queued_before: usize,
@@ -2012,7 +2014,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     active_cells: HashSet<CellCoord>,
     /// Map-owned C++ `Map::m_activeNonPlayers` (`Map.h:617-619`).
     ///
-    /// Source-of-truth remains `map_objects`; this set stores only non-player active
+    /// Source-of-truth remains `entity_world`; this set stores only non-player active
     /// object GUID membership produced by `Map::AddToActive`/`RemoveFromActive` seams.
     /// It is not rebuilt by sessions/ObjectAccessor scans. Rust does not yet model
     /// C++ `Map::Update`'s mutating iterator adjustment; consumers snapshot/sort GUIDs.
@@ -2033,7 +2035,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// `_areaTriggerBySpawnIdStore` beside `_objectsStore` (`Map.h:418-430`,
     /// private fields at `Map.h:793-796`).
     ///
-    /// Rust keeps `map_objects` as the source-of-truth object store. These
+    /// Rust keeps `entity_world` as the source-of-truth object store. These
     /// indexes are derived only from `insert_map_object_record`/`remove_map_object`
     /// and store GUID sets to preserve Trinity's unordered-multimap-like
     /// cardinality without making pointers canonical state. Spawn id zero is
@@ -2046,10 +2048,10 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     creatures_by_spawn_id: HashMap<SpawnId, HashSet<ObjectGuid>>,
     gameobjects_by_spawn_id: HashMap<SpawnId, HashSet<ObjectGuid>>,
     area_triggers_by_spawn_id: HashMap<SpawnId, HashSet<ObjectGuid>>,
-    map_objects: HashMap<ObjectGuid, MapObjectRecord>,
+    entity_world: EntityWorld,
     /// Map-owned represented C++ `CreatureGroupHolder`, keyed by leader spawn id.
     ///
-    /// Source-of-truth remains `map_objects` and the typed spawn-id index. This
+    /// Source-of-truth remains `entity_world` and the typed spawn-id index. This
     /// holder stores only represented formation membership GUIDs produced by
     /// explicit `Creature::SearchFormation()` input; it does not own movement,
     /// AI, DB `FormationMgr`, waypoint, combat-assist, or session fanout runtime.
@@ -2072,7 +2074,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// Map-owned deferred physical removal queue matching C++
     /// `Map::i_objectsToRemove` (`Map.cpp:2547-2555`, `2574-2646`).
     ///
-    /// Source of truth remains `map_objects`: enqueue mutates the canonical
+    /// Source of truth remains `entity_world`: enqueue mutates the canonical
     /// record, and only `remove_all_objects_in_remove_list_like_cpp` drains this
     /// set into `remove_from_map_like_cpp(..., true)`. Session/ObjectAccessor/DB
     /// caches must not drain or reconstruct this queue.
@@ -2081,7 +2083,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// `Map::i_objectsToSwitch` (`Map.h:651-652`) and
     /// `Map::AddObjectToSwitchList` (`Map.cpp:2557-2572`).
     ///
-    /// Source of truth remains `map_objects`; callers representing
+    /// Source of truth remains `entity_world`; callers representing
     /// `WorldObject::SetWorldObject(on)` may enqueue `guid -> on`, and only
     /// `remove_all_objects_in_remove_list_like_cpp` drains this map-local queue
     /// before `objects_to_remove` (`Map.cpp:2574-2594`). Session/ObjectAccessor/DB
@@ -2099,7 +2101,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// `_creaturesToMove`, `_gameObjectsToMove`, `_dynamicObjectsToMove`, and
     /// `_areaTriggersToMove` (`Map.h:566-579`, `Map.cpp:1163-1416`).
     ///
-    /// `map_objects` remains the source-of-truth; these vectors preserve the
+    /// `entity_world` remains the source-of-truth; these vectors preserve the
     /// per-family delayed move-list order and the pending maps store only the
     /// C++-like `_moveState`/`_newPosition` derivative. Future callers enqueue
     /// through `Map::add_*_to_move_list_like_cpp`; only `Map` drains and mutates
@@ -2211,7 +2213,7 @@ where
             creatures_by_spawn_id: HashMap::new(),
             gameobjects_by_spawn_id: HashMap::new(),
             area_triggers_by_spawn_id: HashMap::new(),
-            map_objects: HashMap::new(),
+            entity_world: EntityWorld::default(),
             creature_group_holder_like_cpp: HashMap::new(),
             dynamic_tree_model_keys_like_cpp: HashSet::new(),
             dynamic_tree_rebalance_timer_remaining_ms_like_cpp:
@@ -2373,15 +2375,15 @@ where
     /// - `Object.cpp:3722-3728` `WorldObject::BuildUpdate` visits visible players
     ///   then calls `ClearUpdateMask(false)`.
     ///
-    /// Rust ownership: `map_objects` is the canonical source of objects and update
+    /// Rust ownership: `entity_world` is the canonical source of objects and update
     /// flags. Because RustyCore does not yet have a map-owned `_updateObjects` set,
-    /// this snapshots GUIDs from `map_objects` whose `object().is_object_updated()`
+    /// this snapshots GUIDs from `entity_world` whose `object().is_object_updated()`
     /// is true. The seam represents only the consumption/clear side effect; it
     /// does not create `UpdateDataMapType`, iterate visible players, build packets,
     /// access sessions/ObjectAccessor, or send `SendDirectMessage` fanout.
     pub fn send_object_updates_like_cpp(&mut self) -> SendObjectUpdatesSummaryLikeCpp {
         let updated_guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 record
@@ -2398,7 +2400,7 @@ where
         };
 
         for guid in updated_guids {
-            let Some(record) = self.map_objects.get_mut(&guid) else {
+            let Some(record) = self.entity_world.get_mut(&guid) else {
                 summary.missing_or_stale += 1;
                 continue;
             };
@@ -2535,7 +2537,7 @@ where
     ///   `Map.cpp:2574-2594` drains later.
     ///
     /// Ownership stays one-way: Unit emits a DTO, the map owner applies it over
-    /// canonical `map_objects`/`objects_to_switch`; this method does not run the
+    /// canonical `entity_world`/`objects_to_switch`; this method does not run the
     /// drain, rebuild missing records, fan out visibility, or wire sessions.
     pub fn apply_unit_shared_vision_set_world_object_request_like_cpp(
         &mut self,
@@ -2595,7 +2597,7 @@ where
     /// - `Object.cpp:910-916` / `Map.cpp:2557-2594` keep the SetWorldObject
     ///   map-owned switch-list enqueue/drain split.
     ///
-    /// Scope: this helper mutates only canonical `Map::map_objects` typed Player
+    /// Scope: this helper mutates only canonical `Map::entity_world` typed Player
     /// and typed Creature/Pet Unit targets already in this same map. It consumes
     /// the Unit-emitted SetWorldObject DTO immediately through the Map facade, but
     /// does not drain queues, fan out visibility, implement `SetSeer`, access
@@ -2672,7 +2674,7 @@ where
 
         let vehicle_base_skip = vehicle_base_guid == Some(target_guid);
         if !vehicle_base_skip {
-            let Some(target_record) = self.map_objects.get_mut(&target_guid) else {
+            let Some(target_record) = self.entity_world.get_mut(&target_guid) else {
                 return Self::player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
@@ -2730,7 +2732,7 @@ where
         }
 
         let request = {
-            let Some(target_record) = self.map_objects.get_mut(&target_guid) else {
+            let Some(target_record) = self.entity_world.get_mut(&target_guid) else {
                 return Self::player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
@@ -2795,7 +2797,7 @@ where
     ///   `SetCasterViewpoint`; Rust represents that by `DynamicObject::bound_caster()`
     ///   and delegates to `apply_dynamic_object_caster_viewpoint_like_cpp`.
     ///
-    /// Ownership: source-of-truth is this `Map::map_objects` for both the caster
+    /// Ownership: source-of-truth is this `Map::entity_world` for both the caster
     /// Player and the newly-created DynamicObject. Per #NEXT.R8.ENTITIES.428
     /// invariants, represented fallback paths validate all rejectable inputs before
     /// low-guid consumption so a missing/wrong caster or invalid destination leaves
@@ -2967,7 +2969,7 @@ where
     ///   `UpdateVisibilityOf` on apply, and `SetSeer`; DynamicObject targets do
     ///   not run the Unit shared-vision / SetWorldObject branch.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. The helper
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. The helper
     /// first validates the typed DynamicObject record, then resolves the Player
     /// from `DynamicObject::bound_caster()` before any Player mutation. It does
     /// not create records, silently fall back from `caster_guid`, drain
@@ -3083,7 +3085,7 @@ where
         };
 
         let mut dynamic_object_viewpoint_toggled = false;
-        if let Some(record) = self.map_objects.get_mut(&dynamic_object_guid) {
+        if let Some(record) = self.entity_world.get_mut(&dynamic_object_guid) {
             if let Some(dynamic_object) = record.dynamic_object_mut() {
                 if apply {
                     dynamic_object.set_caster_viewpoint();
@@ -3168,7 +3170,7 @@ where
     }
 
     pub fn map_object_count(&self) -> usize {
-        self.map_objects.len()
+        self.entity_world.len()
     }
 
     pub fn objects_to_switch_count_like_cpp(&self) -> usize {
@@ -3211,7 +3213,7 @@ where
         };
 
         for guid in guids {
-            let Some(record) = self.map_objects.get_mut(&guid) else {
+            let Some(record) = self.entity_world.get_mut(&guid) else {
                 outcome.stale_index_or_wrong_kind += 1;
                 continue;
             };
@@ -3589,7 +3591,7 @@ where
     }
 
     pub fn map_object_record(&self, guid: ObjectGuid) -> Option<&MapObjectRecord> {
-        self.map_objects.get(&guid)
+        self.entity_world.get(&guid)
     }
 
     /// Represented tail metrics from C++ `Map::Update` after
@@ -3597,7 +3599,7 @@ where
     ///
     /// C++ emits `TC_METRIC_VALUE("map_creatures", GetObjectsStore().Size<Creature>())`
     /// and `TC_METRIC_VALUE("map_gameobjects", GetObjectsStore().Size<GameObject>())`.
-    /// Rust reads only canonical typed `MapObjectRecord`s from `map_objects`: a
+    /// Rust reads only canonical typed `MapObjectRecord`s from `entity_world`: a
     /// record must have both the exact canonical kind and the corresponding typed
     /// body. Generic `WorldObject` records, Pet, Transport, DynamicObject,
     /// AreaTrigger, Player, etc. are intentionally excluded; no telemetry backend
@@ -3609,7 +3611,7 @@ where
             ..MapUpdateMetricsSummaryLikeCpp::default()
         };
 
-        for record in self.map_objects.values() {
+        for record in self.entity_world.values() {
             match record.kind() {
                 AccessorObjectKind::Creature if record.creature().is_some() => {
                     summary.creature_count += 1;
@@ -3645,7 +3647,7 @@ where
     pub fn typed_player_counts_like_cpp(&self) -> (u32, u32) {
         let mut total = 0u32;
         let mut non_game_masters = 0u32;
-        for record in self.map_objects.values() {
+        for record in self.entity_world.values() {
             if record.kind() != AccessorObjectKind::Player {
                 continue;
             }
@@ -5083,43 +5085,43 @@ fn typed_loot_authorities_share_storage_like_cpp(
 
 impl<Terrain, Lifecycle> GridUnloadEntityStore for Map<Terrain, Lifecycle> {
     fn creature_mut(&mut self, guid: ObjectGuid) -> Option<&mut Creature> {
-        self.map_objects
+        self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::creature_mut)
     }
 
     fn game_object_mut(&mut self, guid: ObjectGuid) -> Option<&mut GameObject> {
-        self.map_objects
+        self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
     }
 
     fn dynamic_object_mut(&mut self, guid: ObjectGuid) -> Option<&mut DynamicObject> {
-        self.map_objects
+        self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::dynamic_object_mut)
     }
 
     fn corpse_mut(&mut self, guid: ObjectGuid) -> Option<&mut Corpse> {
-        self.map_objects
+        self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::corpse_mut)
     }
 
     fn area_trigger_mut(&mut self, guid: ObjectGuid) -> Option<&mut AreaTrigger> {
-        self.map_objects
+        self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::area_trigger_mut)
     }
 
     fn scene_object_mut(&mut self, guid: ObjectGuid) -> Option<&mut SceneObject> {
-        self.map_objects
+        self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::scene_object_mut)
     }
 
     fn conversation_mut(&mut self, guid: ObjectGuid) -> Option<&mut Conversation> {
-        self.map_objects
+        self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::conversation_mut)
     }
@@ -5139,7 +5141,7 @@ where
     }
 
     fn map_object_record(&self, guid: ObjectGuid) -> Option<&MapObjectRecord> {
-        self.map_objects.get(&guid)
+        self.entity_world.get(&guid)
     }
 }
 
