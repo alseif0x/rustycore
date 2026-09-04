@@ -12,10 +12,35 @@ fn game_obj_use_test_session_like_cpp(
     let player_guid = ObjectGuid::create_player(1, 99);
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 8);
+    let canonical = shared_canonical_map_manager_for_misc_test();
 
-    session.set_player_guid(Some(player_guid));
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 10, 0);
-    session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
+    session.set_canonical_map_manager(canonical);
+    session.set_map_store(Arc::new(MapStore::from_entries([MapEntry {
+        id: 571,
+        instance_type: wow_data::map::MAP_COMMON,
+        expansion_id: 0,
+        parent_map_id: -1,
+        cosmetic_parent_map_id: -1,
+        flags1: 0,
+        flags2: 0,
+    }])));
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "GameObjectUser".to_string(),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        10,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical player and gameobject map");
+    session.set_item_guid_generator_like_cpp(Arc::new(wow_core::ObjectGuidGenerator::new(
+        HighGuid::Item,
+        1,
+    )));
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         gameobject_guid,
@@ -65,6 +90,13 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
             min_money: 0,
             max_money: 0,
         }));
+    assert!(
+        session
+            .represented_gameobject_can_interact_with_like_cpp(gameobject_guid, 5.0)
+            .is_some(),
+        "fixture must place Player and gameobject together on the canonical map"
+    );
+    assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
 
     session
         .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
@@ -84,7 +116,9 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
                         ..
                     } if *effect_guid == gameobject_guid && *user_guid == player_guid
                 )
-            })
+            }),
+        "effects: {:?}",
+        session.represented_gameobject_use_effects
     );
 }
 

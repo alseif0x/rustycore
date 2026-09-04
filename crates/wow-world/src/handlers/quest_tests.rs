@@ -8912,12 +8912,12 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         (
             ClientOpcodes::QuestGiverAcceptQuest,
             "handle_quest_giver_accept_quest",
-            "session.handle_quest_giver_accept_quest(pkt).await",
+            ".handle_quest_giver_accept_quest_with_generator_like_cpp(",
         ),
         (
             ClientOpcodes::QuestGiverRequestReward,
             "handle_quest_giver_request_reward",
-            "session.handle_quest_giver_request_reward(pkt).await",
+            ".handle_quest_giver_request_reward_with_generator_like_cpp(",
         ),
         (
             ClientOpcodes::QuestGiverCompleteQuest,
@@ -8927,7 +8927,7 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         (
             ClientOpcodes::QuestGiverChooseReward,
             "handle_quest_giver_choose_reward",
-            "session.handle_quest_giver_choose_reward(pkt).await",
+            ".handle_quest_giver_choose_reward_with_generator_like_cpp(",
         ),
         (
             ClientOpcodes::QueryQuestInfo,

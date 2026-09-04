@@ -12910,23 +12910,11 @@ async fn complete_quest_triggers_visible_spellclick_refresh_like_cpp() {
     });
 
     session.set_player_guid(Some(player_guid));
-    session.set_player_gold_like_cpp(90);
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "Tester".to_string(),
@@ -12937,6 +12925,33 @@ async fn complete_quest_triggers_visible_spellclick_refresh_like_cpp() {
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical spell-click viewer map");
+    session.set_player_gold_like_cpp(90);
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.statuses.insert(
+                    quest_id,
+                    crate::handlers::quest::PlayerQuestStatus {
+                        quest_id,
+                        status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 0,
+                        end_time_secs: 0,
+                        objective_counts: vec![],
+                        slot: 0,
+                    },
+                );
+            })
+            .is_some(),
+        "quest fixture must be loaded into the canonical Player owner"
+    );
+    session.set_item_guid_generator_like_cpp(Arc::new(wow_core::ObjectGuidGenerator::new(
+        HighGuid::Item,
+        1,
+    )));
     session.set_condition_store(Arc::new(
         ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
             source_type: ConditionSourceType::SpellClickEvent,
@@ -72797,14 +72812,19 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         80,
         0,
     ));
-    session.set_player_gold_like_cpp(500);
     session.set_repair_cost_rate_like_cpp(2.0);
     session.set_faction_store(Arc::new(FactionStore::from_entries([
         FactionEntry::for_test_like_cpp(72, 5),
     ])));
     session.set_faction_template_store(Arc::new(FactionTemplateStore::from_entries([
         faction_template_entry(35, 72, 0, 0, 0),
+        faction_template_entry(1, 1, 0, 0, 0),
     ])));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical map");
+    session.set_player_faction_template_like_cpp(1);
+    session.set_player_gold_like_cpp(500);
     assert!(session.load_character_reputation_rows_like_cpp([
         crate::reputation::mgr::CharacterReputationRowLikeCpp {
             faction_id: 72,
@@ -72812,9 +72832,6 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
             flags: 0,
         },
     ]));
-    session
-        .ensure_canonical_world_map_for_current_player_like_cpp()
-        .expect("canonical map");
     add_canonical_test_creature(
         &canonical,
         repair_npc_guid,
@@ -72928,7 +72945,7 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         None,
     );
     feign_death.spell_id = 5384;
-    session.visible_auras.insert(feign_slot, feign_death);
+    assert!(session.insert_player_visible_aura_like_cpp(feign_death));
 
     session
         .handle_repair_item(wow_packet::packets::misc::RepairItem {
@@ -72953,7 +72970,12 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         })
         .await;
     assert_eq!(session.player_gold_like_cpp(), 207);
-    assert!(!session.visible_auras.contains_key(&feign_slot));
+    assert!(
+        !session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&feign_slot)
+    );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| {
