@@ -13353,6 +13353,17 @@ impl WorldSession {
             self.add_instance_enter_time_like_cpp(key.instance_id, now_secs);
         }
 
+        // C++ `MapManager::CreateMap` receives the live `Player*` and applies
+        // `SetRecentInstance` to that owner before the caller adds it to the
+        // selected map (MapManager.cpp:139-231). Materialize the canonical
+        // owner before applying those side effects, but keep the actual map
+        // transfer until every side effect and lock context is installed.
+        if let Some(key) = key
+            && !self.ensure_canonical_player_owner_exists_like_cpp(key)
+        {
+            return None;
+        }
+
         let _ = self.apply_create_map_side_effects_like_cpp(map_id, &decision);
 
         if is_dungeon
@@ -13386,6 +13397,43 @@ impl WorldSession {
         key: wow_map::MapKey,
         position: Position,
     ) -> bool {
+        if !self.ensure_canonical_player_owner_exists_like_cpp(key) {
+            return false;
+        }
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+
+        let Some(handle) = self.player_handle_like_cpp else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => manager
+                .with_player_mut_like_cpp(handle, |player| {
+                    player.unit_mut().world_mut().relocate(position);
+                })
+                .is_some(),
+            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
+                manager.detach_player_like_cpp(handle).is_ok()
+                    && manager
+                        .attach_player_like_cpp(handle, key, position)
+                        .is_ok()
+            }
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => manager
+                .attach_player_like_cpp(handle, key, position)
+                .is_ok(),
+            None => false,
+        }
+    }
+
+    /// Resolve or construct the single canonical Player without transferring
+    /// it between maps. This is the Rust equivalent of the live `Player*`
+    /// passed through C++ `MapManager::CreateMap` while instance side effects
+    /// are being applied.
+    fn ensure_canonical_player_owner_exists_like_cpp(&mut self, key: wow_map::MapKey) -> bool {
         let Some(guid) = self.player_guid() else {
             return false;
         };
@@ -13431,26 +13479,10 @@ impl WorldSession {
         let Some(handle) = self.player_handle_like_cpp else {
             return false;
         };
-        let Ok(mut manager) = manager.lock() else {
+        let Ok(manager) = manager.lock() else {
             return false;
         };
-        match manager.player_residence_like_cpp(handle) {
-            Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => manager
-                .with_player_mut_like_cpp(handle, |player| {
-                    player.unit_mut().world_mut().relocate(position);
-                })
-                .is_some(),
-            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
-                manager.detach_player_like_cpp(handle).is_ok()
-                    && manager
-                        .attach_player_like_cpp(handle, key, position)
-                        .is_ok()
-            }
-            Some(wow_map::PlayerResidenceLikeCpp::Detached) => manager
-                .attach_player_like_cpp(handle, key, position)
-                .is_ok(),
-            None => false,
-        }
+        manager.player_residence_like_cpp(handle).is_some()
     }
 
     #[cfg(test)]
@@ -59108,7 +59140,24 @@ impl WorldSession {
         move_time: i32,
     ) -> MoveTeleportAckActionLikeCpp {
         let accepted = self.record_move_teleport_ack_like_cpp(mover_guid, ack_index, move_time);
-        if !self.near_teleport_pending_like_cpp() {
+        let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
+            return self.record_move_teleport_ack_event_like_cpp(
+                mover_guid,
+                ack_index,
+                move_time,
+                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
+                None,
+                None,
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                false,
+            );
+        };
+        if !teleport.near_pending {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -59144,23 +59193,6 @@ impl WorldSession {
             );
         }
 
-        let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
-            return self.record_move_teleport_ack_event_like_cpp(
-                mover_guid,
-                ack_index,
-                move_time,
-                MoveTeleportAckActionLikeCpp::MissingPlayerOwner,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                false,
-            );
-        };
         let Some((map_id, destination)) = teleport.near_destination else {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,

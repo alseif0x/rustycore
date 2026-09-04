@@ -33596,16 +33596,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.player_unit_presentation_snapshot_like_cpp(), None);
     assert_eq!(session.active_player_update_state_like_cpp(), None);
     assert_eq!(session.player_moved_unit_guid_like_cpp(), None);
-    session.set_near_teleport_pending_like_cpp(
+    assert!(!session.set_near_teleport_pending_like_cpp(
         true,
         Some((571, Position::new(1.0, 2.0, 3.0, 0.0))),
         Some((1, 2)),
-    );
+    ));
     assert_eq!(
         session.handle_move_teleport_ack_like_cpp(player_guid, 1, 2),
         MoveTeleportAckActionLikeCpp::MissingPlayerOwner
     );
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(!session.near_teleport_pending_like_cpp());
     session.set_loaded_player_flags_like_cpp(0xdead);
     session.set_loaded_player_flags_ex_like_cpp(0xbeef);
     session.set_watched_faction_index_like_cpp(5);
