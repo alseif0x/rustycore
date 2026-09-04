@@ -1,6 +1,6 @@
 # ADR — Private entity world behind a single-writer MapRuntime
 
-**Date:** 2026-09-04 · **Status:** Accepted for staged implementation; x86_64 measurement pending · **Issue:** #578 / parent #133
+**Date:** 2026-09-04 · **Status:** Accepted for staged implementation · **Issue:** #578 / parent #133
 
 ## Decision summary
 
@@ -193,6 +193,19 @@ Development-host measurement (`aarch64-unknown-linux-gnu`, release build):
 | 100,000 creatures x 20 updates, 3 samples | 51.08–62.81 ns/entity-update | 7.38–7.88 ns/entity-update | identical checksum |
 | 100,000-creature process RSS | 10,252–10,256 KiB | 19,324 KiB | ~9 MiB candidate overhead |
 
+Hosted confirmation (`x86_64-unknown-linux-gnu`, Ubuntu 24.04, release build, one isolated sample
+per backend) passed the same eight tests and produced:
+
+| Workload | HashMap baseline | Private `hecs` world | Result |
+|---|---:|---:|---|
+| 100,000 creatures x 20 updates | 40.82 ns/entity-update | 4.79 ns/entity-update | identical checksum |
+| 100,000-creature process RSS | 10,644 KiB | 19,768 KiB | ~9 MiB candidate overhead |
+
+The x86_64 evidence is preserved in GitHub Actions run
+[`33874182319`](https://github.com/alseif0x/rustycore/actions/runs/33874182319). The temporary
+workflow used only `contents: read`, pinned checkout by full SHA, and was removed after the run; the
+spike does not create a permanent CI gate.
+
 Both implementations mutate transform/vitals, build the same owned outcomes, and sort them by GUID;
 the measurement is not comparing an outcome-producing path with an empty loop. RSS is whole-process
 Linux `/proc/self/status` evidence, not an allocation-exact component accounting. Real Player and
@@ -201,9 +214,9 @@ extrapolated directly.
 
 Decision: use `hecs` for the first private `wow-map` storage slice. Its measured iteration benefit
 and existing borrow/generation machinery justify the memory cost; the custom-store alternative
-would make RustyCore maintain those unsafe-sensitive mechanisms itself. This remains conditional on
-an x86_64 release run before merge and on production equivalence tests. A materially different x86_64
-result reopens the backend decision without changing the single-writer/API boundary.
+would make RustyCore maintain those unsafe-sensitive mechanisms itself. Production equivalence
+tests remain mandatory. A materially different real-workload result can reopen the backend choice
+without changing the single-writer/API boundary.
 
 ## Migration sequence
 
