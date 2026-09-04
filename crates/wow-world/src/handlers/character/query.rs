@@ -305,12 +305,10 @@ impl WorldSession {
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let managed = manager.find_map(key.map_id, key.instance_id)?;
-        let pet = managed.map().map_object_record(unit_guid)?.pet()?;
-        if pet.owner_guid() != player_guid {
-            return None;
-        }
-
-        let name = pet.creature().unit().world().name().to_string();
+        let name = managed.map().with_pet_like_cpp(unit_guid, |pet| {
+            (pet.owner_guid() == player_guid)
+                .then(|| pet.creature().unit().world().name().to_string())
+        })??;
         // C++ reads UnitData::PetNameTimestamp. The canonical entity model has
         // not exposed normal-pet rename/load timestamps yet, so this bounded
         // branch preserves the default timestamp until that runtime lands.

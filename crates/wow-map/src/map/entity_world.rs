@@ -12,8 +12,8 @@
 //! new dependency on `HashMap` while borrowed-record APIs are retired ahead of
 //! the selected `hecs` backend.
 
-use std::collections::hash_map::{Iter, Values};
 use std::collections::HashMap;
+use std::collections::hash_map::{Iter, Values};
 
 use wow_core::ObjectGuid;
 use wow_entities::MapObjectRecord;
@@ -85,10 +85,29 @@ mod tests {
 
         assert_eq!(displaced.creature().unwrap().current_health(), 25);
         assert_eq!(world.len(), 1);
-        assert_eq!(world.get(&guid).unwrap().creature().unwrap().current_health(), 75);
-        assert_eq!(world.iter().map(|(stored, _)| *stored).collect::<Vec<_>>(), vec![guid]);
+        assert_eq!(
+            world
+                .get(&guid)
+                .unwrap()
+                .creature()
+                .unwrap()
+                .current_health(),
+            75
+        );
+        assert_eq!(
+            world.iter().map(|(stored, _)| *stored).collect::<Vec<_>>(),
+            vec![guid]
+        );
         assert_eq!(world.values().count(), 1);
-        assert_eq!(world.remove(&guid).unwrap().creature().unwrap().current_health(), 75);
+        assert_eq!(
+            world
+                .remove(&guid)
+                .unwrap()
+                .creature()
+                .unwrap()
+                .current_health(),
+            75
+        );
         assert_eq!(world.len(), 0);
     }
 }

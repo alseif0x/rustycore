@@ -229,6 +229,15 @@ facade changes backend. The old and new stores are never run side by side.
 
 ## Migration sequence
 
+Implementation checkpoint (2026-09-04): step 2 is installed in production. `Map` remains the
+single owner, while its `HashMap` is private behind the non-`Deref` `EntityWorld` facade. The
+generic session-facing `map_object_record`/`ObjectAccessorMapSource` bridge has been removed;
+`wow-world` now uses closure-scoped typed reads whose results cannot borrow the backend. The same
+cut exposed and removed a recursive `MapManager` mutex acquisition in visibility: GameObjects are
+snapshotted while the map is borrowed, then viewer-dependent Player work runs after the guard is
+dropped. Typed borrowed getters used by internal map phases still have to be retired before the
+facade can switch safely to `hecs`.
+
 1. Complete the isolated gate and record the decision in this ADR.
 2. Introduce a private, non-`Deref` `wow-map::map::entity_world` facade owning the existing
    canonical records; keep the `HashMap` behind it while borrowed-record callers are migrated, with

@@ -1067,6 +1067,106 @@ where
         record.pet_mut()
     }
 
+    /// Run one synchronous read against an exact canonical Pet without exposing
+    /// the map's storage representation or allowing the borrowed entity to
+    /// escape. This is the migration-safe equivalent of C++'s typed object-store
+    /// lookup for adapter code that returns an owned snapshot.
+    pub fn with_pet_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Pet) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::Pet {
+            return None;
+        }
+        record.pet().map(read)
+    }
+
+    pub fn with_game_object_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&GameObject) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::GameObject {
+            return None;
+        }
+        record.game_object().map(read)
+    }
+
+    /// Read either the exact Creature or Pet body addressed by `guid` while the
+    /// callback is in scope. The optional owner is populated only for Pets.
+    pub fn with_creature_or_pet_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Creature, Option<ObjectGuid>) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        match record.kind() {
+            AccessorObjectKind::Creature => record.creature().map(|creature| read(creature, None)),
+            AccessorObjectKind::Pet => record
+                .pet()
+                .map(|pet| read(pet.creature(), Some(pet.owner_guid()))),
+            _ => None,
+        }
+    }
+
+    /// Read the common WorldObject projection for one of the explicitly
+    /// accepted canonical kinds. The callback result must be owned, so this
+    /// remains compatible with a guard-based entity backend.
+    pub fn with_world_object_by_kinds_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        allowed: &[AccessorObjectKind],
+        read: impl FnOnce(&WorldObject) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        allowed
+            .contains(&record.kind())
+            .then(|| read(record.object()))
+    }
+
+    pub fn contains_map_object_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.entity_world.get(&guid).is_some()
+    }
+
+    pub fn with_area_trigger_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&AreaTrigger) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::AreaTrigger {
+            return None;
+        }
+        record.area_trigger().map(read)
+    }
+
+    pub fn with_scene_object_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&SceneObject) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::SceneObject {
+            return None;
+        }
+        record.scene_object().map(read)
+    }
+
+    pub fn with_conversation_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Conversation) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::Conversation {
+            return None;
+        }
+        record.conversation().map(read)
+    }
+
     pub fn get_typed_player(&self, guid: ObjectGuid) -> Option<&Player> {
         let record = self.map_object_record(guid)?;
         if record.kind() != AccessorObjectKind::Player {

@@ -20,13 +20,12 @@ use std::collections::BTreeMap;
 use wow_constants::{DeathState, TypeId, TypeMask, UnitStandStateType};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_entities::{
-    ACTIVE_PLAYER_DATA_COINAGE_BIT, AccessorObjectRef, AppliedAuraRef, Corpse, CorpseType,
-    Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureFormationInfoLikeCpp,
-    GameObject, GameObjectLootSource, GameObjectOwnedLoot, GooberUseSource, ObjectAccessor,
-    ObjectNotifyFlags, OwnedAuraRef, PLAYER_DATA_INEBRIATION_BIT, Player,
-    SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport, UNIT_DATA_STAND_STATE_BIT,
-    VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleSpellImmunity,
-    VehicleSpellImmunityKind,
+    ACTIVE_PLAYER_DATA_COINAGE_BIT, AppliedAuraRef, Corpse, CorpseType, Creature,
+    CreatureAddToWorldVehicleResetContextLikeCpp, CreatureFormationInfoLikeCpp, GameObject,
+    GameObjectLootSource, GameObjectOwnedLoot, GooberUseSource, ObjectNotifyFlags, OwnedAuraRef,
+    PLAYER_DATA_INEBRIATION_BIT, Player, SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport,
+    UNIT_DATA_STAND_STATE_BIT, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
+    VehicleSpellImmunity, VehicleSpellImmunityKind,
 };
 use wow_loot::{CreatureLoot, LootClaimCommitError, OwnedLootAuthorityLifecycle};
 
@@ -8917,32 +8916,40 @@ fn map_object_store_rejects_records_from_other_map_or_instance() {
 }
 
 #[test]
-fn object_accessor_can_consult_map_owned_object_store() {
-    let accessor = ObjectAccessor::default();
+fn closure_scoped_entity_queries_return_owned_values_and_reject_wrong_kinds() {
     let mut map = test_map();
-    let context = world_object(HighGuid::Player, 571, 7, true);
-    let creature = world_object(HighGuid::Creature, 571, 7, true);
+    let creature = test_creature_for_spawn(506, 506, true);
     let creature_guid = creature.guid();
-
-    map.insert_map_object(AccessorObjectKind::Creature, creature)
+    map.insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
         .unwrap();
 
-    assert_eq!(
-        accessor
-            .get_world_object_from_map_source(&context, &map, creature_guid)
-            .unwrap()
-            .guid(),
-        creature_guid
-    );
-    assert!(matches!(
-        accessor.get_object_ref_by_type_mask_from_map_source(
-            &context,
-            &map,
+    let snapshot = map
+        .with_creature_or_pet_like_cpp(creature_guid, |creature, owner_guid| {
+            (
+                creature.guid(),
+                creature.current_health(),
+                creature.position(),
+                owner_guid,
+            )
+        })
+        .expect("the canonical creature should be readable inside the storage scope");
+    assert_eq!(snapshot.0, creature_guid);
+    assert_eq!(snapshot.1, 100);
+    assert_eq!(snapshot.2, Position::xyz(1.0, 2.0, 3.0));
+    assert_eq!(snapshot.3, None);
+    assert!(map.with_pet_like_cpp(creature_guid, |_| ()).is_none());
+    assert!(
+        map.with_world_object_by_kinds_like_cpp(
             creature_guid,
-            TypeMask::UNIT
-        ),
-        Some(AccessorObjectRef::WorldObject(object)) if object.guid() == creature_guid
-    ));
+            &[AccessorObjectKind::GameObject],
+            |_| (),
+        )
+        .is_none()
+    );
+    assert!(
+        map.with_creature_or_pet_like_cpp(guid(HighGuid::Creature, 999_999), |_, _| ())
+            .is_none()
+    );
 }
 
 #[test]

@@ -23454,8 +23454,7 @@ fn add_farsight_session_caller_preserves_destination_radius_duration_like_cpp() 
         .find_map(571, 0)
         .unwrap()
         .map()
-        .map_object_record(dynamic_guid)
-        .and_then(wow_entities::MapObjectRecord::dynamic_object)
+        .get_typed_dynamic_object(dynamic_guid)
         .expect("created farsight dynamic object should be canonical map-owned");
     assert_eq!(dynamic_object.world().position(), destination);
     assert_eq!(dynamic_object.radius(), 25.0);
@@ -26654,8 +26653,7 @@ async fn add_farsight_live_spell_sets_session_seer_to_created_dynamic_object_lik
         .find_map(571, 0)
         .unwrap()
         .map()
-        .map_object_record(seer_guid)
-        .and_then(wow_entities::MapObjectRecord::dynamic_object)
+        .get_typed_dynamic_object(seer_guid)
         .expect("represented session seer should be the created map-owned DynamicObject");
     assert_eq!(dynamic_object.world().position(), destination);
     assert_eq!(dynamic_object.caster_guid(), player_guid);
@@ -27661,6 +27659,17 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&registry));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 571,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "MapVisibility".to_string(),
@@ -27671,6 +27680,9 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("visibility fixture should install its canonical Player owner");
     session.apply_move_init_active_mover_complete_like_cpp(0);
     let _ = drain_server_packet_bytes(&send_rx);
 
@@ -28083,7 +28095,9 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
         Some(seer_position)
     );
 
-    session.update_visibility().await;
+    tokio::time::timeout(Duration::from_secs(1), session.update_visibility())
+        .await
+        .expect("visibility must not re-enter the canonical map mutex");
 
     assert!(
         session
@@ -75560,14 +75574,13 @@ fn far_sight_enable_rejects_cross_instance_target_like_cpp() {
         Some(previous_seer)
     );
     assert!(
-        canonical
+        !canonical
             .lock()
             .unwrap()
             .find_map(571, 11)
             .unwrap()
             .map()
-            .map_object_record(target_guid)
-            .is_none()
+            .contains_map_object_like_cpp(target_guid)
     );
 }
 

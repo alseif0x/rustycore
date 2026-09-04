@@ -14982,20 +14982,15 @@ impl WorldSession {
             return None;
         };
         let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
-        let record = map.map().map_object_record(guid)?;
-        let creature = if guid.is_pet() {
-            record.pet()?.creature()
-        } else {
-            record.creature()?
-        };
-        Some(RepresentedCreatureAccessLikeCpp {
-            entry: creature.entry(),
-            position: creature.unit().world().position(),
-            npc_flags: creature.ai_ownership().npc_flags,
-            npc_flags2: creature.ai_ownership().npc_flags2,
-            trainer_class: creature.trainer_class_like_cpp(),
-            faction_template_id: creature.unit().data().faction_template.max(0) as u32,
-        })
+        map.map()
+            .with_creature_or_pet_like_cpp(guid, |creature, _| RepresentedCreatureAccessLikeCpp {
+                entry: creature.entry(),
+                position: creature.unit().world().position(),
+                npc_flags: creature.ai_ownership().npc_flags,
+                npc_flags2: creature.ai_ownership().npc_flags2,
+                trainer_class: creature.trainer_class_like_cpp(),
+                faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+            })
     }
 
     fn represented_spell_click_creature_snapshot_like_cpp(
@@ -15010,32 +15005,26 @@ impl WorldSession {
             return None;
         };
         let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
-        let record = map.map().map_object_record(guid)?;
-        let (creature, owner_guid) = if guid.is_pet() {
-            let pet = record.pet()?;
-            (pet.creature(), Some(pet.owner_guid()))
-        } else {
-            let creature = record.creature()?;
-            (creature, creature.unit().subsystems().control.owner_guid)
-        };
-
-        Some(RepresentedSpellClickCreatureSnapshotLikeCpp {
-            guid: creature.guid(),
-            entry: creature.entry(),
-            map_id: creature.unit().world().map_id(),
-            instance_id: creature.unit().world().instance_id(),
-            position: creature.position(),
-            phase_shift: creature.unit().world().phase_shift().clone(),
-            npc_flags: creature.ai_ownership().npc_flags,
-            faction_template_id: creature.unit().data().faction_template.max(0) as u32,
-            level: u32::from(creature.level()),
-            health: creature.current_health(),
-            max_health: creature.max_health(),
-            is_alive: creature.is_alive(),
-            is_in_world: creature.unit().world().object().is_in_world(),
-            is_summon: creature.is_summon_like_cpp(),
-            owner_guid,
-        })
+        map.map()
+            .with_creature_or_pet_like_cpp(guid, |creature, pet_owner_guid| {
+                RepresentedSpellClickCreatureSnapshotLikeCpp {
+                    guid: creature.guid(),
+                    entry: creature.entry(),
+                    map_id: creature.unit().world().map_id(),
+                    instance_id: creature.unit().world().instance_id(),
+                    position: creature.position(),
+                    phase_shift: creature.unit().world().phase_shift().clone(),
+                    npc_flags: creature.ai_ownership().npc_flags,
+                    faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+                    level: u32::from(creature.level()),
+                    health: creature.current_health(),
+                    max_health: creature.max_health(),
+                    is_alive: creature.is_alive(),
+                    is_in_world: creature.unit().world().object().is_in_world(),
+                    is_summon: creature.is_summon_like_cpp(),
+                    owner_guid: pet_owner_guid.or(creature.unit().subsystems().control.owner_guid),
+                }
+            })
     }
 
     pub(crate) fn represented_can_see_spell_click_on_creature_like_cpp(
@@ -16338,87 +16327,94 @@ impl WorldSession {
                     return None;
                 }
             };
-            let record = map.map().map_object_record(guid)?;
-            canonical_record_found_like_cpp = true;
-            let creature = if guid.is_pet() {
-                record.pet()?.creature()
-            } else {
-                record.creature()?
-            };
+            canonical_record_found_like_cpp = map.map().contains_map_object_like_cpp(guid);
+            map.map()
+                .with_creature_or_pet_like_cpp(guid, |creature, _| {
+                    let type_flags = CreatureTypeFlags::from_bits_retain(
+                        creature.lifecycle_metadata().type_flags,
+                    );
+                    if !player_is_alive
+                        && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS)
+                    {
+                        return None;
+                    }
+                    if !creature.is_alive()
+                        && !type_flags.contains(CreatureTypeFlags::INTERACT_WHILE_DEAD)
+                    {
+                        return None;
+                    }
+                    if (npc_flags != 0 || npc_flags2 != 0)
+                        && (creature.ai_ownership().npc_flags & npc_flags) == 0
+                        && (creature.ai_ownership().npc_flags2 & npc_flags2) == 0
+                    {
+                        return None;
+                    }
+                    if creature.unit().subsystems().control.charmer_guid.is_some() {
+                        return None;
+                    }
+                    let unit_flags2 = creature.unit().unit_flags2_like_cpp();
+                    if !unit_flags2.contains(UnitFlags2::INTERACT_WHILE_HOSTILE) {
+                        canonical_reaction_input_like_cpp =
+                            Some(RepresentedGetReactionInputLikeCpp {
+                                self_faction_template_id: creature
+                                    .unit()
+                                    .data()
+                                    .faction_template
+                                    .max(0)
+                                    as u32,
+                                target_faction_template_id: target_player_faction_template_id?,
+                                same_object: false,
+                                attackable_by_summoner: false,
+                                same_charmer_or_owner_or_self: false,
+                                self_has_player_owner: false,
+                                target_has_player_owner: true,
+                                target_player_owner_is_current_session: true,
+                                target_owner_forced_rank_for_self: None,
+                                same_player_owner: false,
+                                duel_in_progress: false,
+                                same_raid: false,
+                                self_unit_player_controlled: false,
+                                target_unit_player_controlled: true,
+                                self_ffa_pvp: false,
+                                target_ffa_pvp: false,
+                                self_ignores_reputation: false,
+                                target_ignores_reputation: false,
+                                target_is_unit: true,
+                                target_player_contested_pvp,
+                            });
+                    }
 
-            let type_flags =
-                CreatureTypeFlags::from_bits_retain(creature.lifecycle_metadata().type_flags);
-            if !player_is_alive && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS) {
-                return None;
-            }
-            if !creature.is_alive() && !type_flags.contains(CreatureTypeFlags::INTERACT_WHILE_DEAD)
-            {
-                return None;
-            }
-            if (npc_flags != 0 || npc_flags2 != 0)
-                && (creature.ai_ownership().npc_flags & npc_flags) == 0
-                && (creature.ai_ownership().npc_flags2 & npc_flags2) == 0
-            {
-                return None;
-            }
-            if creature.unit().subsystems().control.charmer_guid.is_some() {
-                return None;
-            }
-            let unit_flags2 = creature.unit().unit_flags2_like_cpp();
-            if !unit_flags2.contains(UnitFlags2::INTERACT_WHILE_HOSTILE) {
-                canonical_reaction_input_like_cpp = Some(RepresentedGetReactionInputLikeCpp {
-                    self_faction_template_id: creature.unit().data().faction_template.max(0) as u32,
-                    target_faction_template_id: target_player_faction_template_id?,
-                    same_object: false,
-                    attackable_by_summoner: false,
-                    same_charmer_or_owner_or_self: false,
-                    self_has_player_owner: false,
-                    target_has_player_owner: true,
-                    target_player_owner_is_current_session: true,
-                    target_owner_forced_rank_for_self: None,
-                    same_player_owner: false,
-                    duel_in_progress: false,
-                    same_raid: false,
-                    self_unit_player_controlled: false,
-                    target_unit_player_controlled: true,
-                    self_ffa_pvp: false,
-                    target_ffa_pvp: false,
-                    self_ignores_reputation: false,
-                    target_ignores_reputation: false,
-                    target_is_unit: true,
-                    target_player_contested_pvp,
-                });
-            }
+                    let interaction_distance = creature.unit().world().combat_reach() + 4.0;
+                    let in_range = if let Some(player) = map.map().get_typed_player(player_guid) {
+                        creature.unit().world().is_within_dist_in_map(
+                            player.unit().world(),
+                            interaction_distance,
+                            true,
+                        )
+                    } else {
+                        let fallback_distance = interaction_distance
+                            + creature.unit().world().combat_reach()
+                            + player_interaction_combat_reach;
+                        creature
+                            .unit()
+                            .world()
+                            .position()
+                            .is_within_dist(&player_position, fallback_distance)
+                    };
+                    if !in_range {
+                        return None;
+                    }
 
-            let interaction_distance = creature.unit().world().combat_reach() + 4.0;
-            let in_range = if let Some(player) = map.map().get_typed_player(player_guid) {
-                creature.unit().world().is_within_dist_in_map(
-                    player.unit().world(),
-                    interaction_distance,
-                    true,
-                )
-            } else {
-                let fallback_distance = interaction_distance
-                    + creature.unit().world().combat_reach()
-                    + player_interaction_combat_reach;
-                creature
-                    .unit()
-                    .world()
-                    .position()
-                    .is_within_dist(&player_position, fallback_distance)
-            };
-            if !in_range {
-                return None;
-            }
-
-            Some(RepresentedCreatureAccessLikeCpp {
-                entry: creature.entry(),
-                position: creature.unit().world().position(),
-                npc_flags: creature.ai_ownership().npc_flags,
-                npc_flags2: creature.ai_ownership().npc_flags2,
-                trainer_class: creature.trainer_class_like_cpp(),
-                faction_template_id: creature.unit().data().faction_template.max(0) as u32,
-            })
+                    Some(RepresentedCreatureAccessLikeCpp {
+                        entry: creature.entry(),
+                        position: creature.unit().world().position(),
+                        npc_flags: creature.ai_ownership().npc_flags,
+                        npc_flags2: creature.ai_ownership().npc_flags2,
+                        trainer_class: creature.trainer_class_like_cpp(),
+                        faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+                    })
+                })
+                .flatten()
         })();
         if let Some(canonical_access) = canonical_access {
             // Reputation is Player-owned and resolves through the same
@@ -17581,29 +17577,41 @@ impl WorldSession {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
+        // Resolve Player-owned phase state before entering the map. The
+        // canonical Player handle uses this same manager mutex, so consulting
+        // it from the entity read scope would recursively lock the manager.
+        let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
+        let candidates = {
+            let manager = self.canonical_map_manager.as_ref()?;
+            let Ok(manager) = manager.lock() else {
+                return None;
+            };
+            let map = match player_map_key {
+                Some(key) if key.map_id == requested_map_id => {
+                    manager.find_map(key.map_id, key.instance_id)?
+                }
+                Some(_) => return None,
+                None => manager.find_map(requested_map_id, 0)?,
+            };
+            let nearby = map.map().nearby_cell_guids_like_cpp(
+                position.x,
+                position.y,
+                visibility_radius + source_combat_reach,
+            );
+            nearby
+                .grid
+                .gameobjects
+                .into_iter()
+                .filter_map(|guid| {
+                    map.map()
+                        .with_game_object_like_cpp(guid, |gameobject| (guid, gameobject.clone()))
+                })
+                .collect::<Vec<_>>()
         };
-        let map = match player_map_key {
-            Some(key) if key.map_id == requested_map_id => {
-                manager.find_map(key.map_id, key.instance_id)?
-            }
-            Some(_) => return None,
-            None => manager.find_map(requested_map_id, 0)?,
-        };
-        let nearby = map.map().nearby_cell_guids_like_cpp(
-            position.x,
-            position.y,
-            visibility_radius + source_combat_reach,
-        );
         let now = Instant::now();
         let mut gameobjects = Vec::new();
 
-        for guid in nearby.grid.gameobjects {
-            let Some(gameobject) = map.map().get_typed_game_object(guid) else {
-                continue;
-            };
+        for (guid, gameobject) in candidates {
             let object = gameobject.world();
             if !object.object().is_in_world()
                 || object.map_id() != u32::from(map_id)
@@ -17618,7 +17626,9 @@ impl WorldSession {
                 continue;
             }
             if let Some(phase_shift) = self.represented_gameobject_phase_shifts.get(&guid)
-                && !self.can_see_phase_shift_like_cpp(phase_shift)
+                && !viewer_phase_shift
+                    .as_ref()
+                    .is_some_and(|viewer| viewer.can_see(phase_shift))
             {
                 continue;
             }
@@ -17667,7 +17677,7 @@ impl WorldSession {
                 }
             } else {
                 let Some(create_data) =
-                    self.gameobject_create_data_from_canonical_like_cpp(guid, gameobject)
+                    self.gameobject_create_data_from_canonical_like_cpp(guid, &gameobject)
                 else {
                     continue;
                 };
@@ -17838,6 +17848,7 @@ impl WorldSession {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -17857,35 +17868,38 @@ impl WorldSession {
         let mut area_triggers = Vec::new();
 
         for guid in nearby.grid.area_triggers {
-            let Some(area_trigger) = map
+            let Some(create_data) = map
                 .map()
-                .map_object_record(guid)
-                .and_then(wow_entities::MapObjectRecord::area_trigger)
+                .with_area_trigger_like_cpp(guid, |area_trigger| {
+                    let object = area_trigger.world();
+                    if !object.object().is_in_world()
+                        || object.map_id() != u32::from(map_id)
+                        || !Self::visibility_distance_allows_like_cpp(
+                            position,
+                            source_combat_reach,
+                            &object.position(),
+                            object.combat_reach(),
+                            visibility_radius,
+                        )
+                        || !viewer_phase_shift
+                            .as_ref()
+                            .is_some_and(|viewer| viewer.can_see(object.phase_shift()))
+                        || area_trigger.is_server_side()
+                        || area_trigger.is_removed()
+                    {
+                        return None;
+                    }
+                    Some(
+                        crate::entity_update_bridge::area_trigger_create_data_from_entity_like_cpp(
+                            area_trigger,
+                        ),
+                    )
+                })
+                .flatten()
             else {
                 continue;
             };
-            let object = area_trigger.world();
-            if !object.object().is_in_world()
-                || object.map_id() != u32::from(map_id)
-                || !Self::visibility_distance_allows_like_cpp(
-                    position,
-                    source_combat_reach,
-                    &object.position(),
-                    object.combat_reach(),
-                    visibility_radius,
-                )
-                || !self.can_see_phase_shift_like_cpp(object.phase_shift())
-            {
-                continue;
-            }
-            if area_trigger.is_server_side() || area_trigger.is_removed() {
-                continue;
-            }
-            area_triggers.push(
-                crate::entity_update_bridge::area_trigger_create_data_from_entity_like_cpp(
-                    area_trigger,
-                ),
-            );
+            area_triggers.push(create_data);
         }
 
         Some(area_triggers)
@@ -17904,6 +17918,7 @@ impl WorldSession {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -17924,7 +17939,9 @@ impl WorldSession {
         let allows_world_object = |world: &wow_entities::WorldObject| {
             world.object().is_in_world()
                 && world.map_id() == requested_map_id
-                && self.can_see_phase_shift_like_cpp(world.phase_shift())
+                && viewer_phase_shift
+                    .as_ref()
+                    .is_some_and(|viewer| viewer.can_see(world.phase_shift()))
                 && Self::visibility_distance_allows_like_cpp(
                     position,
                     source_combat_reach,
@@ -17948,39 +17965,41 @@ impl WorldSession {
 
         let mut scene_objects = Vec::new();
         for guid in nearby.grid.scene_objects {
-            let Some(scene_object) = map
+            let Some(create_data) = map
                 .map()
-                .map_object_record(guid)
-                .and_then(wow_entities::MapObjectRecord::scene_object)
+                .with_scene_object_like_cpp(guid, |scene_object| {
+                    allows_world_object(scene_object.world()).then(|| {
+                        crate::entity_update_bridge::scene_object_create_data_from_entity_like_cpp(
+                            scene_object,
+                        )
+                    })
+                })
+                .flatten()
             else {
                 continue;
             };
-            if allows_world_object(scene_object.world()) {
-                scene_objects.push(
-                    crate::entity_update_bridge::scene_object_create_data_from_entity_like_cpp(
-                        scene_object,
-                    ),
-                );
-            }
+            scene_objects.push(create_data);
         }
 
         let mut conversations = Vec::new();
         for guid in nearby.grid.conversations {
-            let Some(conversation) = map
+            let Some(create_data) = map
                 .map()
-                .map_object_record(guid)
-                .and_then(wow_entities::MapObjectRecord::conversation)
+                .with_conversation_like_cpp(guid, |conversation| {
+                    (!conversation.is_removed() && allows_world_object(conversation.world())).then(
+                    || {
+                        crate::entity_update_bridge::conversation_create_data_from_entity_like_cpp(
+                            conversation,
+                            &self.locale,
+                        )
+                    },
+                )
+                })
+                .flatten()
             else {
                 continue;
             };
-            if !conversation.is_removed() && allows_world_object(conversation.world()) {
-                conversations.push(
-                    crate::entity_update_bridge::conversation_create_data_from_entity_like_cpp(
-                        conversation,
-                        &self.locale,
-                    ),
-                );
-            }
+            conversations.push(create_data);
         }
 
         Some((corpses, scene_objects, conversations))
@@ -60215,12 +60234,10 @@ impl WorldSession {
             .unwrap_or(0);
         let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
         let managed = manager.find_map(map_id, instance_id)?;
-        Some(
-            managed
-                .map()
-                .map_object_record(pet_guid)?
-                .object()
-                .position(),
+        managed.map().with_world_object_by_kinds_like_cpp(
+            pet_guid,
+            &[AccessorObjectKind::Pet],
+            |object| object.position(),
         )
     }
 
@@ -62542,18 +62559,23 @@ impl WorldSession {
         };
         manager
             .find_map(key.map_id, key.instance_id)
-            .and_then(|managed| managed.map().map_object_record(target))
-            .is_some_and(|record| Self::is_represented_seer_kind_like_cpp(record.kind()))
+            .and_then(|managed| {
+                managed.map().with_world_object_by_kinds_like_cpp(
+                    target,
+                    Self::represented_seer_kinds_like_cpp(),
+                    |_| (),
+                )
+            })
+            .is_some()
     }
 
-    fn is_represented_seer_kind_like_cpp(kind: AccessorObjectKind) -> bool {
-        matches!(
-            kind,
-            AccessorObjectKind::Player
-                | AccessorObjectKind::Creature
-                | AccessorObjectKind::Pet
-                | AccessorObjectKind::DynamicObject
-        )
+    fn represented_seer_kinds_like_cpp() -> &'static [AccessorObjectKind] {
+        &[
+            AccessorObjectKind::Player,
+            AccessorObjectKind::Creature,
+            AccessorObjectKind::Pet,
+            AccessorObjectKind::DynamicObject,
+        ]
     }
 
     pub(crate) fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
@@ -62579,9 +62601,13 @@ impl WorldSession {
         };
         manager
             .find_map(key.map_id, key.instance_id)
-            .and_then(|managed| managed.map().map_object_record(seer_guid))
-            .filter(|record| Self::is_represented_seer_kind_like_cpp(record.kind()))
-            .map(|record| record.object().position())
+            .and_then(|managed| {
+                managed.map().with_world_object_by_kinds_like_cpp(
+                    seer_guid,
+                    Self::represented_seer_kinds_like_cpp(),
+                    |object| object.position(),
+                )
+            })
             .or(Some(player_position))
     }
 
@@ -62600,9 +62626,13 @@ impl WorldSession {
         ) && let Ok(manager) = manager.lock()
             && let Some(reach) = manager
                 .find_map(key.map_id, key.instance_id)
-                .and_then(|managed| managed.map().map_object_record(seer_guid))
-                .filter(|record| Self::is_represented_seer_kind_like_cpp(record.kind()))
-                .map(|record| record.object().combat_reach())
+                .and_then(|managed| {
+                    managed.map().with_world_object_by_kinds_like_cpp(
+                        seer_guid,
+                        Self::represented_seer_kinds_like_cpp(),
+                        |object| object.combat_reach(),
+                    )
+                })
         {
             return reach.max(0.0);
         }

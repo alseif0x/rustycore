@@ -10,8 +10,8 @@
 //! and bridge are unchanged; this module keeps the shared types, the
 //! constructors and the helpers the phases build on.
 
-mod game_object;
 mod entity_world;
+mod game_object;
 mod relocation;
 mod respawn;
 mod scripts_weather;
@@ -24,8 +24,8 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
 use self::entity_world::EntityWorld;
+use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
 use crate::coords::{
     CellCoord, GridCoord, MAX_NUMBER_OF_CELLS, MAX_NUMBER_OF_GRIDS, SIZE_OF_GRID_CELL,
     TOTAL_NUMBER_OF_CELLS_PER_MAP, compute_cell_coord, compute_grid_coord, is_valid_map_coord_2d,
@@ -66,10 +66,10 @@ use wow_entities::{
     GameObjectUpdateOutcomeLikeCpp as EntityGameObjectUpdateOutcomeLikeCpp,
     GameObjectUpdateStatusLikeCpp as EntityGameObjectUpdateStatusLikeCpp, GoState, INVALID_HEIGHT,
     LineOfSightQuery, LootState, MAX_VISIBILITY_DISTANCE, MapBindingError, MapObjectRecord,
-    ObjectAccessorError, ObjectAccessorMapSource, ObjectNotifyFlags, Pet, Player,
-    PlayerValuesUpdate, SceneObject, TransportUpdateLikeCpp, Unit, UnitAddToWorldOutcomeLikeCpp,
-    UnitRemoveFromWorldOutcomeLikeCpp, UnitSharedVisionSetWorldObjectRequestLikeCpp,
-    UnitValuesUpdate, VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
+    ObjectAccessorError, ObjectNotifyFlags, Pet, Player, PlayerValuesUpdate, SceneObject,
+    TransportUpdateLikeCpp, Unit, UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
+    UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate,
+    VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
     VehicleKitRemoveOutcomeLikeCpp, WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery,
 };
 
@@ -3590,7 +3590,7 @@ where
         })
     }
 
-    pub fn map_object_record(&self, guid: ObjectGuid) -> Option<&MapObjectRecord> {
+    pub(crate) fn map_object_record(&self, guid: ObjectGuid) -> Option<&MapObjectRecord> {
         self.entity_world.get(&guid)
     }
 
@@ -5124,24 +5124,6 @@ impl<Terrain, Lifecycle> GridUnloadEntityStore for Map<Terrain, Lifecycle> {
         self.entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::conversation_mut)
-    }
-}
-
-impl<Terrain, Lifecycle> ObjectAccessorMapSource for Map<Terrain, Lifecycle>
-where
-    Terrain: TerrainGridLoader,
-    Lifecycle: GridLifecycle,
-{
-    fn map_id(&self) -> u32 {
-        self.map_id
-    }
-
-    fn instance_id(&self) -> u32 {
-        self.instance_id
-    }
-
-    fn map_object_record(&self, guid: ObjectGuid) -> Option<&MapObjectRecord> {
-        self.entity_world.get(&guid)
     }
 }
 
