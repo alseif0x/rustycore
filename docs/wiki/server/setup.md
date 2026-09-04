@@ -26,10 +26,18 @@ Create local `bnetserver.conf` and `worldserver.conf` files for your environment
 files and their `.conf.d` override directories are ignored at the repository root. Never
 commit passwords, database URLs, private keys, certificates, or runtime configuration.
 
-Start the services in this order:
+Start the services in separate terminals, in this order. Wait for Battle.net to finish its
+startup before launching the world service.
+
+Terminal 1:
 
 ```bash
 ./target/release/bnet-server
+```
+
+Terminal 2:
+
+```bash
 ./target/release/world-server
 ```
 

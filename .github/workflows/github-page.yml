@@ -18,9 +18,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build documentation
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.user.login != 'alseif0x'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -65,9 +72,6 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    concurrency:
-      group: github-pages
-      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
