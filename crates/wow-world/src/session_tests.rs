@@ -11729,6 +11729,8 @@ async fn durable_creature_runtime_overflow_disconnects_desynchronized_session() 
 async fn refresh_visible_world_creatures_command_forces_creature_visibility_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 90_009);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_guid = test_creature_guid(90_010);
     let creature_position = Position::new(12.0, 10.0, 0.0, 0.0);
@@ -11757,7 +11759,21 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
 
     session.state = SessionState::LoggedIn;
     session.set_map_manager(manager);
-    session.set_player_map_position_like_cpp(571, player_position);
+    session.set_canonical_map_manager(canonical);
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "RefreshVisibility".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     // Prove the command bypasses the 50-yard visibility throttle.
     session.last_visibility_pos = Some(player_position);
 
@@ -27123,6 +27139,7 @@ fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_li
 
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "VisibleCreatureViewer".to_string(),
@@ -27133,7 +27150,9 @@ fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_li
         80,
         0,
     ));
-    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     add_canonical_test_creature_on_map_with_world_state(
         &canonical,
         creature_guid,
@@ -27874,6 +27893,7 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
 
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "LoginVisibility".to_string(),
@@ -27884,6 +27904,9 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     session.apply_move_init_active_mover_complete_like_cpp(0);
     let _ = drain_server_packet_bytes(&send_rx);
 
@@ -27944,6 +27967,7 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
 
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "LoginAfterAddVisibility".to_string(),
@@ -27954,6 +27978,9 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     session.apply_move_init_active_mover_complete_like_cpp(0);
     let _ = drain_server_packet_bytes(&send_rx);
 
