@@ -74,6 +74,7 @@ use super::{
     queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
     realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
     reset_schedule_like_cpp, respawn_db_retry_delay,
+    retain_committed_creature_combat_events_like_cpp,
     run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
     run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
     run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
@@ -11436,6 +11437,98 @@ fn creature_attack_start_delivery_routes_only_to_victim_like_cpp() {
 }
 
 #[test]
+fn creature_attack_start_commits_player_victim_without_a_session_recipient_like_cpp() {
+    let canonical: wow_world::SharedCanonicalMapManager =
+        Arc::new(Mutex::new(wow_map::MapManager::default()));
+    let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_068);
+    let victim = ObjectGuid::create_player(1, 90_069);
+    add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, Position::ZERO, 571, 4, 100);
+    add_canonical_test_player_on_map_like_cpp(&canonical, victim, Position::ZERO, 571, 4, 100);
+    let commands = [
+        wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            previous_victim_guid: None,
+            map_id: 571,
+            instance_id: 4,
+            packet_already_broadcast: false,
+        },
+    ];
+
+    let outcomes = apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical));
+    assert_eq!(outcomes.len(), 1);
+    assert!(outcomes[0].is_applied());
+
+    let guard = canonical.lock().unwrap();
+    let map = guard.find_map(571, 4).unwrap().map();
+    let attacker_has_combat = map
+        .with_creature_like_cpp(attacker, |attacker| {
+            attacker
+                .unit()
+                .subsystems()
+                .combat
+                .is_in_combat_with(victim)
+        })
+        .unwrap();
+    let victim = map.get_typed_player(victim).unwrap();
+    assert!(attacker_has_combat);
+    assert!(victim.unit().subsystems().combat.has_combat());
+    assert!(victim.unit().has_attacker_like_cpp(attacker));
+}
+
+#[test]
+fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
+    let canonical: wow_world::SharedCanonicalMapManager =
+        Arc::new(Mutex::new(wow_map::MapManager::default()));
+    let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_070);
+    let victim = ObjectGuid::create_player(1, 90_071);
+    let commands = [
+        wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            previous_victim_guid: None,
+            map_id: 571,
+            instance_id: 4,
+            packet_already_broadcast: true,
+        },
+    ];
+    let outcomes = apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical));
+    assert_eq!(
+        outcomes[0].status,
+        wow_map::MapCommandStatusLikeCpp::MissingMap
+    );
+
+    let attack_bytes = wow_packet::packets::combat::AttackStart { attacker, victim }.to_bytes();
+    let recipients = wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+        source_guid: attacker,
+        map_id: 571,
+        instance_id: 4,
+        source_position: Position::ZERO,
+        range: 100.0,
+        required_3d: false,
+    };
+    let mut plan = wow_world::map_manager::RuntimePlan {
+        events: vec![
+            wow_world::map_manager::RuntimeEvent {
+                source_guid: attacker,
+                recipients: recipients.clone(),
+                packet_bytes: attack_bytes,
+            },
+            wow_world::map_manager::RuntimeEvent {
+                source_guid: attacker,
+                recipients,
+                packet_bytes: vec![0xAA, 0x55],
+            },
+        ],
+    };
+
+    retain_committed_creature_combat_events_like_cpp(&mut plan, &commands, &outcomes, &[], &[]);
+
+    assert_eq!(plan.events.len(), 1);
+    assert_eq!(plan.events[0].packet_bytes, vec![0xAA, 0x55]);
+}
+
+#[test]
 fn creature_assistance_start_establishes_canonical_combat_for_both_creatures_like_cpp() {
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
@@ -11454,10 +11547,9 @@ fn creature_assistance_start_establishes_canonical_combat_for_both_creatures_lik
         },
     ];
 
-    assert_eq!(
-        apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical)),
-        1
-    );
+    let outcomes = apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical));
+    assert_eq!(outcomes.len(), 1);
+    assert!(outcomes[0].is_applied());
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 4).unwrap().map();
     let attacker_creature = map.with_creature_like_cpp(attacker, Clone::clone).unwrap();
@@ -11508,14 +11600,12 @@ fn creature_assistance_stop_purges_canonical_combat_for_both_creatures_like_cpp(
         },
     ];
 
-    assert_eq!(
-        apply_canonical_creature_attack_starts_like_cpp(&starts, Some(&canonical)),
-        1
-    );
-    assert_eq!(
-        apply_canonical_creature_attack_stops_like_cpp(&stops, Some(&canonical)),
-        1
-    );
+    let start_outcomes = apply_canonical_creature_attack_starts_like_cpp(&starts, Some(&canonical));
+    let stop_outcomes = apply_canonical_creature_attack_stops_like_cpp(&stops, Some(&canonical));
+    assert_eq!(start_outcomes.len(), 1);
+    assert!(start_outcomes[0].is_applied());
+    assert_eq!(stop_outcomes.len(), 1);
+    assert!(stop_outcomes[0].is_applied());
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 4).unwrap().map();
     let attacker_creature = map.with_creature_like_cpp(attacker, Clone::clone).unwrap();
@@ -11642,6 +11732,7 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
 
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 93_002);
     let attacker_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, attacker_position, 0, 0, 100);
     let mut creature = wow_world::map_manager::WorldCreature::new(
         attacker,
         9001,

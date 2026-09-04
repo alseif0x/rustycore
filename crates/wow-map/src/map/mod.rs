@@ -14,6 +14,7 @@ mod entity_world;
 mod game_object;
 mod relocation;
 mod respawn;
+mod runtime;
 mod scripts_weather;
 mod spawn_groups;
 mod storage;
@@ -25,6 +26,10 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use self::entity_world::EntityWorld;
+pub(crate) use self::runtime::MapRuntime;
+pub use self::runtime::{
+    MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
+};
 use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
 use crate::coords::{
     CellCoord, GridCoord, MAX_NUMBER_OF_CELLS, MAX_NUMBER_OF_GRIDS, SIZE_OF_GRID_CELL,

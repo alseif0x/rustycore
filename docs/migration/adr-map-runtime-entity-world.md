@@ -248,14 +248,37 @@ Internal `wow-map` borrows and the still-public mutable Creature transition API 
 blockers to the backend swap; step 4 introduces the owner command/outcome path that will replace
 those mutations before `hecs` becomes the live store.
 
+Steps 4 and the first slice of 5 are now installed. Every `ManagedMap` physically contains one
+`MapRuntime`, and that runtime owns the existing `Map`; this is an ownership boundary, not a
+decorative actor beside a separately owned map. `MapManager::execute_map_command_like_cpp` is the
+temporary synchronous ingress while the existing outer manager mutex remains the synchronization
+mechanism. Its result is always an owned `MapCommandOutcomeLikeCpp`, including explicit missing-map,
+missing/wrong-kind entity, and same-unit rejection states.
+
+The first complete represented vertical is Creature attack-start and evade combat-stop for Player
+or Creature victims. The runtime validates both identities before mutation, applies the reciprocal
+combat/threat/attacker transition under one exclusive owner borrow, and returns the post-transition
+combat evidence. The global creature loop delivers only commands whose map outcome was applied;
+the victim session no longer mutates either participant and is limited to recipient validation,
+bounded-directory publication, and packet delivery. This is anchored to C++ `Unit::Attack`
+(`Unit.cpp:5645-5745`), `CombatManager::SetInCombatWith` (`CombatManager.cpp:187-228`), and
+`Unit::CombatStop` (`Unit.cpp:5802-5821`). It intentionally preserves the already represented Rust
+transition rather than claiming full `Unit::Attack`/evade parity: spells, aura interruption, unit
+state, AI callbacks, assistance, all-participant cleanup, and packet side effects remain separate
+gaps. Public `ManagedMap::map_mut` and other mutable families also remain transitional seams, so
+external synchronization has not yet moved into a dedicated runtime task and `hecs` is still not a
+production dependency.
+
 1. Complete the isolated gate and record the decision in this ADR.
 2. Introduce a private, non-`Deref` `wow-map::map::entity_world` facade owning the existing
    canonical records; keep the `HashMap` behind it while borrowed-record callers are migrated, with
    no session-facing API and no second store.
 3. Move the GUID index and one low-risk batch family (Creature transform/vitals) behind the facade.
 4. Add the single-writer `MapRuntime` command/outcome driver while preserving current external
-   synchronization until callers migrate.
+   synchronization until callers migrate. **Complete for the staged synchronous owner.**
 5. Route one complete vertical through a typed command/outcome and delete its closure access.
+   **First vertical complete: represented Creature attack-start/evade combat-stop; continue with
+   the remaining mutable families.**
 6. Move Player attach/detach into the runtime without changing `PlayerHandle` semantics.
 7. Migrate remaining component families and derived spatial indexes incrementally; delete each old
    representation in the same commit that installs its replacement.

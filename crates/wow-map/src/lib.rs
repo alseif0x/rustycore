@@ -44,6 +44,7 @@ pub use map::{
     DelayedCreatureRelocationContext, DelayedPlayerRelocationContext,
     DelayedUnitRelocationCellPlan, DelayedUnitRelocationForCellsPlan, DelayedUnitRelocationPlan,
     DelayedUnitRelocationVisibilityPlans, GameEventNpcFlagValuesUpdateLikeCpp, GridLifecycle, Map,
+    MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
     MapObjectCellMoveState, MapObjectMoveListEntry, MapObjectMoveListPlan,
     MapObjectRelocationError, MapObjectRelocationOutcome, MapObjectStoreError,
     MapUpdatePlayerSources, MapUpdateVisitPlan, NearbyCellGuids, NearbyCellVisitCenter,

@@ -1785,13 +1785,14 @@ impl WorldSession {
         });
     }
 
-    /// Mirror one map-owned creature aggro transition into this victim session.
+    /// Deliver one committed map-owned creature aggro transition to its victim.
     ///
     /// C++ contrast: `CreatureAI::MoveInLineOfSight` calls
     /// `Creature::CanStartAttack` and then engages the target; the combat start
     /// is visible to the client through `Unit::SendMeleeAttackStart`. The map
-    /// runtime owns the aggro decision; this handler only gates the victim
-    /// session and sends one `AttackStart` packet.
+    /// runtime owns and applies the aggro decision before delivery; this
+    /// handler only gates the victim session, publishes its canonical combat
+    /// view, and sends one `AttackStart` packet.
     pub(crate) fn handle_creature_attack_start_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStartLikeCppCommand,
@@ -1819,52 +1820,6 @@ impl WorldSession {
             .client_visible_guids_like_cpp
             .contains(&command.attacker_guid);
 
-        if let Some(manager) = self.canonical_map_manager.as_ref().cloned()
-            && let Ok(mut manager) = manager.lock()
-            && let Some(managed) =
-                manager.find_map_mut(u32::from(command.map_id), command.instance_id)
-        {
-            let map = managed.map_mut();
-            if let Some(previous_victim) = command.previous_victim_guid {
-                if let Some(player) = map.get_typed_player_mut(previous_victim) {
-                    player
-                        .unit_mut()
-                        .remove_attacker_like_cpp(command.attacker_guid);
-                } else if let Some(creature) = map.get_typed_creature_mut(previous_victim) {
-                    creature
-                        .unit_mut()
-                        .remove_attacker_like_cpp(command.attacker_guid);
-                }
-            }
-            if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
-                player
-                    .unit_mut()
-                    .subsystems_mut()
-                    .combat
-                    .set_in_combat_with(command.attacker_guid, false, false);
-                player
-                    .unit_mut()
-                    .add_attacker_like_cpp(command.attacker_guid);
-            }
-            if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
-                let combat = &mut creature.unit_mut().subsystems_mut().combat;
-                combat.set_in_combat_with(command.victim_guid, false, false);
-                if combat.threat_ref(command.victim_guid).is_none() {
-                    combat.set_threat(command.victim_guid, 0.0);
-                }
-                let threat_ref = combat.threat_ref(command.victim_guid).copied();
-                if let Some(threat_ref) = threat_ref
-                    && let Some(player) = map.get_typed_player_mut(command.victim_guid)
-                {
-                    player
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .put_threatened_by_me_ref(command.attacker_guid, threat_ref);
-                }
-            }
-        }
-
         // Incoming attackers do not become the player's own melee target.
         // C++ keeps that direction solely in `m_attackers`/combat references.
         self.set_in_combat_like_cpp(true);
@@ -1878,6 +1833,10 @@ impl WorldSession {
         }
     }
 
+    /// Deliver one Creature combat-stop already committed by `MapRuntime`.
+    ///
+    /// The session observes the resulting canonical Player state only to
+    /// publish its bounded directory view; it owns no half of the transition.
     pub(crate) fn handle_creature_attack_stop_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStopLikeCppCommand,
@@ -1900,47 +1859,9 @@ impl WorldSession {
             return;
         }
 
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(still_in_combat) = self.resolved_in_combat_like_cpp() else {
             return;
         };
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return;
-        };
-        let map = managed.map_mut();
-        let still_in_combat = if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .purge_combat_ref_like_cpp(command.attacker_guid);
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .purge_threatened_by_me_ref(command.attacker_guid);
-            player
-                .unit_mut()
-                .remove_attacker_like_cpp(command.attacker_guid);
-            player.unit().subsystems().combat.has_combat()
-        } else {
-            false
-        };
-        if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
-            creature
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .purge_combat_ref_like_cpp(command.victim_guid);
-            creature
-                .unit_mut()
-                .remove_attacker_like_cpp(command.victim_guid);
-        }
-        if self.resolved_combat_target_like_cpp().flatten() == Some(command.attacker_guid) {
-            self.set_combat_target_like_cpp(None);
-        }
         self.set_in_combat_like_cpp(still_in_combat);
     }
 
