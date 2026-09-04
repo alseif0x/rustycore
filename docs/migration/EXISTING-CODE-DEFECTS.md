@@ -17,6 +17,19 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified Rust-port repairs
 
+- **2026-09-04, #578 runtime QA — initial Player construction depended on its own inventory.**
+  Production login reached the instance socket, then kicked with `canonical Player mail owner
+  disappeared`. `build_initial_player_for_owner_like_cpp` called presentation hydration, which
+  queried canonical inventory before the new Player handle existed. Unit fixtures supplied a
+  Session-side inventory and masked the cycle. Initial equipment hydration is now fixture-only;
+  production keeps Player's initial empty equipment until the existing inventory load. C++
+  constructs Player in `CharacterHandler.cpp:1065-1070`, establishes the session Player at
+  `Player.cpp:17378`, and loads inventory/mail at `17748/17759`. No SQL or packet layout changes.
+  The production-linked `production_login_player_owner` regression fails on the old code and
+  passes with the fix; its missing-manager case rejects continuation. It stops at the PetStable
+  read after mail/scalar hydration and does not claim a complete login. Live QA is recorded in
+  the Session checkpoint separately.
+
 - **2026-09-04, #578 runtime QA — nullable LFG hotfix text aborted startup.** The checked
   candidate rejected `LFGDungeons.Description` SQL NULL; the local positive-build batch has
   99 rows, two with NULL descriptions. C++ `Field::GetString` (`Field.cpp:118-126`) returns

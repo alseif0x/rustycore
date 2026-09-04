@@ -18,6 +18,12 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
             .collect();
     }
     player.gameplay_state_mut().gray_level = session.gray_level(session.player_level_like_cpp());
+    // C++ constructs Player before LoadFromDB / _LoadInventory
+    // (CharacterHandler.cpp:1065-1070; Player.cpp:17748). Production inventory
+    // already belongs to Player: querying it here would require the very
+    // handle that this initial construction is about to install. Only old
+    // unit fixtures hydrate equipment from their Session-side input.
+    #[cfg(test)]
     for (slot, values) in session
         .loaded_player_visible_items_for_create_like_cpp()?
         .into_iter()

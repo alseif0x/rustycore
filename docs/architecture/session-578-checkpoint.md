@@ -118,6 +118,35 @@ unchanged Group hotspot ceiling is left untouched.
 
 ## Validation boundaries
 
+### Runtime follow-up and production-only construction regression
+
+The local final gate passed on `e1daed4c` and again on `fbd762c6`; the latter manifest is
+`target/validation-v2/manifests/20260904T230645.707038Z-3-final.json` (6,745 library tests
+passed). These are historical evidence, not validation of subsequent changes.
+
+Guarded login QA exposed three independent boundaries:
+
+- Local DB schemas were already materialized, but the official migration history was absent.
+  The official `rustycore-db` transition-import path adopted the four existing auth/characters
+  migrations without replaying their DDL. All four databases then validated compatible.
+  Before adoption, full auth/characters and schema-only world/hotfixes backups were saved under
+  private `/tmp/rustycore-578-db-backup.Ay81P8`. These contain sensitive runtime data and must
+  never be committed. No LFG rows were edited.
+- SQL NULL LFG descriptions exposed the separate loader repair in `fbd762c6`.
+- Candidate `64a95e7eb6572577498776d09bd39b692a695c9ef93d6716e14dba68265ad028`
+  authenticated, enumerated characters and linked the instance socket, then kicked during
+  mail hydration because initial Player construction required its own canonical inventory.
+  The old build was restored; this run did **not** pass login QA.
+
+The construction fix limits Session-to-Player equipment hydration to old unit fixtures.
+Production starts with the new Player's empty equipment and uses the existing later inventory
+load; it adds no fallback for unresolved active/stale owners. C++ anchors and the failure are
+recorded in `EXISTING-CODE-DEFECTS.md`. The new integration test compiles wow-world without
+`cfg(test)`, reaches PetStable only after successful mail/scalar hydration, and rejects a missing
+manager before that point. The positive case fails on the original code and passes with the fix;
+the negative case passes in both. Architecture check/self-test and the syntax-only ratchet pass
+without baseline changes. A fresh final gate and installed login run are still required.
+
 Focused current/stale/detached Player tests and movement/login/spell checks are recorded in
 `docs/migration/adr-map-runtime-entity-world.md`. The added same-map residence regression also
 passes after changing the destination across a cell boundary. The full world suite was repeated
