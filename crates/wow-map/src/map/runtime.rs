@@ -16,7 +16,7 @@ use wow_core::{ObjectGuid, Position};
 use wow_entities::{AccessorObjectKind, MapObjectRecord, Player};
 
 use super::{Map, NoopGridLifecycle, NoopTerrainGridLoader};
-use crate::{MapKey, RemoveFromMapError};
+use crate::{MapKey, MapObjectRelocationError, MapObjectRelocationOutcome, RemoveFromMapError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MapCommandLikeCpp {
@@ -128,6 +128,13 @@ pub(crate) enum MapRuntimePlayerDetachErrorLikeCpp {
     RemoveFromMap(RemoveFromMapError),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum MapRuntimePlayerRelocationErrorLikeCpp {
+    MissingPlayer { guid: ObjectGuid },
+    ObjectNotPlayer { guid: ObjectGuid },
+    Relocation(MapObjectRelocationError),
+}
+
 impl MapRuntime {
     pub(crate) fn new(map: Map<NoopTerrainGridLoader, NoopGridLifecycle>) -> Self {
         Self { map }
@@ -234,6 +241,32 @@ impl MapRuntime {
         Ok(outcome
             .player
             .expect("prevalidated Player removal must return the exact boxed value"))
+    }
+
+    /// Apply C++ `Unit::UpdatePosition -> Map::PlayerRelocation` inside the
+    /// map owner, including the derived cell/grid indexes.
+    ///
+    /// The lifetime coordinator validates the generation and active residence
+    /// before entering this method. Rechecking the record kind keeps the
+    /// runtime boundary fail-closed if its residence index ever drifts.
+    pub(crate) fn relocate_player_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        position: Position,
+    ) -> Result<MapObjectRelocationOutcome, MapRuntimePlayerRelocationErrorLikeCpp> {
+        match self.map.entity_world.kind(guid) {
+            None => {
+                return Err(MapRuntimePlayerRelocationErrorLikeCpp::MissingPlayer { guid });
+            }
+            Some(AccessorObjectKind::Player) => {}
+            Some(_) => {
+                return Err(MapRuntimePlayerRelocationErrorLikeCpp::ObjectNotPlayer { guid });
+            }
+        }
+
+        self.map
+            .relocate_map_object_like_cpp(guid, position)
+            .map_err(MapRuntimePlayerRelocationErrorLikeCpp::Relocation)
     }
 
     fn base_outcome(

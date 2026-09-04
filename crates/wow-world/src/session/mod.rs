@@ -13419,10 +13419,8 @@ impl WorldSession {
         };
         match manager.player_residence_like_cpp(handle) {
             Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => manager
-                .with_player_mut_like_cpp(handle, |player| {
-                    player.unit_mut().world_mut().relocate(position);
-                })
-                .is_some(),
+                .relocate_player_like_cpp(handle, position)
+                .is_ok_and(|outcome| outcome.relocated),
             Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
                 manager.detach_player_like_cpp(handle).is_ok()
                     && manager
@@ -42347,15 +42345,18 @@ impl WorldSession {
         let Ok(mut manager) = manager.lock() else {
             return;
         };
-        let should_relocate = match manager.player_residence_like_cpp(handle) {
-            Some(wow_map::PlayerResidenceLikeCpp::Detached) => true,
-            Some(wow_map::PlayerResidenceLikeCpp::Active(key)) => key.map_id == u32::from(map_id),
-            None => false,
-        };
-        if should_relocate {
-            let _ = manager.with_player_mut_like_cpp(handle, |player| {
-                player.unit_mut().world_mut().relocate(position);
-            });
+        match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => {
+                let _ = manager.with_player_mut_like_cpp(handle, |player| {
+                    player.unit_mut().world_mut().relocate(position);
+                });
+            }
+            Some(wow_map::PlayerResidenceLikeCpp::Active(key))
+                if key.map_id == u32::from(map_id) =>
+            {
+                let _ = manager.relocate_player_like_cpp(handle, position);
+            }
+            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) | None => {}
         }
     }
 

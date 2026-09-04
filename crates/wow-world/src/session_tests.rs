@@ -31062,7 +31062,7 @@ fn canonical_player_same_target_sync_preserves_mutable_state_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 53);
     let target_guid = test_creature_guid(19_053);
-    let updated_position = Position::new(3725.0, 1525.0, 120.0, 2.0);
+    let updated_position = Position::new(3800.0, 1525.0, 120.0, 2.0);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
@@ -31086,10 +31086,10 @@ fn canonical_player_same_target_sync_preserves_mutable_state_like_cpp() {
         })
         .unwrap();
 
-    session.set_player_map_position_like_cpp(571, updated_position);
-    session
-        .ensure_canonical_world_map_for_current_player_like_cpp()
-        .expect("same target world map");
+    assert!(session.ensure_canonical_player_owner_for_map_like_cpp(
+        wow_map::MapKey::new(571, 0),
+        updated_position,
+    ));
 
     let manager = canonical.lock().unwrap();
     let player = manager
@@ -31101,6 +31101,12 @@ fn canonical_player_same_target_sync_preserves_mutable_state_like_cpp() {
     assert_eq!(player.unit().attacking(), Some(target_guid));
     assert!(player.has_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP));
     assert_eq!(player.unit().world().position(), updated_position);
+    let cell = wow_map::cell_from_world(updated_position.x, updated_position.y);
+    assert_eq!(
+        player.unit().world().current_cell(),
+        Some((cell.cell_x(), cell.cell_y())),
+        "same-map residence must preserve C++ Map::PlayerRelocation cell membership"
+    );
 }
 
 #[test]

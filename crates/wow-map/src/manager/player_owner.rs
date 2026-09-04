@@ -15,8 +15,11 @@ use wow_entities::MapObjectRecord;
 use wow_entities::{AccessorObjectKind, Player};
 
 use super::MapManager;
-use crate::map::{MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp};
-use crate::{MapKey, RemoveFromMapError};
+use crate::map::{
+    MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp,
+    MapRuntimePlayerRelocationErrorLikeCpp,
+};
+use crate::{MapKey, MapObjectRelocationError, MapObjectRelocationOutcome, RemoveFromMapError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerHandle {
@@ -65,6 +68,7 @@ pub enum PlayerOwnerError {
     DetachedPlayerStillBound { guid: ObjectGuid, key: MapKey },
     ActiveObjectAlreadyPresent { guid: ObjectGuid, key: MapKey },
     ActiveObjectNotPlayer { guid: ObjectGuid, key: MapKey },
+    RelocatePlayer(MapObjectRelocationError),
     RemoveFromMap(RemoveFromMapError),
 }
 
@@ -279,6 +283,41 @@ impl MapManager {
         Ok(())
     }
 
+    /// Relocate the current active incarnation through its owning map runtime.
+    /// A detached Player is deliberately rejected: it remains a real value,
+    /// but C++ movement packets have no `Map::PlayerRelocation` target during
+    /// the far-teleport window.
+    pub fn relocate_player_like_cpp(
+        &mut self,
+        handle: PlayerHandle,
+        position: Position,
+    ) -> Result<MapObjectRelocationOutcome, PlayerOwnerError> {
+        if !crate::coords::is_valid_map_coord_2d(position.x, position.y) {
+            return Err(PlayerOwnerError::InvalidPosition { position });
+        }
+        let owner = self
+            .current_player_owner_like_cpp(handle)
+            .ok_or(PlayerOwnerError::StaleHandle)?;
+        let PlayerResidenceLikeCpp::Active(key) = owner.residence else {
+            return Err(PlayerOwnerError::NotActive);
+        };
+        self.find_map_mut(key.map_id, key.instance_id)
+            .ok_or(PlayerOwnerError::MissingMap { key })?
+            .runtime
+            .relocate_player_like_cpp(handle.guid, position)
+            .map_err(|error| match error {
+                MapRuntimePlayerRelocationErrorLikeCpp::MissingPlayer { guid } => {
+                    PlayerOwnerError::MissingPlayer { guid }
+                }
+                MapRuntimePlayerRelocationErrorLikeCpp::ObjectNotPlayer { guid } => {
+                    PlayerOwnerError::ActiveObjectNotPlayer { guid, key }
+                }
+                MapRuntimePlayerRelocationErrorLikeCpp::Relocation(error) => {
+                    PlayerOwnerError::RelocatePlayer(error)
+                }
+            })
+    }
+
     pub fn retire_player_like_cpp(&mut self, handle: PlayerHandle) -> Option<Box<Player>> {
         let owner = self.current_player_owner_like_cpp(handle)?;
         if matches!(owner.residence, PlayerResidenceLikeCpp::Active(_))
@@ -377,6 +416,77 @@ mod tests {
         assert_eq!(
             manager.with_player_like_cpp(current, |player| player.unit().data().level),
             Some(11)
+        );
+    }
+
+    #[test]
+    fn active_player_relocation_moves_the_owner_and_cell_index_like_cpp() {
+        let mut manager = MapManager::default();
+        let key = MapKey::new(571, 0);
+        manager.create_world_map(key.map_id, key.instance_id);
+        let handle = manager
+            .install_detached_player_like_cpp(detached_player(90_007, 23))
+            .unwrap();
+        manager
+            .attach_player_like_cpp(handle, key, Position::xyz(1.0, 2.0, 3.0))
+            .unwrap();
+
+        let position = Position::xyz(90.0, 20.0, 5.0);
+        let outcome = manager.relocate_player_like_cpp(handle, position).unwrap();
+
+        assert!(outcome.relocated);
+        assert!(outcome.moved_between_cells);
+        assert_eq!(
+            manager.with_player_like_cpp(handle, |player| {
+                (
+                    player.unit().world().position(),
+                    player.unit().world().current_cell(),
+                )
+            }),
+            Some((
+                position,
+                Some((
+                    outcome.new_cell.x_coord % crate::MAX_NUMBER_OF_CELLS,
+                    outcome.new_cell.y_coord % crate::MAX_NUMBER_OF_CELLS,
+                )),
+            ))
+        );
+    }
+
+    #[test]
+    fn detached_and_stale_players_cannot_enter_map_relocation_like_cpp() {
+        let mut manager = MapManager::default();
+        let key = MapKey::new(571, 0);
+        manager.create_world_map(key.map_id, key.instance_id);
+        let detached = manager
+            .install_detached_player_like_cpp(detached_player(90_008, 23))
+            .unwrap();
+        let destination = Position::xyz(90.0, 20.0, 5.0);
+
+        assert_eq!(
+            manager.relocate_player_like_cpp(detached, destination),
+            Err(PlayerOwnerError::NotActive)
+        );
+        assert_eq!(
+            manager.with_player_like_cpp(detached, |player| player.unit().world().position()),
+            Some(Position::ZERO),
+            "a rejected map relocation must not mutate the detached owner"
+        );
+
+        let current = manager
+            .install_detached_player_like_cpp(detached_player(90_008, 24))
+            .unwrap();
+        manager
+            .attach_player_like_cpp(current, key, Position::xyz(1.0, 2.0, 3.0))
+            .unwrap();
+        assert_eq!(
+            manager.relocate_player_like_cpp(detached, destination),
+            Err(PlayerOwnerError::StaleHandle)
+        );
+        assert_eq!(
+            manager.with_player_like_cpp(current, |player| player.unit().world().position()),
+            Some(Position::xyz(1.0, 2.0, 3.0)),
+            "a stale session cannot move the replacement incarnation"
         );
     }
 

@@ -31,6 +31,7 @@ pub use self::runtime::{
 };
 pub(crate) use self::runtime::{
     MapRuntime, MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp,
+    MapRuntimePlayerRelocationErrorLikeCpp,
 };
 use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
 use crate::coords::{
