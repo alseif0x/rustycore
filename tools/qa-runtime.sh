@@ -87,6 +87,7 @@ Usage:
 Commands:
   self-test     Exercise every guard and the restore path against fake services.
   snapshot      Print the live world build identity and exit. Touches nothing.
+  login         Swap in a build, verify login/world entry, restore. No fixture setup.
   loot-race     Swap in a build, run the destructive two-session chest smoke, restore.
   loot-item     Swap in a build, guard one creature's health, run the destructive
                 creature-kill capture, restore both the fixture and the build.
@@ -233,9 +234,16 @@ restore_live_build() {
     fi
   fi
   if ((restore_status != 0)); then
+    if [[ "${COMMAND:-}" == login && -n "$REPORT" ]]; then
+      write_report login restore-failed "${LOGIN_CANDIDATE_SHA:-}" "${LOGIN_BOT_STATUS:-null}"
+    fi
     printf 'error: THE LIVE BUILD OR FIXTURE WAS NOT RESTORED CLEANLY. Original kept at %s\n' \
       "$RESTORE_FROM" >&2
     exit 70
+  fi
+  if [[ "${COMMAND:-}" == login && -n "$REPORT" ]]; then
+    write_report login "$([[ $status -eq 0 ]] && echo passed-restored || echo failed-restored)" \
+      "${LOGIN_CANDIDATE_SHA:-}" "${LOGIN_BOT_STATUS:-null}"
   fi
   log "Original build restored and serving"
   exit "$status"
@@ -308,6 +316,85 @@ run_snapshot() {
   printf 'restarts     %s\n' "$(cut -f4 <<<"$identity")"
   packet_dump_absent || die "a packet dump directory is configured; refusing to run QA"
   printf 'packet dump  absent\n'
+}
+
+run_login() {
+  ((ALLOW_RUNTIME_QA == 1)) || die \
+    "login stops and starts $QA_SERVICE; rerun with --allow-runtime-qa"
+  LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
+  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/release/world-server}"
+  [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
+  [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
+  [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
+  [[ -x "$QA_SMOKE" ]] || die "smoke wrapper is missing: $QA_SMOKE"
+  require_clean_worktree
+  have_bot_credentials || die "no bot credentials before swapping a build"
+  LOGIN_CANDIDATE_SHA="$(sha256_of "$candidate")"
+  LOGIN_BOT_STATUS=null
+  if ((DRY_RUN == 1)); then
+    log "Dry run: nothing is stopped, copied or started"
+    printf 'would install   %s (%s)\n' "$candidate" "$LOGIN_CANDIDATE_SHA"
+    printf 'would run       login-only with account provisioning and fixture modes disabled\n'
+    printf 'would restore   the snapshot on every exit path\n'
+    return 0
+  fi
+
+  local identity pid bot_sha evidence_dir
+  identity="$(live_identity)"
+  packet_dump_absent || die "a packet dump directory is configured; refusing to run QA"
+  ORIGINAL_SHA="$(cut -f3 <<<"$identity")"
+  pid="$(cut -f1 <<<"$identity")"
+  ports_ready "$pid" || die "ports $QA_WORLD_PORT/$QA_INSTANCE_PORT are not owned by PID $pid"
+  bot_sha="$(sha256_of "$QA_BOT")"
+  evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/rustycore-login-qa.XXXXXX")"
+  log "Login evidence directory: $evidence_dir"
+  RESTORE_FROM="$evidence_dir/original-world-server"
+  cp -- "$LIVE_PATH" "$RESTORE_FROM"
+  [[ "$(sha256_of "$RESTORE_FROM")" == "$ORIGINAL_SHA" ]] || die "snapshot copy does not match"
+  write_report login running "$LOGIN_CANDIDATE_SHA"
+  RESTORE_PENDING=1
+  trap restore_live_build EXIT
+  trap 'exit 130' HUP INT TERM
+  log "Installing the candidate build $LOGIN_CANDIDATE_SHA"
+  # shellcheck disable=SC2086
+  $QA_SYSTEMCTL stop "$QA_SERVICE"
+  cp -- "$candidate" "$LIVE_PATH"
+  [[ "$(sha256_of "$LIVE_PATH")" == "$LOGIN_CANDIDATE_SHA" ]] || die "candidate did not install"
+  # shellcheck disable=SC2086
+  $QA_SYSTEMCTL start "$QA_SERVICE"
+  pid="$(wait_until_serving)" || die "the candidate build did not start serving"
+  log "Candidate serving on PID $pid"
+
+  LOGIN_BOT_STATUS=0
+  (
+    # Load credentials once, then pin the maintained wrapper's mode and binary.
+    # Do not allow ignored defaults to silently turn this into fixture QA.
+    set +x
+    load_bot_environment
+    local name
+    while IFS= read -r name; do
+      case "$name" in
+        WOW_BOT_*_SMOKE|WOW_BOT_*_CAPTURE|WOW_BOT_ACK_*) export "$name=0" ;;
+      esac
+    done < <(compgen -v)
+    cd "$QA_BOT_DIR"
+    exec timeout --foreground --signal=TERM --kill-after=30 "${QA_BOT_TIMEOUT_SECONDS}s" env \
+      WOW_BOT_ENV_FILE=/dev/null WOW_BOT_EXEC="$QA_BOT" WOW_BOT_EXEC_SHA256="$bot_sha" \
+      WOW_BOT_GENERATE_LOCAL_PASSWORD=0 WOW_BOT_ENSURE_TEST_ACCOUNTS=0 WOW_BOT_STAND_STATE= \
+      WORLD_HOST=127.0.0.1 WORLD_PORT="$QA_WORLD_PORT" \
+      INSTANCE_HOST=127.0.0.1 INSTANCE_PORT="$QA_INSTANCE_PORT" \
+      WOW_BOT_REPORT="$evidence_dir/bot.json" WOW_BOT_LOG="$evidence_dir/bot.log" \
+      "$QA_SMOKE"
+  ) >"$evidence_dir/wrapper.log" 2>&1 || LOGIN_BOT_STATUS=$?
+  if ((LOGIN_BOT_STATUS == 0)) && ! jq -e \
+    '.login_only == true and (.results | length == 1) and
+     all(.results[]; .world_auth == true and .enum_characters == true and .player_login_verified == true)' \
+    "$evidence_dir/bot.json" >/dev/null 2>&1; then
+    warn "login wrapper returned success without verified world-entry evidence"
+    LOGIN_BOT_STATUS=65
+  fi
+  log "Login bot status: $LOGIN_BOT_STATUS; evidence: $evidence_dir/bot.json"
+  return "$LOGIN_BOT_STATUS"
 }
 
 run_loot_race() {
@@ -528,6 +615,14 @@ case "$COMMAND" in
   snapshot)
     require_command ss
     run_snapshot
+    ;;
+  login)
+    require_command ss
+    require_command timeout
+    require_command jq
+    exec 9>"$QA_LOCK"
+    flock -n 9 || die "another runtime QA run holds $QA_LOCK"
+    run_login
     ;;
   loot-race)
     require_command ss

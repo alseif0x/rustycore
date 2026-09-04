@@ -59,6 +59,22 @@ Validation does not review code and does not start servers.
   services and `snapshot` prints the live identity without touching anything. Destructive
   scenarios stay behind two explicit flags.
 
+For a guarded login/world-entry check of a clean committed candidate:
+
+```bash
+./tools/qa-runtime.sh --allow-runtime-qa \
+  --world-exec /home/server/rustycore/target/release/world-server \
+  --report /tmp/rustycore-login-runtime-report.json login
+```
+
+`login` uses the maintained login wrapper with a hash-pinned bot binary. It disables account
+provisioning, password generation and inherited fixture modes, verifies the bot's authentication,
+character enumeration and world-entry JSON, and reports `passed-restored` only after the original
+build is restored and serving. The private temporary evidence directory is printed; it retains
+the original executable and bot logs/report for diagnosis. This is not a movement, combat or
+packet-capture acceptance test. It still requires explicit permission to interrupt the service
+and valid local bot credentials; it never runs as part of ordinary validation.
+
 ## What runs remotely
 
 - a pull request whose author is not `alseif0x`;
