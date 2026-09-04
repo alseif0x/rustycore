@@ -146,6 +146,7 @@ impl WorldSession {
         player_rest_rates: &super::PlayerRestRatePolicyLikeCpp,
         progression: &super::ProgressionCatalogsLikeCpp,
         feature_policy: &super::SupportFeaturePolicyLikeCpp,
+        player_grid_loader: &super::PlayerGridLoadResolverLikeCpp,
     ) {
         match self.connection.poll_instance_link(self.account_id) {
             InstanceLinkPollOutcome::Pending => {}
@@ -159,6 +160,7 @@ impl WorldSession {
                     player_rest_rates,
                     progression,
                     feature_policy,
+                    player_grid_loader,
                 )
                 .await;
             }
@@ -189,6 +191,7 @@ impl WorldSession {
             &player_rest_rates,
             &progression,
             &feature_policy,
+            &super::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
         )
         .await;
     }

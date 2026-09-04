@@ -3563,12 +3563,11 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
         10,
         0,
     ));
-    session.set_player_grid_load_resolver_like_cpp(Arc::new(|_, _, _| {
-        crate::session::PlayerGridLoadOutcomeLikeCpp {
+    let player_grid_loader: crate::session::PlayerGridLoadResolverLikeCpp =
+        Arc::new(|_, _, _| crate::session::PlayerGridLoadOutcomeLikeCpp {
             map_unavailable: true,
             ..Default::default()
-        }
-    }));
+        });
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawn_catalogs = session.creature_spawn_catalogs_for_test_like_cpp();
     let feature_policy = session.support_feature_policy_for_test_like_cpp();
@@ -3579,6 +3578,7 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
                 generators.item.as_ref(),
                 &creature_spawn_catalogs,
                 &feature_policy,
+                &player_grid_loader,
                 guid,
                 1,
                 1,

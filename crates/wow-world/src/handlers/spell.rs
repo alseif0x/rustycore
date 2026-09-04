@@ -107,6 +107,7 @@ inventory::submit! {
                         catalogs.area_triggers.as_ref(),
                         catalogs.creature_spawns.as_ref(),
                         catalogs.progression.as_ref(),
+                        &catalogs.player_grid_loader,
                         catalogs.id_generators.item.as_ref(),
                         pkt,
                     )
@@ -517,6 +518,7 @@ impl WorldSession {
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         progression: &crate::session::ProgressionCatalogsLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
     ) {
@@ -594,6 +596,7 @@ impl WorldSession {
                 area_trigger_catalogs,
                 creature_spawn_catalogs,
                 progression,
+                player_grid_loader,
                 Some(ClientOpcodes::MoveStop),
                 move_update,
             )
@@ -847,6 +850,7 @@ impl WorldSession {
             &area_trigger_catalogs,
             &creature_spawn_catalogs,
             &progression,
+            &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
             generators.item.as_ref(),
             pkt,
         )

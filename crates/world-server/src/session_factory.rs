@@ -224,7 +224,6 @@ pub(super) async fn create_session(
     shared_map: SharedMapManager,
     canonical_map_manager: SharedCanonicalMapManager,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
-    loaded_grid_creature_respawn_caches: LoadedGridCreatureRespawnCachesLikeCpp,
     instance_port: u16,
     max_expansion: u8,
     mmap_runtime_config: MMapRuntimeConfigLikeCpp,
@@ -309,27 +308,6 @@ pub(super) async fn create_session(
             .ok()
             .and_then(|metadata| metadata.waypoint_paths_like_cpp().get(path_id).cloned())
     }));
-    let grid_canonical_map_manager = Arc::clone(&canonical_map_manager);
-    let grid_legacy_manager = Arc::clone(&shared_map);
-    let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
-    let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
-    let grid_map_store = Arc::clone(&resources.world.map_store);
-    let grid_area_trigger_template_store = Arc::clone(&resources.world.area_trigger_template_store);
-    session.set_player_grid_load_resolver_like_cpp(Arc::new(
-        move |map_id, instance_id, position| {
-            ensure_login_player_grid_loaded_like_cpp(
-                &grid_canonical_map_manager,
-                &grid_legacy_manager,
-                &grid_spawn_metadata,
-                &grid_loaded_caches,
-                grid_area_trigger_template_store.as_ref(),
-                Some(grid_map_store.as_ref()),
-                map_id,
-                instance_id,
-                position,
-            )
-        },
-    ));
     resources.realm.install_into_session_like_cpp(&mut session);
     match battle_pet_account_registry
         .attach_like_cpp(account.battlenet_account_id)

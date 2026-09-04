@@ -186,6 +186,7 @@ impl WorldSession {
         player_rest_rates: &crate::session::PlayerRestRatePolicyLikeCpp,
         progression: &crate::session::ProgressionCatalogsLikeCpp,
         feature_policy: &SupportFeaturePolicyLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
     ) {
         let guid: ObjectGuid = match self.player_loading() {
             Some(g) => g,
@@ -2573,6 +2574,7 @@ impl WorldSession {
                 item_guid_generator,
                 creature_spawn_catalogs,
                 feature_policy,
+                player_grid_loader,
                 guid,
                 race,
                 class,

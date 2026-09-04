@@ -2186,6 +2186,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         feature_policy: &SupportFeaturePolicyLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
         guid: ObjectGuid,
         race: u8,
         class: u8,
@@ -2222,11 +2223,11 @@ impl WorldSession {
         // usable. C++ finishes all fallible `Player::LoadFromDB` map selection
         // before emitting successful-login packets, so run this bridge before
         // Phase 1 and retain its outcome for the Map::AddPlayerToMap trace.
-        let grid_load_outcome = self.ensure_player_grid_loaded_like_cpp(
+        let grid_load_outcome = Some(player_grid_loader(
             map_id as u16,
             authoritative_grid_map_key.map(|key| key.instance_id),
             *position,
-        );
+        ));
         if !self.continue_login_after_grid_load_like_cpp(
             guid,
             map_id,

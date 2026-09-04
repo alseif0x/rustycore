@@ -4622,10 +4622,30 @@ async fn run_inner(
             Arc::clone(&gossip_catalog_persistence_port),
         ),
     );
+    let grid_canonical_map_manager = Arc::clone(&canonical_map_manager);
+    let grid_legacy_manager = Arc::clone(&shared_map);
+    let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
+    let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
+    let grid_map_store = Arc::clone(&map_store);
+    let grid_area_trigger_template_store = Arc::clone(&area_trigger_template_store);
+    let player_grid_loader = Arc::new(move |map_id, instance_id, position| {
+        ensure_login_player_grid_loaded_like_cpp(
+            &grid_canonical_map_manager,
+            &grid_legacy_manager,
+            &grid_spawn_metadata,
+            &grid_loaded_caches,
+            grid_area_trigger_template_store.as_ref(),
+            Some(grid_map_store.as_ref()),
+            map_id,
+            instance_id,
+            position,
+        )
+    });
     let session_resources = SessionResources {
         core: SessionCoreCapabilitiesLikeCpp {
             handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
                 object_mgr: object_mgr_catalogs,
+                player_grid_loader,
                 area_triggers: Arc::new(wow_world::session::AreaTriggerCatalogsLikeCpp {
                     db2: Arc::clone(&area_trigger_db2_store),
                     destinations: Arc::clone(&area_trigger_store),
@@ -4949,7 +4969,6 @@ async fn run_inner(
         world: SessionWorldCatalogCapabilitiesLikeCpp {
             area_table_store: Arc::clone(&area_table_store),
             fishing_base_skill_store: Arc::clone(&fishing_base_skill_store),
-            area_trigger_template_store: Arc::clone(&area_trigger_template_store),
             chr_specialization_store: Arc::clone(&chr_specialization_store),
             dungeon_encounter_store: Arc::clone(&dungeon_encounter_store),
             map_store: Arc::clone(&map_store),
@@ -5181,7 +5200,6 @@ async fn run_inner(
         let smap = Arc::clone(&shared_map);
         let canonical_map = Arc::clone(&canonical_map_manager);
         let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
-        let loaded_grid_caches = loaded_grid_creature_respawn_caches.clone();
         let active_sessions = Arc::clone(&active_session_registry);
         let runtime_state = Arc::clone(&world_runtime_state);
         let battle_pet_accounts = Arc::clone(&battle_pet_account_registry);
@@ -5200,7 +5218,6 @@ async fn run_inner(
                     let smap = Arc::clone(&smap);
                     let canonical_map = Arc::clone(&canonical_map);
                     let spawn_metadata = Arc::clone(&spawn_metadata);
-                    let loaded_grid_caches = loaded_grid_caches.clone();
                     let active_sessions = Arc::clone(&active_sessions);
                     let runtime_state = Arc::clone(&runtime_state);
                     let mmap_pathfinder = mmap_pathfinder.clone();
@@ -5217,7 +5234,6 @@ async fn run_inner(
                         smap,
                         canonical_map,
                         spawn_metadata,
-                        loaded_grid_caches,
                         port,
                         max_expansion,
                         mmap_config.clone(),

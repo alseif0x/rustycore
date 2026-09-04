@@ -94,6 +94,7 @@ macro_rules! register_move {
                                 catalogs.area_triggers.as_ref(),
                                 catalogs.creature_spawns.as_ref(),
                                 catalogs.progression.as_ref(),
+                                &catalogs.player_grid_loader,
                                 pkt,
                             )
                             .await
@@ -145,6 +146,7 @@ impl WorldSession {
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         progression: &ProgressionCatalogsLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
         mut pkt: wow_packet::WorldPacket,
     ) {
         let opcode = pkt.client_opcode();
@@ -163,6 +165,7 @@ impl WorldSession {
             area_trigger_catalogs,
             creature_spawn_catalogs,
             progression,
+            player_grid_loader,
             opcode,
             info.info,
         )
@@ -174,6 +177,7 @@ impl WorldSession {
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         progression: &ProgressionCatalogsLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
         opcode: Option<ClientOpcodes>,
         mut info: MovementInfo,
     ) {
@@ -340,22 +344,18 @@ impl WorldSession {
 
             // Update server-side player position.
             self.set_player_position_like_cpp(info.position);
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().world_mut().relocate(info.position);
-            });
             let authoritative_grid_map_key = self
                 .current_canonical_player_map_key_like_cpp()
                 .filter(|key| key.map_id == u32::from(self.player_map_id_like_cpp()));
             let grid_instance_id = authoritative_grid_map_key
                 .map(|key| key.instance_id)
                 .unwrap_or(0);
-            if load_player_active_grid_like_cpp
-                && let Some(outcome) = self.ensure_player_grid_loaded_like_cpp(
+            if load_player_active_grid_like_cpp {
+                let outcome = player_grid_loader(
                     self.player_map_id_like_cpp(),
                     authoritative_grid_map_key.map(|key| key.instance_id),
                     pos,
-                )
-            {
+                );
                 trace!(
                     account = self.account_id,
                     map_id = self.player_map_id_like_cpp(),
@@ -572,6 +572,7 @@ impl WorldSession {
             &area_trigger_catalogs,
             &creature_spawn_catalogs,
             &progression,
+            &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
             pkt,
         )
         .await;
@@ -590,6 +591,7 @@ impl WorldSession {
             &area_trigger_catalogs,
             &creature_spawn_catalogs,
             &progression,
+            &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
             opcode,
             info,
         )
@@ -1253,8 +1255,8 @@ mod tests {
         session.set_player_moved_unit_guid_like_cpp(guid);
         let calls_for_resolver = Arc::clone(&calls);
         let seen_for_resolver = Arc::clone(&seen);
-        session.set_player_grid_load_resolver_like_cpp(Arc::new(
-            move |map_id, instance_id, pos| {
+        let player_grid_loader: crate::session::PlayerGridLoadResolverLikeCpp =
+            Arc::new(move |map_id, instance_id, pos| {
                 calls_for_resolver.fetch_add(1, Ordering::SeqCst);
                 seen_for_resolver
                     .lock()
@@ -1266,8 +1268,10 @@ mod tests {
                     legacy_creature_mirrors: 7,
                     ..PlayerGridLoadOutcomeLikeCpp::default()
                 }
-            },
-        ));
+            });
+        let area_triggers = session.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = session.progression_catalogs_for_test_like_cpp();
 
         let same_grid = MovementInfo {
             guid,
@@ -1276,7 +1280,14 @@ mod tests {
             ..MovementInfo::default()
         };
         session
-            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), same_grid)
+            .handle_movement_info_with_catalogs_like_cpp(
+                &area_triggers,
+                &creature_spawns,
+                &progression,
+                &player_grid_loader,
+                Some(ClientOpcodes::MoveHeartbeat),
+                same_grid,
+            )
             .await;
         assert_eq!(
             calls.load(Ordering::SeqCst),
@@ -1291,7 +1302,14 @@ mod tests {
             ..MovementInfo::default()
         };
         session
-            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), new_grid)
+            .handle_movement_info_with_catalogs_like_cpp(
+                &area_triggers,
+                &creature_spawns,
+                &progression,
+                &player_grid_loader,
+                Some(ClientOpcodes::MoveHeartbeat),
+                new_grid,
+            )
             .await;
 
         assert_eq!(calls.load(Ordering::SeqCst), 1);
@@ -2352,7 +2370,7 @@ mod tests {
         let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let guid = ObjectGuid::create_player(1, 1042);
         let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
-        let moved_position = Position::new(10.0, 20.0, 30.0, 1.0);
+        let moved_position = Position::new(90.0, 20.0, 30.0, 1.0);
 
         canonical.lock().unwrap().create_world_map(571, 0);
         session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -2400,6 +2418,19 @@ mod tests {
             .map(|player| player.unit().world().position())
             .expect("canonical player");
         assert_eq!(canonical_position, moved_position);
+        let canonical_cell = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .and_then(|player| player.unit().world().current_cell())
+            .expect("canonical player cell");
+        let expected_cell = wow_map::cell_from_world(moved_position.x, moved_position.y);
+        assert_eq!(
+            canonical_cell,
+            (expected_cell.cell_x(), expected_cell.cell_y()),
+            "C++ Map::PlayerRelocation moves the Player between derived cell indexes"
+        );
         let canonical_movement_flags = canonical
             .lock()
             .unwrap()

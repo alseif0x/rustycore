@@ -261,6 +261,7 @@ impl WorldSession {
             catalogs.player_rest_rates.as_ref(),
             catalogs.progression.as_ref(),
             catalogs.support_feature_policy.as_ref(),
+            &catalogs.player_grid_loader,
         )
         .await;
 
@@ -319,6 +320,7 @@ impl WorldSession {
         let catalogs = SessionHandlerCatalogsLikeCpp {
             object_mgr: catalogs,
             area_triggers: Arc::new(self.area_trigger_catalogs_for_test_like_cpp()),
+            player_grid_loader: empty_catalogs.player_grid_loader,
             item_valuation: Arc::new(self.item_valuation_catalogs_for_test_like_cpp()),
             player_bootstrap: Arc::new(self.player_bootstrap_catalogs_for_test_like_cpp()),
             player_rest_rates: Arc::new(self.player_rest_rate_policy_for_test_like_cpp()),

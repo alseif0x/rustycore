@@ -208,7 +208,6 @@ pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
 pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) area_table_store: Arc<wow_data::AreaTableStore>,
     pub(super) fishing_base_skill_store: Arc<wow_data::FishingBaseSkillStoreLikeCpp>,
-    pub(super) area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     pub(super) chr_specialization_store: Arc<wow_data::ChrSpecializationStore>,
     pub(super) dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>,
     pub(super) map_store: Arc<wow_data::MapStore>,

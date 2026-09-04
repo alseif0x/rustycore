@@ -600,6 +600,10 @@ impl Default for AreaTriggerCatalogsLikeCpp {
 pub struct SessionHandlerCatalogsLikeCpp {
     pub object_mgr: Arc<ObjectMgrCatalogsLikeCpp>,
     pub area_triggers: Arc<AreaTriggerCatalogsLikeCpp>,
+    /// Map/runtime capability borrowed only by movement and login operations.
+    /// C++ `Map::EnsureGridLoadedForActiveObject` belongs to the Map, not to
+    /// `WorldSession`; production installs one process-owned adapter here.
+    pub player_grid_loader: PlayerGridLoadResolverLikeCpp,
     pub item_valuation: Arc<ItemValuationCatalogsLikeCpp>,
     pub player_bootstrap: Arc<PlayerBootstrapCatalogsLikeCpp>,
     pub player_rest_rates: Arc<PlayerRestRatePolicyLikeCpp>,
@@ -628,6 +632,10 @@ impl Default for SessionHandlerCatalogsLikeCpp {
         Self {
             object_mgr: Arc::new(ObjectMgrCatalogsLikeCpp::default()),
             area_triggers: Arc::new(AreaTriggerCatalogsLikeCpp::default()),
+            player_grid_loader: Arc::new(|_, _, _| PlayerGridLoadOutcomeLikeCpp {
+                map_unavailable: true,
+                ..Default::default()
+            }),
             item_valuation: Arc::new(ItemValuationCatalogsLikeCpp::default()),
             player_bootstrap: Arc::new(PlayerBootstrapCatalogsLikeCpp::default()),
             player_rest_rates: Arc::new(PlayerRestRatePolicyLikeCpp::default()),
@@ -7458,11 +7466,6 @@ pub struct WorldSession {
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
     /// compatibility objects. The canonical path store is owned by `world-server`.
     waypoint_path_resolver_like_cpp: Option<WaypointPathResolverLikeCpp>,
-    /// C++ `Map::AddPlayerToMap -> EnsureGridLoadedForActiveObject` bridge.
-    /// The DB-backed loaded-grid builders live in `world-server`, so the session
-    /// asks the server owner to materialize the active player grid before login
-    /// self/visibility packets are produced.
-    player_grid_load_resolver_like_cpp: Option<PlayerGridLoadResolverLikeCpp>,
     /// Session-local representation of `GameObject::m_unique_users` for no-GetLootId chest uses.
     pub(crate) represented_unique_gameobject_uses: std::collections::HashSet<wow_core::ObjectGuid>,
     /// Represented C++ `GameEvents::Trigger` and `TriggeringLinkedGameObject` hook points.
@@ -9300,7 +9303,6 @@ impl WorldSession {
             chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
-            player_grid_load_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
             represented_gameobject_use_effects: Vec::new(),
             represented_gameobject_use_states: std::collections::BTreeMap::new(),
@@ -23548,24 +23550,6 @@ impl WorldSession {
 
     pub fn set_waypoint_path_resolver_like_cpp(&mut self, resolver: WaypointPathResolverLikeCpp) {
         self.waypoint_path_resolver_like_cpp = Some(resolver);
-    }
-
-    pub fn set_player_grid_load_resolver_like_cpp(
-        &mut self,
-        resolver: PlayerGridLoadResolverLikeCpp,
-    ) {
-        self.player_grid_load_resolver_like_cpp = Some(resolver);
-    }
-
-    pub(crate) fn ensure_player_grid_loaded_like_cpp(
-        &self,
-        map_id: u16,
-        authoritative_instance_id: Option<u32>,
-        position: Position,
-    ) -> Option<PlayerGridLoadOutcomeLikeCpp> {
-        self.player_grid_load_resolver_like_cpp
-            .as_ref()
-            .map(|resolver| resolver(map_id, authoritative_instance_id, position))
     }
 
     pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {
