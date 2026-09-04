@@ -12,11 +12,11 @@
 //! attacker relations (`Unit.cpp:5802-5821`). The Rust driver keeps that
 //! multi-entity mutation inside the map owner and returns only owned evidence.
 
-use wow_core::ObjectGuid;
-use wow_entities::AccessorObjectKind;
+use wow_core::{ObjectGuid, Position};
+use wow_entities::{AccessorObjectKind, MapObjectRecord, Player};
 
 use super::{Map, NoopGridLifecycle, NoopTerrainGridLoader};
-use crate::MapKey;
+use crate::{MapKey, RemoveFromMapError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MapCommandLikeCpp {
@@ -112,6 +112,22 @@ pub(crate) struct MapRuntime {
     pub(crate) map: Map<NoopTerrainGridLoader, NoopGridLifecycle>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum MapRuntimePlayerAttachErrorLikeCpp {
+    InvalidGuid { guid: ObjectGuid },
+    InvalidPosition { position: Position },
+    PlayerStillInWorld { guid: ObjectGuid },
+    PlayerStillBound { guid: ObjectGuid, key: MapKey },
+    ObjectAlreadyPresent { guid: ObjectGuid },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MapRuntimePlayerDetachErrorLikeCpp {
+    MissingPlayer { guid: ObjectGuid },
+    ObjectNotPlayer { guid: ObjectGuid },
+    RemoveFromMap(RemoveFromMapError),
+}
+
 impl MapRuntime {
     pub(crate) fn new(map: Map<NoopTerrainGridLoader, NoopGridLifecycle>) -> Self {
         Self { map }
@@ -129,6 +145,95 @@ impl MapRuntime {
                 victim_guid,
             } => self.apply_creature_combat_stop(attacker_guid, victim_guid),
         }
+    }
+
+    /// Move one detached Player value into this runtime without cloning it.
+    ///
+    /// Every recoverable rejection returns the same Box to the lifetime owner;
+    /// once validation succeeds the remaining map insertion errors would be
+    /// violations of the conditions just checked under exclusive `&mut self`.
+    pub(crate) fn attach_player_like_cpp(
+        &mut self,
+        mut player: Box<Player>,
+        position: Position,
+    ) -> Result<(), (MapRuntimePlayerAttachErrorLikeCpp, Box<Player>)> {
+        let guid = player.guid();
+        if AccessorObjectKind::from_guid(guid) != Some(AccessorObjectKind::Player) {
+            return Err((
+                MapRuntimePlayerAttachErrorLikeCpp::InvalidGuid { guid },
+                player,
+            ));
+        }
+        if !crate::coords::is_valid_map_coord_2d(position.x, position.y) {
+            return Err((
+                MapRuntimePlayerAttachErrorLikeCpp::InvalidPosition { position },
+                player,
+            ));
+        }
+        if player.unit().world().object().is_in_world() {
+            return Err((
+                MapRuntimePlayerAttachErrorLikeCpp::PlayerStillInWorld { guid },
+                player,
+            ));
+        }
+        if player.unit().world().has_current_map() {
+            return Err((
+                MapRuntimePlayerAttachErrorLikeCpp::PlayerStillBound {
+                    guid,
+                    key: MapKey::new(
+                        player.unit().world().map_id(),
+                        player.unit().world().instance_id(),
+                    ),
+                },
+                player,
+            ));
+        }
+        if self.map.entity_world.kind(guid).is_some() {
+            return Err((
+                MapRuntimePlayerAttachErrorLikeCpp::ObjectAlreadyPresent { guid },
+                player,
+            ));
+        }
+
+        let key = MapKey::new(self.map.map_id(), self.map.instance_id());
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(key.map_id, key.instance_id)
+            .expect("validated detached Player must accept the runtime map binding");
+        player.unit_mut().world_mut().relocate(position);
+        let record = MapObjectRecord::new_boxed_player(player)
+            .expect("validated Player identity must construct a typed map record");
+        let outcome = self
+            .map
+            .add_map_object_record_to_map_like_cpp(record)
+            .expect("validated Player record must enter its exclusively borrowed runtime");
+        debug_assert!(outcome.inserted);
+        Ok(())
+    }
+
+    /// Move the exact active Player value out of this runtime for a far
+    /// teleport or retirement. No projection or clone crosses the boundary.
+    pub(crate) fn detach_player_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Result<Box<Player>, MapRuntimePlayerDetachErrorLikeCpp> {
+        match self.map.entity_world.kind(guid) {
+            None => {
+                return Err(MapRuntimePlayerDetachErrorLikeCpp::MissingPlayer { guid });
+            }
+            Some(AccessorObjectKind::Player) => {}
+            Some(_) => {
+                return Err(MapRuntimePlayerDetachErrorLikeCpp::ObjectNotPlayer { guid });
+            }
+        }
+        let outcome = self
+            .map
+            .remove_from_map_like_cpp(guid, false)
+            .map_err(MapRuntimePlayerDetachErrorLikeCpp::RemoveFromMap)?;
+        Ok(outcome
+            .player
+            .expect("prevalidated Player removal must return the exact boxed value"))
     }
 
     fn base_outcome(

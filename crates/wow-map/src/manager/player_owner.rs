@@ -3,14 +3,20 @@
 //! C++ keeps one `Player` object behind `WorldSession::_player` and transfers
 //! that same object between maps. During a far teleport the Player is alive but
 //! has no Map (`WorldSession.h:980,1882`, `WorldSession.cpp:978-985`, and
-//! `Player::TeleportTo`). Rust therefore needs an explicit detached residence;
-//! rebuilding a Player from Session fields would create a second authority.
+//! `Player::TeleportTo`). `Map::AddPlayerToMap` and `RemovePlayerFromMap`
+//! perform the active-container transition (`Map.cpp:427-462,907-934`), while
+//! far teleport removes with `delete = false` (`Player.cpp:1453-1455`). Rust
+//! therefore needs an explicit detached residence; rebuilding a Player from
+//! Session fields would create a second authority.
 
 use wow_core::{ObjectGuid, Position};
-use wow_entities::{AccessorObjectKind, MapObjectRecord, Player};
+#[cfg(test)]
+use wow_entities::MapObjectRecord;
+use wow_entities::{AccessorObjectKind, Player};
 
 use super::MapManager;
-use crate::{AddToMapError, MapKey, RemoveFromMapError};
+use crate::map::{MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp};
+use crate::{MapKey, RemoveFromMapError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerHandle {
@@ -55,7 +61,10 @@ pub enum PlayerOwnerError {
     NotActive,
     MissingMap { key: MapKey },
     MissingPlayer { guid: ObjectGuid },
-    AddToMap(AddToMapError),
+    DetachedPlayerStillInWorld { guid: ObjectGuid },
+    DetachedPlayerStillBound { guid: ObjectGuid, key: MapKey },
+    ActiveObjectAlreadyPresent { guid: ObjectGuid, key: MapKey },
+    ActiveObjectNotPlayer { guid: ObjectGuid, key: MapKey },
     RemoveFromMap(RemoveFromMapError),
 }
 
@@ -203,25 +212,34 @@ impl MapManager {
         if self.find_map(key.map_id, key.instance_id).is_none() {
             return Err(PlayerOwnerError::MissingMap { key });
         }
-        let mut player = self
+        let player = self
             .detached_players_like_cpp
             .remove(&handle.guid)
             .ok_or(PlayerOwnerError::MissingPlayer { guid: handle.guid })?;
-        player
-            .unit_mut()
-            .world_mut()
-            .set_map(key.map_id, key.instance_id)
-            .map_err(|_| PlayerOwnerError::MissingMap { key })?;
-        player.unit_mut().world_mut().relocate(position);
-        let record = MapObjectRecord::new_boxed_player(player)
-            .map_err(|_| PlayerOwnerError::MissingPlayer { guid: handle.guid })?;
-        let add = self
+        let attach = self
             .find_map_mut(key.map_id, key.instance_id)
             .expect("target map was checked before Player insertion")
-            .map_mut()
-            .add_map_object_record_to_map_like_cpp(record);
-        if let Err(error) = add {
-            return Err(PlayerOwnerError::AddToMap(error));
+            .runtime
+            .attach_player_like_cpp(player, position);
+        if let Err((error, player)) = attach {
+            self.detached_players_like_cpp.insert(handle.guid, player);
+            return Err(match error {
+                MapRuntimePlayerAttachErrorLikeCpp::InvalidGuid { guid } => {
+                    PlayerOwnerError::InvalidGuid { guid }
+                }
+                MapRuntimePlayerAttachErrorLikeCpp::InvalidPosition { position } => {
+                    PlayerOwnerError::InvalidPosition { position }
+                }
+                MapRuntimePlayerAttachErrorLikeCpp::PlayerStillInWorld { guid } => {
+                    PlayerOwnerError::DetachedPlayerStillInWorld { guid }
+                }
+                MapRuntimePlayerAttachErrorLikeCpp::PlayerStillBound { guid, key } => {
+                    PlayerOwnerError::DetachedPlayerStillBound { guid, key }
+                }
+                MapRuntimePlayerAttachErrorLikeCpp::ObjectAlreadyPresent { guid } => {
+                    PlayerOwnerError::ActiveObjectAlreadyPresent { guid, key }
+                }
+            });
         }
         self.player_owners_like_cpp
             .get_mut(&handle.guid)
@@ -237,15 +255,22 @@ impl MapManager {
         let PlayerResidenceLikeCpp::Active(key) = owner.residence else {
             return Err(PlayerOwnerError::NotActive);
         };
-        let outcome = self
+        let player = self
             .find_map_mut(key.map_id, key.instance_id)
             .ok_or(PlayerOwnerError::MissingMap { key })?
-            .map_mut()
-            .remove_from_map_like_cpp(handle.guid, false)
-            .map_err(PlayerOwnerError::RemoveFromMap)?;
-        let player = outcome
-            .player
-            .ok_or(PlayerOwnerError::MissingPlayer { guid: handle.guid })?;
+            .runtime
+            .detach_player_like_cpp(handle.guid)
+            .map_err(|error| match error {
+                MapRuntimePlayerDetachErrorLikeCpp::MissingPlayer { guid } => {
+                    PlayerOwnerError::MissingPlayer { guid }
+                }
+                MapRuntimePlayerDetachErrorLikeCpp::ObjectNotPlayer { guid } => {
+                    PlayerOwnerError::ActiveObjectNotPlayer { guid, key }
+                }
+                MapRuntimePlayerDetachErrorLikeCpp::RemoveFromMap(error) => {
+                    PlayerOwnerError::RemoveFromMap(error)
+                }
+            })?;
         self.detached_players_like_cpp.insert(handle.guid, player);
         self.player_owners_like_cpp
             .get_mut(&handle.guid)
@@ -398,6 +423,64 @@ mod tests {
         assert_eq!(
             manager.with_player_like_cpp(handle, |player| player.unit().data().level),
             Some(13)
+        );
+    }
+
+    #[test]
+    fn conflicting_active_record_keeps_the_owned_player_detached_like_cpp() {
+        let mut manager = MapManager::default();
+        let key = MapKey::new(571, 0);
+        manager.create_world_map(key.map_id, key.instance_id);
+        let mut existing = detached_player(90_006, 34);
+        existing
+            .unit_mut()
+            .world_mut()
+            .set_map(key.map_id, key.instance_id)
+            .unwrap();
+        existing
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::xyz(7.0, 8.0, 9.0));
+        manager
+            .find_map_mut(key.map_id, key.instance_id)
+            .unwrap()
+            .map_mut()
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_boxed_player(existing).unwrap(),
+            )
+            .unwrap();
+
+        let handle = manager
+            .install_detached_player_like_cpp(detached_player(90_006, 12))
+            .unwrap();
+        assert_eq!(
+            manager.attach_player_like_cpp(handle, key, Position::xyz(1.0, 2.0, 3.0)),
+            Err(PlayerOwnerError::ActiveObjectAlreadyPresent {
+                guid: handle.guid(),
+                key,
+            })
+        );
+        assert_eq!(
+            manager.player_residence_like_cpp(handle),
+            Some(PlayerResidenceLikeCpp::Detached)
+        );
+        assert_eq!(
+            manager.with_player_like_cpp(handle, |player| player.unit().data().level),
+            Some(12),
+            "rejected attach returns the exact detached Player to its owner"
+        );
+        assert_eq!(
+            manager
+                .find_map(key.map_id, key.instance_id)
+                .unwrap()
+                .map()
+                .get_typed_player(handle.guid())
+                .unwrap()
+                .unit()
+                .data()
+                .level,
+            34,
+            "the pre-existing map record is not overwritten"
         );
     }
 

@@ -269,6 +269,17 @@ gaps. Public `ManagedMap::map_mut` and other mutable families also remain transi
 external synchronization has not yet moved into a dedicated runtime task and `hecs` is still not a
 production dependency.
 
+Step 6 is also installed without moving generation authority into the entity backend. `MapManager`
+continues to own the `PlayerHandle` generation/residence registry and the explicit detached store;
+the selected active `MapRuntime` now exclusively performs `AddPlayerToMap`/`RemovePlayerFromMap` on
+the one boxed Player value. Rejected attachment returns that same box to the detached owner, and an
+already-present active GUID is rejected instead of replacing the map record. Detach prevalidates
+that the active record is a Player before removal. This preserves the far-teleport window from C++
+`Player::TeleportTo` (`Player.cpp:1415-1455`) and the map container order in
+`Map::AddPlayerToMap`/`RemovePlayerFromMap` (`Map.cpp:427-462,907-934`) while keeping stale-handle
+rejection in the lifetime coordinator. The outer manager mutex is still the temporary atomicity
+boundary across detached storage and a map runtime; no asynchronous actor handoff is claimed yet.
+
 1. Complete the isolated gate and record the decision in this ADR.
 2. Introduce a private, non-`Deref` `wow-map::map::entity_world` facade owning the existing
    canonical records; keep the `HashMap` behind it while borrowed-record callers are migrated, with
@@ -280,6 +291,8 @@ production dependency.
    **First vertical complete: represented Creature attack-start/evade combat-stop; continue with
    the remaining mutable families.**
 6. Move Player attach/detach into the runtime without changing `PlayerHandle` semantics.
+   **Complete for active/detached value transfer; generation/residence coordination correctly
+   remains in `MapManager`.**
 7. Migrate remaining component families and derived spatial indexes incrementally; delete each old
    representation in the same commit that installs its replacement.
 8. Remove shared mutable Map access from sessions, then consider parallel work inside proven-safe

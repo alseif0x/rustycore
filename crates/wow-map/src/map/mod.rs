@@ -26,9 +26,11 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use self::entity_world::EntityWorld;
-pub(crate) use self::runtime::MapRuntime;
 pub use self::runtime::{
     MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
+};
+pub(crate) use self::runtime::{
+    MapRuntime, MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp,
 };
 use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
 use crate::coords::{
