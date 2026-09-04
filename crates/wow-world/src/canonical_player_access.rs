@@ -43,7 +43,7 @@ pub(crate) fn install_canonical_player_owner_for_test(
         .unwrap();
     session.set_canonical_map_manager(canonical);
     assert!(
-        session.adopt_canonical_player_owner_for_test_like_cpp(),
+        session.adopt_registered_canonical_player_fixture_like_cpp(),
         "canonical Player fixture must register its production ownership handle"
     );
     guid

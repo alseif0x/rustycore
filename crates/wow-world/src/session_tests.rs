@@ -22524,6 +22524,20 @@ fn add_canonical_test_player_on_map(
     );
 }
 
+/// C++ `Player::GetNPCIfCanInteractWith` requires the canonical Player to be
+/// in-world, alive and to carry a resolvable faction before a positive NPC
+/// interaction fixture is meaningful.
+fn adopt_live_canonical_test_player_for_interaction_like_cpp(session: &mut WorldSession) {
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.unit_mut().set_faction(1);
+        })
+        .expect("live canonical Player interaction fixture");
+}
+
 fn bind_canonical_test_player_to_registry_like_cpp(
     session: &mut WorldSession,
     registry: &Arc<PlayerRegistry>,
@@ -81600,6 +81614,7 @@ fn quest_giver_query_creature_inactive_ender_falls_through_to_same_starter_like_
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -81678,6 +81693,7 @@ fn quest_giver_accept_creature_starter_relation_allows_source_like_cpp() {
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -81866,6 +81882,7 @@ fn quest_giver_reward_creature_ender_relation_allows_source_like_cpp() {
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -82513,6 +82530,7 @@ fn quest_giver_query_creature_starter_relation_allows_matching_details_like_cpp(
     session.set_player_level_like_cpp(1);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -82550,6 +82568,7 @@ fn quest_giver_query_creature_ender_relation_allows_request_items_like_cpp() {
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -82561,17 +82580,23 @@ fn quest_giver_query_creature_ender_relation_allows_request_items_like_cpp() {
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_203)]);
     quest_store.ender_quests.insert(778, vec![9_203]);
     session.quest_store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
-        9_203,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_203,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|quests| {
+                quests.statuses.insert(
+                    9_203,
+                    crate::handlers::quest::PlayerQuestStatus {
+                        quest_id: 9_203,
+                        status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 0,
+                        end_time_secs: 0,
+                        objective_counts: Vec::new(),
+                        slot: 0,
+                    },
+                );
+            })
+            .is_some()
     );
 
     assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_203));
@@ -82603,6 +82628,7 @@ fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_li
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -82614,19 +82640,25 @@ fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_li
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_204)]);
     quest_store.ender_quests.insert(778, vec![9_204]);
     session.quest_store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
-        9_204,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_204,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|quests| {
+                quests.statuses.insert(
+                    9_204,
+                    crate::handlers::quest::PlayerQuestStatus {
+                        quest_id: 9_204,
+                        status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 0,
+                        end_time_secs: 0,
+                        objective_counts: Vec::new(),
+                        slot: 0,
+                    },
+                );
+                quests.rewarded_quest_ids.insert(9_204);
+            })
+            .is_some()
     );
-    session.rewarded_quests.insert(9_204);
 
     assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_204));
     let bytes = send_rx.try_recv().unwrap();

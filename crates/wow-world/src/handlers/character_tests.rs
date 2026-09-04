@@ -3831,7 +3831,7 @@ fn attach_stat_update_player_with_mana_and_health(
         .unwrap();
     attach_map_manager(session, manager);
     assert!(
-        session.adopt_canonical_player_owner_for_test_like_cpp(),
+        session.adopt_registered_canonical_player_fixture_like_cpp(),
         "stat fixture must register the same map-owned Player identity as production"
     );
 }

@@ -10529,27 +10529,6 @@ impl WorldSession {
         self.canonical_map_manager = Some(mgr);
     }
 
-    /// Adopt a Player inserted directly by an old unit-test fixture into the
-    /// same generation-checked lifetime registry used in production.
-    #[cfg(test)]
-    pub(crate) fn adopt_canonical_player_owner_for_test_like_cpp(&mut self) -> bool {
-        let Some(guid) = self.player_guid() else {
-            return false;
-        };
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
-            return false;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return false;
-        };
-        let Ok(handle) = manager.adopt_active_player_like_cpp(guid) else {
-            return false;
-        };
-        drop(manager);
-        self.player_handle_like_cpp = Some(handle);
-        self.with_owned_player_like_cpp(Player::guid) == Some(guid)
-    }
-
     #[cfg(test)]
     pub(crate) fn set_vendor_buy_item_test_override_like_cpp(
         &mut self,
@@ -13476,11 +13455,21 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn adopt_registered_canonical_player_fixture_like_cpp(&mut self) -> bool {
-        let Some(position) = self.player_position_like_cpp() else {
+        let Some(guid) = self.player_guid() else {
             return false;
         };
-        let key = wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0);
-        self.ensure_canonical_player_owner_for_map_like_cpp(key, position)
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let Ok(handle) = manager.adopt_active_player_like_cpp(guid) else {
+            return false;
+        };
+        drop(manager);
+        self.player_handle_like_cpp = Some(handle);
+        self.with_owned_player_like_cpp(Player::guid) == Some(guid)
     }
 
     #[inline(never)]
