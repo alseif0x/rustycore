@@ -1,51 +1,76 @@
-name: Github Pages
+name: GitHub Pages
+
 on:
   workflow_dispatch:
   push:
-    branches: ["3.4.3"]
+    branches:
+      - "3.4.3"
     paths:
+      - ".github/workflows/github-page.yml"
       - "docs/wiki/**"
+  pull_request:
+    branches:
+      - "3.4.3"
+    paths:
+      - ".github/workflows/github-page.yml"
+      - "docs/wiki/**"
+
 permissions:
   contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: false
+
 jobs:
   build:
-    name: Build
+    name: Build documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: "docs/wiki"
+          persist-credentials: false
+          sparse-checkout: docs/wiki
+
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
+          node-version: 22.22.0
           cache: npm
           cache-dependency-path: docs/wiki/package-lock.json
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-      - name: Install VitePress
+
+      - name: Install dependencies
         working-directory: docs/wiki
-        run: npm ci
-      - name: Build with VitePress
+        run: npm ci --ignore-scripts
+
+      - name: Build documentation
         working-directory: docs/wiki
-        run: npx vitepress build
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        run: npm run docs:build
+
+      - name: Upload Pages artifact
+        if: >-
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          github.ref == 'refs/heads/3.4.3'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: docs/wiki/.vitepress/dist
+
   deploy:
-    name: Deploy
+    name: Deploy documentation
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/3.4.3'
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    needs: build
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

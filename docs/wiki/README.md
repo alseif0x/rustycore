@@ -1,17 +1,26 @@
-# Folder for Github Page
+# RustyCore documentation site
 
-This is the Folder used for the Github Page.
+This directory is the source for RustyCore's VitePress site. It replaces the old
+`docs/project-wiki` seed: published guides live here, while detailed migration,
+architecture, and operational records remain in their existing repository directories
+and are linked from the site.
 
-It uses [VitePress](https://vitepress.dev/) to generate a static site from md files stored here.
+GitHub Actions builds every pull request that changes this directory. A merge into
+`3.4.3` publishes the resulting static site through GitHub Pages.
 
-You only need to edit this files and Github Actions will build and deploy it itself [github-page.yml](../../.github/workflows/github-page.yml)
+Navigation is configured in [`.vitepress/config.js`](.vitepress/config.js).
 
-Nav and Header Links are set in [config.js](.vitepress/config.js).
+## Local development
 
+Use Node 22.22.0 and npm 10.9.4, then run:
 
-## Local Test
-
+```bash
+npm ci
+npm run docs:dev
 ```
-npm install
-npx vitepress dev
+
+Verify the production build before publishing:
+
+```bash
+npm run docs:build
 ```
