@@ -7661,7 +7661,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         "self.stage_player_money_change_like_cpp",
         &[
             "self.apply_item_turnin_changes",
-            "self.set_player_currencies_like_cpp(planned_currencies);",
+            "self.set_player_currencies_like_cpp(planned_currencies)",
             "self.insert_inventory_item_like_cpp",
             "self.update_vendor_item_current_count",
         ],
@@ -7669,7 +7669,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
     assert_publication_segment(
         character,
         "vendor currency purchase",
-        "self.set_player_currencies_like_cpp(planned_currencies);",
+        "self.set_player_currencies_like_cpp(planned_currencies)",
         &["self.apply_item_turnin_changes"],
     );
     assert_publication_segment(
@@ -8117,10 +8117,10 @@ fn top_level_bank_destination_applies_obtain_spells_like_cpp_store_item() {
 #[test]
 fn mainhand_bank_remove_clears_and_persists_weapon_only_enchant_like_cpp() {
     let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+    attach_stat_update_player_with_mana(&mut session, ObjectGuid::create_player(1, 42), 0, 0);
     install_bank_move_item_fixture(&mut session, 707, 1);
     let item_guid =
         insert_bank_move_test_item(&mut session, EQUIPMENT_SLOT_MAINHAND, 707, 7_071, 1);
-    attach_stat_update_player_with_mana(&mut session, ObjectGuid::create_player(1, 42), 0, 0);
     let enchantment_entry = |id, flags| wow_data::SpellItemEnchantmentEntry {
         id,
         effect_arg: [0; 3],
@@ -8153,7 +8153,9 @@ fn mainhand_bank_remove_clears_and_persists_weapon_only_enchant_like_cpp() {
         item.set_enchantment(EnchantmentSlot::Property0, 932, 2_000, 3);
         item.set_enchantment(EnchantmentSlot::Property1, 999, 1_000, 4);
     });
-    let mut timed_item = session.inventory_item_objects_like_cpp()[&item_guid].clone();
+    let mut timed_item = session
+        .resolved_inventory_item_object_like_cpp(item_guid)
+        .expect("canonical Player inventory item");
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.add_enchantment_duration(
@@ -8180,14 +8182,16 @@ fn mainhand_bank_remove_clears_and_persists_weapon_only_enchant_like_cpp() {
         item_guid,
         &cleared,
     );
-    let item = &session.inventory_item_objects_like_cpp()[&item_guid];
+    let item = session
+        .resolved_inventory_item_object_like_cpp(item_guid)
+        .expect("canonical Player inventory item");
     assert!(!item.has_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED));
     assert_eq!(
         item.data().enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
         0
     );
     let update =
-        WorldSession::item_storage_fields_values_update_like_cpp(item, true, true, &cleared);
+        WorldSession::item_storage_fields_values_update_like_cpp(&item, true, true, &cleared);
     let packet_update = crate::entity_update_bridge::item_values_update_to_packet(&update)
         .expect("item values update");
     let expected_mask = (1_u64 << wow_entities::ITEM_DATA_PARENT_BIT)

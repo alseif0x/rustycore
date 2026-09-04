@@ -62778,6 +62778,9 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical attacking Player map");
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
     let mut pkt = WorldPacket::new_empty();
@@ -62794,8 +62797,11 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
     session.handle_attack_swing(pkt).await;
 
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]

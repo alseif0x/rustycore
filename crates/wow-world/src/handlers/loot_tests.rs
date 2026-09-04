@@ -2983,7 +2983,6 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     let owner = test_creature_guid(19_503);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
@@ -3005,6 +3004,22 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
             flags2: 0,
         },
     ])));
+    let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    session.set_canonical_map_manager(canonical);
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "LootOwner".to_string(),
+        Position::ZERO,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical loot owner map");
+    install_group_loot_group(&mut session, player_guid, member_guid);
     assert_eq!(
         session.represented_loot_money_recipients_like_cpp(owner),
         vec![player_guid]
@@ -3043,7 +3058,6 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
     let member_guid = ObjectGuid::create_player(1, 43);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
@@ -3062,6 +3076,22 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
             flags2: 0,
         },
     ])));
+    let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    session.set_canonical_map_manager(canonical);
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "LootOwner".to_string(),
+        Position::ZERO,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical loot owner map");
+    install_group_loot_group(&mut session, player_guid, member_guid);
     assert_eq!(
         session.represented_group_looters_at_reward_distance_like_cpp(player_guid),
         vec![player_guid]
@@ -4577,6 +4607,10 @@ async fn local_disenchant_batch_commits_all_materials_and_original_claim_like_cp
         .unwrap();
     let materials = represented_disenchant_test_outputs_like_cpp(player_guid, 700);
     let grants = Arc::new(AtomicUsize::new(0));
+    session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(
+        HighGuid::Item,
+        70_000,
+    )));
     session.set_loot_item_store_test_seam_like_cpp(Arc::clone(&grants), true);
 
     assert!(
@@ -8491,6 +8525,10 @@ async fn failed_existing_stack_store_publishes_neither_count_nor_binding() {
     let item_guid = ObjectGuid::create_item(1, 77);
     let item_id = 25;
     session.set_player_guid(Some(player_guid));
+    session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(
+        HighGuid::Item,
+        90_000,
+    )));
     install_limited_test_item_template_with_flags2_and_bonding(
         &mut session,
         item_id,
