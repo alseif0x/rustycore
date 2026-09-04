@@ -13175,6 +13175,58 @@ fn seasonal_quest_store_like_cpp(
     )
 }
 
+/// Move an old handle-less quest fixture onto the same generation-checked
+/// canonical `Player` owner exercised by production before the behavior under
+/// test can trigger map/visibility work and establish that owner itself.
+fn adopt_player_quest_fixture_into_canonical_owner_like_cpp(session: &mut WorldSession) {
+    assert!(session.player_handle_like_cpp.is_none());
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("handle-less quest fixture");
+    let currencies = session
+        .player_currencies_like_cpp()
+        .expect("handle-less currency fixture");
+    let gold = session.player_gold_like_cpp();
+    let reputation = session.reputation_mgr_like_cpp().clone();
+    install_canonical_player_owner_for_test(session, 0, 0);
+    session.set_item_guid_generator_like_cpp(Arc::new(wow_core::ObjectGuidGenerator::new(
+        HighGuid::Item,
+        1,
+    )));
+    assert!(session.set_player_currencies_like_cpp(currencies));
+    session.set_player_gold_like_cpp(gold);
+    assert!(
+        session
+            .mutate_reputation_mgr_like_cpp(|manager| *manager = reputation)
+            .is_some()
+    );
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| *state = quests)
+            .is_some(),
+        "quest fixture must move to the canonical Player owner"
+    );
+}
+
+fn assert_canonical_quest_status_like_cpp(
+    session: &WorldSession,
+    quest_id: u32,
+    expected_status: Option<u8>,
+    expected_rewarded: bool,
+) {
+    let state = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
+    assert_eq!(
+        state.statuses.get(&quest_id).map(|status| status.status),
+        expected_status
+    );
+    assert_eq!(
+        state.rewarded_quest_ids.contains(&quest_id),
+        expected_rewarded
+    );
+}
+
 #[tokio::test]
 async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
@@ -13214,12 +13266,12 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
         .on_creature_killed(creature_entry, creature_guid)
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13285,10 +13337,10 @@ async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.killed_player_credit_like_cpp(victim_guid).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13361,9 +13413,13 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.killed_player_credit_like_cpp(victim_guid).await;
 
-    let status = session.player_quests.get(&quest_id).expect("quest remains");
+    let state = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
+    let status = state.statuses.get(&quest_id).expect("quest remains");
     assert_eq!(status.objective_counts, vec![0]);
     assert!(send_rx.try_recv().is_err());
 }
@@ -13407,12 +13463,12 @@ async fn talked_to_creature_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
         .talked_to_creature_like_cpp(creature_entry, creature_guid)
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13478,12 +13534,12 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
         .kill_credit_criteria_tree_objective_like_cpp(criteria_tree_id)
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13549,10 +13605,10 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.money_changed_like_cpp(100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13617,11 +13673,11 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.apply_player_money_change_like_cpp(90, 100).await;
 
     assert_eq!(session.player_gold_like_cpp(), 100);
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13669,14 +13725,14 @@ async fn money_changed_loss_marks_complete_money_objective_incomplete_like_cpp()
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.money_changed_like_cpp(50).await;
 
-    assert_eq!(
-        session
-            .player_quests
-            .get(&quest_id)
-            .map(|status| status.status),
-        Some(crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+    assert_canonical_quest_status_like_cpp(
+        &session,
+        quest_id,
+        Some(crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+        false,
     );
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
 }
@@ -13741,6 +13797,7 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     assert!(
         session
             .complete_represented_quest_after_add_if_ready_like_cpp(&reward_quest)
@@ -13748,14 +13805,8 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
     );
 
     assert_eq!(session.player_gold_like_cpp(), 100);
-    assert!(!session.player_quests.contains_key(&reward_quest_id));
-    assert!(
-        !session
-            .player_quests
-            .contains_key(&money_objective_quest_id)
-    );
-    assert!(session.rewarded_quests.contains(&reward_quest_id));
-    assert!(session.rewarded_quests.contains(&money_objective_quest_id));
+    assert_canonical_quest_status_like_cpp(&session, reward_quest_id, None, true);
+    assert_canonical_quest_status_like_cpp(&session, money_objective_quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13819,10 +13870,10 @@ async fn currency_tracking_event_objective_auto_rewards_like_cpp() {
     );
     let _ = drain_server_opcodes(&send_rx);
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13872,10 +13923,10 @@ async fn have_currency_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13925,10 +13976,10 @@ async fn obtain_currency_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13987,10 +14038,10 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -14043,10 +14094,10 @@ async fn increase_reputation_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -14105,10 +14156,10 @@ async fn reputation_max_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, -100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![

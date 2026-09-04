@@ -42,6 +42,10 @@ pub(crate) fn install_canonical_player_owner_for_test(
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
         .unwrap();
     session.set_canonical_map_manager(canonical);
+    assert!(
+        session.adopt_canonical_player_owner_for_test_like_cpp(),
+        "canonical Player fixture must register its production ownership handle"
+    );
     guid
 }
 

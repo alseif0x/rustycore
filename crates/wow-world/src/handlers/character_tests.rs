@@ -3684,6 +3684,7 @@ fn strength_item_stats_store(entry_id: u32, amount: i16) -> ItemStatsStore {
 }
 
 fn set_priest_level80_stats(session: &mut WorldSession, base_mana: u32, intellect: u16) {
+    session.set_spell_store(Arc::new(wow_data::SpellStore::new()));
     session.set_player_stats(Arc::new(PlayerStatsStore::from_entries([(
         (1, 5, 80),
         PlayerLevelStats {
@@ -3829,6 +3830,10 @@ fn attach_stat_update_player_with_mana_and_health(
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
         .unwrap();
     attach_map_manager(session, manager);
+    assert!(
+        session.adopt_canonical_player_owner_for_test_like_cpp(),
+        "stat fixture must register the same map-owned Player identity as production"
+    );
 }
 
 fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
