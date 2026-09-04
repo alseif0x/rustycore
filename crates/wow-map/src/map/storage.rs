@@ -1031,7 +1031,7 @@ where
         self.map_object_by_kind(guid, &[AccessorObjectKind::Creature])
     }
 
-    pub fn get_typed_creature(&self, guid: ObjectGuid) -> Option<&Creature> {
+    pub(crate) fn get_typed_creature(&self, guid: ObjectGuid) -> Option<&Creature> {
         let record = self.map_object_record(guid)?;
         if record.kind() != AccessorObjectKind::Creature {
             return None;

@@ -1257,17 +1257,18 @@ pub struct CreatureUpdateOutcomeLikeCpp {
 /// outside the canonical entity owner.
 ///
 /// C++ resolves the live `Creature*` through `Map::_objectsStore`
-/// (`Map.cpp:3444-3447`) and reads position plus Unit health directly
-/// (`Position.h:77-84`, `Unit.h:757-758`). Rust returns a value snapshot so no
-/// storage borrow, `MapObjectRecord`, or future ECS guard can escape
-/// [`EntityWorld`]. Absence remains `None`; this projection never fabricates a
-/// default creature or zero-valued vitals.
+/// (`Map.cpp:3444-3447`) and reads position, combat reach, and Unit health
+/// directly (`Position.h:77-84`, `Unit.h:681,757-758`). Rust returns a value
+/// snapshot so no storage borrow, `MapObjectRecord`, or future ECS guard can
+/// escape [`EntityWorld`]. Absence remains `None`; this projection never
+/// fabricates a default creature or zero-valued vitals.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CreatureTransformVitalsSnapshotLikeCpp {
     pub guid: ObjectGuid,
     pub map_id: u32,
     pub instance_id: u32,
     pub position: Position,
+    pub combat_reach: f32,
     pub health: u64,
     pub max_health: u64,
     pub is_alive: bool,

@@ -3179,12 +3179,10 @@ mod tests {
             .find_map(571, 0)
             .unwrap()
             .map()
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, |creature| {
+                creature.unit().subsystems().auras.has_applied(aura)
+            })
             .unwrap()
-            .unit()
-            .subsystems()
-            .auras
-            .has_applied(aura)
     }
 
     fn set_canonical_player_summon_slot(
@@ -3233,7 +3231,7 @@ mod tests {
             .find_map(571, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, |_| ())
             .is_some()
     }
 

@@ -31040,7 +31040,11 @@ fn canonical_player_map_transfer_sync_removes_stale_old_map_like_cpp() {
     let old_map = manager.find_map(571, 0).unwrap().map();
     assert!(old_map.get_typed_player(player_guid).is_none());
     assert!(old_map.get_typed_player(other_player_guid).is_some());
-    assert!(old_map.get_typed_creature(creature_guid).is_some());
+    assert!(
+        old_map
+            .with_creature_like_cpp(creature_guid, Clone::clone)
+            .is_some()
+    );
 
     let target_player = manager
         .find_map(0, 0)
@@ -38324,7 +38328,7 @@ fn register_world_creature_mirrors_existing_canonical_map_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("creature stored as typed Creature entity");
     assert_eq!(typed.unit().world().object().entry(), 9001);
     assert_eq!(typed.current_health(), 25);
@@ -38386,10 +38390,10 @@ fn register_world_creature_preserves_create_state_in_canonical_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("creature inserted into canonical map");
     let reconstructed =
-        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(creature);
+        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
 
     assert_eq!(reconstructed.display_id, create_data.display_id);
     assert_eq!(
@@ -38726,7 +38730,7 @@ fn mutate_world_creature_relocates_canonical_map_object_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("creature remains a typed Creature entity");
     assert_eq!(typed.position(), moved);
 }
@@ -38782,7 +38786,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .loot_authority_like_cpp()
         .clone();
@@ -38794,7 +38798,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .clone();
     creature.unit_mut().world_mut().relocate(synced);
@@ -38811,7 +38815,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("typed creature remains in explicit map instance");
     assert_eq!(typed.position(), synced);
     assert_eq!(typed.level(), 33);
@@ -38841,7 +38845,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .clone();
     reengaged
@@ -38949,7 +38953,7 @@ fn canonical_creature_sync_quarantines_distinct_active_loot_authorities_like_cpp
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert!(selected.shares_storage_like_cpp(stored.loot_authority_like_cpp()));
 }
@@ -39011,7 +39015,7 @@ fn canonical_loot_object_lookups_and_mutations_use_player_instance_like_cpp() {
     let default_map = guard.find_map(571, 0).unwrap().map();
     assert_eq!(
         default_map
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap()
             .current_health(),
         100
@@ -39026,7 +39030,7 @@ fn canonical_loot_object_lookups_and_mutations_use_player_instance_like_cpp() {
     let player_map = guard.find_map(571, 7).unwrap().map();
     assert_eq!(
         player_map
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap()
             .current_health(),
         37
@@ -39259,7 +39263,7 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
             .find_map(571, 7)
             .unwrap()
             .map()
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap();
         assert_eq!(creature.entry(), 9_257);
         assert_eq!(creature.level(), 33);
@@ -44888,7 +44892,9 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             old_map.get_typed_player(player_guid).is_none(),
             "C++ far Player::TeleportTo removes the player from oldmap before storing the far teleport destination"
         );
-        let creature = old_map.get_typed_creature(selected_guid).unwrap();
+        let creature = old_map
+            .with_creature_like_cpp(selected_guid, Clone::clone)
+            .unwrap();
         assert!(!creature.unit().has_attacker_like_cpp(player_guid));
         assert!(
             !creature
@@ -49990,7 +49996,9 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         let canonical_guard = canonical.lock().unwrap();
         let map = canonical_guard.find_map(0, 0).unwrap().map();
         let player = map.get_typed_player(player_guid).unwrap();
-        let creature = map.get_typed_creature(creature_guid).unwrap();
+        let creature = map
+            .with_creature_like_cpp(creature_guid, Clone::clone)
+            .unwrap();
         assert!(!player.unit().subsystems().combat.has_pve_combat());
         assert!(
             !creature
@@ -54748,7 +54756,7 @@ fn combat_tick_damage_adds_creature_threat_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert_eq!(
         creature_entity
@@ -55943,7 +55951,7 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert!(
         !creature_entity
@@ -63042,7 +63050,7 @@ fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
             .find_map(571, 0)
             .unwrap()
             .map()
-            .get_typed_creature(victim)
+            .with_creature_like_cpp(victim, Clone::clone)
             .unwrap();
         assert!(creature.unit().has_attacker_like_cpp(player));
         assert!(
@@ -63073,7 +63081,7 @@ fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap();
     assert!(!creature.unit().has_attacker_like_cpp(player));
 }
@@ -63144,7 +63152,7 @@ fn player_attack_does_not_create_combat_ref_when_can_begin_combat_fails_like_cpp
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();
     let player_entity = map.get_typed_player(player).unwrap();
-    let creature = map.get_typed_creature(victim).unwrap();
+    let creature = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
     assert_eq!(player_entity.unit().attacking(), Some(victim));
     assert!(creature.unit().has_attacker_like_cpp(player));
     assert!(
@@ -63226,7 +63234,7 @@ fn combat_tick_revalidates_and_purges_invalid_combat_refs_like_cpp() {
                 .is_in_combat_with(victim)
         );
         assert!(
-            map.get_typed_creature(victim)
+            map.with_creature_like_cpp(victim, Clone::clone)
                 .unwrap()
                 .unit()
                 .subsystems()
@@ -63255,7 +63263,7 @@ fn combat_tick_revalidates_and_purges_invalid_combat_refs_like_cpp() {
             .is_in_combat_with(victim)
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .subsystems()
@@ -63333,7 +63341,7 @@ fn player_attack_dead_typed_creature_is_rejected_like_cpp() {
         None
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -63408,7 +63416,7 @@ fn player_attack_unseen_phase_creature_is_rejected_like_cpp() {
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();
     let player_entity = map.get_typed_player(player).unwrap();
-    let victim_entity = map.get_typed_creature(victim).unwrap();
+    let victim_entity = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
     assert_eq!(player_entity.unit().attacking(), None);
     assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
     assert!(!victim_entity.unit().has_attacker_like_cpp(player));
@@ -63491,7 +63499,7 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
         None
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -63575,7 +63583,7 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
         Some(victim)
     );
     assert!(
-        map.get_typed_creature(victim)
+        map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -63651,7 +63659,7 @@ fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
         Some(victim)
     );
     assert!(
-        map.get_typed_creature(victim)
+        map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -63726,7 +63734,7 @@ fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cp
         Some(victim)
     );
     assert!(
-        map.get_typed_creature(victim)
+        map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -63804,7 +63812,7 @@ fn player_attack_evading_typed_creature_is_rejected_like_cpp() {
         None
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -75953,7 +75961,10 @@ fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
         let map = manager.find_map(571, 0).unwrap().map();
         assert!(map.get_typed_player(player_guid).is_none());
         assert!(map.get_typed_player(other_player_guid).is_some());
-        assert!(map.get_typed_creature(creature_guid).is_some());
+        assert!(
+            map.with_creature_like_cpp(creature_guid, Clone::clone)
+                .is_some()
+        );
     });
 }
 
@@ -85512,7 +85523,7 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, Clone::clone)
             .expect("canonical creature sync must keep typed record fresh");
         assert_eq!(
             typed.ai_state(),
@@ -89362,12 +89373,15 @@ fn creature_spell_canonical_targetability_rechecks_full_cpp_state() {
     let target_is_valid = |canonical: &SharedCanonicalMapManager| {
         let manager = canonical.lock().unwrap();
         let map = manager.find_map(0, 0).unwrap().map();
-        creature_spell_target_is_valid_attack_target_like_cpp(
-            map.get_typed_creature(creature_guid).unwrap(),
-            map.get_typed_player(victim_guid).unwrap(),
-            &attributes,
-            &config,
-        )
+        map.with_creature_like_cpp(creature_guid, |creature| {
+            creature_spell_target_is_valid_attack_target_like_cpp(
+                creature,
+                map.get_typed_player(victim_guid).unwrap(),
+                &attributes,
+                &config,
+            )
+        })
+        .unwrap()
     };
     assert!(target_is_valid(&canonical));
 
@@ -90826,7 +90840,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(creature_guid)
+        .with_creature_like_cpp(creature_guid, Clone::clone)
         .unwrap()
         .unit()
         .subsystems()
@@ -91314,7 +91328,7 @@ fn legacy_creature_spell_tick_rejects_same_guid_caster_replacement_like_cpp() {
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap()
             .unit()
             .subsystems()
@@ -92985,7 +92999,7 @@ fn stale_legacy_creature_snapshot_cannot_replace_newer_canonical_health_like_cpp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .clone();
     let expected = {
@@ -93011,7 +93025,7 @@ fn stale_legacy_creature_snapshot_cannot_replace_newer_canonical_health_like_cpp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert_eq!(
         (
@@ -93075,10 +93089,10 @@ fn stale_legacy_creature_snapshot_cannot_erase_canonical_death_lifecycle_like_cp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert_eq!(
-        stored, &expected,
+        stored, expected,
         "a rejected stale snapshot must preserve every canonical kill hook"
     );
 }
@@ -94071,7 +94085,7 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap()
         .unit()
         .data()
@@ -94169,7 +94183,7 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, Clone::clone)
             .unwrap();
         let legacy_creature = legacy_guard.find_creature(0, 0, guid).unwrap();
         assert_eq!(
@@ -94292,7 +94306,7 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap()
         .unit()
         .data()
@@ -94393,7 +94407,7 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap()
         .unit()
         .data()
@@ -94467,7 +94481,7 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap();
     assert_eq!(creature.unit().data().health, 0);
     assert_eq!(
@@ -94946,7 +94960,7 @@ fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refres
                 .find_map(0, 0)
                 .unwrap()
                 .map()
-                .get_typed_creature(guid)
+                .with_creature_like_cpp(guid, Clone::clone)
                 .is_none(),
             "canonical map object must be removed outside the legacy lock"
         );
@@ -95163,7 +95177,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, Clone::clone)
             .expect("canonical creature must be inserted outside the legacy lock");
         assert!(
             typed.unit().world().phase_shift().has_phase_like_cpp(77),

@@ -10578,9 +10578,8 @@ fn mirror_canonical_melee_test_creature_like_cpp(
         .find_map(map_id, instance_id)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
-        .expect("canonical test creature")
-        .clone();
+        .with_creature_like_cpp(guid, Clone::clone)
+        .expect("canonical test creature");
     creature.set_ai_home_position(creature.position());
     creature.set_ai_identity_runtime(100, 14, 0, 0);
     creature
@@ -11461,8 +11460,10 @@ fn creature_assistance_start_establishes_canonical_combat_for_both_creatures_lik
     );
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 4).unwrap().map();
-    let attacker_unit = map.get_typed_creature(attacker).unwrap().unit();
-    let victim_unit = map.get_typed_creature(victim).unwrap().unit();
+    let attacker_creature = map.with_creature_like_cpp(attacker, Clone::clone).unwrap();
+    let victim_creature = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
+    let attacker_unit = attacker_creature.unit();
+    let victim_unit = victim_creature.unit();
     assert!(attacker_unit.subsystems().combat.is_in_combat_with(victim));
     assert!(victim_unit.subsystems().combat.is_in_combat_with(attacker));
     assert_eq!(
@@ -11517,8 +11518,10 @@ fn creature_assistance_stop_purges_canonical_combat_for_both_creatures_like_cpp(
     );
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 4).unwrap().map();
-    let attacker_unit = map.get_typed_creature(attacker).unwrap().unit();
-    let victim_unit = map.get_typed_creature(victim).unwrap().unit();
+    let attacker_creature = map.with_creature_like_cpp(attacker, Clone::clone).unwrap();
+    let victim_creature = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
+    let attacker_unit = attacker_creature.unit();
+    let victim_unit = victim_creature.unit();
     assert!(!attacker_unit.subsystems().combat.is_in_combat_with(victim));
     assert!(!victim_unit.subsystems().combat.is_in_combat_with(attacker));
     assert!(
@@ -12211,7 +12214,7 @@ fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(creature_guid)
+        .with_creature_like_cpp(creature_guid, Clone::clone)
         .expect("lifecycle bridge must sync canonical respawn");
     assert!(typed.unit().world().phase_shift().has_phase_like_cpp(77));
 }
@@ -12349,7 +12352,7 @@ async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("canonical creature record stays synced by the single-shot driver");
     assert_eq!(
         typed.ai_state(),
@@ -12699,7 +12702,7 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(moving_guid)
+        .with_creature_like_cpp(moving_guid, Clone::clone)
         .expect("movement phase must keep canonical moving creature synced");
     assert_eq!(
         typed.ai_state(),
@@ -12838,7 +12841,7 @@ async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(creature_guid)
+        .with_creature_like_cpp(creature_guid, Clone::clone)
         .expect("production loop must keep canonical creature synced");
     assert_eq!(
         typed.ai_state(),

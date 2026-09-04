@@ -854,7 +854,7 @@ fn canonical_creature_snapshot(session: &WorldSession, guid: ObjectGuid) -> Opti
     let manager = session.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
     let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
-    map.map().get_typed_creature(guid).cloned()
+    map.map().with_creature_like_cpp(guid, Clone::clone)
 }
 
 fn make_canonical_gameobject_for_session(

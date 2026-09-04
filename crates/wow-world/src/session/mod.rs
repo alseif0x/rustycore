@@ -12594,7 +12594,7 @@ impl WorldSession {
                 },
             );
         }
-        if let Some(creature) = map.map().get_typed_creature(guid) {
+        if let Some(result) = map.map().with_creature_like_cpp(guid, |creature| {
             let attacker_can_see_or_detect_target = player_phase_shift
                 .as_ref()
                 .is_some_and(|phase| phase.can_see(creature.unit().world().phase_shift()))
@@ -12650,11 +12650,13 @@ impl WorldSession {
                         && attacker.is_at_war_with_faction_like_cpp(reputation_snapshot.faction_id);
                 }
             }
-            return (
+            (
                 creature.is_alive(),
                 creature.unit().world().object().is_in_world(),
                 context,
-            );
+            )
+        }) {
+            return result;
         }
         (
             true,
@@ -17257,7 +17259,10 @@ impl WorldSession {
             .into_iter()
             .chain(nearby.grid.creatures)
         {
-            let Some(creature) = map.map().get_typed_creature(guid) else {
+            let Some(creature) = map
+                .map()
+                .with_creature_like_cpp(guid, |creature| creature.clone())
+            else {
                 continue;
             };
             let world = creature.unit().world();
@@ -17566,16 +17571,17 @@ impl WorldSession {
                 let manager = manager.lock().ok()?;
                 manager
                     .find_map(u32::from(map_id), instance_id)
-                    .and_then(|map| map.map().get_typed_creature(guid))
-                    .map(|creature| {
-                        let create_data =
+                    .and_then(|map| {
+                        map.map().with_creature_like_cpp(guid, |creature| {
+                            let create_data =
                             crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
                                 creature,
                             );
-                        crate::map_manager::WorldCreature::from_canonical(
-                            creature.clone(),
-                            create_data,
-                        )
+                            crate::map_manager::WorldCreature::from_canonical(
+                                creature.clone(),
+                                create_data,
+                            )
+                        })
                     })
             };
             if let Some(creature) = creature {
@@ -61949,15 +61955,17 @@ impl WorldSession {
                                 .control
                                 .shared_vision_guids
                                 .contains(&player_guid)
-                    }) || map.get_typed_creature(*source_guid).is_some_and(|source| {
-                        source.unit().world().object().is_in_world()
-                            && source
-                                .unit()
-                                .subsystems()
-                                .control
-                                .shared_vision_guids
-                                .contains(&player_guid)
-                    })
+                    }) || map
+                        .with_creature_like_cpp(*source_guid, |source| {
+                            source.unit().world().object().is_in_world()
+                                && source
+                                    .unit()
+                                    .subsystems()
+                                    .control
+                                    .shared_vision_guids
+                                    .contains(&player_guid)
+                        })
+                        .unwrap_or(false)
                 })
                 .collect::<Vec<_>>();
             let dynamic_object_seer_guid = represented_seer_guid.filter(|seer_guid| {
@@ -62010,16 +62018,18 @@ impl WorldSession {
                                 && updated_world
                                     .position()
                                     .is_within_dist_2d(&source_world.position(), visibility_range)
-                        } else if let Some(source) = map.get_typed_creature(*source_guid) {
-                            let source_world = source.unit().world();
-                            source_world
-                                .phase_shift()
-                                .can_see(updated_world.phase_shift())
-                                && updated_world
-                                    .position()
-                                    .is_within_dist_2d(&source_world.position(), visibility_range)
                         } else {
-                            false
+                            map.with_creature_like_cpp(*source_guid, |source| {
+                                let source_world = source.unit().world();
+                                source_world
+                                    .phase_shift()
+                                    .can_see(updated_world.phase_shift())
+                                    && updated_world.position().is_within_dist_2d(
+                                        &source_world.position(),
+                                        visibility_range,
+                                    )
+                            })
+                            .unwrap_or(false)
                         }
                     }) {
                         return true;
@@ -62219,15 +62229,17 @@ impl WorldSession {
                             .control
                             .shared_vision_guids
                             .contains(&player_guid)
-                }) || map.get_typed_creature(*target_guid).is_some_and(|target| {
-                    target.unit().world().object().is_in_world()
-                        && target
-                            .unit()
-                            .subsystems()
-                            .control
-                            .shared_vision_guids
-                            .contains(&player_guid)
-                })
+                }) || map
+                    .with_creature_like_cpp(*target_guid, |target| {
+                        target.unit().world().object().is_in_world()
+                            && target
+                                .unit()
+                                .subsystems()
+                                .control
+                                .shared_vision_guids
+                                .contains(&player_guid)
+                    })
+                    .unwrap_or(false)
             })
             .collect::<Vec<_>>();
         shared_vision_target_guids.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
@@ -62275,13 +62287,14 @@ impl WorldSession {
                         target_world.phase_shift().can_see(gameobject_phase_shift)
                             && gameobject_position
                                 .is_within_dist_2d(&target_world.position(), visibility_range)
-                    } else if let Some(target) = map.get_typed_creature(*target_guid) {
-                        let target_world = target.unit().world();
-                        target_world.phase_shift().can_see(gameobject_phase_shift)
-                            && gameobject_position
-                                .is_within_dist_2d(&target_world.position(), visibility_range)
                     } else {
-                        false
+                        map.with_creature_like_cpp(*target_guid, |target| {
+                            let target_world = target.unit().world();
+                            target_world.phase_shift().can_see(gameobject_phase_shift)
+                                && gameobject_position
+                                    .is_within_dist_2d(&target_world.position(), visibility_range)
+                        })
+                        .unwrap_or(false)
                     }
                 }) {
                     return true;
@@ -62424,15 +62437,17 @@ impl WorldSession {
                                 .control
                                 .shared_vision_guids
                                 .contains(&player_guid)
-                    }) || map.get_typed_creature(*target_guid).is_some_and(|target| {
-                        target.unit().world().object().is_in_world()
-                            && target
-                                .unit()
-                                .subsystems()
-                                .control
-                                .shared_vision_guids
-                                .contains(&player_guid)
-                    })
+                    }) || map
+                        .with_creature_like_cpp(*target_guid, |target| {
+                            target.unit().world().object().is_in_world()
+                                && target
+                                    .unit()
+                                    .subsystems()
+                                    .control
+                                    .shared_vision_guids
+                                    .contains(&player_guid)
+                        })
+                        .unwrap_or(false)
                 })
                 .collect::<Vec<_>>();
             shared_vision_target_guids.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
@@ -62483,13 +62498,16 @@ impl WorldSession {
                             target_world.phase_shift().can_see(gameobject_phase_shift)
                                 && gameobject_position
                                     .is_within_dist_2d(&target_world.position(), visibility_range)
-                        } else if let Some(target) = map.get_typed_creature(*target_guid) {
-                            let target_world = target.unit().world();
-                            target_world.phase_shift().can_see(gameobject_phase_shift)
-                                && gameobject_position
-                                    .is_within_dist_2d(&target_world.position(), visibility_range)
                         } else {
-                            false
+                            map.with_creature_like_cpp(*target_guid, |target| {
+                                let target_world = target.unit().world();
+                                target_world.phase_shift().can_see(gameobject_phase_shift)
+                                    && gameobject_position.is_within_dist_2d(
+                                        &target_world.position(),
+                                        visibility_range,
+                                    )
+                            })
+                            .unwrap_or(false)
                         }
                     }) {
                         return true;
@@ -67162,22 +67180,21 @@ fn apply_turret_rejected_cast_attempt_like_cpp(
     };
     let within_raw_combat_range = {
         let map = managed.map();
-        let Some(caster) = map.get_typed_creature(attempt.caster_guid) else {
+        let Some(caster) = map.creature_transform_vitals_snapshot_like_cpp(attempt.caster_guid)
+        else {
             return false;
         };
         let Some(victim) = map.get_typed_player(attempt.target_guid) else {
             return false;
         };
-        if !caster.unit().is_alive() || !victim.unit().is_alive() {
+        if !caster.is_alive || !victim.unit().is_alive() {
             return false;
         }
-        let reach_sum = caster.unit().world().combat_reach().max(0.0)
-            + victim.unit().world().combat_reach().max(0.0);
+        let reach_sum =
+            caster.combat_reach.max(0.0) + victim.unit().world().combat_reach().max(0.0);
         let turret_combat_maximum = range.range_max[0].max(0.0) + reach_sum;
         let distance_sq = caster
-            .unit()
-            .world()
-            .position()
+            .position
             .distance_sq(&victim.unit().world().position());
         distance_sq < turret_combat_maximum * turret_combat_maximum
     };
@@ -67259,202 +67276,206 @@ fn validate_and_append_creature_spell_cast_like_cpp(
     let Some(managed) = manager.find_map(u32::from(command.map_id), command.instance_id) else {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     };
-    let (hit_profile, source_position, visibility_range, full_log_data) = {
+    let (hit_profile, source_position, visibility_range, full_log_data) = match {
         let map = managed.map();
-        let Some(caster) = map.get_typed_creature(command.caster_guid) else {
-            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        };
-        // A canonical replacement can hold the same GUID as the legacy creature
-        // the plan was built from. Validating, starting cooldowns and publishing
-        // START/GO from it while the timers and RNG come from the stale legacy
-        // creature would mix two incarnations, so require the same identity here
-        // too.
-        if !command.caster_incarnation.matches_like_cpp(caster) {
-            return CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected;
-        }
-        let Some(victim) = map.get_typed_player(command.target_guid) else {
-            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        };
-        if !caster.unit().is_alive() || !victim.unit().is_alive() {
-            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        }
-        // C++ constructs `MessageDistDeliverer` from the live caster during
-        // `SendSpellGo`; it does not reuse the earlier AI-selection position.
-        // Snapshot both fanout inputs from the same canonical caster whose
-        // range, LOS and hit preconditions are validated below.
-        let source_position = caster.unit().world().position();
-        let visibility_range = caster.unit().world().get_visibility_range(map);
-        let Some(spell_id_u32) = u32::try_from(command.spell_id).ok() else {
-            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        };
-        let Some(range) =
-            creature_ai_effective_spell_range_like_cpp(spell_id_u32, difficulty_id, config)
-        else {
-            return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
-        };
-
-        let caster_reach = caster.unit().world().combat_reach().max(0.0);
-        let victim_reach = victim.unit().world().combat_reach().max(0.0);
-        let reach_sum = caster_reach + victim_reach;
-        let melee_range = (reach_sum + 4.0 / 3.0).max(NOMINAL_MELEE_RANGE_LIKE_CPP);
-        let mut minimum = range.range_min[0].max(0.0);
-        let mut maximum = range.range_max[0].max(0.0);
-        let turret_combat_maximum = maximum + reach_sum;
-        if range.flags & SPELL_RANGE_MELEE_LIKE_CPP != 0 {
-            minimum = 0.0;
-            maximum = melee_range;
-        } else {
-            if range.flags & SPELL_RANGE_RANGED_LIKE_CPP != 0 {
-                minimum += melee_range;
-            } else if minimum > 0.0 {
-                minimum += reach_sum;
+        map.with_creature_like_cpp(command.caster_guid, |caster| {
+            // A canonical replacement can hold the same GUID as the legacy creature
+            // the plan was built from. Validating, starting cooldowns and publishing
+            // START/GO from it while the timers and RNG come from the stale legacy
+            // creature would mix two incarnations, so require the same identity here
+            // too.
+            if !command.caster_incarnation.matches_like_cpp(caster) {
+                return Err(CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected);
             }
-            maximum += reach_sum;
-        }
-        let caster_movement = caster.unit().movement_flags_like_cpp();
-        let victim_movement = victim.unit().movement_flags_like_cpp();
-        if caster_movement.intersects(MovementFlag::MASK_MOVING)
-            && victim_movement.intersects(MovementFlag::MASK_MOVING)
-            && !caster_movement.contains(MovementFlag::WALKING)
-            && !victim_movement.contains(MovementFlag::WALKING)
-        {
-            // C++ `Spell::GetMinMaxRange(true)` adds this latency allowance
-            // when both units run and the target is a player.
-            maximum += 8.0 / 3.0;
-        }
-        let distance_sq = caster
-            .unit()
-            .world()
-            .position()
-            .distance_sq(&victim.unit().world().position());
-        // `TurretAI::DoSpellAttackIfReady` first uses strict
-        // `IsWithinCombatRange` with the raw spell max plus combat reaches;
-        // `Spell::CheckRange(true)` (including moving allowance) follows.
-        if turret_ai && distance_sq >= turret_combat_maximum * turret_combat_maximum {
-            return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
-        }
-        if turret_ai {
-            let Some(creature) = legacy_guard.find_creature_mut(
-                command.map_id,
-                command.instance_id,
-                command.caster_guid,
-            ) else {
-                return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+            let Some(victim) = map.get_typed_player(command.target_guid) else {
+                return Err(CreatureSpellCastValidationResultLikeCpp::MissingTarget);
             };
-            // `UnitAI::DoSpellAttackIfReady` calls `CastSpell` after only the
-            // raw-max combat-range gate, then resets BASE_ATTACK regardless of
-            // whether Spell::CheckRange/CheckCast rejects min range or LOS.
-            creature.record_swing();
-        }
-        if cooldown_profile.is_some_and(|profile| {
-            !profile.passive
-                && caster.unit().subsystems().spells.history.has_cooldown(
-                    profile.spell_id,
-                    profile.category_id,
-                    cooldown_now_ms,
-                )
-        }) {
-            // C++ Spell::CheckCast rejects this attempt before hit resolution.
-            // CombatAI still executes its following ScheduleEvent, and
-            // TurretAI has already reset BASE_ATTACK after calling CastSpell.
-            return CreatureSpellCastValidationResultLikeCpp::CooldownRejected;
-        }
-        if distance_sq > maximum * maximum || (minimum > 0.0 && distance_sq < minimum * minimum) {
-            return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
-        }
-        let effective_attributes = config.spell_store.as_ref().and_then(|store| {
-            store.misc_attributes_for_difficulty_like_cpp(
-                command.spell_id,
-                difficulty_id,
-                config.difficulty_store.as_deref(),
-            )
-        });
-        let ignores_line_of_sight = effective_attributes.is_some_and(|attributes| {
-            attributes[2] & wow_data::spell::attributes::SPELL_ATTR2_IGNORE_LINE_OF_SIGHT != 0
-        });
-        if !ignores_line_of_sight
-            && !caster.unit().world().is_within_los_in_map(
-                victim.unit().world(),
-                map,
-                wow_entities::LineOfSightOptions::default(),
-            )
-        {
-            return CreatureSpellCastValidationResultLikeCpp::LosRejected;
-        }
-
-        if let Some(attributes) = effective_attributes
-            && !creature_spell_target_is_valid_attack_target_like_cpp(
-                caster,
-                victim,
-                &attributes,
-                config,
-            )
-        {
-            // C++ Spell::CheckCast rejects this before melee hit resolution.
-            // Preserve the queued CombatAI repeat and exact RNG authority so
-            // its following ScheduleEvent can draw the next delay.
-            return CreatureSpellCastValidationResultLikeCpp::TargetRejected;
-        }
-
-        let represented_cast = (|| {
-            let spell_store = config.spell_store.as_ref()?;
-            let spell = spell_store.get(command.spell_id)?;
-            let metadata = spell_store.hit_metadata_for_difficulty_like_cpp(
-                command.spell_id,
-                difficulty_id,
-                config.difficulty_store.as_deref(),
-            )?;
-            let attributes = effective_attributes?;
-            let active_effect_indices: Vec<u32> = spell
-                .effects()
-                .iter()
-                .filter(|effect| {
-                    effect.effect != 0
-                        && !wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(
-                            effect.effect,
-                        )
-                })
-                .map(|effect| effect.effect_index)
-                .collect();
-            let victim_hit_aura_sources_are_hit_inert = victim
-                .unit()
-                .subsystems()
-                .auras
-                .has_complete_spell_hit_inert_aura_authority_like_cpp();
-            let target_has_no_vehicle_kit = victim.unit().subsystems().vehicle.kit.is_none();
-            let caster_is_behind_player =
-                !victim
-                    .unit()
-                    .world()
-                    .has_in_arc(std::f32::consts::PI, caster.unit().world(), 2.0);
-            if !caster_hit_aura_sources_are_empty
-                || !caster_has_no_owner_or_charmer
-                || !victim_hit_aura_sources_are_hit_inert
-                || !target_has_no_vehicle_kit
-                || !caster_is_behind_player
-            {
-                return None;
+            if !caster.unit().is_alive() || !victim.unit().is_alive() {
+                return Err(CreatureSpellCastValidationResultLikeCpp::MissingTarget);
             }
-            let hit_profile = represented_creature_spell_hit_profile_like_cpp(
-                &metadata,
-                &active_effect_indices,
-                attributes,
-            )?;
-            Some((
-                hit_profile,
-                creature_spell_cast_log_data_like_cpp(caster, spell, difficulty_id),
-            ))
-        })();
-        let (hit_profile, full_log_data) = represented_cast
-            .map_or((None, None), |(profile, log_data)| {
-                (Some(profile), log_data)
+            // C++ constructs `MessageDistDeliverer` from the live caster during
+            // `SendSpellGo`; it does not reuse the earlier AI-selection position.
+            // Snapshot both fanout inputs from the same canonical caster whose
+            // range, LOS and hit preconditions are validated below.
+            let source_position = caster.unit().world().position();
+            let visibility_range = caster.unit().world().get_visibility_range(map);
+            let Some(spell_id_u32) = u32::try_from(command.spell_id).ok() else {
+                return Err(CreatureSpellCastValidationResultLikeCpp::MissingTarget);
+            };
+            let Some(range) =
+                creature_ai_effective_spell_range_like_cpp(spell_id_u32, difficulty_id, config)
+            else {
+                return Err(CreatureSpellCastValidationResultLikeCpp::OutOfRange);
+            };
+
+            let caster_reach = caster.unit().world().combat_reach().max(0.0);
+            let victim_reach = victim.unit().world().combat_reach().max(0.0);
+            let reach_sum = caster_reach + victim_reach;
+            let melee_range = (reach_sum + 4.0 / 3.0).max(NOMINAL_MELEE_RANGE_LIKE_CPP);
+            let mut minimum = range.range_min[0].max(0.0);
+            let mut maximum = range.range_max[0].max(0.0);
+            let turret_combat_maximum = maximum + reach_sum;
+            if range.flags & SPELL_RANGE_MELEE_LIKE_CPP != 0 {
+                minimum = 0.0;
+                maximum = melee_range;
+            } else {
+                if range.flags & SPELL_RANGE_RANGED_LIKE_CPP != 0 {
+                    minimum += melee_range;
+                } else if minimum > 0.0 {
+                    minimum += reach_sum;
+                }
+                maximum += reach_sum;
+            }
+            let caster_movement = caster.unit().movement_flags_like_cpp();
+            let victim_movement = victim.unit().movement_flags_like_cpp();
+            if caster_movement.intersects(MovementFlag::MASK_MOVING)
+                && victim_movement.intersects(MovementFlag::MASK_MOVING)
+                && !caster_movement.contains(MovementFlag::WALKING)
+                && !victim_movement.contains(MovementFlag::WALKING)
+            {
+                // C++ `Spell::GetMinMaxRange(true)` adds this latency allowance
+                // when both units run and the target is a player.
+                maximum += 8.0 / 3.0;
+            }
+            let distance_sq = caster
+                .unit()
+                .world()
+                .position()
+                .distance_sq(&victim.unit().world().position());
+            // `TurretAI::DoSpellAttackIfReady` first uses strict
+            // `IsWithinCombatRange` with the raw spell max plus combat reaches;
+            // `Spell::CheckRange(true)` (including moving allowance) follows.
+            if turret_ai && distance_sq >= turret_combat_maximum * turret_combat_maximum {
+                return Err(CreatureSpellCastValidationResultLikeCpp::OutOfRange);
+            }
+            if turret_ai {
+                let Some(creature) = legacy_guard.find_creature_mut(
+                    command.map_id,
+                    command.instance_id,
+                    command.caster_guid,
+                ) else {
+                    return Err(CreatureSpellCastValidationResultLikeCpp::MissingTarget);
+                };
+                // `UnitAI::DoSpellAttackIfReady` calls `CastSpell` after only the
+                // raw-max combat-range gate, then resets BASE_ATTACK regardless of
+                // whether Spell::CheckRange/CheckCast rejects min range or LOS.
+                creature.record_swing();
+            }
+            if cooldown_profile.is_some_and(|profile| {
+                !profile.passive
+                    && caster.unit().subsystems().spells.history.has_cooldown(
+                        profile.spell_id,
+                        profile.category_id,
+                        cooldown_now_ms,
+                    )
+            }) {
+                // C++ Spell::CheckCast rejects this attempt before hit resolution.
+                // CombatAI still executes its following ScheduleEvent, and
+                // TurretAI has already reset BASE_ATTACK after calling CastSpell.
+                return Err(CreatureSpellCastValidationResultLikeCpp::CooldownRejected);
+            }
+            if distance_sq > maximum * maximum || (minimum > 0.0 && distance_sq < minimum * minimum)
+            {
+                return Err(CreatureSpellCastValidationResultLikeCpp::OutOfRange);
+            }
+            let effective_attributes = config.spell_store.as_ref().and_then(|store| {
+                store.misc_attributes_for_difficulty_like_cpp(
+                    command.spell_id,
+                    difficulty_id,
+                    config.difficulty_store.as_deref(),
+                )
             });
-        (
-            hit_profile,
-            source_position,
-            visibility_range,
-            full_log_data,
-        )
+            let ignores_line_of_sight = effective_attributes.is_some_and(|attributes| {
+                attributes[2] & wow_data::spell::attributes::SPELL_ATTR2_IGNORE_LINE_OF_SIGHT != 0
+            });
+            if !ignores_line_of_sight
+                && !caster.unit().world().is_within_los_in_map(
+                    victim.unit().world(),
+                    map,
+                    wow_entities::LineOfSightOptions::default(),
+                )
+            {
+                return Err(CreatureSpellCastValidationResultLikeCpp::LosRejected);
+            }
+
+            if let Some(attributes) = effective_attributes
+                && !creature_spell_target_is_valid_attack_target_like_cpp(
+                    caster,
+                    victim,
+                    &attributes,
+                    config,
+                )
+            {
+                // C++ Spell::CheckCast rejects this before melee hit resolution.
+                // Preserve the queued CombatAI repeat and exact RNG authority so
+                // its following ScheduleEvent can draw the next delay.
+                return Err(CreatureSpellCastValidationResultLikeCpp::TargetRejected);
+            }
+
+            let represented_cast = (|| {
+                let spell_store = config.spell_store.as_ref()?;
+                let spell = spell_store.get(command.spell_id)?;
+                let metadata = spell_store.hit_metadata_for_difficulty_like_cpp(
+                    command.spell_id,
+                    difficulty_id,
+                    config.difficulty_store.as_deref(),
+                )?;
+                let attributes = effective_attributes?;
+                let active_effect_indices: Vec<u32> = spell
+                    .effects()
+                    .iter()
+                    .filter(|effect| {
+                        effect.effect != 0
+                            && !wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(
+                                effect.effect,
+                            )
+                    })
+                    .map(|effect| effect.effect_index)
+                    .collect();
+                let victim_hit_aura_sources_are_hit_inert = victim
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .has_complete_spell_hit_inert_aura_authority_like_cpp();
+                let target_has_no_vehicle_kit = victim.unit().subsystems().vehicle.kit.is_none();
+                let caster_is_behind_player = !victim.unit().world().has_in_arc(
+                    std::f32::consts::PI,
+                    caster.unit().world(),
+                    2.0,
+                );
+                if !caster_hit_aura_sources_are_empty
+                    || !caster_has_no_owner_or_charmer
+                    || !victim_hit_aura_sources_are_hit_inert
+                    || !target_has_no_vehicle_kit
+                    || !caster_is_behind_player
+                {
+                    return None;
+                }
+                let hit_profile = represented_creature_spell_hit_profile_like_cpp(
+                    &metadata,
+                    &active_effect_indices,
+                    attributes,
+                )?;
+                Some((
+                    hit_profile,
+                    creature_spell_cast_log_data_like_cpp(caster, spell, difficulty_id),
+                ))
+            })();
+            let (hit_profile, full_log_data) = represented_cast
+                .map_or((None, None), |(profile, log_data)| {
+                    (Some(profile), log_data)
+                });
+            Ok((
+                hit_profile,
+                source_position,
+                visibility_range,
+                full_log_data,
+            ))
+        })
+    } {
+        Some(Ok(prepared)) => prepared,
+        Some(Err(result)) => return result,
+        None => return CreatureSpellCastValidationResultLikeCpp::MissingTarget,
     };
     if !turret_ai
         && creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
@@ -67636,18 +67657,23 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         }
         // C++ `Unit::AttackerStateUpdate` requires a real attacker and checks
         // LOS before removing attacking-interrupt auras or calculating damage.
-        let Some(attacker) = map.get_typed_creature(attacker_guid) else {
+        let Some(attacker_validation) = map.with_creature_like_cpp(attacker_guid, |attacker| {
+            if !attacker.is_alive() {
+                return Err(CreatureMeleeApplyResultLikeCpp::AttackerUnavailable);
+            }
+            if !is_creature_melee_los_clear_like_cpp(
+                attacker.unit().world(),
+                victim.unit().world(),
+                map,
+            ) {
+                return Err(CreatureMeleeApplyResultLikeCpp::LosRejected);
+            }
+            Ok(())
+        }) else {
             return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
         };
-        if !attacker.is_alive() {
-            return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
-        }
-        if !is_creature_melee_los_clear_like_cpp(
-            attacker.unit().world(),
-            victim.unit().world(),
-            map,
-        ) {
-            return CreatureMeleeApplyResultLikeCpp::LosRejected;
+        if let Err(result) = attacker_validation {
+            return result;
         }
 
         (
@@ -67729,83 +67755,85 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         damage,
         applied_damage,
         hit_info,
-    ) = {
+    ) = match {
         let map = managed.map();
-        let Some(victim) = map.get_typed_creature(victim_guid) else {
-            return CreatureMeleeApplyResultLikeCpp::MissingVictim;
-        };
+        map.with_creature_like_cpp(victim_guid, |victim| {
+            let victim_position = victim.unit().world().position();
+            let victim_data = victim.unit().data();
+            let victim_combat_reach = victim_data.combat_reach;
+            if !is_within_melee_range_like_cpp(
+                attacker_position,
+                attacker_combat_reach,
+                victim_position,
+                victim_combat_reach,
+            ) {
+                return Err(CreatureMeleeApplyResultLikeCpp::OutOfRange);
+            }
+            if !is_within_target_boundary_radius_like_cpp(
+                attacker_position,
+                attacker_combat_reach,
+                victim_position,
+                victim_combat_reach,
+                victim_data.bounding_radius,
+            ) && !is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position)
+            {
+                return Err(CreatureMeleeApplyResultLikeCpp::BadFacing);
+            }
+            if !victim.is_alive() {
+                return Err(CreatureMeleeApplyResultLikeCpp::VictimNotAlive);
+            }
+            if !attacker_can_state_update {
+                return Err(CreatureMeleeApplyResultLikeCpp::AttackerStateRejected);
+            }
+            let Some(attacker_validation) = map.with_creature_like_cpp(attacker_guid, |attacker| {
+                if !attacker.is_alive() {
+                    return Err(CreatureMeleeApplyResultLikeCpp::AttackerUnavailable);
+                }
+                if !is_creature_melee_los_clear_like_cpp(
+                    attacker.unit().world(),
+                    victim.unit().world(),
+                    map,
+                ) {
+                    return Err(CreatureMeleeApplyResultLikeCpp::LosRejected);
+                }
+                Ok(attacker.is_charmed_owned_by_player_or_player_like_cpp())
+            }) else {
+                return Err(CreatureMeleeApplyResultLikeCpp::AttackerUnavailable);
+            };
+            let attacker_is_player_controlled = attacker_validation?;
 
-        let victim_position = victim.unit().world().position();
-        let victim_data = victim.unit().data();
-        let victim_combat_reach = victim_data.combat_reach;
-        if !is_within_melee_range_like_cpp(
-            attacker_position,
-            attacker_combat_reach,
-            victim_position,
-            victim_combat_reach,
-        ) {
-            return CreatureMeleeApplyResultLikeCpp::OutOfRange;
-        }
-        if !is_within_target_boundary_radius_like_cpp(
-            attacker_position,
-            attacker_combat_reach,
-            victim_position,
-            victim_combat_reach,
-            victim_data.bounding_radius,
-        ) && !is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position)
-        {
-            return CreatureMeleeApplyResultLikeCpp::BadFacing;
-        }
-        if !victim.is_alive() {
-            return CreatureMeleeApplyResultLikeCpp::VictimNotAlive;
-        }
-        if !attacker_can_state_update {
-            return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
-        }
-        let Some(attacker) = map.get_typed_creature(attacker_guid) else {
-            return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
-        };
-        if !attacker.is_alive() {
-            return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
-        }
-        if !is_creature_melee_los_clear_like_cpp(
-            attacker.unit().world(),
-            victim.unit().world(),
-            map,
-        ) {
-            return CreatureMeleeApplyResultLikeCpp::LosRejected;
-        }
+            let Some(damage) = damage else {
+                return Err(CreatureMeleeApplyResultLikeCpp::Ready);
+            };
+            let applied_damage = victim.calculate_damage_for_sparring_like_cpp(
+                true,
+                attacker_is_player_controlled,
+                damage,
+            );
+            let mut hit_info = HIT_INFO_NORMAL_SWING;
+            if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
+                hit_info |= HIT_INFO_FAKE_DAMAGE;
+            }
 
-        let Some(damage) = damage else {
-            return CreatureMeleeApplyResultLikeCpp::Ready;
-        };
-
-        let attacker_is_player_controlled =
-            attacker.is_charmed_owned_by_player_or_player_like_cpp();
-        let applied_damage = victim.calculate_damage_for_sparring_like_cpp(
-            true,
-            attacker_is_player_controlled,
-            damage,
-        );
-        let mut hit_info = HIT_INFO_NORMAL_SWING;
-        if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
-            hit_info |= HIT_INFO_FAKE_DAMAGE;
-        }
-
-        (
-            victim.unit().data().health,
-            victim.unit().health_state_revision_like_cpp(),
-            victim.loot_authority_like_cpp().clone(),
-            victim.unit().health_state_revision_authority_like_cpp(),
-            victim.spawn_id(),
-            victim.loot_lifecycle_revision_like_cpp(),
-            victim.unit().death_state(),
-            victim.ai_ownership().state,
-            victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
-            damage,
-            applied_damage,
-            hit_info,
-        )
+            Ok((
+                victim.unit().data().health,
+                victim.unit().health_state_revision_like_cpp(),
+                victim.loot_authority_like_cpp().clone(),
+                victim.unit().health_state_revision_authority_like_cpp(),
+                victim.spawn_id(),
+                victim.loot_lifecycle_revision_like_cpp(),
+                victim.unit().death_state(),
+                victim.ai_ownership().state,
+                victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+                damage,
+                applied_damage,
+                hit_info,
+            ))
+        })
+    } {
+        Some(Ok(prepared)) => prepared,
+        Some(Err(result)) => return result,
+        None => return CreatureMeleeApplyResultLikeCpp::MissingVictim,
     };
 
     let Some(victim) = managed.map_mut().get_typed_creature_mut(victim_guid) else {
@@ -68086,11 +68114,14 @@ fn creature_threat_value_on_map_like_cpp(
     creature_guid: ObjectGuid,
     attacker_guid: ObjectGuid,
 ) -> Option<f32> {
-    map.get_typed_creature(creature_guid)?
-        .unit()
-        .subsystems()
-        .combat
-        .threat_value(attacker_guid)
+    map.with_creature_like_cpp(creature_guid, |creature| {
+        creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(attacker_guid)
+    })
+    .flatten()
 }
 
 /// C++ `CombatManager::SetInCombatWith` for a player attacker, on an already
@@ -68139,7 +68170,7 @@ fn begin_combat_ref_on_map_like_cpp(
             },
             true,
         )
-    } else if let Some(victim) = map.get_typed_creature(victim_guid) {
+    } else if let Some(result) = map.with_creature_like_cpp(victim_guid, |victim| {
         let victim_unit = victim.unit();
         let victim_world = victim_unit.world();
         let victim_combat = &victim_unit.subsystems().combat;
@@ -68164,6 +68195,8 @@ fn begin_combat_ref_on_map_like_cpp(
             },
             false,
         )
+    }) {
+        result
     } else {
         return false;
     };
@@ -68996,21 +69029,27 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
         let canonical_attacker_is_same_incarnation = canonical_manager
             .find_map(u32::from(swing.map_id), swing.instance_id)
-            .and_then(|managed| managed.map().get_typed_creature(swing.attacker_guid))
-            .is_some_and(|canonical_attacker| {
-                canonical_attacker.spawn_id() == attacker.creature.spawn_id()
-                    && canonical_attacker
-                        .loot_authority_like_cpp()
-                        .shares_storage_like_cpp(attacker.creature.loot_authority_like_cpp())
-                    && canonical_attacker
-                        .unit()
-                        .shares_health_state_revision_authority_like_cpp(
-                            &attacker
-                                .creature
+            .and_then(|managed| {
+                managed
+                    .map()
+                    .with_creature_like_cpp(swing.attacker_guid, |canonical_attacker| {
+                        canonical_attacker.spawn_id() == attacker.creature.spawn_id()
+                            && canonical_attacker
+                                .loot_authority_like_cpp()
+                                .shares_storage_like_cpp(
+                                    attacker.creature.loot_authority_like_cpp(),
+                                )
+                            && canonical_attacker
                                 .unit()
-                                .health_state_revision_authority_like_cpp(),
-                        )
-            });
+                                .shares_health_state_revision_authority_like_cpp(
+                                    &attacker
+                                        .creature
+                                        .unit()
+                                        .health_state_revision_authority_like_cpp(),
+                                )
+                    })
+            })
+            .unwrap_or(false);
         if !canonical_attacker_is_same_incarnation {
             outcome.melee_precondition_rejections += 1;
             outcome.attacker_incarnation_rejections += 1;
@@ -69288,29 +69327,33 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         };
         let canonical_is_desired = canonical_manager
             .find_map_mut(u32::from(chain.swing.map_id), chain.swing.instance_id)
-            .and_then(|managed| managed.map().get_typed_creature(chain.swing.victim_guid))
-            .is_some_and(|victim| {
-                let unit = victim.unit();
-                let identity = &desired.identity;
-                unit.data().health == desired.victim_health_after
-                    && unit.death_state() == identity.death_state_after
-                    && unit.health_state_revision_like_cpp()
-                        == desired.victim_health_state_revision_after
-                    && victim.spawn_id() == identity.spawn_id
-                    && victim.loot_lifecycle_revision_like_cpp()
-                        == identity.loot_lifecycle_revision_after
-                    && victim.ai_ownership().state == identity.ai_state_after
-                    && victim
-                        .loot_authority_like_cpp()
-                        .shares_storage_like_cpp(&identity.authority)
-                    && victim
-                        .unit()
-                        .shares_health_state_revision_authority_like_cpp(
-                            &identity.health_state_revision_authority,
-                        )
-                    && victim.loot_authority_like_cpp().lifecycle_like_cpp()
-                        != OwnedLootAuthorityLifecycle::Detached
-            });
+            .and_then(|managed| {
+                managed
+                    .map()
+                    .with_creature_like_cpp(chain.swing.victim_guid, |victim| {
+                        let unit = victim.unit();
+                        let identity = &desired.identity;
+                        unit.data().health == desired.victim_health_after
+                            && unit.death_state() == identity.death_state_after
+                            && unit.health_state_revision_like_cpp()
+                                == desired.victim_health_state_revision_after
+                            && victim.spawn_id() == identity.spawn_id
+                            && victim.loot_lifecycle_revision_like_cpp()
+                                == identity.loot_lifecycle_revision_after
+                            && victim.ai_ownership().state == identity.ai_state_after
+                            && victim
+                                .loot_authority_like_cpp()
+                                .shares_storage_like_cpp(&identity.authority)
+                            && victim
+                                .unit()
+                                .shares_health_state_revision_authority_like_cpp(
+                                    &identity.health_state_revision_authority,
+                                )
+                            && victim.loot_authority_like_cpp().lifecycle_like_cpp()
+                                != OwnedLootAuthorityLifecycle::Detached
+                    })
+            })
+            .unwrap_or(false);
         if !canonical_is_desired {
             outcome.legacy_creature_victim_sync_cas_rejections += 1;
             continue;
@@ -72481,11 +72524,12 @@ impl WorldSession {
                     player.unit().subsystems().vehicle.vehicle_guid,
                 )
             } else {
-                let creature = map.get_typed_creature(caster_guid)?;
-                (
-                    creature.unit().world().position(),
-                    creature.unit().subsystems().vehicle.vehicle_guid,
-                )
+                map.with_creature_like_cpp(caster_guid, |creature| {
+                    (
+                        creature.unit().world().position(),
+                        creature.unit().subsystems().vehicle.vehicle_guid,
+                    )
+                })?
             };
             if let Some(vehicle_base_guid) = vehicle_base_guid {
                 let vehicle_base_position = map
@@ -72833,40 +72877,43 @@ impl WorldSession {
             .iter()
             .chain(nearby.grid.creatures.iter())
         {
-            let Some(creature) = map.map().get_typed_creature(*guid) else {
-                continue;
-            };
-            if creature.unit().world().object().entry() != entry {
-                continue;
-            }
-            let position = creature.unit().world().position();
-            let distance = position.distance(caster_position);
-            if distance < range
-                && best.is_none_or(|(best_distance, _)| distance < best_distance)
-                && self.represented_nearby_candidate_meets_implicit_conditions_like_cpp(
-                    creature.unit().world(),
-                    Some(crate::conditions::ConditionUnitSnapshot {
-                        level: u32::from(creature.level()),
-                        health: creature.current_health(),
-                        max_health: creature.max_health(),
-                        class_mask: 0,
-                        race: 0,
-                        creature_type: None,
-                        is_alive: creature.is_alive(),
-                        is_charmed: false,
-                        in_water: false,
-                        unit_state: 0,
-                        stand_state: UnitStandStateType::Stand as u32,
-                    }),
-                    implicit_conditions,
-                    caster_object.as_ref(),
-                    player_unit_snapshot,
-                    player_snapshot,
-                    player_condition_store.as_deref(),
-                    player_condition_context.as_ref(),
-                    area_table_store.as_deref(),
-                )
-            {
+            let candidate = map
+                .map()
+                .with_creature_like_cpp(*guid, |creature| {
+                    if creature.unit().world().object().entry() != entry {
+                        return None;
+                    }
+                    let position = creature.unit().world().position();
+                    let distance = position.distance(caster_position);
+                    (distance < range
+                        && best.is_none_or(|(best_distance, _)| distance < best_distance)
+                        && self.represented_nearby_candidate_meets_implicit_conditions_like_cpp(
+                            creature.unit().world(),
+                            Some(crate::conditions::ConditionUnitSnapshot {
+                                level: u32::from(creature.level()),
+                                health: creature.current_health(),
+                                max_health: creature.max_health(),
+                                class_mask: 0,
+                                race: 0,
+                                creature_type: None,
+                                is_alive: creature.is_alive(),
+                                is_charmed: false,
+                                in_water: false,
+                                unit_state: 0,
+                                stand_state: UnitStandStateType::Stand as u32,
+                            }),
+                            implicit_conditions,
+                            caster_object.as_ref(),
+                            player_unit_snapshot,
+                            player_snapshot,
+                            player_condition_store.as_deref(),
+                            player_condition_context.as_ref(),
+                            area_table_store.as_deref(),
+                        ))
+                    .then_some((distance, position))
+                })
+                .flatten();
+            if let Some((distance, position)) = candidate {
                 best = Some((distance, position));
             }
         }
@@ -74856,13 +74903,15 @@ impl WorldSession {
 
         if attacker_guid.is_creature() {
             let both_player_controlled = map
-                .get_typed_creature(attacker_guid)
-                .is_some_and(|creature| creature.is_charmed_owned_by_player_or_player_like_cpp())
+                .with_creature_like_cpp(attacker_guid, |creature| {
+                    creature.is_charmed_owned_by_player_or_player_like_cpp()
+                })
+                .unwrap_or(false)
                 && map
-                    .get_typed_creature(creature_guid)
-                    .is_some_and(|creature| {
+                    .with_creature_like_cpp(creature_guid, |creature| {
                         creature.is_charmed_owned_by_player_or_player_like_cpp()
-                    });
+                    })
+                    .unwrap_or(false);
             if let Some(attacker) = map.get_typed_creature_mut(attacker_guid) {
                 attacker
                     .unit_mut()
@@ -75101,12 +75150,14 @@ impl WorldSession {
                 .combat
                 .threatened_by_me_owner_guids();
         }
-        if let Some(creature) = map.get_typed_creature(target_guid) {
-            return creature
+        if let Some(owner_guids) = map.with_creature_like_cpp(target_guid, |creature| {
+            creature
                 .unit()
                 .subsystems()
                 .combat
-                .threatened_by_me_owner_guids();
+                .threatened_by_me_owner_guids()
+        }) {
+            return owner_guids;
         }
         Vec::new()
     }

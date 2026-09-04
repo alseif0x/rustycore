@@ -36,6 +36,7 @@ impl EntityWorld {
             map_id: world.map_id(),
             instance_id: world.instance_id(),
             position: world.position(),
+            combat_reach: world.combat_reach(),
             health: creature.current_health(),
             max_health: creature.max_health(),
             is_alive: creature.is_alive(),
@@ -137,6 +138,7 @@ mod tests {
             .expect("fixture creature should accept its map identity");
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(health);
+        creature.unit_mut().set_combat_reach(1.75);
         MapObjectRecord::new_creature(creature)
             .expect("fixture creature should form a canonical map record")
     }
@@ -248,6 +250,7 @@ mod tests {
             wow_core::Position::new(10.0, 11.0, 12.0, 0.5)
         );
         assert_eq!((snapshots[0].health, snapshots[0].max_health), (25, 100));
+        assert_eq!(snapshots[0].combat_reach, 1.75);
         assert_eq!((snapshots[0].map_id, snapshots[0].instance_id), (571, 7));
 
         world
