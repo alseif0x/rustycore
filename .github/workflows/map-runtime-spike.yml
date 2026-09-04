@@ -1,0 +1,48 @@
+name: Map runtime architecture spike
+
+on:
+  pull_request:
+    branches:
+      - "3.4.3"
+    paths:
+      - "tools/architecture/map-runtime-spike/**"
+      - ".github/workflows/map-runtime-spike.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  x86_64-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the repository toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal
+
+      - name: Prove the architecture invariants
+        run: >-
+          cargo +1.98.0 test --release --locked
+          --manifest-path tools/architecture/map-runtime-spike/Cargo.toml
+
+      - name: Measure the HashMap baseline
+        env:
+          MAP_RUNTIME_SPIKE_BACKEND: hash-map
+          MAP_RUNTIME_SPIKE_OBJECTS: "100000"
+          MAP_RUNTIME_SPIKE_FRAMES: "20"
+        run: >-
+          cargo +1.98.0 run --release --locked
+          --manifest-path tools/architecture/map-runtime-spike/Cargo.toml
+
+      - name: Measure the private hecs candidate
+        env:
+          MAP_RUNTIME_SPIKE_BACKEND: hecs
+          MAP_RUNTIME_SPIKE_OBJECTS: "100000"
+          MAP_RUNTIME_SPIKE_FRAMES: "20"
+        run: >-
+          cargo +1.98.0 run --release --locked
+          --manifest-path tools/architecture/map-runtime-spike/Cargo.toml
