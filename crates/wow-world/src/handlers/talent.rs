@@ -2028,7 +2028,7 @@ mod tests {
         let mut feign_death = visible_aura(feign_slot, 0);
         feign_death.spell_id = 5384;
         feign_death.represented_effect = Some(RepresentedAuraEffectLikeCpp::FeignDeath);
-        session.visible_auras.insert(feign_slot, feign_death);
+        assert!(session.insert_player_visible_aura_like_cpp(feign_death));
 
         session
             .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
@@ -2053,7 +2053,12 @@ mod tests {
             .to_bytes()
         );
         assert!(send_rx.try_recv().is_err());
-        assert!(!session.visible_auras.contains_key(&feign_slot));
+        assert!(
+            !session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&feign_slot)
+        );
         assert_eq!(
             session
                 .mutate_canonical_player_like_cpp(|player| {

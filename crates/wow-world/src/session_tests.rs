@@ -1297,7 +1297,8 @@ fn player_spell_hit_source_sync_sets_and_mutations_invalidate_canonical_auras_li
         1,
         0,
     ));
-    add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 571, 0);
+    assert!(session.install_detached_canonical_player_for_test_like_cpp());
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     session.set_player_aura_authority_complete_like_cpp(true);
     session.complete_player_equipment_inventory_authority_load_like_cpp();
     assert!(
@@ -19636,12 +19637,15 @@ fn represented_mounted_aura_recalculates_amount_from_mount_capability_like_cpp()
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert!(session.visible_auras.values().any(|aura| {
+    let visible_auras = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert!(visible_auras.values().any(|aura| {
         aura.spell_id == 100
             && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
             && aura.represented_amount == 77
     }));
-    assert!(session.visible_auras.values().any(|aura| {
+    assert!(visible_auras.values().any(|aura| {
         aura.spell_id == 12_346
             && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
             && aura.represented_amount == 100
@@ -58546,6 +58550,11 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
     assert_ne!(session.represented_rest_time_secs_like_cpp, 0);
 
+    // C++ applies the new character row's PlayerFlags to the new Player before
+    // RestMgr::LoadRestBonus. Keep that provenance explicit: the runtime rest
+    // mask is still stale here, while the persisted flag for the new row is not.
+    session.set_loaded_player_flags_like_cpp(0);
+    assert!(session.represented_is_resting_like_cpp());
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     assert!(!session.represented_is_resting_like_cpp());
