@@ -1039,6 +1039,38 @@ where
         record.creature()
     }
 
+    /// Return an owned transform/vitals view of an exact canonical Creature.
+    /// This is the preferred external read seam for systems that do not need the
+    /// complete entity and remains compatible with the selected private ECS
+    /// backend.
+    pub fn creature_transform_vitals_snapshot_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<CreatureTransformVitalsSnapshotLikeCpp> {
+        self.entity_world.creature_transform_vitals_snapshot(guid)
+    }
+
+    /// Run a synchronous read against one exact canonical Creature without
+    /// exposing the storage representation. `R` is owned independently of the
+    /// callback borrow, so a future ECS guard cannot escape this method.
+    pub fn with_creature_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Creature) -> R,
+    ) -> Option<R> {
+        self.entity_world.with_creature(guid, read)
+    }
+
+    /// Run one synchronous mutation inside the canonical entity owner and
+    /// return only an owned result.
+    pub fn with_creature_mut_like_cpp<R>(
+        &mut self,
+        guid: ObjectGuid,
+        write: impl FnOnce(&mut Creature) -> R,
+    ) -> Option<R> {
+        self.entity_world.with_creature_mut(guid, write)
+    }
+
     pub fn get_typed_creature_mut(&mut self, guid: ObjectGuid) -> Option<&mut Creature> {
         let record = self.entity_world.get_mut(&guid)?;
         if record.kind() != AccessorObjectKind::Creature {

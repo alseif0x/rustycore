@@ -3916,11 +3916,14 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
         return None;
     };
-    if map.map().get_creature(guid).is_none() {
+    if map
+        .map()
+        .creature_transform_vitals_snapshot_like_cpp(guid)
+        .is_none()
+    {
         return None;
     }
-    let accept_incoming_entity_state = {
-        let current = map.map().get_typed_creature(guid)?;
+    let accept_incoming_entity_state = map.map().with_creature_like_cpp(guid, |current| {
         let incoming_unit = creature.unit();
         let current_unit = current.unit();
         let shares_health_timeline = incoming_unit.shares_health_state_revision_authority_like_cpp(
@@ -3941,13 +3944,11 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
         shares_health_timeline
             && (incoming_revision > current_revision
                 || (incoming_revision == current_revision && health_tuple_matches))
-    };
+    })?;
 
     let current_authority = map
         .map()
-        .get_typed_creature(guid)?
-        .loot_authority_like_cpp()
-        .clone();
+        .with_creature_like_cpp(guid, |current| current.loot_authority_like_cpp().clone())?;
     let incoming_authority = creature.loot_authority_like_cpp().clone();
     let current_stamp = current_authority.stamp_like_cpp();
     let incoming_stamp = incoming_authority.stamp_like_cpp();
@@ -3957,13 +3958,13 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
         &incoming_authority,
         incoming_stamp,
     );
-    map.map_mut()
-        .get_typed_creature_mut(guid)?
-        .rebind_loot_authority_if_current_like_cpp(
+    map.map_mut().with_creature_mut_like_cpp(guid, |current| {
+        current.rebind_loot_authority_if_current_like_cpp(
             &current_authority,
             current_stamp,
             authority.clone(),
-        )?;
+        )
+    })??;
     if !accept_incoming_entity_state {
         // The actual legacy owner performs its own expected-stamp CAS with the
         // returned authority. Its rejected transport clone must not replace any
@@ -3976,8 +3977,9 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
     creature.adopt_loot_authority_for_snapshot_like_cpp(authority);
     let old_threat_guids = map
         .map()
-        .get_typed_creature(guid)
-        .map(|current| current.unit().subsystems().combat.sorted_threat_guids())
+        .with_creature_like_cpp(guid, |current| {
+            current.unit().subsystems().combat.sorted_threat_guids()
+        })
         .unwrap_or_default();
     let incoming_threat_guids: HashSet<_> = creature
         .unit()
@@ -4001,14 +4003,17 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
         .map(|creature| creature.loot_authority_like_cpp().clone())?;
     map.map_mut().insert_map_object_record(record).ok()?;
     for added_guid in mirrored_threat_guids {
-        let threat_ref = map.map().get_typed_creature(guid).and_then(|creature| {
-            creature
-                .unit()
-                .subsystems()
-                .combat
-                .threat_ref(added_guid)
-                .copied()
-        });
+        let threat_ref = map
+            .map()
+            .with_creature_like_cpp(guid, |creature| {
+                creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_ref(added_guid)
+                    .copied()
+            })
+            .flatten();
         let Some(threat_ref) = threat_ref else {
             continue;
         };
@@ -11866,7 +11871,7 @@ impl WorldSession {
                     control.charmer_guid == Some(player_guid) && control.is_possessed()
                 })
                 .or_else(|| {
-                    map.get_typed_creature(charmed_guid).map(|target| {
+                    map.with_creature_like_cpp(charmed_guid, |target| {
                         let control = &target.unit().subsystems().control;
                         control.charmer_guid == Some(player_guid) && control.is_possessed()
                     })
@@ -14617,19 +14622,21 @@ impl WorldSession {
         {
             canonical_creature.rebind_loot_authority_like_cpp(authority);
         }
-        if let Some(manager) = self.canonical_map_manager.as_ref()
-            && let Ok(manager) = manager.lock()
-            && let Some(current) = manager
-                .find_map(u32::from(map_id), 0)
-                .and_then(|managed| managed.map().get_typed_creature(guid))
-        {
+        let canonical_health_owner = self.canonical_map_manager.as_ref().and_then(|manager| {
+            let manager = manager.lock().ok()?;
+            manager
+                .find_map(u32::from(map_id), 0)?
+                .map()
+                .with_creature_like_cpp(guid, |current| current.unit().clone())
+        });
+        if let Some(current_unit) = canonical_health_owner {
             // When a canonical object pre-exists (for example grid loading
             // racing legacy registration), seed the compatibility mirror from
             // that exact health timeline rather than a separately constructed
             // Unit with incomparable revisions.
             canonical_creature
                 .unit_mut()
-                .preserve_authoritative_health_state_for_snapshot_like_cpp(current.unit());
+                .preserve_authoritative_health_state_for_snapshot_like_cpp(&current_unit);
         }
 
         if let Some(manager) = &self.map_manager {
@@ -16855,8 +16862,7 @@ impl WorldSession {
         manager
             .find_map(map_key.map_id, map_key.instance_id)?
             .map()
-            .get_typed_creature(guid)
-            .map(|creature| creature.loot_authority_like_cpp().clone())
+            .with_creature_like_cpp(guid, |creature| creature.loot_authority_like_cpp().clone())
     }
 
     pub(crate) fn rebind_canonical_creature_loot_authority_like_cpp(
@@ -32684,8 +32690,7 @@ impl WorldSession {
         manager
             .find_map(key.map_id, key.instance_id)?
             .map()
-            .get_typed_creature(creature_guid)
-            .map(|creature| creature.has_loot_recipient())
+            .with_creature_like_cpp(creature_guid, |creature| creature.has_loot_recipient())
     }
 
     fn take_represented_xp_rest_bonus_for_gain_like_cpp(
@@ -54278,21 +54283,25 @@ impl WorldSession {
                 if snapshot.is_some() {
                     return;
                 }
-                let Some(creature) = managed.map().get_typed_creature(unit_guid) else {
+                let Some(companion) = managed.map().with_creature_like_cpp(unit_guid, |creature| {
+                    let unit = creature.unit();
+                    RepresentedBattlePetQueryCompanionLikeCpp {
+                        creature_id: i32::try_from(creature.entry()).unwrap_or(i32::MAX),
+                        name_timestamp: i64::from(
+                            unit.battle_pet_companion_name_timestamp_like_cpp(),
+                        ),
+                        is_summon: creature.is_summon_like_cpp(),
+                        owner_is_player: unit
+                            .subsystems()
+                            .control
+                            .owner_guid
+                            .is_some_and(|guid| guid.is_player()),
+                        battle_pet_companion_guid: unit.battle_pet_companion_guid_like_cpp(),
+                    }
+                }) else {
                     return;
                 };
-                let unit = creature.unit();
-                snapshot = Some(RepresentedBattlePetQueryCompanionLikeCpp {
-                    creature_id: i32::try_from(creature.entry()).unwrap_or(i32::MAX),
-                    name_timestamp: i64::from(unit.battle_pet_companion_name_timestamp_like_cpp()),
-                    is_summon: creature.is_summon_like_cpp(),
-                    owner_is_player: unit
-                        .subsystems()
-                        .control
-                        .owner_guid
-                        .is_some_and(|guid| guid.is_player()),
-                    battle_pet_companion_guid: unit.battle_pet_companion_guid_like_cpp(),
-                });
+                snapshot = Some(companion);
             });
             if snapshot.is_some() {
                 return snapshot;
@@ -61357,11 +61366,11 @@ impl WorldSession {
         }
 
         let matches_cpp_totem = map
-            .get_typed_creature(slot_totem_guid)
-            .is_some_and(|totem| {
+            .with_creature_like_cpp(slot_totem_guid, |totem| {
                 totem.is_totem_unit_type_like_cpp()
                     && (requested_totem_guid.is_empty() || totem.guid() == requested_totem_guid)
-            });
+            })
+            .unwrap_or(false);
         if !matches_cpp_totem {
             return false;
         }
@@ -72402,8 +72411,11 @@ impl WorldSession {
         if let Some(player) = map.map().get_typed_player(target_guid) {
             return Some(player.unit().world().position());
         }
-        if let Some(creature) = map.map().get_typed_creature(target_guid) {
-            return Some(creature.unit().world().position());
+        if let Some(creature) = map
+            .map()
+            .creature_transform_vitals_snapshot_like_cpp(target_guid)
+        {
+            return Some(creature.position);
         }
         if let Some(gameobject) = map.map().get_typed_game_object(target_guid) {
             return Some(gameobject.world().position());
@@ -72480,8 +72492,8 @@ impl WorldSession {
                     .get_typed_player(vehicle_base_guid)
                     .map(|player| player.unit().world().position())
                     .or_else(|| {
-                        map.get_typed_creature(vehicle_base_guid)
-                            .map(|creature| creature.unit().world().position())
+                        map.creature_transform_vitals_snapshot_like_cpp(vehicle_base_guid)
+                            .map(|creature| creature.position)
                     })?;
                 Some((
                     vehicle_base_guid,
@@ -72531,8 +72543,8 @@ impl WorldSession {
             .get_typed_player(transport_guid)
             .map(|player| player.unit().world().position())
             .or_else(|| {
-                map.get_typed_creature(transport_guid)
-                    .map(|creature| creature.unit().world().position())
+                map.creature_transform_vitals_snapshot_like_cpp(transport_guid)
+                    .map(|creature| creature.position)
             })?;
         Some(wow_entities::calculate_passenger_position(
             transport_offset,

@@ -365,7 +365,7 @@ where
         now_secs: i64,
         context: CreatureRuntimeUpdateContext,
     ) -> CreatureUpdateOutcomeLikeCpp {
-        let Some(record) = self.map_object_record(creature_guid) else {
+        let Some(kind) = self.entity_world.kind(creature_guid) else {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -376,7 +376,7 @@ where
             };
         };
 
-        if record.kind() != AccessorObjectKind::Creature {
+        if kind != AccessorObjectKind::Creature {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -387,7 +387,10 @@ where
             };
         }
 
-        let Some(creature) = record.creature() else {
+        let Some(snapshot) = self
+            .entity_world
+            .creature_transform_vitals_snapshot(creature_guid)
+        else {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -398,7 +401,7 @@ where
             };
         };
 
-        if !creature.unit().world().object().is_in_world() {
+        if !snapshot.is_in_world {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -409,17 +412,12 @@ where
             };
         }
 
-        let Some(record) = self.entity_world.get_mut(&creature_guid) else {
-            return CreatureUpdateOutcomeLikeCpp {
-                creature_guid,
-                diff_ms,
-                now_secs,
-                status: CreatureUpdateStatusLikeCpp::MissingCreature,
-                plan: None,
-                actions_recorded: 0,
-            };
-        };
-        let Some(creature) = record.creature_mut() else {
+        let Some(plan) = self
+            .entity_world
+            .with_creature_mut(creature_guid, |creature| {
+                creature.runtime_update_plan(diff_ms, now_secs, context)
+            })
+        else {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -430,7 +428,6 @@ where
             };
         };
 
-        let plan = creature.runtime_update_plan(diff_ms, now_secs, context);
         let actions_recorded = plan.actions().len();
         CreatureUpdateOutcomeLikeCpp {
             creature_guid,
@@ -457,35 +454,22 @@ where
         mut context_resolver: F,
     ) -> CreatureUpdateSummaryLikeCpp
     where
-        F: FnMut(ObjectGuid, &Creature) -> CreatureRuntimeUpdateContext,
+        F: FnMut(
+            ObjectGuid,
+            CreatureTransformVitalsSnapshotLikeCpp,
+        ) -> CreatureRuntimeUpdateContext,
     {
         let creature_guids = self.object_updater_creature_guids_like_cpp();
+        let creature_lookups = self
+            .entity_world
+            .creature_transform_vitals_lookups(creature_guids);
 
         let mut summary = CreatureUpdateSummaryLikeCpp::default();
-        for guid in creature_guids {
+        for (guid, snapshot) in creature_lookups {
             summary.visited += 1;
-            let Some(context) = self
-                .map_object_record(guid)
-                .and_then(MapObjectRecord::creature)
-                .map(|creature| context_resolver(guid, creature))
-            else {
-                let outcome = self.update_creature_like_cpp(
-                    guid,
-                    diff_ms,
-                    now_secs,
-                    CreatureRuntimeUpdateContext::default(),
-                );
-                match outcome.status {
-                    CreatureUpdateStatusLikeCpp::MissingCreature => summary.skipped_missing += 1,
-                    CreatureUpdateStatusLikeCpp::NotCreature => summary.skipped_non_creature += 1,
-                    CreatureUpdateStatusLikeCpp::NotInWorld => summary.skipped_not_in_world += 1,
-                    CreatureUpdateStatusLikeCpp::Updated => {
-                        summary.updated += 1;
-                        summary.actions_recorded += outcome.actions_recorded;
-                    }
-                }
-                continue;
-            };
+            let context = snapshot.map_or_else(CreatureRuntimeUpdateContext::default, |snapshot| {
+                context_resolver(guid, snapshot)
+            });
 
             let outcome = self.update_creature_like_cpp(guid, diff_ms, now_secs, context);
             match outcome.status {

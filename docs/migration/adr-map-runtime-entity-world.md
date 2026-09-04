@@ -238,6 +238,14 @@ snapshotted while the map is borrowed, then viewer-dependent Player work runs af
 dropped. Typed borrowed getters used by internal map phases still have to be retired before the
 facade can switch safely to `hecs`.
 
+Step 3 is now in progress without a shadow store. The facade owns the exact GUID lookup for a
+Creature transform/vitals projection and produces stable GUID-ordered, owned batch snapshots for
+the canonical Creature update visit. Its context resolver no longer receives `&Creature`; missing
+and wrong-kind cell entries retain their explicit skip outcomes and never become zero/default
+snapshots. Session/world adapters that only need position, health/liveness, or an owned result now
+use that projection or closure-scoped access. The remaining broad borrowed typed getters and the
+actual backend swap are still open; this checkpoint must not be read as completion of step 3.
+
 1. Complete the isolated gate and record the decision in this ADR.
 2. Introduce a private, non-`Deref` `wow-map::map::entity_world` facade owning the existing
    canonical records; keep the `HashMap` behind it while borrowed-record callers are migrated, with

@@ -632,8 +632,11 @@ impl WorldSession {
         };
         manager
             .find_map(map_key.map_id, map_key.instance_id)
-            .and_then(|map| map.map().get_typed_creature(creature_guid))
-            .is_some_and(|creature| !creature.is_alive())
+            .and_then(|map| {
+                map.map()
+                    .creature_transform_vitals_snapshot_like_cpp(creature_guid)
+            })
+            .is_some_and(|creature| !creature.is_alive)
     }
 
     fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(

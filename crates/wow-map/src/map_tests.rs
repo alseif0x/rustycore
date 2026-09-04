@@ -13427,7 +13427,9 @@ fn creature_update_snapshot_ignores_gameobject_areatrigger_dynamicobject_like_cp
     map.insert_map_object_record(MapObjectRecord::new_dynamic_object(dynamic_object).unwrap())
         .unwrap();
 
-    let summary = map.update_creatures_like_cpp(1, 1_000, |_guid, _creature| {
+    let mut observed_snapshot = None;
+    let summary = map.update_creatures_like_cpp(1, 1_000, |guid, snapshot| {
+        observed_snapshot = Some((guid, snapshot));
         CreatureRuntimeUpdateContext::default()
     });
 
@@ -13435,6 +13437,17 @@ fn creature_update_snapshot_ignores_gameobject_areatrigger_dynamicobject_like_cp
     assert_eq!(summary.updated, 1);
     assert_eq!(summary.skipped_non_creature, 0);
     assert!(summary.actions_recorded > 0);
+    let (observed_guid, observed_snapshot) =
+        observed_snapshot.expect("the loaded Creature should be snapshotted exactly once");
+    assert_eq!(observed_guid, creature_guid);
+    assert_eq!(observed_snapshot.guid, creature_guid);
+    assert_eq!(observed_snapshot.position, Position::xyz(1.0, 2.0, 3.0));
+    assert_eq!(
+        (observed_snapshot.health, observed_snapshot.max_health),
+        (100, 100)
+    );
+    assert!(observed_snapshot.is_alive);
+    assert!(observed_snapshot.is_in_world);
     assert!(
         !map.map_object_record(creature_guid)
             .unwrap()

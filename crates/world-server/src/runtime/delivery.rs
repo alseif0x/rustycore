@@ -1052,8 +1052,12 @@ pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
             continue;
         };
         let map = managed.map_mut();
-        if map.get_typed_creature(command.attacker_guid).is_none()
-            || map.get_typed_creature(command.victim_guid).is_none()
+        if map
+            .creature_transform_vitals_snapshot_like_cpp(command.attacker_guid)
+            .is_none()
+            || map
+                .creature_transform_vitals_snapshot_like_cpp(command.victim_guid)
+                .is_none()
         {
             continue;
         }
@@ -1062,21 +1066,23 @@ pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
                 player
                     .unit_mut()
                     .remove_attacker_like_cpp(command.attacker_guid);
-            } else if let Some(creature) = map.get_typed_creature_mut(previous_victim) {
-                creature
-                    .unit_mut()
-                    .remove_attacker_like_cpp(command.attacker_guid);
+            } else {
+                let _ = map.with_creature_mut_like_cpp(previous_victim, |creature| {
+                    creature
+                        .unit_mut()
+                        .remove_attacker_like_cpp(command.attacker_guid);
+                });
             }
         }
-        let threat_ref = if let Some(attacker) = map.get_typed_creature_mut(command.attacker_guid) {
-            let combat = &mut attacker.unit_mut().subsystems_mut().combat;
-            combat.set_in_combat_with(command.victim_guid, false, false);
-            combat.add_threat(command.victim_guid, 0.0);
-            combat.threat_ref(command.victim_guid).copied()
-        } else {
-            None
-        };
-        if let Some(victim) = map.get_typed_creature_mut(command.victim_guid) {
+        let threat_ref = map
+            .with_creature_mut_like_cpp(command.attacker_guid, |attacker| {
+                let combat = &mut attacker.unit_mut().subsystems_mut().combat;
+                combat.set_in_combat_with(command.victim_guid, false, false);
+                combat.add_threat(command.victim_guid, 0.0);
+                combat.threat_ref(command.victim_guid).copied()
+            })
+            .flatten();
+        let _ = map.with_creature_mut_like_cpp(command.victim_guid, |victim| {
             let combat = &mut victim.unit_mut().subsystems_mut().combat;
             combat.set_in_combat_with(command.attacker_guid, false, false);
             if let Some(threat_ref) = threat_ref {
@@ -1085,7 +1091,7 @@ pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
             victim
                 .unit_mut()
                 .add_attacker_like_cpp(command.attacker_guid);
-        }
+        });
         applied += 1;
     }
     applied
@@ -1117,19 +1123,23 @@ pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
             continue;
         };
         let map = managed.map_mut();
-        if map.get_typed_creature(command.attacker_guid).is_none()
-            || map.get_typed_creature(command.victim_guid).is_none()
+        if map
+            .creature_transform_vitals_snapshot_like_cpp(command.attacker_guid)
+            .is_none()
+            || map
+                .creature_transform_vitals_snapshot_like_cpp(command.victim_guid)
+                .is_none()
         {
             continue;
         }
-        if let Some(attacker) = map.get_typed_creature_mut(command.attacker_guid) {
+        let _ = map.with_creature_mut_like_cpp(command.attacker_guid, |attacker| {
             attacker
                 .unit_mut()
                 .subsystems_mut()
                 .combat
                 .purge_combat_ref_like_cpp(command.victim_guid);
-        }
-        if let Some(victim) = map.get_typed_creature_mut(command.victim_guid) {
+        });
+        let _ = map.with_creature_mut_like_cpp(command.victim_guid, |victim| {
             victim
                 .unit_mut()
                 .subsystems_mut()
@@ -1138,7 +1148,7 @@ pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
             victim
                 .unit_mut()
                 .remove_attacker_like_cpp(command.attacker_guid);
-        }
+        });
         applied += 1;
     }
     applied
