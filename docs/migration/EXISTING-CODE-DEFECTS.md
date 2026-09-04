@@ -15,6 +15,21 @@ identical bytes otherwise. Severity reflects my judgment after that filter.
 Headline: the scoped **D-C1…D-C9 CRIT integrity track is closed**. The HIGH/MED defects below
 remain real; "sends the packet and mutates DB" still does not imply full gameplay parity.
 
+## Later verified Rust-port repairs
+
+- **2026-09-04, #578 runtime QA — nullable LFG hotfix text aborted startup.** The checked
+  candidate rejected `LFGDungeons.Description` SQL NULL; the local positive-build batch has
+  99 rows, two with NULL descriptions. C++ `Field::GetString` (`Field.cpp:118-126`) returns
+  empty text for NULL. `DB2DatabaseLoader.cpp:121-132,275-287` preserves an existing localized
+  string for an empty hotfix; `DB2LoadInfo.h:3365-3372` classifies both Name and Description
+  as `FT_STRING`. The MariaDB adapter now distinguishes a valid nullable text value from a
+  missing/mistyped column, and `wow-data::LfgDungeonsStore` preserves previous text while
+  applying numeric fields. Focused tests cover missing rows, null/empty/nonempty SQL text,
+  wrong types and missing columns, previous/new IDs and successive overlays; the explicit
+  read-only MariaDB regression passed. This is a behavior correction separate from the
+  Session capability extraction. Custom-row batching and other locale coverage remain outside
+  this bounded fix; full startup/login acceptance is recorded separately.
+
 ## Bounded legacy repairs accepted during the port
 
 - [x] **Issue #161 — battle-pet trainer purchases no longer strand the charge across the
