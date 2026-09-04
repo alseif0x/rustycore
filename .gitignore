@@ -13,6 +13,10 @@
 # Config files with credentials (use .dist versions)
 BNetServer.conf
 WorldServer.conf
+/bnetserver.conf
+/bnetserver.conf.d/
+/worldserver.conf
+/worldserver.conf.d/
 
 # Logs
 Logs/
@@ -20,6 +24,11 @@ Logs/
 *.pkt
 # ...but committed capture-diff golden fixtures (PKT 3.1) must be tracked.
 !crates/capture-diff/flows/**/*.pkt
+
+# GitHub Pages
+/docs/wiki/.vitepress/cache/
+/docs/wiki/.vitepress/dist/
+/docs/wiki/node_modules/
 
 # Local DB config
 /my.cnf
@@ -42,7 +51,7 @@ Thumbs.db
 .trae/
 memory/
 skills/
-wiki/
+/wiki/
 skills-lock.json
 
 # Repository-scoped agent skills shared by the RustyCore team. Keep this as an
