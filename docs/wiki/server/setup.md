@@ -22,10 +22,9 @@ PROTOC=/path/to/protoc cargo build -p bnet-server -p world-server --release
 
 ## Configure and run
 
-Create local `bnetserver.conf` and `worldserver.conf` files for your environment. The
-capitalized legacy names remain accepted for compatibility, but the lowercase names are
-preferred. Never commit passwords, database URLs, private keys, certificates, or runtime
-configuration.
+Create local `bnetserver.conf` and `worldserver.conf` files for your environment. These
+files and their `.conf.d` override directories are ignored at the repository root. Never
+commit passwords, database URLs, private keys, certificates, or runtime configuration.
 
 Start the services in this order:
 

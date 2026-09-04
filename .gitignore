@@ -13,6 +13,10 @@
 # Config files with credentials (use .dist versions)
 BNetServer.conf
 WorldServer.conf
+/bnetserver.conf
+/bnetserver.conf.d/
+/worldserver.conf
+/worldserver.conf.d/
 
 # Logs
 Logs/
