@@ -151,7 +151,6 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) talent_tab_store: Arc<wow_data::TalentTabStore>,
     pub(super) num_talents_at_level_store:
         Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>,
-    pub(super) glyph_properties_store: Arc<wow_data::GlyphPropertiesStore>,
     pub(super) chr_races_store: Arc<wow_data::character_progression::ChrRacesStore>,
     pub(super) chr_classes_store: Arc<wow_data::character_progression::ChrClassesStore>,
 }
@@ -360,7 +359,6 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         session.set_talent_store(Arc::clone(&self.talent_store));
         session.set_talent_tab_store(Arc::clone(&self.talent_tab_store));
         session.set_num_talents_at_level_store(Arc::clone(&self.num_talents_at_level_store));
-        session.set_glyph_properties_store(Arc::clone(&self.glyph_properties_store));
         session.set_chr_races_store(Arc::clone(&self.chr_races_store));
         session.set_chr_classes_store(Arc::clone(&self.chr_classes_store));
     }

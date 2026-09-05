@@ -2001,6 +2001,7 @@ impl WorldSession {
                 let mut skipped = 0usize;
                 for row in rows {
                     if self.load_represented_glyph_row_like_cpp(
+                        player_bootstrap.glyph_properties.as_ref(),
                         row.talent_group,
                         row.glyph_slot,
                         row.glyph_id,

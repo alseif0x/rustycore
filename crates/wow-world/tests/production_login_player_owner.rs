@@ -340,6 +340,7 @@ async fn exercise_initial_hydration(install_manager: bool, stop_at_pet_load: boo
             |_| true,
         )),
         cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
+        glyph_properties: Arc::new(wow_data::GlyphPropertiesStore::from_entries([])),
         custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
         start_all_spells: false,
         start_all_explored: false,

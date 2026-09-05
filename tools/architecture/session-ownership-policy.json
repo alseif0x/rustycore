@@ -961,13 +961,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "glyph_properties_store",
-          "type": "Option < Arc < GlyphPropertiesStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "gossip_options",
           "type": "Vec < GossipOptionInfo >",
           "visibility": "pub (crate)",
@@ -27766,19 +27759,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "glyph_properties_store",
-          "visibility": "pub (crate)",
-          "signature": "fn glyph_properties_store (& self) -> Option < & Arc < GlyphPropertiesStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "gossip_catalog_persistence_port_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn gossip_catalog_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: GossipCatalogPersistencePortLikeCpp > >",
@@ -30358,7 +30338,7 @@
           "kind": "method",
           "name": "load_represented_glyph_row_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn load_represented_glyph_row_like_cpp (& mut self , talent_group : u8 , glyph_slot : u8 , glyph_id : u16 ,) -> bool",
+          "signature": "fn load_represented_glyph_row_like_cpp (& mut self , glyph_properties : & GlyphPropertiesStore , talent_group : u8 , glyph_slot : u8 , glyph_id : u16 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46563,20 +46543,6 @@
           "source_class": "test_fixture",
           "guards": [
             "setter"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_glyph_properties_store",
-          "visibility": "pub",
-          "signature": "fn set_glyph_properties_store (& mut self , store : Arc < GlyphPropertiesStore >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
           ]
         },
         {
@@ -76017,7 +75983,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:455f0e064c46cf4b27c435d33d090aa6:len=96744|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5aea4554059b5dbedd2e2c5e85b139c5:len=96677|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

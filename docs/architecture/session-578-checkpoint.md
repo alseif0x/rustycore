@@ -11,8 +11,8 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 
 ## Exact membership and remaining work
 
-After the 2026-09-05 hotfix capability slice, the AST has **719 WorldSession fields:
-287 production and 432 test fixtures** after the active-cast ownership slice. The runtime
+After the 2026-09-05 glyph capability slice, the AST has **718 WorldSession fields:
+286 production and 432 test fixtures**. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -31,7 +31,7 @@ members. Three identifiers absent from the old runtime ledger are explicitly cla
 
 The following are still open #578 work, not stable exceptions or work deferred to #153:
 
-- 136 production catalog/configuration/service fields still reside on Session. Required
+- 135 production catalog/configuration/service fields still reside on Session. Required
   construction is not enough: the owning vertical must consume the narrow capability.
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
@@ -47,14 +47,56 @@ The following are still open #578 work, not stable exceptions or work deferred t
 
 `SessionResources` has eight required aggregate fields (`core`, `inventory`, `player`, `spells`,
 `world`, `progression`, `runtime`, `realm`), rather than 273 flat fields with 216 optional slots.
-Their immediate capability types contain respectively 5, 30, 24, 34, 29, 21, 20 and six members:
-**169 first-level members, plus further nested handler/persistence bundles**. The hotfix
+Their immediate capability types contain respectively 5, 30, 23, 34, 29, 21, 20 and six members:
+**168 first-level members, plus further nested handler/persistence bundles**. The glyph
+catalog is now a required member of the process-owned PlayerBootstrap catalog, borrowed
+by login instead of installed on Session. The hotfix
 dependency now lives in the nested, process-owned handler capabilities instead of the
 Player catalog bundle and is borrowed by its consumers. The constructor
 aggregate stays in world-server, not wow-network. Its `install_into_session_like_cpp` methods
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — Login borrows the process glyph catalog
+
+Ownership migration based on `b4d407b9`: `PlayerBootstrapCatalogsLikeCpp` requires
+the process-wide `GlyphPropertiesStore`, populated by world-server bootstrap.
+`world_entry` passes that reference directly to its glyph-row adapter. The Session
+field, getter and setter are deleted, including test storage; the corresponding
+SessionPlayerCatalog capability field and installation call are gone. No new Cargo
+edge, state mirror, clock, query, ordering or packet change is introduced.
+
+C++ `Player.cpp:26573-26598` reads `sGlyphPropertiesStore` during `_LoadGlyphs`;
+`Player.cpp:25477-25481` applies `SetGlyph`. The represented zero-ID clearing and
+row-selected group differ from those C++ paths and are preserved, not approved as
+parity; exact discrepancies are recorded in `EXISTING-CODE-DEFECTS.md`.
+The adapter requires `&GlyphPropertiesStore`; its sole production caller borrows
+the required bootstrap member. Legacy unit fixtures now supply explicit valid
+catalog rows instead of relying on missing-catalog acceptance. There is no
+absent-catalog construction or fallback Session lookup in this path.
+
+Existing invalid group/slot/ID and talent-packet assertions are retained with explicit
+test inputs. A new active/detached canonical-owner test varies the supplied catalog,
+proves missing-ID rejection preserves prior state, retains represented zero clearing,
+checks that Session retains no additional Arc and rejects a missing owner. The real
+production-login integration fixture now supplies the required catalog explicitly.
+
+Reviewed inventory delta: one production field and two methods removed; the load
+adapter gains a borrowed argument and the struct surface fingerprint shrinks.
+Totals are 286 production + 432 fixtures, 3,662 Session associated items and 590
+registrations. Session production shrinks 10 lines; its test footprint grows 52.
+Character login grows one line for the explicit reference. On aarch64, the final
+required-catalog source passes `wow-world --lib` (3,687 / zero failures / one ignored)
+and `production_login_player_owner` (three / zero failures). That integration
+fixture stops at initial hydration/map selection; it does not prove full login or
+live glyph persistence. Syntax-only ownership, architecture check/self-test and
+diff checks pass. The final `validation-v2 quick` passes (exit 0), including
+workspace all-target and isolated bot checks; manifest
+`target/validation-v2/manifests/20260905T030336.592145Z-253993-quick.json`.
+No fresh capture, runtime install/restart, push or terminal acceptance is claimed.
+This does not close #578: the remaining catalogs and gameplay orchestration still
+need to leave Session, and the glyph mutation adapter itself remains transitional.
 
 ### 2026-09-05 — Cast readiness and interruption are Unit-domain transitions
 

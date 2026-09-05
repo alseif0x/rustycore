@@ -315,13 +315,15 @@ pub struct ItemValuationCatalogsLikeCpp {
     pub disenchant_loot: Arc<ItemDisenchantLootStore>,
 }
 
-/// Process-owned C++ `PlayerInfo` creation data borrowed during login.
+/// Process-owned C++ Player creation data and glyph catalog borrowed during login.
 ///
 /// C++ stores the base row plus `customSpells` and per-create-mode
 /// `castSpells` under `ObjectMgr` (`Globals/ObjectMgr.h:649-663`) and resolves
 /// it through `sObjectMgr->GetPlayerInfo`; it is never session-owned.
 pub struct PlayerBootstrapCatalogsLikeCpp {
     pub create_info: Arc<PlayerCreateInfoStoreLikeCpp>,
+    /// C++ process-wide sGlyphPropertiesStore, borrowed during Player::_LoadGlyphs.
+    pub glyph_properties: Arc<GlyphPropertiesStore>,
     pub cast_spells: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
     pub custom_spells: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
     /// C++ `World` policy consumed by `Player::LearnCustomSpells`.
@@ -532,6 +534,7 @@ impl Default for PlayerBootstrapCatalogsLikeCpp {
     fn default() -> Self {
         Self {
             create_info: Arc::new(PlayerCreateInfoStoreLikeCpp::default()),
+            glyph_properties: Arc::new(GlyphPropertiesStore::from_entries([])),
             cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
             custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
             start_all_spells: false,
@@ -6921,7 +6924,6 @@ pub struct WorldSession {
     talent_store: Option<Arc<TalentStore>>,
     talent_tab_store: Option<Arc<TalentTabStore>>,
     num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
-    glyph_properties_store: Option<Arc<GlyphPropertiesStore>>,
     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
@@ -8928,7 +8930,6 @@ impl WorldSession {
             talent_store: None,
             talent_tab_store: None,
             num_talents_at_level_store: None,
-            glyph_properties_store: None,
             spell_chain_store: None,
             spell_category_store: None,
             npc_spell_click_store: None,
@@ -29159,14 +29160,6 @@ impl WorldSession {
         self.num_talents_at_level_store.as_ref()
     }
 
-    pub fn set_glyph_properties_store(&mut self, store: Arc<GlyphPropertiesStore>) {
-        self.glyph_properties_store = Some(store);
-    }
-
-    pub(crate) fn glyph_properties_store(&self) -> Option<&Arc<GlyphPropertiesStore>> {
-        self.glyph_properties_store.as_ref()
-    }
-
     pub fn set_spell_chain_store(&mut self, store: Arc<SpellChainStoreLikeCpp>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.spell_chain_store = Some(store);
@@ -34599,8 +34592,10 @@ impl WorldSession {
         ))
     }
 
+    /// Borrow the required process catalog; tests supply explicit fixture data.
     pub(crate) fn load_represented_glyph_row_like_cpp(
         &mut self,
+        glyph_properties: &GlyphPropertiesStore,
         talent_group: u8,
         glyph_slot: u8,
         glyph_id: u16,
@@ -34615,11 +34610,7 @@ impl WorldSession {
             return false;
         }
 
-        if glyph_id != 0
-            && self
-                .glyph_properties_store()
-                .is_some_and(|store| store.get(u32::from(glyph_id)).is_none())
-        {
+        if glyph_id != 0 && glyph_properties.get(u32::from(glyph_id)).is_none() {
             return false;
         }
 

@@ -4662,6 +4662,7 @@ async fn run_inner(
                 }),
                 player_bootstrap: Arc::new(wow_world::session::PlayerBootstrapCatalogsLikeCpp {
                     create_info: Arc::clone(&player_create_info_store),
+                    glyph_properties: Arc::clone(&glyph_properties_store),
                     cast_spells: Arc::clone(&player_create_cast_spell_store),
                     custom_spells: Arc::clone(&player_create_custom_spell_store),
                     start_all_spells: world_config_bool(
@@ -4920,7 +4921,6 @@ async fn run_inner(
             talent_store: Arc::clone(&talent_store),
             talent_tab_store: Arc::clone(&talent_tab_store),
             num_talents_at_level_store: Arc::clone(&num_talents_at_level_store),
-            glyph_properties_store: Arc::clone(&glyph_properties_store),
             chr_races_store: Arc::clone(&chr_races_store),
             chr_classes_store: Arc::clone(&chr_classes_store),
         },

@@ -10,6 +10,8 @@ mod connection;
 mod dispatch;
 #[path = "session/tests/driver.rs"]
 mod driver;
+#[path = "session/tests/glyph_catalog.rs"]
+mod glyph_catalog;
 #[path = "session/tests/lifecycle.rs"]
 mod lifecycle;
 #[path = "session/tests/lifecycle_persistence.rs"]
@@ -812,7 +814,7 @@ fn player_spell_hit_source_authority_requires_empty_traits_and_active_glyphs_lik
     );
 
     assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
-    assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(123), 0, 0, 123));
     assert!(
         !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
         "C++ _LoadGlyphAuras casts every nonzero active-group glyph"
@@ -61698,7 +61700,7 @@ fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
     session.set_represented_bonus_talent_groups_like_cpp(1);
     assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
     assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
-    assert!(session.load_represented_glyph_row_like_cpp(1, 3, 456));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(456), 1, 3, 456));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
 
@@ -61813,21 +61815,20 @@ fn talent_reset_persistence_plan_carries_capped_fee_and_empty_retained_set() {
 #[test]
 fn character_glyph_load_filters_invalid_rows_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_glyph_properties_store(Arc::new(wow_data::GlyphPropertiesStore::from_entries([
-        wow_data::GlyphPropertiesEntry {
+    let glyph_properties =
+        wow_data::GlyphPropertiesStore::from_entries([wow_data::GlyphPropertiesEntry {
             id: 123,
             spell_id: 10,
             glyph_type: 1,
             glyph_exclusive_category_id: 0,
             spell_icon_file_data_id: 0,
             glyph_slot_flags: 0,
-        },
-    ])));
+        }]);
 
-    assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
-    assert!(!session.load_represented_glyph_row_like_cpp(4, 0, 123));
-    assert!(!session.load_represented_glyph_row_like_cpp(0, 6, 123));
-    assert!(!session.load_represented_glyph_row_like_cpp(0, 1, 999));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_properties, 0, 0, 123));
+    assert!(!session.load_represented_glyph_row_like_cpp(&glyph_properties, 4, 0, 123));
+    assert!(!session.load_represented_glyph_row_like_cpp(&glyph_properties, 0, 6, 123));
+    assert!(!session.load_represented_glyph_row_like_cpp(&glyph_properties, 0, 1, 999));
     session.mark_represented_glyphs_loaded_like_cpp();
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
@@ -61840,7 +61841,7 @@ fn update_talent_data_uses_bonus_talent_group_count_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_represented_active_talent_group_like_cpp(1);
     session.set_represented_bonus_talent_groups_like_cpp(1);
-    assert!(session.load_represented_glyph_row_like_cpp(1, 2, 321));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(321), 1, 2, 321));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
 

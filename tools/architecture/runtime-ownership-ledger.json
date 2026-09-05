@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "719 exact Rust named-field identifiers: 287 production and 432 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
+    "field_identity": "718 exact Rust named-field identifiers: 286 production and 432 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 719,
+      "expected_field_count": 718,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -638,7 +638,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 136,
+        "expected_field_count": 135,
         "field_names": [
           "access_requirement_store",
           "area_table_store",
@@ -671,7 +671,6 @@
           "gameobject_display_info_store",
           "gameobject_template_lifecycle_store_like_cpp",
           "gem_properties_store",
-          "glyph_properties_store",
           "heirloom_store",
           "item_appearance_store",
           "item_bonus_db2_store",
@@ -777,7 +776,7 @@
           "waypoint_path_resolver_like_cpp",
           "world_safe_loc_store_like_cpp"
         ],
-        "current_storage": "136 production immutable catalog/configuration/service fields remain on WorldSession. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. The grid-load callback is borrowed for movement/login. Hotfix delivery now borrows the process catalog for initialization and requests; its Session field, setter and getter are deleted, with no fixture mirror. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
+        "current_storage": "135 production immutable catalog/configuration/service fields remain on WorldSession. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. Grid-load, hotfix and glyph catalogs are borrowed by their consumers. Glyph login validation now borrows the required PlayerBootstrap catalog; its Session field, setter and getter are deleted, with no fixture mirror. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
         "sole_writer": "world-server bootstrap constructs the process-wide value; create_session/setters assign the Session handle once. Runtime code should read but not mutate immutable catalogs.",
         "readers": "Handlers and gameplay helpers across wow-world.",
         "clock_lifetime": "Mostly process lifetime; a Session retains Arc handles for its connection lifetime. Generators and mutable services retain their own process-wide owner.",
@@ -1059,9 +1058,9 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       }
     ],
-    "expected_field_count": 719,
-    "expected_unique_field_count": 719,
-    "expected_production_field_count": 287,
+    "expected_field_count": 718,
+    "expected_unique_field_count": 718,
+    "expected_production_field_count": 286,
     "expected_test_fixture_field_count": 432
   },
   "inventories": {
@@ -1470,11 +1469,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81429,
-          "test_lines": 102893,
-          "total_lines": 184322,
+          "production_lines": 81419,
+          "test_lines": 102945,
+          "total_lines": 184364,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 cast-domain transitions: production shrinks 26 lines as readiness, interruption and timing queries move to Unit-owned CastExecutionStateLikeCpp. No field, Session signature or clock changes; generation-checked adapters and existing tests remain. Four new entities tests prove the transition boundaries and retained payload/timestamps. Scheduling and current-spell-reference policy convergence remain open; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 glyph catalog borrowing: production shrinks 10 lines after removing the Session catalog, setter and getter. Bootstrap and the load adapter require the catalog; tests now supply explicit rows. Tests grow 52 lines for active/detached borrowed-catalog filtering and missing-owner rejection. Character login grows one line to pass the reference; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1496,9 +1495,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20588,
+          "production_lines": 20589,
           "test_lines": 12810,
-          "total_lines": 33398,
+          "total_lines": 33399,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "latest_growth_review": "Canonical Player lookup/Option propagation through login and instance hydration, borrowed required grid capability and updated fixtures. Smaller tests are ratcheted down. Gameplay/application orchestration remains pending #578. Review and exact deltas: docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [

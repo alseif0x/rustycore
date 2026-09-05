@@ -17,6 +17,18 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-05, #578 glyph catalog extraction — represented glyph loading differs from C++.**
+  Verified on pre-slice `b4d407b9`: `load_represented_glyph_row_like_cpp` in
+  `crates/wow-world/src/session/mod.rs` skips catalog validation for glyph ID zero
+  and writes `glyph_groups[talent_group][glyph_slot]`. C++ `Player.cpp:26573-26598`
+  checks `sGlyphPropertiesStore.LookupEntry(glyphId)` even for zero and calls
+  `SetGlyph`; `Player.cpp:25477-25481` writes to `GetActiveTalentGroup()`.
+  The represented zero-row clearing and row-selected group remain unchanged in
+  this ownership refactor. The active/detached borrowed-catalog regression retains
+  zero clearing explicitly. Whether the legacy group selection is itself a defect
+  needs separate client/persistence evidence before changing either policy. This
+  is a verified source discrepancy, not a claim of a reproduced client failure.
+
 - **2026-09-05, #578 catalog extraction — HotfixConnect uses the primary socket.**
   Confirmed against pre-slice `13c984a6`: `handle_hotfix_request` in
   `crates/wow-world/src/handlers/character/account.rs` calls generic `send_packet`, which
