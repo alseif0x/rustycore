@@ -33,7 +33,10 @@ The approved [module design guidelines](../architecture/module-design-guidelines
 both semantic boundaries and physical source/test navigability. Remaining monolith decomposition
 remains #578 C2/C4 implementation work; #583 applies the same policy to its own SDK/modules.
 The physical ratchet implemented above `8f5caedc` now covers repository source/tests/tooling,
-with 103 explicit legacy non-growth ceilings and an independent terminal mode. The existing
+with 103 initial legacy non-growth ceilings and an independent terminal mode. The first Rust
+split above `d3f5c20c` reduces the persistence facade from 4,513 to 544 lines, preserving root
+public contracts in private operation modules and retiring its legacy ceiling (102 remain).
+This is physical decomposition, not closure of broad lifecycle capability cohesion. The existing
 logical-owner guards remain. Migration PASS is not terminal acceptance: the legacy files
 still need their stated splits or concrete bounded exceptions before #578 closes.
 

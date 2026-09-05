@@ -3,6 +3,44 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Persistence contract source decomposition — 2026-09-05
+
+Above `d3f5c20c`, the former 4,513-line `wow-persistence/src/lib.rs` becomes a
+544-line facade. Twenty private modules group the existing contracts by operation:
+login, save, lifecycle, account collections, economy, battle pets, groups, social,
+void storage, session administration/account and the smaller query/runtime capabilities.
+The existing 252 root public declarations retain explicit root reexports. There are no
+new crates, dependencies, runtime owners, port methods or shared contexts. The largest
+new module is `player_login.rs` at 766 lines; the unchanged crate-root regression suite
+lives in `tests.rs` at 671 lines. The reviewed physical-policy row for the facade is
+retired, reducing the initial 103 legacy oversized files to **102**, without raising
+another ceiling or granting an exception.
+
+This is a behavior-preserving relocation, not terminal C2 capability cohesion:
+`PlayerLifecyclePortLikeCpp` retains its existing breadth. `PersistenceOutcomeLikeCpp`
+and its Applied/Failed/Unknown distinctions, transaction requests and adapters are unchanged.
+The owning behavioral contract remains
+[`player-lifecycle-persistence-contract.md`](../migration/player-lifecycle-persistence-contract.md).
+C++ anchors inspected before the move include `Entities/Player/Player.cpp:19323`
+(`SaveToDB`, including far-transfer deferral), `:19685` (pet/save continuation),
+`:19692` (`SaveInventoryAndGoldToDB`), and `BattlePets/BattlePetMgr.cpp:240/:331`
+(`LoadFromDB`/`SaveToDB`). Existing timing/transaction differences are not repaired
+or approved by moving their declarations.
+
+Mechanical comparison against `d3f5c20c` accounts for every original declaration/body
+exactly once: all 20 extracted module bodies and the complete original test body match
+after independent rustfmt normalization. On aarch64, the unchanged persistence suite
+passes before and after (35 tests, identical test paths); all 25 lifecycle adapter tests
+pass; all six `wow-world --test production_login_player_owner` integration tests pass
+(including late mutation, replacement, rollback, Unknown and cancellation). These use a
+controlled persistence port, not live MariaDB. `cargo check --offline --locked -p world-server --all-targets` passes with
+existing warnings. Architecture check/self-test, the physical guard (935 source files,
+102 legacy ceilings), and the syntax-only Session ownership ratchet pass without changes
+to the eight logical-owner budgets. `validation-v2 quick --base d3f5c20c` passes; initial manifest:
+`target/validation-v2/manifests/20260905T225133.566739Z-1278495-quick.json`.
+No packet/SQL change, live runtime installation, fresh capture, publication or macro
+completion is claimed. The remaining source and semantic cuts stay within #578 C0–C4.
+
 ## Physical source ratchet and checker separation — 2026-09-05
 
 Above `8f5caedc`, #578 C4 implements the approved physical branch in the existing

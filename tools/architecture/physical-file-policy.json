@@ -411,13 +411,6 @@
       "review_checkpoint": "578:C4"
     },
     {
-      "path": "crates/wow-persistence/src/lib.rs",
-      "observed_lines": 4513,
-      "ceiling_lines": 4513,
-      "split": "Split operation DTO/port contracts by transaction capability; retain required reexports without a universal persistence context.",
-      "review_checkpoint": "578:C4"
-    },
-    {
       "path": "crates/wow-recastdetour/src/lib.rs",
       "observed_lines": 3194,
       "ceiling_lines": 3194,
