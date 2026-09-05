@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81480,
-          "test_lines": 103475,
-          "total_lines": 184955,
+          "production_lines": 81495,
+          "test_lines": 103563,
+          "total_lines": 185058,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 save writeback correction: delete the save-snapshot replay method and consume captured header values directly. Production shrinks 18 lines; tests grow 119 for the pre-fix-reproduced near-teleport relocation on failed save, all three commit outcomes and frozen-header consumption. No new state or dependency; transaction/fence/cleanup ordering retained. This intentionally removes unintended gameplay writes; live save/teleport acceptance remains pending. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 difficulty ownership: one native Player mutation replaces tuple snapshot/writeback; save reads all three preferences together. Production grows 15 measured lines for explicit fixture/native branches and grouped save read; tests grow 88 for one callback under the owner guard, active/detached save values and stale/missing rejection. No new fields, signatures, dependencies or clocks. Prior live save/teleport acceptance remains pending; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

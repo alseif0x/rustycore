@@ -137,6 +137,8 @@ impl WorldSession {
                 "RUST_PLAYER_POWER_SAVE skipped: no authoritative canonical power snapshot"
             );
         }
+        let (dungeon_difficulty, raid_difficulty, legacy_raid_difficulty) =
+            self.player_difficulty_preferences_snapshot_like_cpp()?;
         let character = PlayerCharacterSnapshotSaveLikeCpp {
             position: PlayerPositionSaveLikeCpp {
                 x: snapshot.position.x,
@@ -160,9 +162,9 @@ impl WorldSession {
             talent_reset_cost: self.represented_talent_reset_cost_like_cpp()?,
             talent_reset_time: self.represented_talent_reset_time_secs_like_cpp()?,
             explored_zones: self.represented_explored_zones_db_string_like_cpp()?,
-            dungeon_difficulty: self.resolved_dungeon_difficulty_id_like_cpp()?,
-            raid_difficulty: self.resolved_raid_difficulty_id_like_cpp()?,
-            legacy_raid_difficulty: self.resolved_legacy_raid_difficulty_id_like_cpp()?,
+            dungeon_difficulty,
+            raid_difficulty,
+            legacy_raid_difficulty,
         };
 
         let spell_runtime = self.player_spell_runtime_snapshot_like_cpp();

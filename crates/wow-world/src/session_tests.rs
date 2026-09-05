@@ -6,6 +6,8 @@ mod active_cast_owner;
 mod admission;
 #[path = "session/tests/connection.rs"]
 mod connection;
+#[path = "session/tests/difficulty_owner.rs"]
+mod difficulty_owner;
 #[path = "session/tests/dispatch.rs"]
 mod dispatch;
 #[path = "session/tests/driver.rs"]

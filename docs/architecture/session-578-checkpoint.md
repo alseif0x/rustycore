@@ -58,6 +58,38 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Difficulty preferences mutate and save as one owner group
+
+Ownership migration based on `39fb9f3a`: difficulty mutation now borrows the
+three native Player fields under one generation-checked owner access rather
+than mutating a copied tuple and writing all three fields back in a second
+access. Full save reads the preference tuple once instead of resolving three
+individual values separately. Full replacement remains for explicit login/group
+hydration, where the caller intentionally supplies all three authoritative values.
+
+C++ `Player.h:1965-1967` owns the setters on Player and
+`Player.cpp:19488-19511` saves the three preferences from that same Player.
+All Rust mutation callbacks were audited: they only update selected difficulty
+fields synchronously, with no owner re-entry, await, SQL or publication. Group
+membership/instance-entry checks and packet publication remain outside the
+mutation in their original order. This does not move group authority or a clock.
+
+Two new tests prove one callback under the owner guard for active/detached
+Player, preservation of unselected preferences, exact save-header values,
+released guard and no packet emission, plus stale/missing-owner rejection
+without touching replacement preferences. No fields, public API, crate edges,
+or full-save/teleport acceptance gates are retired by this bounded cut.
+
+On aarch64, `wow-world --lib` passes 3,703/0 with one ignored and syntax-only
+ownership passes without any baseline change: 284 production + 432 fixture
+fields, 3,658 associated items and 590 registrations. Formatting and diff checks
+pass. The reviewed logical measure is 81,495 production + 103,563 test lines;
+growth is the explicit single-owner path and the two focused owner tests.
+Architecture check/self-test and `validation-v2 quick` pass (exit 0), manifest
+`target/validation-v2/manifests/20260905T041129.470223Z-347557-quick.json`.
+No capture, restart, push or terminal acceptance is claimed. The prior request
+for guarded live save/teleport QA authorization remains unanswered.
+
 ### 2026-09-05 — Retire save-snapshot writeback into gameplay
 
 Verdict: the save snapshot is persistence input, not a command to mutate Player.

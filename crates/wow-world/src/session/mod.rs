@@ -26546,11 +26546,24 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut u32, &mut u32, &mut u32) -> R,
     ) -> Option<R> {
-        let (mut dungeon, mut raid, mut legacy_raid) =
-            self.player_difficulty_preferences_snapshot_like_cpp()?;
-        let result = f(&mut dungeon, &mut raid, &mut legacy_raid);
-        self.replace_player_difficulty_preferences_like_cpp(dungeon, raid, legacy_raid)
-            .then_some(result)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(f(
+                &mut self.represented_dungeon_difficulty_id_like_cpp,
+                &mut self.represented_raid_difficulty_id_like_cpp,
+                &mut self.represented_legacy_raid_difficulty_id_like_cpp,
+            ));
+        }
+        // Player.h:1965-1967: mutate this Player's preferences, not a copied tuple.
+        // Callbacks are synchronous field updates; no owner re-entry or publication.
+        self.with_owned_player_mut_like_cpp(|player| {
+            let state = player.gameplay_state_mut();
+            f(
+                &mut state.dungeon_difficulty_id,
+                &mut state.raid_difficulty_id,
+                &mut state.legacy_raid_difficulty_id,
+            )
+        })
     }
 
     pub(crate) fn resolved_dungeon_difficulty_id_like_cpp(&self) -> Option<u32> {
