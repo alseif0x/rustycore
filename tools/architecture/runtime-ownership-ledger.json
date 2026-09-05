@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81517,
+          "production_lines": 81485,
           "test_lines": 103805,
-          "total_lines": 185322,
+          "total_lines": 185290,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 rest load: one native Player command replaces separate flag read, cloned reset and bonus mutation; the old reset helper is test-only. Measured growth is 8 production-classified lines for the fixture branch and 78 test lines covering 20 active/detached, loaded-flag and persisted-state combinations plus stale/missing load rejection. No new Session state, dependencies or clocks; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 rest flag rules: Session set/remove adapters delegate to PlayerRestState methods under the existing mutation owner. Production decreases 32 measured lines; tests unchanged. Clock acquisition stays lazy at the first nonempty flag transition, publication stays outside the guard, and no fields, Session signatures or registrations change; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1546,11 +1546,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10468,
-          "test_lines": 9371,
-          "total_lines": 19839,
+          "production_lines": 10517,
+          "test_lines": 9429,
+          "total_lines": 19946,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: Player owns the rest-load command, resetting only transient location fields and loading XP bonus/state through its existing projection. Growth: 17 production lines, no entity test growth; world native-owner tests cover all persisted-state variants and preserved loaded flags/unrelated state. No new state, dependency or clock; full RestMgr parity remains open. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: PlayerRestState owns set/remove flag rules. Growth: 49 production and 58 test lines; tests pin lazy clock acquisition, overlapping and repeated flags, first/last transition, deferred dirty state and the existing absent-tavern cleanup. No new state, dependency or clock; full RestMgr parity remains open. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

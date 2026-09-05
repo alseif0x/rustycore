@@ -32802,46 +32802,14 @@ impl WorldSession {
         trigger_id: u32,
     ) -> bool {
         self.mutate_player_rest_state_like_cpp(|state| {
-            let old_mask = state.rest_flag_mask;
-            state.location_initialized = true;
-            state.rest_flag_mask |= rest_flag;
-            let crossed_zero = old_mask == 0 && state.rest_flag_mask != 0;
-            if crossed_zero {
-                state.rest_time_secs = Self::current_game_time_secs_like_cpp();
-            }
-            if trigger_id != 0 {
-                state.inn_area_trigger_id = trigger_id;
-            }
-            if crossed_zero && state.defer_flag_sync {
-                state.deferred_flag_update_dirty = true;
-            }
-            crossed_zero
+            state.set_flag_like_cpp(rest_flag, trigger_id, Self::current_game_time_secs_like_cpp)
         })
         .unwrap_or(false)
     }
 
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
-        self.mutate_player_rest_state_like_cpp(|state| {
-            let old_mask = state.rest_flag_mask;
-            state.rest_flag_mask &= !rest_flag;
-            if old_mask != state.rest_flag_mask {
-                state.location_initialized = true;
-            }
-            if (rest_flag & REST_FLAG_IN_TAVERN_LIKE_CPP) != 0
-                && (state.rest_flag_mask & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0
-            {
-                state.inn_area_trigger_id = 0;
-            }
-            let crossed_zero = old_mask != 0 && state.rest_flag_mask == 0;
-            if crossed_zero {
-                state.rest_time_secs = 0;
-                if state.defer_flag_sync {
-                    state.deferred_flag_update_dirty = true;
-                }
-            }
-            crossed_zero
-        })
-        .unwrap_or(false)
+        self.mutate_player_rest_state_like_cpp(|state| state.remove_flag_like_cpp(rest_flag))
+            .unwrap_or(false)
     }
 
     fn update_represented_rest_flag_like_cpp(&mut self, rest_flag: u32, active: bool) -> bool {

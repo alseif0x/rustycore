@@ -58,6 +58,39 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player rest state owns flag transition rules
+
+Ownership migration based on `986665be`: the Session set/remove flag adapters
+now delegate to `PlayerRestState::set_flag_like_cpp` / `remove_flag_like_cpp`
+inside the existing native mutation guard. The domain state owns mask changes,
+first/last transition, rest time, trigger and deferred-publication bookkeeping.
+The injected clock is called only on the first nonempty transition, at the same
+point within the guard as before; no clock, state copy or dependency is added.
+
+C++ `RestMgr.cpp:95-122` defines first/last rest transitions and `RestMgr.h:53-55`
+defines tavern/city/faction masks. The represented Rust location-initialization,
+tavern-trigger cleanup and deferred-publication rules are moved unchanged; in
+particular Rust clears an absent tavern trigger while C++ RemoveRestFlag does not
+clear that field. This refactor preserves that existing difference rather than
+silently changing gameplay. All Session callers retain their order, C++ area/zone
+gates, projection through Player and packet sends outside the guard.
+
+Two new entity tests cover empty, repeated and overlapping flags, a changed
+tavern trigger without a new start time, last removal, repeated removal, deferred
+dirty bookkeeping and unrelated state preservation. Existing world tests cover
+active/detached/stale native ownership and area/tavern packet behavior. Exact
+Session syntax policy passes unchanged: no new fields, methods or registrations.
+Reviewed logical ceilings: Session 81,485 + 103,805 = 185,290 (32 production
+lines removed); Player 10,517 + 9,429 = 19,946 (49 production + 58 test lines
+added). Full RestMgr parity and #578 acceptance remain open.
+
+Validation on aarch64: world library 3,707 passed/zero failed/one ignored;
+entities library 703 passed/zero failed. Compilation, formatting/diff checks,
+syntax ownership, architecture check/self-test and quick validation pass.
+Quick evidence:
+`target/validation-v2/manifests/20260905T043723.122118Z-390134-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
+
 ### 2026-09-05 — Rest load is one native Player command
 
 Ownership migration based on `e663fcde`: production rest load now performs one
