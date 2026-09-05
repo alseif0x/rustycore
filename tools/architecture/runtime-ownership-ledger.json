@@ -1445,11 +1445,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81844,
-          "test_lines": 105504,
-          "total_lines": 187348,
+          "production_lines": 81859,
+          "test_lines": 106357,
+          "total_lines": 188216,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +6 production/+1 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 coherent full-save capture/confirmation: +15 production/+853 test lines across the logical Session, including the old builder/group-wide ACK moved to a 608-line test-only oracle. Two narrow preparation/header methods replace five production helpers; no Session field added. Pure projection, prepared receipt and orchestration remain separate bounded private files. Late-change, rollback/unknown/cancellation and replacement-incarnation evidence in session-578-checkpoint.md. C1/C2/C4 remain open; this is not a renewed physical monolith exception.",
           "open_retirement_issues": [
             578
           ],
@@ -1518,11 +1518,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 11077,
-          "test_lines": 9906,
-          "total_lines": 20983,
+          "production_lines": 11278,
+          "test_lines": 10128,
+          "total_lines": 21406,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: native known spell commands; +35 production/+37 test lines. Replacement owns metadata pruning, grants preserve insertion order and dependent marking respects row authority. Native tests preserve duplicate/signed IDs and dirty row state. No new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 exact save-projection acknowledgement: +201 production/+222 tests. Opaque single-use receipt and row reconciliation belong to native Player, not Session/SQL/ECS; no persistent state mirror, extra lock or clock. Value comparisons and INSERT/DELETE rebasing preserve later mutations. Application binds the receipt to its generation handle. New private implementation/test files stay below 1,000 lines. Boundaries and evidence: session-578-checkpoint.md; review again at C1/C4, not a blanket size exemption.",
           "open_retirement_issues": [
             578
           ],

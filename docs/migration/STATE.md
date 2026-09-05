@@ -75,15 +75,19 @@ restart completed work from an old issue diagnosis or silently narrow a mileston
 The latest [modularity and ECS plan](../architecture/modularity-and-ecs-plan.md), reviewed above
 laboratory HEAD `ee9a0128`, **selects private selective `hecs` now**, retaining cohesive domain
 aggregates. This is a design choice, not an installed backend or proof it beats every alternative.
-The next #578 checkpoint is finite independent-state/third-module conformance before production
-migration, not another open-ended backend selection. Its two-module pre-freeze stage now passes
+The finite independent-state/third-module checkpoint precedes production migration,
+not another open-ended backend selection. Its two-module pre-freeze stage passes
 at `118171c1`; the post-freeze independent third module also passes all four producer/lifecycle
 tests at `c67acbfd`, without host/ABI/oracle edits. The 320-sample aarch64 campaign also passes
 all preregistered gates: [result, costs and retained evidence](../architecture/modularity-conformance-results.md).
 This completes finite pre-migration conformance, not production acceptance or a 10 ms frame
 budget; the next checkpoint is the first real C1/C2 vertical with C0 admission/phase evidence.
-All C0–C4 obligations and
-production save/admission/phase/lifetime acceptance remain open as recorded in the checkpoint.
+The first production C1 cut now captures one coherent full-save projection and acknowledges
+only its saved incarnation/row values, retaining changes made during pending I/O. The old
+group-wide ACK is test-only. Production-linked controlled-persistence tests cover late change,
+replacement, rollback, Unknown and cancellation; they do not establish real DB/relogin or
+scheduler parity. All C0–C4 acceptance remains open to the extent recorded in the
+[checkpoint](../architecture/session-578-checkpoint.md), including far-transfer save semantics.
 
 Native Rust is the default for first-party/custom extensions; Wasmtime/Core Wasm is the selected
 operator-optional executor of shared hooks/state/lifecycle contracts. **Scope expansion:** #583

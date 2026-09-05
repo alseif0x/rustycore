@@ -28,6 +28,8 @@ use wow_persistence::{
 };
 
 struct RecordingPortLikeCpp {
+    during_save: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    save_pending: std::sync::atomic::AtomicBool,
     seen: Mutex<Vec<PlayerOfflineMarkLikeCpp>>,
     collection_loads: Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
@@ -48,6 +50,8 @@ struct RecordingPortLikeCpp {
 impl RecordingPortLikeCpp {
     fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
         Arc::new(Self {
+            during_save: Mutex::new(None),
+            save_pending: std::sync::atomic::AtomicBool::new(false),
             seen: Mutex::new(Vec::new()),
             collection_loads: Mutex::new(Vec::new()),
             collections: Mutex::new(Vec::new()),
@@ -365,9 +369,21 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         let committed = request.committed_groups_like_cpp();
         self.character_saves.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
-        Box::pin(async move { PlayerCharacterSaveResultLikeCpp { outcome, committed } })
+        Box::pin(async move {
+            let during_save = self.during_save.lock().unwrap().take();
+            if let Some(during_save) = during_save {
+                during_save();
+            }
+            if self.save_pending.load(std::sync::atomic::Ordering::SeqCst) {
+                std::future::pending::<()>().await;
+            }
+            PlayerCharacterSaveResultLikeCpp { outcome, committed }
+        })
     }
 }
+
+#[path = "lifecycle_persistence/save_interleaving.rs"]
+mod save_interleaving;
 
 fn session_with_port(
     outcome: PersistenceOutcomeLikeCpp,

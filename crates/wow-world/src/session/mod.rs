@@ -10936,56 +10936,7 @@ impl WorldSession {
         // Session map/level staging and the existing residence-specific health
         // projection remain explicit compatibility debt, not a new source of truth.
         manager.with_player_like_cpp(handle, |player| {
-            let teleport = &player.gameplay_state().teleport;
-            let destination = self
-                .pending_teleport
-                .map(|(map, position)| (u16::try_from(map).unwrap_or(u16::MAX), position))
-                .or_else(|| {
-                    teleport
-                        .near_pending
-                        .then_some(teleport.near_destination)
-                        .flatten()
-                });
-            let (map_id, instance_id, position) = if let Some((map_id, position)) = destination {
-                (map_id, 0, position)
-            } else {
-                let instance_id = match residence {
-                    wow_map::PlayerResidenceLikeCpp::Active(key) => key.instance_id,
-                    wow_map::PlayerResidenceLikeCpp::Detached => 0,
-                };
-                (
-                    self.player_map_id_like_cpp(),
-                    instance_id,
-                    player.unit().world().position(),
-                )
-            };
-            let unit = player.unit();
-            let max_health = unit.data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
-            let health = match residence {
-                wow_map::PlayerResidenceLikeCpp::Active(_) => {
-                    let health = unit.data().health.min(u64::from(u32::MAX)) as u32;
-                    if unit.is_alive() && health > 0 {
-                        health
-                    } else {
-                        0
-                    }
-                }
-                wow_map::PlayerResidenceLikeCpp::Detached => {
-                    unit.data().health.min(u64::from(max_health)) as u32
-                }
-            };
-            PlayerSaveToDbSnapshotLikeCpp {
-                guid,
-                map_id,
-                instance_id,
-                position,
-                level: self.player_level_like_cpp(),
-                xp: player.active_data().xp.max(0) as u32,
-                money: player.money(),
-                health,
-                max_health,
-                powers: loaded_character_power_snapshot_like_cpp(unit.data().power),
-            }
+            self.player_save_header_from_owner_like_cpp(player, residence)
         })
     }
 
@@ -34889,6 +34840,7 @@ impl WorldSession {
     /// preserve its active bit if it was disabled, activate it otherwise, and
     /// clear disabled. Favorites are deliberately untouched because learning
     /// preserves them and the incomplete runtime cannot reconstruct them.
+    #[cfg(test)]
     fn mark_equipment_sets_saved_like_cpp(&mut self) {
         let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
             sets.retain(|_, equipment_set| {

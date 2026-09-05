@@ -20,6 +20,8 @@ mod pet_lifecycle;
 mod progression;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 mod resurrection;
+mod save_ack;
+pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
 mod social;
 mod spellbook;
 mod visibility;

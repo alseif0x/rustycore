@@ -16,6 +16,7 @@ use wow_persistence::*;
 use wow_world::{WorldSession, session::*};
 
 struct LoginPort {
+    save_probe: std::sync::Mutex<Option<Arc<save::SaveProbe>>>,
     reached_pet_load: AtomicBool,
     reached_inventory_load: AtomicBool,
     stop_at_pet_load: bool,
@@ -28,6 +29,9 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         &'a self,
         _: PlayerOfflineMarkLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        if self.save_probe.lock().unwrap().is_some() {
+            return Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } });
+        }
         panic!("unexpected mark_offline_like_cpp");
     }
     fn persist_homebind_like_cpp<'a>(
@@ -40,6 +44,9 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         &'a self,
         _: PlayerBuybackClearRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        if self.save_probe.lock().unwrap().is_some() {
+            return Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } });
+        }
         panic!("unexpected clear_buyback_like_cpp");
     }
     fn persist_money_transaction_like_cpp<'a>(
@@ -159,13 +166,16 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         &'a self,
         _: AccountCollectionSaveLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        if self.save_probe.lock().unwrap().is_some() {
+            return Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } });
+        }
         panic!("unexpected save_account_collection_like_cpp");
     }
     fn save_character_like_cpp<'a>(
         &'a self,
-        _: PlayerCharacterSaveRequestLikeCpp,
+        request: PlayerCharacterSaveRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterSaveResultLikeCpp> {
-        panic!("unexpected save_character_like_cpp");
+        save::save(self, request)
     }
 
     fn load_character_base_like_cpp<'a>(
@@ -284,8 +294,22 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
 }
 
 async fn exercise_initial_hydration(install_manager: bool, stop_at_pet_load: bool) {
+    let _ = hydrate(install_manager, stop_at_pet_load, false).await;
+}
+
+async fn hydrate(
+    install_manager: bool,
+    stop_at_pet_load: bool,
+    preinsert_player: bool,
+) -> (
+    WorldSession,
+    Arc<LoginPort>,
+    flume::Sender<Vec<u8>>,
+    flume::Receiver<Vec<u8>>,
+) {
     let (_, packet_rx) = flume::bounded(8);
     let (send_tx, send_rx) = flume::bounded(8);
+    let output = send_tx.clone();
     let mut session = WorldSession::new(
         1,
         "fixture".into(),
@@ -300,7 +324,21 @@ async fn exercise_initial_hydration(install_manager: bool, stop_at_pet_load: boo
     );
     let guid = ObjectGuid::create_player(1, 42);
     let manager = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(300_000, 10)));
+    if preinsert_player {
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_map(0, 0).unwrap();
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        manager
+            .lock()
+            .unwrap()
+            .create_world_map(0, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+    }
     let port = Arc::new(LoginPort {
+        save_probe: std::sync::Mutex::new(None),
         reached_pet_load: AtomicBool::new(false),
         reached_inventory_load: AtomicBool::new(false),
         stop_at_pet_load,
@@ -401,7 +439,11 @@ async fn exercise_initial_hydration(install_manager: bool, stop_at_pet_load: boo
         send_rx.is_empty(),
         "no world-entry success may be published during this phase"
     );
+    (session, port, output, send_rx)
 }
+
+#[path = "production_login_player_owner/save.rs"]
+mod save;
 
 #[tokio::test]
 async fn production_login_constructs_player_before_inventory_and_mail_hydration() {

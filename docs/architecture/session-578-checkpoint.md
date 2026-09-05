@@ -3,6 +3,79 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Coherent full-save capture and acknowledgement — 2026-09-05
+
+Implementation starts above `abb072a9`, inside #578 C1. This is an explicit deferred-save
+correctness repair plus boundary extraction, not a claim that a mechanical split preserves
+the old group-wide acknowledgement. No production storage backend or clock changes here.
+
+The old path captured the header and row families through separate canonical reads, then
+cleaned whole **current** groups after asynchronous COMMIT. The regression
+`full_save_ack_does_not_clean_a_spell_added_after_capture` was run red against that path:
+a spell added during the pending save became `Unchanged`, although absent from its request.
+The repaired path passes that test and keeps the later row dirty.
+
+- `session/lifecycle/persistence/prepared.rs` acquires one generation-checked Player read
+  for header, complete SQLx-free request and single-use receipt, then releases the owner.
+  `projection.rs` only projects the admitted Player and the still-session-owned account data.
+- The request alone crosses the persistence await. Confirmed Applied consumes the receipt
+  against the same handle/incarnation; rollback, Unknown and cancellation do not acknowledge.
+  Existing money admission/mutation fences and uncertain-COMMIT quarantine remain in place.
+- Native `Player::acknowledge_saved_projection_like_cpp` compares captured row values,
+  preserves later mutations and rebases incremental spell/equipment INSERT/DELETE states.
+  A later edit of a confirmed NEW row must become Changed, not retry a duplicate INSERT.
+  Skills retain the adapter's complete replacement contract. Reputation delivery flags do
+  not decide whether saved standing/flags are clean. This is a precise value projection,
+  **not numerical row revisions, a generic concurrency SDK or exactly-once persistence**.
+- The old builder/group-wide ACK is a 608-line `cfg(test)` oracle, absent from production.
+  Production orchestration/preparation/projection are 274/199/457 lines; native ACK is 201,
+  with a separate 220-line test file. The production-linked login fixture/save challenge are
+  461/206 lines. No new file crosses the 1,000-line cohesion-review signal.
+- Reviewed logical ceilings: Session +15 production/+853 tests (including the retained
+  old oracle); Player +201 production/+222 tests. This is bounded implementation/evidence
+  growth, not a physical monolith waiver. Syntax delta is five old production helpers made
+  test-only and two narrow preparation/header methods added; Session fields and other
+  ownership definitions remain unchanged. Re-review at C1/C4; legacy fixtures retire when
+  their old-projection equivalence obligations have production-linked replacements.
+
+C++ anchors: `Entities/Player/Player.cpp:19323` (`SaveToDB`), `:20348` (`_SaveSkills`),
+`:20399` (`_SaveSpells`), `:26409` (`_SaveEquipmentSets`), and
+`Reputation/ReputationMgr.cpp:792` (`SaveToDB`), under the legacy reference tree.
+C++ consumes the rows visited during preparation; Rust retains the established #169 rule
+that dirty-state acknowledgement waits for confirmed COMMIT. SQL statement decomposition
+and transaction order in `wow-database/src/player_lifecycle_adapter.rs` are unchanged.
+The diagnostic event now says `player.save.commit_confirmed`, not that all current dirty
+state is clean; it does not claim a stale incarnation accepted the receipt.
+
+Initial aarch64 evidence: six native ACK tests, 39 lifecycle unit tests, and the six-test
+`production_login_player_owner` integration target (three original login tests plus three
+save challenges). The production-linked save cases execute the real public disconnect-save
+path against a controlled port, with a full eight-slot output queue, two real map updates
+during pending I/O, replacement incarnation, late row, rollback, Unknown and cancellation.
+Expanded aarch64 validation on this worktree above `abb072a9`:
+
+- `PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=2 cargo test --offline --locked -p wow-world --lib`:
+  3,742 passed, zero failed, one ignored.
+- The same Cargo environment with `-p wow-entities --lib player::save_ack`: six passed;
+  with `-p wow-database --lib player_lifecycle_adapter::tests`: 25 passed, including the
+  frozen statement order and operation-to-statement mappings.
+- `-p wow-world --test production_login_player_owner`: six passed in debug and release.
+- `session-ownership-check check --syntax-only`, architecture `check` and `self-test`,
+  `cargo fmt --all -- --check`, and `git diff --check`: pass.
+- `./tools/validation-v2 quick --base abb072a9`: pass; retained local manifest
+  `target/validation-v2/manifests/20260905T202802.177176Z-1166643-quick.json`.
+  This intentionally routes the current cut, not all eight earlier unpushed commits or the
+  final PR gate. The unrelated untracked LFG audit was only inspected by hygiene checks,
+  remains byte-identical and is not staged. No live DB/runtime/capture test was run.
+
+Still open: actual scheduler/phase admission C0, private-hecs integration, full login/relogin,
+real MariaDB durability and restart QA, and general ordering against other durable writers.
+The header intentionally retains its previous Session map/level staging and detached-health
+projection; far teleport postponement (`Player.cpp:19327`) needs its own faithful transition
+cut rather than being silently folded into this extraction. Equipment type/identity changes
+across the existing two-table adapter are not generalized by this receipt. No new concurrent
+writer is enabled. These boundaries prevent full C1/C2 or macro acceptance from this result.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,
@@ -140,8 +213,9 @@ before organizing files. Keep all C0–C4 obligations and PR #579; no helper iss
   `.await` may clear only the confirmed saved revisions, or must have an explicit equivalent
   exclusion proof. A late result must not affect a replacement incarnation or erase a newer
   mutation. Preserve existing money fences, cancellation, rollback, unknown-COMMIT and
-  recovery semantics. Fragmented projections/group acknowledgements in
-  `session/lifecycle/persistence.rs` are a migration risk, not a reproduced corruption claim.
+  recovery semantics. The coherent-save cut above replaces fragmented production reads and
+  group-wide ACK; its controlled interleaving reproduces incorrect dirty-state cleanup on the
+  old path, not live database corruption. Full lifecycle/durable-writer acceptance remains open.
 - Preserve C++ far-teleport deferred save (`Player.cpp:19327-19333`) and near-teleport
   destination persistence without relocating the runtime Player (`19480-19514`). Logout
   finishes pending far transfers before saving (`WorldSession.cpp:544-551`). Differences

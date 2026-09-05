@@ -6154,6 +6154,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::session",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::session_commands",
           "trait_path": null,
           "cfg": [],
@@ -26514,8 +26522,10 @@
           "name": "current_player_character_save_request_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn current_player_character_save_request_like_cpp (& mut self , snapshot : & PlayerSaveToDbSnapshotLikeCpp , now_unix_secs : i64 ,) -> Option < PlayerCharacterSaveRequestLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -31051,8 +31061,10 @@
           "name": "mark_current_player_save_to_db_committed_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn mark_current_player_save_to_db_committed_like_cpp (& mut self , committed : & PlayerCharacterCommittedGroupsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -31064,8 +31076,10 @@
           "name": "mark_equipment_sets_saved_like_cpp",
           "visibility": "private",
           "signature": "fn mark_equipment_sets_saved_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -31075,8 +31089,10 @@
           "name": "mark_player_skills_saved_like_cpp",
           "visibility": "private",
           "signature": "fn mark_player_skills_saved_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -31086,8 +31102,10 @@
           "name": "mark_player_spells_saved_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn mark_player_spells_saved_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -33843,6 +33861,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_save_header_from_owner_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_save_header_from_owner_like_cpp (& self , player : & wow_entities :: Player , residence : wow_map :: PlayerResidenceLikeCpp ,) -> PlayerSaveToDbSnapshotLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_scaling_level_delta_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_scaling_level_delta_like_cpp (& self) -> i32",
@@ -33864,6 +33895,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "prepare_player_save_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn prepare_player_save_like_cpp (& mut self , now : i64 ,) -> Option < PreparedPlayerSave >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
