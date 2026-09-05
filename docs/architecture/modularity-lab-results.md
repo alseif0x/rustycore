@@ -1,5 +1,11 @@
 # Controlled modularity experiment — 2026-09-05
 
+**Later planning decision at `ee9a0128`:** the [current plan](modularity-and-ecs-plan.md) selects
+private selective hecs and a native/Wasm module product now, with a finite independent-module
+conformance proof before production migration. That later choice supersedes the *next-step
+recommendation* below, not these measurements or their limits. No second-language or third-module
+experiment has run; the Wasm guest's schema-v2 test is not such an experiment.
+
 ## Reviewed verdict
 
 **The corrected laboratory passes its functional and pre-registered resource gates.** It is

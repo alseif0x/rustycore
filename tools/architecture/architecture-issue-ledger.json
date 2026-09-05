@@ -175,13 +175,14 @@
     297,
     378,
     578,
+    583,
     153
   ],
   "issues": [
     {
       "number": 99,
       "state": "open",
-      "title": "[ARCH.MODULES] External module ecosystem: linked Rust first, sandboxed Wasm later",
+      "title": "[ARCH.MODULES] External module ecosystem: native Rust and operator-optional Wasm",
       "kind": "epic",
       "parents": [
         133
@@ -389,7 +390,8 @@
       ],
       "depends_on": [
         184,
-        578
+        578,
+        583
       ]
     },
     {
@@ -2268,6 +2270,20 @@
       "depends_on": [
         378,
         574
+      ]
+    },
+    {
+      "number": 583,
+      "state": "open",
+      "title": "[ARCH.MODULES.STATEFUL] Deliver native/Wasm gameplay modules with shared hooks and durable lifecycle",
+      "kind": "slice",
+      "parents": [
+        133,
+        99
+      ],
+      "depends_on": [
+        231,
+        578
       ]
     }
   ]

@@ -15,8 +15,9 @@ before implementation. Architecture/tooling work uses its explicit, proportional
 
 ## Current execution agreement — #133 / #578
 
-The approved architecture delivery remains one **macro-issue #578 / draft PR #579**, with #153
-as its terminal independent audit. Keep coherent internal commits and checkpoints; do not turn
+The current ownership delivery remains one **macro-issue #578 / draft PR #579**. The subsequent
+functional modularity proof is **#583 under #99**, then #153 independently audits both before
+#133 closes. Keep coherent internal commits and checkpoints; do not turn
 field families into micro-issues/PRs or require permission to continue between routine steps.
 The contract-led plan and exact remaining boundaries are maintained in
 [`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md), not inferred from the
@@ -42,9 +43,32 @@ work around coherent responsibilities, not outdated table/field diagnoses. Repor
 integrated and parity-proven separately; retain the full Part-1/Part-2 goal. Do not pre-granulate
 #48 or manufacture a new issue tree for every internal cut.
 
-The accepted entity-world ADR is unchanged by this synchronization. Review ECS/backend choices
-next as a separate design question; do not conflate the required ownership contract with an
-already completed storage or scheduling migration.
+The latest approved [complete modularity/ECS plan](../architecture/modularity-and-ecs-plan.md)
+selects private, selective `hecs`, retaining cohesive domain aggregates. Before production storage
+migration, #578 runs the finite independent-module conformance proof: a frozen host accepts a
+third module/new state type, with equivalent native Rust/Rust Core Wasm/C Core Wasm and mixed
+execution cases. The gate can falsify the selection through a concrete backend limitation; it is
+not another indefinite candidate comparison. It has not run. Then #578 proves real-owner
+integration and all C0–C4 lifetime/save/phase/operation obligations. No production dependency has
+been installed, and no SDK-wide prerequisite or new issue is added.
+
+The following #583 macro delivers shared semantic hooks for native first-party/custom modules
+and a bounded Wasm executor with Rust/C bindings, alongside policies, scoped/reentrant encounter
+behavior, independent state composition, durable progress/reward and install/update/disable/recovery.
+**This explicitly expands #133's closure:** Wasm is optional for the operator to enable, not
+optional for #583/#153 acceptance. The bounded delivery no longer waits for M6; broader language
+ecosystem expansion retains the fresh #99 planning gate. #583 depends on #231/#578; #578 does not
+depend on #583 or a production SDK/Wasm executor. #153 audits both completed macros, not the entire
+#99 epic. Native-only and Wasm-enabled builds must preserve the same supported hook contracts;
+the plan does not promise every language, a stable native ABI or hot reload.
+
+The [V1 laboratory is complete](../architecture/modularity-lab-results.md) at `ee9a0128`: its
+corrected campaign passes the recorded functional/resource gates, but does not prove the new
+independent-module/multilanguage gate or production integration. Native remains the default;
+the next checkpoint is the specified conformance proof, not repeated V1 timings. This is one
+expanded complete capability, not a PR per hook. Part 1, Part 2 and the D-track retain their goals
+and hard dependencies; the architecture update is not a fresh audit of every historical gameplay
+issue and does not change their completion states or publication/deployment approvals.
 
 ## Why two parts
 

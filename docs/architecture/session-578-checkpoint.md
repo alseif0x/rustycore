@@ -113,13 +113,37 @@ the actual annotations, contracts and removal work before terminal acceptance. D
 retarget or regenerate the historical inventory during this plan-only update to simulate that
 semantic audit; verify its existing references remain valid while recording the required work.
 
-**ECS review follows this plan synchronization.** The accepted
-[`MapRuntime / EntityWorld` ADR](../migration/adr-map-runtime-entity-world.md) and current
-backend remain unchanged by this update. That separate review will test the backend choice
-against real ownership/API/phase requirements and representative workloads; storage choice
-does not by itself prove lifecycle, concurrency or gameplay correctness.
+The latest approved [modularity/ECS plan](modularity-and-ecs-plan.md) and revised
+[`MapRuntime / EntityWorld` ADR](../migration/adr-map-runtime-entity-world.md) select private,
+selective `hecs`, preserving cohesive domain aggregates and explicit owners. The next checkpoint
+inside #578 is the plan's finite **conformance proof before production storage migration**, not
+another indefinite backend selection. Freeze a private host/adapter contract after two independent
+modules, then add a third module with a new state type without module-specific host/storage edits.
+Exercise equivalent native Rust, Rust Core Wasm and C Core Wasm cases, mixed executors, lifecycle,
+composition/conflicts, reentry and bounded failures. This proof has not run; mock state replay is
+not durable DB evidence. Reopen the choice only for a demonstrated backend-specific limitation,
+not a generic ABI or implementation bug. No SDK-wide prerequisite or new spike issue is added.
 
-### Synchronization evidence
+After conformance, retain every C0–C4 obligation and completed Player contract; prove real-owner
+lifetime/save, phase/publication and bridge retirement for each affected integration. #583 then
+delivers the production external-module proof under #99: shared semantic hooks for native
+first-party/custom modules and a bounded Wasm executor with Rust/C bindings, preserving all
+stateful composition, durable progress/reward and operator lifecycle acceptance. **This expands
+#133's closure requirements:** Wasm is optional for the operator, not optional for #583 acceptance.
+The bounded delivery no longer waits for M6. #153 audits both complete macros; it does not inherit
+their implementation work. #578 does not depend on #583 or a production SDK/Wasm executor.
+Production storage is unchanged by this plan update, reviewed above laboratory HEAD `ee9a0128`;
+the production-code inventory remains based on `93e4002a`.
+
+The subsequent [controlled lab](modularity-lab-results.md) is complete on aarch64: 16 storage
+and 18 native/Core-Wasm contract cases plus 120 corrected-campaign samples pass pre-registered
+lab gates. A first campaign is explicitly superseded after adversarial review, not discarded
+for its timings. Its bounded feasibility evidence informs the selection above; native remains the
+default execution path. The lab does not close C0–C4 or the new conformance gate, prove independent
+arbitrary module state, a C-language guest, save durability, real Map scheduling or external #583
+lifecycle. No production dependency or runtime change follows from the architectural selection.
+
+### Earlier synchronization evidence (before the modularity/ECS update)
 
 Updated and read back GitHub bodies #133, #578, #153, #378, #30, #26, #49 and #99;
 all issue open/closed states were preserved. The main architecture DAG now includes #578

@@ -57,8 +57,26 @@ slice, not general creature spell execution; #30's original claim of no power de
 deduction). Existing #30–#35 and the full-parity ledgers retain their broader contracts. Do not
 restart completed work from an old issue diagnosis or silently narrow a milestone to one capture.
 
-The accepted private entity-world ADR remains in force. A separate ECS/backend review follows
-this plan synchronization; this update neither installs an ECS nor changes that decision.
+The latest [modularity and ECS plan](../architecture/modularity-and-ecs-plan.md), reviewed above
+laboratory HEAD `ee9a0128`, **selects private selective `hecs` now**, retaining cohesive domain
+aggregates. This is a design choice, not an installed backend or proof it beats every alternative.
+The next #578 checkpoint is finite independent-state/third-module conformance before production
+migration, not another open-ended backend selection. It has not run. All C0–C4 obligations and
+production save/admission/phase/lifetime acceptance remain open as recorded in the checkpoint.
+
+Native Rust is the default for first-party/custom extensions; Wasmtime/Core Wasm is the selected
+operator-optional executor of shared hooks/state/lifecycle contracts. **Scope expansion:** #583
+now delivers that bounded adapter and Rust/C guest evidence as well as external stateful modules,
+composition and durable operator lifecycle after #231/#578. #153 audits both macros before #133
+closes, including Wasm acceptance. The bounded delivery no longer waits for M6; the wider #99
+ecosystem retains a fresh planning gate. Current login-message modules do not prove this product.
+
+The completed [V1 laboratory](../architecture/modularity-lab-results.md) supplies 34 contract
+checks and 120 corrected-campaign samples on aarch64, all within its pre-registered budgets.
+It demonstrates the modeled contracts/costs, not arbitrary module state, a non-Rust guest, real
+save durability or production integration. Its first campaign is retained as superseded after
+three test/adapter defects were corrected. No new benchmark, production ECS/Wasm dependency,
+deployment, gameplay completion state or whole-port capability-audit base follows from this plan.
 
 Database migration boundary (issue #256): the daemon-owned permissive `DbUpdater` has been
 retired. The `rustycore-db` composition binary is the sole schema migration authority, using a

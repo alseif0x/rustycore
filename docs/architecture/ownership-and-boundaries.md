@@ -42,8 +42,21 @@ coherent inputs, explicit lifetime/phase admission, classified persistence outco
 publication outside guards. An immutable catalog reference or a legitimate protocol-adapter
 dependency is not itself another mutable owner. Remove service-locator access with its complete
 consumer vertical; do not add crates, ports or traits merely to lower a field count or erase a
-category exception. This changes planning priority, not the existing Cargo allowlists, runtime
-invariants or unresolved storage/backend decisions.
+category exception. This changes planning priority, not the existing Cargo allowlists or runtime
+invariants. The latest approved [modularity/ECS plan](modularity-and-ecs-plan.md) selects private,
+selective `hecs`, retaining cohesive domain aggregates. Before production storage migration,
+#578 must pass the finite independent-module/native-Wasm conformance proof in that plan, then
+prove the affected real-owner integration. The selection is made; a demonstrated backend-specific
+limitation can reopen it, but another indefinite candidate comparison is not required. Neither
+the conformance proof nor production migration has passed; production storage is unchanged.
+
+#583, under #99/#133 and after #231/#578, delivers shared semantic hooks for native first-party
+and custom modules and a bounded Wasm executor with Rust/C bindings, alongside the full stateful
+composition, durability and operator lifecycle proof. This **explicitly expands #133's closure**:
+Wasm is optional for the operator to enable, not optional for #583/#153 acceptance. #153 audits
+both completed macros, not the entire future #99 ecosystem. This bounded Wasm delivery no longer
+waits for M6; broader ecosystem expansion retains fresh planning. #578 does not depend on #583
+or a production SDK/Wasm executor. No new publication, deployment or destructive authority follows.
 
 The internal #578 checkpoints are **C0 phases contract**, **C1 lifetime/save**,
 **C2 complete operations**, **C3 runtime/delivery**, and **C4 inherited boundary
@@ -247,7 +260,7 @@ last-writer-wins policy.
 | Effective spell-acquisition metadata | `wow_data::SpellAcquisitionCatalogLikeCpp`, a compact immutable projection of the seven acquisition source families | `world-server` bootstrap composes and publishes one `Arc`; no handler or session mutates it | derived spell-learning loaders now; trainer planning in #164; sessions receive the same `Arc`, not the seven raw stores | process lifetime; exact regular SpellInfo keys seed covered/zero distinction, while server-side keys without validated acquisition payload are explicitly indeterminate | Remove the specialized catalog, or feed it from the general store, once full effective `SpellInfo` payload authority exists. This row does not authorize packet, persistence, spell, skill, money, or battle-pet mutation. |
 | Immutable spell-acquisition projection and application | `wow_world::spell_acquisition` owns the pure fixed-point plan plus its validation/transaction/publication boundary; the live player and Character DB remain the runtime/durable owners | planning mutates only a private ordered copy; #158 locks one character row and commits the complete durable result; #159 extends that same transaction with guarded money and keeps the exclusion through runtime/packet publication | #157 consumes ordered primary-profession outcomes; #158 consumes the exact source/result plan and generic player `EffectLearnSpell`; #159 consumes a startup-audited cast/craft authority plus a fresh player effect mask and owns trainer charge/wrapper/visual orchestration | one acquisition operation; complete spell/skill/trait/override authority, exact slot occupancy and wrapper static/live proofs are mandatory. Unknown COMMIT outcomes reconcile money plus all spell/favorite/skill rows before publication; see [the detailed contract](spell-acquisition-plan.md) | Retire the specialized seam only when canonical `Player` methods expose the same atomic dry-run/apply contract. Never reconstruct capacity or criteria from a flat trigger list, sort profession outcomes, infer “no immunity” from missing runtime state, or publish before the durable boundary. |
 | Battle-pet trainer purchase saga | `wow_world::battle_pet_purchase` owns the durable command (`character_battle_pet_purchase`), its state transitions and login recovery; Character DB money stays under the #159 exclusive per-character guard; the pet itself stays under the #160 account owner | the saga is the sole writer of the command table and the sole caller that turns a trainer offer into a #160 add; it spawns no tasks and holds no lock across `.await` other than the pre-existing async money mutex | buy handler adapts request → offer decision → saga; the #160 owner keeps fence/journal-lease/capacity authority; the #163 catalog keeps species-classification authority; the world-DB selection store keeps breed/quality/display authority | one purchase command per 128-bit request key (shared with the #160 receipt); charge+command, publication marker, completion, and refund+flip are each single Character DB transactions; `PetApplied` is derived from the Login DB receipt and a Completed row with a clear `published` marker is owed its publication by recovery | Retire only when a portable cross-pool transaction exists. Never publish before the pet is durable, never refund a durable pet, never recover from in-memory flags, never activate the `TrainerBuySpell` dispatcher arm outside #142. |
-| Trusted linked module API | `wow-module-api`: validated `ModuleId`/version/descriptor, the explicit `ModuleRegistry`, the immutable `PlayerLoginSnapshot` and the typed `SendSystemMessageSelf` effect | modules only queue effects; the Session owner applies the validated batch | `WorldSession::dispatch_module_player_login_like_cpp` at the C++ `ScriptMgr::OnPlayerLogin` position | process lifetime; dispatch is deterministic in `ModuleId` order and the batch is validated before anything is applied | #228 earned the crate through one working vertical. #229-#231 add external Cargo composition, the module manager and typed configuration. No stable ABI or hot reload is promised. |
+| Trusted linked module API | `wow-module-api`: validated `ModuleId`/version/descriptor, the explicit `ModuleRegistry`, the immutable `PlayerLoginSnapshot` and the typed `SendSystemMessageSelf` effect | the current login contract queues effects; the Session owner applies its validated batch | `WorldSession::dispatch_module_player_login_like_cpp` at the C++ `ScriptMgr::OnPlayerLogin` position | process lifetime; login dispatch uses `ModuleId` order, distinct from compositor registration `(order, id)` | #228–#231 delivered API, Cargo composition, manager and configuration. #583 must earn shared policy/scoped-behavior/notification contracts for native Rust and bounded Rust/C Wasm execution, state composition and durability; none is implemented by the greeting. Linked native code remains trusted, without stable native ABI, sandbox or hot reload. |
 | Handler registration and dispatch contract | the sole `inventory::collect!(PacketHandlerEntry)` and link-time registry live in `wow_world::session::registry`; each entry carries admission/processing metadata and the concrete thunk over Session, borrowed catalogs and the packet | unconditional module-item `inventory::submit!` declarations belong to the logical `wow-world::crate::handlers` tree; one dispatcher belongs to `wow-world::crate::session`, and both logical owners are declared in `handler-module-policy.json` | the dispatch table and Session driver call the registered thunk; there is no second opcode match arm | compile/link lifetime; execution-phase admission remains a separate runtime contract | #359 retired the dual registry/dispatch-arm mechanism. #185's logical-module guard remains; #578 owns thin typed verticals and meaningful execution-phase admission without weakening the exact registration set or adding a second mechanism. #153 verifies the completed boundary. |
 
 #432 extends the Player lifecycle persistence row above with the final three
@@ -780,11 +793,14 @@ are parents rather than PRs; external QA prerequisite #177 is separate. The four
 - physical modules: #139, #152 and #224–#227;
 - encapsulation/ownership: #150–#152, #137–#140 and #182–#184, with remaining convergence in #578;
 - runtime/persistence authority: #188–#200 plus open follow-up #204;
-- stable crate/extension seams: #228–#231 under #99.
+- stable crate/extension seams: completed #228–#231 and the #583 native/Wasm stateful modularity macro under #99.
 
 #578 is the existing macro-deliverable for the remaining ownership and inherited boundary work;
-its C0–C4 checkpoints do not create additional implementation issues. #153 is the terminal audit,
-not a gate that postpones known work. This deterministic topological
+its C0–C4 checkpoints do not create additional implementation issues. #583 is one distinct
+functional module delivery after #231/#578, including shared hooks, Rust/C Wasm acceptance and
+durable lifecycle, not a hook-by-hook subdivision of #578. #153 audits both complete macros,
+not a gate that postpones known work. The prerequisite DAG is unchanged by this expanded
+acceptance. This deterministic topological
 display is checked against the JSON ledger:
 
 1. #131 — repository-scoped architecture skills;
@@ -951,7 +967,8 @@ display is checked against the JSON ledger:
 121. #297 — promote the Session kernel to `wow-session`;
 122. #378 — move the remaining five session modules into `wow-session`;
 123. #578 — canonical Player/Map ownership and inherited boundary closure macro.
-124. #153 — terminal architecture audit.
+124. #583 — native/Wasm gameplay modules with shared hooks and durable lifecycle.
+125. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and
