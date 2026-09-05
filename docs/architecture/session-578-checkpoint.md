@@ -58,6 +58,37 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Rest visibility and saved flags read one Player owner
+
+Ownership read convergence based on `318bcdab`: each of
+`resolved_visible_resting_like_cpp` and
+`resolved_player_flags_for_rest_state_save_like_cpp` now borrows rest state and
+Player flags together under one existing generation-checked owner guard. The
+production queries no longer clone rest state or resolve the same Player twice.
+No new Player copy, mutex, catalog, public API or Session field is introduced.
+
+C++ `RestMgr.cpp:99-125` maintains the mask and resting flag on its owning
+Player. Rust's existing load boundary is preserved: before location initialization,
+use loaded flags; afterward derive the resting bit from the rest mask while
+preserving unrelated flags. This is not a repair of the remaining RestMgr update
+or clone/writeback mutation paths, nor a claim of full C++ rest parity. Save
+transaction ordering, create/save consumers, publication and clocks are unchanged.
+Handleless fallback remains test-only; stale or missing native owners return None.
+
+Two new tests cover 24 active/detached combinations of initialized/uninitialized
+state, empty/city/tavern mask and loaded flag, verify no state/flag mutation or
+packet emission, and reject stale/missing owners despite populated fixtures.
+The aarch64 world library suite passes 3,705 tests (zero failures, one ignored).
+The exact syntax ownership policy passes unchanged. The logical Session ceiling
+is reviewed at 81,503 production + 103,657 test lines = 185,160: eight production
+lines for grouped queries/fixture branches and 94 test lines including registration.
+Live save/teleport acceptance remains pending; #578 stays open.
+
+Compilation (`cargo check -p wow-world`), formatting, diff check, architecture
+check/self-test and quick validation pass. Quick evidence:
+`target/validation-v2/manifests/20260905T042011.533248Z-358486-quick.json`.
+No fresh capture, installation, restart or remote publication was performed.
+
 ### 2026-09-05 — Difficulty preferences mutate and save as one owner group
 
 Ownership migration based on `39fb9f3a`: difficulty mutation now borrows the

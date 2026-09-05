@@ -24,6 +24,8 @@ mod login_auxiliary_persistence;
 mod mailbox_pump;
 #[path = "session/tests/pending_cast_owner.rs"]
 mod pending_cast_owner;
+#[path = "session/tests/rest_owner.rs"]
+mod rest_owner;
 #[path = "session/tests/routing.rs"]
 mod routing;
 #[path = "session/tests/save_plan_order.rs"]

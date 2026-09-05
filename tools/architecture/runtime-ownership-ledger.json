@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81495,
-          "test_lines": 103563,
-          "total_lines": 185058,
+          "production_lines": 81503,
+          "test_lines": 103657,
+          "total_lines": 185160,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 difficulty ownership: one native Player mutation replaces tuple snapshot/writeback; save reads all three preferences together. Production grows 15 measured lines for explicit fixture/native branches and grouped save read; tests grow 88 for one callback under the owner guard, active/detached save values and stale/missing rejection. No new fields, signatures, dependencies or clocks. Prior live save/teleport acceptance remains pending; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 rest queries: visibility and save flags each borrow rest state and flags together under one existing Player owner access, eliminating split reads and production rest clones. Production grows 8 measured lines for grouped reads and explicit fixture fallback; tests grow 94 for active/detached loaded/initialized combinations, pure queries and stale/missing rejection. No new fields, signatures, dependencies or clocks. Prior live save/teleport acceptance remains pending; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

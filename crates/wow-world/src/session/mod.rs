@@ -32751,16 +32751,22 @@ impl WorldSession {
     }
 
     pub(crate) fn resolved_visible_resting_like_cpp(&self) -> Option<bool> {
-        let rest = self.player_rest_state_snapshot_like_cpp()?;
-        if rest.location_initialized {
-            return Some(rest.rest_flag_mask != 0);
-        }
-
+        // RestMgr::SetRestFlag/RemoveRestFlag (RestMgr.cpp:99-125): the
+        // mask and Player flag belong to the same Player. Read them together.
         let canonical = self.with_owned_player_for_rest_like_cpp(|player| {
-            (player.data().player_flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0
+            let rest = player.rest_state_like_cpp();
+            if rest.location_initialized {
+                rest.rest_flag_mask != 0
+            } else {
+                (player.data().player_flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0
+            }
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let rest = self.player_rest_state_snapshot_like_cpp()?;
+            if rest.location_initialized {
+                return Some(rest.rest_flag_mask != 0);
+            }
             return Some(
                 self.represented_loaded_player_flags_like_cpp
                     .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
@@ -32989,25 +32995,27 @@ impl WorldSession {
     }
 
     fn resolved_player_flags_for_rest_state_save_like_cpp(&self) -> Option<u32> {
-        let canonical_flags =
-            self.with_owned_player_for_rest_like_cpp(|player| player.data().player_flags);
-        #[cfg(test)]
-        let canonical_flags = if canonical_flags.is_none() && self.player_handle_like_cpp.is_none()
-        {
-            self.represented_loaded_player_flags_like_cpp.or(Some(0))
-        } else {
-            canonical_flags
-        };
-        let mut player_flags = canonical_flags?;
-        let rest = self.player_rest_state_snapshot_like_cpp()?;
-        if rest.location_initialized {
-            if rest.rest_flag_mask != 0 {
-                player_flags |= PLAYER_FLAGS_RESTING_LIKE_CPP;
-            } else {
-                player_flags &= !PLAYER_FLAGS_RESTING_LIKE_CPP;
+        let resolve = |mut player_flags: u32, rest: &wow_entities::PlayerRestState| {
+            if rest.location_initialized {
+                if rest.rest_flag_mask != 0 {
+                    player_flags |= PLAYER_FLAGS_RESTING_LIKE_CPP;
+                } else {
+                    player_flags &= !PLAYER_FLAGS_RESTING_LIKE_CPP;
+                }
             }
+            player_flags
+        };
+        let canonical = self.with_owned_player_for_rest_like_cpp(|player| {
+            resolve(player.data().player_flags, player.rest_state_like_cpp())
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(resolve(
+                self.represented_loaded_player_flags_like_cpp.unwrap_or(0),
+                &self.player_rest_state_snapshot_like_cpp()?,
+            ));
         }
-        Some(player_flags)
+        canonical
     }
 
     pub(crate) fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {
