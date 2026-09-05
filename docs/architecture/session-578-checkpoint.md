@@ -168,8 +168,29 @@ by collection reads and interleaved map ticks passes in dev but fails in release
 builds erased the mutation. Moving the insertion into an unconditional statement adds exactly
 one production Map line (16,167 -> 16,168; tests stay 18,728; total 34,895 -> 34,896). This is the
 only hotspot-ceiling adjustment; field/bridge/syntax policy is not refreshed. It is a behavior
-repair of the staged storage change, not completion of #578. Post-fix final/live results remain
-to be recorded.
+repair of the staged storage change, not completion of #578.
+
+Post-fix evidence on `d568f3aa` (2026-09-05, aarch64):
+
+- Final validation passed: `target/validation-v2/manifests/20260905T001226.991927Z-24382-final.json`
+  (6,745 library tests and 315 checker tests). All three production-linked login regressions
+  pass in both dev and release. The optimized world-server build completed in 12m54s.
+- Installed candidate SHA-256
+  `91663b7c21888f4de5e280ddd1a22c5f811e7ecca844eeed154ab65deee191ca`
+  returned bot status zero; `/tmp/rustycore-578-map-insertion-runtime.json` records the guarded
+  result. Private bot evidence is `/tmp/rustycore-login-qa.TFANN8/bot.json`: authentication,
+  character enumeration and `player_login_verified` are true. Candidate PID 38971 reached
+  aura hydration and the later "continuing login" phase at 00:24:44 UTC, beyond both repaired
+  mail/currency-owner failures.
+- This is **bounded login verification, not full world-entry acceptance**. The bot's ordinary
+  login loop exits on `SMSG_LOGIN_VERIFY_WORLD` (`main.rs:5704-5733`) and closes the sockets;
+  the candidate subsequently reports connection reset/broken pipe and "login packet sequence
+  failed". Extend the maintained bot's completion criterion before claiming stable world entry
+  or starting LFG runtime acceptance. No new client packet layout is inferred from this run.
+- The guard restored the original executable, SHA-256
+  `c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`;
+  world-server and bnet-server are active. No manual-client readiness or fresh C++ capture-diff
+  is claimed, and no LFG gameplay or local LFG row changes were made.
 
 The local final gate passed on `e1daed4c` and again on `fbd762c6`; the latter manifest is
 `target/validation-v2/manifests/20260904T230645.707038Z-3-final.json` (6,745 library tests
@@ -196,7 +217,8 @@ recorded in `EXISTING-CODE-DEFECTS.md`. The new integration test compiles wow-wo
 `cfg(test)`, reaches PetStable only after successful mail/scalar hydration, and rejects a missing
 manager before that point. The positive case fails on the original code and passes with the fix;
 the negative case passes in both. Architecture check/self-test and the syntax-only ratchet pass
-without baseline changes. A fresh final gate and installed login run are still required.
+without baseline changes. Subsequent final and bounded installed-login evidence is recorded
+above; complete world-entry acceptance remains pending.
 
 Focused current/stale/detached Player tests and movement/login/spell checks are recorded in
 `docs/migration/adr-map-runtime-entity-world.md`. The added same-map residence regression also
