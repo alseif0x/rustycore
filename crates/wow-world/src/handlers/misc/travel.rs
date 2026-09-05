@@ -57,6 +57,7 @@ inventory::submit! {
                 session
                     .handle_world_port_response_with_catalogs_like_cpp(
                         catalogs.creature_spawns.as_ref(),
+                        catalogs.player_bootstrap.trait_node_entries.as_ref(),
                         pkt,
                     )
                     .await
@@ -121,7 +122,10 @@ impl crate::session::WorldSession {
     /// are placeholders here (health from the live value, the rest defaulted) and corrected by
     /// the `send_stat_update` that follows. Inventory item objects are not yet re-sent on
     /// teleport (the client retains them from login) — a #NEXT.R8.ENTITIES.1229 follow-up.
-    pub(super) async fn send_player_self_create_for_teleport_like_cpp(&mut self) {
+    pub(super) async fn send_player_self_create_for_teleport_like_cpp(
+        &mut self,
+        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
+    ) {
         use wow_core::guid::HighGuid;
         use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
 
@@ -175,7 +179,9 @@ impl crate::session::WorldSession {
         let account_toys = self.account_toy_active_player_rows_like_cpp();
         let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
         let account_transmog = self.account_transmog_active_player_rows_like_cpp();
-        let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
+        let trait_configs = self
+            .load_active_player_trait_configs_like_cpp(trait_node_entries, guid)
+            .await;
         let player_customizations = self.load_player_customizations_like_cpp(guid).await;
         let party_type = self.party_member_party_type_like_cpp();
         let display_id = crate::handlers::character::default_display_id(race, gender);
@@ -310,13 +316,14 @@ impl crate::session::WorldSession {
     }
 
     /// CMSG_WORLD_PORT_RESPONSE — client confirms it has loaded the new map.
-    /// C# ref: MovementHandler.HandleMoveWorldportAck
+    /// Admission anchor: C++ `WorldSession::HandleMoveWorldportAck` in MovementHandler.cpp.
     /// Sent after SMSG_NEW_WORLD (which is emitted from handle_suspend_token_response).
     /// We respond with SMSG_RESUME_TOKEN and replay the after-add init.
 
     pub async fn handle_world_port_response_with_catalogs_like_cpp(
         &mut self,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
         _pkt: wow_packet::WorldPacket,
     ) {
         use wow_packet::packets::misc::ResumeToken;
@@ -401,7 +408,8 @@ impl crate::session::WorldSession {
         // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:470): re-send the
         // player's OWN object (ActivePlayer create block) for the destination map. Without it
         // the client loads to 100% but never enters the world. #NEXT.R8.ENTITIES.1229.
-        self.send_player_self_create_for_teleport_like_cpp().await;
+        self.send_player_self_create_for_teleport_like_cpp(trait_node_entries)
+            .await;
 
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
         self.send_nearby_creatures_with_catalogs_like_cpp(
@@ -456,8 +464,12 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub async fn handle_world_port_response(&mut self, pkt: wow_packet::WorldPacket) {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.handle_world_port_response_with_catalogs_like_cpp(&catalogs, pkt)
-            .await;
+        self.handle_world_port_response_with_catalogs_like_cpp(
+            &catalogs,
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            pkt,
+        )
+        .await;
     }
 
     /// CMSG_AREA_TRIGGER — player entered an area trigger.

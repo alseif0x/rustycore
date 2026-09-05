@@ -1465,6 +1465,7 @@ impl WorldSession {
     /// `CHAR_SEL_CHAR_TRAIT_ENTRIES`, serialized in ActivePlayerData::TraitConfigs.
     pub(crate) async fn load_active_player_trait_configs_like_cpp(
         &mut self,
+        node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
         self.begin_represented_trait_config_authority_load_like_cpp();
@@ -1635,41 +1636,38 @@ impl WorldSession {
             );
 
         if trait_query_authority_complete_like_cpp {
-            let exact_traits = self
-                .trait_node_entry_store()
-                .zip(self.trait_definition_store())
-                .map(|(node_entries, definitions)| {
-                    let mut exact = BTreeMap::<i32, i32>::new();
-                    for entry in configs
-                        .iter()
-                        .flat_map(|config| config.entries.iter())
-                        .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
-                    {
-                        let Some(node_entry) = u32::try_from(entry.trait_node_entry_id)
-                            .ok()
-                            .and_then(|id| node_entries.get(id))
-                        else {
-                            return None;
-                        };
-                        let trait_definition_id = node_entry.trait_definition_id;
-                        let Some(definition) = u32::try_from(trait_definition_id)
-                            .ok()
-                            .and_then(|id| definitions.get(id))
-                        else {
-                            return None;
-                        };
-                        if definition.spell_id <= 0 {
-                            continue;
-                        }
-                        if exact
-                            .insert(definition.spell_id, trait_definition_id)
-                            .is_some_and(|previous| previous != trait_definition_id)
-                        {
-                            return None;
-                        }
+            let exact_traits = self.trait_definition_store().map(|definitions| {
+                let mut exact = BTreeMap::<i32, i32>::new();
+                for entry in configs
+                    .iter()
+                    .flat_map(|config| config.entries.iter())
+                    .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
+                {
+                    let Some(node_entry) = u32::try_from(entry.trait_node_entry_id)
+                        .ok()
+                        .and_then(|id| node_entries.get(id))
+                    else {
+                        return None;
+                    };
+                    let trait_definition_id = node_entry.trait_definition_id;
+                    let Some(definition) = u32::try_from(trait_definition_id)
+                        .ok()
+                        .and_then(|id| definitions.get(id))
+                    else {
+                        return None;
+                    };
+                    if definition.spell_id <= 0 {
+                        continue;
                     }
-                    Some(exact.into_iter().collect::<Vec<_>>())
-                });
+                    if exact
+                        .insert(definition.spell_id, trait_definition_id)
+                        .is_some_and(|previous| previous != trait_definition_id)
+                    {
+                        return None;
+                    }
+                }
+                Some(exact.into_iter().collect::<Vec<_>>())
+            });
             if let Some(Some(exact_traits)) = exact_traits {
                 if !self.set_complete_represented_spell_trait_definition_ids_like_cpp(exact_traits)
                 {
@@ -2184,6 +2182,7 @@ impl WorldSession {
     pub(super) async fn send_login_sequence(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         feature_policy: &SupportFeaturePolicyLikeCpp,
         player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
@@ -2428,7 +2427,9 @@ impl WorldSession {
             let account_toys = self.account_toy_active_player_rows_like_cpp();
             let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
             let account_transmog = self.account_transmog_active_player_rows_like_cpp();
-            let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
+            let trait_configs = self
+                .load_active_player_trait_configs_like_cpp(trait_node_entries, guid)
+                .await;
             let player_customizations = self.load_player_customizations_like_cpp(guid).await;
             self.set_loaded_player_customizations_like_cpp(player_customizations.clone());
             let (Some(player_xp), Some(player_next_level_xp), Some(scaling_level_delta)) = (

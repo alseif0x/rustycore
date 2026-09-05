@@ -3576,6 +3576,7 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
         !session
             .send_login_sequence(
                 generators.item.as_ref(),
+                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
                 &creature_spawn_catalogs,
                 &feature_policy,
                 &player_grid_loader,

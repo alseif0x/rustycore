@@ -2574,6 +2574,7 @@ impl WorldSession {
         if !self
             .send_login_sequence(
                 item_guid_generator,
+                player_bootstrap.trait_node_entries.as_ref(),
                 creature_spawn_catalogs,
                 feature_policy,
                 player_grid_loader,

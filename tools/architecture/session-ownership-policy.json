@@ -5713,13 +5713,6 @@
           "source_class": "production"
         },
         {
-          "name": "trait_node_entry_store",
-          "type": "Option < Arc < TraitNodeEntryStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "transmog_set_item_store",
           "type": "Option < Arc < TransmogSetItemStore > >",
           "visibility": "private",
@@ -8300,7 +8293,7 @@
           "kind": "method",
           "name": "load_active_player_trait_configs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn load_active_player_trait_configs_like_cpp (& mut self , guid : ObjectGuid ,) -> Vec < TraitConfigCreateData >",
+          "signature": "async fn load_active_player_trait_configs_like_cpp (& mut self , node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , guid : ObjectGuid ,) -> Vec < TraitConfigCreateData >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8581,7 +8574,7 @@
           "kind": "method",
           "name": "send_login_sequence",
           "visibility": "pub (super)",
-          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
+          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16771,7 +16764,7 @@
           "kind": "method",
           "name": "handle_world_port_response_with_catalogs_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_world_port_response_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , _pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_world_port_response_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , _pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16920,7 +16913,7 @@
           "kind": "method",
           "name": "send_player_self_create_for_teleport_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self)",
+          "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -51258,20 +51251,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_trait_node_entry_store",
-          "visibility": "pub",
-          "signature": "fn set_trait_node_entry_store (& mut self , store : Arc < TraitNodeEntryStore >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_transmog_set_item_store",
           "visibility": "pub",
           "signature": "fn set_transmog_set_item_store (& mut self , store : Arc < TransmogSetItemStore >)",
@@ -53090,19 +53069,6 @@
           "name": "trait_definition_store",
           "visibility": "pub (crate)",
           "signature": "fn trait_definition_store (& self) -> Option < & Arc < TraitDefinitionStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "trait_node_entry_store",
-          "visibility": "pub (crate)",
-          "signature": "fn trait_node_entry_store (& self) -> Option < & Arc < TraitNodeEntryStore > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75957,7 +75923,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ee2fd3132b10cf41424c7c2186df6c2a:len=96447|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:60f8e3b3d7d7efab74fa25707d137104:len=96381|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

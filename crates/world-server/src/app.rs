@@ -4664,6 +4664,7 @@ async fn run_inner(
                     create_info: Arc::clone(&player_create_info_store),
                     glyph_properties: Arc::clone(&glyph_properties_store),
                     talent_tabs: Arc::clone(&talent_tab_store),
+                    trait_node_entries: Arc::clone(&trait_node_entry_store),
                     cast_spells: Arc::clone(&player_create_cast_spell_store),
                     custom_spells: Arc::clone(&player_create_custom_spell_store),
                     start_all_spells: world_config_bool(
@@ -4921,7 +4922,6 @@ async fn run_inner(
             gem_properties_store: Arc::clone(&gem_properties_store),
             skill_store: Arc::clone(&skill_store),
             trait_definition_store: Arc::clone(&trait_definition_store),
-            trait_node_entry_store: Arc::clone(&trait_node_entry_store),
             skill_line_store: Arc::clone(&skill_line_store),
             skill_tiers_store: Arc::clone(&skill_tiers_store),
             talent_store: Arc::clone(&talent_store),

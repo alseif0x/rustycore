@@ -596,6 +596,157 @@ async fn spell_history_cooldown_failure_does_not_suppress_independent_charges_li
 }
 
 #[tokio::test]
+async fn trait_config_load_does_not_authorize_stale_or_missing_player_owner() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let handle = manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    let projection = |player: &Player| player.spell_runtime_like_cpp().clone();
+    let expected = manager
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(handle, projection);
+    for missing in [false, true] {
+        if missing {
+            session.canonical_map_manager = None;
+        }
+        session.set_player_lifecycle_port_like_cpp(AuxiliaryLoadPortLikeCpp::new([
+            PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                PlayerLoginAuxiliaryLoadedLikeCpp::TraitEntries(vec![]),
+            ),
+            PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(vec![]),
+            ),
+        ]));
+        assert!(
+            session
+                .load_active_player_trait_configs_like_cpp(
+                    &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+                    guid
+                )
+                .await
+                .is_empty()
+        );
+        assert!(
+            session
+                .complete_represented_spell_trait_definition_ids_like_cpp()
+                .is_none()
+        );
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .with_player_like_cpp(handle, projection),
+            expected
+        );
+    }
+}
+
+#[tokio::test]
+async fn trait_config_load_borrows_catalog_and_preserves_fail_closed_active_and_detached() {
+    use wow_data::trait_tree::{
+        TraitDefinitionEntry, TraitDefinitionStore, TraitNodeEntryEntry, TraitNodeEntryStore,
+    };
+
+    for detached in [false, true] {
+        for valid_node in [false, true] {
+            for valid_definition in [false, true] {
+                let (mut session, _, _) = make_session();
+                let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+                if detached {
+                    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+                }
+                let nodes = TraitNodeEntryStore::from_entries(if valid_node {
+                    vec![TraitNodeEntryEntry {
+                        id: 300,
+                        trait_definition_id: 400,
+                        max_ranks: 3,
+                        node_entry_type: 0,
+                    }]
+                } else {
+                    vec![]
+                });
+                if valid_definition {
+                    session.set_trait_definition_store(Arc::new(
+                        TraitDefinitionStore::from_entries([TraitDefinitionEntry {
+                            id: 400,
+                            override_name: String::new(),
+                            override_subtext: String::new(),
+                            override_description: String::new(),
+                            spell_id: 500,
+                            override_icon: 0,
+                            overrides_spell_id: 0,
+                            visible_spell_id: 0,
+                        }]),
+                    ));
+                }
+                let port = AuxiliaryLoadPortLikeCpp::new([
+                    PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                        PlayerLoginAuxiliaryLoadedLikeCpp::TraitEntries(vec![
+                            PlayerTraitEntryLoadRowLikeCpp {
+                                trait_config_id: Some(100),
+                                trait_node_id: Some(200),
+                                trait_node_entry_id: Some(300),
+                                rank: Some(2),
+                                granted_ranks: Some(1),
+                            },
+                        ]),
+                    ),
+                    PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                        PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(vec![
+                            PlayerTraitConfigLoadRowLikeCpp {
+                                id: Some(100),
+                                config_type: Some(1),
+                                chr_specialization_id: Some(62),
+                                combat_config_flags: Some(4),
+                                local_identifier: Some(2),
+                                skill_line_id: None,
+                                trait_system_id: None,
+                                name: Some("Arcane".to_owned()),
+                            },
+                        ]),
+                    ),
+                ]);
+                session.set_player_lifecycle_port_like_cpp(port.clone());
+                assert!(
+                    session
+                        .set_complete_represented_spell_trait_definition_ids_like_cpp([(999, 998)])
+                );
+                let configs = session
+                    .load_active_player_trait_configs_like_cpp(&nodes, guid)
+                    .await;
+                assert_eq!(configs.len(), 1);
+                assert_eq!(configs[0].entries[0].trait_node_entry_id, 300);
+                assert_eq!(configs[0].entries[0].rank, 2);
+                assert_eq!(configs[0].entries[0].granted_ranks, 1);
+                assert_eq!(
+                    session.complete_represented_spell_trait_definition_ids_like_cpp(),
+                    (valid_node && valid_definition).then(|| HashMap::from([(500, 400)]))
+                );
+                assert_eq!(
+                    port.requests(),
+                    vec![
+                        PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries {
+                            player_guid: guid.counter() as u64
+                        },
+                        PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs {
+                            player_guid: guid.counter() as u64
+                        },
+                    ]
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn trait_config_loads_preserve_cpp_entry_then_config_order_and_raw_values() {
     let port = AuxiliaryLoadPortLikeCpp::new([
         PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
@@ -627,7 +778,10 @@ async fn trait_config_loads_preserve_cpp_entry_then_config_order_and_raw_values(
     let guid = ObjectGuid::create_player(1, 48);
 
     let configs = session
-        .load_active_player_trait_configs_like_cpp(guid)
+        .load_active_player_trait_configs_like_cpp(
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            guid,
+        )
         .await;
 
     assert_eq!(configs.len(), 1);
@@ -682,7 +836,10 @@ async fn malformed_trait_entry_keeps_authority_incomplete_without_suppressing_co
     session.set_player_lifecycle_port_like_cpp(port);
 
     let configs = session
-        .load_active_player_trait_configs_like_cpp(ObjectGuid::create_player(1, 49))
+        .load_active_player_trait_configs_like_cpp(
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            ObjectGuid::create_player(1, 49),
+        )
         .await;
 
     assert_eq!(configs.len(), 1);
@@ -716,7 +873,10 @@ async fn failed_trait_entries_do_not_suppress_the_independent_config_query_like_
     session.set_player_lifecycle_port_like_cpp(port.clone());
 
     let configs = session
-        .load_active_player_trait_configs_like_cpp(ObjectGuid::create_player(1, 50))
+        .load_active_player_trait_configs_like_cpp(
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            ObjectGuid::create_player(1, 50),
+        )
         .await;
 
     assert_eq!(configs.len(), 1);

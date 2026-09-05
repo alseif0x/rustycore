@@ -85,7 +85,9 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
     session.set_player_next_level_xp_like_cpp(2_345_678);
 
     session
-        .send_player_self_create_for_teleport_like_cpp()
+        .send_player_self_create_for_teleport_like_cpp(
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+        )
         .await;
 
     let bytes = send_rx.recv().expect("far teleport sends self CREATE");

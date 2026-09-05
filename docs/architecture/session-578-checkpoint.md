@@ -11,8 +11,8 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 
 ## Exact membership and remaining work
 
-After the 2026-09-05 unused DungeonEncounter dependency slice, the AST has **715 WorldSession fields:
-283 production and 432 test fixtures**. The runtime
+After the 2026-09-05 borrowed TraitNodeEntry dependency slice, the AST has **714 WorldSession fields:
+282 production and 432 test fixtures**. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -31,7 +31,7 @@ members. Three identifiers absent from the old runtime ledger are explicitly cla
 
 The following are still open #578 work, not stable exceptions or work deferred to #153:
 
-- 133 production catalog/configuration/service fields still reside on Session. Required
+- 132 production catalog/configuration/service fields still reside on Session. Required
   construction is not enough: the owning vertical must consume the narrow capability.
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
@@ -47,16 +47,56 @@ The following are still open #578 work, not stable exceptions or work deferred t
 
 `SessionResources` has eight required aggregate fields (`core`, `inventory`, `player`, `spells`,
 `world`, `progression`, `runtime`, `realm`), rather than 273 flat fields with 216 optional slots.
-Their immediate capability types contain respectively 5, 30, 22, 34, 28, 21, 19 and six members:
-**165 first-level members, plus further nested handler/persistence bundles**. Glyph and
-talent-tab catalogs are required members of the process-owned PlayerBootstrap catalog,
-borrowed by login/learning instead of installed on Session. The hotfix
+Their immediate capability types contain respectively 5, 30, 21, 34, 28, 21, 19 and six members:
+**164 first-level members, plus further nested handler/persistence bundles**. Glyph,
+talent-tab and trait-node-entry catalogs are required members of the process-owned PlayerBootstrap catalog,
+borrowed by login/learning/teleport instead of installed on Session. The hotfix
 dependency now lives in the nested, process-owned handler capabilities instead of the
 Player catalog bundle and is borrowed by its consumers. The constructor
 aggregate stays in world-server, not wow-network. Its `install_into_session_like_cpp` methods
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — Borrow TraitNodeEntry from process-owned bootstrap
+
+Boundary extraction on `3c617aeb`: the required startup-loaded TraitNodeEntry catalog
+now lives in PlayerBootstrap and is borrowed narrowly by login and far-teleport
+self-create trait loading. Its Session field/default/setter/getter and installed
+Player capability member are deleted. No new container, trait, crate, task, lock,
+state mirror or retained bootstrap locator is introduced. TraitDefinition still
+has other Session consumers and remains explicit open work.
+
+C++ `DB2Stores.cpp:335,910` owns/loads `sTraitNodeEntryStore` process-wide.
+`Player.cpp:26635-26658` loads entries before configs;
+`TraitMgr.cpp:543-557` checks node membership and rank. This slice preserves the
+existing Rust filtering/authority rules, not full `IsValidEntry` parity: malformed
+or missing catalog data still cannot authorize trait spells, while represented raw
+configuration packet values remain unchanged. No extra SQL, load, packet, connection
+or publication reorder is introduced. The teleport admission comment now cites
+`MovementHandler.cpp:44-57`, not C#; no claim of full teleport parity is made.
+
+Coverage: required borrowed catalog with positive/missing-node/missing-definition
+cases for active and detached Player, clearing previous trait authority; stale and
+missing owner must not mutate a replacement Player; existing raw-value, query-order,
+malformed-row and failed-query regressions remain. Production composition still
+fails on the same DB2 load error; empty defaults exist only in explicit test fixtures.
+
+Exact AST delta: one production field and two accessors removed, four consumer
+signatures gain a borrowed catalog, and the WorldSession structural fingerprint
+changes. There are 3,658 associated items; registry metadata and persistence evidence
+remain unchanged. Catalog family 133->132, total/production fields 715/283->714/282;
+432 fixtures unchanged. Immediate capability members 165->164; required nested
+PlayerBootstrap members 8->9. Logical ceilings: Session 81,569 + 104,171 = 185,740;
+character 20,592 + 12,811 = 33,403; world-server 28,883 + 27,021 = 55,904.
+
+Validation on aarch64: world library 3,713 passed/zero failed/one ignored, including
+both new owner/catalog regressions; production-login integration three passed.
+`cargo check -p world-server`, formatting/diff checks, syntax ownership,
+architecture check/self-test and quick validation pass. Quick evidence:
+`target/validation-v2/manifests/20260905T053444.315068Z-465679-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
+#578 and terminal #153 acceptance remain open.
 
 ### 2026-09-05 — Retire unused DungeonEncounter Session dependency
 

@@ -322,6 +322,8 @@ pub struct PlayerBootstrapCatalogsLikeCpp {
     /// C++ process-wide sGlyphPropertiesStore, borrowed during Player::_LoadGlyphs.
     pub glyph_properties: Arc<GlyphPropertiesStore>,
     pub talent_tabs: Arc<TalentTabStore>,
+    /// C++ process-owned sTraitNodeEntryStore, borrowed while loading traits.
+    pub trait_node_entries: Arc<TraitNodeEntryStore>,
     pub cast_spells: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
     pub custom_spells: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
     /// C++ `World` policy consumed by `Player::LearnCustomSpells`.
@@ -536,6 +538,7 @@ impl Default for PlayerBootstrapCatalogsLikeCpp {
             create_info: Arc::new(PlayerCreateInfoStoreLikeCpp::default()),
             glyph_properties: Arc::new(GlyphPropertiesStore::from_entries([])),
             talent_tabs: Arc::new(TalentTabStore::from_entries([])),
+            trait_node_entries: Arc::new(TraitNodeEntryStore::from_entries([])),
             cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
             custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
             start_all_spells: false,
@@ -5822,7 +5825,6 @@ pub struct WorldSession {
 
     // TraitDefinition.db2 store used by represented PlayerSpell::TraitDefinitionId cleanup.
     trait_definition_store: Option<Arc<TraitDefinitionStore>>,
-    trait_node_entry_store: Option<Arc<TraitNodeEntryStore>>,
 
     // SkillLine.db2 store for C++ parent/expansion skill resolution.
     skill_line_store: Option<Arc<SkillLineStore>>,
@@ -8220,7 +8222,6 @@ impl WorldSession {
             tact_key_store: None,
             skill_store: None,
             trait_definition_store: None,
-            trait_node_entry_store: None,
             skill_line_store: None,
             skill_tiers_store: None,
             area_table_store: None,
@@ -28947,14 +28948,6 @@ impl WorldSession {
 
     pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
         self.trait_definition_store = Some(store);
-    }
-
-    pub fn set_trait_node_entry_store(&mut self, store: Arc<TraitNodeEntryStore>) {
-        self.trait_node_entry_store = Some(store);
-    }
-
-    pub(crate) fn trait_node_entry_store(&self) -> Option<&Arc<TraitNodeEntryStore>> {
-        self.trait_node_entry_store.as_ref()
     }
 
     pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {

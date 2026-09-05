@@ -342,6 +342,7 @@ async fn exercise_initial_hydration(install_manager: bool, stop_at_pet_load: boo
         cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
         glyph_properties: Arc::new(wow_data::GlyphPropertiesStore::from_entries([])),
         talent_tabs: Arc::new(wow_data::TalentTabStore::from_entries([])),
+        trait_node_entries: Arc::new(wow_data::trait_tree::TraitNodeEntryStore::from_entries([])),
         custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
         start_all_spells: false,
         start_all_explored: false,
