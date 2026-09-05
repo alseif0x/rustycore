@@ -8,6 +8,43 @@
 use super::*;
 
 impl PlayerSpellRuntimeState {
+    /// Reconcile represented base grants with loaded PlayerSpellMap rows.
+    /// Player::LearnSpell (Player.cpp:3192-3200) preserves disabled active state
+    /// and loaded favorites; the port's fallback rows retain pending grants.
+    pub fn replace_loaded_spell_rows_like_cpp(
+        &mut self,
+        mut rows: BTreeMap<i32, PlayerKnownSpellRecord>,
+        complete: bool,
+    ) {
+        for (&spell_id, fallback) in &self.fallback_rows {
+            let reconciled = if let Some(loaded) = rows.get(&spell_id).cloned() {
+                let active = if loaded.disabled { loaded.active } else { true };
+                let dependent_promoted = fallback.dependent && !loaded.dependent;
+                PlayerKnownSpellRecord {
+                    active,
+                    disabled: false,
+                    state: match loaded.state {
+                        PlayerSpellLoadState::New => PlayerSpellLoadState::New,
+                        PlayerSpellLoadState::Removed => PlayerSpellLoadState::Changed,
+                        PlayerSpellLoadState::Temporary => PlayerSpellLoadState::New,
+                        _ if loaded.disabled || loaded.active != active || dependent_promoted => {
+                            PlayerSpellLoadState::Changed
+                        }
+                        _ => loaded.state,
+                    },
+                    dependent: loaded.dependent || fallback.dependent,
+                    ..loaded
+                }
+            } else {
+                fallback.clone()
+            };
+            rows.insert(spell_id, reconciled);
+        }
+        self.rows = rows;
+        self.rows_loaded = true;
+        self.rows_complete = complete;
+    }
+
     /// Begin the represented Player::_LoadTraits authority lifecycle
     /// (Player.cpp:26635-26698), without erasing unrelated spell/override state.
     pub fn begin_trait_config_load_like_cpp(&mut self) {

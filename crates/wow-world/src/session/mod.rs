@@ -43208,6 +43208,30 @@ impl WorldSession {
         rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
         complete: bool,
     ) -> bool {
+        self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
+        let mut exact_rows = BTreeMap::new();
+        for row in rows {
+            if row.spell_id <= 0
+                || exact_rows
+                    .insert(row.spell_id, canonical_player_spell_record_like_cpp(row))
+                    .is_some()
+            {
+                self.invalidate_represented_player_spell_rows_like_cpp();
+                return false;
+            }
+        }
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.replace_loaded_spell_rows_like_cpp(exact_rows, complete);
+        })
+        .is_some()
+    }
+
+    #[cfg(test)]
+    fn fixture_replace_loaded_spell_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+        complete: bool,
+    ) -> bool {
         // A replacement can describe another logical PlayerSpellMap. Existing
         // trait/override mirrors must be re-authorized even when spell IDs happen
         // to overlap, otherwise residual state can be attributed to the new map.

@@ -58,6 +58,40 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Native loaded-spell reconciliation
+
+Ownership migration on `5a8c83bd`: `PlayerSpellRuntimeState` now reconciles
+pending fallback grants with loaded rows and installs the result under one
+generation-checked owner access. The production route no longer clones the whole
+spell runtime to read fallback rows before a separate write. No new mirror,
+resource, clock, dependency, packet or persistence transaction is introduced.
+
+C++ `Player::LearnSpell` (`Player.cpp:3192-3200`) selects active/favorite from the
+existing PlayerSpellMap; `Player.h:175-192` owns persistence state. The existing
+Rust fallback reconciliation is retained exactly, including New/Removed/Temporary
+transitions and dependent promotion. This does not claim full AddSpell parity.
+The login caller remains `handlers/character/world_entry.rs:2366`; input iteration,
+positive/unique-ID validation and prior auxiliary invalidation remain outside the
+owner. Invalid input still clears row authority without clearing pending grants.
+
+The old route remains an independent cfg(test) oracle. 160 active/detached
+comparisons cover all five states, active/disabled/dependent flags and complete
+versus partial loads; additional cases cover empty input, duplicate/nonpositive
+IDs, stale/missing owners and replacement protection. Native tests pin retained
+fallback storage and unrelated state. Known-spell projection and fallback-map
+retirement remain separate open work; this slice changes their access, not their
+semantics. No gameplay publication occurs under the owner guard.
+
+AST: 3,667 associated items (one new fixture), with 714 fields, 282 production /
+432 fixtures and 590 registrations unchanged. Logical ceilings: Session
+81,745 + 105,097 = 186,842; Player 11,006 + 9,830 = 20,836.
+Validation on aarch64: focused reconciliation tests 2/0; full `wow-world --lib`
+3,727/0 (one ignored); full `wow-entities --lib` 713/0. `world-server` check
+PASS (2m04s, existing warnings); format/diff, syntax-only ownership, architecture
+check/self-test and validation-v2 quick PASS (manifest
+`20260905T063859.788549Z-560332-quick.json`). No install, restart, capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Native TraitConfig load lifecycle
 
 Ownership migration on `720819fc`: PlayerSpellRuntimeState owns beginning and

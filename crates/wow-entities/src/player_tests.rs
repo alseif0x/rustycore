@@ -521,6 +521,50 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn native_loaded_spell_reconciliation_preserves_pending_grants_and_unrelated_state() {
+    let mut runtime = PlayerSpellRuntimeState::default();
+    let pending = PlayerKnownSpellRecord {
+        spell_id: 10,
+        state: PlayerSpellLoadState::New,
+        active: true,
+        disabled: false,
+        favorite: false,
+        dependent: true,
+    };
+    runtime.fallback_rows.insert(10, pending.clone());
+    runtime.known_spells = vec![99];
+    runtime.trait_definition_ids_complete = true;
+    let fallback_address = runtime.fallback_rows.get(&10).unwrap() as *const _;
+    runtime.replace_loaded_spell_rows_like_cpp(
+        BTreeMap::from([(
+            10,
+            PlayerKnownSpellRecord {
+                active: false,
+                disabled: true,
+                favorite: true,
+                dependent: false,
+                state: PlayerSpellLoadState::Unchanged,
+                ..pending.clone()
+            },
+        )]),
+        false,
+    );
+    let loaded = runtime.rows.get(&10).unwrap();
+    assert!(!loaded.active && !loaded.disabled && loaded.favorite && loaded.dependent);
+    assert_eq!(loaded.state, PlayerSpellLoadState::Changed);
+    assert!(runtime.rows_loaded && !runtime.rows_complete);
+    assert_eq!(runtime.known_spells, vec![99]);
+    assert!(runtime.trait_definition_ids_complete);
+    assert_eq!(
+        runtime.fallback_rows.get(&10).unwrap() as *const _,
+        fallback_address
+    );
+    runtime.replace_loaded_spell_rows_like_cpp(BTreeMap::new(), true);
+    assert_eq!(runtime.rows.get(&10), Some(&pending));
+    assert!(runtime.rows_loaded && runtime.rows_complete);
+}
+
+#[test]
 fn native_trait_config_lifecycle_preserves_raw_headers_and_resets_invalid_authority() {
     let mut state = PlayerSpellRuntimeState::default();
     state.known_spells = vec![10];
