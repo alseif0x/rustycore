@@ -1,0 +1,17 @@
+[package]
+name = "conformance-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+conformance-contract.workspace = true
+hecs.workspace = true
+wasmtime = { workspace = true, optional = true }
+
+[features]
+default = []
+wasm = ["dep:wasmtime"]
+
+[dev-dependencies]
+wat = "=1.258.0"
