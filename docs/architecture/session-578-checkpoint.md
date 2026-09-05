@@ -11,8 +11,8 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 
 ## Exact membership and remaining work
 
-After the 2026-09-05 glyph capability slice, the AST has **718 WorldSession fields:
-286 production and 432 test fixtures**. The runtime
+After the 2026-09-05 talent-tab capability slice, the AST has **717 WorldSession fields:
+285 production and 432 test fixtures**. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -31,7 +31,7 @@ members. Three identifiers absent from the old runtime ledger are explicitly cla
 
 The following are still open #578 work, not stable exceptions or work deferred to #153:
 
-- 135 production catalog/configuration/service fields still reside on Session. Required
+- 134 production catalog/configuration/service fields still reside on Session. Required
   construction is not enough: the owning vertical must consume the narrow capability.
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
@@ -47,16 +47,56 @@ The following are still open #578 work, not stable exceptions or work deferred t
 
 `SessionResources` has eight required aggregate fields (`core`, `inventory`, `player`, `spells`,
 `world`, `progression`, `runtime`, `realm`), rather than 273 flat fields with 216 optional slots.
-Their immediate capability types contain respectively 5, 30, 23, 34, 29, 21, 20 and six members:
-**168 first-level members, plus further nested handler/persistence bundles**. The glyph
-catalog is now a required member of the process-owned PlayerBootstrap catalog, borrowed
-by login instead of installed on Session. The hotfix
+Their immediate capability types contain respectively 5, 30, 22, 34, 29, 21, 20 and six members:
+**167 first-level members, plus further nested handler/persistence bundles**. Glyph and
+talent-tab catalogs are required members of the process-owned PlayerBootstrap catalog,
+borrowed by login/learning instead of installed on Session. The hotfix
 dependency now lives in the nested, process-owned handler capabilities instead of the
 Player catalog bundle and is borrowed by its consumers. The constructor
 aggregate stays in world-server, not wow-network. Its `install_into_session_like_cpp` methods
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — Talent login and learning borrow the same required tab catalog
+
+Ownership migration based on `194f9d1b`: world-server bootstrap installs one shared
+`TalentTabStore` in `PlayerBootstrapCatalogsLikeCpp`. Login and the LearnTalent
+registration pass that exact catalog by reference through the existing load/learn
+adapters. The unregistered LearnTalents adapter also requires it. Session's field,
+getter and setter are removed with no test-only mirror or fallback construction.
+Test setup helpers return explicit catalogs, retaining missing-tab and wrong-class
+fixtures rather than silently replacing them with a universal valid catalog.
+
+C++ `Player.cpp:26036-26058` (`LearnTalent`) resolves `sTalentTabStore` and its class
+mask; `SkillHandler.cpp:29-33` publishes talents only after successful learning.
+`Player.cpp:26623-26633` (`_LoadTalents`) and `2644-2692` (`AddTalent`) define the
+loading/active-group spell side effects. Rust's additional tab/class gate during
+login remains unchanged and is recorded in `EXISTING-CODE-DEFECTS.md`; this slice
+does not approve it as full C++ parity. Point, prerequisite, rank, tier, spell,
+override, aura-interruption, persistence and publication order stay unchanged.
+
+New coverage invokes the actual registered thunk with empty then populated process
+catalogs, checks admission metadata and byte-exact successful output, and proves no
+extra retained Arc. A canonical-owner test covers active/detached row validation,
+failed-load state preservation and missing-owner rejection. Existing talent and
+respec tests keep their assertions while taking the catalog returned by fixtures.
+
+Reviewed syntax delta: one field and two methods removed, five signatures gain a
+required borrowed parameter, and the Session struct fingerprint shrinks; no opcode
+or bridge row is retired. Totals: 285 production + 432 fixtures, 3,660 associated
+items and 590 registrations. Session production shrinks eight lines; Session tests
+grow 41, and character login grows one line for the explicit reference.
+On aarch64, `wow-world --lib` passes 3,689 / zero failures / one ignored, and
+syntax-only ownership plus architecture check/self-test pass. The production-linked
+initial-login regression passes three tests (not full login/live acceptance).
+Formatting, diff checks and `validation-v2 quick` pass (exit 0), including workspace
+all-target and isolated bot checks; manifest
+`target/validation-v2/manifests/20260905T031117.251391Z-260323-quick.json`.
+No fresh capture, push or terminal acceptance is claimed.
+No new dependency, clock, mutable state or runtime install
+is introduced; gameplay adapters, remaining catalogs and terminal #578/#153 gates
+are still open work, not stable exceptions.
 
 ### 2026-09-05 — Login borrows the process glyph catalog
 

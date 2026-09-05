@@ -5578,13 +5578,6 @@
           "source_class": "production"
         },
         {
-          "name": "talent_tab_store",
-          "type": "Option < Arc < TalentTabStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "tavern_area_trigger_store",
           "type": "Option < Arc < TavernAreaTriggerStoreLikeCpp > >",
           "visibility": "private",
@@ -19881,7 +19874,7 @@
           "kind": "method",
           "name": "handle_learn_talent",
           "visibility": "pub",
-          "signature": "async fn handle_learn_talent (& mut self , mut packet : WorldPacket)",
+          "signature": "async fn handle_learn_talent (& mut self , talent_tabs : & wow_data :: TalentTabStore , mut packet : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19895,7 +19888,7 @@
           "kind": "method",
           "name": "handle_learn_talents",
           "visibility": "pub",
-          "signature": "async fn handle_learn_talents (& mut self , mut packet : WorldPacket)",
+          "signature": "async fn handle_learn_talents (& mut self , talent_tabs : & wow_data :: TalentTabStore , mut packet : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30065,7 +30058,7 @@
           "kind": "method",
           "name": "learn_represented_talent_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn learn_represented_talent_like_cpp (& mut self , talent_id : u32 , requested_rank : u16 ,) -> bool",
+          "signature": "fn learn_represented_talent_like_cpp (& mut self , talent_tabs : & TalentTabStore , talent_id : u32 , requested_rank : u16 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30507,7 +30500,7 @@
           "kind": "method",
           "name": "load_represented_talent_row_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn load_represented_talent_row_like_cpp (& mut self , talent_id : u32 , rank : u8 , talent_group : u8 ,) -> bool",
+          "signature": "fn load_represented_talent_row_like_cpp (& mut self , talent_tabs : & TalentTabStore , talent_id : u32 , rank : u8 , talent_group : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30520,7 +30513,7 @@
           "kind": "method",
           "name": "load_represented_talent_row_with_spell_side_effects_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn load_represented_talent_row_with_spell_side_effects_like_cpp (& mut self , talent_id : u32 , rank : u8 , talent_group : u8 , known_spells : & mut Vec < i32 > , dependent_spells : & mut HashSet < i32 > ,) -> bool",
+          "signature": "fn load_represented_talent_row_with_spell_side_effects_like_cpp (& mut self , talent_tabs : & TalentTabStore , talent_id : u32 , rank : u8 , talent_group : u8 , known_spells : & mut Vec < i32 > , dependent_spells : & mut HashSet < i32 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -51108,20 +51101,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_talent_tab_store",
-          "visibility": "pub",
-          "signature": "fn set_talent_tab_store (& mut self , store : Arc < TalentTabStore >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_tavern_area_trigger_store",
           "visibility": "pub",
           "signature": "fn set_tavern_area_trigger_store (& mut self , store : Arc < TavernAreaTriggerStoreLikeCpp >)",
@@ -52620,19 +52599,6 @@
           "name": "talent_store",
           "visibility": "pub (crate)",
           "signature": "fn talent_store (& self) -> Option < & Arc < TalentStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "talent_tab_store",
-          "visibility": "pub (crate)",
-          "signature": "fn talent_tab_store (& self) -> Option < & Arc < TalentTabStore > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75983,7 +75949,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:5aea4554059b5dbedd2e2c5e85b139c5:len=96677|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:17b132afb6bac15bc2ee9580ce2146ae:len=96622|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

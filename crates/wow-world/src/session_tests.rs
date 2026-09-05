@@ -32,6 +32,8 @@ mod session_account_state;
 mod spell_history_owner;
 #[path = "session/tests/spellbook_owner.rs"]
 mod spellbook_owner;
+#[path = "session/tests/talent_catalog.rs"]
+mod talent_catalog;
 #[path = "session/tests/talent_owner.rs"]
 mod talent_owner;
 #[path = "session/tests/taxi_owner.rs"]
@@ -61590,20 +61592,19 @@ fn test_visible_aura(slot: u8, spell_id: i32) -> AuraApplication {
     }
 }
 
-fn install_test_talent_tab_store_like_cpp(session: &mut WorldSession) {
-    session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
-        wow_data::TalentTabEntry {
-            id: 0,
-            name: String::new(),
-            background_file: String::new(),
-            order_index: 0,
-            race_mask: 0,
-            class_mask: 1,
-            pet_talent_mask: 0,
-            spell_icon_id: 0,
-        },
-    ])));
+fn install_test_talent_tab_store_like_cpp(session: &mut WorldSession) -> wow_data::TalentTabStore {
+    let talent_tabs = wow_data::TalentTabStore::from_entries([wow_data::TalentTabEntry {
+        id: 0,
+        name: String::new(),
+        background_file: String::new(),
+        order_index: 0,
+        race_mask: 0,
+        class_mask: 1,
+        pet_talent_mask: 0,
+        spell_icon_id: 0,
+    }]);
     session.set_player_class_like_cpp(1);
+    talent_tabs
 }
 
 #[test]
@@ -61617,14 +61618,14 @@ fn character_talent_load_filters_invalid_rows_like_cpp() {
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
-    assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(999, 0, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(101, 9, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(101, 2, 4));
-    assert!(!session.load_represented_talent_row_like_cpp(102, 0, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(103, 0, 0));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 2, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 999, 0, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 9, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 2, 4));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 102, 0, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 103, 0, 0));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
     assert_eq!(
@@ -61658,12 +61659,13 @@ fn character_talent_load_applies_active_spell_side_effects_like_cpp() {
     );
     spell_store.insert(60_100, test_spell_info_like_cpp(60_100));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
     let mut known_spells = vec![14_914];
     let mut dependent_spells = HashSet::new();
     assert!(
         session.load_represented_talent_row_with_spell_side_effects_like_cpp(
+            &talent_tabs,
             406,
             0,
             0,
@@ -61694,12 +61696,12 @@ fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
     spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
     spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
     session.set_represented_active_talent_group_like_cpp(1);
     session.set_represented_bonus_talent_groups_like_cpp(1);
-    assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
-    assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 2, 0));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 202, 1, 1));
     assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(456), 1, 3, 456));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
@@ -61745,11 +61747,11 @@ fn talent_reset_persistence_plan_clears_active_preserves_inactive_and_keeps_zero
     spell_store.insert(60_101, test_spell_info_like_cpp(60_101));
     spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
     session.set_represented_active_talent_group_like_cpp(0);
-    assert!(session.load_represented_talent_row_like_cpp(101, 0, 0));
-    assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 0, 0));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 202, 1, 1));
     session.mark_represented_talents_loaded_like_cpp();
     session.set_known_spells_like_cpp(vec![50_101, 60_101, 50_202]);
 

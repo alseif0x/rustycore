@@ -17,6 +17,16 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-05, #578 talent-tab extraction — login applies extra tab/class gates.**
+  On pre-slice `194f9d1b`, `load_represented_talent_row_like_cpp` validates a
+  TalentTab row and class mask for both login and learning. C++
+  `Player.cpp:26036-26058` applies these gates in `LearnTalent`, whereas
+  `_LoadTalents` (`26623-26633`) delegates directly to `AddTalent`
+  (`2644-2692`), which does not perform a tab/class lookup. The Rust login
+  filtering is preserved by the catalog refactor, not claimed as C++ parity.
+  Any behavior change needs separate analysis of persisted invalid rows and
+  client/runtime effects; no observed client failure is asserted here.
+
 - **2026-09-05, #578 glyph catalog extraction — represented glyph loading differs from C++.**
   Verified on pre-slice `b4d407b9`: `load_represented_glyph_row_like_cpp` in
   `crates/wow-world/src/session/mod.rs` skips catalog validation for glyph ID zero

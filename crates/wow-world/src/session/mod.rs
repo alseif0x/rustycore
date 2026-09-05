@@ -324,6 +324,7 @@ pub struct PlayerBootstrapCatalogsLikeCpp {
     pub create_info: Arc<PlayerCreateInfoStoreLikeCpp>,
     /// C++ process-wide sGlyphPropertiesStore, borrowed during Player::_LoadGlyphs.
     pub glyph_properties: Arc<GlyphPropertiesStore>,
+    pub talent_tabs: Arc<TalentTabStore>,
     pub cast_spells: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
     pub custom_spells: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
     /// C++ `World` policy consumed by `Player::LearnCustomSpells`.
@@ -535,6 +536,7 @@ impl Default for PlayerBootstrapCatalogsLikeCpp {
         Self {
             create_info: Arc::new(PlayerCreateInfoStoreLikeCpp::default()),
             glyph_properties: Arc::new(GlyphPropertiesStore::from_entries([])),
+            talent_tabs: Arc::new(TalentTabStore::from_entries([])),
             cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
             custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
             start_all_spells: false,
@@ -6922,7 +6924,6 @@ pub struct WorldSession {
     spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     spell_levels_store: Option<Arc<SpellLevelsStore>>,
     talent_store: Option<Arc<TalentStore>>,
-    talent_tab_store: Option<Arc<TalentTabStore>>,
     num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
@@ -8928,7 +8929,6 @@ impl WorldSession {
             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
             spell_levels_store: None,
             talent_store: None,
-            talent_tab_store: None,
             num_talents_at_level_store: None,
             spell_chain_store: None,
             spell_category_store: None,
@@ -29143,14 +29143,6 @@ impl WorldSession {
         self.talent_store.as_ref()
     }
 
-    pub fn set_talent_tab_store(&mut self, store: Arc<TalentTabStore>) {
-        self.talent_tab_store = Some(store);
-    }
-
-    pub(crate) fn talent_tab_store(&self) -> Option<&Arc<TalentTabStore>> {
-        self.talent_tab_store.as_ref()
-    }
-
     pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
         self.num_talents_at_level_store = Some(store);
         self.refresh_represented_talent_points_like_cpp();
@@ -34030,6 +34022,7 @@ impl WorldSession {
 
     pub(crate) fn learn_represented_talent_like_cpp(
         &mut self,
+        talent_tabs: &TalentTabStore,
         talent_id: u32,
         requested_rank: u16,
     ) -> bool {
@@ -34053,7 +34046,8 @@ impl WorldSession {
             .talent_groups
             .get(usize::from(talent_group))
             .and_then(|talents| talents.get(&talent_id).copied());
-        let learned = self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group);
+        let learned =
+            self.load_represented_talent_row_like_cpp(talent_tabs, talent_id, rank, talent_group);
         if learned {
             self.apply_represented_active_talent_spell_side_effects_like_cpp(
                 talent_id,
@@ -34255,6 +34249,7 @@ impl WorldSession {
 
     pub(crate) fn load_represented_talent_row_like_cpp(
         &mut self,
+        talent_tabs: &TalentTabStore,
         talent_id: u32,
         rank: u8,
         talent_group: u8,
@@ -34272,10 +34267,7 @@ impl WorldSession {
             return false;
         };
 
-        let Some(talent_tab) = self
-            .talent_tab_store()
-            .and_then(|store| store.get(u32::from(talent.tab_id)))
-        else {
+        let Some(talent_tab) = talent_tabs.get(u32::from(talent.tab_id)) else {
             return false;
         };
 
@@ -34311,6 +34303,7 @@ impl WorldSession {
 
     pub(crate) fn load_represented_talent_row_with_spell_side_effects_like_cpp(
         &mut self,
+        talent_tabs: &TalentTabStore,
         talent_id: u32,
         rank: u8,
         talent_group: u8,
@@ -34326,7 +34319,7 @@ impl WorldSession {
                     .and_then(|talents| talents.get(&talent_id).copied())
             });
 
-        if !self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group) {
+        if !self.load_represented_talent_row_like_cpp(talent_tabs, talent_id, rank, talent_group) {
             return false;
         }
 

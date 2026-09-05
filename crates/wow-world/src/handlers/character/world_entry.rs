@@ -1863,6 +1863,7 @@ impl WorldSession {
                 let mut skipped = 0usize;
                 for row in rows {
                     if self.load_represented_talent_row_with_spell_side_effects_like_cpp(
+                        player_bootstrap.talent_tabs.as_ref(),
                         row.talent_id,
                         row.rank,
                         row.talent_group,
