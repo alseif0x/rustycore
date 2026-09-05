@@ -12,7 +12,7 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 ## Exact membership and remaining work
 
 After the 2026-09-05 hotfix capability slice, the AST has **719 WorldSession fields:
-290 production and 429 test fixtures** after the pending-cast ownership slice. The runtime
+287 production and 432 test fixtures** after the active-cast ownership slice. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -36,7 +36,7 @@ The following are still open #578 work, not stable exceptions or work deferred t
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
   remove Session map selection/gameplay and the remaining legacy/canonical bridges incrementally.
-- Inventory/loot/economy has 15 remaining production members, spells/progression 19,
+- Inventory/loot/economy has 15 remaining production members, spells/progression 16,
   movement/combat seven, social three, and the unresolved residual 18. The exact field lists
   remain executable ledger data; their inclusion does not endorse their current owner.
 - Handler and external Session impl bodies still coordinate gameplay. Moving data to Player
@@ -55,6 +55,52 @@ aggregate stays in world-server, not wow-network. Its `install_into_session_like
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — Unit owns active cast execution and represented timestamps
+
+Ownership migration based on `09ffc929`: canonical Unit's `SpellSubsystem::execution`
+owns the retained active cast and the two represented last-cast timestamp stores.
+Their former Session fields compile only for handle-less test fixtures; no production
+mirror or whole-substate write-back remains. Packet handlers and existing Session
+adapters resolve the generation-checked Player, then access its Unit synchronously.
+No new Cargo edge, lock, task, clock or persistence field is introduced.
+
+C++ anchors: `Unit.cpp:2932` (`SetCurrentCastSpell`) and `3008-3035`
+(`InterruptSpell`), `Unit.h:1823` (`m_currentSpells`), `Spell.h:554,592-602,899`
+(retained cast values and timer) and `Spell.cpp:4235-4252` (ready cast execution).
+The existing Rust Instant-based represented policy is retained, not replaced with
+C++ diff timers in this structural cut. Global/per-spell cooldown rules, inclusive
+400ms queue admission and late-power-failure timestamp restoration remain unchanged.
+
+Normal/ toy start, cancel, looting/teleport/stand/channel interruption, readiness,
+cooldown queries and writes, and CastUnstuck's hearthstone timestamp use the owner.
+Ready execution takes the cast and changes its timestamp under one owner access;
+effects and publication happen after releasing the guard. Cancellation tests and
+fixtures now use the same owner adapters. Missing ownership returns `None` separately
+from a valid zero cooldown; the boolean cooldown gate fails closed. No packet layout,
+recipient, connection, SQL or represented publication ordering is changed.
+
+The retained execution record and existing `current_spells` references now share
+Unit ownership, but their policies are not yet fully converged. This does not move
+the Session driver into MapRuntime or make handlers fully decode/adapt/encode. Those
+remain #578 work, along with the remaining catalogs/application state. The private/
+crate-local access bridges are transitional adapters, not a new stable feature API;
+retire them as cast execution moves behind the owning vertical/runtime outcomes.
+
+Focused tests prove active/detached owner access once, released guards, timestamp
+preservation across interruption, no fixture mirroring, readiness consumption once,
+and no completion/cancellation/replacement/publication by a stale or missing owner.
+Validation on aarch64: `wow-world --lib` passes 3,686 / zero failures / one ignored;
+`wow-entities --lib` passes 694 / zero failures. Syntax-only ownership and architecture
+check/self-test pass. The reviewed syntax delta moves three fields to test fixtures,
+adds six access methods, and makes two timing queries explicitly optional; totals
+are 287 production + 432 fixtures, 3,664 associated items and 590 registrations.
+The first quick run detected formatting drift; `cargo fmt --all` corrected it.
+The aggregate quick rerun passes (exit 0), including workspace all-target checks
+and the isolated bot check: manifest
+`target/validation-v2/manifests/20260905T023820.470904Z-218906-quick.json`.
+Formatting and diff checks pass. No fresh capture, live install/restart, push or
+terminal #578/#153 acceptance is claimed.
 
 ### 2026-09-05 — Player owns the pending cast request
 

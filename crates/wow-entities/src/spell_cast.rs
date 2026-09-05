@@ -93,7 +93,7 @@ pub struct SpellCastVisualLikeCpp {
     pub script_visual_id: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SpellCastState {
     pub spell_id: i32,
     pub target_guid: ObjectGuid,
@@ -103,6 +103,15 @@ pub struct SpellCastState {
     pub cast_time_ms: u32,
     pub spell_visual: SpellCastVisualLikeCpp,
     pub metadata: SpellCastMetadata,
+}
+
+/// Existing represented cast execution policy, owned by Unit's spell subsystem.
+/// Timestamp semantics are retained until convergence with full SpellHistory policy.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CastExecutionStateLikeCpp {
+    pub active: Option<SpellCastState>,
+    pub last_cast_time: Option<Instant>,
+    pub last_cast_time_per_spell: std::collections::HashMap<i32, Instant>,
 }
 
 /// Represented player-caster queue payload; cancellation does not cancel the active cast.

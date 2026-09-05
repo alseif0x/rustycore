@@ -5968,7 +5968,7 @@ fn install_disenchantable_test_item_template(session: &mut WorldSession, entry: 
 }
 
 fn install_active_spell_cast(session: &mut WorldSession, player_guid: ObjectGuid) {
-    session.active_spell_cast = Some(SpellCastState {
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 133,
         target_guid: player_guid,
         target_data: wow_entities::SpellCastTargetsLikeCpp {
@@ -5984,7 +5984,7 @@ fn install_active_spell_cast(session: &mut WorldSession, player_guid: ObjectGuid
             script_visual_id: 0,
         },
         metadata: crate::session::SpellCastMetadata::default(),
-    });
+    }));
 }
 
 fn install_visible_aura_with_interrupt_flags(
@@ -9187,7 +9187,7 @@ async fn loot_unit_dead_player_returns_silently_like_cpp() {
     assert!(send_rx.try_recv().is_err());
     assert!(!session.is_active_loot_guid(loot_guid));
     assert!(!session.loot_table.contains_key(&loot_guid));
-    assert!(session.active_spell_cast.is_some());
+    assert!(session.active_spell_cast_snapshot_like_cpp().is_some());
     assert!(session.visible_auras.contains_key(&3));
 }
 
@@ -9202,7 +9202,7 @@ async fn loot_unit_valid_target_interrupts_active_cast_like_cpp() {
 
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
-    assert!(session.active_spell_cast.is_none());
+    assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
 }
 
 #[tokio::test]

@@ -6991,6 +6991,7 @@ pub struct WorldSession {
     gameobject_template_lifecycle_store_like_cpp:
         Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
+    #[cfg(test)]
     pub(crate) active_spell_cast: Option<SpellCastState>,
     /// C++ `Player::_pendingSpellCastRequest`, represented separately from
     /// `active_spell_cast` so cancel queued spell does not interrupt a cast
@@ -6999,9 +7000,11 @@ pub struct WorldSession {
     pub(crate) represented_pending_spell_cast_request_like_cpp:
         Option<RepresentedPendingSpellCastRequestLikeCpp>,
     /// Last time a spell was executed (used to enforce global cooldown timers).
+    #[cfg(test)]
     pub(crate) last_spell_cast_time: Option<Instant>,
     /// Per-spell cooldown tracking: spell_id → last cast time.
     /// Used to enforce spell-specific cooldown timers.
+    #[cfg(test)]
     pub(crate) last_spell_cast_time_per_spell: HashMap<i32, Instant>,
     #[cfg(test)]
     represented_character_spell_cooldowns_like_cpp:
@@ -9115,10 +9118,13 @@ impl WorldSession {
             represented_quest_complete_status_updates_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_push_quest_to_party_outcomes_like_cpp: Vec::new(),
+            #[cfg(test)]
             active_spell_cast: None,
             #[cfg(test)]
             represented_pending_spell_cast_request_like_cpp: None,
+            #[cfg(test)]
             last_spell_cast_time: None,
+            #[cfg(test)]
             last_spell_cast_time_per_spell: HashMap::new(),
             #[cfg(test)]
             represented_character_spell_cooldowns_like_cpp: HashMap::new(),
@@ -20668,13 +20674,12 @@ impl WorldSession {
         spell_id: i32,
         cooldown_ms: u32,
     ) -> Option<u32> {
-        if cooldown_ms == 0 {
-            return None;
-        }
-
-        let last_cast = self.last_spell_cast_time_per_spell.get(&spell_id)?;
+        let last_cast = self.spell_last_cast_time_like_cpp(spell_id)?;
+        let Some(last_cast) = last_cast else {
+            return Some(0);
+        };
         let elapsed_ms = last_cast.elapsed().as_millis() as u32;
-        (elapsed_ms < cooldown_ms).then_some(cooldown_ms - elapsed_ms)
+        Some(cooldown_ms.saturating_sub(elapsed_ms))
     }
 
     fn player_spell_history_snapshot_like_cpp(&self) -> Option<wow_entities::SpellHistory> {
@@ -37139,7 +37144,10 @@ impl WorldSession {
     /// Returns true if either the global cooldown (1500ms) or the spell-specific
     /// cooldown from SpellStore is still active.
     pub fn is_spell_on_cooldown(&self, spell_id: i32) -> bool {
-        let Some(last_cast) = self.last_spell_cast_time else {
+        let Some(last_cast) = self.last_spell_cast_time_like_cpp() else {
+            return true;
+        };
+        let Some(last_cast) = last_cast else {
             return false; // Never casted
         };
 
@@ -50312,14 +50320,19 @@ impl WorldSession {
             return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
         };
 
-        let session_cast_interrupted = self.active_spell_cast.as_ref().is_some_and(|active| {
-            u32::try_from(active.spell_id)
-                .ok()
-                .is_some_and(|spell_id| canonical_interrupted_spell_ids.contains(&spell_id))
-        });
-        if session_cast_interrupted {
-            self.active_spell_cast = None;
-        }
+        let session_cast_interrupted = self
+            .mutate_cast_execution_like_cpp(|execution| {
+                let interrupted = execution.active.as_ref().is_some_and(|active| {
+                    u32::try_from(active.spell_id)
+                        .ok()
+                        .is_some_and(|spell_id| canonical_interrupted_spell_ids.contains(&spell_id))
+                });
+                if interrupted {
+                    execution.active = None;
+                }
+                interrupted
+            })
+            .unwrap_or(false);
         if let Some(RepresentedStandChannelCancellationBoundary::Interrupted {
             session_cast_interrupted: recorded,
             ..
@@ -61040,7 +61053,66 @@ impl WorldSession {
     }
 
     pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
-        self.active_spell_cast.take().is_some()
+        self.mutate_cast_execution_like_cpp(|state| state.active.take().is_some())
+            .unwrap_or(false)
+    }
+
+    fn with_cast_execution_like_cpp<R>(
+        &self,
+        f: impl FnOnce(&wow_entities::CastExecutionStateLikeCpp) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(f(&wow_entities::CastExecutionStateLikeCpp {
+                active: self.active_spell_cast.clone(),
+                last_cast_time: self.last_spell_cast_time,
+                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
+            }));
+        }
+        self.with_owned_player_like_cpp(|player| f(&player.unit().subsystems().spells.execution))
+    }
+
+    pub(crate) fn mutate_cast_execution_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut state = wow_entities::CastExecutionStateLikeCpp {
+                active: self.active_spell_cast.clone(),
+                last_cast_time: self.last_spell_cast_time,
+                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
+            };
+            let result = f(&mut state);
+            self.active_spell_cast = state.active;
+            self.last_spell_cast_time = state.last_cast_time;
+            self.last_spell_cast_time_per_spell = state.last_cast_time_per_spell;
+            return Some(result);
+        }
+        self.with_owned_player_mut_like_cpp(|player| {
+            f(&mut player.unit_mut().subsystems_mut().spells.execution)
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn active_spell_cast_snapshot_like_cpp(&self) -> Option<SpellCastState> {
+        self.with_cast_execution_like_cpp(|state| state.active.clone())
+            .flatten()
+    }
+
+    pub(crate) fn set_active_spell_cast_like_cpp(&mut self, cast: Option<SpellCastState>) -> bool {
+        self.mutate_cast_execution_like_cpp(|state| state.active = cast)
+            .is_some()
+    }
+
+    pub(crate) fn last_spell_cast_time_like_cpp(&self) -> Option<Option<Instant>> {
+        self.with_cast_execution_like_cpp(|state| state.last_cast_time)
+    }
+
+    pub(crate) fn spell_last_cast_time_like_cpp(&self, spell_id: i32) -> Option<Option<Instant>> {
+        self.with_cast_execution_like_cpp(|state| {
+            state.last_cast_time_per_spell.get(&spell_id).copied()
+        })
     }
 
     pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
@@ -61088,21 +61160,23 @@ impl WorldSession {
     pub(crate) fn remaining_global_cooldown_ms_like_cpp(
         &self,
         spell_info: &wow_data::SpellInfo,
-    ) -> u32 {
-        let Some(last_cast) = self.last_spell_cast_time else {
-            return 0;
+    ) -> Option<u32> {
+        let Some(last_cast) = self.last_spell_cast_time_like_cpp()? else {
+            return Some(0);
         };
         let cooldown_ms = spell_info.cooldown_ms;
         let elapsed_ms = last_cast.elapsed().as_millis() as u32;
-        cooldown_ms.saturating_sub(elapsed_ms)
+        Some(cooldown_ms.saturating_sub(elapsed_ms))
     }
 
-    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> u32 {
-        let Some(active_cast) = self.active_spell_cast.as_ref() else {
-            return 0;
-        };
-        let elapsed_ms = active_cast.cast_start_time.elapsed().as_millis() as u32;
-        active_cast.cast_time_ms.saturating_sub(elapsed_ms)
+    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> Option<u32> {
+        self.with_cast_execution_like_cpp(|state| {
+            let Some(active_cast) = state.active.as_ref() else {
+                return 0;
+            };
+            let elapsed_ms = active_cast.cast_start_time.elapsed().as_millis() as u32;
+            active_cast.cast_time_ms.saturating_sub(elapsed_ms)
+        })
     }
 
     pub(crate) fn can_request_represented_spell_cast_like_cpp(
@@ -61110,8 +61184,11 @@ impl WorldSession {
         spell_info: &wow_data::SpellInfo,
     ) -> bool {
         self.remaining_global_cooldown_ms_like_cpp(spell_info)
-            <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
-            && self.remaining_active_spell_cast_ms_like_cpp() <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
+            .zip(self.remaining_active_spell_cast_ms_like_cpp())
+            .is_some_and(|(gcd, cast)| {
+                gcd <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
+                    && cast <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
+            })
     }
 
     pub(crate) fn request_represented_spell_cast_like_cpp(
@@ -61143,10 +61220,10 @@ impl WorldSession {
             return;
         };
 
-        if self.remaining_global_cooldown_ms_like_cpp(&spell_info) > 0 {
+        if self.remaining_global_cooldown_ms_like_cpp(&spell_info) != Some(0) {
             return;
         }
-        if self.remaining_active_spell_cast_ms_like_cpp() > 0 {
+        if self.remaining_active_spell_cast_ms_like_cpp() != Some(0) {
             return;
         }
 
@@ -61207,7 +61284,9 @@ impl WorldSession {
     }
 
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
-        let session_cast_interrupted = self.active_spell_cast.take().is_some();
+        let session_cast_interrupted = self
+            .mutate_cast_execution_like_cpp(|state| state.active.take().is_some())
+            .unwrap_or(false);
         let canonical_spells_interrupted = self
             .mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
@@ -61244,13 +61323,15 @@ impl WorldSession {
             .unwrap_or(false);
 
         if interrupted {
-            if self
-                .active_spell_cast
-                .as_ref()
-                .is_some_and(|active| active.spell_id == spell_id as i32)
-            {
-                self.active_spell_cast = None;
-            }
+            let _ = self.mutate_cast_execution_like_cpp(|state| {
+                if state
+                    .active
+                    .as_ref()
+                    .is_some_and(|active| active.spell_id == spell_id as i32)
+                {
+                    state.active = None;
+                }
+            });
         }
 
         interrupted
@@ -69586,54 +69667,57 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
-        let Some(ref cast_state) = self.active_spell_cast.clone() else {
+        let Some((cast_state, previous_last_spell_cast_time)) = self
+            .mutate_cast_execution_like_cpp(|state| {
+                let active = state.active.as_ref()?;
+                let elapsed_ms = active.cast_start_time.elapsed().as_millis() as u32;
+                if elapsed_ms < active.cast_time_ms {
+                    return None;
+                }
+                let cast = state.active.take()?;
+                let previous = state.last_cast_time;
+                state.last_cast_time = Some(Instant::now());
+                Some((cast, previous))
+            })
+            .flatten()
+        else {
             return;
         };
 
-        let elapsed_ms = cast_state.cast_start_time.elapsed().as_millis() as u32;
+        let spell_id = cast_state.spell_id;
+        let target = cast_state.target_guid;
+        let target_data = crate::spell_cast_adapter::present_targets(cast_state.target_data);
+        let cast_id = cast_state.cast_id;
+        let spell_visual = crate::spell_cast_adapter::present_visual(cast_state.spell_visual);
+        let mut metadata = cast_state.metadata;
+        metadata.restore_last_spell_cast_time_on_power_failure = true;
+        metadata.previous_last_spell_cast_time_on_power_failure = previous_last_spell_cast_time;
 
-        if elapsed_ms >= cast_state.cast_time_ms {
-            let spell_id = cast_state.spell_id;
-            let target = cast_state.target_guid;
-            let target_data =
-                crate::spell_cast_adapter::present_targets(cast_state.target_data.clone());
-            let cast_id = cast_state.cast_id;
-            let spell_visual =
-                crate::spell_cast_adapter::present_visual(cast_state.spell_visual.clone());
-            let mut metadata = cast_state.metadata;
-            let previous_last_spell_cast_time = self.last_spell_cast_time;
-            metadata.restore_last_spell_cast_time_on_power_failure = true;
-            metadata.previous_last_spell_cast_time_on_power_failure = previous_last_spell_cast_time;
-
-            self.active_spell_cast = None;
-            self.last_spell_cast_time = Some(Instant::now());
-
-            // ← AQUÍ: Ejecutar spell
-            if let Err(e) = self
-                .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
-                    item_guid_generator,
-                    creature_spawn_catalogs,
-                    spell_id,
-                    target,
-                    cast_id,
-                    spell_visual.clone(),
-                    target_data,
-                    metadata,
-                )
-                .await
-            {
-                warn!(account = self.account_id, "Spell execution failed: {}", e);
-                // Send CastFailed so client cancels cast animation
-                use wow_packet::packets::spell::CastFailed;
-                self.send_packet(&CastFailed {
-                    cast_id,
-                    spell_id,
-                    visual: spell_visual,
-                    reason: 2, // SpellCastResult::NotKnown
-                    fail_arg1: 0,
-                    fail_arg2: 0,
-                });
-            }
+        // The owner guard is released before effect execution and failure publication.
+        if let Err(e) = self
+            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+                spell_id,
+                target,
+                cast_id,
+                spell_visual.clone(),
+                target_data,
+                metadata,
+            )
+            .await
+        {
+            warn!(account = self.account_id, "Spell execution failed: {}", e);
+            // Send CastFailed so client cancels cast animation
+            use wow_packet::packets::spell::CastFailed;
+            self.send_packet(&CastFailed {
+                cast_id,
+                spell_id,
+                visual: spell_visual,
+                reason: 2, // SpellCastResult::NotKnown
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
         }
     }
 
@@ -70515,7 +70599,9 @@ impl WorldSession {
             && !self.take_spell_power_like_cpp(&spell_info, cast_id, spell_id, &spell_visual)
         {
             if metadata.restore_last_spell_cast_time_on_power_failure {
-                self.last_spell_cast_time = metadata.previous_last_spell_cast_time_on_power_failure;
+                let _ = self.mutate_cast_execution_like_cpp(|state| {
+                    state.last_cast_time = metadata.previous_last_spell_cast_time_on_power_failure;
+                });
             }
             return Ok(());
         }
@@ -71459,9 +71545,17 @@ impl WorldSession {
             // This represented cooldown state belongs to the session player.
             // A triggered creature cast (for example innkeeper bind spell
             // 3286) must not start or advertise a player cooldown.
-            self.last_spell_cast_time = Some(Instant::now());
-            self.last_spell_cast_time_per_spell
-                .insert(spell_id, Instant::now());
+            if self
+                .mutate_cast_execution_like_cpp(|state| {
+                    state.last_cast_time = Some(Instant::now());
+                    state
+                        .last_cast_time_per_spell
+                        .insert(spell_id, Instant::now());
+                })
+                .is_none()
+            {
+                return Ok(());
+            }
             self.record_cast_character_spell_cooldown_like_cpp(
                 spell_id,
                 spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
@@ -75580,10 +75674,12 @@ impl WorldSession {
             Some(true) => {}
         }
 
-        if self
-            .last_spell_cast_time_per_spell
-            .contains_key(&HEARTHSTONE_SPELL_ID_LIKE_CPP)
-        {
+        let Some(hearthstone_last_cast) =
+            self.spell_last_cast_time_like_cpp(HEARTHSTONE_SPELL_ID_LIKE_CPP)
+        else {
+            return;
+        };
+        if hearthstone_last_cast.is_some() {
             self.set_player_alive_like_cpp(false);
             let values_update = self.mutate_canonical_player_like_cpp(|player| {
                 player.unit_mut().set_health(0);
@@ -75609,8 +75705,16 @@ impl WorldSession {
         else {
             return;
         };
-        self.last_spell_cast_time_per_spell
-            .insert(HEARTHSTONE_SPELL_ID_LIKE_CPP, Instant::now());
+        if self
+            .mutate_cast_execution_like_cpp(|state| {
+                state
+                    .last_cast_time_per_spell
+                    .insert(HEARTHSTONE_SPELL_ID_LIKE_CPP, Instant::now());
+            })
+            .is_none()
+        {
+            return;
+        }
         self.record_cast_character_spell_cooldown_like_cpp(
             HEARTHSTONE_SPELL_ID_LIKE_CPP,
             hearthstone_cooldown_ms,

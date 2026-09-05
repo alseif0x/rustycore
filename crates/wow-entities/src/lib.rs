@@ -29,9 +29,9 @@ mod vehicle;
 mod world_object;
 
 pub use spell_cast::{
-    PendingSpellCastRequestLikeCpp, SpellCastBattlePetItemModifiersLikeCpp,
-    SpellCastLocationLikeCpp, SpellCastMetadata, SpellCastState, SpellCastTargetsLikeCpp,
-    SpellCastVisualLikeCpp,
+    CastExecutionStateLikeCpp, PendingSpellCastRequestLikeCpp,
+    SpellCastBattlePetItemModifiersLikeCpp, SpellCastLocationLikeCpp, SpellCastMetadata,
+    SpellCastState, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp,
 };
 
 pub use area_trigger::{

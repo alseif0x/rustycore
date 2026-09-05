@@ -666,8 +666,12 @@ impl WorldSession {
         // C++ `Player::CanRequestSpellCast` allows client spell queueing only
         // inside the final 400 ms of global cooldown/cast completion. Outside
         // that window, `HandleCastSpellOpcode` sends SPELL_FAILED_SPELL_IN_PROGRESS.
-        let remaining_gcd_ms = self.remaining_global_cooldown_ms_like_cpp(&spell_info);
-        let remaining_active_cast_ms = self.remaining_active_spell_cast_ms_like_cpp();
+        let Some((remaining_gcd_ms, remaining_active_cast_ms)) = self
+            .remaining_global_cooldown_ms_like_cpp(&spell_info)
+            .zip(self.remaining_active_spell_cast_ms_like_cpp())
+        else {
+            return;
+        };
         if remaining_gcd_ms > 0 || remaining_active_cast_ms > 0 {
             if !self.can_request_represented_spell_cast_like_cpp(&spell_info) {
                 debug!(
@@ -714,7 +718,10 @@ impl WorldSession {
         // cooldown/current cast; represented per-spell cooldowns still fail
         // closed until full SpellHistory parity is ported.
         if spell_info.recovery_time_ms > 0 {
-            if let Some(last_spell_cast) = self.last_spell_cast_time_per_spell.get(&spell_id) {
+            let Some(last_spell_cast) = self.spell_last_cast_time_like_cpp(spell_id) else {
+                return;
+            };
+            if let Some(last_spell_cast) = last_spell_cast {
                 let elapsed_ms = last_spell_cast.elapsed().as_millis() as u32;
                 let cooldown_ms = spell_info.recovery_time_ms;
 
@@ -772,7 +779,7 @@ impl WorldSession {
             self.send_packet(&start_pkt);
 
             // Store active cast state
-            self.active_spell_cast = Some(crate::session::SpellCastState {
+            self.set_active_spell_cast_like_cpp(Some(crate::session::SpellCastState {
                 spell_id,
                 target_guid,
                 target_data: crate::spell_cast_adapter::retain_targets(spell_target.clone()),
@@ -789,7 +796,7 @@ impl WorldSession {
                     original_cast_id: cast_id,
                     ..crate::session::SpellCastMetadata::default()
                 },
-            });
+            }));
 
             info!(
                 account = self.account_id,
@@ -2206,15 +2213,21 @@ impl WorldSession {
             }
         };
 
-        let Some(active_cast) = self.active_spell_cast.as_ref() else {
-            return;
-        };
-
-        if request.spell_id != 0 && active_cast.spell_id != request.spell_id as i32 {
+        let cancelled = self
+            .mutate_cast_execution_like_cpp(|state| {
+                if state.active.as_ref().is_some_and(|active| {
+                    request.spell_id == 0 || active.spell_id == request.spell_id as i32
+                }) {
+                    state.active.take();
+                    true
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(false);
+        if !cancelled {
             return;
         }
-
-        self.active_spell_cast = None;
         self.cancel_pending_spell_cast_request_like_cpp();
     }
 
@@ -3245,7 +3258,7 @@ mod tests {
         cast_id: ObjectGuid,
     ) {
         let player_guid = ObjectGuid::create_player(1, 42);
-        session.active_spell_cast = Some(SpellCastState {
+        session.set_active_spell_cast_like_cpp(Some(SpellCastState {
             spell_id,
             target_guid: player_guid,
             target_data: wow_entities::SpellCastTargetsLikeCpp {
@@ -3261,7 +3274,7 @@ mod tests {
                 script_visual_id: 0,
             },
             metadata: SpellCastMetadata::default(),
-        });
+        }));
     }
 
     fn install_pending_spell_cast_request(
@@ -4220,7 +4233,7 @@ mod tests {
             .handle_cancel_cast(cancel_cast_packet(cast_id, 12_345))
             .await;
 
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
     }
 
     #[tokio::test]
@@ -4235,7 +4248,7 @@ mod tests {
             .handle_cancel_cast(cancel_cast_packet(active_cast_id, 12_345))
             .await;
 
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(
             session
                 .represented_pending_spell_cast_request_like_cpp
@@ -4262,7 +4275,7 @@ mod tests {
 
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4283,7 +4296,7 @@ mod tests {
 
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4313,7 +4326,7 @@ mod tests {
             .await;
 
         assert_eq!(canonical_channeled_spell_id(&mut session), None);
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(send_rx.is_empty());
     }
 
@@ -4338,7 +4351,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4367,7 +4380,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4396,7 +4409,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4425,7 +4438,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4447,7 +4460,7 @@ mod tests {
 
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4506,7 +4519,7 @@ mod tests {
             .await;
 
         assert_eq!(canonical_channeled_spell_id(&mut session), None);
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(send_rx.is_empty());
     }
 
@@ -4531,7 +4544,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4560,7 +4573,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -5171,24 +5184,29 @@ mod tests {
         ));
         let previous_last_spell_cast_time =
             Some(std::time::Instant::now() - std::time::Duration::from_millis(5_000));
-        session.last_spell_cast_time = previous_last_spell_cast_time;
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time = previous_last_spell_cast_time
+        });
         install_active_spell_cast(&mut session, spell_id, cast_id);
-        if let Some(active) = session.active_spell_cast.as_mut() {
-            active.cast_start_time =
-                std::time::Instant::now() - std::time::Duration::from_millis(30_000);
-            active.metadata = SpellCastMetadata {
-                from_client: true,
-                original_cast_id: cast_id,
-                ..SpellCastMetadata::default()
-            };
-        }
+        session.mutate_cast_execution_like_cpp(|state| {
+            if let Some(active) = state.active.as_mut() {
+                active.cast_start_time =
+                    std::time::Instant::now() - std::time::Duration::from_millis(30_000);
+                active.metadata = SpellCastMetadata {
+                    from_client: true,
+                    original_cast_id: cast_id,
+                    ..SpellCastMetadata::default()
+                };
+            }
+        });
 
         session.tick_active_spell_cast().await;
 
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert_eq!(canonical_player_mana_like_cpp(&mut session), 149);
         assert_eq!(
-            session.last_spell_cast_time, previous_last_spell_cast_time,
+            session.last_spell_cast_time_like_cpp().flatten(),
+            previous_last_spell_cast_time,
             "C++ failed casts do not leave a fresh successful global cooldown"
         );
         let packets = drain_server_packet_bytes(&send_rx);
@@ -5213,8 +5231,10 @@ mod tests {
                 spell_id, 1_500, 50, 10.0,
             ),
         );
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200))
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
@@ -5232,8 +5252,10 @@ mod tests {
         );
         assert_eq!(canonical_player_mana_like_cpp(&mut session), 500);
 
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500))
+        });
         session.tick_pending_spell_cast_request_like_cpp().await;
 
         assert!(
@@ -5293,7 +5315,9 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_known_spells_like_cpp(vec![spell_id]);
         session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
-        session.last_spell_cast_time = Some(std::time::Instant::now());
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time = Some(std::time::Instant::now())
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
@@ -5321,8 +5345,10 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_known_spells_like_cpp(vec![spell_id]);
         session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200))
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
@@ -5339,8 +5365,10 @@ mod tests {
             "C++ RequestSpellCast only queues while GCD is still active"
         );
 
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500))
+        });
         session.tick_pending_spell_cast_request_like_cpp().await;
 
         assert!(
@@ -5391,10 +5419,12 @@ mod tests {
         session.set_known_spells_like_cpp(vec![12_345, queued_spell_id]);
         session.set_spell_store(basic_spell_store([12_345, queued_spell_id]));
         install_active_spell_cast(&mut session, 12_345, active_cast_id);
-        if let Some(active) = session.active_spell_cast.as_mut() {
-            active.cast_start_time =
-                std::time::Instant::now() - std::time::Duration::from_millis(29_700);
-        }
+        session.mutate_cast_execution_like_cpp(|state| {
+            if let Some(active) = state.active.as_mut() {
+                active.cast_start_time =
+                    std::time::Instant::now() - std::time::Duration::from_millis(29_700);
+            }
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(queued_spell_id, player_guid))
@@ -5408,10 +5438,12 @@ mod tests {
         );
         assert!(send_rx.is_empty());
 
-        if let Some(active) = session.active_spell_cast.as_mut() {
-            active.cast_start_time =
-                std::time::Instant::now() - std::time::Duration::from_millis(30_000);
-        }
+        session.mutate_cast_execution_like_cpp(|state| {
+            if let Some(active) = state.active.as_mut() {
+                active.cast_start_time =
+                    std::time::Instant::now() - std::time::Duration::from_millis(30_000);
+            }
+        });
         session.tick_active_spell_cast().await;
         session.tick_pending_spell_cast_request_like_cpp().await;
 

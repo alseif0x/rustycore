@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "719 exact Rust named-field identifiers: 290 production and 429 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
+    "field_identity": "719 exact Rust named-field identifiers: 287 production and 432 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -44,12 +44,13 @@
     "families": [
       {
         "id": "test_only_fixtures",
-        "expected_field_count": 429,
+        "expected_field_count": 432,
         "field_names": [
           "account_mounts_like_cpp",
           "active_player_local_flags_like_cpp",
           "active_player_multi_action_bars_like_cpp",
           "active_player_transport_server_time_like_cpp",
+          "active_spell_cast",
           "addon_channel_like_cpp",
           "adventure_map_poi_store",
           "allow_gm_group_like_cpp",
@@ -120,6 +121,8 @@
           "last_daily_quest_time_like_cpp",
           "last_fall_time_like_cpp",
           "last_fall_z_like_cpp",
+          "last_spell_cast_time",
+          "last_spell_cast_time_per_spell",
           "lfg_dungeon_store_like_cpp",
           "loaded_player_customizations_like_cpp",
           "loot_item_store_test_commit_gate_like_cpp",
@@ -476,7 +479,7 @@
           "watched_faction_index_like_cpp",
           "weekly_quests_completed_like_cpp"
         ],
-        "current_storage": "429 exact cfg(test) fields on WorldSession. These are legacy fixture inputs and observation sinks, not production storage. Canonical Player/Map is the production owner for migrated families; test-only setters can seed that owner. Field movement to cfg(test) alone does not prove that all associated methods or adapters are thin.",
+        "current_storage": "432 exact cfg(test) fields on WorldSession. These are legacy fixture inputs and observation sinks, not production storage. Canonical Player/Map is the production owner for migrated families; test-only setters can seed that owner. Field movement to cfg(test) alone does not prove that all associated methods or adapters are thin.",
         "sole_writer": "Focused tests and their test-only setters; production has no writer.",
         "readers": "Focused tests in wow-world and handler test modules.",
         "clock_lifetime": "One test/session fixture; no production clock.",
@@ -866,11 +869,8 @@
       },
       {
         "id": "player_spells_quests_and_progression",
-        "expected_field_count": 19,
+        "expected_field_count": 16,
         "field_names": [
-          "active_spell_cast",
-          "last_spell_cast_time",
-          "last_spell_cast_time_per_spell",
           "legacy_spell_script_spell_ids_like_cpp",
           "min_quest_scaled_xp_ratio_like_cpp",
           "movement_visibility_refresh_requests_like_cpp",
@@ -888,7 +888,7 @@
           "spell_script_exact_spell_ids_like_cpp",
           "time_sync_pending_requests"
         ],
-        "current_storage": "Canonical Player owns migrated spell/progression/pet values and the pending cast request. The 19 exact production fields here remain Session application/runtime coordination debt. Pending queue access resolves PlayerHandle; Session queue storage is cfg(test)-only. The six obsolete Pet result fields were replaced by lifecycle pet_load_query_holder_rows_like_cpp; former fixture fields are classified separately.",
+        "current_storage": "Canonical Player owns migrated progression and the pending cast; its Unit owns retained active cast execution and represented cooldown timestamps. The 16 exact production fields here remain Session application/runtime coordination debt. All four former cast/timing/queue fields are cfg(test)-only, with generation-checked production access. Separate current-spell-reference policy and Session scheduling/application convergence remain open.",
         "sole_writer": "The owning Session/handler path currently mutates each represented family; specialized acquisition and battle-pet sagas own their durable transitions where already implemented.",
         "readers": "Spell/quest/character/misc handlers, conditions, packet builders, persistence, and bounded directory projections.",
         "clock_lifetime": "Selected-character or account lifetime; cooldown/history and timed quest state also have explicit clocks.",
@@ -1061,8 +1061,8 @@
     ],
     "expected_field_count": 719,
     "expected_unique_field_count": 719,
-    "expected_production_field_count": 290,
-    "expected_test_fixture_field_count": 429
+    "expected_production_field_count": 287,
+    "expected_test_fixture_field_count": 432
   },
   "inventories": {
     "session_resources": {
@@ -1470,11 +1470,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81351,
-          "test_lines": 102744,
-          "total_lines": 184095,
+          "production_lines": 81455,
+          "test_lines": 102893,
+          "total_lines": 184348,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 pending-cast Player ownership: production grows 38 lines for generation-checked queue queries/mutations and consumption revalidation before execution; the Session queue field becomes cfg(test), reducing production fields 291 to 290. Tests grow 123 for active/detached queue ownership, exactly-once mutation, byte-exact cancellation publication, tick rejection and stale/missing-owner rejection. Active cast and timing fields remain Session debt; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 active-cast Unit ownership: production grows 104 lines for generation-checked execution access and explicit unavailable-owner gates; three active/timestamp fields become cfg(test), reducing production fields 290 to 287. Tests grow 149 for active/detached atomic mutation, timestamp preservation, readiness once and stale-owner rejection. Scheduling and current-spell-reference policy convergence remain open; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

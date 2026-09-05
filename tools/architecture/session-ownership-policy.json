@@ -121,8 +121,10 @@
           "name": "active_spell_cast",
           "type": "Option < SpellCastState >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "addon_channel_like_cpp",
@@ -1325,15 +1327,19 @@
           "name": "last_spell_cast_time",
           "type": "Option < Instant >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "last_spell_cast_time_per_spell",
           "type": "HashMap < i32 , Instant >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "last_visibility_pos",
@@ -20910,6 +20916,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "active_spell_cast_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn active_spell_cast_snapshot_like_cpp (& self) -> Option < SpellCastState >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "active_world_creature_guids_for_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn active_world_creature_guids_for_update_like_cpp (& self) -> Vec < ObjectGuid >",
@@ -30012,6 +30033,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "last_spell_cast_time_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn last_spell_cast_time_like_cpp (& self) -> Option < Option < Instant > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "learn_account_mount_spells_like_cpp",
           "visibility": "private",
           "signature": "fn learn_account_mount_spells_like_cpp (& mut self) -> usize",
@@ -31429,6 +31463,19 @@
           "name": "mutate_canonical_player_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_canonical_player_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mutate_cast_execution_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mutate_cast_execution_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: CastExecutionStateLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -35939,7 +35986,7 @@
           "kind": "method",
           "name": "remaining_active_spell_cast_ms_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn remaining_active_spell_cast_ms_like_cpp (& self) -> u32",
+          "signature": "fn remaining_active_spell_cast_ms_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -35952,7 +35999,7 @@
           "kind": "method",
           "name": "remaining_global_cooldown_ms_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn remaining_global_cooldown_ms_like_cpp (& self , spell_info : & wow_data :: SpellInfo ,) -> u32",
+          "signature": "fn remaining_global_cooldown_ms_like_cpp (& self , spell_info : & wow_data :: SpellInfo ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45104,6 +45151,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_active_spell_cast_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_active_spell_cast_like_cpp (& mut self , cast : Option < SpellCastState >) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_addon_channel_like_cpp",
           "visibility": "pub",
           "signature": "fn set_addon_channel_like_cpp (& mut self , enabled : bool)",
@@ -51772,6 +51833,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "spell_last_cast_time_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn spell_last_cast_time_like_cpp (& self , spell_id : i32) -> Option < Option < Instant > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "spell_learn_skill_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_learn_skill_like_cpp (& self , spell_id : u32 ,) -> Option < & SpellLearnSkillNodeLikeCpp >",
@@ -54417,6 +54491,17 @@
           "name": "with_canonical_pet_mut_like_cpp",
           "visibility": "private",
           "signature": "fn with_canonical_pet_mut_like_cpp < R > (& self , pet_guid : ObjectGuid , mutate : impl FnOnce (& mut Pet) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_cast_execution_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_cast_execution_like_cpp < R > (& self , f : impl FnOnce (& wow_entities :: CastExecutionStateLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -75932,7 +76017,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d4ab342e155482cd6c0bd19c10a221e2:len=96699|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:455f0e064c46cf4b27c435d33d090aa6:len=96744|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

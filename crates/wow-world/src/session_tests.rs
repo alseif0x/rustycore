@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+#[path = "session/tests/active_cast_owner.rs"]
+mod active_cast_owner;
 #[path = "session/tests/admission.rs"]
 mod admission;
 #[path = "session/tests/connection.rs"]
@@ -9820,7 +9822,7 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
                 applied_at: Instant::now(),
             },
         );
-        session.active_spell_cast = Some(SpellCastState {
+        session.set_active_spell_cast_like_cpp(Some(SpellCastState {
             spell_id: generic_spell_id,
             target_guid: player_guid,
             target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
@@ -9832,7 +9834,7 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
                 script_visual_id: 0,
             },
             metadata: SpellCastMetadata::default(),
-        });
+        }));
 
         let outcome = session.apply_represented_live_intent_like_cpp(
             RepresentedLiveIntentLikeCpp::StandStateChanged(RepresentedStandStateChangedLikeCpp {
@@ -9861,7 +9863,7 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
             session.player_stand_state_like_cpp(),
             UnitStandStateType::Stand
         );
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(!session.visible_auras.contains_key(&standing_aura_slot));
         assert_eq!(
             session.represented_live_applications_like_cpp(),
@@ -9943,7 +9945,7 @@ fn stand_state_channel_boundary_requires_casting_standing_transition() {
                 player.clear_data_changes();
             })
             .unwrap();
-        session.active_spell_cast = Some(SpellCastState {
+        session.set_active_spell_cast_like_cpp(Some(SpellCastState {
             spell_id: 72_002,
             target_guid: player_guid,
             target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
@@ -9955,14 +9957,14 @@ fn stand_state_channel_boundary_requires_casting_standing_transition() {
                 script_visual_id: 0,
             },
             metadata: SpellCastMetadata::default(),
-        });
+        }));
 
         let outcome = session.apply_represented_live_intent_like_cpp(
             RepresentedLiveIntentLikeCpp::StandStateChanged(RepresentedStandStateChangedLikeCpp {
                 state: requested_state,
             }),
         );
-        assert!(session.active_spell_cast.is_some());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_some());
         session
             .mutate_canonical_player_like_cpp(|player| {
                 assert_eq!(
@@ -44655,7 +44657,10 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
 
     assert_eq!(session.pending_teleport, Some((0, home)));
     assert!(
-        session.last_spell_cast_time_per_spell.contains_key(&8690),
+        session
+            .spell_last_cast_time_like_cpp(8690)
+            .flatten()
+            .is_some(),
         "C++ EffectStuck starts Hearthstone cooldown after successful home teleport"
     );
     assert_eq!(
@@ -47895,7 +47900,7 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
         80,
         0,
     ));
-    session.active_spell_cast = Some(SpellCastState {
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 61_806,
         target_guid: player_guid,
         target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
@@ -47904,7 +47909,7 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
         cast_time_ms: 10_000,
         spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
-    });
+    }));
     add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
         let unit = player.unit_mut();
@@ -47926,7 +47931,7 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
     );
     assert_eq!(session.pending_teleport, Some((0, destination)));
     assert!(
-        session.active_spell_cast.is_none(),
+        session.active_spell_cast_snapshot_like_cpp().is_none(),
         "C++ Player::TeleportTo interrupts non-melee casts before transfer"
     );
     session.mutate_canonical_player_like_cpp(|player| {
@@ -47984,7 +47989,7 @@ async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() 
         58,
         0,
     ));
-    session.active_spell_cast = Some(SpellCastState {
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 61_809,
         target_guid: player_guid,
         target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
@@ -47993,7 +47998,7 @@ async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() 
         cast_time_ms: 10_000,
         spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
-    });
+    }));
     add_canonical_test_player_on_map(
         &canonical,
         player_guid,
@@ -48020,7 +48025,7 @@ async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() 
         .to_bytes()
     );
     assert!(
-        session.active_spell_cast.is_some(),
+        session.active_spell_cast_snapshot_like_cpp().is_some(),
         "C++ Player::TeleportTo returns before spell interruption on preflight aborts"
     );
     session.mutate_canonical_player_like_cpp(|player| {
@@ -48075,7 +48080,7 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         80,
         0,
     ));
-    session.active_spell_cast = Some(SpellCastState {
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 61_810,
         target_guid: player_guid,
         target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
@@ -48084,7 +48089,7 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         cast_time_ms: 10_000,
         spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
-    });
+    }));
     add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
         player
@@ -48105,7 +48110,7 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         ]
     );
     assert!(
-        session.active_spell_cast.is_some(),
+        session.active_spell_cast_snapshot_like_cpp().is_some(),
         "C++ Player::TeleportTo skips InterruptNonMeleeSpells when TELE_TO_SPELL is set"
     );
     session.mutate_canonical_player_like_cpp(|player| {
@@ -49209,9 +49214,9 @@ async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
     ));
     session.set_player_health_like_cpp(100, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session
-        .last_spell_cast_time_per_spell
-        .insert(8690, Instant::now());
+    session.mutate_cast_execution_like_cpp(|state| {
+        state.last_cast_time_per_spell.insert(8690, Instant::now());
+    });
     set_stuck_spell_store_like_cpp(&mut session, spell_id);
 
     session
@@ -49308,7 +49313,10 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
 
     assert_eq!(session.pending_teleport, None);
     assert!(
-        !session.last_spell_cast_time_per_spell.contains_key(&8690),
+        session
+            .spell_last_cast_time_like_cpp(8690)
+            .flatten()
+            .is_none(),
         "C++ EffectStuck returns before Hearthstone cooldown while player is in flight"
     );
     assert_eq!(
@@ -49343,9 +49351,10 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
 
     assert_eq!(disabled_session.pending_teleport, None);
     assert!(
-        !disabled_session
-            .last_spell_cast_time_per_spell
-            .contains_key(&8690)
+        disabled_session
+            .spell_last_cast_time_like_cpp(8690)
+            .flatten()
+            .is_none()
     );
     assert_eq!(
         drain_server_opcodes(&disabled_rx),

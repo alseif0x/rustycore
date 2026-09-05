@@ -577,6 +577,7 @@ impl SpellHistory {
 pub struct SpellSubsystem {
     pub current_spells: HashMap<CurrentSpellSlot, CurrentSpellRef>,
     pub history: SpellHistory,
+    pub execution: crate::CastExecutionStateLikeCpp,
 }
 
 impl SpellSubsystem {

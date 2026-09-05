@@ -348,10 +348,13 @@ impl crate::session::WorldSession {
 
         let toy_cooldown_ms =
             self.toy_item_spell_cooldown_ms_like_cpp(item_id, request.cast.spell_id, &spell_info);
-        if let Some(remaining_ms) = self.represented_spell_cooldown_remaining_ms_like_cpp(
+        let Some(remaining_ms) = self.represented_spell_cooldown_remaining_ms_like_cpp(
             request.cast.spell_id,
             toy_cooldown_ms,
-        ) {
+        ) else {
+            return;
+        };
+        if remaining_ms > 0 {
             debug!(
                 account = self.account_id,
                 item_id,
@@ -419,7 +422,7 @@ impl crate::session::WorldSession {
             };
             self.send_packet(&start_pkt);
 
-            self.active_spell_cast = Some(crate::session::SpellCastState {
+            self.set_active_spell_cast_like_cpp(Some(crate::session::SpellCastState {
                 spell_id: request.cast.spell_id,
                 target_guid,
                 target_data: crate::spell_cast_adapter::retain_targets(spell_target),
@@ -428,7 +431,7 @@ impl crate::session::WorldSession {
                 cast_time_ms: spell_info.cast_time_ms,
                 spell_visual: crate::spell_cast_adapter::retain_visual(spell_visual),
                 metadata,
-            });
+            }));
         } else if let Err(error) = self
             .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                 item_guid_generator,
