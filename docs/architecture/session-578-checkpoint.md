@@ -118,6 +118,34 @@ unchanged Group hotspot ceiling is left untouched.
 
 ## Validation boundaries
 
+### Login-stream follow-up — 2026-09-05
+
+Bot/guard commit `10684ccb` closes the premature smoke-test disconnect described below.
+Ordinary login-only QA now retains both sockets until an instance `SMSG_UPDATE_OBJECT` has
+arrived and the streams have been quiet for one second (30-second absolute budget). It uses
+cancellation-safe peeks before reading complete encrypted frames, rejects connection closure,
+and responds to time sync. Anchors: C++ `Map.cpp:427-446,1826` (`AddPlayerToMap` / `SendInitSelf`)
+and `MiscPackets.cpp:156-167` (time-sync request/response). It does not decode the self CREATE
+or prove full world visibility/gameplay; `login_stream_drained` names this bounded evidence.
+The runtime guard now requires that field, not just `player_login_verified`.
+
+All 142 bot tests pass, including successful drain, realm closure, and missing object
+publication; the 69 runtime-guard checks pass. Bot build and formatting/diff checks pass.
+The installed optimized server remains code `d568f3aa`, SHA-256
+`91663b7c21888f4de5e280ddd1a22c5f811e7ecca844eeed154ab65deee191ca`.
+Guarded report: `/tmp/rustycore-578-drained-login-runtime.json`; private bot evidence:
+`/tmp/rustycore-login-qa.crzSbP/bot.json`. All four auth/enumeration/login/drain flags are true.
+Candidate PID 45080 logged `Login sequence complete` at **00:31:48.563330 UTC**; the following
+`World::KickAll` at 00:31:49 is the guard's shutdown for restoration, not the previous
+`login packet sequence failed` error. This validates one automated login on the local fixture,
+not manual-client readiness, sustained gameplay, LFG, or fresh C++ capture parity.
+The guard reports `passed-restored`; the deployed binary's original SHA-256 was independently
+verified and both services are active. No push or merge was performed.
+Final validation on code HEAD `10684ccb` also passed:
+`target/validation-v2/manifests/20260905T003127.014359Z-45213-final.json`
+(6,745 library tests, 315 contract-checker tests, and the isolated bot check). This evidence
+predates only the documentation closeout commit; the 142 bot tests were run separately.
+
 ### User-prioritized next front: automatic Dungeon Finder
 
 The user approved this order: repair and verify current login first, then audit and scope LFG
