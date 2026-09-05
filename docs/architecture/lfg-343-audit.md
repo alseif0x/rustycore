@@ -153,6 +153,14 @@ increment, not LFG runtime parity. All ten focused tests and the full 734-test w
 suite pass on the aarch64 host. The preliminary quick gate also passed; final validation is
 recorded separately from these focused checks.
 
+Final validation passed on code HEAD `bef2d707`:
+`target/validation-v2/manifests/20260905T005754.788511Z-72563-final.json`.
+The routed consumer check (world-modules, world-server, wow-anticheat, wow-network, wow-packet,
+wow-session and wow-world, including test targets) passed in 7m22s, and the isolated 734-test
+packet suite passed. This documentation-only evidence addition does not change that code HEAD.
+The linked GitHub branch was created at the unchanged integration base by the prescribed issue
+workflow; implementation commits remain local. No implementation push or PR was performed.
+
 No handlers are registered and no packets are emitted by production: queue ownership, server
 responses, bot two-socket routing/group proof, runtime clocks, group creation, teleport execution,
 rewards, live acceptance and data repair remain pending. No inventory-wide progress percentage or
