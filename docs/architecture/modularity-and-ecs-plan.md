@@ -266,6 +266,24 @@ records the selection and integration gates. Production still has no hecs depend
 
 ## 6. Complete execution sequence and ownership
 
+### Deferred design TODO — safe hot reload
+
+**Requested 2026-09-05:** after the bounded native/Wasm state and operator-lifecycle
+contract is delivered, design safe hot reload under the future #99 extension work.
+This records a later design task; it neither enables hot reload now nor expands #578/#583
+acceptance or their dependencies.
+
+Evaluate separately reloadable data/configuration, replacement of a Wasm module without
+restarting the whole server, and native code (which still requires rebuild/restart under
+the selected model). Define safe points and draining of in-flight calls, one active module
+version/state authority, versioned state compatibility or migration, bounded interruption,
+and failure recovery that retains the old usable module/state when activation fails.
+Do not promise rollback of already applied gameplay effects, zero interruption, automatic
+native binary replacement or unrestricted live updates. Compare the operational benefit
+with the added lifecycle/recovery risk before approving an implementation.
+
+### Current delivery sequence
+
 | Macro / epic | Deliverable and completion gate | Dependencies |
 | --- | --- | --- |
 | #578 / PR #579, under #133 | Pre-migration conformance of selected hecs; all C0–C4: admitted execution, Player lifetime/save, complete operations, runtime/publication/bridge retirement and final boundaries | Existing completed #378/#574; isolated native/Wasm conformance does not depend on a production SDK or #583 |
