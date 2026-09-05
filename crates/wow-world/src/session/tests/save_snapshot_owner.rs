@@ -3,6 +3,49 @@
 use super::*;
 
 #[test]
+fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.current_map_id = 571;
+    session.player_level = 17;
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_xp(10);
+            player.set_money(20);
+        })
+        .unwrap();
+    let snapshot = session
+        .current_player_save_to_db_snapshot_like_cpp()
+        .unwrap();
+    session.player_level = 70;
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_xp(30);
+            player.set_money(40);
+            player.unit_mut().set_level(60);
+        })
+        .unwrap();
+    let request = session
+        .current_player_character_save_request_like_cpp(&snapshot, 123)
+        .unwrap();
+    assert_eq!(
+        (
+            request.character.level,
+            request.character.xp,
+            request.character.money
+        ),
+        (17, 10, 20)
+    );
+    session
+        .with_owned_player_like_cpp(|player| {
+            assert_eq!(player.active_data().xp, 30);
+            assert_eq!(player.money(), 40);
+            assert_eq!(player.unit().data().level, 60);
+        })
+        .unwrap();
+}
+
+#[test]
 fn save_snapshot_reads_active_and_detached_owner_without_changing_state() {
     let (mut session, _, send_rx) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 7);

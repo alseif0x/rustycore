@@ -147,9 +147,9 @@ impl WorldSession {
                 instance_id: snapshot.instance_id,
                 zone_id: self.player_zone_area_like_cpp()?.0 as u16,
             },
-            level: self.player_level_like_cpp(),
-            xp: self.resolved_player_xp_like_cpp()?,
-            money: self.resolved_player_money_like_cpp()?,
+            level: snapshot.level,
+            xp: snapshot.xp,
+            money: snapshot.money,
             rest_state: self.resolved_xp_rest_state_like_cpp()?,
             player_flags: self.resolved_player_flags_for_rest_state_save_like_cpp()?,
             rest_bonus: self.resolved_xp_rest_bonus_like_cpp()?,
@@ -756,7 +756,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(snapshot) = self.sync_session_from_save_to_db_snapshot_like_cpp() else {
+        let Some(snapshot) = self.current_player_save_to_db_snapshot_like_cpp() else {
             warn!(
                 account = self.account_id,
                 player_guid = ?self.player_guid(),

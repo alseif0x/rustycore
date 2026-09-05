@@ -11093,24 +11093,6 @@ impl WorldSession {
         None
     }
 
-    pub(crate) fn sync_session_from_save_to_db_snapshot_like_cpp(
-        &mut self,
-    ) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
-        let snapshot = self.current_player_save_to_db_snapshot_like_cpp()?;
-        self.set_player_map_position_like_cpp(snapshot.map_id, snapshot.position);
-        self.set_player_level_like_cpp(snapshot.level);
-        self.set_player_xp_like_cpp(snapshot.xp);
-        if !self.set_player_gold_like_cpp(snapshot.money) {
-            return None;
-        }
-        self.set_player_health_like_cpp(snapshot.health, snapshot.max_health);
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_player_powers_like_cpp = snapshot.powers;
-        }
-        Some(snapshot)
-    }
-
     fn remove_current_player_from_canonical_current_map_like_cpp(&mut self) -> bool {
         let Some(guid) = self.player_guid() else {
             return false;

@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81498,
-          "test_lines": 103356,
-          "total_lines": 184854,
+          "production_lines": 81480,
+          "test_lines": 103475,
+          "total_lines": 184955,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 save snapshot read: production resolves one generation-checked Player/residence under one guard instead of repeated owner reads and an all-map GUID scan. Previous projection remains cfg(test)-only as fixture/differential oracle. The logical classifier grows 71 production-measured and 160 test lines, including four active/detached/teleport/health/stale-owner regressions. No new field, dependency, clock or runtime write; existing save writeback remains explicit #578 debt. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 save writeback correction: delete the save-snapshot replay method and consume captured header values directly. Production shrinks 18 lines; tests grow 119 for the pre-fix-reproduced near-teleport relocation on failed save, all three commit outcomes and frozen-header consumption. No new state or dependency; transaction/fence/cleanup ordering retained. This intentionally removes unintended gameplay writes; live save/teleport acceptance remains pending. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

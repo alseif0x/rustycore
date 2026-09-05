@@ -917,6 +917,82 @@ async fn unknown_character_save_commit_fences_and_preserves_dirty_state_like_cpp
     );
 }
 
+#[tokio::test]
+async fn character_save_does_not_reapply_save_destination_or_progression_to_runtime() {
+    for (outcome, remains_dirty) in [
+        (PersistenceOutcomeLikeCpp::Applied { rows: 12 }, false),
+        (
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "definite rollback".to_owned(),
+            },
+            true,
+        ),
+        (
+            PersistenceOutcomeLikeCpp::Unknown {
+                reason: "lost COMMIT reply".to_owned(),
+            },
+            true,
+        ),
+    ] {
+        let (mut session, port) = character_save_session_with_port(outcome, 0x7500_0004);
+        install_canonical_player_owner_for_test(&mut session, 571, 0);
+        session.current_map_id = 571;
+        session.player_level = 17;
+        let original = Position::new(1.0, 2.0, 3.0, 0.5);
+        let destination = Position::new(11.0, 22.0, 33.0, 1.5);
+        session
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().world_mut().relocate(original);
+                player.unit_mut().set_level(60);
+                player.set_xp(1234);
+                player.set_money(5678);
+                player.set_character_points_like_cpp(23);
+                let teleport = &mut player.gameplay_state_mut().teleport;
+                teleport.near_pending = true;
+                teleport.near_destination = Some((571, destination));
+            })
+            .unwrap();
+
+        session.save_current_player_to_db_like_cpp().await;
+
+        let saves = port.character_saves();
+        assert_eq!(
+            saves.len(),
+            1,
+            "regression must exercise the actual save port"
+        );
+        assert_eq!(saves[0].character.position.x, destination.x);
+        assert_eq!(saves[0].character.position.y, destination.y);
+        assert_eq!(saves[0].character.position.z, destination.z);
+        assert_eq!(saves[0].character.xp, 1234);
+        assert_eq!(saves[0].character.money, 5678);
+        session
+            .with_owned_player_like_cpp(|player| {
+                assert_eq!(
+                    player.unit().world().position(),
+                    original,
+                    "save-only teleport destination must not relocate the live Player"
+                );
+                assert_eq!(
+                    player.unit().data().level,
+                    60,
+                    "saving must not replay staged identity"
+                );
+                assert_eq!(
+                    player.active_data().character_points,
+                    23,
+                    "saving must not run talent initialization"
+                );
+                assert!(player.gameplay_state().teleport.near_pending);
+            })
+            .unwrap();
+        assert_eq!(
+            session.tutorials_changed_like_cpp, remains_dirty,
+            "only confirmed commit cleans dirty groups"
+        );
+    }
+}
+
 fn represented_buyback_item_like_cpp(db_guid: u64) -> InventoryItem {
     InventoryItem {
         guid: ObjectGuid::create_item(1, db_guid as i64),

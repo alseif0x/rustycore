@@ -2457,7 +2457,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .sync_session_from_save_to_db_snapshot_like_cpp()
+                .current_player_save_to_db_snapshot_like_cpp()
                 .unwrap()
                 .position,
             moved_position
@@ -2672,7 +2672,7 @@ mod tests {
         });
 
         let snapshot = session
-            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .current_player_save_to_db_snapshot_like_cpp()
             .expect("save snapshot");
 
         assert_eq!(snapshot.position, stale_canonical_position);

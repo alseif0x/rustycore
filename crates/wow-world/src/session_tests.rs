@@ -57125,7 +57125,7 @@ fn logout_save_snapshot_uses_canonical_xp_money_and_health_like_cpp() {
     session.set_player_position_like_cpp(latest_session_position);
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .unwrap();
     assert_eq!(
         snapshot,
@@ -57208,7 +57208,7 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     );
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("snapshot should exist");
 
     assert_eq!(snapshot.health, damaged_health);
@@ -57256,7 +57256,7 @@ fn logout_save_snapshot_uses_canonical_health_when_session_mirror_is_stale_like_
         .unwrap();
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("snapshot should exist");
 
     assert_eq!(snapshot.health, 41);
@@ -57309,7 +57309,7 @@ fn logout_save_snapshot_ignores_stale_test_fixture_death_and_reads_canonical_pla
     session.player_alive_like_cpp = false;
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("snapshot should exist");
 
     assert_eq!(snapshot.health, 100);
@@ -57355,7 +57355,7 @@ fn logout_save_snapshot_falls_back_to_session_position_without_canonical_player_
     session.set_player_position_like_cpp(moved_position);
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .unwrap();
     assert_eq!(snapshot.position, moved_position);
     assert_eq!(snapshot.map_id, 571);
@@ -60056,7 +60056,7 @@ fn represented_resurrection_health_syncs_canonical_before_save_like_cpp() {
 
     session.apply_represented_resurrection_health_like_cpp(42);
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("save snapshot");
 
     assert_eq!(snapshot.health, 42);

@@ -58,6 +58,52 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Retire save-snapshot writeback into gameplay
+
+Verdict: the save snapshot is persistence input, not a command to mutate Player.
+This is an explicit behavior correction within #578's bridge-retirement scope,
+based on `720b2519`, separate from the preceding behavior-preserving read cut.
+The canonical Player remains the gameplay owner; the existing private lifecycle
+adapter consumes its snapshot through the existing persistence port. No new
+crate, trait, runtime task or mutable mirror is needed.
+
+C++ `Player.cpp:19323-19348,19470-19514,19548-19565,19615-19692` selects persisted
+fields/destination and appends save groups; it does not relocate Player or replay
+level, XP, money and health through setters. On pre-fix Rust, a recording-port
+regression proved that a failed full save moved a near-teleporting Player from
+(1,2,3) to (11,22,33). The same bridge also replayed Session's staged level and
+recalculated talent points before persistence. These are writes by a non-owner
+save adapter, not required C++ save side effects.
+
+`sync_session_from_save_to_db_snapshot_like_cpp` is deleted, including its test
+call sites; there is no compatibility alias. Full save and tests call the pure
+query. The character header consumes captured level/XP/money directly, alongside
+captured position/health/powers, instead of rereading them after a writeback.
+Admission fences, pending durable-work reconciliation, exclusive money locking,
+transaction requests and Applied/Failed/Unknown classification are unchanged.
+Post-commit dirty-group cleanup remains the only existing save publication path.
+
+Risk-ranked continuation: verify the removed pre-transaction writes on every
+commit outcome; then converge remaining save-group reads and staged identity
+inputs without introducing a new snapshot owner. The full-save regression checks
+unchanged live position, level and talent points for Applied/Failed/Unknown while
+the request retains its save-only destination. A separate test proves header
+capture does not reread or overwrite subsequently changed runtime values.
+Full persistence inventory and live save/near-teleport QA remain acceptance gates;
+this correction is not presented as capture-clean or manual-test-ready without
+that evidence. Runtime interruption still requires explicit authorization.
+
+On aarch64, the pre-fix full-save regression fails at the unintended relocation;
+after correction `wow-world --lib` passes 3,701/0 with one ignored. Syntax-only
+ownership and architecture check/self-test pass. The exact syntax delta removes
+the writeback method only, leaving 3,658 associated items; fields, registrations
+and the other bridge inventory rows are unchanged. Session measures 81,480
+production + 103,475 test lines (18 production lines removed; 119 test lines
+added). These local checks do not replace the pending live acceptance above.
+Formatting, diff checks and `validation-v2 quick` pass (exit 0), manifest
+`target/validation-v2/manifests/20260905T040406.941418Z-338179-quick.json`.
+No runtime install, capture, push or terminal acceptance is claimed.
+
 ### 2026-09-05 — Save projection reads one generation-checked Player owner
 
 Ownership migration based on `b813d262`: the production save projection resolves

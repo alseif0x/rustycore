@@ -52483,19 +52483,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "sync_session_from_save_to_db_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn sync_session_from_save_to_db_snapshot_like_cpp (& mut self ,) -> Option < PlayerSaveToDbSnapshotLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "tact_key_store_for_test_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn tact_key_store_for_test_like_cpp (& self) -> Option < & Arc < TactKeyStore > >",

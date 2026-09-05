@@ -30,6 +30,12 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
   writeback bridge. Identity migration and separation of save-only destination
   from runtime mutation remain explicit #578 work, not approved parity or a
   deferred #153 exception. No reproduced live-client failure is asserted.
+  **Local correction after `720b2519`:** the full-save recording-port regression
+  reproduced relocation to the pending near destination even on definite
+  rollback. The writeback method is now deleted; the request uses the captured
+  header without replaying setters. Applied/Failed/Unknown outcomes are covered
+  by the new regression. The staged level/map and residence-specific health
+  projection findings remain open, as does live save/teleport acceptance.
 
 - **2026-09-05, #578 talent-reset cost ownership — arithmetic boundary discrepancy.**
   Verified on `95cb0a34`: Rust's `next_reset_talents_cost_like_cpp` uses
