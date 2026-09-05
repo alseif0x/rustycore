@@ -521,6 +521,37 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn native_trait_config_lifecycle_preserves_raw_headers_and_resets_invalid_authority() {
+    let mut state = PlayerSpellRuntimeState::default();
+    state.known_spells = vec![10];
+    state.trait_definition_ids.insert(10, 20);
+    state.trait_definition_ids_complete = true;
+    state.override_spells.insert(10, BTreeSet::from([30]));
+    assert!(state.complete_trait_config_load_like_cpp(vec![(1, -1, -2, -3)], false));
+    assert_eq!(state.trait_config_rows, BTreeMap::from([(1, (-1, -2, -3))]));
+    assert!(state.trait_config_rows_complete && state.trait_entry_rows_complete);
+    assert!(!state.trait_entry_rows_empty);
+    assert!(state.trait_definition_ids_complete);
+    assert!(!state.complete_trait_config_load_like_cpp(vec![(1, 1, 62, 4), (1, 2, 0, 0)], true));
+    assert!(state.trait_definition_ids.is_empty() && state.trait_config_rows.is_empty());
+    assert!(
+        !state.trait_definition_ids_complete
+            && !state.trait_config_rows_complete
+            && !state.trait_entry_rows_complete
+            && !state.trait_entry_rows_empty
+    );
+    assert_eq!(state.known_spells, vec![10]);
+    assert_eq!(
+        state.override_spells,
+        BTreeMap::from([(10, BTreeSet::from([30]))])
+    );
+    assert!(state.complete_trait_config_load_like_cpp(vec![], true));
+    assert!(state.trait_entry_rows_empty && state.trait_config_rows_complete);
+    state.begin_trait_config_load_like_cpp();
+    assert!(!state.trait_entry_rows_empty && !state.trait_config_rows_complete);
+}
+
+#[test]
 fn native_spell_metadata_keeps_cpp_override_set_and_fail_closed_trait_semantics() {
     let mut state = PlayerSpellRuntimeState::default();
     assert!(state.replace_complete_trait_definition_ids_like_cpp(vec![(10, 20)]));

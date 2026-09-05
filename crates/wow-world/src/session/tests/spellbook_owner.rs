@@ -3,6 +3,114 @@
 use super::*;
 
 #[test]
+fn trait_config_lifecycle_matches_previous_route_for_active_and_detached_owner() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for begin in [false, true] {
+            for empty in [false, true] {
+                for configs in [
+                    vec![],
+                    vec![(1, 1, 62, 4)],
+                    vec![(1, 0, -1, -2), (2, 3, 0, 0)],
+                    vec![(1, 1, 62, 4), (1, 2, 0, 0)],
+                    vec![(0, 1, 62, 4)],
+                    vec![(-1, 1, 62, 4)],
+                ] {
+                    let prepare = |player: &mut Player| {
+                        let mut runtime = wow_entities::PlayerSpellRuntimeState::default();
+                        runtime.known_spells = vec![99];
+                        runtime.trait_definition_ids.insert(99, 100);
+                        runtime.trait_definition_ids_complete = true;
+                        runtime.trait_config_rows.insert(777, (1, 62, 4));
+                        runtime.trait_config_rows_complete = true;
+                        runtime.trait_entry_rows_complete = true;
+                        runtime.trait_entry_rows_empty = true;
+                        runtime.override_spells.insert(50, BTreeSet::from([60]));
+                        player.replace_spell_runtime_like_cpp(runtime);
+                    };
+                    let projection = |player: &Player| player.spell_runtime_like_cpp().clone();
+                    session.with_owned_player_mut_like_cpp(prepare).unwrap();
+                    if begin {
+                        session.fixture_begin_trait_config_authority_load_like_cpp();
+                    }
+                    let expected_begin = session.with_owned_player_like_cpp(projection);
+                    let expected_return = session
+                        .fixture_complete_trait_config_authority_load_like_cpp(
+                            configs.clone(),
+                            empty,
+                        );
+                    let expected = session.with_owned_player_like_cpp(projection);
+                    session.with_owned_player_mut_like_cpp(prepare).unwrap();
+                    if begin {
+                        session.begin_represented_trait_config_authority_load_like_cpp();
+                    }
+                    assert_eq!(
+                        session.with_owned_player_like_cpp(projection),
+                        expected_begin
+                    );
+                    assert_eq!(
+                        session.complete_represented_trait_config_authority_load_like_cpp(
+                            configs.into_iter().inspect(|_| {
+                                assert!(manager.try_lock().is_ok());
+                            }),
+                            empty
+                        ),
+                        expected_return
+                    );
+                    assert_eq!(session.with_owned_player_like_cpp(projection), expected);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn trait_config_lifecycle_does_not_reset_replacement_through_stale_or_missing_owner() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let mut expected = wow_entities::PlayerSpellRuntimeState::default();
+    expected.trait_definition_ids.insert(99, 100);
+    expected.trait_config_rows.insert(777, (1, 62, 4));
+    expected.trait_entry_rows_complete = true;
+    replacement.replace_spell_runtime_like_cpp(expected.clone());
+    let handle = manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    for missing in [false, true] {
+        if missing {
+            session.canonical_map_manager = None;
+        }
+        session.begin_represented_trait_config_authority_load_like_cpp();
+        for id in [0, 1] {
+            assert!(
+                !session.complete_represented_trait_config_authority_load_like_cpp(
+                    [(id, 1, 62, 4)],
+                    true
+                )
+            );
+        }
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .with_player_like_cpp(handle, |p| p.spell_runtime_like_cpp().clone()),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
 fn spell_metadata_transitions_preserve_active_and_detached_owner_contracts() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

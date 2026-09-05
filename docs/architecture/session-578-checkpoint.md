@@ -58,6 +58,44 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Native TraitConfig load lifecycle
+
+Ownership migration on `720819fc`: PlayerSpellRuntimeState owns beginning and
+completing the represented TraitConfig source load. Begin clears trait-spell IDs,
+headers and all four completeness/empty flags. Complete validates unique positive
+config IDs, installs raw header tuples and sets the header/entry proof. Invalid
+input resets both source families. Known spells, overrides and unrelated state
+remain untouched; valid completion does not discard pre-existing trait-spell IDs.
+
+C++ `Player::_LoadTraits` (`Player.cpp:26635-26698`) owns entry/config construction
+and TraitMgr validation. This cut preserves the narrower existing Rust source
+proof, not full TraitMgr parity: type/spec/flags remain raw and negative metadata
+is not newly rejected. SQL query order and the loader's malformed/failed-query
+classification remain unchanged. Input iteration stays outside the owner lock;
+the production caller is a pure projection over already loaded config rows.
+
+Session delegates through its existing generation-checked spell-owner helper.
+Begin still invalidates aura authority after reset; complete invalidates before
+validation and again after an invalid reset, outside the owner lock. An unresolved
+owner produces no source transition or publication. The two former algorithms
+remain independent cfg(test) oracles. No new resource, task, clock, crate, trait
+or mutable mirror; no packet/transaction/commit/retry change.
+
+Forty-eight active/detached comparisons cover begin/no-begin, empty/nonempty
+entry proof, valid/duplicate/nonpositive headers and raw metadata, with separate
+stale/missing-owner replacement protection. Native tests pin reset, unrelated
+state retention and an empty authoritative reload. AST adds two fixture oracles
+(3,666 associated items); 714 fields, 282 production/432 fixtures, 590 registrations
+and persistence evidence stay unchanged. Logical ceilings: Session
+81,721 + 104,937 = 186,658; Player 10,969 + 9,786 = 20,755.
+
+Validation on aarch64: focused lifecycle tests 2/0; full `wow-world --lib`
+3,725/0 (one ignored); full `wow-entities --lib` 712/0; `world-server` check
+PASS (2m10s, existing warnings). Format/diff checks, syntax-only ownership,
+architecture check/self-test and validation-v2 quick PASS (manifest
+`20260905T062938.925245Z-547138-quick.json`). No install, restart, capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Native trait-load and override transitions
 
 Ownership migration on `34703ca8`: PlayerSpellRuntimeState now owns complete

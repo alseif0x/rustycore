@@ -8,6 +8,38 @@
 use super::*;
 
 impl PlayerSpellRuntimeState {
+    /// Begin the represented Player::_LoadTraits authority lifecycle
+    /// (Player.cpp:26635-26698), without erasing unrelated spell/override state.
+    pub fn begin_trait_config_load_like_cpp(&mut self) {
+        self.trait_definition_ids.clear();
+        self.trait_definition_ids_complete = false;
+        self.trait_config_rows.clear();
+        self.trait_config_rows_complete = false;
+        self.trait_entry_rows_complete = false;
+        self.trait_entry_rows_empty = false;
+    }
+
+    /// Preserve the port's complete-header proof, not full TraitMgr validation.
+    /// Duplicate/nonpositive IDs reset both header and trait-spell authority.
+    pub fn complete_trait_config_load_like_cpp(
+        &mut self,
+        configs: Vec<(i32, i32, i32, i32)>,
+        entries_empty: bool,
+    ) -> bool {
+        let mut exact = BTreeMap::new();
+        for (id, kind, specialization, flags) in configs {
+            if id <= 0 || exact.insert(id, (kind, specialization, flags)).is_some() {
+                self.begin_trait_config_load_like_cpp();
+                return false;
+            }
+        }
+        self.trait_config_rows = exact;
+        self.trait_config_rows_complete = true;
+        self.trait_entry_rows_complete = true;
+        self.trait_entry_rows_empty = entries_empty;
+        true
+    }
+
     /// Represented PlayerSpell::TraitDefinitionId authority (Player.h:191).
     /// Invalid or duplicate input clears the previous proof, preserving the
     /// port's fail-closed load contract independently of packet/catalog code.
