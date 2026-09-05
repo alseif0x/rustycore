@@ -2,7 +2,7 @@
   "schema_version": 1,
   "baseline_commit": "74daf3f9dd337d1ed69701153111f3e740fc7bac",
   "curated_at": "2026-09-05",
-  "purpose": "Exact ownership checkpoint at 74daf3f9 plus the reviewed active-relocation/grid-capability and hotfix-capability slices; see docs/architecture/session-578-checkpoint.md. #578 remains open; no terminal ownership or full parity acceptance is implied.",
+  "purpose": "Exact ownership checkpoint at 74daf3f9 plus the reviewed active-relocation/grid-capability and hotfix-capability slices; see docs/architecture/session-578-checkpoint.md. #578 remains open; no terminal ownership or full parity acceptance is implied. The 2026-09-05 plan reconciliation at 93e4002a assigns remaining implementation/classification to #578 C0-C4 and leaves #153 as terminal verifier; field membership and measured inventories are not recomputed by this metadata update.",
   "authorities": {
     "behavior": "C++ under /home/server/woltk-trinity-legacy and committed packet/runtime traces",
     "syntax": "Rust AST at baseline_commit",
@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "717 exact Rust named-field identifiers: 285 production and 432 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
+    "field_identity": "714 exact Rust named-field identifiers: 282 production and 432 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -487,7 +487,6 @@
         "mirror_direction": "Test replacement or observation only; it must not be treated as a production mirror.",
         "target_owner": "Test-only builders colocated with the capability exercised by the test.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Revert a fixture move if the real public entry point can no longer be exercised without adding production visibility.",
@@ -509,9 +508,9 @@
         "clock_lifetime": "One authenticated connection with realm and optional instance links; physical links live until disconnect and both sockets must remain alive after ConnectTo.",
         "persistence_publication_order": "No durable state. Connection selection precedes enqueue; FIFO write-fence completion follows enqueue.",
         "mirror_direction": "Logical connection selection in Session points to opaque physical handles in wow-network; no gameplay state may flow back into transport.",
-        "target_owner": "wow-network for physical transport and fences; wow-session for logical routing, which #297 landed. #378 classified the five remaining module families as application/gameplay adapters that cannot enter P4 before their named authority or port cuts. The terminal shape is the kernel depending on transport ports rather than concrete wow-network types, which #153 owns.",
+        "target_owner": "wow-network for physical transport and fences; wow-session for the logical routing kernel landed by #297. #378 keeps application/gameplay adapters outside P4. #578 C4 owns the remaining application/kernel classification; ports or a crate reclassification require a real consumer boundary, not merely removal of a dependency exception. #153 verifies the completed decision.",
         "cutover_issues": [
-          153
+          578
         ],
         "rollback_condition": "Restore the previous logical router while retaining both physical sockets if connection choice, packet bytes, FIFO fences, or stale-incarnation rejection changes.",
         "retirement_condition": "WorldSession stores only opaque transport handles and logical route state; no socket task, writer implementation, or raw network registry is owned by gameplay code. #297 retired the eleven transport fields into wow-session, leaving the `connection` handle; the residual rows here are session identity and the network-owned manager.",
@@ -537,9 +536,9 @@
         "clock_lifetime": "Per-session packet/update clock; counters and timeouts advance only in the owning Session task.",
         "persistence_publication_order": "A packet is admitted before dispatch; bans/kicks are planned without changing packet/DB ordering. No handler publication occurs before admission succeeds.",
         "mirror_direction": "No gameplay mirror is authorized; status and counters are Session-owned protocol state.",
-        "target_owner": "transitional wow_world::session::{admission,dispatch}, terminal wow-session with wow-handler metadata contracts.",
+        "target_owner": "Private wow_world::session admission/dispatch adapters over shared wow-handler vocabulary and thin typed gameplay verticals. #578 C2/C4 owns the final classification; the registry need not move into the transport-only wow-session kernel.",
         "cutover_issues": [
-          153
+          578
         ],
         "rollback_condition": "Restore the prior private module/re-export if opcode metadata, status gates, processing mode, wildcard behavior, budgets, or packet order differs.",
         "retirement_condition": "Admission and dispatch compile as private cohesive modules, retain one concrete dispatcher, and expose no gameplay service locator.",
@@ -563,9 +562,9 @@
         "clock_lifetime": "One mailbox per selected Session incarnation; FIFO, capacity, acknowledgement, durable backlog, and shutdown drain are observable.",
         "persistence_publication_order": "Authoritative owner commits first, then enqueues an ordered outcome; Session delivery occurs after owner locks and after durable commit where applicable.",
         "mirror_direction": "Typed owner outcome to Session delivery only. Delayed payloads must not write stale gameplay values back to Player or Map.",
-        "target_owner": "transitional wow_world::session::mailbox, terminal wow-session mailbox; durable map outcomes originate in wow-map.",
+        "target_owner": "Application-owned wow_world::session::mailbox for typed protocol and delivery; durable gameplay outcomes originate in their Player/Map/loot owners. #578 C2-C4 narrows complete consumers; a payload-agnostic kernel port is earned only if needed.",
         "cutover_issues": [
-          153
+          578
         ],
         "rollback_condition": "Restore the prior protocol location without changing the queue if FIFO, capacity, acknowledgement, incarnation, overload-disconnect, or shutdown behavior changes.",
         "retirement_condition": "wow-network owns no application command payload; gameplay variants are replaced by bounded owner outcomes and Session retains only control/delivery protocol.",
@@ -588,7 +587,6 @@
         "mirror_direction": "Player/Group facts are currently projected into directory/session fields; no directory write may become a second gameplay authority.",
         "target_owner": "opaque Session directory for identity/addressing, wow-social for Group/PendingInvites, canonical Player for player-local social references.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Restore the previous facade adapter if recipient sets, generations, Group invariants, persistence order, or packet order differs; never reopen raw backing storage.",
@@ -627,13 +625,12 @@
         "clock_lifetime": "Selected-character/session lifetime with periodic save and logout clocks; durable commands may outlive one handler call and must recover after restart.",
         "persistence_publication_order": "Preserve statement identity and parameters, connection affinity, commit/rollback/unknown-commit classification, fences, and publication strictly after the durable boundary.",
         "mirror_direction": "Durable rows load into represented Session/Player state; committed application outcomes publish outward. Unknown commit reconciles from durable truth before publication.",
-        "target_owner": "wow-session lifecycle orchestration over SQLx-free wow-persistence ports; wow-database remains the sole concrete SQLx/dialect adapter.",
+        "target_owner": "Application-owned lifecycle orchestration over SQLx-free wow-persistence ports; canonical Player/Map owns character state, wow-database owns concrete SQLx/dialect adaptation, and the wow-session kernel remains transport-only.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Revert the port adapter, not the durable data, if statement/transaction/fence/publication traces differ or unknown-commit recovery is weaker.",
-        "retirement_condition": "WorldSession imports no pool, row, SQLx transaction/error, raw SQL, or concrete database aggregate; #169 satisfies that persistence boundary with typed ports and equivalent failure semantics. #153 still owns relocation of residual lifecycle/application authority, not another concrete persistence cut.",
+        "retirement_condition": "WorldSession imports no pool, row, SQLx transaction/error, raw SQL, or concrete database aggregate; #169 established that persistence boundary with typed ports and equivalent failure semantics. #578 C1/C2 owns residual lifetime/save and application-authority migration; #153 verifies closure rather than implementing another concrete persistence cut.",
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       },
       {
@@ -781,7 +778,6 @@
         "mirror_direction": "These are dependency copies/handles rather than gameplay mirrors, but copying the entire bag into Session obscures the real reader boundary.",
         "target_owner": "world-server bootstrap/composition and capability-specific immutable views consumed by the owning vertical. #578 must remove the remaining Session service locator before #153 audits closure.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Restore the previous private factory wiring if required/optional startup behavior or store overlay ordering changes; do not expose SessionResources publicly.",
@@ -821,11 +817,10 @@
         "mirror_direction": "Loaded/respawn state begins canonical to legacy; only explicitly named legacy outcomes flow back to canonical. No generic bidirectional synchronization is allowed.",
         "target_owner": "wow-map runtime/storage for live map entities and clocks; wow-entities for entity state; Session retains only PlayerHandle and delivery adaptation.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Flip the bounded method back to its previous authoritative implementation if phase trace, recipient set, packet order, or single-tick evidence differs; never enable both writers.",
-        "retirement_condition": "Every transition has one canonical Map/Entity writer and clock, its legacy bridge is deleted, and no delivery/await/persistence occurs under Map guards. Player lifetime already meets the one-owner requirement through MapManager active/detached storage and Session's non-owning generation-checked handle.",
+        "retirement_condition": "Every complete transition has one canonical Map/Entity writer and clock, its legacy bridge is deleted, and no delivery/await/persistence occurs under Map guards. Generation-checked active/detached storage preserves the same Player value for migrated paths; full teardown/unload, transition admission and publication remain #578 C1/C3 acceptance obligations, not a proven global lifetime closeout.",
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       },
       {
@@ -856,7 +851,6 @@
         "mirror_direction": "Character DB loads into represented state; narrow directory snapshots publish outward. Directory or packet payloads may not become a mutable inventory/loot owner.",
         "target_owner": "wow-entities::Player inventory/economy, wow-loot for loot rules/authority, wow-persistence ports for durability, thin wow-world handlers for adaptation.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Restore the prior capability adapter if item identity, money, loot eligibility, roll order, transaction order, or packet bytes differ; do not restore raw directory access.",
@@ -889,10 +883,8 @@
         "clock_lifetime": "Selected-character or account lifetime; cooldown/history and timed quest state also have explicit clocks.",
         "persistence_publication_order": "Preserve per-capability transaction and post-commit order. Existing spell acquisition and battle-pet recovery contracts remain authoritative for their covered verticals.",
         "mirror_direction": "Durable rows and immutable metadata compose into represented state; acquisition outcomes publish after commit. Flat trigger lists or incomplete rows cannot claim complete authority.",
-        "target_owner": "canonical wow-entities::Player submodules and populated domain capabilities such as wow-spell; durability through wow-persistence; handlers remain adapters.",
+        "target_owner": "Canonical wow-entities::Player/Unit substates and cohesive private gameplay capabilities; durability through wow-persistence, handlers as adapters. #578 C2/C4 migrates complete consumers; a new domain crate is promoted only after its real API and inward dependencies are stable.",
         "cutover_issues": [
-          153,
-          169,
           578
         ],
         "rollback_condition": "Restore the previous per-capability adapter if spell/quest criteria, order, persistence, or packets differ; retain completed atomic acquisition/saga boundaries.",
@@ -919,7 +911,6 @@
         "mirror_direction": "WorldSession currently builds canonical Player snapshots and consumes selected Map outcomes. Cross-session readers resolve bounded results from the canonical Player/Map owner.",
         "target_owner": "wow-entities::Player for mutable player state and per-client visibility membership; wow-map for spatial traversal, scheduling and in-world mutation; Session for routing/delivery only.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Re-enable only the previous single owner for the bounded method if phase order, movement ACKs, visibility recipients, combat outcome, or packet order differs.",
@@ -942,7 +933,6 @@
         "mirror_direction": "Group facts project to Player/session views and delivery outcomes; session presence must not become membership authority.",
         "target_owner": "wow-social for Group/PendingInvites and stable social rules, canonical Player for player-local views, thin wow-world capability handlers, Session directory for addressing only.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Restore the prior adapter if Group atomicity, member order, packet order, persistence, or offline/stale-generation behavior differs; never reopen raw maps.",
@@ -981,9 +971,9 @@
         "clock_lifetime": "Authenticated Session lifetime, independent from a selected character; realm metadata is a process snapshot injected at construction.",
         "persistence_publication_order": "Authentication precedes Session creation; selected-character publication cannot precede identity and claim validation.",
         "mirror_direction": "Auth/realm snapshots flow into Session; Player gameplay state must not flow back into identity fields.",
-        "target_owner": "terminal wow-session::identity plus typed immutable realm/account policy supplied by world-server composition.",
+        "target_owner": "Cohesive application Session identity plus typed immutable realm/account policy supplied by composition. #578 C4 decides any further kernel extraction without adding gameplay or catalogs to wow-session.",
         "cutover_issues": [
-          153
+          578
         ],
         "rollback_condition": "Restore the prior private constructor mapping if authentication identity, feature flags, locale/build gates, or character claims differ.",
         "retirement_condition": "Identity is a cohesive Session value with required construction fields and no gameplay/database/catalog ownership.",
@@ -1006,9 +996,8 @@
         "clock_lifetime": "One Session task and connection/selected-character lifetime. Phase order is observable and frozen by #188 where it touches world/map work.",
         "persistence_publication_order": "Driver phases preserve current packet, command, lifecycle, save and delivery order; pending durable work follows its capability contract.",
         "mirror_direction": "No generic mirror is authorized; any pending gameplay item belongs to a named capability and must leave this family during cutover.",
-        "target_owner": "transitional wow_world::session::driver/lifecycle, terminal wow-session driver with explicit phase inputs and outputs.",
+        "target_owner": "Application Session driver/lifecycle with explicit phase inputs and outcomes; wow-session remains the transport-only connection kernel. #578 C0/C3 owns phase admission and gameplay-scheduling convergence.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Restore the previous phase driver if command budgets, timer behavior, save/logout order, tick ownership, or packet order differs.",
@@ -1046,7 +1035,6 @@
         "mirror_direction": "Unclassified. A field in this family cannot be claimed as a stable mirror or stable Session responsibility.",
         "target_owner": "Unresolved under #578; #153 is the subsequent terminal audit, not a deferral destination.",
         "cutover_issues": [
-          153,
           578
         ],
         "rollback_condition": "Do not move the field until writer, readers, clock, persistence/publication order, and target owner are proven.",
@@ -1092,7 +1080,6 @@
           "owner": "Required handler catalogs, lifecycle/persistence capabilities, trainer catalog and instance-lock handle; handler_catalogs is borrowed by the outer driver, while four core capabilities are still installed into Session.",
           "immediate_capability_field_count": 5,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1106,7 +1093,6 @@
           "owner": "Required immutable inventory/collection/loot catalogs; install_into_session_like_cpp still populates Session catalog fields.",
           "immediate_capability_field_count": 30,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1120,7 +1106,6 @@
           "owner": "Required immutable Player creation/condition/skill catalogs; still installed into Session.",
           "immediate_capability_field_count": 21,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1134,7 +1119,6 @@
           "owner": "Required SpellMgr-style catalog and startup authority bundles; still installed into Session.",
           "immediate_capability_field_count": 34,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1148,7 +1132,6 @@
           "owner": "Required map/creature/GameObject/visibility catalogs and spawn policy; grid loader is now composed once in core.handler_catalogs, not stored here or in Session.",
           "immediate_capability_field_count": 28,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1162,7 +1145,6 @@
           "owner": "Required quest/reputation/XP catalogs and rates; still installed into Session.",
           "immediate_capability_field_count": 21,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1176,7 +1158,6 @@
           "owner": "Required runtime policy and directory/group/event handles; Session installation and gameplay consumers remain transitional.",
           "immediate_capability_field_count": 19,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1190,7 +1171,6 @@
           "owner": "Required immutable realm identity/address snapshot; composition owns construction and Session retains routing identity.",
           "immediate_capability_field_count": 6,
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Required construction is installed, but #578 must make each owning vertical consume only its capability and remove Session service-locator fields. Eight aggregate fields do not prove that semantic cut."
@@ -1228,9 +1208,9 @@
             "WorldSessionShutdownFlushLikeCpp",
             "SendRealmPacketLikeCpp"
           ],
-          "owner": "wow-network currently defines the enum; the owning Session task is the sole consumer and logical routing owner.",
+          "owner": "wow_world::session::mailbox::protocol defines the enum; the owning Session task is the sole consumer and logical routing owner.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Variants live in the Session mailbox protocol and depend only on opaque transport/control contracts."
         },
@@ -1255,9 +1235,9 @@
             "SendRealmIfVisibleLikeCpp",
             "SendRealmIfVisibleFromLegacySourceLikeCpp"
           ],
-          "owner": "wow-network currently defines payloads; canonical/legacy Map owners commit transitions and Session applies receiver-local delivery/presentation.",
+          "owner": "wow_world::session::mailbox::protocol defines the payloads; canonical/legacy Map owners commit transitions and Session applies receiver-local delivery/presentation.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Map-owned typed outcomes replace gameplay payload variants; Session protocol retains only bounded delivery facts and never rewrites stale gameplay state."
         },
@@ -1271,9 +1251,9 @@
             "LootRollStoreWinner",
             "LootRollVote"
           ],
-          "owner": "wow-network currently defines payloads; wow-loot and durable persistence coordination own decisions and commit ordering.",
+          "owner": "wow_world::session::mailbox::protocol defines the payloads; wow-loot and durable persistence coordination own decisions and commit ordering.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Loot owner outcomes and persistence outcomes cross the Session boundary without embedding mutable loot authority or trackers."
         },
@@ -1285,9 +1265,9 @@
             "SetQuestSharingInfoAndSendDetails",
             "SendRepeatableTurnInRequestItemsLikeCpp"
           ],
-          "owner": "wow-network currently defines payloads; represented Player/quest capability owns state and Session owns recipient delivery.",
+          "owner": "wow_world::session::mailbox::protocol defines the payloads; represented Player/quest capability owns state and Session owns recipient delivery.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Quest capability returns typed outcomes and Session mailbox contains only addressing/delivery data."
         },
@@ -1309,7 +1289,7 @@
           ],
           "owner": "wow_world::session::mailbox defines the payloads; wow_social::group owns Group transitions and Session applies receiver-local facts.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Group/social/Player outcomes are typed at their owner; Session mailbox performs generation-checked delivery without reimplementing invariants."
         }
@@ -1336,7 +1316,7 @@
           "direction": "canonical wow-map loaded/spawned creature -> legacy wow-world MapManager",
           "owner": "canonical load/spawn path supplies the source; world-server bridge performs the compatibility insertion.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Legacy creature storage is no longer read for the complete migrated load/spawn/runtime transition."
         },
@@ -1352,7 +1332,7 @@
           "direction": "selected committed legacy movement/aggro/melee/spell/lifecycle outcomes -> canonical wow-map state, then post-lock delivery",
           "owner": "GlobalLegacy is the production transition writer; named bridge code applies only explicitly modeled outcomes to canonical state.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Each method executes directly under canonical Map authority and the corresponding legacy function, write-back, and delivery compatibility rail are deleted."
         },
@@ -1364,7 +1344,7 @@
           "direction": "loot release/state decisions reconcile explicit legacy and canonical creature/GameObject state without shared storage",
           "owner": "current loot handler coordinates both managers; underlying loot and map authorities remain distinct.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Loot reads and mutations use one canonical entity/view owner and no dual-manager reconciliation remains."
         },
@@ -1372,9 +1352,9 @@
           "id": "unclassified_bridge_site",
           "anchors": [],
           "direction": "unclassified; no direction or ownership may be inferred",
-          "owner": "Current containing function until #188 classifies the writer and phase.",
+          "owner": "Current containing function until #578 C0/C3 establishes the exact writer and phase using #188's trace as historical evidence; no ownership is inferred from a helper name.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Every discovered bridge site is assigned to a named direction/owner and a concrete method cut, or removed."
         }
@@ -1394,9 +1374,9 @@
           "id": "exact_persistence_semantic_policy",
           "owner": "persistence-boundary-workflows.json is the reviewed semantic authority; persistence-boundary-policy.json is its canonical generated projection over the exact snapshot.",
           "open_retirement_issues": [
-            153
+            578
           ],
-          "retirement_condition": "Each non-stable group disappears with its typed capability migration; wow-database remains the sole stable concrete adapter boundary."
+          "retirement_condition": "#578 C4 reviews inherited non-stable semantic boundaries against their real consumers: remove actual inversions or justify legitimate composition/concrete-adapter access, then reconcile source annotations and derived policy together. Existing persistence inventories are preserved by this metadata update; #153 verifies their completed exhaustive classification."
         }
       ]
     },
@@ -1405,7 +1385,7 @@
         "snapshot": "tools/architecture/world-handler-contract.tsv",
         "logical_owner_source": "tools/architecture/handler-contract-check module graph",
         "audited_entry_count": 478,
-        "coverage_rule": "Every linked production PacketHandlerEntry and concrete dispatch arm is assigned by logical module path; default family catches all remaining wow_world::handlers descendants."
+        "coverage_rule": "Every linked production PacketHandlerEntry and its registered thunk is assigned by logical module path; the sole dispatcher calls the thunk, with no second opcode match arm. The historical audited_entry_count is not refreshed by this metadata reconciliation."
       },
       "entries": [
         {
@@ -1414,20 +1394,20 @@
             "wow_world::handlers::*",
             "wow_world::WorldSession::dispatch_packet"
           ],
-          "owner": "wow-handler owns metadata/registry contracts; wow_world::handlers owns concrete registrations and WorldSession currently owns the dispatch arms.",
+          "owner": "wow-handler owns shared admission/processing vocabulary; wow_world::session::registry owns the sole registry and concrete thunk, wow_world::handlers owns registrations, and the Session dispatcher invokes each registered call.",
           "open_retirement_issues": [
-            153
+            578
           ],
-          "retirement_condition": "One module-aware registration/arm contract remains exact and the terminal PacketRouter boundary no longer requires wow-session to depend on wow-world."
+          "retirement_condition": "One module-aware registration/thunk contract remains exact. #578 C2/C4 makes complete handlers thin and classifies the adapter boundary without a second dispatcher, mandatory PacketRouter trait or gameplay dependency in wow-session."
         },
         {
           "id": "calendar_pathfinder",
           "logical_modules": [
             "wow_world::handlers::misc Calendar registrations and bodies"
           ],
-          "owner": "wow_world::handlers::misc currently; Calendar capability target is inside wow-world until its API/owner is proven.",
+          "owner": "Private wow_world::handlers::misc::calendar protocol capability; #578 C2/C4 owns any remaining gameplay/application separation, without forcing an unearned crate.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Calendar is a thin capability module with colocated tests, exact registrations, narrow dependencies, and no external impl WorldSession growth."
         },
@@ -1438,7 +1418,7 @@
           ],
           "owner": "Concrete wow-world handler modules; canonical gameplay owner varies by command and is not the handler.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Each handler decodes, invokes one typed capability, and encodes/delivers an ordered outcome without raw registry, DB, Map guard, or gameplay rules."
         },
@@ -1447,9 +1427,9 @@
           "logical_modules": [
             "wow_world::handlers::* not matched above"
           ],
-          "owner": "Concrete wow-world handler module; semantic owner remains its current implementation until #153 creates a measured vertical cut.",
+          "owner": "Concrete wow-world handler modules adapt protocol; #578 C2 owns complete typed vertical cuts and C4 their final classification. #153 verifies rather than creates implementation work.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Every family has module-aware ownership, thin adapter boundaries, colocated entry-point tests, and no unclassified misc dumping-ground registration."
         }
@@ -1471,10 +1451,9 @@
           "owner": "wow-world WorldSession/application monolith.",
           "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +6 production/+1 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
-            153,
             578
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359. #286 replaces the forbidden statement-shaped port shortcut with an explicit semantic snapshot of every represented Player save group. That required enumeration grows production 73301 -> 73517 and focused tests 96359 -> 96368, while the SQL statement decomposition, transaction and driver errors move behind the stable MariaDB adapter. #384 then retires the now-unreachable Session statement builders and their SQL-shaped tests, reducing production 73517 -> 72679 and tests 96368 -> 95257; semantic state coverage and the lifecycle adapter's exact statement-plan tests remain. #386 adds the typed collection-load operation to the shared lifecycle-port fixture, increasing tests 95257 -> 95272 without adding Session production authority. #388 replaces three concrete account-state workflows with one typed port, reducing production 72679 -> 72671; focused global/character scope, mask, empty-row reset, tutorial-coherence, failure, applied-write and fallback coverage raises tests 95272 -> 95484. #390 moves completed-achievement and instance-time reads behind the existing lifecycle port; explicit typed outcome handling raises production 72671 -> 72677 and positive, empty, malformed, failure and missing-port coverage raises tests 95484 -> 95781. #392 adds the transitional typed map-corpse port field, setter and accessor, raising production 72677 -> 72694 without adding concrete persistence access; #153 owns relocating that caller out of Session. #394 adds the startup-loaded safe-location catalog and semantic homebind request path, raising production 72694 -> 72705 and focused tests 95781 -> 95800 while removing the concrete SQL workflow. #398 adds positive, malformed-row and independent-failure coverage for the trait-load port, raising tests 95914 -> 96045 without adding Session production authority. #400 adds applied, rollback, unknown-COMMIT and missing-port coverage for logout buyback cleanup, raising tests 96045 -> 96130 without adding Session production authority. #408 removes the statement-shaped talent-reset plan and concrete transaction from Session, reducing production 72705 -> 72688; Applied/Failed/Unknown port coverage raises tests 96236 -> 96275. #410 removes the concrete XP/rest statement plan and transaction, reducing production 72688 -> 72664; semantic request and classified-outcome coverage raises tests 96275 -> 96289. #414 adds the new lifecycle load method to two Session-owned test fixtures, raising tests 96289 -> 96311 without adding Session production authority. #416 adds the separate admission-load method to those fixtures, raising tests 96311 -> 96333 without adding Session production authority. #430 extends the Session-owned lifecycle fixtures for the item-repair write, raising tests 96333 -> 96348 without adding Session production authority. #436 groups five typed persistence handles behind one indirection, reducing the production field surface 721 -> 717; the four production lines are the named aggregate that prevents future persistence cuts from enlarging WorldSession. #444 removes 74 production lines of direct money/durability persistence while its typed request and outcome fixtures raise tests 96535 -> 96660. #446 replaces Session-owned currency statements with a SQLx-free plan plus one classified standalone persistence helper, raising production 72609 -> 72625 and focused applied/unknown coverage raises tests 96660 -> 96753; concrete statement identity now lives in the adapter. The missing-port regression then pins the pre-existing unsaved state without adding production authority, raising tests 96753 -> 96784. #450 adds one typed quest-POI capability to the existing Session port aggregate, raising production 72625 -> 72639 while removing every POI SQLx/WorldDatabase access from the quest handler; #153 owns relocating that represented lazy cache to process-wide startup ownership. #153 still owns removal of the residual Session authority. #452 adds the stored-item money capability to the existing port aggregate and its classified unknown-COMMIT error, raising production 72639 -> 72663 without adding a direct WorldSession field or concrete database access. #454 moves the complete group payout transaction and reconciliation reads behind the typed port, reducing production 72663 -> 72533; two test-only import lines keep existing source-contract fixtures compiling. #456 reuses that lifecycle port for the remaining no-cost durability write, removing the concrete statement from Session while explicit outcome handling raises production 72533 -> 72542 and focused fixture coverage raises tests 96786 -> 96885. #458 adds the dedicated support capability inside the existing persistence-port aggregate plus its setter/accessor, raising production 72542 -> 72556 without adding a direct WorldSession field; the support handler no longer names a statement or database. #466 reuses the existing lifecycle port for the uncage recovery read, removing the Characters handle, statement and driver error from Session; explicit typed failure handling raises production 72587 -> 72589 and focused/fake-port coverage raises tests 96917 -> 97011. #480 adds the creature-query catalog capability to the existing private port aggregate, raising production 72620 -> 72637 without adding concrete persistence access. #489 adds the typed item-template-addon capability, raising production 72682 -> 72699 without adding concrete persistence access; the existing session cache remains explicitly transitional to C++'s startup ObjectMgr catalog. #578 removes the persistent SessionPlayerController gameplay mirror and adds focused canonical lifetime/bootstrap coverage, raising only test lines 97006 -> 97089 while production shrinks below its existing ceiling. The ObjectAccessor Player/inventory projection cut then lowers the reviewed logical owner to 72,450 production and 96,719 test lines, removes one production field and six associated methods, and leaves canonical MapManager plus PlayerRegistry as the lifetime and addressing owners. The vital-state cut moves health, max-health and death-state authority behind the generation-checked PlayerHandle and fails closed on missing or stale owners; explicit adapter outcomes and consumer-side unknown handling raise the reviewed ceiling to 72,761 production and 96,810 test lines while production WorldSession fields fall 713 -> 710. The power-state cut moves all ten current-power slots, their maxima and base mana behind that same owner; strict save/load and stale-handle seams plus focused active/detached/replacement coverage raise the reviewed ceiling to 72,826 production and 96,899 test lines while production fields fall 710 -> 707. The progression-value cut moves XP, next-level XP and character points behind PlayerHandle, removes whole-value writeback and fails closed for stale handles; explicit Option adapters and active/detached/replacement coverage raise the reviewed ceiling to 73,084 production and 96,982 test lines while production fields fall 707 -> 704."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 classified the five remaining module families as application/gameplay adapters; #252, #371 and #169 landed their bounded cuts. #578 C1-C4 now owns remaining lifetime, transition, runtime and adapter-boundary work; #153 only verifies completion. Historical measurements below are unchanged observations, not a fresh inventory. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359. #286 replaces the forbidden statement-shaped port shortcut with an explicit semantic snapshot of every represented Player save group. That required enumeration grows production 73301 -> 73517 and focused tests 96359 -> 96368, while the SQL statement decomposition, transaction and driver errors move behind the stable MariaDB adapter. #384 then retires the now-unreachable Session statement builders and their SQL-shaped tests, reducing production 73517 -> 72679 and tests 96368 -> 95257; semantic state coverage and the lifecycle adapter's exact statement-plan tests remain. #386 adds the typed collection-load operation to the shared lifecycle-port fixture, increasing tests 95257 -> 95272 without adding Session production authority. #388 replaces three concrete account-state workflows with one typed port, reducing production 72679 -> 72671; focused global/character scope, mask, empty-row reset, tutorial-coherence, failure, applied-write and fallback coverage raises tests 95272 -> 95484. #390 moves completed-achievement and instance-time reads behind the existing lifecycle port; explicit typed outcome handling raises production 72671 -> 72677 and positive, empty, malformed, failure and missing-port coverage raises tests 95484 -> 95781. #392 adds the transitional typed map-corpse port field, setter and accessor, raising production 72677 -> 72694 without adding concrete persistence access; #578 C1/C3 owns relocating that caller out of Session. #394 adds the startup-loaded safe-location catalog and semantic homebind request path, raising production 72694 -> 72705 and focused tests 95781 -> 95800 while removing the concrete SQL workflow. #398 adds positive, malformed-row and independent-failure coverage for the trait-load port, raising tests 95914 -> 96045 without adding Session production authority. #400 adds applied, rollback, unknown-COMMIT and missing-port coverage for logout buyback cleanup, raising tests 96045 -> 96130 without adding Session production authority. #408 removes the statement-shaped talent-reset plan and concrete transaction from Session, reducing production 72705 -> 72688; Applied/Failed/Unknown port coverage raises tests 96236 -> 96275. #410 removes the concrete XP/rest statement plan and transaction, reducing production 72688 -> 72664; semantic request and classified-outcome coverage raises tests 96275 -> 96289. #414 adds the new lifecycle load method to two Session-owned test fixtures, raising tests 96289 -> 96311 without adding Session production authority. #416 adds the separate admission-load method to those fixtures, raising tests 96311 -> 96333 without adding Session production authority. #430 extends the Session-owned lifecycle fixtures for the item-repair write, raising tests 96333 -> 96348 without adding Session production authority. #436 groups five typed persistence handles behind one indirection, reducing the production field surface 721 -> 717; the four production lines are the named aggregate that prevents future persistence cuts from enlarging WorldSession. #444 removes 74 production lines of direct money/durability persistence while its typed request and outcome fixtures raise tests 96535 -> 96660. #446 replaces Session-owned currency statements with a SQLx-free plan plus one classified standalone persistence helper, raising production 72609 -> 72625 and focused applied/unknown coverage raises tests 96660 -> 96753; concrete statement identity now lives in the adapter. The missing-port regression then pins the pre-existing unsaved state without adding production authority, raising tests 96753 -> 96784. #450 adds one typed quest-POI capability to the existing Session port aggregate, raising production 72625 -> 72639 while removing every POI SQLx/WorldDatabase access from the quest handler; #578 C2/C4 owns resolving that represented lazy cache against its process-wide startup consumers. #578 C1-C4 owns removal of the residual Session authority; #153 verifies the completed result. #452 adds the stored-item money capability to the existing port aggregate and its classified unknown-COMMIT error, raising production 72639 -> 72663 without adding a direct WorldSession field or concrete database access. #454 moves the complete group payout transaction and reconciliation reads behind the typed port, reducing production 72663 -> 72533; two test-only import lines keep existing source-contract fixtures compiling. #456 reuses that lifecycle port for the remaining no-cost durability write, removing the concrete statement from Session while explicit outcome handling raises production 72533 -> 72542 and focused fixture coverage raises tests 96786 -> 96885. #458 adds the dedicated support capability inside the existing persistence-port aggregate plus its setter/accessor, raising production 72542 -> 72556 without adding a direct WorldSession field; the support handler no longer names a statement or database. #466 reuses the existing lifecycle port for the uncage recovery read, removing the Characters handle, statement and driver error from Session; explicit typed failure handling raises production 72587 -> 72589 and focused/fake-port coverage raises tests 96917 -> 97011. #480 adds the creature-query catalog capability to the existing private port aggregate, raising production 72620 -> 72637 without adding concrete persistence access. #489 adds the typed item-template-addon capability, raising production 72682 -> 72699 without adding concrete persistence access; the existing session cache remains explicitly transitional to C++'s startup ObjectMgr catalog. #578 removes the persistent SessionPlayerController gameplay mirror and adds focused canonical lifetime/bootstrap coverage, raising only test lines 97006 -> 97089 while production shrinks below its existing ceiling. The ObjectAccessor Player/inventory projection cut then lowers the reviewed logical owner to 72,450 production and 96,719 test lines, removes one production field and six associated methods, and leaves canonical MapManager plus PlayerRegistry as the lifetime and addressing owners. The vital-state cut moves health, max-health and death-state authority behind the generation-checked PlayerHandle and fails closed on missing or stale owners; explicit adapter outcomes and consumer-side unknown handling raise the reviewed ceiling to 72,761 production and 96,810 test lines while production WorldSession fields fall 713 -> 710. The power-state cut moves all ten current-power slots, their maxima and base mana behind that same owner; strict save/load and stale-handle seams plus focused active/detached/replacement coverage raise the reviewed ceiling to 72,826 production and 96,899 test lines while production fields fall 710 -> 707. The progression-value cut moves XP, next-level XP and character points behind PlayerHandle, removes whole-value writeback and fails closed for stale handles; explicit Option adapters and active/detached/replacement coverage raise the reviewed ceiling to 73,084 production and 96,982 test lines while production fields fall 707 -> 704."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
@@ -1483,7 +1462,6 @@
           "total_lines": 34896,
           "owner": "wow-map canonical MapManager/runtime.",
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Map runtime/storage/visibility/respawn submodules have one writer and clock per transition; physical splitting is not combined with authority flips. #578 adds the generation-checked active/detached Player owner and stale-handle tests, then moves vitals, powers, progression and money behind that owner. Explicit fail-closed money resolution across durable COMMIT/publication paths raises the reviewed production/test ceilings while deleting the production money field.",
@@ -1497,7 +1475,6 @@
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +30 production/+0 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Character verticals are thin capability adapters with typed owners/ports and no raw directory or concrete persistence access. #386 removes the five concrete Login-database collection reads while preserving gameplay filtering in the character adapter; explicit typed-result handling raises production 20865 -> 20872 and focused success, empty, malformed-row, full-failure and partial-failure coverage raises tests 10764 -> 10964. #390 moves customization reads behind the same lifecycle port; typed result validation raises production 20872 -> 20877 and the shared port fixture grows tests 10964 -> 10976. #392 removes the concrete corpse-load workflow, reducing production 20877 -> 20848; its typed-port success, base-failure and independent auxiliary-failure fixtures raise tests 10976 -> 11143. #394 removes the five remaining concrete homebind workflows from this adapter, reducing production 20848 -> 20812; primary/fallback catalog resolution plus semantic delete/insert/failure coverage raises tests 11143 -> 11374. #398 removes the concrete trait-entry/config query workflow; explicit typed failure and unknown-column handling raises production 20825 -> 20849 while retaining gameplay and DB2 validation in the Player adapter. #400 removes the concrete logout buyback transaction, reducing production 20849 -> 20848; the shared lifecycle-port fixtures grow tests 11374 -> 11392. #408 extends both character-handler lifecycle-port fixtures for the new semantic talent-reset operation, raising tests 11597 -> 11615 without adding production authority. #410 extends both fixtures for represented XP/rest persistence, raising tests 11615 -> 11633 without adding production authority. #414 removes the core `SEL_CHARACTER` query/row decode with no net production growth; exact typed-outcome/source-contract coverage plus fixture plumbing raises tests 11633 -> 11671. #416 removes the three direct admission queries; explicit typed failure/mismatch branches raise production 20765 -> 20798 and statement/source-contract plus fixture coverage raises tests 11671 -> 11718. #418 removes seven direct pet-login read families while retaining Player-owned application order and defaults, reducing production 20798 -> 20757 without growing Session authority. #420 removes the direct group-member lookup; explicit typed outcome handling raises production 20757 -> 20760 while registry resolution and group-sequence mutation remain with the gameplay adapter. #422 removes four profile read families while retaining equipment/transmog shared completion, CUF bounds and currency-catalog publication in the gameplay adapter, reducing production 20760 -> 20719. #424 removes seven progression query families while retaining every gameplay/catalog decision and completion marker in the adapter; explicit typed outcome handling raises production 20719 -> 20722. #426 removes both character-aura query families while retaining independent authority gating and gameplay application order; explicit typed outcome handling raises production 20722 -> 20730. #428 removes top-level inventory, bag-content and void-storage query/decode logic while retaining item interpretation and repair ordering; production falls 20730 -> 20688 and focused source-contract coverage raises tests 11711 -> 11738. #430 removes both login item-repair transaction builders; typed action/outcome handling raises production 20688 -> 20705 and exact adapter/source-contract plus fixture coverage raises tests 11738 -> 11781. #444 extends the two character-handler lifecycle fixtures for the typed money methods, raising tests 11847 -> 11883 without adding production authority. #446 routes three mixed vendor currency plans through the adapter rendering bridge, raising production 20695 -> 20710 while removing statement identity from the handler; its two lifecycle fixtures grow tests 11883 -> 11901. #456 extends those same test fixtures for the standalone durability method, raising tests 11901 -> 11919 without adding production authority. #466 routes the guarded deletion postcondition through the typed lifecycle port; explicit outcome handling raises production 20689 -> 20691 and the two existing trait fixtures grow tests 11975 -> 11999. #478 moves the enum statement choice, cleanup write and row decoding into the MariaDB adapter, reducing production 20691 -> 20656; focused typed success, declined-name, best-effort-cleanup and query-failure coverage raises tests 11999 -> 12093. #480 moves the base, locale and display query/decode workflow into the typed MariaDB adapter, reducing production 20656 -> 20586; byte-exact success plus Missing/Failed coverage raises tests 12093 -> 12252. #578 routes login, bank, vendor and self-create money reads/writes through the generation-checked canonical Player and makes every post-COMMIT publication fail closed if that owner becomes stale."
@@ -1509,7 +1486,6 @@
           "total_lines": 30417,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Loot handlers adapt typed wow-loot/Player/Map/persistence outcomes and no longer coordinate dual authorities or durable trackers. #371 changes no loot production path; its test assertions read stable logical corpse deadlines, increasing test LOC 16240 -> 16257. #452 removes the stored-item SQLx transaction, reconciliation and concrete driver error vocabulary from the handler, reducing production 13764 -> 13470; typed-port missing/success coverage and retained reconciliation fixtures raise tests 16257 -> 16317. #454 adds missing-port and successful group payout seam coverage, raising tests 16317 -> 16413 without growing loot production logic. #489 replaces the creature-loot item-addon query with a typed outcome, raising production 13470 -> 13478 while removing its statement and database access. #578 makes stored-item and shared loot-money application resolve the generation-checked canonical Player before applying an already-durable balance or publishing its notification.",
@@ -1524,7 +1500,6 @@
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +1 production/+0 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent. #252's aggro-family cut moves the reputation/flag reads into the collector's existing canonical pass, adding 14 production lines here while deleting more from the mirror, plus 59 test lines for the positive and no-owner cases. #388 adds 14 production lines to compose and install the distinct session account-state persistence capability; no gameplay authority moves into the composition root. #392 adds 13 production lines to compose and install the map-corpse persistence capability; gameplay materialization remains in the transitional caller. #394 adds 6 production lines to share the startup-loaded safe-location catalog with Session construction; no gameplay or persistence authority moves into the composition root. #412 replaces four compact concrete-updater constructions with explicit typed populate/update adapter calls, adding 38 production lines while removing every MySqlPool/DbUpdater inventory row from run_inner; its exact source-contract test adds 36 test lines and pins 2 populate plus 4 update calls in Login -> Character -> World -> Hotfix order. #450 adds 13 composition lines for the narrow World quest-POI adapter and Session resource; SQLx ownership remains in wow-database and gameplay assembly remains in wow-world. #452 adds 14 composition lines for the narrow Character stored-item money adapter; the binary chooses the concrete adapter while gameplay receives only the typed port. #454 adds 14 composition/install lines for the separate multi-recipient group payout adapter; gameplay still receives only the SQLx-free port. #458 adds 14 composition/install lines for the dedicated support bug-report capability; SQL and database ownership remain in wow-database and no gameplay logic enters the composition root. #476 adds 10 composition lines for the battle-pet purchase durability port; saga policy, money ownership and publication remain in wow-world. #478 adds 13 composition/install lines for the character-enumeration read port; SQL remains in wow-database and enum packet/gameplay decisions remain in wow-world. #480 adds 13 composition/install lines for the creature-query catalog port; SQL and row decoding remain in wow-database while packet assembly stays in wow-world. #489 adds 15 composition/install lines for the item-template-addon port; SQL and row decoding remain in wow-database. #493 replaces respawn statement-shaped queue entries and startup rows with typed mutations/load outcomes; the composition root owns only the port and preserves the existing coalescing, retry and shutdown-drain policy. #501 adds the private mount-catalog composition boundary: 156 production lines convert five typed row families and preserve startup ordering, while 173 focused test lines prove replacement/index repair, C++ definition validation and failure-before-mutation. SQL remains in wow-database and mount rules remain in wow-data. #503 adds the private reputation-catalog composition boundary: 172 production lines preserve three-table startup order and diagnostics, while 144 focused test lines cover typed row conversion, validation, empty-versus-failure classification and field mapping. SQL remains in wow-database and reputation rules remain in wow-data. #505 adds the private AreaTrigger-template composition boundary: 135 production lines convert six typed row families without changing their represented query/failure order, while 203 test lines cover field/null mapping, pure validation and failure-before-publication. SQL remains in wow-database and AreaTrigger rules remain in wow-data. #507 adds the private vehicle-catalog composition boundary: 171 production lines preserve two independent database capabilities and five startup row families, while 247 focused tests cover overlay replacement, seat order, empty-versus-failure classification, grouping and spawn-specific precedence. SQL remains in wow-database and DB2/gameplay rules remain in wow-data. #509 adds the private core-SpellInfo Hotfix composition boundary: 371 production lines convert eleven typed DB2 row families in frozen bootstrap order, while 333 focused test lines cover every field and empty-versus-failure classification. SQL remains in wow-database and DB2 replacement, tombstones and SpellInfo hydration remain in wow-data. #511 adds the private exact-SpellInfo-key composition boundary: 126 production lines convert twenty contributor batches plus SpellPowerDifficulty, while 71 focused test lines cover every variant/field and empty-versus-failure classification. SQL remains in wow-database and WDC4 replacement, tombstones, name filtering and key authority remain in wow-data. #513 extends the private spell DB2 composition boundary to eight remaining typed row families: +245 production conversion/composition lines and +172 focused field/failure test lines; SQL remains in wow-database while DB2 replacement and tombstones remain in wow-data. #515 adds a private foundational SpellMgr World-catalog composition boundary: +149 production conversion/composition lines and +80 focused field/failure test lines; SQL remains in wow-database and catalog validation remains in wow-data. #574 removes the complete wow-data -> wow-database dependency and its policy exception; 24 startup sources now cross cohesive SQLx-free capabilities, adding 1063 production conversion/composition lines and 239 focused test lines here while removing concrete database ownership from wow-data and pinning the eight-stage quest failure order."
@@ -1537,7 +1512,6 @@
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +25 production/+72 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order. #252's reputation cut adds a canonical party-member fixture here (+95 test lines): the quest-share harness now installs the receiver's canonical Player, because the gate reads standings off that owner instead of a mirrored copy. #438 adds 40 production lines in the quest persistence submodule to project changed quest statuses into SQLx-free objective snapshots for the atomic void-storage transfer; statement identity, transactions and dialect ownership move to wow-database. #446 moves the standalone quest-reward currency transaction behind the lifecycle port and routes the remaining mixed item/currency plan through adapter rendering; explicit outcome handling raises production 8491 -> 8499 while preserving snapshot restoration and packet order. #450 removes 18 net production lines by replacing the concrete quest-POI loader with typed row assembly; positive, missing-point, cached, missing-port and failed-read coverage adds 97 test lines. #489 removes four production lines net by replacing the item-addon statement/query with a typed outcome; cache success/zero/failure coverage raises tests 10387 -> 10478."
@@ -1550,7 +1524,6 @@
           "owner": "wow-entities partial canonical Player model.",
           "latest_growth_review": "2026-09-05: native known spell commands; +35 production/+37 test lines. Replacement owns metadata pruning, grants preserve insertion order and dependent marking respects row authority. Native tests preserve duplicate/signed IDs and dirty row state. No new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
-            153,
             578
           ],
           "retirement_condition": "Player submodules own one mutable representation per responsibility with colocated tests; Session and directory mirrors for migrated families are removed. #578 exposes C++-named canonical Player money access alongside the existing update-field-tracked mutation."
@@ -1562,7 +1535,7 @@
           "total_lines": 5291,
           "owner": "wow-social atomic Group/PendingInvites authority relocated from wow-network by #137.",
           "open_retirement_issues": [
-            153
+            578
           ],
           "retirement_condition": "Group state, invariants and outcomes stay behind the narrow named service boundary; no transport, SQL or packet type enters wow-social and the transitional wow-network mailbox edge is gone."
         }
@@ -1588,11 +1561,15 @@
     },
     {
       "id": "handler_snapshot_proves_wiring_not_semantics",
-      "detail": "The 478-row snapshot proves linked metadata and arm coverage. It does not prove thin handlers or correct capability ownership; #185 and later vertical cuts provide those checks."
+      "detail": "The historical 478-row measurement described wiring, not semantics, and is not refreshed here. The current exact linked registry snapshot guards metadata/thunks, but cannot prove thin handlers, execution-phase admission or capability ownership; #578 C0/C2/C4 must provide that evidence before #153."
     },
     {
       "id": "session_convergence_remains_open",
       "detail": "#578 exists and remains open: remove remaining Session gameplay/catalog/Map authority and narrow handler consumers before terminal audit #153. Required resource grouping and refreshed syntax/hotspot counts are not closure evidence."
+    },
+    {
+      "id": "inherited_persistence_targets_require_semantic_reconciliation",
+      "detail": "The preserved source workflow annotations and derived persistence policy retain historical #153 targets. They are not authority to defer implementation: #578 C4 must decide each non-stable boundary, reconcile source annotations and policy together, and verify affected inventory before terminal #153. This plan-only update does not blindly retarget semantic annotations or regenerate inventories."
     }
   ],
   "external_tracking_issues": [
@@ -1601,12 +1578,6 @@
       "state": "closed",
       "title": "[26] [M2.8] Formalize the live-runtime tick owner from traced phases",
       "role": "Related bounded runtime-authority cut referenced by bridge and hotspot retirement conditions; explicitly not a prerequisite edge in architecture-issue-ledger.json."
-    },
-    {
-      "number": 578,
-      "state": "open",
-      "title": "[ARCH.CLOSE.OWNER] Converge Session gameplay state onto canonical Player/Map ownership",
-      "role": "Existing Session convergence deliverable required before terminal audit #153; owns the unresolved gameplay/catalog/runtime boundary, not a stable exception."
     }
   ]
 }

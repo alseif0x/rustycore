@@ -174,6 +174,7 @@
     359,
     297,
     378,
+    578,
     153
   ],
   "issues": [
@@ -387,7 +388,8 @@
         133
       ],
       "depends_on": [
-        184
+        184,
+        578
       ]
     },
     {
@@ -482,7 +484,7 @@
     },
     {
       "number": 169,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB] Establish SQLx-free persistence ownership and dialect adapters",
       "kind": "epic",
       "parents": [
@@ -1629,9 +1631,9 @@
         472
       ]
     },
-  {
-    "number": 476,
-    "state": "closed",
+    {
+      "number": 476,
+      "state": "closed",
       "title": "[ARCH.DB.47] Move battle-pet purchase saga durability behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1639,621 +1641,634 @@
         169
       ],
       "depends_on": [
-      474
-    ]
-  },
-  {
-    "number": 478,
-    "state": "closed",
-    "title": "[ARCH.DB.48] Move character-enumeration reads behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      476
-    ]
-  },
-  {
-    "number": 480,
-    "state": "closed",
-    "title": "[ARCH.DB.49] Move creature-query catalog reads behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      478
-    ]
-  },
-  {
-    "number": 482,
-    "state": "closed",
-    "title": "[ARCH.DB.50] Move gameobject-query catalog reads behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      480
-    ]
-  },
-  {
-    "number": 484,
-    "state": "closed",
-    "title": "[ARCH.DB.51] Move page-text catalog reads behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      482
-    ]
-  },
-  {
-    "number": 487,
-    "state": "closed",
-    "title": "[ARCH.DB.52] Move player-name query reads behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      484
-    ]
-  },
-  {
-    "number": 489,
-    "state": "closed",
-    "title": "[ARCH.DB.53] Move item-template-addon reads behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      487
-    ]
-  },
-  {
-    "number": 491,
-    "state": "closed",
-    "title": "[ARCH.DB.54] Move gossip catalog reads behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      489
-    ]
-  },
-  {
-    "number": 493,
-    "state": "closed",
-    "title": "[ARCH.DB.55] Move respawn persistence behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      491
-    ]
-  },
-  {
-    "number": 495,
-    "state": "closed",
-    "title": "[ARCH.DB.56] Move represented game-event persistence behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      493
-    ]
-  },
-  {
-    "number": 497,
-    "state": "closed",
-    "title": "[ARCH.DB.57] Move instance-lock persistence behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      495
-    ]
-  },
-  {
-    "number": 499,
-    "state": "closed",
-    "title": "[ARCH.DB.58] Move PlayerChoice startup loading behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      497
-    ]
-  },
-  {
-    "number": 501,
-    "state": "closed",
-    "title": "[ARCH.DB.59] Move mount startup catalogs behind typed persistence ports",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      499
-    ]
-  },
-  {
-    "number": 503,
-    "state": "closed",
-    "title": "[ARCH.DB.60] Move reputation startup catalogs behind a typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      501
-    ]
-  },
-  {
-    "number": 505,
-    "state": "closed",
-    "title": "[ARCH.DB.61] Move AreaTrigger template startup reads behind a typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      503
-    ]
-  },
-  {
-    "number": 507,
-    "state": "closed",
-    "title": "[ARCH.DB.62] Move vehicle startup reads behind typed persistence ports",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      505
-    ]
-  },
-  {
-    "number": 509,
-    "state": "closed",
-    "title": "[ARCH.DB.63] Move core SpellInfo DB2 overlays behind a typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      507
-    ]
-  },
-  {
-    "number": 511,
-    "state": "closed",
-    "title": "[ARCH.DB.64] Move exact SpellInfo key overlays behind a typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      509
-    ]
-  },
-  {
-    "number": 513,
-    "state": "closed",
-    "title": "[ARCH.DB.65] Move remaining Spell DB2 overlays behind a typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      511
-    ]
-  },
-  {
-    "number": 515,
-    "state": "closed",
-    "title": "[ARCH.DB.66] Move foundational SpellMgr World catalogs behind a typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      513
-    ]
-  },
-  {
-    "number": 517,
-    "state": "closed",
-    "title": "[ARCH.DB.67] Move remaining SpellMgr World catalogs behind the typed port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      515
-    ]
-  },
-  {
-    "number": 519,
-    "state": "closed",
-    "title": "[ARCH.DB.68] Move trainer startup catalogs behind a typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      517
-    ]
-  },
-  {
-    "number": 521,
-    "state": "closed",
-    "title": "[ARCH.DB.69] Move ChrSpecialization hotfix overlay behind a typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      519
-    ]
-  },
-  {
-    "number": 523,
-    "state": "closed",
-    "title": "[ARCH.DB.70] Move the effective skill catalog behind one typed Hotfix source",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      521
-    ]
-  },
-  {
-    "number": 526,
-    "state": "closed",
-    "title": "[ARCH.DB.71] Move World skill-rule catalogs behind one typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      523
-    ]
-  },
-  {
-    "number": 528,
-    "state": "closed",
-    "title": "[ARCH.DB.72] Move Player base-stat sources behind one typed World persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      526
-    ]
-  },
-  {
-    "number": 530,
-    "state": "closed",
-    "title": "[ARCH.DB.73] Move Player-creation catalogs behind one typed World persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      528
-    ]
-  },
-  {
-    "number": 532,
-    "state": "closed",
-    "title": "[ARCH.DB.74] Move Difficulty Hotfix overlays behind one typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      530
-    ]
-  },
-  {
-    "number": 534,
-    "state": "closed",
-    "title": "[ARCH.DB.75] Move Hotfix delivery metadata behind one staged persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      532
-    ]
-  },
-  {
-    "number": 536,
-    "state": "closed",
-    "title": "[ARCH.DB.76] Move remaining AreaTrigger World reads behind one staged persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      505,
-      534
-    ]
-  },
-  {
-    "number": 538,
-    "state": "closed",
-    "title": "[ARCH.DB.77] Reuse the typed HotfixData source for effective DB2 removals",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      534,
-      536
-    ]
-  },
-  {
-    "number": 540,
-    "state": "closed",
-    "title": "[ARCH.DB.78] Move creature display/model Hotfix overlays behind one typed source",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      538
-    ]
-  },
-  {
-    "number": 542,
-    "state": "closed",
-    "title": "[ARCH.DB.79] Move gossip startup catalogs behind one typed World source",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      540
-    ]
-  },
-  {
-    "number": 544,
-    "state": "closed",
-    "title": "[ARCH.DB.80] Move Phase DB2 Hotfix overlays behind one typed source",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      542
-    ]
-  },
-  {
-    "number": 546,
-    "state": "closed",
-    "title": "[ARCH.DB.81] Move World phasing catalogs behind one typed persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      544
-    ]
-  },
-  {
-    "number": 548,
-    "state": "closed",
-    "title": "[ARCH.DB.82] Move quest-item catalogs behind one typed World persistence port",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      546
-    ]
-  },
-  {
-    "number": 550,
-    "state": "closed",
-    "title": "[ARCH.DB.83] Move LFGDungeons Hotfix overlay behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      548
-    ]
-  },
-  {
-    "number": 552,
-    "state": "closed",
-    "title": "[ARCH.DB.84] Move late LFG World catalogs behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      550
-    ]
-  },
-  {
-    "number": 554,
-    "state": "closed",
-    "title": "[ARCH.DB.85] Move battle-pet selection World catalogs behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      552
-    ]
-  },
-  {
-    "number": 556,
-    "state": "closed",
-    "title": "[ARCH.DB.86] Move item random-enchantment World catalog behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      554
-    ]
-  },
-  {
-    "number": 558,
-    "state": "closed",
-    "title": "[ARCH.DB.87] Move GameTele World catalog behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      556
-    ]
-  },
-  {
-    "number": 562,
-    "state": "closed",
-    "title": "[ARCH.DB.88] Move exploration BaseXP World catalog behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      558
-    ]
-  },
-  {
-    "number": 564,
-    "state": "closed",
-    "title": "[ARCH.DB.89] Move reserved-player-name Character catalog behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      562
-    ]
-  },
-  {
-    "number": 566,
-    "state": "closed",
-    "title": "[ARCH.DB.90] Move jump-charge World catalog behind one typed capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      564
-    ]
-  },
-  {
-    "number": 568,
-    "state": "closed",
-    "title": "[ARCH.DB.91] Move GameEvent startup World catalogs behind one staged persistence capability",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      566
-    ]
-  },
-  {
-    "number": 570,
-    "state": "closed",
-    "title": "[ARCH.DB.92] Move the remaining canonical spawn loader reads behind typed capabilities",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      568
-    ]
-  },
-  {
-    "number": 572,
-    "state": "closed",
-    "title": "[ARCH.DB.93] Move the complete spell-acquisition startup source family behind typed capabilities",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      570
-    ]
-  },
-  {
-    "number": 574,
-    "state": "open",
-    "title": "[ARCH.DB.94] Make wow-data persistence-independent",
-    "kind": "slice",
-    "parents": [
-      133,
-      169
-    ],
-    "depends_on": [
-      572
-    ]
-  }
-]
+        474
+      ]
+    },
+    {
+      "number": 478,
+      "state": "closed",
+      "title": "[ARCH.DB.48] Move character-enumeration reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        476
+      ]
+    },
+    {
+      "number": 480,
+      "state": "closed",
+      "title": "[ARCH.DB.49] Move creature-query catalog reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        478
+      ]
+    },
+    {
+      "number": 482,
+      "state": "closed",
+      "title": "[ARCH.DB.50] Move gameobject-query catalog reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        480
+      ]
+    },
+    {
+      "number": 484,
+      "state": "closed",
+      "title": "[ARCH.DB.51] Move page-text catalog reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        482
+      ]
+    },
+    {
+      "number": 487,
+      "state": "closed",
+      "title": "[ARCH.DB.52] Move player-name query reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        484
+      ]
+    },
+    {
+      "number": 489,
+      "state": "closed",
+      "title": "[ARCH.DB.53] Move item-template-addon reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        487
+      ]
+    },
+    {
+      "number": 491,
+      "state": "closed",
+      "title": "[ARCH.DB.54] Move gossip catalog reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        489
+      ]
+    },
+    {
+      "number": 493,
+      "state": "closed",
+      "title": "[ARCH.DB.55] Move respawn persistence behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        491
+      ]
+    },
+    {
+      "number": 495,
+      "state": "closed",
+      "title": "[ARCH.DB.56] Move represented game-event persistence behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        493
+      ]
+    },
+    {
+      "number": 497,
+      "state": "closed",
+      "title": "[ARCH.DB.57] Move instance-lock persistence behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        495
+      ]
+    },
+    {
+      "number": 499,
+      "state": "closed",
+      "title": "[ARCH.DB.58] Move PlayerChoice startup loading behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        497
+      ]
+    },
+    {
+      "number": 501,
+      "state": "closed",
+      "title": "[ARCH.DB.59] Move mount startup catalogs behind typed persistence ports",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        499
+      ]
+    },
+    {
+      "number": 503,
+      "state": "closed",
+      "title": "[ARCH.DB.60] Move reputation startup catalogs behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        501
+      ]
+    },
+    {
+      "number": 505,
+      "state": "closed",
+      "title": "[ARCH.DB.61] Move AreaTrigger template startup reads behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        503
+      ]
+    },
+    {
+      "number": 507,
+      "state": "closed",
+      "title": "[ARCH.DB.62] Move vehicle startup reads behind typed persistence ports",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        505
+      ]
+    },
+    {
+      "number": 509,
+      "state": "closed",
+      "title": "[ARCH.DB.63] Move core SpellInfo DB2 overlays behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        507
+      ]
+    },
+    {
+      "number": 511,
+      "state": "closed",
+      "title": "[ARCH.DB.64] Move exact SpellInfo key overlays behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        509
+      ]
+    },
+    {
+      "number": 513,
+      "state": "closed",
+      "title": "[ARCH.DB.65] Move remaining Spell DB2 overlays behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        511
+      ]
+    },
+    {
+      "number": 515,
+      "state": "closed",
+      "title": "[ARCH.DB.66] Move foundational SpellMgr World catalogs behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        513
+      ]
+    },
+    {
+      "number": 517,
+      "state": "closed",
+      "title": "[ARCH.DB.67] Move remaining SpellMgr World catalogs behind the typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        515
+      ]
+    },
+    {
+      "number": 519,
+      "state": "closed",
+      "title": "[ARCH.DB.68] Move trainer startup catalogs behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        517
+      ]
+    },
+    {
+      "number": 521,
+      "state": "closed",
+      "title": "[ARCH.DB.69] Move ChrSpecialization hotfix overlay behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        519
+      ]
+    },
+    {
+      "number": 523,
+      "state": "closed",
+      "title": "[ARCH.DB.70] Move the effective skill catalog behind one typed Hotfix source",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        521
+      ]
+    },
+    {
+      "number": 526,
+      "state": "closed",
+      "title": "[ARCH.DB.71] Move World skill-rule catalogs behind one typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        523
+      ]
+    },
+    {
+      "number": 528,
+      "state": "closed",
+      "title": "[ARCH.DB.72] Move Player base-stat sources behind one typed World persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        526
+      ]
+    },
+    {
+      "number": 530,
+      "state": "closed",
+      "title": "[ARCH.DB.73] Move Player-creation catalogs behind one typed World persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        528
+      ]
+    },
+    {
+      "number": 532,
+      "state": "closed",
+      "title": "[ARCH.DB.74] Move Difficulty Hotfix overlays behind one typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        530
+      ]
+    },
+    {
+      "number": 534,
+      "state": "closed",
+      "title": "[ARCH.DB.75] Move Hotfix delivery metadata behind one staged persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        532
+      ]
+    },
+    {
+      "number": 536,
+      "state": "closed",
+      "title": "[ARCH.DB.76] Move remaining AreaTrigger World reads behind one staged persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        505,
+        534
+      ]
+    },
+    {
+      "number": 538,
+      "state": "closed",
+      "title": "[ARCH.DB.77] Reuse the typed HotfixData source for effective DB2 removals",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        534,
+        536
+      ]
+    },
+    {
+      "number": 540,
+      "state": "closed",
+      "title": "[ARCH.DB.78] Move creature display/model Hotfix overlays behind one typed source",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        538
+      ]
+    },
+    {
+      "number": 542,
+      "state": "closed",
+      "title": "[ARCH.DB.79] Move gossip startup catalogs behind one typed World source",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        540
+      ]
+    },
+    {
+      "number": 544,
+      "state": "closed",
+      "title": "[ARCH.DB.80] Move Phase DB2 Hotfix overlays behind one typed source",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        542
+      ]
+    },
+    {
+      "number": 546,
+      "state": "closed",
+      "title": "[ARCH.DB.81] Move World phasing catalogs behind one typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        544
+      ]
+    },
+    {
+      "number": 548,
+      "state": "closed",
+      "title": "[ARCH.DB.82] Move quest-item catalogs behind one typed World persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        546
+      ]
+    },
+    {
+      "number": 550,
+      "state": "closed",
+      "title": "[ARCH.DB.83] Move LFGDungeons Hotfix overlay behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        548
+      ]
+    },
+    {
+      "number": 552,
+      "state": "closed",
+      "title": "[ARCH.DB.84] Move late LFG World catalogs behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        550
+      ]
+    },
+    {
+      "number": 554,
+      "state": "closed",
+      "title": "[ARCH.DB.85] Move battle-pet selection World catalogs behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        552
+      ]
+    },
+    {
+      "number": 556,
+      "state": "closed",
+      "title": "[ARCH.DB.86] Move item random-enchantment World catalog behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        554
+      ]
+    },
+    {
+      "number": 558,
+      "state": "closed",
+      "title": "[ARCH.DB.87] Move GameTele World catalog behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        556
+      ]
+    },
+    {
+      "number": 562,
+      "state": "closed",
+      "title": "[ARCH.DB.88] Move exploration BaseXP World catalog behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        558
+      ]
+    },
+    {
+      "number": 564,
+      "state": "closed",
+      "title": "[ARCH.DB.89] Move reserved-player-name Character catalog behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        562
+      ]
+    },
+    {
+      "number": 566,
+      "state": "closed",
+      "title": "[ARCH.DB.90] Move jump-charge World catalog behind one typed capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        564
+      ]
+    },
+    {
+      "number": 568,
+      "state": "closed",
+      "title": "[ARCH.DB.91] Move GameEvent startup World catalogs behind one staged persistence capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        566
+      ]
+    },
+    {
+      "number": 570,
+      "state": "closed",
+      "title": "[ARCH.DB.92] Move the remaining canonical spawn loader reads behind typed capabilities",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        568
+      ]
+    },
+    {
+      "number": 572,
+      "state": "closed",
+      "title": "[ARCH.DB.93] Move the complete spell-acquisition startup source family behind typed capabilities",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        570
+      ]
+    },
+    {
+      "number": 574,
+      "state": "closed",
+      "title": "[ARCH.DB.94] Make wow-data persistence-independent",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        572
+      ]
+    },
+    {
+      "number": 578,
+      "state": "open",
+      "title": "[ARCH.CLOSE.OWNER] Converge Session gameplay state onto canonical Player/Map ownership",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        378,
+        574
+      ]
+    }
+  ]
 }

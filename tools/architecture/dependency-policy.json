@@ -164,8 +164,8 @@
     {
       "from": "wow-world",
       "to": "wow-handler",
-      "tracking_issue": 153,
-      "reason": "WorldSession still owns concrete packet admission and dispatch. #152 extracts those private submodules, #140 extracts the command pump, and #182-#184 complete the transitional Session shell; none removes this Cargo edge. The #153 post-shell re-audit owns the terminal PacketRouter inversion and final handler-registry boundary decision. Closed since this was written: #140, #152, #182, #184 \u2014 the residue is owned by #153."
+      "tracking_issue": 578,
+      "reason": "wow-handler supplies admission/processing vocabulary and HandlerFuture; the sole registry and concrete thunk live in wow-world after #359. An application protocol adapter may legitimately consume that vocabulary. #578 owns making handlers thin over typed Player/Map transitions and deciding the final registry boundary from those consumers, without adding a PacketRouter trait or moving the registry merely to erase this category exception. #153 verifies the completed decision; it implements no inversion."
     },
     {
       "from": "wow-world",
@@ -176,14 +176,14 @@
     {
       "from": "wow-world",
       "to": "wow-network",
-      "tracking_issue": 153,
-      "reason": "After #134 removed the listener megabag, gameplay still depends on network-owned directory, mailbox, durable-rail, and Group types. The Player path is #150 then #192-#196, #138, #191 and #190; the Group path is #151 then #197-#199, #195 and #137. Physical session-link and write-fence transport contracts remain through #182-#184, so #153 owns the terminal boundary decision after the shell lands. Closed since this was written: #134, #137, #138, #150, #151, #182, #184, #190, #191, #192, #195, #196, #197, #199 \u2014 the residue is owned by #153."
+      "tracking_issue": 578,
+      "reason": "Directory, Group and mailbox authority have already left wow-network. The mixed wow-world application still adapts concrete session-link, framing and transport-fence contracts. This adapter consumption is not itself a second gameplay owner. #578 owns separating those legitimate protocol/lifecycle uses from any remaining gameplay-to-transport coupling, preserving socket, ordering and backpressure contracts. It may retain an evidenced adapter edge; no new trait or crate is required solely to remove the exception. #153 verifies the final classification."
     },
     {
       "from": "wow-world",
       "to": "wow-packet",
-      "tracking_issue": 153,
-      "reason": "WorldSession and concrete handlers still own packet-boundary adaptation. #152 extracts admission/dispatch and #140 plus #182-#184 complete the transitional Session shell without moving packet encoding out of wow-world; #153 owns the terminal router and packet-boundary decision. Closed since this was written: #140, #152, #182, #184 \u2014 the residue is owned by #153."
+      "tracking_issue": 578,
+      "reason": "Protocol handlers and presenters legitimately decode and encode wow-packet DTOs inside the mixed wow-world application crate. The debt is gameplay rules and ownership still exposed through WorldSession, not the existence of packet presentation at that edge. #578 owns complete command/query/outcome verticals that keep packet DTOs outside domain APIs and records the final adapter classification. It must not invent a crate or trait merely to make this Cargo edge disappear. #153 verifies the completed boundary."
     },
     {
       "from": "wow-world",
@@ -194,8 +194,8 @@
     {
       "from": "wow-world",
       "to": "wow-session",
-      "tracking_issue": 153,
-      "reason": "#297 promotes the session transport kernel to its own crate under the epic's P4 rule: the kernel is earned only when it compiles without wow-world, gameplay, databases or catalogs, which it does \u2014 `cargo tree -p wow-session` reaches none of wow-world, wow-database, wow-data, wow-entities, wow-map or sqlx. That rule does permit the network and packet primitives it decides over, so the crate classifies as adapter-platform and this edge takes the same shape as the existing wow-world -> wow-network one. It is the intended direction rather than debt: the application consuming its own extracted kernel. The terminal step \u2014 the kernel depending on transport ports instead of concrete wow-network types, which would make it application-layer and retire this edge \u2014 is the boundary decision #153 owns, carried by #378."
+      "tracking_issue": 578,
+      "reason": "#297 earned a transport-only kernel and #378 kept application/gameplay adapters outside it. wow-world consuming that kernel is an intended application-to-adapter relationship; wow-session retains its exact wow-network/wow-packet allowlist and may not gain gameplay, map, database or catalog dependencies. #578 owns the remaining kernel/application boundary decision after complete consumer migration. Concrete transport types need ports only if a real boundary requires them, not to erase this exception or force an application-layer reclassification. #153 verifies the decision without implementing a new abstraction."
     }
   ],
   "external_dependencies": {

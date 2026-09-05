@@ -3,6 +3,139 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Approved remaining plan — 2026-09-05, reviewed code `93e4002a`
+
+Keep **one macrodeliverable, issue #578 / PR #579**. The blocks below are internal
+implementation/review checkpoints, not new issues, PRs, or approval requests per helper.
+Preserve useful work already landed or committed. This plan supersedes field-by-field
+selection and any instruction to postpone all integration evidence until the end of the
+macro. It does not authorize a push, merge, deployment, restart, or unrelated gameplay fix.
+
+Progress means an accepted transition contract, not fields moved, test counts, commits,
+or an unsupported completion percentage. The 132 immutable catalog/configuration/service
+dependencies below are not 132 mutable owners. Each completed operation must document
+input/admission, decision, canonical owner, persistence when applicable, and ordered
+publication; migrate all related consumers and retire the superseded fields, setters,
+installation paths and bridges. Small internal commits remain useful; they do not define
+the user-facing delivery size. Exact inventories remain acceptance evidence, not an
+alternative to complete feature boundaries.
+
+| Internal block | Exit contract and evidence | Current acceptance |
+| --- | --- | --- |
+| C0 — Execution contract | Name owner, admitted residence, writer, phase/clock, persistence boundary and publication order before enabling new writers. Define executable `PacketProcessing` and world/map phase expectations. Implement the relevant scheduling proof alongside C1/C2, not as an untested timing rewrite at the end. | Open; metadata equality alone does not apply its temporal semantics. |
+| C1 — Player lifetime and persistence | Preserve one incarnation through login, active/detached state and transfers; replacement/retirement invalidate its old handle without affecting the new incarnation. Cover failed attach/unload and save/logout. Coherent save projection plus generation/revision-safe acknowledgement (or proven equivalent exclusion). Production-linked lifecycle and controlled-I/O interleaving tests. | Partial implementation; complete lifecycle/composition evidence remains open. |
+| C2 — Complete gameplay operations | Finish represented Player families through narrow command/query/outcome APIs, every related reader/writer and capability consumer, then retire old Session access. Keep transaction and publication semantics explicit. | Partial; catalog borrowing and native storage alone do not close a vertical. |
+| C3 — Runtime and delivery completion | Execute migrated work under the admitted owner/phase; preserve #28/#371 cuts, barriers, backpressure and shutdown. No packet delivery or I/O under owner locks. Remove remaining Session/legacy authority and whole-entity bridges. | Open; C0 obligations accompany each writer migration. |
+| C4 — Boundary decisions and macro acceptance | Resolve the inherited #378 dispatch/kernel/transport decisions and remaining dependency/catalog exceptions; justify legitimate application-adapter edges by responsibility. Retire bridges, run final inventories and clean-HEAD validation, then hand off evidence to #153. | Open; #153 verifies the result, it does not implement these known cuts. |
+
+### C1: precise lifetime and save requirements
+
+- A detached Player is a valid owner, not a missing Player. Persistent-state queries remain
+  available; commands requiring an active map return `NotActive`. Missing, stale-generation
+  and inconsistent residence must be distinguishable internally; never fabricate defaults.
+- Attach/detach, failed transfer, map destruction/unload and generation retirement use the
+  same lifetime authority. Review or restrict mutable Map escapes that can bypass it.
+  `ManagedMap::remove_all_players` currently clears a counter, and destroy/unload can remove
+  storage without reconciling residence (`crates/wow-map/src/manager.rs`). This is an API
+  inconsistency to resolve, **not a demonstrated live loss**; no production caller was found
+  in this review. C++ `Map.cpp:1629-1643` requests evacuation and
+  `MapManager.cpp:322-339` refuses destruction while players remain.
+- Prepare a coherent owned save DTO for the intended incarnation. Acknowledgement after
+  `.await` may clear only the confirmed saved revisions, or must have an explicit equivalent
+  exclusion proof. A late result must not affect a replacement incarnation or erase a newer
+  mutation. Preserve existing money fences, cancellation, rollback, unknown-COMMIT and
+  recovery semantics. Fragmented projections/group acknowledgements in
+  `session/lifecycle/persistence.rs` are a migration risk, not a reproduced corruption claim.
+- Preserve C++ far-teleport deferred save (`Player.cpp:19327-19333`) and near-teleport
+  destination persistence without relocating the runtime Player (`19480-19514`). Logout
+  finishes pending far transfers before saving (`WorldSession.cpp:544-551`). Differences
+  deliberately frozen by old-Rust equivalence tests need an explicit parity decision;
+  such tests do not turn a known discrepancy into final C++ behavior.
+
+### C0/C3: execution is distinct from storage
+
+`session/dispatch.rs` currently gates SessionStatus and calls the registered thunk; the
+registry's `PacketProcessing` values do not by themselves enforce execution phase.
+C++ `WorldSession.cpp:64-108` filters by processing class and Player residence;
+`Map.cpp:666-718` updates map sessions before respawns and Player/object updates;
+`MapManager.cpp:287-318` imposes a barrier before `DelayedUpdate`.
+
+Test these actual paths, not just enum labels. Converge one complete responsibility with
+its consumers, preserving relevant absolute deadlines as well as elapsed diffs. A global
+MapManager mutex is a transitional access mechanism, not the final gameplay API. A single
+writer per responsibility does not require a Tokio task per map or a new worker pool.
+Separate intentional observable timing corrections from behavior-preserving movement.
+
+### Proportional evidence inside the macro
+
+1. During iteration: focused positive/negative tests, formatting/diff checks, routed quick
+   validation and syntax-only ownership ratchets where affected.
+2. At each affected contract checkpoint: focused adversarial local review and production-linked
+   integration tests (library compiled **without** `cfg(test)`) in dev and release. The existing
+   `production_login_player_owner` integration target catches production-only wiring failures,
+   but its three bounded scenarios do not prove a complete login/save/logout cycle. Run it
+   explicitly when relevant: ordinary `validation-v2 final` runs library suites, not this target.
+3. For lifetime/persistence/execution: controlled persistence futures and explicit ticks;
+   two sessions, generation replacement, mutation after snapshot, failed attach/unload,
+   Applied/rollback/unknown/cancellation and a saturated delivery sink. Prove that old work
+   cannot mutate/publish for a new incarnation or hold other sessions/ticks behind I/O locks.
+4. Before macro publication: `validation-v2 final` on clean committed HEAD, focused integration
+   evidence tied to that SHA and the issue's exhaustive ownership/persistence/bridge inventories.
+   #153 then performs the terminal audit on merged integration HEAD. Do not rerun exhaustive
+   persistence scans merely for each helper or issue-state metadata refresh. Metadata-only
+   updates must still validate preserved persistence policy/workflow issue references and
+   snapshot-policy consistency; syntax-only does not perform those persistence checks.
+5. Capture-diff evidence is required for changed bytes, metadata, connection or observable order;
+   distinguish retained regression evidence from fresh action-specific captures and recapture
+   when applicable evidence is absent or explicit acceptance requires it.
+   live QA is required for live lifecycle/runtime changes. Real MariaDB commit-loss/crash and
+   relogin evidence must use an authorized runtime fixture; mocks cannot establish durable
+   recovery. Pending runtime authorization is not a reason to stop safe code/tests/docs work,
+   nor permission to claim live acceptance. Publication/deployment approvals remain separate.
+
+Label evidence as **old-Rust equivalence**, **C++ contract**, **production integration**, or
+**live/capture**. Record exact SHA, command, result, remaining boundary and host architecture
+(development host aarch64; hosted runners x86_64). Keep local-first validation and the exact
+`alseif0x` author-gated remote skips; no new remote approval gate or per-checkpoint PR.
+
+### Plan ownership and next decision
+
+#578 is an explicit prerequisite of #153. Closed #169/#574 and the bounded #378 delivery
+remain closed; their inherited Session/catalog/kernel work is assigned here, not to the
+terminal auditor. A legitimate packet/application adapter dependency may be retained with
+a concrete classification decision; inventing traits or crates just to erase an exception
+is not acceptance. Re-audit the next gameplay macro just in time against HEAD; do not
+pre-granulate Part 2 or equate a historical issue closure with full gameplay parity.
+
+The preserved historical persistence snapshot/policy still attributes 60 nonstable groups
+to #153. This metadata is not current implementation ownership: C4 in #578 must reconcile
+the actual annotations, contracts and removal work before terminal acceptance. Do not blindly
+retarget or regenerate the historical inventory during this plan-only update to simulate that
+semantic audit; verify its existing references remain valid while recording the required work.
+
+**ECS review follows this plan synchronization.** The accepted
+[`MapRuntime / EntityWorld` ADR](../migration/adr-map-runtime-entity-world.md) and current
+backend remain unchanged by this update. That separate review will test the backend choice
+against real ownership/API/phase requirements and representative workloads; storage choice
+does not by itself prove lifecycle, concurrency or gameplay correctness.
+
+### Synchronization evidence
+
+Updated and read back GitHub bodies #133, #578, #153, #378, #30, #26, #49 and #99;
+all issue open/closed states were preserved. The main architecture DAG now includes #578
+after its completed #378/#574 inputs and before #153; live-state refresh corrected only
+#169/#574 from open to closed. The runtime ledger now resolves #578 through that main DAG,
+without duplicate external tracking. Existing field/variant membership and numeric ratchets
+are unchanged; the refresh tool also normalizes JSON indentation.
+
+Plan-only validation on aarch64: architecture check/self-test, syntax-only ownership check,
+preserved persistence snapshot-policy test, bounded persistence issue-state/classification
+check and live `refresh-issue-state --check` PASS. Persistence policy/workflows/snapshot,
+production code, the ECS ADR, PR contents and runtime were not changed. This is planning and
+metadata consistency evidence, not a new gameplay, exhaustive inventory or final macro pass.
+
+## Historical checkpoint basis
+
 Initial reviewed source: `74daf3f9` plus the active-Player relocation and borrowed grid-capability
 slice committed with this checkpoint. The prior runtime family membership was last edited
 at `9a29e195`; the prior syntax snapshot was last edited at `26f72455`. Neither described the

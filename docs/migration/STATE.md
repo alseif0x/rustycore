@@ -1,7 +1,11 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-08-09 · **Base:** `3.4.3` @ `42977e9a` including issue #26's final bounded
-creature-spell P1 wire/lifecycle acceptance and login faction hydration.
+**Historical capability-audit base:** 2026-08-09 · `3.4.3` @ `42977e9a`, including issue #26's
+bounded creature-spell P1 wire/lifecycle acceptance and login faction hydration.
+**Architecture/plan review:** 2026-09-05 · local #578 branch @ `93e4002a`.
+The latter is not a new whole-port parity audit or a deployment claim. Undated subsystem tables,
+counts and source locations below belong to the historical audit unless a later bounded note
+explicitly updates them; recheck them against current code before selecting implementation work.
 
 The guarded C++ and Rust `15691` evidence was recaptured from clean harness HEAD
 `42977e9accb24fc3921af075f4122e1f0180f4a2`; strict diff is CLEAN at 2/2 packets and
@@ -9,8 +13,8 @@ The guarded C++ and Rust `15691` evidence was recaptured from clean harness HEAD
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
-1.8 MB append-log `current-session-handoff.md`. It is **grounded in a multi-agent code
-audit of HEAD down to subsystem/subdependency level**, not in what prior docs or the
+1.8 MB append-log `current-session-handoff.md`. Its historical capability matrix is **grounded in
+the named code audit down to subsystem/subdependency level**, not in what prior docs or the
 inventory TSV claim. Architecture decisions: [adr-runtime-tick-ownership.md](adr-runtime-tick-ownership.md).
 Forward plan: [PORT_PLAN.md](PORT_PLAN.md). Bugs found in already-shipped code:
 [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md). C#-reference contrast vs C++ (51
@@ -22,6 +26,39 @@ Repository refactors are governed by
 [`docs/architecture/ownership-and-boundaries.md`](../architecture/ownership-and-boundaries.md):
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
+
+## Current architecture and execution checkpoint — 2026-09-05
+
+The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal
+commits/checkpoints do not create micro-issues, micro-PRs or a new approval gate. The current
+contract-led plan, exact inventories, acceptance evidence and remaining boundaries live in
+[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md). #153 verifies the
+complete result; it is not an implementation owner for already-known cuts.
+
+At the reviewed local HEAD, canonical `wow_entities::Player` owns the migrated gameplay families
+and `wow_map::MapManager` coordinates its generation-checked active/detached lifetime. The former
+whole-Player Session write-back and ObjectAccessor Player-copy paths are retired. This is real
+ownership progress, not proof that Session is already a thin shell: gameplay orchestration,
+catalog/service retention, broad mutable Map access and runtime bridges remain #578 work.
+SQLx isolation under #169 is closed; terminal capability cohesion and the complete Session/runtime
+boundary still need evidence. Closing #252/#297/#378 proved their stated directory, transport and
+classification cuts, not completion of #133.
+
+The next cuts are selected by complete operation contracts and their deletion conditions, not
+field counts. Distinguish implementation, production-path integration and parity evidence. Use
+focused checks during a cut, bounded integration/failure tests at the affected owner boundary,
+and the exhaustive/final stack at terminal acceptance. Retain required live/capture evidence and
+explicit publication/deployment approvals; a green fixture suite does not replace them.
+
+After the architecture deliverable, re-audit the next port macro against current Rust and exact
+C++ anchors before implementing its residual work. For example, #26 closed a bounded wire/lifecycle
+slice, not general creature spell execution; #30's original claim of no power deduction is stale
+(`handlers/spell.rs` already checks and deducts canonical Player power and tests rejection without
+deduction). Existing #30–#35 and the full-parity ledgers retain their broader contracts. Do not
+restart completed work from an old issue diagnosis or silently narrow a milestone to one capture.
+
+The accepted private entity-world ADR remains in force. A separate ECS/backend review follows
+this plan synchronization; this update neither installs an ECS nor changes that decision.
 
 Database migration boundary (issue #256): the daemon-owned permissive `DbUpdater` has been
 retired. The `rustycore-db` composition binary is the sole schema migration authority, using a
@@ -399,6 +436,9 @@ topology/order and correlated payload semantics.
 
 ## 1. The honest progress picture (three axes, not one number)
 
+Historical capability snapshot at the audit base above, not measured percentages for #578 or
+current HEAD. The current architecture checkpoint reports acceptance boundaries separately.
+
 | Axis | Estimate | Meaning |
 |---|---:|---|
 | **A. Breadth represented** | ~98% of R8 rows touched | Logic exists/contrasted in the represented model. **Retired as a headline** — rewards breadth over working features. |
@@ -410,6 +450,9 @@ Part 1 of the plan drives **B** to complete; Part 2 drives **C** to complete.
 ---
 
 ## 2. Grounded capability matrix (verified to subsystem level)
+
+This matrix records the historical subsystem audit and its explicitly dated additions. Its old
+paths and statuses are discovery pointers, not proof that the same gap still exists at HEAD.
 
 **WORKS** = mutates live state + persists/broadcasts like C++ · **WORKS⚠** = live + persists
 **but has correctness/integrity bugs** (see [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md)) ·
@@ -544,15 +587,18 @@ byte-clean login capture.
 
 ## 4. Architecture reality
 
-Three world models coexist. The **legacy global creature loop is the de-facto live runtime**
-(works, default-on); the **canonical `wow_map::MapManager` is an empty `Map::Update`
-skeleton** (the intended destination, dispatches no AI/combat). The Rust legacy model is
-structurally inverted from C++ (sessions historically drove ticks; C++ has the map tick own
-creature update). Convergence is incremental (the `_attic/` big-bang died at 176 errors).
+At the 2026-09-05 reviewed local HEAD, the legacy creature runtime still supplies behavior while
+canonical Map storage owns active Players and the staged `MapRuntime` applies typed transitions.
+It is no longer accurate to call canonical Map an empty storage/runtime skeleton. Nor does that
+make it the sole production simulation driver: shared manager synchronization, legacy/canonical
+bridges and the remaining Session-driven work are explicit convergence boundaries.
 
-**Code health:** `world-server` compiles clean (22 warnings). ~19k test fns. Logic is
-concentrated in a 235k-line `wow-world` monolith; the per-domain crate split in the roadmap
-(`wow-spell`, `wow-combat`, …) is aspirational, not real.
+The target remains a modular monolith with one mutable owner per concept, explicit C++ phases and
+generation-checked Player identity. `MapRuntime` currently uses staged synchronous commands under
+the existing manager synchronization; a dedicated task per map and a production ECS are not
+claimed. See [the accepted entity-world ADR](adr-map-runtime-entity-world.md) and
+[the current checkpoint](../architecture/session-578-checkpoint.md) for actual cuts and evidence.
+Old LOC, warning and test counts elsewhere in this document must not be reused as current metrics.
 
 ---
 
@@ -565,3 +611,11 @@ only proven unordered C++ collection order, while retaining every stable value/c
 malformed input — (3) it has been **exercised on a running server/client**, and (4) C++ refs +
 the validating capture/test are cited.
 `represented-complete` is no longer a closure state — it means "logic drafted, not yet live".
+
+This gameplay-capability definition does not require a fresh capture for every behavior-preserving
+structural commit. Refactors follow the proportional gates in AGENTS.md and their explicit issue
+acceptance: preserve bytes, metadata, connection and order with focused evidence; obtain the
+required action-specific capture/live evidence when the change or acceptance calls for it.
+Report a bounded proof as bounded, and distinguish code tests, historical golden regression,
+fresh runtime evidence and full functional parity. Architecture completion requires the complete
+#133/#578 contracts and #153 audit, not a favorable field count or test total.

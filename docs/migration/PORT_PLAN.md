@@ -1,14 +1,50 @@
 # RustyCore — Port Plan (two-part: Playable → Full 1:1)
 
-**Date:** 2026-06-27 · Supersedes the ordering role of `MIGRATION_ROADMAP.md` and the
+**Plan established:** 2026-06-27 · **Execution review:** 2026-09-05 at local HEAD `93e4002a`.
+Supersedes the ordering role of `MIGRATION_ROADMAP.md` and the
 planning role of `current-session-handoff.md`. Current state: [STATE.md](STATE.md);
 architecture: [adr-runtime-tick-ownership.md](adr-runtime-tick-ownership.md); bugs in
 already-shipped code: [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md) (the **D-track** —
 fixing what exists, distinct from Part 1/2 which build what's missing).
 
-**How to use the checklists:** every actionable line is a `- [ ]` checkbox. Mark `- [x]`
-only when the item meets the §"Definition of done" in STATE.md §5 (live + capture-clean +
-exercised + C++-cited). Each milestone/ledger also has a header checkbox = "all its items done".
+**How to use the checklists:** mark gameplay capability items `- [x]` only when their stated
+scope meets the definition of done in STATE.md §5 (live + capture-clean + exercised + C++-cited).
+A bounded completed slice is not the broader milestone exit. Historical diagnoses and unchecked
+rows are not current code audits; reconcile the next selected macro with its live issues and HEAD
+before implementation. Architecture/tooling work uses its explicit, proportional acceptance.
+
+## Current execution agreement — #133 / #578
+
+The approved architecture delivery remains one **macro-issue #578 / draft PR #579**, with #153
+as its terminal independent audit. Keep coherent internal commits and checkpoints; do not turn
+field families into micro-issues/PRs or require permission to continue between routine steps.
+The contract-led plan and exact remaining boundaries are maintained in
+[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md), not inferred from the
+number of closed historical children, fields moved, or passing tests.
+
+Each internal block must name its complete operation, input/admission contract, canonical owner,
+mutation/commit/publication order, narrow dependencies, retired access/bridge and acceptance
+evidence. Move every related reader/writer before claiming that boundary complete. A shared
+resource bag with fewer outer fields, or gameplay spread over more Session impls, does not meet
+the terminal contract. Already-known cuts stay in #578; #153 verifies them rather than absorbing
+their implementation. Preserve the full #133 outcome.
+
+During development, run affected-crate checks, focused positive/negative tests, formatting and
+the inexpensive ownership/architecture checks. At an affected owner boundary, exercise bounded
+production-path integration and failure cases, including stale generation, detached transfer,
+save/logout and publication/backpressure as applicable. The complete exhaustive/final stack
+belongs at macro acceptance, not every internal commit. Required capture/runtime evidence remains
+an explicit gate, and this cadence grants no new deployment, push or merge authority.
+
+After #133, re-audit the next port macro just in time against current Rust, C++ and existing
+evidence. Preserve links and hard dependencies from the ordered index while regrouping internal
+work around coherent responsibilities, not outdated table/field diagnoses. Report implemented,
+integrated and parity-proven separately; retain the full Part-1/Part-2 goal. Do not pre-granulate
+#48 or manufacture a new issue tree for every internal cut.
+
+The accepted entity-world ADR is unchanged by this synchronization. Review ECS/backend choices
+next as a separate design question; do not conflate the required ownership contract with an
+already completed storage or scheduling migration.
 
 ## Why two parts
 
@@ -20,13 +56,15 @@ C++ row and hit 98% breadth on a server where bags don't open. So the plan has t
 - **Part 2 — Full 1:1 parity** (exhaustive backlog, nothing dropped). Metric: per-domain
   coverage ledgers. Tracked from day one; sequenced after/alongside the Part 1 spine.
 
-Both required. Part 1 makes it a game; Part 2 makes it TrinityCore. **Validation gate for
-both = C++ capture diff** (a C++ TrinityCore 3.4.3 server runs on the same DBs — see
-`[[cpp-legacy-server-swap]]`).
+Both required. Part 1 makes it a game; Part 2 makes it TrinityCore. Functional parity requires
+the C++ comparison and live evidence defined in STATE.md §5. A retained capture proves only its
+recorded action/build/window. Fresh runtime availability must be checked, not inferred from the
+historical server-swap notes. Structural commits use the proportional gates above.
 
-**Core conversion principle:** most handlers are `represented_*_like_cpp` (validate + record
-intent, no mutation — see STATE.md §0). Almost every item below is "convert represented→live
-+ capture-validate", not "write from scratch".
+**Core conversion principle:** audit the actual path from request to canonical mutation and
+publication. The historical `represented_*_like_cpp` label does not prove that a current function
+only records intent, nor that a feature is live. Reuse completed behavior and implement the
+remaining contract, rather than rebuilding from old diagnosis text.
 
 ---
 
@@ -152,7 +190,8 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   liquid-aware `NormalizePath`, transports/formation/off-mesh links, and per-instance pathfinder
   concurrency.
 - [x] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.
-- [x] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
+- [x] **M2.6 bounded wire/lifecycle slice (#26)** — Creature template-spell scheduling and
+  publication; not completion of general creature spell execution.
   The bounded CombatAI/TurretAI slice reads template spell slots, schedules supported instant
   casts with C++ cooldown/range/target/visual rules, and publishes an atomic START/GO pair before
   the same-frame melee phase. The final issue-#26 P1 hardening removes GO's unconditional-hit
@@ -187,9 +226,13 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   selected pair is an observed **HIT**, strict-CLEAN at 2/2 packets with an empty baseline, and
   `verify-required creature-spell-casting` is CLEAN. It is not proof of deterministic hit. This
   closes only the M2.6 wire/lifecycle slice: spell effects, damage/health mutation, the full Spell
-  pipeline, and the other AI families remain later work.
+  pipeline, and the other AI families remain later work. The residual functional contract is
+  carried by the existing spell pipeline work (#30–#35) and full AI/spell ledgers, not erased by
+  closing #26 or by this two-packet proof. Revalidate Creature callers as those capabilities land.
 - [ ] **M2.7** Creature reactions: on-aggro/death/evade `creature_text` emotes/yells/sounds.
-- [ ] **M2.8** Formalize runtime owner per ADR (single-owner, no double resolution; respect `Map::Update` phase order).
+- [ ] **M2.8 terminal runtime ownership** — #28 closed its bounded writer cut and #371 removed
+  the independent creature-local clock. Those closures do not prove full Map/runtime convergence;
+  the remaining #578 ownership/phase contract must be demonstrated before this broader item closes.
 - [ ] **M2 exit:** creatures patrol, path around walls, fight back with abilities, speak, respawn; two clients see identical state.
 
 ### M3 — Combat & spells (leveling-grade)
@@ -197,7 +240,11 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 > no hit table, no armor mitigation (D-H1/D-H2/D-H3); "melee works" only means it deals
 > *some* number and broadcasts.
 - [ ] **M3.0 (D-track)** Real melee math: weapon-damage + AP scaling, `CalcArmorReducedDamage`, level reduction, hit table (miss/dodge/parry/block/glancing/crit), dual-wield penalty, haste cap (D-H1/D-H2/D-M3/D-M4).
-- [ ] **M3.1** Spell cast prerequisites: power/mana cost deduction, cast time (DB2), GCD + category cooldowns, range/LOS/facing, reagents.
+- [ ] **M3.1 / #30** Complete spell cast prerequisites: power/mana cost deduction, cast time
+  (DB2), GCD + category cooldowns, range/LOS/facing, reagents. Re-audit the residual: the original
+  issue's "no power deduction" and wholly missing-store premises are stale. Current
+  `handlers/spell.rs` already checks/deducts canonical Player power, with accepted-cast and
+  rejected-cast tests; that does not establish the complete `Spell::CheckCast` contract.
 - [ ] **M3.2** Damage/heal calc pipeline: coefficients (SP/AP), crit, school resist, miss/dodge/parry/block, absorb shields (D-H3).
 - [ ] **M3.3** Aura **periodic tick** (DoT/HoT) + the gameplay-critical SPELL_AURA_* types (stat mods, %mods, immunities).
 - [ ] **M3.4** Proc system (proc flags/chance/charges/ppm → trigger spell).
@@ -224,6 +271,11 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [ ] **M5 exit:** all common transitions seamless and persistent.
 
 ### M6 — Stability soak
+
+Multi-hour soak is the terminal stability test, not the first time concurrency is exercised.
+Ownership-changing macros must already carry bounded integration/failure coverage for the
+transitions they change; M6 then tests sustained composition and load.
+
 - [ ] **M6.1** Multi-client multi-hour soak; fix runtime races, channel backpressure, lock-held-sends (ADR risks).
 - [ ] **M6.2** Warning cleanup; periodic-save under load verified.
 - [ ] **M6 exit:** stable session declared → "playable end-to-end".
