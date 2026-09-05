@@ -8,6 +8,42 @@
 use super::*;
 
 impl PlayerSpellRuntimeState {
+    /// Player::_SaveSpells (Player.cpp:20399) retires removed rows and resets
+    /// durable rows, but leaves temporary spells untouched. The caller invokes
+    /// this only after confirmed commit, preserving the port's durability gate.
+    pub fn mark_spell_rows_saved_like_cpp(&mut self) {
+        self.rows.retain(|_, spell| {
+            if spell.state == PlayerSpellLoadState::Removed {
+                return false;
+            }
+            if spell.state != PlayerSpellLoadState::Temporary {
+                spell.state = PlayerSpellLoadState::Unchanged;
+            }
+            true
+        });
+        self.removed_known_spells.clear();
+        self.trait_definition_ids
+            .retain(|spell_id, _| self.rows.contains_key(spell_id));
+        self.dependent_known_spells = self
+            .rows
+            .values()
+            .filter(|spell| spell.dependent)
+            .map(|spell| spell.spell_id)
+            .collect();
+        self.favorite_known_spells = self
+            .rows
+            .values()
+            .filter(|spell| spell.favorite)
+            .map(|spell| spell.spell_id)
+            .collect();
+        self.known_spells = self
+            .rows
+            .values()
+            .filter(|spell| !spell.disabled)
+            .map(|spell| spell.spell_id)
+            .collect();
+    }
+
     /// Reconcile represented base grants with loaded PlayerSpellMap rows.
     /// Player::LearnSpell (Player.cpp:3192-3200) preserves disabled active state
     /// and loaded favorites; the port's fallback rows retain pending grants.

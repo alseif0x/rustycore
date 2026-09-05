@@ -613,6 +613,19 @@ impl WorldSession {
 
     pub(in crate::session) fn mark_player_spells_saved_like_cpp(&mut self) {
         if self
+            .mutate_player_spell_runtime_like_cpp(
+                wow_entities::PlayerSpellRuntimeState::mark_spell_rows_saved_like_cpp,
+            )
+            .is_none()
+        {
+            return;
+        }
+        self.sync_player_registry_state_like_cpp();
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn fixture_mark_player_spells_saved_like_cpp(&mut self) {
+        if self
             .mutate_player_spell_runtime_like_cpp(|runtime| {
                 runtime.rows.retain(|_, spell| {
                     if spell.state == wow_entities::PlayerSpellLoadState::Removed {

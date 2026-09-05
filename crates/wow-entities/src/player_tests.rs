@@ -521,6 +521,45 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn native_spell_save_finalization_preserves_temporary_rows_and_source_proofs() {
+    let mut runtime = PlayerSpellRuntimeState::default();
+    for (id, state) in [
+        (10, PlayerSpellLoadState::New),
+        (20, PlayerSpellLoadState::Removed),
+        (30, PlayerSpellLoadState::Temporary),
+    ] {
+        runtime.rows.insert(
+            id,
+            PlayerKnownSpellRecord {
+                spell_id: id,
+                state,
+                active: false,
+                disabled: id == 30,
+                favorite: true,
+                dependent: true,
+            },
+        );
+        runtime.trait_definition_ids.insert(id, id + 100);
+    }
+    runtime.rows_complete = true;
+    runtime.fallback_rows = runtime.rows.clone();
+    let fallback = runtime.fallback_rows.clone();
+    runtime.mark_spell_rows_saved_like_cpp();
+    assert_eq!(runtime.rows[&10].state, PlayerSpellLoadState::Unchanged);
+    assert!(!runtime.rows.contains_key(&20));
+    assert_eq!(runtime.rows[&30].state, PlayerSpellLoadState::Temporary);
+    assert_eq!(runtime.known_spells, vec![10]);
+    assert_eq!(runtime.favorite_known_spells, BTreeSet::from([10, 30]));
+    assert_eq!(runtime.dependent_known_spells, BTreeSet::from([10, 30]));
+    assert_eq!(
+        runtime.trait_definition_ids,
+        BTreeMap::from([(10, 110), (30, 130)])
+    );
+    assert_eq!(runtime.fallback_rows, fallback);
+    assert!(runtime.rows_complete);
+}
+
+#[test]
 fn native_loaded_spell_reconciliation_preserves_pending_grants_and_unrelated_state() {
     let mut runtime = PlayerSpellRuntimeState::default();
     let pending = PlayerKnownSpellRecord {

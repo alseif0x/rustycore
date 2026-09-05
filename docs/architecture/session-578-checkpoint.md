@@ -58,6 +58,36 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Native spell-save finalization
+
+Ownership migration on `05f3235f`: `PlayerSpellRuntimeState` owns saved-row
+retirement/normalization and rebuilding dependent, favorite and known-spell sets.
+The former algorithm remains only as a cfg(test) oracle. This route already used
+one owner access; this slice transfers its rules, not a new lock or clock cut.
+Session retains committed-group admission and registry publication outside the
+generation-checked owner. Failed/Unknown transaction branches remain untouched.
+
+C++ `Player::_SaveSpells` (`Player.cpp:20399-20451`) removes Removed rows and
+normalizes non-Temporary rows. Rust deliberately retains its established #169
+post-confirmed-commit timing rather than C++'s statement-append-time cleanup.
+SQL, rollback, unknown-COMMIT fencing, packets and registry publication order
+are unchanged. Fallback grants are still cleared only by their separate committed
+group; source completeness flags and overrides survive this command unchanged.
+
+64 active/detached comparisons cover all five row states, disabled/dependent/
+favorite flags, complete/partial authority and committed/uncommitted spell groups.
+Replacement and missing-owner tests prove no stale mutation; native tests pin
+temporary state, disabled projections, trait pruning and pending-grant retention.
+AST adds one fixture (3,668 associated items), no fields or registrations:
+714 fields = 282 production + 432 fixtures, 590 registry rows. Logical ceilings:
+Session 81,758 + 105,209 = 186,967; Player 11,042 + 9,869 = 20,911.
+Validation on aarch64: focused finalization tests 2/0; full `wow-world --lib`
+3,729/0 (one ignored); full `wow-entities --lib` 714/0. `world-server` check
+PASS (3m29s, existing warnings); format/diff, syntax-only ownership, architecture
+check/self-test and validation-v2 quick PASS (manifest
+`20260905T064441.272916Z-568020-quick.json`). No install, restart, capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Native loaded-spell reconciliation
 
 Ownership migration on `5a8c83bd`: `PlayerSpellRuntimeState` now reconciles

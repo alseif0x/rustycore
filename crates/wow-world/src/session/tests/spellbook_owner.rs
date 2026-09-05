@@ -3,6 +3,118 @@
 use super::*;
 
 #[test]
+fn spell_save_finalization_matches_previous_active_and_detached_owner() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for flags in 0..8 {
+            for complete in [false, true] {
+                for committed in [false, true] {
+                    let mut initial = wow_entities::PlayerSpellRuntimeState::default();
+                    for (index, state) in [
+                        wow_entities::PlayerSpellLoadState::Unchanged,
+                        wow_entities::PlayerSpellLoadState::New,
+                        wow_entities::PlayerSpellLoadState::Changed,
+                        wow_entities::PlayerSpellLoadState::Removed,
+                        wow_entities::PlayerSpellLoadState::Temporary,
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        let id = index as i32 + 10;
+                        initial.rows.insert(
+                            id,
+                            wow_entities::PlayerKnownSpellRecord {
+                                spell_id: id,
+                                state,
+                                active: false,
+                                disabled: flags & 1 != 0,
+                                dependent: flags & 2 != 0,
+                                favorite: flags & 4 != 0,
+                            },
+                        );
+                        initial.trait_definition_ids.insert(id, 100 + id);
+                    }
+                    initial.rows_loaded = true;
+                    initial.rows_complete = complete;
+                    initial.trait_definition_ids_complete = complete;
+                    initial.override_spells_complete = complete;
+                    initial.known_spells = vec![99];
+                    initial.removed_known_spells.insert(99);
+                    initial.fallback_rows = initial.rows.clone();
+                    initial.override_spells.insert(10, BTreeSet::from([20]));
+                    session
+                        .with_owned_player_mut_like_cpp(|p| {
+                            p.replace_spell_runtime_like_cpp(initial.clone())
+                        })
+                        .unwrap();
+                    if committed {
+                        session.fixture_mark_player_spells_saved_like_cpp();
+                    }
+                    let expected =
+                        session.with_owned_player_like_cpp(|p| p.spell_runtime_like_cpp().clone());
+                    session
+                        .with_owned_player_mut_like_cpp(|p| {
+                            p.replace_spell_runtime_like_cpp(initial)
+                        })
+                        .unwrap();
+                    session.mark_current_player_save_to_db_committed_like_cpp(
+                        &wow_persistence::PlayerCharacterCommittedGroupsLikeCpp {
+                            player_spells: committed,
+                            ..Default::default()
+                        },
+                    );
+                    assert_eq!(
+                        session.with_owned_player_like_cpp(|p| p.spell_runtime_like_cpp().clone()),
+                        expected
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn spell_save_finalization_cannot_touch_a_replacement_or_missing_owner() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let mut initial = wow_entities::PlayerSpellRuntimeState::default();
+    initial.known_spells = vec![99];
+    initial.removed_known_spells.insert(10);
+    replacement.replace_spell_runtime_like_cpp(initial.clone());
+    let handle = manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    for missing in [false, true] {
+        if missing {
+            session.canonical_map_manager = None;
+        }
+        session.mark_current_player_save_to_db_committed_like_cpp(
+            &wow_persistence::PlayerCharacterCommittedGroupsLikeCpp {
+                player_spells: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .with_player_like_cpp(handle, |p| p.spell_runtime_like_cpp().clone()),
+            Some(initial.clone())
+        );
+    }
+}
+
+#[test]
 fn loaded_spell_reconciliation_matches_previous_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

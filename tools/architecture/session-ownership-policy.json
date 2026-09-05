@@ -27537,6 +27537,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_mark_player_spells_saved_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn fixture_mark_player_spells_saved_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "fixture_player_save_to_db_snapshot_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_player_save_to_db_snapshot_like_cpp (& self) -> Option < PlayerSaveToDbSnapshotLikeCpp >",
