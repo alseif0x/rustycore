@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "experiment": "modularity-lab-v1",
+  "evidence_scope": "isolated contract models; not production or durable DB acceptance",
+  "repetitions": 10,
+  "first_seed": 42,
+  "storage": {
+    "entities": [1000, 10000],
+    "densities": ["sparse", "dense"],
+    "ticks": 200,
+    "warmup_ticks": 25,
+    "maximum_median_paired_update_p99_ratio": 1.25,
+    "maximum_rss_baseline_multiplier": 1.5,
+    "maximum_rss_additive_kib": 16384
+  },
+  "execution": {
+    "calls": [10000, 100000],
+    "maximum_median_wasm_p99_ns": 10000,
+    "maximum_rss_kib": 262144,
+    "sizing_hypothesis": "100 bounded invocations in a 10ms frame may consume at most 1ms; not a measured production frequency or SLA"
+  },
+  "controls": {
+    "fresh_process_per_sample": true,
+    "alternate_paired_backend_order": true,
+    "same_seed_and_workload_per_pair": true,
+    "no_concurrent_lab_builds_or_benchmarks": true,
+    "command_timeout_seconds": 120,
+    "correctness_before_timing": true,
+    "functional_oracle": "ordered contract traces and explicit assertions; benchmark checksums are additional regression evidence"
+  }
+}

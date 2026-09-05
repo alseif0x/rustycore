@@ -1,0 +1,18 @@
+[package]
+name = "execution-lab-guest"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+v2 = []
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
