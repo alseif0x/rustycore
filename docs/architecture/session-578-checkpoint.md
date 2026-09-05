@@ -56,6 +56,43 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — mutate talents/glyphs inside their canonical Player
+
+The follow-on ownership-boundary correction, based on `1245cb72`, retires production
+`replace_player_talent_runtime_like_cpp`. The twelve callers of
+`mutate_player_talent_runtime_like_cpp` now change `Player.gameplay_state().talents` under
+one generation-checked owner access instead of snapshot -> callback -> second-access
+replacement. The only remaining conversion back into handle-less Session fixtures is
+`store_player_talent_fixture_like_cpp`, compiled exclusively for tests and incapable of
+assigning canonical Player state. No new public Player or Session API is introduced.
+
+C++ `Player::AddTalent` (`Player.cpp:2644-2695`) mutates the player's selected talent map;
+`SetGlyph` (`25477-25481`) changes the player's glyph slot before update-field publication.
+The Rust callers retain their existing validation, talent-group clamping, glyph/talent
+load completeness, cost/time accounting, and downstream spell/point/packet effects.
+Every callback was inspected: container operations and value changes only, with no SQL,
+packet delivery, additional manager lock or await. The paid reset's multiple post-COMMIT
+steps remain ordered separately; this does not claim whole-reset atomicity or full C++
+talent policy parity. No cast timer, active-cast lifecycle or packet layout is changed.
+
+Focused coverage checks lock ownership, exactly-once execution and guard release for active
+and detached Players, preservation of unrelated talent/glyph/cost fields when marking load
+completion, and no callback with a missing owner. The existing incarnation-replacement
+test now asserts rejected mutation rather than calling the removed replacement API.
+The spell-book read-copy-write path and cast lifecycle remain open #578 work.
+
+Validation on aarch64: `wow-world --lib` passes 3,676 / zero failures / one ignored;
+syntax-only ownership passes with unchanged field/associated-item/registry totals.
+`validation-v2 quick --base origin/3.4.3` passes workspace/all-targets and isolated bot
+checks; manifest `target/validation-v2/manifests/20260905T013851.058279Z-119418-quick.json`
+records the worktree based on `1245cb72`, not a clean post-commit final. The reviewed
+syntax delta removes the crate-visible replacement API and adds only a private fixture
+method; generation re-sorts the unchanged SpellHistory fixture entry. Logical Session
+production 81,417 -> 81,419 (+2), tests 102,370 -> 102,427 (+57). No field is reclassified
+as a stable Session responsibility and no legacy/canonical bridge row is closed.
+Architecture check and self-test, formatting and diff checks pass. No runtime install,
+capture, push or terminal architecture acceptance is claimed for this slice.
+
 ### 2026-09-05 — mutate SpellHistory inside its canonical owner
 
 Ownership-boundary correction on #578, based on `7802ed56`. Before moving the remaining

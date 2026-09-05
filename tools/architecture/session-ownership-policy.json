@@ -36698,32 +36698,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "store_spell_history_fixture_like_cpp",
-          "visibility": "private",
-          "signature": "fn store_spell_history_fixture_like_cpp (& mut self , history : wow_entities :: SpellHistory ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "replace_player_talent_runtime_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn replace_player_talent_runtime_like_cpp (& mut self , runtime : wow_entities :: PlayerTalentRuntimeState ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "replace_player_taxi_state_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn replace_player_taxi_state_like_cpp (& mut self , state : wow_entities :: PlayerTaxiState ,) -> bool",
@@ -52182,6 +52156,32 @@
           "signature": "fn stop_represented_player_pve_combat_like_cpp (& mut self , target_guid : ObjectGuid)",
           "cfg": [],
           "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "store_player_talent_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn store_player_talent_fixture_like_cpp (& mut self , runtime : wow_entities :: PlayerTalentRuntimeState ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "store_spell_history_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn store_spell_history_fixture_like_cpp (& mut self , history : wow_entities :: SpellHistory ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {

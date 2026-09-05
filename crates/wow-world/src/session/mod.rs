@@ -33204,16 +33204,11 @@ impl WorldSession {
         canonical
     }
 
-    pub(crate) fn replace_player_talent_runtime_like_cpp(
+    #[cfg(test)]
+    fn store_player_talent_fixture_like_cpp(
         &mut self,
         runtime: wow_entities::PlayerTalentRuntimeState,
     ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_talent_runtime_like_cpp(runtime.clone())
-            })
-            .is_some();
-        #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
             self.represented_talents_like_cpp = runtime.talent_groups;
             self.represented_talents_loaded_like_cpp = runtime.talents_loaded;
@@ -33225,17 +33220,24 @@ impl WorldSession {
             self.represented_talent_reset_time_secs_like_cpp = runtime.reset_talents_time_secs;
             return true;
         }
-        canonical
+        false
     }
 
     fn mutate_player_talent_runtime_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
     ) -> Option<R> {
-        let mut runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-        let result = f(&mut runtime);
-        self.replace_player_talent_runtime_like_cpp(runtime)
-            .then_some(result)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut runtime = self.player_talent_runtime_snapshot_like_cpp()?;
+            let result = f(&mut runtime);
+            return self
+                .store_player_talent_fixture_like_cpp(runtime)
+                .then_some(result);
+        }
+        // C++ Player::AddTalent / SetGlyph mutate the Player-owned containers
+        // (Player.cpp:2644-2695,25477-25481), not a Session write-back copy.
+        self.with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().talents))
     }
 
     pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {

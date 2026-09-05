@@ -24,6 +24,8 @@ mod save_plan_order;
 mod session_account_state;
 #[path = "session/tests/spell_history_owner.rs"]
 mod spell_history_owner;
+#[path = "session/tests/talent_owner.rs"]
+mod talent_owner;
 
 use routing::assert_destroyed_party_update_like_cpp;
 
@@ -31529,7 +31531,10 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
     owned.talent_groups[1].insert(42, 1);
     owned.glyph_groups[1][2] = 700;
 
-    assert!(session.replace_player_talent_runtime_like_cpp(owned.clone()));
+    assert_eq!(
+        session.mutate_player_talent_runtime_like_cpp(|runtime| *runtime = owned.clone()),
+        Some(())
+    );
     assert_eq!(
         session.player_talent_runtime_snapshot_like_cpp(),
         Some(owned.clone())
@@ -31572,7 +31577,11 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
         .expect("replacement owner");
 
     assert_eq!(session.player_talent_runtime_snapshot_like_cpp(), None);
-    assert!(!session.replace_player_talent_runtime_like_cpp(owned));
+    assert_eq!(
+        session
+            .mutate_player_talent_runtime_like_cpp(|_| panic!("stale owner must not run mutation")),
+        None::<()>
+    );
     assert!(!session.set_represented_active_talent_group_like_cpp(1));
     assert!(!session.set_represented_bonus_talent_groups_like_cpp(1));
     assert!(!session.set_represented_talent_reset_state_like_cpp(10_000, 1));
