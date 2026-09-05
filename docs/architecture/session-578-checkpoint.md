@@ -56,6 +56,44 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Cast readiness and interruption are Unit-domain transitions
+
+Boundary extraction based on `3ddf51d5`: `CastExecutionStateLikeCpp` now implements
+retained-cast interruption, remaining cast/global-cooldown queries and ready-cast
+consumption. Session's generation-checked adapters invoke those transitions; they
+no longer implement the readiness condition or matching-cast cancellation rule.
+The ready outcome owns the consumed cast and its late-power-failure rollback
+metadata, so effect execution and packet publication remain outside the owner guard.
+
+C++ anchors remain `Unit.cpp:3008-3035` (`InterruptSpell`), `Spell.cpp:4235-4252`
+(`SPELL_STATE_PREPARING`) and `Player.cpp:29109-29120` (`CanRequestSpellCast`).
+This preserves the existing represented Instant samples, cast-time comparison,
+per-spell timestamp retention and queue cancellation ordering. No opcode, packet,
+SQL, dependency, mutable owner, clock or Session signature changes. The domain API
+accepts only values and returns an owned cast/boolean/duration; no packet, pool,
+channel, guard or application context crosses into entities.
+
+Four domain tests cover the exact readiness boundary, no mutation before readiness,
+one-shot consumption, rollback metadata and full payload retention, zero-time casts,
+matching/nonmatching/wildcard cancellation, and absent/expired timing queries.
+Existing canonical active/detached/stale-owner and packet-facing spell tests remain
+the adapter regression coverage. On aarch64, `wow-world --lib` passes 3,686 / zero
+failures / one ignored and `wow-entities --lib` passes 698 / zero failures.
+Syntax-only ownership passes with the unchanged exact baseline; architecture check
+and self-test pass after tightening Session's production ceiling from 81,455 to
+81,429 lines (102,893 test lines, 184,322 total). Formatting, diff checks and
+`validation-v2 quick` pass (exit 0), including workspace all-target and isolated
+bot checks; manifest
+`target/validation-v2/manifests/20260905T024721.763116Z-226759-quick.json`.
+No fresh capture, live install/restart, push or terminal acceptance is claimed.
+
+No additional Session field is retired in this cut (287 production, 432 fixtures).
+The remaining current-spell-reference policy, execution scheduler, other cast writes
+and full SpellHistory convergence are still open. Initial catalog inspection also
+confirmed the four runtime-script authority sets feed Player spell-hit/aura safety
+through `spell_has_no_unrepresented_runtime_hooks_like_cpp`; their removal must
+carry those consumers, not merely rename the Session service-locator fields.
+
 ### 2026-09-05 — Unit owns active cast execution and represented timestamps
 
 Ownership migration based on `09ffc929`: canonical Unit's `SpellSubsystem::execution`

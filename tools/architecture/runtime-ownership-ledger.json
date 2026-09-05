@@ -1470,11 +1470,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81455,
+          "production_lines": 81429,
           "test_lines": 102893,
-          "total_lines": 184348,
+          "total_lines": 184322,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 active-cast Unit ownership: production grows 104 lines for generation-checked execution access and explicit unavailable-owner gates; three active/timestamp fields become cfg(test), reducing production fields 290 to 287. Tests grow 149 for active/detached atomic mutation, timestamp preservation, readiness once and stale-owner rejection. Scheduling and current-spell-reference policy convergence remain open; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 cast-domain transitions: production shrinks 26 lines as readiness, interruption and timing queries move to Unit-owned CastExecutionStateLikeCpp. No field, Session signature or clock changes; generation-checked adapters and existing tests remain. Four new entities tests prove the transition boundaries and retained payload/timestamps. Scheduling and current-spell-reference policy convergence remain open; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

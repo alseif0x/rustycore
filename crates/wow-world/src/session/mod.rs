@@ -50327,10 +50327,7 @@ impl WorldSession {
                         .ok()
                         .is_some_and(|spell_id| canonical_interrupted_spell_ids.contains(&spell_id))
                 });
-                if interrupted {
-                    execution.active = None;
-                }
-                interrupted
+                interrupted && execution.interrupt_active_cast(None)
             })
             .unwrap_or(false);
         if let Some(RepresentedStandChannelCancellationBoundary::Interrupted {
@@ -61053,7 +61050,7 @@ impl WorldSession {
     }
 
     pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
-        self.mutate_cast_execution_like_cpp(|state| state.active.take().is_some())
+        self.mutate_cast_execution_like_cpp(|state| state.interrupt_active_cast(None))
             .unwrap_or(false)
     }
 
@@ -61161,22 +61158,15 @@ impl WorldSession {
         &self,
         spell_info: &wow_data::SpellInfo,
     ) -> Option<u32> {
-        let Some(last_cast) = self.last_spell_cast_time_like_cpp()? else {
-            return Some(0);
-        };
-        let cooldown_ms = spell_info.cooldown_ms;
-        let elapsed_ms = last_cast.elapsed().as_millis() as u32;
-        Some(cooldown_ms.saturating_sub(elapsed_ms))
+        self.with_cast_execution_like_cpp(|state| {
+            state.remaining_global_cooldown_ms(spell_info.cooldown_ms)
+        })
     }
 
     pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> Option<u32> {
-        self.with_cast_execution_like_cpp(|state| {
-            let Some(active_cast) = state.active.as_ref() else {
-                return 0;
-            };
-            let elapsed_ms = active_cast.cast_start_time.elapsed().as_millis() as u32;
-            active_cast.cast_time_ms.saturating_sub(elapsed_ms)
-        })
+        self.with_cast_execution_like_cpp(
+            wow_entities::CastExecutionStateLikeCpp::remaining_cast_ms,
+        )
     }
 
     pub(crate) fn can_request_represented_spell_cast_like_cpp(
@@ -61285,7 +61275,7 @@ impl WorldSession {
 
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
         let session_cast_interrupted = self
-            .mutate_cast_execution_like_cpp(|state| state.active.take().is_some())
+            .mutate_cast_execution_like_cpp(|state| state.interrupt_active_cast(None))
             .unwrap_or(false);
         let canonical_spells_interrupted = self
             .mutate_canonical_player_like_cpp(|player| {
@@ -61324,13 +61314,7 @@ impl WorldSession {
 
         if interrupted {
             let _ = self.mutate_cast_execution_like_cpp(|state| {
-                if state
-                    .active
-                    .as_ref()
-                    .is_some_and(|active| active.spell_id == spell_id as i32)
-                {
-                    state.active = None;
-                }
+                state.interrupt_active_cast(Some(spell_id as i32))
             });
         }
 
@@ -69667,18 +69651,10 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
-        let Some((cast_state, previous_last_spell_cast_time)) = self
-            .mutate_cast_execution_like_cpp(|state| {
-                let active = state.active.as_ref()?;
-                let elapsed_ms = active.cast_start_time.elapsed().as_millis() as u32;
-                if elapsed_ms < active.cast_time_ms {
-                    return None;
-                }
-                let cast = state.active.take()?;
-                let previous = state.last_cast_time;
-                state.last_cast_time = Some(Instant::now());
-                Some((cast, previous))
-            })
+        let Some(cast_state) = self
+            .mutate_cast_execution_like_cpp(
+                wow_entities::CastExecutionStateLikeCpp::take_ready_cast,
+            )
             .flatten()
         else {
             return;
@@ -69689,9 +69665,7 @@ impl WorldSession {
         let target_data = crate::spell_cast_adapter::present_targets(cast_state.target_data);
         let cast_id = cast_state.cast_id;
         let spell_visual = crate::spell_cast_adapter::present_visual(cast_state.spell_visual);
-        let mut metadata = cast_state.metadata;
-        metadata.restore_last_spell_cast_time_on_power_failure = true;
-        metadata.previous_last_spell_cast_time_on_power_failure = previous_last_spell_cast_time;
+        let metadata = cast_state.metadata;
 
         // The owner guard is released before effect execution and failure publication.
         if let Err(e) = self

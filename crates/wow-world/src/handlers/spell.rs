@@ -2215,14 +2215,9 @@ impl WorldSession {
 
         let cancelled = self
             .mutate_cast_execution_like_cpp(|state| {
-                if state.active.as_ref().is_some_and(|active| {
-                    request.spell_id == 0 || active.spell_id == request.spell_id as i32
-                }) {
-                    state.active.take();
-                    true
-                } else {
-                    false
-                }
+                state.interrupt_active_cast(
+                    (request.spell_id != 0).then_some(request.spell_id as i32),
+                )
             })
             .unwrap_or(false);
         if !cancelled {
