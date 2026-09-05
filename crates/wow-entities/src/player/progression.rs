@@ -7,6 +7,70 @@
 
 use super::*;
 
+#[cfg(test)]
+mod talent_point_tests {
+    use super::*;
+
+    #[test]
+    fn refresh_counts_only_valid_active_talents_and_marks_the_same_update_field() {
+        let mut player = Player::new(None, false);
+        player.gameplay_state_mut().talents.active_group = 1;
+        player.gameplay_state_mut().talents.talent_groups[0].insert(10, 8);
+        player.gameplay_state_mut().talents.talent_groups[1].insert(20, 2);
+        player.gameplay_state_mut().talents.talent_groups[1].insert(30, 1);
+        player.gameplay_state_mut().quest_rewarded_talent_points = 5;
+        let before = player.talent_runtime_like_cpp().clone();
+        player.clear_data_changes();
+        let mut visited = Vec::new();
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(71, |id, rank| {
+                visited.push((id, rank));
+                id == 20
+            }),
+            73
+        );
+        assert_eq!(visited, vec![(20, 2), (30, 1)]);
+        assert_eq!(player.talent_runtime_like_cpp(), &before);
+        assert_eq!(player.gameplay_state().quest_rewarded_talent_points, 5);
+        assert_eq!(player.active_data().character_points, 73);
+        let mut direct = Player::new(None, false);
+        direct.clear_data_changes();
+        direct.set_character_points_like_cpp(73);
+        assert_eq!(
+            player.active_player_data_changes_mask().blocks(),
+            direct.active_player_data_changes_mask().blocks()
+        );
+        player.clear_data_changes();
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(71, |id, _| id == 20),
+            73
+        );
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+    }
+
+    #[test]
+    fn refresh_preserves_empty_group_saturation_and_signed_field_bounds() {
+        let mut player = Player::new(None, false);
+        player.gameplay_state_mut().talents.talent_groups[0].insert(20, 2);
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(2, |_, _| true),
+            0
+        );
+        player.gameplay_state_mut().talents.active_group = u8::MAX;
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(7, |_, _| {
+                panic!("invalid group has no talents to validate")
+            }),
+            7
+        );
+        player.gameplay_state_mut().quest_rewarded_talent_points = u32::MAX;
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(0, |_, _| true),
+            i32::MAX
+        );
+    }
+}
+
 impl Player {
     /// Install the immutable process-owned `player_xp_for_level` view used by
     /// C++ `Player::GiveLevel`. The canonical Player retains only the shared
@@ -37,6 +101,31 @@ impl Player {
 
     pub fn replace_talent_runtime_like_cpp(&mut self, state: PlayerTalentRuntimeState) {
         self.gameplay_state_mut().talents = state;
+    }
+
+    /// Refresh the represented CharacterPoints projection on its canonical owner.
+    /// C++ Player.cpp:26356,28670 reads the active talent group and quest rewards
+    /// from Player. The caller supplies level/catalog policy without retaining it
+    /// here; the predicate must only read immutable data, never re-enter the owner.
+    /// This preserves the port's validity filter and bounds, not full InitTalentForLevel.
+    pub fn refresh_represented_talent_points_like_cpp(
+        &mut self,
+        base_points: u32,
+        mut valid_talent: impl FnMut(u32, u8) -> bool,
+    ) -> i32 {
+        let runtime = self.talent_runtime_like_cpp();
+        let spent: u32 = runtime
+            .talent_groups
+            .get(usize::from(runtime.active_group))
+            .into_iter()
+            .flat_map(|talents| talents.iter())
+            .filter(|(talent_id, rank)| valid_talent(**talent_id, **rank))
+            .map(|(_, rank)| u32::from(*rank) + 1)
+            .sum();
+        let total = base_points + self.gameplay_state().quest_rewarded_talent_points;
+        let points = total.saturating_sub(spent).min(i32::MAX as u32) as i32;
+        self.set_character_points_like_cpp(points);
+        points
     }
 
     pub fn taxi_state_like_cpp(&self) -> &PlayerTaxiState {

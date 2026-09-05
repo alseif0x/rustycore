@@ -34232,26 +34232,12 @@ impl WorldSession {
                 )
             })
             .unwrap_or(0);
-        // Player.cpp:26356,28670: total and spent points belong to the same Player.
-        // Keep the represented catalog-validity filter and Session identity inputs.
-        // The filter only reads immutable catalogs; it must not re-enter the owner.
+        // Borrow immutable catalog policy; Player owns counting and field mutation.
         let _points = self.with_owned_player_mut_like_cpp(|player| {
-            let runtime = player.talent_runtime_like_cpp();
-            let spent: u32 = runtime
-                .talent_groups
-                .get(usize::from(runtime.active_group))
-                .into_iter()
-                .flat_map(|talents| talents.iter())
-                .filter(|(talent_id, rank)| {
-                    self.represented_talent_info_like_cpp(**talent_id, **rank)
-                        .is_some()
-                })
-                .map(|(_, rank)| u32::from(*rank) + 1)
-                .sum();
-            let total = base_points + player.gameplay_state().quest_rewarded_talent_points;
-            let points = total.saturating_sub(spent).min(i32::MAX as u32) as i32;
-            player.set_character_points_like_cpp(points);
-            points
+            player.refresh_represented_talent_points_like_cpp(base_points, |talent_id, rank| {
+                self.represented_talent_info_like_cpp(talent_id, rank)
+                    .is_some()
+            })
         });
         #[cfg(test)]
         if let Some(points) = _points {
@@ -42405,6 +42391,7 @@ impl WorldSession {
         canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
+    #[cfg(test)]
     pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {

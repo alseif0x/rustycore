@@ -1468,11 +1468,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81452,
+          "production_lines": 81439,
           "test_lines": 103093,
-          "total_lines": 184545,
+          "total_lines": 184532,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 talent-point refresh: one generation-checked Player mutation replaces separate snapshot/read/write accesses. Production measure grows 41 lines, retaining the handle-less test path; three old helpers become cfg(test). Tests grow 107 lines covering active/detached ownership, invalid rows, rewards, bounds and stale/missing-owner rejection. No field, dependency, clock or mirror is added. Catalog/identity retirement remains #578 work; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 Player talent-point operation: Session production shrinks 13 lines as counting/rewards/bounds/update move into Player progression; the obsolete Session setter becomes test-only. Player grows 26 production and 63 test lines for the narrow domain operation and exact field-mask/idempotence/filter/bounds regressions. No new retained catalog, dependency, clock or mirror. Catalog/identity retirement remains #578 work; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1547,11 +1547,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10370,
-          "test_lines": 9273,
-          "total_lines": 19643,
+          "production_lines": 10396,
+          "test_lines": 9336,
+          "total_lines": 19732,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "Canonical Player substates for migrated gameplay families and owner-state tests. Single identity/value; no Session snapshot writeback introduced. This is an aggregate checkpoint, not proof of complete C++ gameplay parity. Review and exact deltas: docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: Player progression owns the represented talent-point count/reward/bounds/update operation, receiving only a base value and borrowed validity predicate. Growth: 26 production and 63 test lines; exact field-mask equality, unchanged-result idempotence, active-group filtering and bounds coverage. No stored catalog or cross-layer dependency. Full C++ InitTalentForLevel remains unproven; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

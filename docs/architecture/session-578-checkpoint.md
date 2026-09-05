@@ -58,6 +58,36 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player owns the represented talent-point operation
+
+Ownership migration based on `6e28ab96`: the count/reward/bounds/update operation
+now lives in Player's existing private progression module, exposed as a domain
+method to the adapter crate. Session supplies the unchanged level-derived base
+and an immutable talent-validity predicate; it no longer counts talents or
+chooses CharacterPoints in production. The standalone Session point setter has
+no remaining production caller and is now test-only. No new stored catalog,
+state copy, dependency, clock or persistence path is introduced.
+
+The same C++ anchors and represented-policy boundaries as the preceding slice
+apply. Two entity tests prove active-group-only predicate visits, unchanged
+talent/reward state, exact update-mask equivalence with the existing setter,
+no dirty field on an unchanged result, invalid-group handling, saturation and
+signed-field clamping. The existing three canonical Session tests still cover
+active/detached/stale/missing ownership around the domain operation.
+The catalog and Session identity inputs remain explicit #578 debt; this is not
+full InitTalentForLevel or issue completion.
+
+On aarch64, `wow-entities --lib` passes 700/0 and `wow-world --lib` passes
+3,692/0 with one ignored. Syntax-only ownership and architecture check/self-test
+pass; the only syntax delta is the obsolete Session setter's test-only cfg.
+The logical Session measure shrinks to 81,439 production + 103,093 test lines;
+Player grows to 10,396 production + 9,336 test lines, reviewed for this operation
+and its two tests. Fields, registrations, bridges and crate edges are unchanged.
+Formatting, diff checks and `validation-v2 quick` pass (exit 0), manifest
+`target/validation-v2/manifests/20260905T033008.525971Z-289045-quick.json`.
+No fresh capture or live runtime action is required by this behavior-preserving
+operation move; no push or terminal #578/#153 acceptance is claimed.
+
 ### 2026-09-05 — Talent points refresh uses one canonical Player access
 
 Ownership migration based on `1b9731d2`: refresh now borrows the active talent
