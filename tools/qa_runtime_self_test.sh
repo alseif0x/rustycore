@@ -75,7 +75,7 @@ printf '%s\n' "${WOW_BOT_LOOT_RACE_SMOKE:-0}" >"${QA_FAKE_STATE:?}.bot-mode"
 if [[ "${QA_FAKE_LEAVE_JOURNAL:-0}" == "1" ]]; then : >"${WOW_BOT_FIXTURE_JOURNAL:?}"; fi
 cat "${QA_FAKE_LIVE:?}" >"${QA_FAKE_STATE:?}.bot-saw"
 if [[ -n "${WOW_BOT_REPORT:-}" && "${QA_FAKE_NO_LOGIN_REPORT:-0}" != 1 ]]; then
-  printf '{"login_only":true,"results":[{"world_auth":true,"enum_characters":true,"player_login_verified":true}]}\n' >"$WOW_BOT_REPORT"
+  printf '{"login_only":true,"results":[{"world_auth":true,"enum_characters":true,"player_login_verified":true,"login_stream_drained":true}]}\n' >"$WOW_BOT_REPORT"
   printf '%s\n' "${WOW_BOT_ENSURE_TEST_ACCOUNTS:-unset}" >"${QA_FAKE_STATE:?}.bot-provisioning"
   printf '%s\n' "${WOW_BOT_EXEC_SHA256:-unset}" >"${QA_FAKE_STATE:?}.bot-sha"
   printf '%s\n' "${WOW_BOT_STAND_STATE+present}" >"${QA_FAKE_STATE:?}.bot-stand-state"

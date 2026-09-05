@@ -391,7 +391,7 @@ run_login() {
   ) >"$evidence_dir/wrapper.log" 2>&1 || LOGIN_BOT_STATUS=$?
   if ((LOGIN_BOT_STATUS == 0)) && ! jq -e \
     '.login_only == true and (.results | length == 1) and
-     all(.results[]; .world_auth == true and .enum_characters == true and .player_login_verified == true)' \
+     all(.results[]; .world_auth == true and .enum_characters == true and .player_login_verified == true and .login_stream_drained == true)' \
     "$evidence_dir/bot.json" >/dev/null 2>&1; then
     warn "login wrapper returned success without verified world-entry evidence"
     LOGIN_BOT_STATUS=65
