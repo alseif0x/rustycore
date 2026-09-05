@@ -27498,6 +27498,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_set_player_skill_occupied_slots_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_set_player_skill_occupied_slots_like_cpp (& mut self , occupied_slots : u16) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "fixture_set_xp_rest_bonus_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_set_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",

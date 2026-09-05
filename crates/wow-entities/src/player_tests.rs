@@ -521,6 +521,45 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn occupied_skill_slot_authority_clears_invalid_proof_without_replacing_records() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(
+        vec![PlayerSkillRecord {
+            skill_line_id: 333,
+            current_value: 0,
+            max_value: 0,
+            step: 0,
+            profession_slot: -1,
+            state: PlayerSkillLoadState::Deleted,
+        }],
+        true,
+        true,
+        None,
+        BTreeSet::from([333]),
+    );
+    let records = player.skill_records_like_cpp().to_vec();
+    let records_ptr = player.skill_records_like_cpp().as_ptr();
+    for (slots, accepted) in [(1, true), (0, false), (257, false), (1, true)] {
+        assert_eq!(
+            player.authorize_occupied_skill_slots_like_cpp(slots),
+            accepted
+        );
+        assert_eq!(
+            player.occupied_skill_slots_like_cpp(),
+            accepted.then_some(slots)
+        );
+        assert_eq!(player.skill_records_like_cpp(), records);
+        assert_eq!(player.skill_records_like_cpp().as_ptr(), records_ptr);
+        assert_eq!(
+            player.non_durable_skill_tombstones_like_cpp(),
+            &BTreeSet::from([333])
+        );
+        assert!(player.skill_records_loaded_like_cpp());
+        assert!(player.skill_records_complete_like_cpp());
+    }
+}
+
+#[test]
 fn player_owns_exact_skill_rows_and_persistence_authority_like_cpp() {
     let mut player = Player::new(None, false);
     player.replace_skill_records_like_cpp(

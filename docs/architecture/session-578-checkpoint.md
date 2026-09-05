@@ -58,6 +58,47 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player owns occupied skill-slot authorization
+
+Ownership migration on `332ef103`: one generation-checked Player command now
+validates occupied skill slots and sets/clears their completeness proof. Session
+retains the existing prior aura-authority invalidation and returns false for a
+missing/stale owner; no lock survives the synchronous call. Its former repeated
+read/clone/replace path is a cfg(test) oracle, not a production writeback bridge.
+Both production callers (complete skill load and represented skill mutation)
+retain their ordering and signatures. No SQL, packet, timer or registry change.
+
+C++ `Player.cpp:5753-5766` retains the SkillLineID slot on deletion;
+`Player.h:137` and `UpdateFields.h:428` define 256 slots. `_SaveSkills`
+(`Player.cpp:20348-20399`) consumes Player-owned state. Rust's existing distinct
+u16-ID projection is preserved, including duplicate collapse and exclusion of
+wider IDs; this is not new validation or a claim of full skill-slot parity.
+Deleted rows still count, incomplete/incorrect/over-cap requests clear the proof,
+and skill records/tombstones are never cloned or republished by the new command.
+
+Differential tests cover 200 active/detached, loaded/complete, empty/deleted,
+duplicate/wide-ID and 0/1/2/256/257-slot cases. Stale/missing owner coverage pins
+replacement state; native coverage pins invalid-proof clearing, unchanged rows,
+tombstones and retained Vec storage. Complete implies loaded at the sole native
+writer (`replace_skill_records_like_cpp`), verified by workspace source search.
+The separate tombstone-clear helper still normalizes/filter-rebuilds records at
+the identity boundary; it remains open rather than silently becoming a plain clear.
+
+Fields remain 714/282 production/432 fixtures; associated items 3,658->3,659
+with only the old route added as a test oracle. Persistence evidence and all
+590 registry rows are unchanged. Measured logical ceilings: Session
+81,582 + 104,269 = 185,851; Player 10,667 + 9,559 = 20,226. The LOC classifier
+includes retained impl-level oracle lines; AST fixture classification is exact.
+No new crate, trait, resource, state mirror or mutable owner is introduced.
+
+Validation on aarch64: world library 3,715 passed/zero failed/one ignored;
+entities library 707 passed/zero failed. Focused owner tests, world-server check,
+formatting/diff checks, syntax ownership, architecture check/self-test and quick
+validation pass. Evidence:
+`target/validation-v2/manifests/20260905T054602.439641Z-481948-quick.json`.
+No installation, restart, fresh capture or publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Borrow TraitNodeEntry from process-owned bootstrap
 
 Boundary extraction on `3c617aeb`: the required startup-loaded TraitNodeEntry catalog

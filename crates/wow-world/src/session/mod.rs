@@ -44450,6 +44450,19 @@ impl WorldSession {
 
     pub(crate) fn set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_set_player_skill_occupied_slots_like_cpp(occupied_slots);
+        }
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.authorize_occupied_skill_slots_like_cpp(occupied_slots)
+        })
+        .unwrap_or(false)
+    }
+
+    // Frozen previous route for differential owner tests and handleless fixtures.
+    #[cfg(test)]
+    fn fixture_set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
         // C++ `SetSkill(..., 0)` clears step/rank/max but retains the
         // SkillLineID in its update-field slot until that slot is explicitly
         // reused. A represented SKILL_DELETED row therefore still counts.

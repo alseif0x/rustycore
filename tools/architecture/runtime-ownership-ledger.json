@@ -1465,11 +1465,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81569,
-          "test_lines": 104171,
-          "total_lines": 185740,
+          "production_lines": 81582,
+          "test_lines": 104269,
+          "total_lines": 185851,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 TraitNodeEntry borrowed bootstrap dependency: production -8 lines; tests +161 for active/detached valid and missing catalog-row cases, stale/missing owner and updated loader fixtures. Fields 714 total/282 production, catalog family 132. Required process capability replaces Session retention, with no fixture mirror; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 occupied skill-slot authority: Session delegates validation and proof update to one Player command; old clone/replace path is cfg(test) differential oracle. Logical classifier grows production 13 and tests 98 lines; AST fields unchanged and one fixture method added. 200 active/detached comparisons plus stale/missing owner coverage; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1544,11 +1544,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10647,
-          "test_lines": 9520,
-          "total_lines": 20167,
+          "production_lines": 10667,
+          "test_lines": 9559,
+          "total_lines": 20226,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: Player owns offline/online accrual; 59 production and 43 test lines added. Tests pin timestamp rejection, ten-second boundary, no repeat at the same timestamp, max-level reset and computed-extra return despite balance cap. Existing RNG gate/rate policy remains outside the command; no new state, dependency or clock. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: Player owns occupied skill-slot authorization; 20 production and 39 test lines added. Incomplete/mismatched/over-cap requests clear the proof without copying/replacing rows or tombstones. Native tests pin return/proof, unchanged rows and retained Vec storage. Existing distinct-u16 projection is preserved, no new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

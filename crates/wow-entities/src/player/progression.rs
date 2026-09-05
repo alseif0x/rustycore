@@ -668,6 +668,26 @@ impl Player {
         self.gameplay_state.occupied_skill_slots
     }
 
+    /// Authorize the represented occupied-slot proof on its Player owner.
+    /// C++ Player::SetSkill retains SkillLineID when deactivating a slot
+    /// (Player.cpp:5753-5766); deleted rows still count toward PLAYER_MAX_SKILLS.
+    /// Preserve the adapter's existing distinct-u16-ID projection, including
+    /// duplicate collapse and exclusion of wider IDs; do not rewrite skill rows.
+    pub fn authorize_occupied_skill_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
+        let exact = self
+            .gameplay_state
+            .skills
+            .iter()
+            .filter_map(|skill| u16::try_from(skill.skill_line_id).ok())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let valid = self.gameplay_state.skills_complete
+            && usize::from(occupied_slots) == exact
+            && occupied_slots <= 256;
+        self.gameplay_state.occupied_skill_slots = valid.then_some(occupied_slots);
+        valid
+    }
+
     pub fn non_durable_skill_tombstones_like_cpp(&self) -> &BTreeSet<u16> {
         &self.gameplay_state.non_durable_skill_tombstones
     }
