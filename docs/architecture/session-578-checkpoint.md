@@ -3,6 +3,42 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Conformance implementation checkpoint — 2026-09-05, `118171c1`
+
+The private V2 laboratory now has two independently defined modules running as native Rust,
+Rust Core Wasm, C Core Wasm and mixed execution. This is **passing pre-freeze evidence**, not
+the complete third-module/cost gate and not a production storage or SDK integration.
+
+- Source: `tools/architecture/modularity-conformance/`, committed at `118171c1`.
+- aarch64 validation: 51 host tests (27 core + 24 Wasm), 15 native driver/module tests,
+  43 Python control tests and 89 functional case executions (20 common per mode + nine
+  native-only negatives). Complete common oracles agree, including ordered callback results,
+  canonical bytes, revisions, identity, residence and contributions.
+- The retained [pre-freeze report](evidence/modularity-conformance-v2-prefreeze-20260905.json.gz)
+  ran 19:09:12–19:09:31 UTC and reports `passed: true`, **`decision_eligible: false`**.
+  Its [source freeze](evidence/modularity-conformance-v2-prefreeze-20260905.freeze.json)
+  binds 57 laboratory files and the two baseline module IDs before third-module authoring.
+  The report precedes the commit; its complete source hash set matches the committed freeze.
+  Freeze SHA-256: `5aeadb7a4a889bdfc879f9c69898c85325ea555479204ec303b9a8880fbc9424`.
+- Before freezing, review corrected opaque codec admission, canonical round trips, replay
+  capability checks, failed-write revision allocation, cumulative validation fuel and hidden
+  second-memory admission. A zero-capacity Wasm read regression was reproduced as `Invalid`
+  instead of the expected capacity `Limit`, then fixed without weakening overlap rejection.
+- All timing thresholds remain provisional laboratory gates. The protocol's pre-measurement
+  completion added a 4 MiB artifact cap and increased command supervision from 120 to 240s
+  to accommodate the already allowed batch/cold work; it did not change timing/RSS thresholds.
+  No V2 measurement campaign has run. Native-only compilation passes with two unused-code
+  warnings for the intentionally unavailable opaque adapter; native execution is not sandboxed.
+
+Next: the third independent state/lifecycle module must use only its own code plus the permitted
+dependency/declarative registration edits. Verify the unchanged freeze, review the new module and
+exercise all four real compositions before the predeclared measurement campaign. A host fix
+invalidates that challenge; do not rehash its existing third module into a supposed fresh proof.
+Testable modularity and physical navigability remain distinct from a storage choice;
+mock replay does not prove durable recovery.
+All production C0–C4 obligations below remain open to their stated extent. No push, deployment,
+restart, database mutation, hot reload or macro-final acceptance is claimed here.
+
 ## Approved remaining plan — 2026-09-05, reviewed code `93e4002a`
 
 Keep **one macrodeliverable, issue #578 / PR #579**. The blocks below are internal

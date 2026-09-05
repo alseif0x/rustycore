@@ -76,7 +76,10 @@ The latest [modularity and ECS plan](../architecture/modularity-and-ecs-plan.md)
 laboratory HEAD `ee9a0128`, **selects private selective `hecs` now**, retaining cohesive domain
 aggregates. This is a design choice, not an installed backend or proof it beats every alternative.
 The next #578 checkpoint is finite independent-state/third-module conformance before production
-migration, not another open-ended backend selection. It has not run. All C0–C4 obligations and
+migration, not another open-ended backend selection. Its two-module pre-freeze stage now passes
+at `118171c1`; the third-module challenge and measurement verdict remain pending. See the
+[retained conformance evidence](../architecture/session-578-checkpoint.md#conformance-implementation-checkpoint--2026-09-05-118171c1).
+All C0–C4 obligations and
 production save/admission/phase/lifetime acceptance remain open as recorded in the checkpoint.
 
 Native Rust is the default for first-party/custom extensions; Wasmtime/Core Wasm is the selected
