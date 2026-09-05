@@ -95,6 +95,10 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
         let mut owner = manager
             .try_lock()
             .expect("pending DB must not retain the owner");
+        assert!(
+            !owner.destroy_map(0, 0),
+            "a pending save must not lose its still-active Player through map destruction"
+        );
         owner.update(10); // Both real map updates can progress while the save is pending.
         if replace {
             let mut p = Box::new(wow_entities::Player::new(Some(1), false));

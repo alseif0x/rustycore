@@ -201,7 +201,6 @@ pub struct ManagedMap {
     runtime: MapRuntime,
     kind: ManagedMapKind,
     can_unload: bool,
-    player_count: u32,
     instance_encounter_in_progress: bool,
     instance_lock_token: Option<u64>,
     instance_lock_context: Option<CreateMapInstanceLockContext>,
@@ -255,7 +254,6 @@ impl ManagedMap {
             runtime: MapRuntime::new(Map::new(map_id, instance_id, difficulty, grid_expiry_ms)),
             kind,
             can_unload: false,
-            player_count: 0,
             instance_encounter_in_progress: false,
             instance_lock_token: None,
             instance_lock_context: None,
@@ -316,21 +314,12 @@ impl ManagedMap {
         self.can_unload = can_unload;
     }
 
-    pub fn set_player_count(&mut self, player_count: u32) {
-        self.player_count = player_count;
-    }
-
-    pub const fn player_count(&self) -> u32 {
-        self.player_count
+    pub fn player_count(&self) -> u32 {
+        self.runtime.map.typed_player_counts_like_cpp().0
     }
 
     pub fn players_count_except_gms_like_cpp(&self) -> u32 {
-        let (typed_players, non_game_masters) = self.runtime.map.typed_player_counts_like_cpp();
-        if typed_players > 0 {
-            non_game_masters
-        } else {
-            self.player_count
-        }
+        self.runtime.map.typed_player_counts_like_cpp().1
     }
 
     pub fn set_instance_encounter_in_progress_like_cpp(&mut self, in_progress: bool) {
@@ -461,7 +450,7 @@ impl ManagedMap {
     }
 
     fn have_players(&self) -> bool {
-        self.player_count > 0 || self.runtime.map.typed_player_counts_like_cpp().0 > 0
+        self.player_count() > 0
     }
 
     fn update(&mut self, diff_ms: u32) {
@@ -1632,7 +1621,7 @@ mod tests {
         let hook_calls = Arc::clone(&calls);
         manager.set_spawn_group_initializer_like_cpp(move |map| {
             hook_calls.fetch_add(1, Ordering::SeqCst);
-            map.set_player_count(7);
+            map.set_instance_encounter_in_progress_like_cpp(true);
         });
 
         manager.create_world_map(571, 0);
@@ -1640,7 +1629,12 @@ mod tests {
         manager.create_map_entry(571, 0, 0, ManagedMapKind::World);
 
         assert_eq!(calls.load(Ordering::SeqCst), 1);
-        assert_eq!(manager.find_map(571, 0).unwrap().player_count(), 7);
+        assert!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
 
         manager.create_map_entry(
             571,
@@ -1724,13 +1718,30 @@ mod tests {
         let mut keys = Vec::new();
         manager.do_for_all_maps_mut(|map| {
             keys.push((map.map_id(), map.instance_id()));
-            map.set_player_count(map.map_id() + map.instance_id());
+            map.set_instance_encounter_in_progress_like_cpp(
+                (map.map_id() + map.instance_id()) % 2 == 0,
+            );
         });
 
         assert_eq!(keys, vec![(1, 0), (1, 3), (2, 0)]);
-        assert_eq!(manager.find_map(1, 0).unwrap().player_count(), 1);
-        assert_eq!(manager.find_map(1, 3).unwrap().player_count(), 4);
-        assert_eq!(manager.find_map(2, 0).unwrap().player_count(), 2);
+        assert!(
+            !manager
+                .find_map(1, 0)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
+        assert!(
+            manager
+                .find_map(1, 3)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
+        assert!(
+            manager
+                .find_map(2, 0)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
     }
 
     #[test]
@@ -3230,37 +3241,6 @@ mod tests {
         manager.create_map_entry(489, 2, 0, ManagedMapKind::Battleground);
 
         assert_eq!(manager.generate_instance_id(), Some(3));
-    }
-
-    #[test]
-    fn destroy_map_refuses_reported_players_until_evacuation_finishes() {
-        let mut manager = MapManager::default();
-        manager.create_world_map(1, 0).set_player_count(2);
-
-        assert!(!manager.destroy_map(1, 0));
-        assert_eq!(manager.find_map(1, 0).unwrap().player_count(), 2);
-        manager.find_map_mut(1, 0).unwrap().set_player_count(0);
-        assert!(manager.destroy_map(1, 0));
-        assert!(manager.find_map(1, 0).is_none());
-    }
-
-    #[test]
-    fn num_instances_and_players_match_dungeon_filter() {
-        let mut manager = MapManager::default();
-        manager.create_world_map(1, 0).set_player_count(10);
-        manager
-            .create_map_entry(
-                33,
-                7,
-                1,
-                ManagedMapKind::Dungeon {
-                    has_reset_schedule: true,
-                },
-            )
-            .set_player_count(3);
-
-        assert_eq!(manager.num_instances(), 1);
-        assert_eq!(manager.num_players_in_instances(), 3);
     }
 
     #[test]

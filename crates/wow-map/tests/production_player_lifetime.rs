@@ -101,7 +101,7 @@ fn production_unload_is_atomic_and_preserves_detached_lifetime_after_drain() {
 }
 
 #[test]
-fn production_unadopted_player_also_blocks_destruction_with_zero_compatibility_count() {
+fn production_unadopted_player_also_counts_and_blocks_destruction() {
     let mut manager = MapManager::default();
     let guid = ObjectGuid::create_player(1, 42);
     let mut player = Player::new(Some(1), false);
@@ -112,7 +112,7 @@ fn production_unadopted_player_also_blocks_destruction_with_zero_compatibility_c
     map.map_mut()
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
         .unwrap();
-    assert_eq!(map.player_count(), 0);
+    assert_eq!(map.player_count(), 1);
     assert!(!manager.destroy_map(1, 0));
     assert!(manager.unload_all().is_err());
     assert!(
@@ -143,4 +143,48 @@ fn production_failed_destroy_does_not_recycle_the_occupied_instance_id() {
         manager.with_player_like_cpp(handle, Player::money),
         Some(123)
     );
+}
+
+#[test]
+fn production_occupancy_follows_attach_detach_and_game_master_state() {
+    let mut manager = MapManager::default();
+    let _world = active_player(&mut manager, 41, MapKey::new(0, 0));
+    manager.create_map_entry(
+        33,
+        7,
+        0,
+        wow_map::ManagedMapKind::Dungeon {
+            has_reset_schedule: true,
+        },
+    );
+    let handle = active_player(&mut manager, 42, MapKey::new(33, 7));
+    assert_eq!(manager.num_instances(), 1);
+    assert_eq!(manager.find_map(33, 7).unwrap().player_count(), 1);
+    assert_eq!(manager.num_players_in_instances(), 1);
+    assert_eq!(
+        manager
+            .find_map(33, 7)
+            .unwrap()
+            .players_count_except_gms_like_cpp(),
+        1
+    );
+    manager
+        .with_player_mut_like_cpp(handle, |p| p.set_game_master_like_cpp(true))
+        .unwrap();
+    assert_eq!(
+        manager
+            .find_map(33, 7)
+            .unwrap()
+            .players_count_except_gms_like_cpp(),
+        0
+    );
+    assert_eq!(
+        manager.num_players_in_instances(),
+        1,
+        "total instance count includes GMs"
+    );
+    manager.detach_player_like_cpp(handle).unwrap();
+    assert_eq!(manager.find_map(33, 7).unwrap().player_count(), 0);
+    assert_eq!(manager.num_players_in_instances(), 0);
+    assert_eq!(manager.find_map(0, 0).unwrap().player_count(), 1);
 }

@@ -88,9 +88,11 @@ group-wide ACK is test-only. Production-linked controlled-persistence tests cove
 replacement, rollback, Unknown and cancellation; they do not establish real DB/relogin or
 scheduler parity. All C0–C4 acceptance remains open to the extent recorded in the
 [checkpoint](../architecture/session-578-checkpoint.md), including far-transfer save semantics.
-The next C1 lifetime cut rejects occupied-map destruction/bulk unload and preserves the old
+The C1 lifetime cut rejects occupied-map destruction/bulk unload and preserves the old
 incarnation when replacement cannot allocate a generation. Controlled production-linked map
 tests reproduce the old failure; automatic evacuation and complete shutdown QA remain open.
+Map occupancy now comes solely from canonical Players: the manual count field/setter/fallback
+is retired, and instance-full/GM fixtures use real occupants with unchanged packet assertions.
 
 Native Rust is the default for first-party/custom extensions; Wasmtime/Core Wasm is the selected
 operator-optional executor of shared hooks/state/lifecycle contracts. **Scope expansion:** #583

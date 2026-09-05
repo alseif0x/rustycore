@@ -3,6 +3,51 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Canonical map occupancy; manual count retired — 2026-09-05
+
+Above `ca7034fa`, `ManagedMap::player_count`, non-GM admission count, destruction admission
+and `MapManager::num_players_in_instances` now query the canonical typed Players. The mutable
+`player_count` field, initialization, public setter and fallback are removed, not synchronized
+to another count. No new occupancy mirror/index, clock or writer is introduced.
+
+The production test `production_occupancy_follows_attach_detach_and_game_master_state` ran red
+against the previous getter (zero reported for one attached Player), then green against the
+canonical query. Total instance population includes GMs but excludes world maps; admission
+excludes GM occupants; detach changes both counts immediately. Unadopted canonical Player
+records also count and prevent map destruction, so an absent generation registration is not
+permission to destroy their storage.
+
+C++ anchors: `Maps/Map.h:353`, `Maps/Map.cpp:2648-2655` and
+`Maps/MapManager.cpp:367-372`. The map library's two count-only fixtures retire in favor of
+the production lifetime/count tests. Generic map visitor/initializer tests use an actual
+mutable encounter flag rather than a fabricated player count. All three Session instance-full
+and GM tests now install real Players through the canonical handle/attach API; their decision,
+packet bytes and admitted/rejected Player assertions are retained in the 201-line
+`session/tests/instance_occupancy.rs` instead of the Session test monolith.
+
+Physical Session tests shrink 96,845 -> 96,627 lines; the complete logical Session test surface
+shrinks by 17 lines including the new module, and its ceiling tightens accordingly. This is a
+bounded responsibility retirement, not a claim that the remaining monoliths satisfy C4.
+Production login/save tests also attempt map destruction while DB completion is pending and
+require rejection before map progress/late-mutation/old-incarnation checks.
+
+aarch64 validation above `ca7034fa`, with explicit `PROTOC` and two build jobs:
+
+- `cargo test --offline --locked -p wow-map --lib --test production_player_lifetime -- --quiet`:
+  702 library passes, zero failures, one ignored; six production integration passes.
+  The two retired library fixtures are replaced by real-owner integration assertions, not lost coverage.
+- `cargo test --offline --locked -p wow-map --release --test production_player_lifetime`:
+  six passes. `-p wow-world --lib -- --quiet`: 3,742 passes, zero failures, one ignored;
+  the focused `instance_occupancy` filter runs all three migrated tests successfully.
+- `-p wow-world --test production_login_player_owner`: six passes including map destruction
+  rejection during pending save. Architecture check/self-test and syntax-only ownership pass.
+- Formatting/diff checks and `./tools/validation-v2 quick --base ca7034fa` pass; green local
+  manifest verified at `target/validation-v2/manifests/20260905T205419.252407Z-1197983-quick.json`.
+
+The current occupancy query scans canonical records;
+no new map-frame performance bound, live instance-capacity capture or shutdown parity is claimed.
+Far-transfer completion, evacuation delivery, mutable Map escapes and C0/C3 phase work remain open.
+
 ## Failed map/lifetime transitions preserve Player — 2026-09-05
 
 The next C1 cut above `b3d899c3` exercises the production `wow-map` library, not a fabricated

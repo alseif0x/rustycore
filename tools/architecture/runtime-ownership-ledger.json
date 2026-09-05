@@ -1446,10 +1446,10 @@
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 81859,
-          "test_lines": 106357,
-          "total_lines": 188216,
+          "test_lines": 106340,
+          "total_lines": 188199,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 coherent full-save capture/confirmation: +15 production/+853 test lines across the logical Session, including the old builder/group-wide ACK moved to a 608-line test-only oracle. Two narrow preparation/header methods replace five production helpers; no Session field added. Pure projection, prepared receipt and orchestration remain separate bounded private files. Late-change, rollback/unknown/cancellation and replacement-incarnation evidence in session-578-checkpoint.md. C1/C2/C4 remain open; this is not a renewed physical monolith exception.",
+          "latest_growth_review": "2026-09-05 canonical occupancy: Session production unchanged; tests shrink by 17 lines including the new 201-line instance_occupancy module. Three full/GM admission cases retain packet/decision assertions but install real canonical occupants; the manual count field/setter is retired from ManagedMap. Prior coherent-save review and exact deltas remain in session-578-checkpoint.md. C1/C2/C4 remain open; no physical monolith exception is renewed.",
           "open_retirement_issues": [
             578
           ],
