@@ -3,6 +3,47 @@
 use super::*;
 
 #[test]
+fn rest_consumption_matches_previous_route_and_empty_victim_does_not_normalize() {
+    let (mut session, _, send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let victim = test_creature_guid(79);
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for bonus in [0.5, 70.0] {
+            let prepare = |player: &mut Player| {
+                player.set_next_level_xp(1000);
+                player.load_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, bonus);
+                player.clear_data_changes();
+            };
+            let projection = |player: &Player| {
+                (
+                    player.rest_state_like_cpp().clone(),
+                    player.active_player_data_changes_mask().blocks().to_vec(),
+                )
+            };
+            session.with_owned_player_mut_like_cpp(prepare).unwrap();
+            let before = session.with_owned_player_like_cpp(projection);
+            assert_eq!(
+                session.take_represented_xp_rest_bonus_for_gain_like_cpp(40, ObjectGuid::EMPTY),
+                (0, 0)
+            );
+            assert_eq!(session.with_owned_player_like_cpp(projection), before);
+            let expected_award = session.fixture_take_xp_rest_bonus_like_cpp(40, victim);
+            let expected = session.with_owned_player_like_cpp(projection);
+            session.with_owned_player_mut_like_cpp(prepare).unwrap();
+            assert_eq!(
+                session.take_represented_xp_rest_bonus_for_gain_like_cpp(40, victim),
+                expected_award
+            );
+            assert_eq!(session.with_owned_player_like_cpp(projection), expected);
+            assert!(send_rx.is_empty());
+        }
+    }
+}
+
+#[test]
 fn native_rest_bonus_set_and_add_match_previous_projection_for_active_and_detached_player() {
     let (mut session, _, send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81507,
-          "test_lines": 103856,
-          "total_lines": 185363,
+          "production_lines": 81535,
+          "test_lines": 103897,
+          "total_lines": 185432,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 rest bonus: native Player set/add commands replace repeated rest/next-XP reads and addition outside the guard. Session retains external max-level/RaF policy inputs, not bonus decisions. Measured growth 22 production-classified and 51 test lines for explicit native/fixture routing, test-only cap constant and 48-case differential coverage. One test-only oracle method added; cap helper becomes test-only. No fields or registrations added; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 rest consumption: native Player owns award, percentage loss and normalization in one guard. Session retains victim admission and external policy/aura query. Measured growth 28 production-classified lines for native/fixture routing and 41 test lines for active/detached differential and empty-victim no-op. Former percentage/set helpers are test-only, with one fixture oracle added. No fields or registrations added; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1546,11 +1546,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10565,
-          "test_lines": 9446,
-          "total_lines": 20011,
+          "production_lines": 10588,
+          "test_lines": 9477,
+          "total_lines": 20065,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: Player owns rest bonus normalization, cap, previous/new state mask and addition. Growth: 48 production and 17 test lines; pure tests pin configured maximum, RaF priority and fractional no-change masks, with native world differential coverage. Max-level/RaF inputs remain borrowed adapter policy; no new state, dependency or clock. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: Player owns rest consumption; 23 production and 31 test lines added. Tests pin positive/negative/extreme integer percentage, cap to awarded XP and zero-award normalization. Existing Rust/C++ percentage arithmetic difference documented and preserved. External policy remains borrowed; no new state, dependency or clock. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

@@ -22966,8 +22966,10 @@
           "name": "apply_represented_pct_modifier_to_u32_like_cpp",
           "visibility": "private",
           "signature": "fn apply_represented_pct_modifier_to_u32_like_cpp (value : u32 , pct : i32) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -27509,6 +27511,19 @@
           "name": "fixture_set_xp_rest_bonus_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_set_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "fixture_take_xp_rest_bonus_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_take_xp_rest_bonus_like_cpp (& mut self , xp : u32 , victim : wow_core :: ObjectGuid ,) -> (u32 , u8)",
           "cfg": [
             "cfg (test)"
           ],
@@ -50213,8 +50228,10 @@
           "name": "set_represented_xp_rest_bonus_like_cpp",
           "visibility": "private",
           "signature": "fn set_represented_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter"
           ]

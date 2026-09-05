@@ -17,6 +17,19 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-05, #578 rest consumption — percentage arithmetic differs.**
+  Verified on `b98903e8`: Session's rested-consumption helper uses signed `i64`
+  multiplication/division (truncation toward zero) then clamps the final loss
+  into `u32`. C++ `RestMgr.cpp:125-138` calls `AddPct(uint32&, ...)`;
+  `src/common/Utilities/Util.h:71-87` computes the percentage through `float`
+  and converts the term to `T` before addition. Negative/out-of-range conversion
+  and float precision boundaries are not equivalent to the represented Rust
+  arithmetic. The subsequent Player-owner refactor preserves the Rust formula;
+  it is not a parity correction. Focused tests pin positive, negative, extreme
+  and fractional truncation behavior, including 3 XP with -50% consuming 2.
+  Any arithmetic correction requires separate behavioral evidence and validation;
+  no client-capture or full RestMgr parity is claimed here.
+
 - **2026-09-05, #578 save-owner read — save projection and writeback debt.**
   Verified on `b813d262`: `current_player_save_to_db_snapshot_like_cpp` uses
   Session's staged level/map, although C++ `Player.cpp:19480-19514` reads Player

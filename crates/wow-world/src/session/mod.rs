@@ -32308,6 +32308,7 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
     fn set_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
@@ -32576,6 +32577,7 @@ impl WorldSession {
         self.revalidate_represented_tavern_resting_with_catalog_like_cpp(db2.as_ref());
     }
 
+    #[cfg(test)]
     fn apply_represented_pct_modifier_to_u32_like_cpp(value: u32, pct: i32) -> u32 {
         let adjusted = i64::from(value) + (i64::from(value) * i64::from(pct)) / 100;
         adjusted.clamp(0, i64::from(u32::MAX)) as u32
@@ -32668,6 +32670,32 @@ impl WorldSession {
     }
 
     fn take_represented_xp_rest_bonus_for_gain_like_cpp(
+        &mut self,
+        xp: u32,
+        victim: wow_core::ObjectGuid,
+    ) -> (u32, u8) {
+        if victim.is_empty() {
+            return (0, 0);
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_take_xp_rest_bonus_like_cpp(xp, victim);
+        }
+        let Some(pct) = self.resolved_total_represented_aura_modifier_like_cpp(
+            RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
+        ) else {
+            return (0, 0);
+        };
+        let at_max = self.player_is_at_configured_max_level_like_cpp();
+        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.take_xp_rest_bonus_like_cpp(xp, pct, at_max, raf)
+        })
+        .unwrap_or((0, 0))
+    }
+
+    #[cfg(test)]
+    fn fixture_take_xp_rest_bonus_like_cpp(
         &mut self,
         xp: u32,
         victim: wow_core::ObjectGuid,

@@ -88,6 +88,37 @@ mod rest_flag_tests {
     use super::*;
 
     #[test]
+    fn rest_consumption_preserves_integer_percentage_bounds_and_zero_award_normalization() {
+        for (xp, pct, remaining) in [
+            (40, 50, 10.0),
+            (40, 0, 30.0),
+            (40, -50, 50.0),
+            (40, -200, 70.0),
+            (3, -50, 68.0),
+            (40, i32::MAX, 0.0),
+            (40, i32::MIN, 70.0),
+            (100, 0, 0.0),
+        ] {
+            let mut player = Player::new(None, false);
+            player.set_next_level_xp(1000);
+            player.load_xp_rest_bonus_like_cpp(1, 70.0);
+            let (award, mask) = player.take_xp_rest_bonus_like_cpp(xp, pct, false, false);
+            assert_eq!(award, xp.min(70));
+            assert_eq!(player.rest_state_like_cpp().rest_bonus, remaining);
+            assert_eq!(mask, if remaining == 70.0 { 0 } else { 7 });
+        }
+        let mut player = Player::new(None, false);
+        player.set_next_level_xp(1000);
+        player.load_xp_rest_bonus_like_cpp(6, 0.5);
+        assert_eq!(
+            player.take_xp_rest_bonus_like_cpp(10, 50, false, false),
+            (0, 7)
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.5);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 2);
+    }
+
+    #[test]
     fn rest_bonus_preserves_max_level_raf_priority_and_fractional_no_change_mask() {
         let mut player = Player::new(None, false);
         player.set_next_level_xp(100);
@@ -394,6 +425,29 @@ impl Player {
     ) -> u8 {
         let total = self.rest_state_like_cpp().rest_bonus + bonus;
         self.set_xp_rest_bonus_like_cpp(total, at_configured_max_level, raf_linked)
+    }
+
+    /// C++ RestMgr::GetRestBonusFor (RestMgr.cpp:125-138). Preserve Rust's
+    /// represented signed-integer percentage and saturation, not C++ Util.h's
+    /// float CalculatePct conversion for extreme/negative modifiers.
+    pub fn take_xp_rest_bonus_like_cpp(
+        &mut self,
+        xp: u32,
+        consumption_pct: i32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> (u32, u8) {
+        let current = self.rest_state_like_cpp().rest_bonus;
+        let award = (current as u32).min(xp);
+        let adjusted = i64::from(award) + (i64::from(award) * i64::from(consumption_pct)) / 100;
+        let loss = adjusted.clamp(0, i64::from(u32::MAX)) as u32;
+        // Normalize even when the integer award is zero, like SetRestBonus.
+        let mask = self.set_xp_rest_bonus_like_cpp(
+            current - loss as f32,
+            at_configured_max_level,
+            raf_linked,
+        );
+        (award, mask)
     }
 
     /// Mutate this Player's RestMgr state and refresh its represented fields.

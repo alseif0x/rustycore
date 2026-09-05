@@ -58,6 +58,38 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player owns rest award and consumption
+
+Ownership migration based on `b98903e8`: the native Player command reads the
+available rest, caps awarded XP, computes represented percentage loss and calls
+its normalization command inside one existing owner guard. Session retains the
+empty-victim gate and borrows aura/max-level/RaF policy before the guard; no
+policy or aura collection is newly retained. The former percentage and rest-set
+Session helpers are now test-only, alongside the previous consumption oracle.
+
+C++ `RestMgr.cpp:125-138` defines award/loss and unconditional normalization,
+including zero integer awards. The existing Rust signed-integer percentage and
+saturation differ from `Util.h:71-87`'s float term conversion; that discrepancy
+is documented in `EXISTING-CODE-DEFECTS.md` and is not changed in this refactor.
+Victim admission, GiveXP's mutually exclusive RaF branch, XP mutation, persistence
+and LogXPGain/rest-field publication remain in their existing order outside the
+guard. Full aura policy ownership and full GiveXP atomicity are not claimed.
+
+Entity tests cover eight percentage/award cases including negative and extreme
+modifiers plus zero-award state normalization. Native world tests compare the
+old route on active/detached Player, verify empty-victim purity and no publication;
+existing stale-owner and GiveXP tests remain active. The reviewed syntax delta
+adds one fixture oracle (3,660 associated items) and reclassifies two helpers;
+fields/registrations are unchanged. Logical ceilings: Session 81,535 + 103,897 =
+185,432; Player 10,588 + 9,477 = 20,065. #578 and live acceptance remain open.
+
+Validation on aarch64: world library 3,709 passed/zero failed/one ignored;
+entities library 705 passed/zero failed. Compilation, formatting/diff checks,
+syntax ownership, architecture check/self-test and quick validation pass.
+Quick evidence:
+`target/validation-v2/manifests/20260905T045041.146078Z-412415-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
+
 ### 2026-09-05 — Player owns bonus normalization and addition
 
 Ownership migration based on `132f3943`: native set/add bonus commands now read
