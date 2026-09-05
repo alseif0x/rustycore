@@ -220,14 +220,49 @@ methods must still enforce the relevant invariants; the getter only illustrates 
 - **#153:** independently verify both implementation macros, file exceptions and semantic
   boundaries. It is an audit, not the implementation owner of known cleanup.
 
-At this policy's adoption, `check_architecture.py` enforces selected **logical** owner
-ceilings. Its physical report covers Rust under `crates/*/src`, not the entire promised
-source/test/tooling scope, and it does **not** enforce the new physical budgets. A PASS
-today is not physical completion. #578 C4 must extend that existing mechanism with a
-reviewable file inventory, generated-source provenance and independent physical ceilings;
-test new-file growth, rename/move escape, oversized tests, stale/expired exceptions and
-baseline reductions without losing the logical owner checks. Keep daily checks incremental
-and terminal coverage complete; do not add another permanent parallel architecture checker.
+The #578 C4 implementation above `8f5caedc` adds the physical branch to the **same**
+`check_architecture.py` entrypoint; it is not another standalone checker:
+
+```bash
+python3 tools/architecture/check_architecture.py physical-files
+python3 tools/architecture/check_architecture.py physical-files --json
+python3 tools/architecture/check_architecture.py physical-files --terminal
+```
+
+`physical-file-policy.json` records 103 oversized legacy paths at introduction, their
+observed/per-file ceilings, concrete split targets and the `578:C4` review checkpoint.
+These are **migration debt, not terminal exceptions**. Growth or a missing/renamed legacy
+path fails until its exact policy row is reviewed. Reductions pass and the ceiling should
+be tightened after the validated split. New handwritten files default to the 2,000-line
+ceiling; files above 1,000 are reported for ordinary cohesion review. No policy-generation
+command exists. `--terminal` rejects every still-oversized migration entry: a normal
+migration PASS is not proof the physical deliverable is complete.
+
+Inventory covers tracked and untracked nonignored repository Rust, Python, shell,
+C/C++, JS/TS and protobuf sources, including integration tests, tooling, vendored
+code and extensionless shebang scripts. It is not restricted to `crates/*/src`.
+Tracked source cannot disappear behind a new ignore rule. Ignored build outputs/private
+files, documents, SQL/data inventories and arbitrary external compiler inputs are not
+this repository-source inventory; existing logical/cfg/module-mount checks remain independent.
+Source symlinks fail closed; non-source documentation/assets may remain symlinks.
+
+Generated attribution requires pinned output/generator/input hashes, a reproduction
+command and a hash-pinned JSON reproduction record matching that exact provenance and
+reproduced output hash. The read-only checker verifies the recorded chain; it does **not**
+execute generators or independently prove an unevidenced reproduction claim. Review and
+actually reproduce a generator before adding its entry. Initially there are zero generated
+waivers: `misc_generated.rs` is counted as handwritten despite its name. Terminal exceptions
+also start empty; each needs path, responsibility, measured count/ceiling, issue, rationale,
+review checkpoint and bounded review/expiry dates. Completed checkpoints and expired dates
+invalidate the exception; merely leaving its issue open does not renew it.
+
+`check` and `self-test` enforce physical and logical guards. `validation-v2 final` includes
+the cheap physical scan for every nonempty diff, including tooling-only or generation-input
+changes; workspace Rust additionally retains its independent logical ratchet. Changes to
+the physical module/policy run its adversarial unit suite during `quick`; changes to the
+shared checker/scanner run the existing architecture self-test. Macro closeout must also
+run `physical-files --terminal`; it is deliberately not the daily migration gate. All
+remaining physical splits still belong to #578, not #583/#153.
 
 ## 7. Evidence and design references
 

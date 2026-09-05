@@ -25,12 +25,17 @@ packages. A root Cargo, toolchain, protobuf, or build-script change explicitly e
 to `--workspace --all-targets`; it does not implicitly run every library suite.
 
 A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
-(`check_architecture.py hotspot-ratchet`, about 40 seconds). That is the one architecture ceiling
-automatically included by the bounded profile. The other architecture checks and exhaustive
+(`check_architecture.py hotspot-ratchet`; timing depends on cached scanner/build state).
+Every nonempty `final` diff also runs the cheap `check_architecture.py physical-files` scan,
+including tooling-only, non-Rust, deletion, policy or generator-input changes. It enforces
+new-file budgets and reviewed per-file migration ceilings without invoking Cargo. The other
+architecture checks and exhaustive
 persistence inventory run in `audit`; `final` alone does not verify renamed or relocated
 persistence accesses. Run affected ownership/contract checks explicitly during architecture
-work and satisfy the active macro's terminal acceptance before claiming completion. These
-curated logical ceilings do not yet enforce the approved physical-file budgets; see
+work and satisfy the active macro's terminal acceptance before claiming completion. Physical
+migration PASS is not closeout: run `physical-files --terminal` to reject unfinished oversized
+legacy entries, independently of the logical totals. Changes to the physical module/policy
+run its unit suite in `quick`; shared checker/scanner changes run architecture self-tests. See
 [module design guidelines](../architecture/module-design-guidelines.md).
 
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:

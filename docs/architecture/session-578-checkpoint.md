@@ -3,6 +3,54 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Physical source ratchet and checker separation — 2026-09-05
+
+Above `8f5caedc`, #578 C4 implements the approved physical branch in the existing
+architecture checker. This is tooling/guardrail work, not gameplay ownership, scheduler
+or parity progress. `physical-files` measures repository source, integration tests, tools,
+supported non-Rust languages and extensionless scripts; `check`/`self-test` also enforce it.
+The prior logical-owner production/test/total checks and syntax/mount coverage remain intact.
+
+Initial inventory: **914 source files**, 176 above the ordinary 1,000-line cohesion-review
+signal, and **103 above 2,000 lines**. The exact paths, observed counts, non-growth ceilings,
+concrete split targets and `578:C4` checkpoint are in `physical-file-policy.json`.
+They are migration debt, not 103 justified terminal exceptions. The initial terminal-exception
+and generated-source lists are empty; `misc_generated.rs` remains handwritten, and vendored
+Detour code requires its stated upstream/provenance review rather than a blind source rewrite.
+
+The default migration check passes only with the reviewed ceilings. New oversize files and
+missing/renamed legacy paths fail; validated reductions can tighten/retire their exact rows.
+`physical-files --terminal` **correctly fails on all 103 unresolved oversized files** at
+introduction, so this tooling cannot make the unfinished macro appear physically complete.
+Concrete exceptions require owner/responsibility/rationale, dated review/expiry and a named
+checkpoint. Generated attribution checks pinned generator/inputs/output plus an exact matching,
+hash-pinned reproduction record; it does not execute generators or certify a fabricated record.
+The full contract and coverage exclusions live in the module-design guide.
+
+`hotspot_metrics.py` mechanically receives 27 existing Rust scanner/size/ratchet functions;
+AST comparison to `8f5caedc` finds **zero changed function bodies**. The common error/root
+vocabulary is shared by two private modules, not imported back from the CLI. The main checker
+shrinks **3,858 -> 3,106 physical lines**; its reviewed ceiling tightens to 3,106, with its
+remaining policy/fixture decomposition still open C4 debt. New physical implementation/tests
+are 218/236 lines; the existing metric module is 807. No root Rust owner ceiling changes.
+
+Every nonempty `validation-v2 final` diff now runs the cheap physical branch, including
+tooling-only changes, source deletion and generator inputs. Workspace Rust independently
+retains the logical ratchet. Focused physical-policy and shared-scanner changes trigger their
+own tests during quick iteration, without the exhaustive persistence inventory. The validation
+planner tests pin this routing and preserve the existing final test-target contract.
+
+aarch64 evidence: 20 physical adversarial unit tests pass, including production/tests/tooling
+coverage, growth, path moves/rename to a different extension, reduction/tightening, terminal
+failure, stale/expired policy, source symlinks, ignored build products and generated provenance
+drift. Existing architecture self-test/check and validation-v2 contract tests pass. The
+retained logical checks still report the same eight audited owner roots; no runtime/source owner
+or packet/SQL contract is moved. No C++ fidelity change, live runtime action, publication or
+closure of C0–C4 is implied. The next source split uses this ratchet; the remaining 103 paths
+are not deferred to #583 or the #153 auditor.
+`validation-v2 quick --base 8f5caedc` passes with manifest
+`target/validation-v2/manifests/20260905T224117.829362Z-1270735-quick.json`.
+
 ## Authorized real save/relogin QA — 2026-09-05
 
 The user explicitly authorized temporary installation/restart of the test `world-server`,

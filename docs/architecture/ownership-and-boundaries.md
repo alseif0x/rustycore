@@ -104,10 +104,12 @@ The usual 200–800-line target is not a minimum; above 1,000 prompts routine re
 2,000 handwritten physical lines requires a specific justified owner/exit exception at closeout.
 Legacy debt retires incrementally inside the macro, with no permanent Session exemption.
 
-The checker currently publishes two independent measurements. Its **physical view** counts Rust
-files under `crates/*/src`, with production and tests split; ordinary `mod` extraction appears
-immediately, but this does not yet cover all integration tests/tooling or enforce the new budgets.
-#578 C4 owns that extension to the existing checker. The **logical view** counts each curated
+The checker publishes independent physical and logical measurements. Its new **physical-files**
+branch covers supported repository source languages, integration tests, tools and extensionless
+scripts, with reviewed migration ceilings and a separate terminal gate; the older `hotspots`
+Rust-only report retains production/test attribution. The physical policy is described in the
+[module design guide](module-design-guidelines.md#6-implementation-ownership-and-honest-enforcement).
+A migration PASS does not complete #578's remaining splits. The **logical view** counts each curated
 owner root together with its reviewed private descendants, so distributing a God object cannot be
 claimed as ownership reduction. Logical production/test/total counts in
 `runtime-ownership-ledger.json` are independent non-growth ceilings. A logical owner row cannot
@@ -490,7 +492,7 @@ Do not regenerate a baseline merely to make CI green.
 
 ## Which baseline owns what
 
-Ten checked-in files pin architecture facts. Each has exactly one producer and one enforcing
+Eleven checked-in files pin architecture facts. Each has one authoritative producer and enforcing
 command; none of them is a second copy of another, and none may be regenerated to authorise a new
 owner, public API, mirror, dependency, or direct storage operation.
 
@@ -501,6 +503,7 @@ owner, public API, mirror, dependency, or direct storage operation.
 | `persistence-boundary-policy.json` | how an access is classified and which boundary may hold it | the same exhaustive check | `session-ownership-check print-persistence-policy` |
 | `persistence-boundary-workflows.json` | the permitted persistence workflows behind those boundaries | the same exhaustive check | reviewed by hand with the check |
 | `runtime-ownership-ledger.json` | runtime ownership rows and the curated hotspot LOC ceilings | `check_architecture.py hotspot-ratchet` in `final`; the whole ledger in `check` | measured with `check_architecture.py hotspots --limit 20` |
+| `physical-file-policy.json` | per-file legacy ceilings/split checkpoints, bounded terminal exceptions and generated provenance | `check_architecture.py physical-files`, plus `check`/`self-test`; `physical-files --terminal` at macro closeout | reviewed by hand against `physical-files --json`; no automatic baseline refresh |
 | `dependency-policy.json` | allowed crate dependency edges and debt ownership | `check_architecture.py check` | reviewed by hand |
 | `handler-module-policy.json` | handler logical-module ownership | `check_architecture.py check` and the handler contract check | reviewed by hand |
 | `world-handler-contract.tsv` | the exact world handler contract rows | the handler contract check | its own checker run |

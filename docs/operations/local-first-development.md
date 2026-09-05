@@ -32,7 +32,10 @@ this document is only the trust policy around it.
 
 `quick` and `final` are path-scoped: they plan from the committed, staged, unstaged and untracked
 diff and run only what it touches. `final` additionally enforces the curated hotspot LOC ceilings
-when workspace Rust changed. Neither runs the exhaustive persistence inventory, capture QA, a live
+when workspace Rust changed, plus the cheap repository-wide physical source/test/tooling
+ratchet for every nonempty diff. Its normal mode permits only reviewed legacy non-growth;
+macro closeout additionally requires `check_architecture.py physical-files --terminal`.
+Neither profile runs the exhaustive persistence inventory, capture QA, a live
 database, or a review. `audit` covers committed capture contracts; live databases, fresh captures,
 runtime QA and code review remain separate procedures. Directory-first routing can compile
 documentation under crate/tool directories; see [the runner contract](validation-v2.md).

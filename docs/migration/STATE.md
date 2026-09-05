@@ -31,9 +31,11 @@ executable Cargo/handler-contract guardrails.
 
 The approved [module design guidelines](../architecture/module-design-guidelines.md) now require
 both semantic boundaries and physical source/test navigability. Remaining monolith decomposition
-and a physical-file ratchet are #578 C2/C4 implementation work; #583 applies the same policy to
-its own SDK/modules. The current checker still enforces selected logical ceilings, not the new
-physical budgets. This policy/skeleton update does not mean that the large files have been split.
+remains #578 C2/C4 implementation work; #583 applies the same policy to its own SDK/modules.
+The physical ratchet implemented above `8f5caedc` now covers repository source/tests/tooling,
+with 103 explicit legacy non-growth ceilings and an independent terminal mode. The existing
+logical-owner guards remain. Migration PASS is not terminal acceptance: the legacy files
+still need their stated splits or concrete bounded exceptions before #578 closes.
 
 ## Current architecture and execution checkpoint — 2026-09-05
 
