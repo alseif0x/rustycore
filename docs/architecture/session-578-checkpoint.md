@@ -58,6 +58,44 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Rest load is one native Player command
+
+Ownership migration based on `e663fcde`: production rest load now performs one
+generation-checked Player access. `Player::load_xp_rest_bonus_like_cpp` resets
+the six transient location fields and loads bonus/state using the existing native
+mutation/field projection. It replaces the separate flag query, cloned reset and
+bonus mutation; the old reset helper remains only for handleless test fixtures.
+
+C++ anchors: `Player.cpp:348` constructs its RestMgr, `RestMgr.cpp:26-30`
+initializes the location mask/time/trigger, and `Player.cpp:17693` loads the
+persisted XP rest values before subsequent progression initialization. The Rust
+login caller (`handlers/character/world_entry.rs`) still applies offline rest
+immediately after this command. Loaded Player flags stay unchanged, including
+the resting bit, until later location initialization. The old set/remove calls
+re-applied that same loaded bit; they were not new location decisions. Invalid
+persisted state normalization remains in the existing adapter, and bonus clamping
+for RestInfo, unrelated honor/XP/logout fields and packet/SQL ordering are unchanged.
+
+The new regression exercises 20 active/detached, loaded resting/nonresting and
+valid/invalid persisted-state combinations. It verifies exact reset fields,
+preservation of all unrelated rest state and Player flags, projected RestInfo,
+and no publication. Stale/missing load rejection supplements existing replacement
+owner protection. This does not complete rate/catalog ownership or broader RestMgr
+runtime parity; live save/teleport acceptance and #578 remain open.
+
+The syntax delta changes only the old reset helper to a test fixture; Session
+fields and associated item identities stay unchanged. Reviewed logical ceilings:
+Session 81,517 + 103,805 = 185,322; Player 10,468 + 9,371 = 19,839.
+The method-level fixture branch accounts for Session's eight production-classified
+lines; the 17 new Player lines hold the command, with no new state or dependency.
+
+Validation on aarch64: world library 3,707 passed/zero failed/one ignored;
+entities library 701 passed/zero failed. Compilation, formatting/diff checks,
+syntax ownership, architecture check/self-test and quick validation pass.
+Quick evidence:
+`target/validation-v2/manifests/20260905T043145.249517Z-379684-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
+
 ### 2026-09-05 — Rest mutation runs on the canonical Player
 
 Ownership migration based on `44c445d0`: Session's rest mutation helper now

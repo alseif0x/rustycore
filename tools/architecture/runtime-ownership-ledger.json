@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81509,
-          "test_lines": 103727,
-          "total_lines": 185236,
+          "production_lines": 81517,
+          "test_lines": 103805,
+          "total_lines": 185322,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 rest mutation: production delegates to one Player-owned mutation and field projection under the existing owner guard. The former replacement helper is test-only. Measured Session growth is 6 production-classified lines for the explicit fixture branch and 70 test lines for differential state/flag/update-mask checks, one locked callback, active/detached and stale/missing coverage. No new Session fields or signatures, dependencies or clocks; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 rest load: one native Player command replaces separate flag read, cloned reset and bonus mutation; the old reset helper is test-only. Measured growth is 8 production-classified lines for the fixture branch and 78 test lines covering 20 active/detached, loaded-flag and persisted-state combinations plus stale/missing load rejection. No new Session state, dependencies or clocks; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1546,11 +1546,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10451,
+          "production_lines": 10468,
           "test_lines": 9371,
-          "total_lines": 19822,
+          "total_lines": 19839,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: Player owns rest mutation and represented RestInfo/flag projection. Growth: 27 production lines, no entity test growth; world native-owner differential tests pin the existing projection and callback semantics. No new state, mirror, dependency or clock; full RestMgr parity remains open. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: Player owns the rest-load command, resetting only transient location fields and loading XP bonus/state through its existing projection. Growth: 17 production lines, no entity test growth; world native-owner tests cover all persisted-state variants and preserved loaded flags/unrelated state. No new state, dependency or clock; full RestMgr parity remains open. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

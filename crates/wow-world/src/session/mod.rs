@@ -32250,7 +32250,6 @@ impl WorldSession {
         rest_state: u8,
         rest_bonus: f32,
     ) {
-        self.clear_represented_rest_flags_for_character_load_like_cpp();
         // C++ `RestMgr::LoadRestBonus` restores both DB values verbatim. It does
         // not clamp or recompute the state until a later `AddRestBonus` reaches
         // `SetRestBonus` (for example when offline time is applied).
@@ -32262,12 +32261,21 @@ impl WorldSession {
         } else {
             REST_STATE_NORMAL_LIKE_CPP
         };
-        let _ = self.mutate_player_rest_state_like_cpp(|state| {
-            state.rest_state = rest_state;
-            state.rest_bonus = rest_bonus;
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.clear_represented_rest_flags_for_character_load_like_cpp();
+            let _ = self.mutate_player_rest_state_like_cpp(|state| {
+                state.rest_state = rest_state;
+                state.rest_bonus = rest_bonus;
+            });
+            return;
+        }
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
+            player.load_xp_rest_bonus_like_cpp(rest_state, rest_bonus);
         });
     }
 
+    #[cfg(test)]
     fn clear_represented_rest_flags_for_character_load_like_cpp(&mut self) {
         let loaded_resting = self
             .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)

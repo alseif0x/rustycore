@@ -3,6 +3,81 @@
 use super::*;
 
 #[test]
+fn rest_load_resets_transient_location_but_preserves_loaded_flags_and_unrelated_state() {
+    let (mut session, _, send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for loaded_resting in [false, true] {
+            for state_id in [
+                0,
+                REST_STATE_RESTED_LIKE_CPP,
+                REST_STATE_NORMAL_LIKE_CPP,
+                REST_STATE_RAF_LINKED_LIKE_CPP,
+                255,
+            ] {
+                let flags = 0x8000_0000
+                    | if loaded_resting {
+                        PLAYER_FLAGS_RESTING_LIKE_CPP
+                    } else {
+                        0
+                    };
+                let original = wow_entities::PlayerRestState {
+                    rest_xp: 9,
+                    rest_bonus: 12.0,
+                    rest_honor_bonus: 15.0,
+                    rest_state: REST_STATE_RESTED_LIKE_CPP,
+                    rest_flag_mask: REST_FLAG_IN_TAVERN_LIKE_CPP,
+                    location_initialized: true,
+                    defer_flag_sync: true,
+                    deferred_flag_update_dirty: true,
+                    inn_area_trigger_id: 123,
+                    rest_time_secs: 456,
+                    logout_time: Some(789),
+                    logout_was_resting: true,
+                    is_resting_now: true,
+                };
+                session
+                    .with_owned_player_mut_like_cpp(|player| {
+                        player.replace_rest_state_like_cpp(original.clone());
+                        player.replace_all_player_flags(flags);
+                        player.clear_data_changes();
+                    })
+                    .unwrap();
+                session.load_represented_xp_rest_bonus_like_cpp(state_id, 42.5);
+                let normalized = if WorldSession::valid_player_rest_state_like_cpp(state_id) {
+                    state_id
+                } else {
+                    REST_STATE_NORMAL_LIKE_CPP
+                };
+                let expected = wow_entities::PlayerRestState {
+                    rest_bonus: 42.5,
+                    rest_state: normalized,
+                    rest_flag_mask: 0,
+                    location_initialized: false,
+                    defer_flag_sync: false,
+                    deferred_flag_update_dirty: false,
+                    inn_area_trigger_id: 0,
+                    rest_time_secs: 0,
+                    ..original
+                };
+                session
+                    .with_owned_player_like_cpp(|player| {
+                        assert_eq!(player.rest_state_like_cpp(), &expected);
+                        assert_eq!(player.data().player_flags, flags);
+                        assert_eq!(player.active_data().rest_info[0].threshold, 42);
+                        assert_eq!(player.active_data().rest_info[0].state_id, normalized);
+                    })
+                    .unwrap();
+                assert!(send_rx.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
 fn rest_mutation_runs_once_under_active_and_detached_owner_and_matches_old_projection() {
     let (mut session, _, send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
@@ -141,6 +216,8 @@ fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
     session.represented_rest_location_initialized_like_cpp = true;
     session.represented_rest_flag_mask_like_cpp = REST_FLAG_IN_CITY_LIKE_CPP;
     assert_eq!(session.resolved_visible_resting_like_cpp(), None);
+    session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 99.0);
+    assert_eq!(session.player_rest_state_snapshot_like_cpp(), None);
     assert_eq!(
         session.mutate_player_rest_state_like_cpp(|_| panic!("stale owner")),
         None::<()>
@@ -150,6 +227,7 @@ fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
         None
     );
     session.canonical_map_manager = None;
+    session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 99.0);
     assert_eq!(
         session.mutate_player_rest_state_like_cpp(|_| panic!("missing owner")),
         None::<()>

@@ -207,6 +207,23 @@ impl Player {
         self.gameplay_state_mut().rest = state;
     }
 
+    /// C++ RestMgr constructor (RestMgr.cpp:26-30) and LoadRestBonus
+    /// (Player.cpp:17693). The caller supplies its validated persisted state.
+    /// Reset transient location state without replacing loaded Player flags or
+    /// unrelated XP/honor/logout state; offline accumulation happens afterward.
+    pub fn load_xp_rest_bonus_like_cpp(&mut self, state_id: u8, bonus: f32) {
+        self.mutate_rest_state_like_cpp(|state| {
+            state.rest_flag_mask = 0;
+            state.location_initialized = false;
+            state.defer_flag_sync = false;
+            state.deferred_flag_update_dirty = false;
+            state.inn_area_trigger_id = 0;
+            state.rest_time_secs = 0;
+            state.rest_state = state_id;
+            state.rest_bonus = bonus;
+        });
+    }
+
     /// Mutate this Player's RestMgr state and refresh its represented fields.
     /// C++ RestMgr.cpp:65-80,95-122 keeps rest values and flags on one Player.
     /// Preserve the Rust load boundary: do not normalize flags until location

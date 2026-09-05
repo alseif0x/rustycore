@@ -25661,8 +25661,10 @@
           "name": "clear_represented_rest_flags_for_character_load_like_cpp",
           "visibility": "private",
           "signature": "fn clear_represented_rest_flags_for_character_load_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
