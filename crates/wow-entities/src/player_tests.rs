@@ -521,6 +521,84 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn prepared_acquisition_validates_then_installs_both_families_preserving_source_evidence() {
+    let spell = PlayerKnownSpellRecord {
+        spell_id: 10,
+        state: PlayerSpellLoadState::New,
+        active: true,
+        disabled: false,
+        favorite: true,
+        dependent: true,
+    };
+    let skill = PlayerSkillRecord {
+        skill_line_id: 333,
+        current_value: 0,
+        max_value: 0,
+        step: 0,
+        profession_slot: -1,
+        state: PlayerSkillLoadState::Deleted,
+    };
+    assert!(
+        PreparedPlayerSpellAcquisitionLikeCpp::try_new(
+            [spell.clone(), spell.clone()],
+            [],
+            [],
+            vec![],
+            0,
+            BTreeSet::new()
+        )
+        .is_none()
+    );
+    assert!(
+        PreparedPlayerSpellAcquisitionLikeCpp::try_new(
+            [spell.clone()],
+            [],
+            [],
+            vec![(333, skill.clone()), (333, skill.clone())],
+            2,
+            BTreeSet::new()
+        )
+        .is_none()
+    );
+    let prepared = PreparedPlayerSpellAcquisitionLikeCpp::try_new(
+        [spell.clone()],
+        [(10, 400)],
+        [(50, 10), (50, 10)],
+        vec![(333, skill.clone())],
+        1,
+        BTreeSet::from([333]),
+    )
+    .unwrap();
+    let mut player = Player::new(None, false);
+    let mut runtime = PlayerSpellRuntimeState::default();
+    runtime.fallback_rows.insert(10, spell.clone());
+    runtime.trait_config_rows.insert(777, (1, 62, 4));
+    runtime.trait_config_rows_complete = true;
+    player.replace_spell_runtime_like_cpp(runtime.clone());
+    player.apply_prepared_spell_acquisition_like_cpp(prepared);
+    let applied = player.spell_runtime_like_cpp();
+    assert_eq!(applied.rows, BTreeMap::from([(10, spell)]));
+    assert_eq!(applied.known_spells, vec![10]);
+    assert_eq!(applied.dependent_known_spells, BTreeSet::from([10]));
+    assert_eq!(applied.favorite_known_spells, BTreeSet::from([10]));
+    assert_eq!(applied.trait_definition_ids, BTreeMap::from([(10, 400)]));
+    assert_eq!(
+        applied.override_spells,
+        BTreeMap::from([(50, BTreeSet::from([10]))])
+    );
+    assert_eq!(applied.fallback_rows, runtime.fallback_rows);
+    assert_eq!(applied.trait_config_rows, runtime.trait_config_rows);
+    assert!(applied.trait_config_rows_complete && applied.rows_loaded && applied.rows_complete);
+    assert_eq!(player.skill_records_like_cpp(), &[skill]);
+    assert!(player.skill_records_loaded_like_cpp() && player.skill_records_complete_like_cpp());
+    assert_eq!(player.occupied_skill_slots_like_cpp(), Some(1));
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([333])
+    );
+}
+
+#[test]
 fn represented_skill_replacement_keeps_deleted_markers_without_authorizing_malformed_rows() {
     let mut player = Player::new(None, false);
     player.replace_skill_records_like_cpp(vec![], true, true, Some(7), BTreeSet::from([333, 755]));

@@ -44413,6 +44413,7 @@ impl WorldSession {
             .expect("test Player skill owner must resolve")
     }
 
+    #[cfg(test)]
     fn replace_player_skill_runtime_exact_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
@@ -46089,6 +46090,55 @@ impl WorldSession {
         occupied_skill_slots: u16,
         non_durable_skill_tombstones: BTreeSet<u16>,
     ) -> bool {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_replace_complete_spell_acquisition_runtime_like_cpp(
+                spell_rows,
+                traits,
+                overrides,
+                skill_records,
+                occupied_skill_slots,
+                non_durable_skill_tombstones,
+            );
+        }
+        let Some(prepared) = wow_entities::PreparedPlayerSpellAcquisitionLikeCpp::try_new(
+            spell_rows
+                .into_iter()
+                .map(canonical_player_spell_record_like_cpp),
+            traits,
+            overrides,
+            skill_records
+                .into_iter()
+                .map(|(key, skill)| (key, canonical_player_skill_record_like_cpp(skill)))
+                .collect(),
+            occupied_skill_slots,
+            non_durable_skill_tombstones,
+        ) else {
+            return false;
+        };
+        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        if self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.apply_prepared_spell_acquisition_like_cpp(prepared)
+            })
+            .is_none()
+        {
+            return false;
+        }
+        self.sync_player_registry_state_like_cpp();
+        true
+    }
+
+    #[cfg(test)]
+    fn fixture_replace_complete_spell_acquisition_runtime_like_cpp(
+        &mut self,
+        spell_rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+        overrides: impl IntoIterator<Item = (i32, i32)>,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        occupied_skill_slots: u16,
+        non_durable_skill_tombstones: BTreeSet<u16>,
+    ) -> bool {
         let mut exact_spells = BTreeMap::new();
         for spell in spell_rows {
             if spell.spell_id <= 0 || exact_spells.insert(spell.spell_id, spell).is_some() {
@@ -46207,6 +46257,7 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     fn is_non_durable_skill_tombstone_like_cpp(skill: &RepresentedPlayerSkillLikeCpp) -> bool {
         skill.step == 0
             && skill.value == 0

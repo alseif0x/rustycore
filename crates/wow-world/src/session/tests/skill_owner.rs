@@ -2,6 +2,204 @@
 use super::*;
 
 #[test]
+fn acquisition_install_matches_previous_validation_and_owner_state() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for variant in 0..20 {
+            let spell = |id, state| RepresentedPlayerSpellLikeCpp {
+                spell_id: id,
+                state,
+                active: true,
+                disabled: false,
+                favorite: true,
+                dependent: true,
+            };
+            let mut spells = vec![
+                spell(10, RepresentedPlayerSpellStateLikeCpp::New),
+                spell(20, RepresentedPlayerSpellStateLikeCpp::Removed),
+            ];
+            let mut traits = vec![(10, 400)];
+            let mut overrides = vec![(50, 10)];
+            let skill = RepresentedPlayerSkillLikeCpp {
+                skill_id: 333,
+                step: 0,
+                value: 0,
+                max: 0,
+                profession_slot: -1,
+                state: RepresentedPlayerSkillStateLikeCpp::Deleted,
+            };
+            let mut skills = HashMap::from([(333, skill)]);
+            let mut occupied = 1;
+            let mut tombstones = BTreeSet::from([333]);
+            match variant {
+                1 => spells.push(spells[0]),
+                2 => spells[0].spell_id = 0,
+                3 => traits[0].1 = 0,
+                4 => traits[0].0 = 20,
+                5 => traits[0].0 = 30,
+                6 => traits.push(traits[0]),
+                7 => overrides[0].0 = 0,
+                8 => {
+                    skills.clear();
+                    skills.insert(
+                        0,
+                        RepresentedPlayerSkillLikeCpp {
+                            skill_id: 0,
+                            ..skill
+                        },
+                    );
+                }
+                9 => {
+                    skills.clear();
+                    skills.insert(334, skill);
+                }
+                10 => skills.get_mut(&333).unwrap().value = 1,
+                11 => occupied = 0,
+                12 => occupied = 257,
+                13 => {
+                    tombstones.insert(999);
+                }
+                14 => skills.get_mut(&333).unwrap().state = RepresentedPlayerSkillStateLikeCpp::New,
+                15 => overrides.push(overrides[0]),
+                16 => spells[0].disabled = true,
+                17 => spells[0].state = RepresentedPlayerSpellStateLikeCpp::Temporary,
+                18 => {
+                    spells.clear();
+                    traits.clear();
+                    overrides.clear();
+                    skills.clear();
+                    tombstones.clear();
+                    occupied = 0;
+                }
+                19 => {
+                    skills.get_mut(&333).unwrap().state =
+                        RepresentedPlayerSkillStateLikeCpp::Unchanged
+                }
+                _ => {}
+            }
+            let prepare = |player: &mut Player| {
+                let mut runtime = wow_entities::PlayerSpellRuntimeState::default();
+                runtime.fallback_rows.insert(
+                    99,
+                    canonical_player_spell_record_like_cpp(spell(
+                        99,
+                        RepresentedPlayerSpellStateLikeCpp::New,
+                    )),
+                );
+                runtime.trait_config_rows.insert(777, (1, 62, 4));
+                runtime.trait_config_rows_complete = true;
+                runtime.trait_entry_rows_complete = true;
+                runtime.trait_entry_rows_empty = true;
+                player.replace_spell_runtime_like_cpp(runtime);
+                player.replace_skill_records_like_cpp(
+                    vec![],
+                    false,
+                    false,
+                    Some(7),
+                    BTreeSet::from([755]),
+                );
+                player.clear_data_changes();
+            };
+            let projection = |player: &Player| {
+                (
+                    player.spell_runtime_like_cpp().clone(),
+                    player.skill_records_like_cpp().to_vec(),
+                    player.skill_records_loaded_like_cpp(),
+                    player.skill_records_complete_like_cpp(),
+                    player.occupied_skill_slots_like_cpp(),
+                    player.non_durable_skill_tombstones_like_cpp().clone(),
+                    player.active_player_data_changes_mask().blocks().to_vec(),
+                )
+            };
+            session.with_owned_player_mut_like_cpp(prepare).unwrap();
+            let expected_return = session
+                .fixture_replace_complete_spell_acquisition_runtime_like_cpp(
+                    spells.clone(),
+                    traits.clone(),
+                    overrides.clone(),
+                    skills.clone(),
+                    occupied,
+                    tombstones.clone(),
+                );
+            let expected = session.with_owned_player_like_cpp(projection);
+            session.with_owned_player_mut_like_cpp(prepare).unwrap();
+            assert_eq!(
+                session.replace_complete_spell_acquisition_runtime_like_cpp(
+                    spells, traits, overrides, skills, occupied, tombstones
+                ),
+                expected_return,
+                "variant {variant}"
+            );
+            assert_eq!(
+                session.with_owned_player_like_cpp(projection),
+                expected,
+                "variant {variant}"
+            );
+        }
+    }
+}
+
+#[test]
+fn acquisition_install_rejects_stale_and_missing_owner_without_partial_replacement() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    replacement.replace_skill_records_like_cpp(
+        vec![],
+        false,
+        false,
+        Some(7),
+        BTreeSet::from([333]),
+    );
+    let handle = manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    let projection = |player: &Player| {
+        (
+            player.spell_runtime_like_cpp().clone(),
+            player.skill_records_loaded_like_cpp(),
+            player.occupied_skill_slots_like_cpp(),
+            player.non_durable_skill_tombstones_like_cpp().clone(),
+        )
+    };
+    let expected = manager
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(handle, projection);
+    for missing in [false, true] {
+        if missing {
+            session.canonical_map_manager = None;
+        }
+        assert!(
+            !session.replace_complete_spell_acquisition_runtime_like_cpp(
+                [],
+                [],
+                [],
+                HashMap::new(),
+                0,
+                BTreeSet::new()
+            )
+        );
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .with_player_like_cpp(handle, projection),
+            expected
+        );
+    }
+}
+
+#[test]
 fn skill_replacement_matches_previous_route_with_malformed_keys_and_tombstones() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

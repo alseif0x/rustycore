@@ -58,6 +58,55 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Prepare and apply acquisition on one Player owner
+
+Ownership migration on `ee78492f`: `PreparedPlayerSpellAcquisitionLikeCpp` is a
+single-use domain command value with private fields, not another mutable Player.
+Its constructor validates spell rows, trait references, override pairs, keyed
+skills, occupied slots and tombstones before Session invalidates aura authority.
+One native Player operation then installs spells and skills under the same
+generation-checked owner access. The registry publishes afterward, outside the
+lock and before acquisition action packets, exactly at the existing boundary.
+
+C++ `Player.cpp:2797-2835` owns AddSpell state/dependency/trait/favorite changes;
+`5753-5766` owns SetSkill deletion-state semantics. This cut preserves the port's
+validated prepared-result behavior, not full AddSpell/SetSkill parity. Existing
+SQL/commit/unknown/retry and callback/action ordering in
+`spell_acquisition/application.rs` are untouched. Preparation stays outside the
+owner; known/dependent/favorite/removed projections and both state installations
+execute inside it without await, SQL or publication. Fallback grants and loaded
+TraitConfig evidence remain owned by the same Player and are not overwritten.
+
+The previous two-access spell-then-skill install is now cfg(test); its exact-skill
+writeback helper and tombstone predicate also have no remaining production
+consumer and become cfg(test). No new Session field, resource, state mirror,
+task, trait or crate. The public prepared type is required at the application-to-
+domain boundary and is re-exported through the existing entities API; all fields
+remain private. Incoming keyed skills are a transitional DTO, not a new owner.
+
+Forty active/detached differential cases compare accepted/rejected inputs, full
+spell/skill state, dirty masks and untouched fallback/trait source evidence.
+Cases cover duplicate/nonpositive spells, missing/removed/duplicate traits,
+invalid and duplicate overrides, malformed skills/keys/slots/tombstones,
+disabled/temporary spells and empty authoritative results. Stale/missing-owner
+tests protect replacements; native tests pin duplicate input rejection and both
+families' final state. Existing full acquisition tests remain in the world suite.
+
+AST adds one fixture oracle (3,663 associated items) and reclassifies two helpers;
+714 fields, 282 production/432 fixtures, 590 registrations and persistence
+evidence remain unchanged. Logical ceilings: Session 81,686 + 104,721 = 186,407;
+Player 10,894 + 9,726 = 20,620. Test oracle lines remain counted by the logical
+LOC classifier. The outer acquisition projection/catalog/transaction adapters
+and broader handler convergence remain open under #578.
+
+Validation on aarch64: world library 3,721 passed/zero failed/one ignored;
+entities library 710 passed/zero failed. Focused owner comparisons, world-server
+check, formatting/diff checks, syntax ownership, architecture check/self-test and
+quick validation pass. Evidence:
+`target/validation-v2/manifests/20260905T061136.455331Z-521137-quick.json`.
+No install, restart, capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Player owns represented skill replacement
 
 Ownership migration on `8bb57e11`: the load/mutation replacement adapter now only

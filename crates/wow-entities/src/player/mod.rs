@@ -18,6 +18,7 @@ mod menu;
 mod movement_control;
 mod pet_lifecycle;
 mod progression;
+pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 mod resurrection;
 mod social;
 mod spellbook;

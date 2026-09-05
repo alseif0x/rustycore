@@ -7,6 +7,94 @@
 
 use super::*;
 
+/// Validated, single-use acquisition result, not a second Player/runtime owner.
+/// C++ Player::AddSpell/SetSkill own these fields (Player.cpp:2797-2835,5753-5766).
+/// Preparation preserves the represented fail-closed contract before invalidation
+/// or mutation; application leaves fallback grants and TraitConfig evidence alone.
+#[derive(Debug)]
+pub struct PreparedPlayerSpellAcquisitionLikeCpp {
+    spells: BTreeMap<i32, PlayerKnownSpellRecord>,
+    traits: BTreeMap<i32, i32>,
+    overrides: BTreeMap<i32, BTreeSet<i32>>,
+    skills: Vec<PlayerSkillRecord>,
+    occupied_slots: u16,
+    tombstones: BTreeSet<u16>,
+}
+
+impl PreparedPlayerSpellAcquisitionLikeCpp {
+    pub fn try_new(
+        spells: impl IntoIterator<Item = PlayerKnownSpellRecord>,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+        overrides: impl IntoIterator<Item = (i32, i32)>,
+        skills: Vec<(u16, PlayerSkillRecord)>,
+        occupied_slots: u16,
+        tombstones: BTreeSet<u16>,
+    ) -> Option<Self> {
+        let mut exact_spells = BTreeMap::new();
+        for spell in spells {
+            if spell.spell_id <= 0 || exact_spells.insert(spell.spell_id, spell).is_some() {
+                return None;
+            }
+        }
+        let mut exact_traits = BTreeMap::new();
+        for (spell_id, definition) in traits {
+            if definition <= 0
+                || !exact_spells
+                    .get(&spell_id)
+                    .is_some_and(|spell| spell.state != PlayerSpellLoadState::Removed)
+                || exact_traits.insert(spell_id, definition).is_some()
+            {
+                return None;
+            }
+        }
+        let mut exact_overrides = BTreeMap::<i32, BTreeSet<i32>>::new();
+        for (old, new) in overrides {
+            if old <= 0 || new <= 0 {
+                return None;
+            }
+            exact_overrides.entry(old).or_default().insert(new);
+        }
+        if occupied_slots > 256 || usize::from(occupied_slots) != skills.len() {
+            return None;
+        }
+        let cleared = |skill: &PlayerSkillRecord| {
+            skill.step == 0
+                && skill.current_value == 0
+                && skill.max_value == 0
+                && skill.profession_slot == -1
+        };
+        let mut exact_skills = BTreeMap::new();
+        for (key, skill) in skills {
+            if key == 0
+                || u32::from(key) != skill.skill_line_id
+                || (skill.state == PlayerSkillLoadState::Deleted && !cleared(&skill))
+                || exact_skills.insert(key, skill).is_some()
+            {
+                return None;
+            }
+        }
+        if !tombstones.iter().all(|id| {
+            exact_skills.get(id).is_some_and(|skill| {
+                cleared(skill)
+                    && matches!(
+                        skill.state,
+                        PlayerSkillLoadState::Unchanged | PlayerSkillLoadState::Deleted
+                    )
+            })
+        }) {
+            return None;
+        }
+        Some(Self {
+            spells: exact_spells,
+            traits: exact_traits,
+            overrides: exact_overrides,
+            skills: exact_skills.into_values().collect(),
+            occupied_slots,
+            tombstones,
+        })
+    }
+}
+
 impl PlayerRestState {
     /// C++ RestMgr::SetRestFlag (RestMgr.cpp:95-109). Read the clock only
     /// when the first rest flag becomes active, preserving represented timing.
@@ -354,6 +442,53 @@ impl Player {
 
     pub fn replace_spell_runtime_like_cpp(&mut self, state: PlayerSpellRuntimeState) {
         self.gameplay_state_mut().spells = state;
+    }
+
+    /// Apply one prepared acquisition under the caller's exclusive Player access.
+    /// No SQL or publication occurs here; preserve the established commit boundary.
+    pub fn apply_prepared_spell_acquisition_like_cpp(
+        &mut self,
+        prepared: PreparedPlayerSpellAcquisitionLikeCpp,
+    ) {
+        let runtime = &mut self.gameplay_state.spells;
+        runtime.known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state != PlayerSpellLoadState::Removed && !spell.disabled)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.dependent_known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state != PlayerSpellLoadState::Removed && spell.dependent)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.favorite_known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state != PlayerSpellLoadState::Removed && spell.favorite)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.removed_known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state == PlayerSpellLoadState::Removed)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.rows = prepared.spells;
+        runtime.rows_loaded = true;
+        runtime.rows_complete = true;
+        runtime.trait_definition_ids = prepared.traits;
+        runtime.trait_definition_ids_complete = true;
+        runtime.override_spells = prepared.overrides;
+        runtime.override_spells_complete = true;
+        self.replace_skill_records_like_cpp(
+            prepared.skills,
+            true,
+            true,
+            Some(prepared.occupied_slots),
+            prepared.tombstones,
+        );
     }
 
     pub fn talent_runtime_like_cpp(&self) -> &PlayerTalentRuntimeState {

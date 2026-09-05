@@ -27524,6 +27524,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_replace_complete_spell_acquisition_runtime_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_replace_complete_spell_acquisition_runtime_like_cpp (& mut self , spell_rows : impl IntoIterator < Item = RepresentedPlayerSpellLikeCpp > , traits : impl IntoIterator < Item = (i32 , i32) > , overrides : impl IntoIterator < Item = (i32 , i32) > , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , occupied_skill_slots : u16 , non_durable_skill_tombstones : BTreeSet < u16 > ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "fixture_replace_player_skill_records_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_replace_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool ,) -> bool",
@@ -29142,8 +29155,10 @@
           "name": "is_non_durable_skill_tombstone_like_cpp",
           "visibility": "private",
           "signature": "fn is_non_durable_skill_tombstone_like_cpp (skill : & RepresentedPlayerSkillLikeCpp) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -36805,8 +36820,10 @@
           "name": "replace_player_skill_runtime_exact_like_cpp",
           "visibility": "private",
           "signature": "fn replace_player_skill_runtime_exact_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool , occupied_slots : Option < u16 > , tombstones : BTreeSet < u16 > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {

@@ -1465,11 +1465,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81635,
-          "test_lines": 104523,
-          "total_lines": 186158,
+          "production_lines": 81686,
+          "test_lines": 104721,
+          "total_lines": 186407,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 represented skill replacement: Session converts keyed rows and invokes one Player command, retiring production read/clone/writeback of tombstones. Old route remains cfg(test). Logical classifier +25 production/+126 test lines; fields unchanged. 56 differential cases pin malformed rows/keys, flags, order and tombstones; stale/missing owner coverage protects replacements; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 prepared acquisition owner: Session adapts/validates through a domain prepared value, invalidates authority, applies spells and skills in one owner access, then publishes. Former algorithm and two bridge helpers are cfg(test). Classifier +51 production/+198 test lines; 40 differential cases plus stale/missing owner protection; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1544,11 +1544,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10758,
-          "test_lines": 9648,
-          "total_lines": 20406,
+          "production_lines": 10894,
+          "test_lines": 9726,
+          "total_lines": 20620,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: Player owns represented skill replacement; 48 production and 42 test lines added. The command validates keyed rows and retains/adds tombstones under the existing owner, transferring rather than cloning the tombstone set. Native malformed/cleared/reactivated-row coverage pins completeness. No new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: domain acquisition preparation and one-owner application; +136 production/+78 test lines. One public single-use prepared value with private fields validates rows, traits, overrides, skills and tombstones before mutation. Player installs both families without overwriting fallback/TraitConfig evidence. No new retained state, dependency, clock or crate; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
