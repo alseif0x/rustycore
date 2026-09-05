@@ -1466,10 +1466,10 @@
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 81838,
-          "test_lines": 105469,
-          "total_lines": 187307,
+          "test_lines": 105503,
+          "total_lines": 187341,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 known spell commands: replacement/pruning executes under one native owner without a duplicate Vec; grant and dependent metadata rules also move to native spell state. Invalidation and account-mount ordering unchanged. Three cfg(test) oracles; classifier +29 production/+109 tests; 36 active/detached cases plus stale/missing protection; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 catalog routing audit: production unchanged, +34 test lines including module declaration. Canonical Player characterization contrasts absent/present cinematic catalog and distinguishes packet emission from camera initialization. Audit-only, no owner retirement or parity closure; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

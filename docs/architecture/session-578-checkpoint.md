@@ -58,6 +58,56 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Catalog routing audit and cinematic characterization
+
+Verdict on `a3b03e65`: small reference counts are not evidence of unused Session
+catalogs. No production field is removed by this audit. The remaining 132 catalog
+fields, 282 production Session fields and 3,672 associated items are unchanged.
+This is diagnostic/test evidence, not an implementation or parity closeout.
+
+Audited consumer boundaries:
+
+| Catalog | Existing consumers and owner defect | Required retirement boundary |
+| --- | --- | --- |
+| QuestInfo | `handlers/quest/eligibility.rs:406-518` drives important/covenant dialog statuses; Session quest POI/greeting builders also call the important predicate. C++ `QuestDef.cpp:438-445` reads global sQuestInfoStore. | Borrow one immutable quest metadata capability through every dialog and POI/greeting path; remove field, setter and resource installation together. |
+| LFGDungeons DB2 | `represented_championing_faction_for_kill_like_cpp` reads map/difficulty target level. LFG system-info already borrows a different, derived LfgDungeonStoreLikeCpp. | Migrate kill-reputation consumers too; removing the DB2 field merely because LFG handlers use a process catalog would break championing. |
+| TraitDefinition | Login trait loading, spell-acquisition adapter, recursive unlearning and base-grant fallback all read it. | One process-owned catalog, borrowed through all four paths; no second locator on Session and no partial login-only retirement. |
+| CinematicSequences | `opening_cinematic_like_cpp` and GameObject camera use call `send_represented_cinematic_start_like_cpp`; the only setter callers are tests. | Separate missing-startup-wiring correction from field removal. Both verticals must borrow the same catalog; mutable camera state stays in Player. |
+
+Cinematic evidence: C++ `DB2Stores.cpp:106,681` loads the global catalog;
+`Player.cpp:6178-6185` sends TriggerCinematic then calls BeginCinematic when its
+entry exists (`CinematicMgr.h:39`). Rust has no startup load/installation and
+performs camera-state initialization only when its optional Session field exists.
+The new canonical-Player test compares absent/present catalog: both emit one
+packet, only the present catalog sets cinematic ID and camera IDs. This proves
+that wiring the catalog is a behavioral correction, not a mechanical move.
+The verified open defect is recorded in EXISTING-CODE-DEFECTS.md.
+
+Other C++ anchors: `Player.cpp:6412-6422` gates championing on a non-raid
+dungeon and the LFG target level; `DB2Stores.cpp:331,906` owns/loads
+TraitDefinition and `Player.cpp:2824,3022,3411` uses it during add/remove.
+
+Risk-ranked implementation sequence within #578: (1) close the complete QuestInfo
+query vertical with positive/negative dialog and POI evidence; (2) converge shared
+TraitDefinition consumption across loading/acquisition/removal, preserving commit
+and publication order; (3) handle cinematic bootstrap correction in a distinct
+behavior commit with present/missing DB2, opening/GameObject camera, stale/detached
+owner and runtime QA evidence. The cinematic finding does not block unrelated
+local refactoring, nor does it authorize an unapproved runtime restart.
+
+Keep these APIs in existing private feature modules and wow-data catalogs: no new
+crate, trait, task, channel, actor or mutable owner is justified. Every catalog
+field/setter/install clone retires when its last production consumer accepts the
+explicit narrow dependency; no known consumer is deferred to terminal #153.
+Capture checks apply to changed bytes/routing/order; wiring camera state needs
+runtime validation, not just a green unit test. Architecture counts remain exact;
+logical Session is 81,838 production + 105,503 tests = 187,341 (+34 test lines).
+Validation on aarch64: focused characterization 1/0, full `wow-world --lib`
+3,734/0 (one ignored), format/diff, syntax-only ownership, architecture check/
+self-test and validation-v2 quick PASS (manifest
+`20260905T071016.564060Z-613082-quick.json`). The quick run checks workspace
+targets; no production code was changed. No install, restart or publication.
+
 ### 2026-09-05 — Native known-spell commands
 
 Ownership migration on `236bcba9`: native spell state owns known-ID replacement,

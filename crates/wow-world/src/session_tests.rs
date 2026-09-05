@@ -4,6 +4,8 @@
 mod active_cast_owner;
 #[path = "session/tests/admission.rs"]
 mod admission;
+#[path = "session/tests/cinematic_catalog.rs"]
+mod cinematic_catalog;
 #[path = "session/tests/connection.rs"]
 mod connection;
 #[path = "session/tests/difficulty_owner.rs"]

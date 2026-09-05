@@ -17,6 +17,22 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-05, #578 cinematic catalog — production wiring absent.**
+  Source-audited on `a3b03e65`: `WorldSession::cinematic_sequences_store` starts
+  as None; `set_cinematic_sequences_store` is called only by tests. No
+  CinematicSequences load or installation exists in `world-server` startup.
+  `send_represented_cinematic_start_like_cpp` sends TriggerCinematic before
+  optionally initializing native Player camera IDs; consequently production
+  emits the trigger without this camera-state initialization. C++ loads
+  `sCinematicSequencesStore` in `DB2Stores.cpp:106,681`, and
+  `Player.cpp:6178-6185` starts CinematicMgr after sending the packet.
+  `session/tests/cinematic_catalog.rs` characterizes absent/present catalog
+  against a canonical Player. This is not a live-client reproduction or a
+  claim that all cinematic behavior is missing. Startup wiring would change
+  behavior and must be a distinct correction from the #578 catalog ownership
+  move; both opening cinematics and GameObject cameras must consume the same
+  process-owned catalog. Full fly-by camera/runtime parity remains unproven.
+
 - **2026-09-05, #578 rest consumption — percentage arithmetic differs.**
   Verified on `b98903e8`: Session's rested-consumption helper uses signed `i64`
   multiplication/division (truncation toward zero) then clamps the final loss
