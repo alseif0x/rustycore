@@ -5166,6 +5166,7 @@ fn represented_player_spell_record_like_cpp(
     }
 }
 
+#[cfg(test)]
 fn canonical_player_spell_runtime_like_cpp(
     runtime: RepresentedPlayerSpellRuntimeLikeCpp,
 ) -> wow_entities::PlayerSpellRuntimeState {
@@ -43191,7 +43192,10 @@ impl WorldSession {
         }
 
         self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.rows = exact_rows;
+            runtime.rows = exact_rows
+                .into_iter()
+                .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
+                .collect();
             runtime.rows_loaded = true;
             runtime.rows_complete = complete;
         })
@@ -44911,7 +44915,7 @@ impl WorldSession {
                     row.disabled = false;
                     row.dependent = false;
                     row.favorite = false;
-                    row.state = RepresentedPlayerSpellStateLikeCpp::Removed;
+                    row.state = wow_entities::PlayerSpellLoadState::Removed;
                 }
             }
             was_dependent
@@ -45921,7 +45925,7 @@ impl WorldSession {
         }
 
         self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_definition_ids = exact_traits;
+            runtime.trait_definition_ids = exact_traits.into_iter().collect();
             runtime.trait_definition_ids_complete = true;
         })
         .is_some()
@@ -45947,7 +45951,7 @@ impl WorldSession {
         }
 
         self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.override_spells = exact_overrides;
+            runtime.override_spells = exact_overrides.into_iter().collect();
             runtime.override_spells_complete = true;
         })
         .is_some()
@@ -46046,27 +46050,27 @@ impl WorldSession {
             .collect();
 
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let Some(existing_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
-            return false;
-        };
-        if !self.replace_player_spell_runtime_like_cpp(RepresentedPlayerSpellRuntimeLikeCpp {
-            known_spells: known_spells.clone(),
-            rows: exact_spells,
-            rows_loaded: true,
-            rows_complete: true,
-            fallback_rows: existing_runtime.fallback_rows,
-            dependent_known_spells: dependent_spells,
-            removed_known_spells: removed_spells,
-            favorite_known_spells: favorite_spells,
-            trait_definition_ids: exact_traits,
-            trait_definition_ids_complete: true,
-            trait_config_rows: existing_runtime.trait_config_rows,
-            trait_config_rows_complete: existing_runtime.trait_config_rows_complete,
-            trait_entry_rows_complete: existing_runtime.trait_entry_rows_complete,
-            trait_entry_rows_empty: existing_runtime.trait_entry_rows_empty,
-            override_spells: exact_overrides,
-            override_spells_complete: true,
-        }) {
+        if self
+            .mutate_player_spell_runtime_like_cpp(|runtime| {
+                runtime.known_spells = known_spells;
+                runtime.rows = exact_spells
+                    .into_iter()
+                    .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
+                    .collect();
+                runtime.rows_loaded = true;
+                runtime.rows_complete = true;
+                runtime.dependent_known_spells = dependent_spells;
+                runtime.removed_known_spells = removed_spells;
+                runtime.favorite_known_spells = favorite_spells;
+                runtime.trait_definition_ids = exact_traits.into_iter().collect();
+                runtime.trait_definition_ids_complete = true;
+                runtime.override_spells = exact_overrides.into_iter().collect();
+                runtime.override_spells_complete = true;
+                // Fallback grants and trait-config source evidence are not part
+                // of this prepared result; retain the current owner's values.
+            })
+            .is_none()
+        {
             return false;
         }
         if !self.replace_player_skill_runtime_exact_like_cpp(
@@ -46576,17 +46580,11 @@ impl WorldSession {
         canonical
     }
 
-    fn replace_player_spell_runtime_like_cpp(
+    #[cfg(test)]
+    fn store_player_spell_runtime_fixture_like_cpp(
         &mut self,
         runtime: RepresentedPlayerSpellRuntimeLikeCpp,
     ) -> bool {
-        let canonical_runtime = canonical_player_spell_runtime_like_cpp(runtime.clone());
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_spell_runtime_like_cpp(canonical_runtime)
-            })
-            .is_some();
-        #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
             self.known_spells = runtime.known_spells;
             self.represented_player_spell_rows_like_cpp = runtime.rows;
@@ -46608,17 +46606,28 @@ impl WorldSession {
             self.represented_override_spells_complete_like_cpp = runtime.override_spells_complete;
             return true;
         }
-        canonical
+        false
     }
 
     fn mutate_player_spell_runtime_like_cpp<R>(
         &mut self,
-        f: impl FnOnce(&mut RepresentedPlayerSpellRuntimeLikeCpp) -> R,
+        f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
-        let mut runtime = self.player_spell_runtime_snapshot_like_cpp()?;
-        let result = f(&mut runtime);
-        self.replace_player_spell_runtime_like_cpp(runtime)
-            .then_some(result)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut runtime = canonical_player_spell_runtime_like_cpp(
+                self.player_spell_runtime_snapshot_like_cpp()?,
+            );
+            let result = f(&mut runtime);
+            return self
+                .store_player_spell_runtime_fixture_like_cpp(
+                    represented_player_spell_runtime_like_cpp(&runtime),
+                )
+                .then_some(result);
+        }
+        // Player::AddSpell/RemoveSpell change the Player's own spell map.
+        // Keep this callback inside the one generation-checked owner access.
+        self.with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().spells))
     }
 
     pub(crate) fn resolved_known_spells_like_cpp(&self) -> Option<Vec<i32>> {
@@ -74442,11 +74451,17 @@ impl WorldSession {
             let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
                 if let Some(mut rows) = complete_spell_rows {
                     rows.insert(trigger_spell, dirty_row);
-                    runtime.rows = rows;
+                    runtime.rows = rows
+                        .into_iter()
+                        .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
+                        .collect();
                     runtime.rows_loaded = true;
                     runtime.rows_complete = true;
                 } else {
-                    runtime.fallback_rows.insert(trigger_spell, dirty_row);
+                    runtime.fallback_rows.insert(
+                        trigger_spell,
+                        canonical_player_spell_record_like_cpp(dirty_row),
+                    );
                 }
             });
             self.sync_player_registry_state_like_cpp();

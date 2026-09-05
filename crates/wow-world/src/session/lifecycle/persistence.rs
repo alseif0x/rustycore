@@ -610,41 +610,44 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn mark_player_spells_saved_like_cpp(&mut self) {
-        let Some(mut runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+        if self
+            .mutate_player_spell_runtime_like_cpp(|runtime| {
+                runtime.rows.retain(|_, spell| {
+                    if spell.state == wow_entities::PlayerSpellLoadState::Removed {
+                        return false;
+                    }
+                    if spell.state != wow_entities::PlayerSpellLoadState::Temporary {
+                        spell.state = wow_entities::PlayerSpellLoadState::Unchanged;
+                    }
+                    true
+                });
+                runtime.removed_known_spells.clear();
+                runtime
+                    .trait_definition_ids
+                    .retain(|spell_id, _| runtime.rows.contains_key(spell_id));
+                runtime.dependent_known_spells = runtime
+                    .rows
+                    .values()
+                    .filter(|spell| spell.dependent)
+                    .map(|spell| spell.spell_id)
+                    .collect();
+                runtime.favorite_known_spells = runtime
+                    .rows
+                    .values()
+                    .filter(|spell| spell.favorite)
+                    .map(|spell| spell.spell_id)
+                    .collect();
+                runtime.known_spells = runtime
+                    .rows
+                    .values()
+                    .filter(|spell| !spell.disabled)
+                    .map(|spell| spell.spell_id)
+                    .collect();
+            })
+            .is_none()
+        {
             return;
-        };
-        runtime.rows.retain(|_, spell| {
-            if spell.state == RepresentedPlayerSpellStateLikeCpp::Removed {
-                return false;
-            }
-            if spell.state != RepresentedPlayerSpellStateLikeCpp::Temporary {
-                spell.state = RepresentedPlayerSpellStateLikeCpp::Unchanged;
-            }
-            true
-        });
-        runtime.removed_known_spells.clear();
-        runtime
-            .trait_definition_ids
-            .retain(|spell_id, _| runtime.rows.contains_key(spell_id));
-        runtime.dependent_known_spells = runtime
-            .rows
-            .values()
-            .filter(|spell| spell.dependent)
-            .map(|spell| spell.spell_id)
-            .collect();
-        runtime.favorite_known_spells = runtime
-            .rows
-            .values()
-            .filter(|spell| spell.favorite)
-            .map(|spell| spell.spell_id)
-            .collect();
-        runtime.known_spells = runtime
-            .rows
-            .values()
-            .filter(|spell| !spell.disabled)
-            .map(|spell| spell.spell_id)
-            .collect();
-        let _ = self.replace_player_spell_runtime_like_cpp(runtime);
+        }
         self.sync_player_registry_state_like_cpp();
     }
 

@@ -56,6 +56,45 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — native canonical spell-book mutation
+
+Ownership-boundary correction based on `0de97d11`: production
+`replace_player_spell_runtime_like_cpp` is retired. Ordinary mutations now borrow
+`Player.gameplay_state().spells` once through the generation-checked owner; only
+handle-less test fixtures use the old represented conversion. Read-only projections
+remain adapter inputs, not mutable owners. Acquisition installs its validated fields
+without replacing unrelated fallback/trait-config evidence. Save normalization changes
+the current owner's rows, then publishes outside the guard. Fallback learning still
+reconstructs its prepared row map after the low-level learn helper invalidates row
+authority. Attempting a single-row insertion failed the existing disabled-rank closure
+regression and was reverted; retiring that narrower bridge requires a separate coherent
+cut through the invalidation/learning sequence.
+
+C++ anchors: `Player::AddSpell` (`Player.cpp:2741` onward), `RemoveSpell` (`3236`
+onward), `AddOverrideSpell`/`RemoveOverrideSpell` (`28581-28597`), and `_SaveSpells`
+(`20399-20452`). The latter removes tombstones and normalizes non-temporary rows;
+Rust preserves its existing post-COMMIT timing rather than changing SQL or transaction
+semantics in this structural slice. Existing validation, known-spell vector order,
+packet metadata/routing, skill installation order and publication remain unchanged.
+Callbacks contain only container/value operations, with no I/O, nested owner lock or await.
+
+Focused coverage proves native-state mutation once for active and detached Players,
+guard release, unrelated-field preservation, save normalization, and rejection of a
+stale incarnation or missing owner without invoking the callback or touching its replacement.
+This does not make acquisition's separately ordered spell/skill steps atomic, migrate
+cast clocks, remove the remaining Session catalogs, or close #578/#133.
+
+Validation on aarch64: `wow-world --lib` passes 3,677 / zero failures / one ignored;
+the expanded native-owner test also passes independently. Syntax-only ownership,
+architecture check/self-test, formatting and diff checks pass. Reviewed syntax changes
+are the native callback parameter and replacement-to-private-test-fixture transition;
+field/registry totals are unchanged. Logical Session production is 81,419 -> 81,406
+(-13), tests 102,427 -> 102,556 (+129, including fixture-only conversion).
+`validation-v2 quick --base origin/3.4.3` passes; manifest
+`target/validation-v2/manifests/20260905T015117.369456Z-141620-quick.json` records the
+worktree based on `0de97d11`, not a clean post-commit final. No runtime install,
+fresh capture, push or terminal acceptance is claimed for this slice.
+
 ### 2026-09-05 — mutate talents/glyphs inside their canonical Player
 
 The follow-on ownership-boundary correction, based on `1245cb72`, retires production

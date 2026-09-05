@@ -31588,7 +31588,7 @@
           "kind": "method",
           "name": "mutate_player_spell_runtime_like_cpp",
           "visibility": "private",
-          "signature": "fn mutate_player_spell_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut RepresentedPlayerSpellRuntimeLikeCpp) -> R ,) -> Option < R >",
+          "signature": "fn mutate_player_spell_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerSpellRuntimeState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -36679,17 +36679,6 @@
           "name": "replace_player_skill_runtime_exact_like_cpp",
           "visibility": "private",
           "signature": "fn replace_player_skill_runtime_exact_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool , occupied_slots : Option < u16 > , tombstones : BTreeSet < u16 > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "replace_player_spell_runtime_like_cpp",
-          "visibility": "private",
-          "signature": "fn replace_player_spell_runtime_like_cpp (& mut self , runtime : RepresentedPlayerSpellRuntimeLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -52156,6 +52145,19 @@
           "signature": "fn stop_represented_player_pve_combat_like_cpp (& mut self , target_guid : ObjectGuid)",
           "cfg": [],
           "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "store_player_spell_runtime_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn store_player_spell_runtime_fixture_like_cpp (& mut self , runtime : RepresentedPlayerSpellRuntimeLikeCpp ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {

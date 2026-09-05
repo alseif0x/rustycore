@@ -24,6 +24,8 @@ mod save_plan_order;
 mod session_account_state;
 #[path = "session/tests/spell_history_owner.rs"]
 mod spell_history_owner;
+#[path = "session/tests/spellbook_owner.rs"]
+mod spellbook_owner;
 #[path = "session/tests/talent_owner.rs"]
 mod talent_owner;
 
