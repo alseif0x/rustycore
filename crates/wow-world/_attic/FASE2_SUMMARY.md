@@ -56,7 +56,7 @@ Implementaciones completas de:
    ```rust
    // Antes:
    if let Some(c) = self.creatures.get(&guid) { ... }
-   
+
    // Después:
    if let Some(c) = self.get_creature(&guid) { ... }
    ```
@@ -65,7 +65,7 @@ Implementaciones completas de:
    ```rust
    // Antes:
    if let Some(c) = self.creatures.get_mut(&guid) { c.hp -= damage; }
-   
+
    // Después:
    self.with_creature_mut(&guid, |c| { c.hp -= damage; });
    ```
@@ -86,7 +86,7 @@ Mantener ambos sistemas funcionando:
    ```rust
    // En world-server/src/main.rs o similar
    let map_manager = Arc::new(RwLock::new(MapManager::new()));
-   
+
    // Pasar a cada WorldSession
    session.set_map_manager(map_manager.clone());
    ```

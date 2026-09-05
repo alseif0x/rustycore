@@ -5,10 +5,13 @@ las aprobaciones viven en [AGENTS.md](../AGENTS.md); el estado y alcance vigente
 en [STATE.md](migration/STATE.md), [PORT_PLAN.md](migration/PORT_PLAN.md) y la issue
 activa. Distinguir implementación, integración y paridad probada.
 
-**Fecha de implementación:** YYYY-MM-DD  
+**Fecha de implementación:** YYYY-MM-DD
+
 **HEAD / alcance realmente contrastado:** [commit, operación y límites]
-**Estado:** ✅ Completado / 🔄 Parcial / ❌ Pendiente  
-**Versión:** 1.0  
+
+**Estado:** ✅ Completado / 🔄 Parcial / ❌ Pendiente
+
+**Versión:** 1.0
 
 ---
 
@@ -106,6 +109,8 @@ auditoría exhaustiva por helper. Cliente/runtime solo como probado si se ejerci
 
 ---
 
-**Última revisión:** YYYY-MM-DD  
-**Responsable:** @WoWServer  
+**Última revisión:** YYYY-MM-DD
+
+**Responsable:** @WoWServer
+
 **Issue relacionada:** #[número o descripción]

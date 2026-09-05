@@ -348,7 +348,7 @@ World module doesn't directly send packets; instead, it calls methods on session
    - Tick MapManager (all maps, grids, creatures, objects)
    - Tick managers (Auction, Battlefield, Battleground, etc.)
    - Update world timers (check if WUPDATE_* timers expired, dispatch cleanup)
-   
+
    If Rust does this out of order (e.g., maps before sessions), players might move into loaded maps before sessions are ticked, causing race conditions.
 
 3. **Timer precision matters**. Auctions expire in milliseconds. If a timer drifts by seconds, auctions could last too long or expire too soon. Use `Instant::now()` consistently, not system time.

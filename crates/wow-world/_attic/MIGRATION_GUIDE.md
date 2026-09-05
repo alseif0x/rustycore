@@ -211,7 +211,7 @@ cargo test -p wow-world --lib
 
 ## Notas Importantes
 
-1. **CreatureAI vs WorldCreature**: 
+1. **CreatureAI vs WorldCreature**:
    - `CreatureAI` es la estructura legacy que estaba en `self.creatures`
    - `WorldCreature` es la nueva estructura en el MapManager global
    - Ambas son similares pero pueden tener campos ligeramente diferentes
