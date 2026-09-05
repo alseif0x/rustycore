@@ -58,6 +58,43 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Rest mutation runs on the canonical Player
+
+Ownership migration based on `44c445d0`: Session's rest mutation helper now
+resolves its generation-checked Player once and delegates to
+`Player::mutate_rest_state_like_cpp`. The native state is modified directly,
+then existing RestInfo and Player-flag setters project it under that same guard.
+The old Session rest replacement helper is now exclusively a test fixture and
+differential oracle. No production rest snapshot/writeback remains in this helper.
+
+C++ `RestMgr.cpp:65-80,95-122` owns rest values and their Player field updates.
+All eleven Rust mutation call sites were inspected: callbacks synchronously
+modify rest fields, optionally read the existing game clock, and neither re-enter
+the owner, await, persist nor send packets. Existing threshold clamping, rest
+state, initialization-gated flag normalization, unrelated flags and dirty masks
+are preserved. Packets remain outside the guard; no SQL or tick owner changes.
+This does not complete rate/catalog ownership, the load-reset helper or full
+RestMgr behavior. Handleless fixtures retain their prior route; native stale and
+missing owners do not execute the callback.
+
+The new active/detached differential test compares the old projection with the
+native command for initialized/uninitialized and empty/nonempty masks, checks
+exact state, flags, RestInfo and active-data dirty masks, and proves one callback
+under the existing lock with no publication. Negative coverage rejects stale and
+missing owners even with populated Session fixtures. Full library suites pass:
+3,706 world tests (one ignored) and 701 entity tests, zero failures, on aarch64.
+The reviewed syntax delta changes only the replacement helper's classification
+to `cfg(test)`; field counts and 3,658 associated item identities are unchanged.
+Logical ceilings: Session 81,509 + 103,727 = 185,236; Player 10,451 + 9,371 =
+19,822. The LOC classifier retains method-level fixture code in its production
+count; these ceilings do not imply additional production gameplay authority.
+Live acceptance remains pending and #578 remains open.
+
+Compilation, formatting/diff checks, syntax ownership, architecture check/self-test
+and quick validation pass. Quick evidence:
+`target/validation-v2/manifests/20260905T042603.602733Z-369190-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
+
 ### 2026-09-05 — Rest visibility and saved flags read one Player owner
 
 Ownership read convergence based on `318bcdab`: each of

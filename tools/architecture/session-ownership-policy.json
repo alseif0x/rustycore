@@ -36694,8 +36694,10 @@
           "name": "replace_player_rest_state_like_cpp",
           "visibility": "private",
           "signature": "fn replace_player_rest_state_like_cpp (& mut self , state : wow_entities :: PlayerRestState) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {

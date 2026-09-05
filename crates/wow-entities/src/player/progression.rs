@@ -207,6 +207,33 @@ impl Player {
         self.gameplay_state_mut().rest = state;
     }
 
+    /// Mutate this Player's RestMgr state and refresh its represented fields.
+    /// C++ RestMgr.cpp:65-80,95-122 keeps rest values and flags on one Player.
+    /// Preserve the Rust load boundary: do not normalize flags until location
+    /// initialization, and keep the existing threshold clamp/update-mask rules.
+    pub fn mutate_rest_state_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut PlayerRestState) -> R,
+    ) -> R {
+        let state = &mut self.gameplay_state_mut().rest;
+        let result = f(state);
+        let threshold = state.rest_bonus.clamp(0.0, u32::MAX as f32) as u32;
+        let state_id = state.rest_state;
+        let resting = state
+            .location_initialized
+            .then_some(state.rest_flag_mask != 0);
+        self.set_xp_rest_info_like_cpp(threshold, state_id);
+        if let Some(resting) = resting {
+            let resting_flag = 0x0000_0020; // C++ PLAYER_FLAGS_RESTING.
+            if resting {
+                self.set_player_flag(resting_flag);
+            } else {
+                self.remove_player_flag(resting_flag);
+            }
+        }
+        result
+    }
+
     pub fn difficulty_preferences_like_cpp(&self) -> (u32, u32, u32) {
         let state = self.gameplay_state();
         (

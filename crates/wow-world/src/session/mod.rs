@@ -32196,6 +32196,7 @@ impl WorldSession {
         canonical
     }
 
+    #[cfg(test)]
     fn replace_player_rest_state_like_cpp(&mut self, state: wow_entities::PlayerRestState) -> bool {
         let canonical = self
             .with_owned_player_mut_for_rest_like_cpp(|player| {
@@ -32233,10 +32234,15 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerRestState) -> R,
     ) -> Option<R> {
-        let mut state = self.player_rest_state_snapshot_like_cpp()?;
-        let result = f(&mut state);
-        self.replace_player_rest_state_like_cpp(state)
-            .then_some(result)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut state = self.player_rest_state_snapshot_like_cpp()?;
+            let result = f(&mut state);
+            return self
+                .replace_player_rest_state_like_cpp(state)
+                .then_some(result);
+        }
+        self.with_owned_player_mut_like_cpp(|player| player.mutate_rest_state_like_cpp(f))
     }
 
     pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
