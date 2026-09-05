@@ -11,8 +11,8 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 
 ## Exact membership and remaining work
 
-After the 2026-09-05 talent-reset policy slice, the AST has **716 WorldSession fields:
-284 production and 432 test fixtures**. The runtime
+After the 2026-09-05 unused DungeonEncounter dependency slice, the AST has **715 WorldSession fields:
+283 production and 432 test fixtures**. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -31,7 +31,7 @@ members. Three identifiers absent from the old runtime ledger are explicitly cla
 
 The following are still open #578 work, not stable exceptions or work deferred to #153:
 
-- 134 production catalog/configuration/service fields still reside on Session. Required
+- 133 production catalog/configuration/service fields still reside on Session. Required
   construction is not enough: the owning vertical must consume the narrow capability.
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
@@ -47,8 +47,8 @@ The following are still open #578 work, not stable exceptions or work deferred t
 
 `SessionResources` has eight required aggregate fields (`core`, `inventory`, `player`, `spells`,
 `world`, `progression`, `runtime`, `realm`), rather than 273 flat fields with 216 optional slots.
-Their immediate capability types contain respectively 5, 30, 22, 34, 29, 21, 19 and six members:
-**166 first-level members, plus further nested handler/persistence bundles**. Glyph and
+Their immediate capability types contain respectively 5, 30, 22, 34, 28, 21, 19 and six members:
+**165 first-level members, plus further nested handler/persistence bundles**. Glyph and
 talent-tab catalogs are required members of the process-owned PlayerBootstrap catalog,
 borrowed by login/learning instead of installed on Session. The hotfix
 dependency now lives in the nested, process-owned handler capabilities instead of the
@@ -57,6 +57,51 @@ aggregate stays in world-server, not wow-network. Its `install_into_session_like
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — Retire unused DungeonEncounter Session dependency
+
+Architecture verdict on `a0804690`: the DungeonEncounter catalog has no Session
+consumer. Workspace-wide source search finds only the field/default, setter/getter
+and factory assignment, with no getter calls. Remove that dependency rather than
+introducing an unused capability wrapper. C++ `DB2Stores.cpp:124,699` and
+`DB2Stores.h:98` own/load `sDungeonEncounterStore` globally, not per WorldSession.
+Rust's required startup load and error context in `world-server/src/app.rs` remain
+unchanged; the DB2 parser/data crate is untouched. This does not implement missing
+instance/encounter runtime behavior or claim full C++ parity.
+
+The selected boundary cut deletes the Session field, default, public setter and
+getter, the world capability field, install call and cloned factory assignment.
+No runtime reader changes, packet/SQL changes, new state, task, module, trait,
+crate or replacement service locator is introduced. A source-contract test pins
+both retained startup load/error behavior and absent per-session retention; exact
+syntax inventories and downstream compilation guard against hidden consumers.
+
+The catalog family falls 134->133 and total/production Session fields fall
+716/284->715/283, with 432 fixtures unchanged. Associated items fall 3,662->3,660.
+The syntax diff removes only the field/two methods and updates the corresponding
+WorldSession structural fingerprint; persistence evidence/counts are unchanged.
+Current first-level bundle counts are 5/30/22/34/28/21/19/6 = 165. The ledger's
+previous 170 summary and Player=25/Runtime=20 counts were already stale (the code
+had 166, Player=22/Runtime=19); correcting those is documentation reconciliation,
+not additional implementation credit. World drops 29->28 in this slice.
+
+Logical ceilings: Session 81,577 + 104,010 = 185,587; world-server 28,885 +
+27,021 = 55,906. Its production count drops three from live HEAD; the previous
+28,896 ceiling contained eight spare lines. Thirteen test lines are added.
+The next policy cuts must trace full consumers: configured maximum spans rested
+XP/GiveXP/create projection, and quest-XP catalogs span manual/automatic rewards
+and LFG reward queries. Neither may be replaced by a new generic Session locator.
+Those cuts and the remaining 133 catalog/service fields stay open under #578;
+terminal #153 and live acceptance are not satisfied by this retirement.
+
+Validation on aarch64: world library 3,711 passed/zero failed/one ignored;
+the world-server retention/startup contract test passes (one selected test).
+`cargo check -p world-server`, formatting/diff checks, syntax ownership,
+architecture check/self-test and quick validation pass. The only post-suite
+source cleanup removed the orphan field comment; formatting, syntax ownership,
+architecture and quick validation were repeated afterward. Final quick evidence:
+`target/validation-v2/manifests/20260905T051755.514501Z-448346-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
 
 ### 2026-09-05 — Player owns timed online/offline rest accumulation
 

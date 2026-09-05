@@ -100,21 +100,20 @@ use wow_data::{
     CreatureModelDataStore, CreatureSpellDisableDecisionLikeCpp,
     CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
     CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
-    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp,
-    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GlyphPropertiesStore,
-    GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores,
-    ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentEntry, ItemChildEquipmentStore,
-    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
-    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
-    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
-    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
-    ItemSearchNameStore, ItemSetSpellStore, ItemSetStore, ItemSpecOverrideStore, ItemStatsStore,
-    ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore, MapDifficultyStore,
-    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountDefinitionStoreLikeCpp,
-    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
-    NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
+    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DurabilityCostsStore, DurabilityQualityStore,
+    EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp, FishingBaseSkillStoreLikeCpp,
+    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore,
+    GlyphPropertiesStore, GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache,
+    ImportPriceStores, ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentEntry,
+    ItemChildEquipmentStore, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
+    ItemEffectStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
+    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
+    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
+    ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore, ItemSetStore,
+    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore,
+    LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
+    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
+    MovieStore, NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
@@ -5864,9 +5863,6 @@ pub struct WorldSession {
     // ChrSpecialization store (loot specialization validation)
     chr_specialization_store: Option<Arc<ChrSpecializationStore>>,
 
-    // DungeonEncounter store (instance encounter lock/loot metadata)
-    dungeon_encounter_store: Option<Arc<DungeonEncounterStore>>,
-
     // Map stores (Map.db2 + MapDifficulty.db2)
     map_store: Option<Arc<MapStore>>,
     world_safe_loc_store_like_cpp: Option<Arc<WorldSafeLocStore>>,
@@ -8246,7 +8242,6 @@ impl WorldSession {
             #[cfg(test)]
             graveyard_store: None,
             chr_specialization_store: None,
-            dungeon_encounter_store: None,
             map_store: None,
             world_safe_loc_store_like_cpp: None,
             map_difficulty_store: None,
@@ -28211,16 +28206,6 @@ impl WorldSession {
     /// Get the ChrSpecialization store reference.
     pub fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
         self.chr_specialization_store.as_ref()
-    }
-
-    /// Set the DungeonEncounter store for this session.
-    pub fn set_dungeon_encounter_store(&mut self, store: Arc<DungeonEncounterStore>) {
-        self.dungeon_encounter_store = Some(store);
-    }
-
-    /// Get the DungeonEncounter store reference.
-    pub fn dungeon_encounter_store(&self) -> Option<&Arc<DungeonEncounterStore>> {
-        self.dungeon_encounter_store.as_ref()
     }
 
     pub fn set_map_store(&mut self, store: Arc<MapStore>) {

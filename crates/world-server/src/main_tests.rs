@@ -157,6 +157,19 @@ use wow_world::session::directory::{
 use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 
 #[test]
+fn dungeon_encounter_catalog_is_loaded_without_per_session_retention() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let app = fs::read_to_string(root.join("src/app.rs")).unwrap();
+    let resources = fs::read_to_string(root.join("src/session_resources.rs")).unwrap();
+    let session = fs::read_to_string(root.join("../wow-world/src/session/mod.rs")).unwrap();
+    assert!(app.contains("wow_data::DungeonEncounterStore::load(&data_dir, &locale)"));
+    assert!(app.contains("Failed to load DungeonEncounter.db2"));
+    assert!(!app.contains("dungeon_encounter_store: Arc::clone"));
+    assert!(!resources.contains("dungeon_encounter_store"));
+    assert!(!session.contains("dungeon_encounter_store"));
+}
+
+#[test]
 fn signed_tinyint_quest_required_preserves_cpp_boolean_semantics() {
     assert!(!loot_quest_required_from_signed_db_like_cpp(0));
     assert!(loot_quest_required_from_signed_db_like_cpp(1));

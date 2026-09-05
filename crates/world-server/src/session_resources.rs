@@ -206,7 +206,6 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) area_table_store: Arc<wow_data::AreaTableStore>,
     pub(super) fishing_base_skill_store: Arc<wow_data::FishingBaseSkillStoreLikeCpp>,
     pub(super) chr_specialization_store: Arc<wow_data::ChrSpecializationStore>,
-    pub(super) dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>,
     pub(super) map_store: Arc<wow_data::MapStore>,
     pub(super) world_safe_loc_store: Arc<wow_data::WorldSafeLocStore>,
     pub(super) map_difficulty_store: Arc<wow_data::MapDifficultyStore>,
@@ -411,7 +410,6 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
         session.set_area_table_store(Arc::clone(&self.area_table_store));
         session.set_fishing_base_skill_store(Arc::clone(&self.fishing_base_skill_store));
         session.set_chr_specialization_store(Arc::clone(&self.chr_specialization_store));
-        session.set_dungeon_encounter_store(Arc::clone(&self.dungeon_encounter_store));
         session.set_map_store(Arc::clone(&self.map_store));
         session.set_world_safe_loc_store_like_cpp(Arc::clone(&self.world_safe_loc_store));
         session.set_map_difficulty_store(Arc::clone(&self.map_difficulty_store));

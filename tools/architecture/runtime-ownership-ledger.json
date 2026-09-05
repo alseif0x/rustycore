@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 716,
+      "expected_field_count": 715,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -638,7 +638,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 134,
+        "expected_field_count": 133,
         "field_names": [
           "access_requirement_store",
           "area_table_store",
@@ -661,7 +661,6 @@
           "curve_store",
           "difficulty_store",
           "disable_mgr",
-          "dungeon_encounter_store",
           "durability_costs_store",
           "durability_quality_store",
           "faction_store",
@@ -775,7 +774,7 @@
           "waypoint_path_resolver_like_cpp",
           "world_safe_loc_store_like_cpp"
         ],
-        "current_storage": "134 production immutable catalog/configuration/service fields remain on WorldSession. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. Grid-load, hotfix, glyph and talent-tab catalogs are borrowed by their consumers. Login and talent learning borrow required PlayerBootstrap catalogs; their Session fields, setters and getters are deleted, with no fixture mirror. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
+        "current_storage": "133 production immutable catalog/configuration/service fields remain on WorldSession. The unused DungeonEncounter Session field/getter/setter and factory assignment are deleted; startup loading remains. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. Grid-load, hotfix, glyph and talent-tab catalogs are borrowed by their consumers. Login and talent learning borrow required PlayerBootstrap catalogs; their Session fields, setters and getters are deleted, with no fixture mirror. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
         "sole_writer": "world-server bootstrap constructs the process-wide value; create_session/setters assign the Session handle once. Runtime code should read but not mutate immutable catalogs.",
         "readers": "Handlers and gameplay helpers across wow-world.",
         "clock_lifetime": "Mostly process lifetime; a Session retains Arc handles for its connection lifetime. Generators and mutable services retain their own process-wide owner.",
@@ -1056,9 +1055,9 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       }
     ],
-    "expected_field_count": 716,
-    "expected_unique_field_count": 716,
-    "expected_production_field_count": 284,
+    "expected_field_count": 715,
+    "expected_unique_field_count": 715,
+    "expected_production_field_count": 283,
     "expected_test_fixture_field_count": 432
   },
   "inventories": {
@@ -1073,8 +1072,8 @@
       "audited_summary": {
         "field_count": 8,
         "option_field_count": 0,
-        "immediate_capability_field_count": 170,
-        "count_kind": "Eight required aggregate fields, 170 first-level capability members, plus further nested handler/persistence bundles. Not a flattened leaf count or terminal acceptance."
+        "immediate_capability_field_count": 165,
+        "count_kind": "Eight required aggregate fields, 165 first-level capability members, plus further nested handler/persistence bundles. Not a flattened leaf count or terminal acceptance."
       },
       "coverage_rule": {
         "mode": "exact_field_membership",
@@ -1120,7 +1119,7 @@
             "player"
           ],
           "owner": "Required immutable Player creation/condition/skill catalogs; still installed into Session.",
-          "immediate_capability_field_count": 25,
+          "immediate_capability_field_count": 22,
           "open_retirement_issues": [
             153,
             578
@@ -1148,7 +1147,7 @@
             "world"
           ],
           "owner": "Required map/creature/GameObject/visibility catalogs and spawn policy; grid loader is now composed once in core.handler_catalogs, not stored here or in Session.",
-          "immediate_capability_field_count": 29,
+          "immediate_capability_field_count": 28,
           "open_retirement_issues": [
             153,
             578
@@ -1176,7 +1175,7 @@
             "runtime"
           ],
           "owner": "Required runtime policy and directory/group/event handles; Session installation and gameplay consumers remain transitional.",
-          "immediate_capability_field_count": 20,
+          "immediate_capability_field_count": 19,
           "open_retirement_issues": [
             153,
             578
@@ -1467,11 +1466,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81592,
+          "production_lines": 81577,
           "test_lines": 104010,
-          "total_lines": 185602,
+          "total_lines": 185587,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 rest accrual: online/offline commands move timer, NextLevelXP calculation and bonus update under one native Player guard; Session retains rate selection, max/RaF policy and random admission. Measured growth 57 production-classified and 113 test lines for native/fixture routing, 48 differential cases and stale/missing replacement protection. Two calculation helpers become test-only and two fixture oracles are added. No fields or registrations added; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 DungeonEncounter dependency retirement: remove unused Session catalog field, default, getter/setter, import and orphan comment, reducing production 15 measured lines; tests unchanged. Startup loading remains and no runtime consumer is redirected. Fields 715 total/283 production, catalog family 133, no new mirror or public API; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1520,11 +1519,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28896,
-          "test_lines": 27008,
-          "total_lines": 55904,
+          "production_lines": 28885,
+          "test_lines": 27021,
+          "total_lines": 55906,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "Required composition bundles and one process grid loader reduce production size; canonical creature/delivery/residence fixtures increase tests. No third game-state clock. The legacy/canonical bridge remains explicit. Review and exact deltas: docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 DungeonEncounter dependency retirement: remove the world capability field, per-session setter call and cloned factory assignment, retaining startup load/error behavior. Live production falls 28888->28885 (the prior ceiling was 28896); test growth is 13 lines pinning startup load and no Session retention. No new runtime clock; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

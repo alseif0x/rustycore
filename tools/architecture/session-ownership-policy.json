@@ -752,13 +752,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "dungeon_encounter_store",
-          "type": "Option < Arc < DungeonEncounterStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "durability_costs_store",
           "type": "Option < Arc < DurabilityCostsStore > >",
           "visibility": "private",
@@ -26921,19 +26914,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "dungeon_encounter_store",
-          "visibility": "pub",
-          "signature": "fn dungeon_encounter_store (& self) -> Option < & Arc < DungeonEncounterStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "durability_costs_store",
           "visibility": "pub",
           "signature": "fn durability_costs_store (& self) -> Option < & Arc < DurabilityCostsStore > >",
@@ -46257,20 +46237,6 @@
           "name": "set_disable_mgr",
           "visibility": "pub",
           "signature": "fn set_disable_mgr (& mut self , store : Arc < DisableMgrLikeCpp >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_dungeon_encounter_store",
-          "visibility": "pub",
-          "signature": "fn set_dungeon_encounter_store (& mut self , store : Arc < DungeonEncounterStore >)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75991,7 +75957,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:953e304f0fecf56821380f5fb9ac5953:len=96516|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ee2fd3132b10cf41424c7c2186df6c2a:len=96447|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
