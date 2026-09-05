@@ -3,6 +3,31 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Save acknowledgement follows reputation key selection — 2026-09-05
+
+Review above `ec3aa459` found a defensive edge in the first save cut: native reputation is
+currently a vector, while the actual projection builds `FactionStateList` keyed by
+`ReputationListID` (`ReputationMgr.h:63`; `ReputationMgr.cpp:792`). With duplicate keys,
+`ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp` selects the last row, but the
+receipt had retained both native rows. A real save-pipeline test ran red: the single-row
+request caused both native rows to be marked clean.
+
+The receipt now applies the identical keyed selection. The omitted row stays dirty; it is
+not silently declared durable. The ordinary native two-faction test uses distinct list keys,
+as a valid C++ container does. This intentionally malformed-state reproduction is not evidence
+of duplicate rows in a live database, nor a new normalization/repair policy for corrupt state.
+No SQL projection, field narrowing, statement order, lifetime or concurrency policy changes.
+
+Reviewed delta: native Player +9 production/+2 tests; Session +41 tests and no production/API
+growth. The receipt/test modules remain 210/222 lines and the save-interleaving module 268.
+aarch64 focused validation above `ec3aa459`, with explicit `PROTOC` and two build jobs:
+six `wow-entities --lib player::save_ack` tests, 40 `wow-world --lib
+session::tests::lifecycle_persistence` tests and six production `production_login_player_owner`
+integration tests pass. Architecture check/self-test and syntax-only ownership check pass.
+`./tools/validation-v2 quick --base ec3aa459` and its green-manifest verification pass:
+`target/validation-v2/manifests/20260905T210159.182056Z-1209293-quick.json`.
+All broader C0–C4/real-durability boundaries remain.
+
 ## Canonical map occupancy; manual count retired — 2026-09-05
 
 Above `ca7034fa`, `ManagedMap::player_count`, non-GM admission count, destruction admission

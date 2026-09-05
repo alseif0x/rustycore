@@ -38,7 +38,16 @@ impl Player {
             fallback: state.spells.fallback_rows.clone(),
             skills: state.skills.clone(),
             equipment: state.equipment_sets.clone(),
-            reputations: state.reputations.clone(),
+            // The save projection uses C++ FactionStateList, keyed by RepListID
+            // (ReputationMgr.h:63). Only its last row for each key is visited.
+            // Never acknowledge a malformed vector row shadowed by that projection.
+            reputations: state
+                .reputations
+                .iter()
+                .map(|row| (row.reputation_list_id, row.clone()))
+                .collect::<BTreeMap<_, _>>()
+                .into_values()
+                .collect(),
         }
     }
 

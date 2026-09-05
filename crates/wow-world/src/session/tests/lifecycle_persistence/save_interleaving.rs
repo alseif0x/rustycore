@@ -30,6 +30,47 @@ fn canonical_session(
 }
 
 #[tokio::test]
+async fn full_save_ack_does_not_clean_a_reputation_row_shadowed_by_the_projection() {
+    let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session
+        .with_owned_player_mut_like_cpp(|p| {
+            p.gameplay_state_mut().reputations = vec![
+                wow_entities::PlayerReputationRecord {
+                    faction_id: 72,
+                    reputation_list_id: 1,
+                    standing: 10,
+                    need_save: true,
+                    ..Default::default()
+                },
+                wow_entities::PlayerReputationRecord {
+                    faction_id: 76,
+                    reputation_list_id: 1,
+                    standing: 20,
+                    need_save: true,
+                    ..Default::default()
+                },
+            ];
+        })
+        .unwrap();
+    session.save_current_player_to_db_like_cpp().await;
+    // The current adapter constructs C++ FactionStateList keyed by ReputationListID.
+    // This intentionally malformed native vector projects only its last key owner.
+    let requests = port.character_saves();
+    assert_eq!(requests[0].reputations.len(), 1);
+    assert_eq!(requests[0].reputations[0].faction_id, 76);
+    assert_eq!(
+        session.with_owned_player_like_cpp(|p| {
+            p.gameplay_state()
+                .reputations
+                .iter()
+                .map(|row| row.need_save)
+                .collect::<Vec<_>>()
+        }),
+        Some(vec![true, false])
+    );
+}
+
+#[tokio::test]
 async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
     let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     let handle = session.player_handle_like_cpp.unwrap();

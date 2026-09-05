@@ -1446,10 +1446,10 @@
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 81859,
-          "test_lines": 106340,
-          "total_lines": 188199,
+          "test_lines": 106381,
+          "total_lines": 188240,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 canonical occupancy: Session production unchanged; tests shrink by 17 lines including the new 201-line instance_occupancy module. Three full/GM admission cases retain packet/decision assertions but install real canonical occupants; the manual count field/setter is retired from ManagedMap. Prior coherent-save review and exact deltas remain in session-578-checkpoint.md. C1/C2/C4 remain open; no physical monolith exception is renewed.",
+          "latest_growth_review": "2026-09-05 exact reputation save projection: +41 test lines, production unchanged. A malformed duplicate ReputationListID vector runs through the actual save port; only the row surviving the keyed projection may be acknowledged. Existing 201-line occupancy module and earlier reduction remain; see session-578-checkpoint.md for RED/GREEN and scope. No Session field, API or physical monolith waiver added.",
           "open_retirement_issues": [
             578
           ],
@@ -1518,11 +1518,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 11278,
-          "test_lines": 10128,
-          "total_lines": 21406,
+          "production_lines": 11287,
+          "test_lines": 10130,
+          "total_lines": 21417,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05 exact save-projection acknowledgement: +201 production/+222 tests. Opaque single-use receipt and row reconciliation belong to native Player, not Session/SQL/ECS; no persistent state mirror, extra lock or clock. Value comparisons and INSERT/DELETE rebasing preserve later mutations. Application binds the receipt to its generation handle. New private implementation/test files stay below 1,000 lines. Boundaries and evidence: session-578-checkpoint.md; review again at C1/C4, not a blanket size exemption.",
+          "latest_growth_review": "2026-09-05 reputation projection selection: +9 production/+2 test lines. Receipt capture follows C++ FactionStateList's ReputationListID key exactly, retaining omitted malformed rows as dirty. The ordinary two-faction test now uses distinct list keys. No persistent mirror, SQL dependency or clock; 210-line native ACK and 222-line tests. Prior full-save review, focused evidence and C1/C4 boundaries: session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

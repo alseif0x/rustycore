@@ -100,12 +100,14 @@ fn save_ack_preserves_new_fallback_and_unsaved_reputation_values() {
     p.gameplay_state_mut().reputations = vec![
         PlayerReputationRecord {
             faction_id: 1,
+            reputation_list_id: 1,
             need_save: true,
             standing: 10,
             ..Default::default()
         },
         PlayerReputationRecord {
             faction_id: 2,
+            reputation_list_id: 2,
             need_save: true,
             standing: 20,
             ..Default::default()
