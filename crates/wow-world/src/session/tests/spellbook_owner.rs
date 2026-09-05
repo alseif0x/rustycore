@@ -3,6 +3,115 @@
 use super::*;
 
 #[test]
+fn known_spell_commands_match_previous_active_and_detached_owner() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session
+        .with_owned_player_mut_like_cpp(|p| {
+            p.gameplay_state_mut().collections.mounts.insert(40, 0);
+        })
+        .unwrap();
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for complete in [false, true] {
+            for spells in [vec![], vec![10], vec![20, 10, 20, -1, 0]] {
+                for operation in 0..3 {
+                    let mut initial = wow_entities::PlayerSpellRuntimeState::default();
+                    initial.known_spells = vec![10, 30, 10];
+                    initial.dependent_known_spells = BTreeSet::from([10, 30]);
+                    initial.favorite_known_spells = BTreeSet::from([10, 30]);
+                    initial.removed_known_spells = BTreeSet::from([-1, 0, 20]);
+                    initial.trait_definition_ids = BTreeMap::from([(10, 100), (30, 300)]);
+                    initial.override_spells.insert(50, BTreeSet::from([10]));
+                    initial.rows_loaded = true;
+                    initial.rows_complete = complete;
+                    initial.trait_definition_ids_complete = complete;
+                    initial.override_spells_complete = complete;
+                    session
+                        .with_owned_player_mut_like_cpp(|p| {
+                            p.replace_spell_runtime_like_cpp(initial.clone())
+                        })
+                        .unwrap();
+                    match operation {
+                        0 => session.fixture_set_known_spells_like_cpp(spells.clone()),
+                        1 => {
+                            for &id in &spells {
+                                session.fixture_learn_known_spell_like_cpp(id);
+                            }
+                        }
+                        _ => {
+                            for &id in &spells {
+                                session.fixture_learn_dependent_known_spell_like_cpp(id);
+                            }
+                        }
+                    }
+                    let expected =
+                        session.with_owned_player_like_cpp(|p| p.spell_runtime_like_cpp().clone());
+                    session
+                        .with_owned_player_mut_like_cpp(|p| {
+                            p.replace_spell_runtime_like_cpp(initial)
+                        })
+                        .unwrap();
+                    match operation {
+                        0 => session.set_known_spells_like_cpp(spells.clone()),
+                        1 => {
+                            for &id in &spells {
+                                session.learn_known_spell_like_cpp(id);
+                            }
+                        }
+                        _ => {
+                            for &id in &spells {
+                                session.learn_dependent_known_spell_like_cpp(id);
+                            }
+                        }
+                    }
+                    assert_eq!(
+                        session.with_owned_player_like_cpp(|p| p.spell_runtime_like_cpp().clone()),
+                        expected
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn known_spell_commands_leave_replacement_untouched_for_stale_and_missing_owner() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let mut expected = wow_entities::PlayerSpellRuntimeState::default();
+    expected.known_spells = vec![10];
+    expected.trait_definition_ids.insert(10, 100);
+    replacement.replace_spell_runtime_like_cpp(expected.clone());
+    let handle = manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    for missing in [false, true] {
+        if missing {
+            session.canonical_map_manager = None;
+        }
+        session.set_known_spells_like_cpp(vec![]);
+        session.learn_known_spell_like_cpp(20);
+        session.learn_dependent_known_spell_like_cpp(30);
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .with_player_like_cpp(handle, |p| p.spell_runtime_like_cpp().clone()),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
 fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

@@ -1465,11 +1465,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81809,
-          "test_lines": 105360,
-          "total_lines": 187169,
+          "production_lines": 81838,
+          "test_lines": 105469,
+          "total_lines": 187307,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 narrow spell queries: eleven reads (ten production, one fixture) stop materializing full spell runtime; two unused projection fields become test-only. One private generation-checked spell-only read adapter, no Session field or gameplay rule added. Classifier +51 production/+151 tests; 32 active/detached flag combinations and stale/missing authority tests; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 known spell commands: replacement/pruning executes under one native owner without a duplicate Vec; grant and dependent metadata rules also move to native spell state. Invalidation and account-mount ordering unchanged. Three cfg(test) oracles; classifier +29 production/+109 tests; 36 active/detached cases plus stale/missing protection; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1544,11 +1544,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 11042,
-          "test_lines": 9869,
-          "total_lines": 20911,
+          "production_lines": 11077,
+          "test_lines": 9906,
+          "total_lines": 20983,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: native spell save finalization; +36 production/+39 test lines. Removes Removed rows, preserves Temporary state, resets durable rows and derives spell sets in native key order. Tests retain pending grants, source proof and disabled-row semantics. No new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: native known spell commands; +35 production/+37 test lines. Replacement owns metadata pruning, grants preserve insertion order and dependent marking respects row authority. Native tests preserve duplicate/signed IDs and dirty row state. No new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

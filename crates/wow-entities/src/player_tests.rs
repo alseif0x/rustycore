@@ -521,6 +521,43 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn native_known_spell_commands_preserve_order_prune_metadata_and_keep_row_state() {
+    let mut runtime = PlayerSpellRuntimeState::default();
+    runtime.dependent_known_spells = BTreeSet::from([10, 30]);
+    runtime.favorite_known_spells = BTreeSet::from([10, 30]);
+    runtime.trait_definition_ids = BTreeMap::from([(10, 100), (30, 300)]);
+    runtime.removed_known_spells.insert(99);
+    runtime.replace_known_spell_ids_like_cpp(vec![20, 10, 20, -1]);
+    assert_eq!(runtime.known_spells, vec![20, 10, 20, -1]);
+    assert_eq!(runtime.dependent_known_spells, BTreeSet::from([10]));
+    assert_eq!(runtime.favorite_known_spells, BTreeSet::from([10]));
+    assert_eq!(runtime.trait_definition_ids, BTreeMap::from([(10, 100)]));
+    assert!(runtime.removed_known_spells.is_empty());
+    runtime.learn_known_spell_id_like_cpp(20);
+    runtime.removed_known_spells.insert(0);
+    runtime.learn_known_spell_id_like_cpp(0);
+    assert_eq!(runtime.known_spells, vec![20, 10, 20, -1, 0]);
+    assert!(runtime.removed_known_spells.is_empty());
+    runtime.rows.insert(
+        10,
+        PlayerKnownSpellRecord {
+            spell_id: 10,
+            state: PlayerSpellLoadState::New,
+            active: true,
+            disabled: false,
+            favorite: true,
+            dependent: false,
+        },
+    );
+    runtime.mark_known_spell_dependent_like_cpp(10);
+    assert!(!runtime.rows[&10].dependent);
+    runtime.rows_complete = true;
+    runtime.mark_known_spell_dependent_like_cpp(10);
+    assert!(runtime.rows[&10].dependent && !runtime.rows[&10].favorite);
+    assert_eq!(runtime.rows[&10].state, PlayerSpellLoadState::New);
+}
+
+#[test]
 fn native_spell_save_finalization_preserves_temporary_rows_and_source_proofs() {
     let mut runtime = PlayerSpellRuntimeState::default();
     for (id, state) in [

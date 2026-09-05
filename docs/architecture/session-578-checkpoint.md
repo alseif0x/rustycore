@@ -58,6 +58,41 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Native known-spell commands
+
+Ownership migration on `236bcba9`: native spell state owns known-ID replacement,
+low-level grants and dependent metadata transitions. Replacement prunes dependent,
+favorite and trait entries together under one owner, removing the duplicate ID
+Vec and a separate trait-pruning owner access. Existing invalidation remains before
+the command, account-mount learning remains after it and outside the guard. The
+learn/dependent adapters preserve their previous phase/access ordering.
+
+C++ `Player::AddSpell` (`Player.cpp:2741,2812-2819`) and `LearnSpell`
+(`Player.cpp:3192-3200`) own PlayerSpellMap transitions. This moves existing reduced
+Rust projection rules, not the full AddSpell closure: signed IDs, insertion order,
+pre-existing duplicate IDs and unchanged dependent-row dirty state are preserved.
+No SQL, packet, publication, source-proof or clock behavior changes. The login
+callers remain in `handlers/character/world_entry.rs`; account-mount dependencies
+still use the established catalog gate and sorted expansion.
+
+Three old core algorithms remain cfg(test) oracles, sharing the unchanged mount
+expansion path. 36 active/detached comparisons cover replace/grant/dependent
+commands, complete/partial initial authority and empty/overlapping/duplicate/
+signed input, with an account mount retained across replacement. Separate tests
+cover stale/missing owners; native tests pin pruning, grant idempotence and the
+complete/incomplete row branch of dependent marking. No mutable mirror added.
+
+AST adds three fixture methods (3,672 associated items), no fields or registry
+rows: 714 fields = 282 production + 432 fixtures, 590 registrations. Logical
+ceilings: Session 81,838 + 105,469 = 187,307; Player 11,077 + 9,906 = 20,983.
+Validation on aarch64: focused command tests 2/0; full `wow-world --lib`
+3,733/0 (one ignored), including the account-mount fixture; `wow-entities --lib`
+715/0. `world-server` check PASS (3m38s, existing warnings). Format/diff,
+syntax-only ownership, architecture check/self-test and validation-v2 quick PASS
+(manifest `20260905T065948.704121Z-595862-quick.json`).
+No install, restart, capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Borrowed native spell queries
 
 Boundary extraction on `c9eef8d6`: nine leaf queries and two row-completeness

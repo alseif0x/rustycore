@@ -43164,6 +43164,16 @@ impl WorldSession {
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.invalidate_represented_player_spell_rows_like_cpp();
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.replace_known_spell_ids_like_cpp(spells);
+        });
+        self.learn_account_mount_spells_like_cpp();
+    }
+
+    #[cfg(test)]
+    fn fixture_set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
+        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.invalidate_represented_player_spell_rows_like_cpp();
         let known_spells = spells.clone();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.known_spells = spells;
@@ -44953,6 +44963,17 @@ impl WorldSession {
         // acquisition authority after it would make those mirrors stale.
         self.invalidate_represented_player_spell_rows_like_cpp();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.learn_known_spell_id_like_cpp(spell_id);
+        });
+    }
+
+    #[cfg(test)]
+    fn fixture_learn_known_spell_like_cpp(&mut self, spell_id: i32) {
+        if !self.known_spells_like_cpp().contains(&spell_id) {
+            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        }
+        self.invalidate_represented_player_spell_rows_like_cpp();
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             if !runtime.known_spells.contains(&spell_id) {
                 runtime.known_spells.push(spell_id);
             }
@@ -44962,6 +44983,14 @@ impl WorldSession {
 
     pub(crate) fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
         self.learn_known_spell_like_cpp(spell_id);
+        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.mark_known_spell_dependent_like_cpp(spell_id);
+        });
+    }
+
+    #[cfg(test)]
+    fn fixture_learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
+        self.fixture_learn_known_spell_like_cpp(spell_id);
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.dependent_known_spells.insert(spell_id);
             runtime.favorite_known_spells.remove(&spell_id);

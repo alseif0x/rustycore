@@ -27524,6 +27524,32 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_learn_dependent_known_spell_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_learn_dependent_known_spell_like_cpp (& mut self , spell_id : i32)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "fixture_learn_known_spell_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_learn_known_spell_like_cpp (& mut self , spell_id : i32)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "fixture_mark_player_skills_saved_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_mark_player_skills_saved_like_cpp (& mut self)",
@@ -27607,6 +27633,19 @@
           "name": "fixture_set_complete_spell_trait_definition_ids_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_set_complete_spell_trait_definition_ids_like_cpp (& mut self , traits : impl IntoIterator < Item = (i32 , i32) > ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "fixture_set_known_spells_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_set_known_spells_like_cpp (& mut self , spells : Vec < i32 >)",
           "cfg": [
             "cfg (test)"
           ],

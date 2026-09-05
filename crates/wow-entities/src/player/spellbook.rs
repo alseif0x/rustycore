@@ -8,6 +8,41 @@
 use super::*;
 
 impl PlayerSpellRuntimeState {
+    /// Replace the represented known-ID projection and prune its dependent
+    /// metadata together. Caller performs load-proof invalidation beforehand.
+    pub fn replace_known_spell_ids_like_cpp(&mut self, spells: Vec<i32>) {
+        self.known_spells = spells;
+        self.removed_known_spells.clear();
+        self.dependent_known_spells
+            .retain(|id| self.known_spells.contains(id));
+        self.favorite_known_spells
+            .retain(|id| self.known_spells.contains(id));
+        self.trait_definition_ids
+            .retain(|id, _| self.known_spells.contains(id));
+    }
+
+    /// Low-level represented grant, not the full Player::AddSpell closure
+    /// (Player.cpp:2741). Keep signed IDs and insertion order unchanged.
+    pub fn learn_known_spell_id_like_cpp(&mut self, spell_id: i32) {
+        if !self.known_spells.contains(&spell_id) {
+            self.known_spells.push(spell_id);
+        }
+        self.removed_known_spells.remove(&spell_id);
+    }
+
+    /// Represented dependent-spell metadata owned by C++ PlayerSpellMap;
+    /// Player::AddSpell (Player.cpp:2812-2819) promotes dependent state.
+    pub fn mark_known_spell_dependent_like_cpp(&mut self, spell_id: i32) {
+        self.dependent_known_spells.insert(spell_id);
+        self.favorite_known_spells.remove(&spell_id);
+        if self.rows_complete
+            && let Some(row) = self.rows.get_mut(&spell_id)
+        {
+            row.dependent = true;
+            row.favorite = false;
+        }
+    }
+
     /// Player::_SaveSpells (Player.cpp:20399) retires removed rows and resets
     /// durable rows, but leaves temporary spells untouched. The caller invokes
     /// this only after confirmed commit, preserving the port's durability gate.
