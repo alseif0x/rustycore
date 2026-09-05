@@ -27524,6 +27524,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_replace_player_skill_records_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_replace_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "fixture_set_player_skill_occupied_slots_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_set_player_skill_occupied_slots_like_cpp (& mut self , occupied_slots : u16) -> bool",

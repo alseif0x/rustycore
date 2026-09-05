@@ -521,6 +521,48 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn represented_skill_replacement_keeps_deleted_markers_without_authorizing_malformed_rows() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(vec![], true, true, Some(7), BTreeSet::from([333, 755]));
+    let row = |id, state, value| PlayerSkillRecord {
+        skill_line_id: id,
+        current_value: value,
+        max_value: value,
+        step: 0,
+        profession_slot: -1,
+        state,
+    };
+    player.replace_represented_skill_records_like_cpp(
+        vec![
+            (333, row(333, PlayerSkillLoadState::Deleted, 1)),
+            (755, row(755, PlayerSkillLoadState::Unchanged, 0)),
+        ],
+        true,
+        true,
+    );
+    assert!(!player.skill_records_complete_like_cpp());
+    assert!(player.skill_records_loaded_like_cpp());
+    assert_eq!(player.occupied_skill_slots_like_cpp(), None);
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([333, 755])
+    );
+    player.replace_represented_skill_records_like_cpp(
+        vec![
+            (333, row(333, PlayerSkillLoadState::Unchanged, 0)),
+            (755, row(755, PlayerSkillLoadState::Changed, 20)),
+        ],
+        true,
+        true,
+    );
+    assert!(player.skill_records_complete_like_cpp());
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([333])
+    );
+}
+
+#[test]
 fn skill_lifecycle_finalization_normalizes_in_place_and_preserves_last_duplicate() {
     let mut player = Player::new(None, false);
     player.replace_skill_records_like_cpp(

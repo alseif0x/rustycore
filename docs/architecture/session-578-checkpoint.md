@@ -58,6 +58,46 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player owns represented skill replacement
+
+Ownership migration on `8bb57e11`: the load/mutation replacement adapter now only
+converts input rows and calls one native Player command. Structural completeness,
+retention of existing non-durable tombstones and addition of deleted rows execute
+under that owner. Session no longer reads/clones existing tombstones before a
+later owner access. The previous algorithm is cfg(test), including handleless
+fixtures. No additional Session field, owner, lock, resource or runtime task.
+
+C++ `Player.cpp:5753-5766` distinguishes deleted persisted skills from cleared
+new skills; `_LoadSkills` at `25735-25755` classifies unusable rows while retaining
+their slots. Existing Rust validation is preserved, not broadened into full C++
+skill parity. A mismatched key or malformed Deleted row makes completeness false
+but does not suppress row installation or its existing tombstone behavior. Input
+iteration order is retained, including malformed duplicate record IDs. Zero ID
+handling remains unchanged. Occupied-slot proof is reset exactly as before.
+
+The command borrows a temporary keyed index of the incoming rows and transfers
+the Player's tombstone set into its existing record-install primitive; it creates
+no retained mirror. Session's prior aura-authority invalidation and both login
+call sites (loaded/default skills), failure outcomes and publication order remain.
+No SQL, packet layout, routing, commit/retry or clock changes. The prepared
+acquisition-result validation/exact install remains open #578 work.
+
+Differential tests cover 56 active/detached, loaded/complete and row-shape cases,
+including key mismatch, duplicate record IDs, malformed deletion, reactivation,
+cleared Unchanged/New rows and zero ID. Stale/missing-owner tests protect the
+replacement Player; native tests pin tombstone retention and false completeness.
+AST adds one fixture oracle (3,662 items); 714 fields, 282 production/432 fixtures,
+590 registry rows and persistence evidence are unchanged. Logical ceilings:
+Session 81,635 + 104,523 = 186,158; Player 10,758 + 9,648 = 20,406.
+
+Validation on aarch64: world library 3,719 passed/zero failed/one ignored;
+entities library 709 passed/zero failed. Focused differential tests, world-server
+check, formatting/diff checks, syntax ownership, architecture check/self-test and
+quick validation pass. Evidence:
+`target/validation-v2/manifests/20260905T060156.372466Z-503845-quick.json`.
+No install, restart, fresh capture or publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Player owns skill save and identity finalization
 
 Ownership migration on `293babce`: save completion and identity cleanup mutate

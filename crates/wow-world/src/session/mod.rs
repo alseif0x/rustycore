@@ -44315,6 +44315,31 @@ impl WorldSession {
         complete: bool,
     ) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_replace_player_skill_records_like_cpp(
+                skill_records,
+                loaded,
+                complete,
+            );
+        }
+        let records = skill_records
+            .into_iter()
+            .map(|(key, skill)| (key, canonical_player_skill_record_like_cpp(skill)))
+            .collect();
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.replace_represented_skill_records_like_cpp(records, loaded, complete);
+        })
+        .is_some()
+    }
+
+    #[cfg(test)]
+    fn fixture_replace_player_skill_records_like_cpp(
+        &mut self,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        loaded: bool,
+        complete: bool,
+    ) -> bool {
         let rows_are_structurally_complete = skill_records.iter().all(|(skill_id, skill)| {
             *skill_id == skill.skill_id
                 && (skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted

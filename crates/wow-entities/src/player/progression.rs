@@ -656,6 +656,54 @@ impl Player {
         &self.gameplay_state.skills
     }
 
+    /// Replace represented keyed rows on their Player owner. C++ SetSkill
+    /// (Player.cpp:5753-5766) distinguishes deleted durable rows from cleared
+    /// non-durable slots. Preserve Rust's existing malformed-row/completeness
+    /// rules and input iteration order until the keyed Session DTO is retired.
+    pub fn replace_represented_skill_records_like_cpp(
+        &mut self,
+        records: Vec<(u16, PlayerSkillRecord)>,
+        loaded: bool,
+        complete: bool,
+    ) {
+        let cleared = |skill: &PlayerSkillRecord| {
+            skill.step == 0
+                && skill.current_value == 0
+                && skill.max_value == 0
+                && skill.profession_slot == -1
+        };
+        let structurally_complete = records.iter().all(|(key, skill)| {
+            u32::from(*key) == skill.skill_line_id
+                && (skill.state != PlayerSkillLoadState::Deleted || cleared(skill))
+        });
+        let lookup: BTreeMap<_, _> = records.iter().map(|(key, skill)| (*key, skill)).collect();
+        self.gameplay_state
+            .non_durable_skill_tombstones
+            .retain(|key| {
+                lookup.get(key).is_some_and(|skill| {
+                    cleared(skill)
+                        && matches!(
+                            skill.state,
+                            PlayerSkillLoadState::Unchanged | PlayerSkillLoadState::Deleted
+                        )
+                })
+            });
+        self.gameplay_state.non_durable_skill_tombstones.extend(
+            records
+                .iter()
+                .filter(|(_, skill)| skill.state == PlayerSkillLoadState::Deleted)
+                .filter_map(|(_, skill)| u16::try_from(skill.skill_line_id).ok()),
+        );
+        let tombstones = std::mem::take(&mut self.gameplay_state.non_durable_skill_tombstones);
+        self.replace_skill_records_like_cpp(
+            records.into_iter().map(|(_, skill)| skill).collect(),
+            loaded,
+            complete && structurally_complete,
+            None,
+            tombstones,
+        );
+    }
+
     pub fn skill_records_loaded_like_cpp(&self) -> bool {
         self.gameplay_state.skills_loaded
     }
