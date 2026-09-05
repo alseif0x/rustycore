@@ -521,6 +521,53 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn skill_lifecycle_finalization_normalizes_in_place_and_preserves_last_duplicate() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(
+        [
+            (333, PlayerSkillLoadState::Deleted, 0),
+            (333, PlayerSkillLoadState::Changed, 99),
+            (999, PlayerSkillLoadState::Deleted, 0),
+            (70000, PlayerSkillLoadState::Deleted, 0),
+        ]
+        .into_iter()
+        .map(|(id, state, value)| PlayerSkillRecord {
+            skill_line_id: id,
+            current_value: value,
+            max_value: value,
+            step: 0,
+            profession_slot: -1,
+            state,
+        })
+        .collect(),
+        true,
+        true,
+        Some(2),
+        BTreeSet::from([755]),
+    );
+    let records_ptr = player.skill_records_like_cpp().as_ptr();
+    player.mark_skill_records_saved_like_cpp();
+    assert_eq!(player.skill_records_like_cpp().len(), 2);
+    assert_eq!(player.skill_records_like_cpp()[0].current_value, 99);
+    assert!(
+        player
+            .skill_records_like_cpp()
+            .iter()
+            .all(|r| r.state == PlayerSkillLoadState::Unchanged)
+    );
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([755, 999])
+    );
+    assert_eq!(player.occupied_skill_slots_like_cpp(), Some(2));
+    assert_eq!(player.skill_records_like_cpp().as_ptr(), records_ptr);
+    player.clear_skill_tombstones_for_identity_change_like_cpp();
+    assert!(player.non_durable_skill_tombstones_like_cpp().is_empty());
+    assert_eq!(player.skill_records_like_cpp().len(), 2);
+    assert_eq!(player.skill_records_like_cpp().as_ptr(), records_ptr);
+}
+
+#[test]
 fn occupied_skill_slot_authority_clears_invalid_proof_without_replacing_records() {
     let mut player = Player::new(None, false);
     player.replace_skill_records_like_cpp(

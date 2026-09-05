@@ -44431,6 +44431,44 @@ impl WorldSession {
     }
 
     fn clear_player_skill_tombstones_like_cpp(&mut self) {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.fixture_clear_player_skill_tombstones_like_cpp();
+            return;
+        }
+        let _ = self.with_owned_player_mut_like_cpp(
+            Player::clear_skill_tombstones_for_identity_change_like_cpp,
+        );
+    }
+
+    #[cfg(test)]
+    fn fixture_mark_player_skills_saved_like_cpp(&mut self) {
+        let Some(mut records) = self.resolved_player_skill_records_like_cpp() else {
+            return;
+        };
+        let Some(mut tombstones) = self.resolved_player_skill_non_durable_tombstones_like_cpp()
+        else {
+            return;
+        };
+        for skill in records.values_mut() {
+            if skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
+                tombstones.insert(skill.skill_id);
+            }
+            skill.state = RepresentedPlayerSkillStateLikeCpp::Unchanged;
+        }
+        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
+        let _ = self.replace_player_skill_runtime_exact_like_cpp(
+            records,
+            true,
+            occupied.is_some(),
+            occupied,
+            tombstones,
+        );
+        self.sync_player_registry_state_like_cpp();
+    }
+
+    #[cfg(test)]
+    fn fixture_clear_player_skill_tombstones_like_cpp(&mut self) {
         let Some(records) = self.resolved_player_skill_records_like_cpp() else {
             return;
         };

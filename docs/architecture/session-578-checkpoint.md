@@ -58,6 +58,54 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player owns skill save and identity finalization
+
+Ownership migration on `293babce`: save completion and identity cleanup mutate
+skills directly under one generation-checked Player access. They no longer clone
+the whole skill map/tombstones through Session and replace it afterward. Their
+previous routes remain separate cfg(test) differential oracles. Save completion
+still publishes the registry only after the owner command and outside its lock;
+missing/stale owners return before publication. Identity cleanup keeps its old
+call position and never creates a Player or modifies a replacement incarnation.
+
+C++ `_SaveSkills` (`Player.cpp:20348-20399`) sets dirty entries unchanged after
+appending their SQL. Rust deliberately retains #169's existing confirmed-COMMIT
+timing: `save_current_player_to_db_with_generator_like_cpp` invokes completion
+only for Applied, and only the `player_skills` committed-group flag selects it.
+Failed/Unknown branches, transaction order and retry semantics are untouched.
+Skill tombstones belong to the Player lifetime, not the authenticated Session.
+
+The old u16-keyed conversion also removed wider IDs and selected the last
+duplicate. A private in-place normalization preserves that behavior explicitly,
+rather than silently repairing it in this refactor. The sole record replacement
+writer sorts IDs; retain/reverse/dedup/reverse preserves the exact winner/order.
+Save marks surviving rows unchanged, retains/adds deleted-slot tombstones and
+derives completeness from the previous occupied-slot proof. Identity cleanup
+clears tombstones, preserves load/completeness, and discards incomplete slot proof.
+No packet, SQL, clock, task, crate, trait, resource or new state mirror is added.
+
+Differential coverage compares 48 save/clear, active/detached, loaded/complete,
+occupied-proof combinations with mixed dirty states, distinct duplicates and a
+wide ID; it also pins dirty masks and no mutation without a committed skill group.
+Separate tests reject stale/missing owners and protect replacement state. Native
+coverage checks last-duplicate winner, removed wide ID, tombstones and retained
+Vec storage. Full replacement/load semantics remain open #578 work.
+
+AST adds only two fixture oracles (3,661 associated items); 714 fields, 282
+production/432 fixtures and 590 registry rows are unchanged, as is persistence
+evidence. Logical ceilings: Session 81,610 + 104,397 = 186,007; Player
+10,710 + 9,606 = 20,316. Retained impl-level fixture lines remain included in
+the LOC classifier, separately from the exact AST test classification.
+
+Validation on aarch64: world library 3,717 passed/zero failed/one ignored;
+entities library 708 passed/zero failed. Focused differential tests, world-server
+check, formatting/diff checks, syntax ownership, architecture check/self-test and
+quick validation pass. A missing type qualification found by the initial compile
+was corrected before these successful suites. Quick evidence:
+`target/validation-v2/manifests/20260905T055353.579092Z-490649-quick.json`.
+No install, restart, fresh capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Player owns occupied skill-slot authorization
 
 Ownership migration on `332ef103`: one generation-checked Player command now

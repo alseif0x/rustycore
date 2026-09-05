@@ -654,27 +654,17 @@ impl WorldSession {
     }
 
     fn mark_player_skills_saved_like_cpp(&mut self) {
-        let Some(mut records) = self.resolved_player_skill_records_like_cpp() else {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.fixture_mark_player_skills_saved_like_cpp();
             return;
-        };
-        let Some(mut tombstones) = self.resolved_player_skill_non_durable_tombstones_like_cpp()
-        else {
-            return;
-        };
-        for skill in records.values_mut() {
-            if skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
-                tombstones.insert(skill.skill_id);
-            }
-            skill.state = RepresentedPlayerSkillStateLikeCpp::Unchanged;
         }
-        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
-        let _ = self.replace_player_skill_runtime_exact_like_cpp(
-            records,
-            true,
-            occupied.is_some(),
-            occupied,
-            tombstones,
-        );
+        if self
+            .with_owned_player_mut_like_cpp(wow_entities::Player::mark_skill_records_saved_like_cpp)
+            .is_none()
+        {
+            return;
+        }
         self.sync_player_registry_state_like_cpp();
     }
 

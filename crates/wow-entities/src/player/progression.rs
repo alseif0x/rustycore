@@ -692,6 +692,49 @@ impl Player {
         &self.gameplay_state.non_durable_skill_tombstones
     }
 
+    // Preserve the old Session u16-keyed projection at lifecycle boundaries:
+    // exclude wider IDs and keep the last duplicate. The sole record writer
+    // sorts by ID, so reverse/dedup/reverse preserves that exact winner/order.
+    fn normalize_represented_skill_records_like_cpp(&mut self) {
+        let skills = &mut self.gameplay_state.skills;
+        skills.retain(|skill| u16::try_from(skill.skill_line_id).is_ok());
+        skills.reverse();
+        skills.dedup_by_key(|skill| skill.skill_line_id);
+        skills.reverse();
+    }
+
+    /// C++ Player::_SaveSkills (Player.cpp:20348-20399) consumes dirty states.
+    /// Rust invokes this only after a confirmed commit; keep that retry contract
+    /// and the represented deleted-slot tombstones without copying this Player.
+    pub fn mark_skill_records_saved_like_cpp(&mut self) {
+        self.normalize_represented_skill_records_like_cpp();
+        let state = &mut self.gameplay_state;
+        for skill in &mut state.skills {
+            if skill.state == PlayerSkillLoadState::Deleted {
+                state
+                    .non_durable_skill_tombstones
+                    .insert(skill.skill_line_id as u16);
+            }
+            skill.state = PlayerSkillLoadState::Unchanged;
+        }
+        state.occupied_skill_slots = state
+            .skills_complete
+            .then_some(state.occupied_skill_slots)
+            .flatten();
+        state.skills_loaded = true;
+        state.skills_complete = state.occupied_skill_slots.is_some();
+    }
+
+    /// Skill tombstones cannot cross the C++ Player lifetime. Preserve the
+    /// represented identity-boundary normalization and incomplete-slot clearing.
+    pub fn clear_skill_tombstones_for_identity_change_like_cpp(&mut self) {
+        self.normalize_represented_skill_records_like_cpp();
+        self.gameplay_state.non_durable_skill_tombstones.clear();
+        if !self.gameplay_state.skills_complete {
+            self.gameplay_state.occupied_skill_slots = None;
+        }
+    }
+
     pub fn enchanting_skill_value_like_cpp(&self, enchanting_skill_id: u16) -> u16 {
         self.gameplay_state
             .skills
