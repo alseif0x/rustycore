@@ -17,6 +17,20 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-05, #578 save-owner read — save projection and writeback debt.**
+  Verified on `b813d262`: `current_player_save_to_db_snapshot_like_cpp` uses
+  Session's staged level/map, although C++ `Player.cpp:19480-19514` reads Player
+  directly and substitutes only the persisted teleport destination. Rust also
+  projects dead health differently by residence: active reads force zero when
+  `is_alive()` is false, while detached reads clamp health to max without that
+  gate; C++ writes `GetHealth()` (`19557`). The existing
+  `sync_session_from_save_to_db_snapshot_like_cpp` then reapplies position, level,
+  XP, money and health, including derived side effects, before the save request.
+  The single-owner read refactor preserves these rules and does not retire this
+  writeback bridge. Identity migration and separation of save-only destination
+  from runtime mutation remain explicit #578 work, not approved parity or a
+  deferred #153 exception. No reproduced live-client failure is asserted.
+
 - **2026-09-05, #578 talent-reset cost ownership — arithmetic boundary discrepancy.**
   Verified on `95cb0a34`: Rust's `next_reset_talents_cost_like_cpp` uses
   saturating time subtraction and fee addition, and a widened signed monthly

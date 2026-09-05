@@ -58,6 +58,41 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Save projection reads one generation-checked Player owner
+
+Ownership migration based on `b813d262`: the production save projection resolves
+one PlayerHandle and residence under one manager guard. Powers, XP, money,
+position, health and near-teleport state are read from that same Player. The
+previous repeated owner reads followed by a GUID scan of every map are gone
+from production; the former algorithm is a cfg(test)-only compatibility fixture
+and differential oracle. Missing/stale handles and GUID mismatch fail closed.
+
+C++ `Player.cpp:19323-19337,19480-19514,19557` defines the owner and save fields.
+The move preserves current Session level/map staging, far-before-near destination
+priority, destination instance zero, detached instance zero and residence-specific
+health normalization. Their boundaries and the retained snapshot writeback are
+documented in `EXISTING-CODE-DEFECTS.md`: this slice does not silently remove
+recalculation/relocation side effects or claim full Player::SaveToDB parity.
+The existing far-teleport save scheduling gate is unchanged. No SQL request,
+transaction, publication, packet metadata or runtime clock is modified.
+
+Four tests cover exact active/detached values, unchanged state/update fields,
+pending-destination precedence without relocation, represented dead-health
+projection, missing manager and stale replacement rejection. The same native
+fixtures are compared against the previous projection as well as explicit values.
+
+On aarch64, focused save-snapshot tests pass 13/0; `wow-world --lib` passes
+3,699/0 with one ignored. Syntax-only ownership and architecture check/self-test
+pass. The reviewed syntax delta adds only the private test fixture helper;
+3,659 total associated items, 284 production + 432 fixture fields, 590 opcode
+registrations and the bridge inventory are unchanged otherwise. The logical
+classifier measures 81,498 production + 103,356 test lines, including the retained
+cfg(test) oracle. This is read-path convergence, not retirement of the enclosing
+save writeback or the full persistence snapshot inventory.
+Formatting, diff checks and `validation-v2 quick` pass (exit 0), manifest
+`target/validation-v2/manifests/20260905T035454.402735Z-324754-quick.json`.
+No fresh capture, live runtime action, push or terminal acceptance is claimed.
+
 ### 2026-09-05 — Talent reset pricing belongs to canonical Player talent state
 
 Ownership migration based on `95cb0a34`: `PlayerTalentRuntimeState` now owns the

@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81427,
-          "test_lines": 103196,
-          "total_lines": 184623,
+          "production_lines": 81498,
+          "test_lines": 103356,
+          "total_lines": 184854,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 talent-reset price ownership: Session production shrinks 9 lines as the price rule moves onto PlayerTalentRuntimeState and reset-history scalar getters stop cloning talent groups. Two active/detached/stale/missing-owner tests grow Session tests by 78 lines. Player grows 28 production and 35 test lines for the unchanged rule and fourteen boundary cases. No new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 save snapshot read: production resolves one generation-checked Player/residence under one guard instead of repeated owner reads and an all-map GUID scan. Previous projection remains cfg(test)-only as fixture/differential oracle. The logical classifier grows 71 production-measured and 160 test lines, including four active/detached/teleport/health/stale-owner regressions. No new field, dependency, clock or runtime write; existing save writeback remains explicit #578 debt. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

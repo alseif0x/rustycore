@@ -10916,6 +10916,77 @@ impl WorldSession {
     pub(crate) fn current_player_save_to_db_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_player_save_to_db_snapshot_like_cpp();
+        }
+        let guid = self.player_guid()?;
+        let handle = self.player_handle_like_cpp?;
+        if handle.guid() != guid {
+            return None;
+        }
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let residence = manager.player_residence_like_cpp(handle)?;
+        // C++ Player.cpp:19480-19514 reads one Player and selects a save-only
+        // teleport destination. Resolve every mutable input under this same guard.
+        // Session map/level staging and the existing residence-specific health
+        // projection remain explicit compatibility debt, not a new source of truth.
+        manager.with_player_like_cpp(handle, |player| {
+            let teleport = &player.gameplay_state().teleport;
+            let destination = self
+                .pending_teleport
+                .map(|(map, position)| (u16::try_from(map).unwrap_or(u16::MAX), position))
+                .or_else(|| {
+                    teleport
+                        .near_pending
+                        .then_some(teleport.near_destination)
+                        .flatten()
+                });
+            let (map_id, instance_id, position) = if let Some((map_id, position)) = destination {
+                (map_id, 0, position)
+            } else {
+                let instance_id = match residence {
+                    wow_map::PlayerResidenceLikeCpp::Active(key) => key.instance_id,
+                    wow_map::PlayerResidenceLikeCpp::Detached => 0,
+                };
+                (
+                    self.player_map_id_like_cpp(),
+                    instance_id,
+                    player.unit().world().position(),
+                )
+            };
+            let unit = player.unit();
+            let max_health = unit.data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
+            let health = match residence {
+                wow_map::PlayerResidenceLikeCpp::Active(_) => {
+                    let health = unit.data().health.min(u64::from(u32::MAX)) as u32;
+                    if unit.is_alive() && health > 0 {
+                        health
+                    } else {
+                        0
+                    }
+                }
+                wow_map::PlayerResidenceLikeCpp::Detached => {
+                    unit.data().health.min(u64::from(max_health)) as u32
+                }
+            };
+            PlayerSaveToDbSnapshotLikeCpp {
+                guid,
+                map_id,
+                instance_id,
+                position,
+                level: self.player_level_like_cpp(),
+                xp: player.active_data().xp.max(0) as u32,
+                money: player.money(),
+                health,
+                max_health,
+                powers: loaded_character_power_snapshot_like_cpp(unit.data().power),
+            }
+        })
+    }
+
+    #[cfg(test)]
+    fn fixture_player_save_to_db_snapshot_like_cpp(&self) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
         let guid = self.player_guid()?;
         // C++ saves through this session's exact `Player*`. Resolve the raw
         // power array through the generation-checked owner before any spatial

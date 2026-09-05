@@ -26,6 +26,8 @@ mod pending_cast_owner;
 mod routing;
 #[path = "session/tests/save_plan_order.rs"]
 mod save_plan_order;
+#[path = "session/tests/save_snapshot_owner.rs"]
+mod save_snapshot_owner;
 #[path = "session/tests/session_account_state.rs"]
 mod session_account_state;
 #[path = "session/tests/spell_history_owner.rs"]
