@@ -30,6 +30,8 @@ pub struct PlayerGameplayState {
     pub occupied_skill_slots: Option<u16>,
     pub non_durable_skill_tombstones: BTreeSet<u16>,
     pub spells: PlayerSpellRuntimeState,
+    /// C++ `Player::_pendingSpellCastRequest`; independent of the active Unit cast.
+    pub pending_spell_cast: Option<crate::PendingSpellCastRequestLikeCpp>,
     pub talents: PlayerTalentRuntimeState,
     /// C++ `Player::_questRewardedTalentPoints`.
     pub quest_rewarded_talent_points: u32,

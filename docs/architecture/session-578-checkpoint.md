@@ -12,7 +12,7 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 ## Exact membership and remaining work
 
 After the 2026-09-05 hotfix capability slice, the AST has **719 WorldSession fields:
-291 production and 428 test fixtures**. The runtime
+290 production and 429 test fixtures** after the pending-cast ownership slice. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -36,7 +36,7 @@ The following are still open #578 work, not stable exceptions or work deferred t
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
   remove Session map selection/gameplay and the remaining legacy/canonical bridges incrementally.
-- Inventory/loot/economy has 15 remaining production members, spells/progression 20,
+- Inventory/loot/economy has 15 remaining production members, spells/progression 19,
   movement/combat seven, social three, and the unresolved residual 18. The exact field lists
   remain executable ledger data; their inclusion does not endorse their current owner.
 - Handler and external Session impl bodies still coordinate gameplay. Moving data to Player
@@ -55,6 +55,45 @@ aggregate stays in world-server, not wow-network. Its `install_into_session_like
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — Player owns the pending cast request
+
+Ownership migration based on `5e925671`: `PlayerGameplayState::pending_spell_cast`
+holds the queued request. The former Session field is `cfg(test)` only, used solely
+when no PlayerHandle is installed. Private query/mutation bridges resolve the
+current generation for active and detached Players; unknown ownership is `None`,
+distinct from a valid owner with an empty queue. No new mirror is synchronized.
+
+C++ `Player.cpp:29078-29106` owns request replacement and cancellation;
+`29109-29127` defines the 400ms admission window and begins pending execution.
+Rust retains its represented deferred tick, cooldown/active-cast gates, validation,
+cancel-before-replace publication, and removal-before-execution order. The tick
+revalidates generation plus cast/spell/caster identity before taking the current
+request; it executes the taken value rather than a previously cloned payload.
+The guard is released before `CastFailed`, spell execution or any await. This does
+not change SQL, packet routes, queue timing or the separate active-cast clock;
+full C++ item/possession/override request policy remains outside this slice.
+
+Focused coverage checks owner-lock/exactly-once access, active/detached replacement
+and cancellation with byte-exact old/new cast IDs, empty cancellation, fixture
+non-mirroring, stale-generation/missing-owner rejection and replacement preservation.
+A canonical-owner tick test rejects an unknown spell once and leaves the queue empty.
+The active cast and two represented cooldown timestamps still belong to Session;
+their migration and the broader MapRuntime/application cut remain open #578 work.
+
+Validation on aarch64: `wow-world --lib` passes 3,683 / zero failures / one ignored;
+`wow-entities --lib` passes 694 / zero failures. Syntax-only ownership,
+architecture check/self-test, formatting and diff checks pass. Reviewed inventory
+delta: one field becomes test-only, two private access bridges are added, and the
+Session bridge surface fingerprint changes with that cfg annotation; no bridge row
+is closed. Totals are 290 production + 429 fixtures, 3,658 associated items and 590
+registry entries. Logical Session production 81,313 -> 81,351 (+38), tests
+102,621 -> 102,744 (+123). No new dependency edge or runtime clock.
+The first quick run caught a test GUID argument type mismatch, corrected before
+the successful `validation-v2 quick --base origin/3.4.3` run; manifest
+`target/validation-v2/manifests/20260905T021732.877401Z-190684-quick.json` records the
+worktree based on `5e925671`, not a clean post-commit final. No live install, fresh
+capture, push or terminal architecture acceptance is claimed.
 
 ### 2026-09-05 — packet-independent retained cast data
 

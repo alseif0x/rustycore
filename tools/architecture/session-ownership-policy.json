@@ -4196,8 +4196,10 @@
           "name": "represented_pending_spell_cast_request_like_cpp",
           "type": "Option < RepresentedPendingSpellCastRequestLikeCpp >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_personal_loot_money",
@@ -31437,6 +31439,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_pending_spell_cast_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_pending_spell_cast_like_cpp < R > (& mut self , f : impl FnOnce (& mut Option < RepresentedPendingSpellCastRequestLikeCpp >) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_aura_subsystem_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_player_aura_subsystem_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: AuraSubsystem) -> R ,) -> Option < R >",
@@ -32154,6 +32167,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "pending_spell_cast_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn pending_spell_cast_snapshot_like_cpp (& self ,) -> Option < Option < RepresentedPendingSpellCastRequestLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -75908,7 +75932,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:70a224732ff5a3f9a499cbe350025a40:len=96684|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d4ab342e155482cd6c0bd19c10a221e2:len=96699|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

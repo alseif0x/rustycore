@@ -6995,6 +6995,7 @@ pub struct WorldSession {
     /// C++ `Player::_pendingSpellCastRequest`, represented separately from
     /// `active_spell_cast` so cancel queued spell does not interrupt a cast
     /// already in progress.
+    #[cfg(test)]
     pub(crate) represented_pending_spell_cast_request_like_cpp:
         Option<RepresentedPendingSpellCastRequestLikeCpp>,
     /// Last time a spell was executed (used to enforce global cooldown timers).
@@ -9115,6 +9116,7 @@ impl WorldSession {
             #[cfg(test)]
             represented_push_quest_to_party_outcomes_like_cpp: Vec::new(),
             active_spell_cast: None,
+            #[cfg(test)]
             represented_pending_spell_cast_request_like_cpp: None,
             last_spell_cast_time: None,
             last_spell_cast_time_per_spell: HashMap::new(),
@@ -61042,7 +61044,10 @@ impl WorldSession {
     }
 
     pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
-        let Some(request) = self.represented_pending_spell_cast_request_like_cpp.take() else {
+        let Some(request) = self
+            .mutate_pending_spell_cast_like_cpp(Option::take)
+            .flatten()
+        else {
             return false;
         };
 
@@ -61055,6 +61060,29 @@ impl WorldSession {
             fail_arg2: 0,
         });
         true
+    }
+
+    fn pending_spell_cast_snapshot_like_cpp(
+        &self,
+    ) -> Option<Option<RepresentedPendingSpellCastRequestLikeCpp>> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_pending_spell_cast_request_like_cpp.clone());
+        }
+        self.with_owned_player_like_cpp(|player| player.gameplay_state().pending_spell_cast.clone())
+    }
+
+    fn mutate_pending_spell_cast_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(f(&mut self.represented_pending_spell_cast_request_like_cpp));
+        }
+        self.with_owned_player_mut_like_cpp(|player| {
+            f(&mut player.gameplay_state_mut().pending_spell_cast)
+        })
     }
 
     pub(crate) fn remaining_global_cooldown_ms_like_cpp(
@@ -61090,13 +61118,8 @@ impl WorldSession {
         &mut self,
         request: RepresentedPendingSpellCastRequestLikeCpp,
     ) {
-        if self
-            .represented_pending_spell_cast_request_like_cpp
-            .is_some()
-        {
-            self.cancel_pending_spell_cast_request_like_cpp();
-        }
-        self.represented_pending_spell_cast_request_like_cpp = Some(request);
+        self.cancel_pending_spell_cast_request_like_cpp();
+        let _ = self.mutate_pending_spell_cast_like_cpp(|pending| *pending = Some(request));
     }
 
     pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
@@ -61104,7 +61127,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
-        let Some(request) = self.represented_pending_spell_cast_request_like_cpp.clone() else {
+        let Some(request) = self.pending_spell_cast_snapshot_like_cpp().flatten() else {
             return;
         };
         if Some(request.casting_unit_guid) != self.player_guid() {
@@ -61127,7 +61150,22 @@ impl WorldSession {
             return;
         }
 
-        self.represented_pending_spell_cast_request_like_cpp = None;
+        let Some(request) = self
+            .mutate_pending_spell_cast_like_cpp(|pending| {
+                if pending.as_ref().is_some_and(|current| {
+                    current.cast_id == request.cast_id
+                        && current.spell_id == request.spell_id
+                        && current.casting_unit_guid == request.casting_unit_guid
+                }) {
+                    pending.take()
+                } else {
+                    None
+                }
+            })
+            .flatten()
+        else {
+            return;
+        };
         if let Err(error) = self
             .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                 item_guid_generator,

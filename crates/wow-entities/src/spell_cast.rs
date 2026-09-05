@@ -106,7 +106,7 @@ pub struct SpellCastState {
 }
 
 /// Represented player-caster queue payload; cancellation does not cancel the active cast.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PendingSpellCastRequestLikeCpp {
     pub cast_id: ObjectGuid,
     pub spell_id: i32,
