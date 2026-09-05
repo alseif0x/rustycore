@@ -286,6 +286,12 @@ diagnosed issue. No perpetual candidate competition or permanent second mutable 
 
 Passing isolated conformance does not waive these production requirements under C0–C4:
 
+Apply the [explicit reanalysis cadence](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication):
+review the first real C1/C2 operation, including its C0 execution contract, before replicating
+the pattern. C4 balances the complete #578 acceptance before #583 production integration;
+#153 independently audits both merged macros. The later #47/M6.2 review covers the whole port,
+not just this storage decision. These checkpoints do not introduce new routine approvals.
+
 1. **Stateful family:** exercise a real domain-shaped behavior with mutable per-creature and
    per-instance state, conditional timers, summon success/failure, callbacks, reset and saved
    encounter progress. Anomalus/Nexus is the C++ reference case
@@ -498,6 +504,11 @@ Follow the [approved modularity plan](../architecture/modularity-and-ecs-plan.md
 #578 checkpoint. These are coherent internal checkpoints within one macro, not a micro-PR or
 approval per component. First run the finite selected-design conformance proof above. Neither the
 selection nor that proof replaces or narrows any C0–C4 exit contract:
+
+Safe same-owner file/test decomposition can precede or accompany conformance: that gate controls
+production storage migration, not physical organization. Apply the independent semantic and
+physical acceptance in [module design guidelines](../architecture/module-design-guidelines.md)
+to each C2 family and the C4 closeout; a cohesive aggregate is not an unlimited file exception.
 
 1. **C0 — Execution contract:** establish admitted residence, owner, exact phase/callback barriers,
    persistence and publication for each affected operation. Define the shared contracts of both

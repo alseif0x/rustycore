@@ -1,5 +1,10 @@
 # Migration: Entities / Unit
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/`
 > **Rust target crate(s):** `crates/wow-world/` (live state, currently `WorldCreature` flat fields), `crates/wow-ai/` (legacy `CreatureAI` doubling as creature body), `crates/wow-combat/` (combat math — partial), `crates/wow-spell/` (auras — partial), `crates/wow-constants/` (`UnitFlags`, `MovementFlags`, `Powers`, `Stats`, `SpellSchools`)
 > **Layer:** L4 (sub-modules — rooted under `entities.md`)

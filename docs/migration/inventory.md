@@ -1,5 +1,10 @@
 # Migration: Inventory / Player Storage
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Entities/Item/`, `src/server/game/Entities/Player/PlayerStorage.cpp` (logical split of `Player.cpp`), `src/server/game/Handlers/ItemHandler.cpp` + `BankHandler.cpp` + `VoidStorageHandler.cpp`, `src/server/game/Server/Packets/ItemPackets*.cpp`/`BankPackets.cpp`/`VoidStoragePackets.cpp`
 > **Rust target crate(s):** `crates/wow-data/` (Item.db2, ItemTemplate, ItemStats), `crates/wow-world/` (handlers, session inventory state), `crates/wow-database/` (item_instance + character_inventory + character_void_storage + character_transmog_outfits + character_equipmentsets prepared statements), `crates/wow-packet/` (item/bank/void packets)
 > **Layer:** L4 (item entity) + L6 (player storage logic + handlers) — straddles layers; primary index entry is L6.

@@ -1,5 +1,10 @@
 # Migration: Reputation
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Reputation/` + `src/server/game/Server/Packets/ReputationPackets.cpp/.h`
 > **Rust target crate(s):** `crates/wow-world/` (per-session ReputationMgr), `crates/wow-data/` (FactionEntry/FactionTemplateEntry DB2 readers), `crates/wow-database/` (character_reputation prepared statements), `crates/wow-packet/` (reputation packets)
 > **Layer:** L6

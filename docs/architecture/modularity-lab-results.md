@@ -6,23 +6,23 @@ conformance proof before production migration. That later choice supersedes the 
 recommendation* below, not these measurements or their limits. No second-language or third-module
 experiment has run; the Wasm guest's schema-v2 test is not such an experiment.
 
-## Reviewed verdict
+## Laboratory verdict and current planning boundary
 
 **The corrected laboratory passes its functional and pre-registered resource gates.** It is
 complete as an experiment, not a production backend migration or an external-module delivery.
 
 | Axis | Decision supported by this evidence | What it does not authorize/prove |
 | --- | --- | --- |
-| Entity storage | Advance selective private `hecs` to the affected-family integration cut inside #578; retain cohesive aggregates for their invariants | No global ECS rewrite or wholesale Player decomposition; composition/maintenance superiority still needs real consumers |
+| Entity storage | Feasibility of selective private `hecs` at the tested costs; retain cohesive aggregates for their invariants | No global ECS rewrite, wholesale Player decomposition or permission to skip the later independent-module conformance gate |
 | Module execution | Retain trusted native Rust as the initial default; Core Wasm is technically feasible for a concrete isolation need on this contract | No reason to require Wasm for all scripts; no production sandbox, public ABI, hot reload or WIT guarantee |
 | Modularity | Share semantic capabilities and lifecycle rules independently of storage/execution; use #583's two real external consumers as acceptance | Neither a faster container nor a sandbox replaces the module contract, durable receipt or operator workflow |
 
-The immediate next implementation remains the complete #578 owner/lifetime/operation work.
-Use one real stateful family and its second composition case to finish the integration gate;
-replace the superseded representation in that cut, not maintain two authorities. Do not repeat
-synthetic runs instead of proving production save/transfer/admission and module independence.
-If the affected real family lacks the composition benefit or fails correctness/resource needs,
-retain its aggregate storage with that reason recorded. No new experiment or micro-PR tree is needed.
+The later approved plan selects hecs but requires its finite independent-module/native-Wasm
+conformance proof **before production storage migration**. This replaces the experiment's initial
+recommendation to proceed directly to affected-family integration; it does not change the data.
+Then review the first real C1/C2 vertical before replicating the pattern, complete C4 before #583,
+and audit both macros in #153. See the [current review cadence](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication).
+Do not repeat V1 timings as a substitute for those missing contracts or create micro-PRs per hook.
 
 ## Corrected measurements
 

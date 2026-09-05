@@ -13,14 +13,16 @@ The guarded C++ and Rust `15691` evidence was recaptured from clean harness HEAD
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
-1.8 MB append-log `current-session-handoff.md`. Its historical capability matrix is **grounded in
+old append-log, now referenced through `current-session-handoff.md`'s Git-history pointer.
+Its historical capability matrix is **grounded in
 the named code audit down to subsystem/subdependency level**, not in what prior docs or the
 inventory TSV claim. Architecture decisions: [adr-runtime-tick-ownership.md](adr-runtime-tick-ownership.md).
 Forward plan: [PORT_PLAN.md](PORT_PLAN.md). Bugs found in already-shipped code:
-[EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md). C#-reference contrast vs C++ (51
-findings, 25 open → tracked as GitHub issues #50–#64, index #65; feeds plan ledger L26).
-Audit docs kept local/uncommitted: `../audits/csharp-reference-audit.md` +
-`../audits/csharp-reference-contrast.md`.
+[EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md). Source-verification issues #50–#64
+and index #65 retain traceability under plan ledger L26, not authority for their original
+diagnoses or finding counts. Recheck selected residuals against current Rust and exact C++
+sources; preserve only independently supported behavior and evidence in the
+[C++ findings](../audits/cpp-parity-findings.md).
 
 Repository refactors are governed by
 [`docs/architecture/ownership-and-boundaries.md`](../architecture/ownership-and-boundaries.md):
@@ -40,6 +42,13 @@ commits/checkpoints do not create micro-issues, micro-PRs or a new approval gate
 contract-led plan, exact inventories, acceptance evidence and remaining boundaries live in
 [`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md). #153 verifies the
 complete result; it is not an implementation owner for already-known cuts.
+
+The [explicit reanalysis cadence](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
+is conformance before production storage migration, then review of the first real C1/C2 vertical
+with C0 execution evidence before replicating its design. C4 checks the complete #578 balance
+before #583 production integration; #153 audits both merged macros. After architecture, review
+each selected gameplay macro just in time and perform the fresh whole-port planning pass at
+#47/M6.2. No checkpoint introduces another routine approval, issue or PR.
 
 At the reviewed local HEAD, canonical `wow_entities::Player` owns the migrated gameplay families
 and `wow_map::MapManager` coordinates its generation-checked active/detached lifetime. The former
@@ -94,8 +103,8 @@ or downloads artifacts. Exact legacy hashes or explicit schema fingerprints prov
 TDB343.24081 transition without reapplying already-materialized RustyCore DDL. Baseline artifact
 acquisition remains #255 and the terminal persistence audit remains #153.
 
-Trainer architecture note (issues #157/#158/#159): list and the intentionally undispatched buy
-adapter share one immutable offer decision. Normal trainer teaching now revalidates that decision
+Trainer architecture note (issues #157/#158/#159, later dispatched by #142): list and the buy
+adapter share one immutable offer decision. Normal trainer teaching revalidates that decision
 under the exclusive money owner, commits effective money plus the exact #164 spell/skill result in
 one Character DB transaction, attributes unknown COMMIT outcomes with a durable 128-bit operation
 token, installs runtime state, and then publishes money, visual kits 179/362 and acquisition actions
@@ -164,11 +173,13 @@ and merely plausible optimizations do not meet that bar.
 
 ---
 
-## 0. The central architectural truth: the "represented" pattern
+## 0. Historical capability audit: the "represented" pattern
 
-Most of the server is built on a **`represented_*_like_cpp` pattern**: a packet handler
-**decodes the request, validates the C++ rules, and records the *intent*** — but **defers
-the actual game-state mutation to a live runtime layer that mostly does not exist yet.**
+The historical audit found many **`represented_*_like_cpp` paths** where a handler decoded
+and validated a request but recorded intent without the required live mutation. This explained
+why represented breadth was not playable parity. It is not a current rule that every function
+with that suffix is inert: later paths directly mutate canonical owners. Trace the selected
+operation from admission through mutation, persistence and publication before diagnosing it.
 
 - Where the mutation path *was* wired, the feature genuinely **WORKS** (melee combat,
   bounded creature aggro/threat and spell-wire publication, inventory move/equip/destroy,
@@ -458,7 +469,7 @@ topology/order and correlated payload semantics.
 
 ---
 
-## 1. The honest progress picture (three axes, not one number)
+## 1. Historical progress picture (three axes, not one number)
 
 Historical capability snapshot at the audit base above, not measured percentages for #578 or
 current HEAD. The current architecture checkpoint reports acceptance boundaries separately.
@@ -473,7 +484,7 @@ Part 1 of the plan drives **B** to complete; Part 2 drives **C** to complete.
 
 ---
 
-## 2. Grounded capability matrix (verified to subsystem level)
+## 2. Historical capability matrix and bounded additions
 
 This matrix records the historical subsystem audit and its explicitly dated additions. Its old
 paths and statuses are discovery pointers, not proof that the same gap still exists at HEAD.
@@ -491,7 +502,7 @@ observable mutation · **ABSENT**.
 | Capability | Status | Evidence / defects |
 |---|---|---|
 | Auth/BNet SRP6 + world-enter handshake | WORKS | recent `fix(bnet)` commits; played live |
-| Player base/stat projection | **PARTIAL (live)** | issue #60 replaces the C# `player_levelstats` path with `player_racestats` + `player_classlevelstats`, `GtBaseMP`, `CreateHealth=0` and a shared create/login/equipment/level-up StatSystem projection. Login now seeds passive parry/block capability before projection and defers its saved-health clamp until persisted stat auras and represented item/enchantment modifiers are active; live total-stat aura recalculations retain those item bonuses and emit no pre-CreateObject VALUES delta. Paired accredited C++/Rust login captures match the scoped max-health/mana, five primary stats, armor, base mana, AP and damage fields exactly, including the 3% total-stat racial passive. The complete login `UpdateObject` still has unrelated field divergences, and wider unit-mod/aura/item-stat parity remains open. |
+| Player base/stat projection | **PARTIAL (live)** | issue #60 replaces the incorrect `player_levelstats` path with C++-anchored `player_racestats` + `player_classlevelstats`, `GtBaseMP`, `CreateHealth=0` and a shared create/login/equipment/level-up StatSystem projection. Login seeds passive parry/block capability before projection and defers its saved-health clamp until persisted stat auras and represented item/enchantment modifiers are active; covered total-stat aura recalculations retain those item bonuses and emit no pre-CreateObject VALUES delta. The recorded paired C++/Rust login captures match the scoped max-health/mana, five primary stats, armor, base mana, AP and damage fields, including the 3% total-stat racial passive. That evidence does not establish complete login `UpdateObject` or wider unit-mod/aura/item-stat parity, which remain open. |
 | Starting skills and skill-rewarded login spells | **WORKS (scoped issue #62)** | `SkillRaceClassInfo` now follows C++ `Availability`/`MinLevel`; default skill rank/max/step follows language, level, mono, tier, always-max and DK rules; loaded rows are normalized like `_LoadSkills`; and the live no-DB-spell login path applies `LearnSkillRewardedSpells` with real spell levels, quest fallback, Riding, masks and actual skill values. Correct WDC4 inline IDs restore Common-compressed `SkillLineAbility` fields. A live Blood Elf Hunter C++/Rust pair yields the same exact 43-spell set under the reviewed unordered-map comparator; bit/count/list/favorites integrity remains strict. Wider skill gain/update/discovery/unlearn runtime remains in L18. |
 | Player movement + broadcast to nearby | WORKS⚠ | `movement.rs:310`; trust-client position (D-H10), creature destroy deferred (D-H15), async CREATE race (D-H14) |
 | Melee combat (deals damage→death→loot) | **PARTIAL** | `session.rs:47635`; **no damage formula / hit table / armor mitigation** (D-H1, D-H2) — numbers are wrong |
@@ -579,7 +590,7 @@ refresh · Weather · Warden · Calendar · Petitions · Pet/Totem AI. Empty cra
 
 ---
 
-## 3. Known live bugs blocking "playable" (open after issues #7 and #8)
+## 3. Historical playable-blocker notes and bounded fixes
 
 Issue #7's CUF login crash is fixed on its branch: Rust now matches the exact C++
 post-add order, and a paired live capture with one non-empty profile pins the
@@ -642,4 +653,6 @@ acceptance: preserve bytes, metadata, connection and order with focused evidence
 required action-specific capture/live evidence when the change or acceptance calls for it.
 Report a bounded proof as bounded, and distinguish code tests, historical golden regression,
 fresh runtime evidence and full functional parity. Architecture completion requires the complete
-#133/#578 contracts and #153 audit, not a favorable field count or test total.
+#133/#578/#583 contracts (including the operator-optional Wasm delivery and independent physical
+acceptance) and #153 audit, not a favorable field count or test total. Neither architecture
+closure nor playable M6 closes the full Part-2 parity ledgers.

@@ -1,5 +1,10 @@
 # 🦀 RustyCore - Fase 2 Implementada
 
+> Afirmaciones históricas de un intento fallido, no implementación ni aceptación
+> actuales. No ejecutar las propuestas de integración de este documento.
+> Consultar [el índice del archivo](README.md) y
+> [STATE.md](../../../docs/migration/STATE.md).
+
 ## ✅ Componentes Creados
 
 ### 1. MapManager Global (`crates/wow-world/src/map_manager.rs`)

@@ -1,5 +1,10 @@
 # Migration: Social (Friends, Ignore, Inspect)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Handlers/SocialHandler.cpp` + `src/server/game/Entities/Player/SocialMgr.{h,cpp}` + `src/server/game/Globals/ObjectMgr.cpp` (player name cache)
 > **Rust target crate(s):** `crates/wow-social/` (empty placeholder), `crates/wow-world/src/handlers/social.rs`, `crates/wow-world/src/handlers/inspect.rs`, `crates/wow-packet/src/packets/social.rs`, `crates/wow-packet/src/packets/inspect.rs`
 > **Layer:** L6

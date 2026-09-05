@@ -7,6 +7,10 @@ snapshot, fixture cleanup, and exact harness HEAD.
 
 ## Fixture contract
 
+Runtime recording uses the PM2 capture fixture environment. The current systemd
+smoke is not a substitute for this journal/provenance contract; consult the
+[recording boundary](../../README.md#recording-a-capture) before a new run.
+
 `fixture/fixture.json` pins map `1`, world grid `50,26`, the reserved Tender
 entry/spawn `15271/9102401`, disposable character `15`, every action coordinate,
 and SHA-256/size for:

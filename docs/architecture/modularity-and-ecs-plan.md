@@ -284,6 +284,25 @@ Player work. The production module product
 is one subsequent #583 PR, not a series of greeting-size deliverables. Internal focused commits
 and checks are not user approval gates; runtime/publication authority remains separate.
 
+### Reanalysis checkpoints — evidence before replication
+
+These reviews happen inside the approved macros; they do not create another issue, PR or
+routine approval request. Continue authorized work after a passing checkpoint. A failure pauses
+the affected migration while its cause is investigated and corrected within scope.
+
+| Point | Question the evidence must answer |
+| --- | --- |
+| Before production storage migration — #578 conformance (§5) | Can the frozen host accept independent state and native/Rust-Wasm/C-Wasm composition without module-specific core edits, duplicate authority, stale reentrant writes or violated limits? This finite gate can falsify a concrete backend premise; V1 did not pass it. |
+| First production C1/C2 vertical, with its C0 contract — before replicating the pattern | Does one complete operation work through real admission, canonical lifetime/save and ordered publication, including controlled I/O, late acknowledgements, replacement/detach and affected phase/backpressure failures? Check semantic ownership and physical source/test boundaries together. A fixture-only success or renamed phase cannot justify scaling the pattern. |
+| C4 — complete #578 balance, before #583 starts production integration | Do all C0–C4 exits hold at the validated SHA, including every remaining owner/bridge, inherited decision, persistence classification and physical-file exception? Reconcile the whole macro, not only its last successful vertical; #583 must not inherit unfinished Session work. |
+| #583 first real external-module integration, before extending its API | Can independent authors exercise the shared hooks and state contract without a core patch? Validate the supported native/Wasm behavior and real durable/operator lifecycle as they become available; do not extrapolate from a greeting or mock replay. |
+| #153 after both macros merge | Independently audit the complete #133 acceptance and evidence at integration HEAD. Known implementation work stays with #578/#583, not the auditor. |
+| After architecture, then #47/M6.2 | Re-audit each selected gameplay macro just in time. At the playable exit, perform the fresh whole-port state/plan review before decomposing Part 2/#48; architecture closure is not full-port parity. |
+
+The first production vertical is a focused design stress test, not a second global architecture
+audit. Repeat a broader review earlier only when evidence invalidates a shared contract or the
+approved scope materially changes; do not wait for #153 to discover a pattern-wide defect.
+
 ### #583 reference capability and acceptance
 
 Use one externally maintained encounter/progression module and a second separately configured

@@ -22,13 +22,15 @@ The project is usable for parts of the login/world-entry path and contains a lar
 RustyCore currently targets:
 
 - **Client:** WotLK Classic `3.4.3.54261`
-- **Tested game build:** `51943`
+- **Historical test game build:** `51943`; each capture/runtime report must identify its actual build
 - **World DB expectation:** `TDB 343.24081`, `cache_id = 24081`
 - **Reference implementation:** TrinityCore/WotLK-style C++ source
 - **Integration and default branch:** `3.4.3`
 - **Development flow:** feature branches -> PRs into `3.4.3`; `main` is an optional stable pointer
 
-Modern client systems that are not part of the WotLK gameplay target, such as Battle Pets and Black Market, can exist in notes or partial code because the source tree has modern-era surface area. They are parked for future-version work and are not current WotLK migration priorities.
+The inherited server tree includes modern-era surfaces such as Battle Pets and Black Market.
+Their presence in Rust does not prove client support or live parity. Execution priority follows
+the current port plan; the full C++-parity goal is not silently narrowed by a README exclusion.
 
 ## Current Status
 
@@ -41,16 +43,24 @@ The important distinction is:
 
 Represented logic is useful, but it is not the same thing as a complete running server. The remaining high-value work is mostly around live runtime convergence: maps, movement, combat, visibility/fanout, respawns, scripts, and the exact order of C++ world/map updates.
 
-Current state is tracked in:
+Start with the [documentation map](docs/README.md). Current state and execution are tracked in:
 
-- [docs/migration/honest-progress-audit.md](docs/migration/honest-progress-audit.md)
-- [docs/migration/current-session-handoff.md](docs/migration/current-session-handoff.md)
-- [docs/MIGRATION_ROADMAP.md](docs/MIGRATION_ROADMAP.md)
-- [docs/migration/adr-runtime-tick-ownership.md](docs/migration/adr-runtime-tick-ownership.md)
+- [STATE.md](docs/migration/STATE.md): dated implementation and evidence boundaries.
+- [PORT_PLAN.md](docs/migration/PORT_PLAN.md): the current execution plan and full-parity goal.
+- [Session #578 checkpoint](docs/architecture/session-578-checkpoint.md): the active macro.
+- [Modularity/ECS plan](docs/architecture/modularity-and-ecs-plan.md) and
+  [module design guidelines](docs/architecture/module-design-guidelines.md): current direction
+  and jointly required semantic/physical acceptance.
+
+The frozen handoff, old roadmap and percentage audits remain historical references, not
+competing sources of current state. No documentation update is a new whole-port parity audit.
 
 Older summaries and checklist percentages can drift. For port work, the C++ source and current Rust code are the authority.
 
 ## Architecture Snapshot
+
+Documentation checked at `7eaf8ddc` (2026-09-05); this is not a new runtime deployment or
+whole-port parity audit. Current decisions and remaining acceptance live in the links above.
 
 The runtime is intentionally in a transition state while the port moves from session-owned behavior toward map-owned behavior.
 
@@ -59,7 +69,10 @@ The runtime is intentionally in a transition state while the port moves from ses
 - `wow-world` contains `WorldSession`, packet handlers, represented player/gameplay logic, and the legacy shared map manager.
 - `wow-map` contains the canonical map-runtime direction: map update loop, map-owned objects, grids, respawns, and long-term world ownership.
 - `wow-packet` owns packet read/write types and wire-shape tests.
-- `wow-database` owns SQLx database access and prepared statement definitions.
+- `wow-entities` contains canonical domain state and invariants, including Player.
+- `wow-session` contains the extracted transport/session kernel, not gameplay ownership.
+- `wow-persistence` defines SQLx-free semantic operation contracts.
+- `wow-database` owns concrete SQLx adapters and prepared statement definitions.
 - `wow-data` owns DBC/DB2-style data loading and typed stores.
 
 The current runtime split is:
@@ -76,7 +89,10 @@ That split is a migration bridge, not the final design.
 - **Tokio** — async runtime and networking
 - **Axum** — Battle.net REST API
 - **SQLx + MariaDB** — login/auth, characters, world, and hotfix databases
-- **hecs** — ECS experiments and entity storage work
+- **hecs** — selected private, selective storage direction; isolated experiments only today,
+  with conformance and production integration still pending
+- **Wasmtime/Core Wasm** — planned operator-optional executor of shared module contracts;
+  not an installed production SDK or a promise of arbitrary-language support
 - **prost** — protobuf support for Battle.net protocol messages
 - **tracing** — structured logging
 - **zlib/miniz_oxide** — packet and account-data compression helpers
@@ -94,9 +110,14 @@ crates/
   wow-packet/        Packet serialization/deserialization
   wow-handler/       Packet handler metadata and dispatch support
   wow-world/         WorldSession, handlers, represented game logic
+  wow-session/       Extracted transport/session kernel
+  wow-entities/      Canonical domain entities and invariants
   wow-map/           Canonical map and runtime structures
   wow-data/          DBC/DB2 data loading and stores
   wow-database/      SQLx database layer and prepared statements
+  wow-persistence/   Semantic persistence contracts without SQLx
+  wow-module-api/    Current bounded source-module API
+  world-modules/     Generated module composition
   wow-ai/            Creature AI work
   wow-chat/          Chat validation and routing helpers
   wow-loot/          Loot logic
@@ -109,10 +130,12 @@ crates/
 Important documentation:
 
 ```text
-docs/migration/      Port notes, inventories, audits, roadmap
+docs/README.md       Documentation map and authority routing
+docs/migration/      Current state/plan plus marked historical records
+docs/architecture/   Current contracts, design decisions and checkpoints
 docs/operations/     Runtime and DB operation notes
 AGENTS.md            Agent/developer operating guide for this repo
-MIGRATION_STATUS.md  Older high-level migration status
+MIGRATION_STATUS.md  Redirect to the current state document
 ```
 
 ## Requirements
@@ -187,7 +210,8 @@ Expected startup evidence includes:
 - instance listener on `8086`
 - realm marked online
 
-If a C++ server is running on the same machine, stop it first and verify the ports are free before starting RustyCore.
+If another server occupies those ports, do not stop it implicitly. Coordinate an authorized
+runtime switch or use separately configured test ports before starting RustyCore.
 
 ## Smoke Testing
 
@@ -211,9 +235,9 @@ Manual client testing should only be claimed when it has actually been run for t
 Common focused commands:
 
 ```bash
-cargo fmt --all --check
+cargo fmt --all -- --check
 cargo test -p wow-packet account_data --lib
-cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes --lib
+PROTOC=/path/to/protoc cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes --lib
 PROTOC=/path/to/protoc cargo check -p world-server
 git diff --check
 ```
@@ -248,17 +272,19 @@ awk -F '\t' 'NF != 16 { print FNR ":" NF ":" $0; bad=1 } END { exit bad }' docs/
 
 Every meaningful gameplay change should follow this shape:
 
-1. Pick a documented gap.
+1. Work a real gap within the authorized issue; reproduce it if the historical diagnosis is stale.
 2. Find the exact C++ source references.
 3. Compare current Rust behavior against C++ before editing.
-4. Implement the smallest faithful slice.
+4. Implement coherent faithful slices within the approved macrodeliverable, not a PR per helper.
 5. Add focused positive and negative tests.
-6. Update migration docs and inventories.
+6. Update the owning checkpoint and any affected implementation inventory with evidence.
 7. Run checks.
 8. Commit the slice on its issue-linked feature branch.
-9. Run `./tools/validation-v2 final --base origin/3.4.3`.
-10. Push and open a PR into `3.4.3`. First-party remote jobs are intentionally skipped; external
-    contributions must pass every required hosted check.
+9. Continue the remaining authorized work; run `./tools/validation-v2 final --base origin/3.4.3`
+   from clean committed HEAD before publication.
+10. When push is authorized, push and open/update the issue's PR into `3.4.3`; that does not
+    authorize merging or deployment. First-party remote jobs are intentionally skipped; external
+    contributions retain the configured hosted checks/review.
 
 Do not bulk-close rows. Do not mark a runtime feature complete just because a packet parser exists. Do not trust existing Rust code just because it compiles.
 

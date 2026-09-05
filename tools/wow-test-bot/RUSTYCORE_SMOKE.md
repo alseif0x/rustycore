@@ -3,7 +3,7 @@
 This bot can be used as a headless client harness for RustyCore. Treat it as an
 E2E regression tool only: C++ TrinityCore remains the protocol/source-of-truth.
 
-## Current safe gate
+## Bounded login gate — live and mutating
 
 The first RustyCore gate is login-only:
 
@@ -13,6 +13,12 @@ BNet auth -> world auth -> CMSG_ENUM_CHARACTERS -> CMSG_PLAYER_LOGIN -> SMSG_LOG
 
 This intentionally does not run Dungeon Finder/LFG. LFG is a later gate, after
 the corresponding Rust server port is ready.
+
+Login is not read-only: authentication/session state and normal player login/logout
+can write the databases. The wrapper may also create missing disposable bot identities
+and an ignored password file by default. Use only authorized test identities and the
+approved runtime/DB targets; disabling bootstrap does not make gameplay read-only.
+Runtime swaps and destructive fixture modes retain their separate explicit guards.
 
 ## What was adapted
 
@@ -331,10 +337,11 @@ The expected report shape for a pass is:
 
 If no bot password is configured, the wrapper generates one in ignored
 `tools/wow-test-bot/.env.local` and exports it for the run. By default it also
-passes `--ensure-test-accounts`, which upserts only local `@bot.local` BNet/game
-account rows with SRP credentials matching that password, clears local test
-account lock/ban state, verifies the configured character GUID exists, and
-syncs `realmcharacters`.
+passes `--ensure-test-accounts`, which creates missing local `@bot.local`
+BNet/game identities or validates an already complete identity. It does not
+rewrite existing credentials, clear locks/bans, repair partial identities,
+reassign characters or overwrite an online/realm-count mismatch. Existing
+credentials and configured character ownership must match or the run fails.
 
 Disable these local QA helpers with:
 

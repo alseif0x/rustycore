@@ -1,5 +1,10 @@
 # Migration: Pets (Hunter/Warlock/Mage/DK guardians, NOT BattlePets)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Entities/Pet/` (`Pet`, `PetStable`, `PetDefines`) + `src/server/game/Handlers/PetHandler.cpp` + `src/server/game/Server/Packets/PetPackets.{h,cpp}` + the stable subset of `src/server/game/Handlers/NPCHandler.cpp` (`HandleRequestStabledPets` / `HandleStablePet` / `HandleStableSwapPet`)
 > **Rust target crate(s):** `crates/wow-world/src/pets/` (does not exist — no `Pet` entity, no `PetStable`, no spell book, no auras), `crates/wow-world/src/handlers/pets.rs` (does not exist — only the `handle_request_stabled_pets` info-stub at `handlers/character.rs:3042`), `crates/wow-packet/src/packets/pets.rs` (does not exist — none of the 16+ packet structs are defined), `crates/wow-database/` (no `character_pet`, `character_pet_declinedname`, `pet_aura`, `pet_aura_effect`, `pet_spell`, `pet_spell_cooldown`, `pet_spell_charges` schema or prepared statements). `crates/wow-constants/src/opcodes.rs` carries the opcode constants (~16 of them, see §7).
 > **Layer:** L6 (Game systems — depends on Entities/Creature L4, Spells L5, Auras L5, AI L6, Map/Grid L2, Player L4, ObjectAccessor L4; depended on by class-mechanic Scripts (Hunter, Warlock, Mage, DK), Group XP sharing, BG/Arena unsummoning logic)
@@ -404,7 +409,6 @@ DB2/DBC stores read by the Pet module:
 - A 3.4.3 client logging in as a Hunter or Warlock with a saved pet will not see its pet appear at all (no spawn flow), and the action bar will be blank because `SMSG_PET_SPELLS_MESSAGE` is never sent.
 - Casting a pet-summon spell (Hunter "Call Pet" 883, Warlock "Summon Imp" etc.) will currently produce nothing on the server — `Spell::EffectSummonPet` does not exist in Rust either.
 - Pet-related opcodes from the client are currently silently dropped (no match arm exists in the dispatcher for some of them — verify against `crates/wow-handler/src/lib.rs`). For 3.4.3, this means the client doesn't error — it just hangs waiting for `SMSG_PET_SPELLS_MESSAGE` after summon.
-- The C# reference at `/home/server/woltk-server-core/Source/` may have an incomplete pet implementation too — confirm before assuming the C# is authoritative for any specific behavior.
 
 **Tests existing:**
 - 0.
@@ -573,7 +577,6 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - **`HandleDismissCritter` can dismiss a battle pet** — see `_player->GetSummonedBattlePetGUID() == pet->GetBattlePetCompanionGUID()` clearing `SetBattlePetData(nullptr)`. For RustyCore (where battle pets are mostly N/A — see `battlepets.md`), this branch is dead code but the critter dismiss itself (`pet->ToTempSummon()->UnSummon()`) must still work for non-battle critters.
 - **Async query holder for `LoadPetFromDB`**: TC uses 6 prepared SELECTs run in parallel via `CharacterDatabase.DelayQueryHolder`. The Rust port can use `tokio::join!` on 6 sqlx queries but **must** preserve the after-complete ordering: if `session->GetPlayer() != owner || owner->GetPet() != this`, abort (player relogged or pet replaced mid-load).
 - **`character_pet.PetType` uses the 3.4.3 enum that has 4 entries reserved (`MAX_PET_TYPE=4`) but only 0/1 are used in current code.** Don't assume only-2-values when porting; future-compat may add `GUARDIAN_PET=2`, etc.
-- **C# reference quality**: the C# server at `/home/server/woltk-server-core/Source/` may have an incomplete pet implementation (the Rust port references it). When in doubt, the Trinity C++ is canonical for protocol/mechanics.
 
 ---
 

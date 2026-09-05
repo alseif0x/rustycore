@@ -1,5 +1,10 @@
 # Migration: Scripting (ScriptMgr framework)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Scripting/` (`ScriptMgr`, `ScriptReloadMgr`, `ScriptSystem`)
 > **Rust target crate(s):** `crates/wow-script/` (the framework: `ScriptMgr` equivalent + every `*Script` trait + dispatch tables); content scripts live in `crates/wow-scripts/` (covered by `scripts.md`).
 > **Layer:** L7 (Game systems framework — depends on virtually every L0–L6 layer because every script type takes pointers to game entities; depended on by `wow-scripts` and indirectly by every gameplay path that fires `ScriptMgr::On*` hooks).

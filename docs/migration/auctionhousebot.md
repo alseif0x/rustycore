@@ -1,5 +1,10 @@
 # Migration: AuctionHouseBot (AHBot)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/AuctionHouseBot/`
 > **Rust target crate(s):** *none yet* — would live under `crates/wow-world/src/auctionhousebot/` (alongside the future auction crate) or a new `wow-ahbot` crate. Depends on a working `AuctionHouseMgr` (see `auctionhouse.md`), which is also not yet ported.
 > **Layer:** L7 (game systems, opt-in fixture; depends on L6 AuctionHouse + L4 DB2 stores)

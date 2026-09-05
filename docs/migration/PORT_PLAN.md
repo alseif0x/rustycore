@@ -44,6 +44,13 @@ save/logout and publication/backpressure as applicable. The complete exhaustive/
 belongs at macro acceptance, not every internal commit. Required capture/runtime evidence remains
 an explicit gate, and this cadence grants no new deployment, push or merge authority.
 
+The [reanalysis checkpoints](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
+make the order explicit: conformance before production storage migration; review the first real
+C1/C2 vertical with C0 admission/phase evidence before replicating it; reconcile all C0–C4 at #578
+closeout before #583 production integration; audit both merged macros in #153. Review the next
+gameplay macro just in time, then the entire port at #47/M6.2 before Part 2 planning. These are
+evidence reviews inside the approved macros, not new issues or routine confirmation gates.
+
 After #133, re-audit the next port macro just in time against current Rust, C++ and existing
 evidence. Preserve links and hard dependencies from the ordered index while regrouping internal
 work around coherent responsibilities, not outdated table/field diagnoses. Report implemented,
@@ -99,14 +106,14 @@ remaining contract, rather than rebuilding from old diagnosis text.
 
 ---
 
-## Part 0 — Governance fixes (do first, cheap)
+## Part 0 — Governance contracts and retained implementation debt
 
-- [ ] **P0.1** Adopt [STATE.md](STATE.md) as the single status source; mark `_INDEX.md` /
-  `MIGRATION_ROADMAP.md` §3 status columns historical.
-- [ ] **P0.2** Freeze `current-session-handoff.md` (1.8 MB append-log); replace with a short
-  rolling note pointing at STATE.md + PORT_PLAN.md.
-- [ ] **P0.3** Fix the stale `AGENTS.md` "Current Checkpoint" (cites `1af9223`, 1402 commits
-  behind); re-anchor to audited HEAD; stop citing 96.97% / 98.15%.
+- **P0.1 — Active policy:** [STATE.md](STATE.md) owns dated current-state evidence;
+  historical migration tables are not current status authorities. Enter through [docs/README.md](../README.md).
+- **P0.2 — Active policy:** retain the old handoff through its Git-history pointer;
+  update the owning current checkpoint, STATE.md and PORT_PLAN.md instead of another append-log.
+- **P0.3 — Active policy:** AGENTS.md points to those authorities and the current workflow;
+  documentation changes do not create a new parity-audit base or revive old percentage headlines.
 - [ ] **P0.4** Retire `represented-complete` as a closure state in the inventory TSVs.
 - [x] **P0.5** (issue #66) Repeatable **capture-diff harness** stood up.
   - `crates/capture-diff/` — parses the C++ PKT 3.1 log + the Rust
@@ -322,8 +329,8 @@ Sequenced after/alongside the M0–M6 spine; listed now so the long tail can't f
 > (GitHub #48) on purpose. **When Part 1 (M0–M6) is essentially done** — "playable end-to-end"
 > declared at M6.2 — **run a fresh planning pass**: re-audit HEAD (the live state will have moved
 > a lot), then break each L-ledger into PR-sized child issues *at that point* (not now — premature
-> granularity would create hundreds of issues that rot before they're touched). The C#-purge (L26)
-> rides along: re-anchor remaining C# comments as each domain is contrasted. Trigger owner: whoever
+> granularity would create hundreds of issues that rot before they're touched). Source-reference
+> verification (L26) rides along: anchor affected comments to C++ as each domain is contrasted. Trigger owner: whoever
 > closes #47 (M6.2) opens the Part-2 planning pass.
 
 - [ ] **L1 CMSG handlers** — 385 / 631 implemented (61%) → 631/631. (`cpp-server-opcodes.tsv`)
@@ -352,7 +359,16 @@ Sequenced after/alongside the M0–M6 spine; listed now so the long tail can't f
 - [ ] **L23 Config keys** — partial → full. (`cpp-world-config-registry.tsv`)
 - [ ] **L24 DB prepared statements / loaders** — partial → full. (`cpp-sql-prepared.tsv`)
 - [ ] **L25 Runtime convergence** — legacy global loop → canonical `Map::Update` owns the tick (incl. `SendObjectUpdates`, per-map visibility range, grid-unload despawn); retire legacy. (ADR steps 5–8)
-- [ ] **L26 C#-reference purge** — re-anchor code + docs to C++. Source: `docs/audits/csharp-reference-audit.md` + `csharp-reference-contrast.md` (51 `#CSharpAudit.*`; tracked as issues #50–#64, index #65). Code still cites C# as authority (wow-packet/wow-network/wow-crypto/bnet-server/wow-data); contaminated docs include world-entry/phase4/vendor/template material. Per AGENTS.md "Reference Priority": contrast vs C++, re-anchor comment or file a behavior bug. **Remaining behavioral findings include:** CHARACTER.1, CHARACTER.2 (→ M5.5), AREATRIGGER.1 (→ M4.7), `guid.rs` HasEntry, QUESTPKT.1/2/3 + QUESTREWARD.1, and the wider ITEMSTATS/MOVEMENT/QUEST findings. ITEM.2/#52 and DATASTATS.1/#60 are merged. SKILL.1/2/3/#62 is implemented on its local branch with C++ `LearnDefaultSkills`/`LearnSkillRewardedSpells`, real WDC4 IDs, live login QA and exact 43-spell semantic capture parity. These bounded slices do not close L26 or their wider gameplay ledgers.
+- [ ] **L26 C++ source-reference verification** — retain issues #50–#64 and index #65 for
+  traceability, not as proof that their original analysis was correct. Reproduce each selected
+  residual against current Rust and exact C++ call paths; discard unsupported diagnoses without
+  reviving completed work. Relevant families include character lifecycle (M5.5), area triggers
+  (M4.7), GUID entry semantics, quest packets/rewards, item stats and movement. Preserve the
+  independently C++-anchored evidence for #52/#60 and the bounded #62 skill work
+  (`Player::LearnDefaultSkills` / `LearnSkillRewardedSpells`); verify actual issue/code state
+  before relying on a historical completion label. Those slices do not close L26 or the broader
+  gameplay ledgers. The [C++ findings](../audits/cpp-parity-findings.md) retain evidence and limits;
+  no inherited analysis or finding count is itself a correctness source.
 
 **Process:** drive each ledger to 100% under STATE.md §5. The R8 inventory TSVs feed these
 ledgers but are **re-anchored** — a row counts only when live + capture-clean.

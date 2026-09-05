@@ -1,5 +1,10 @@
 # Migration: Support (SupportMgr — bugs, complaints, suggestions)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Support/`
 > **Rust target crate(s):** would live in a new `crates/wow-support/` (or fold into `wow-social`); GM-command surface eventually in `wow-handler`
 > **Layer:** L8 (service — opt-in feature on top of database/world/chat)

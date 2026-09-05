@@ -1,5 +1,10 @@
 # Migration: Entities / Corpse
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/Corpse/`
 > **Rust target crate(s):** `crates/wow-world/`, `crates/wow-packet/`, `crates/wow-database/`, `crates/wow-constants/`
 > **Layer:** L4 (sub-modules under `entities.md`)
@@ -397,7 +402,6 @@ DBC/DB2 stores read by Corpse:
 - Corpses on **transports** require movement-info offset relative to transport, similar to passenger logic. See `entities-transport.md` and `CMSG_QUERY_CORPSE_TRANSPORT`.
 - BG corpses have an "insignia" interaction: enemy clicks corpse → forces immediate bones conversion (and traditionally drops some honor/marks). This is `Player::RemovedInsignia`.
 - "Bones" model is the GUID's display ID swapped to a generic skeleton; don't rely on the original race displayId once `m_type == CORPSE_BONES`.
-- C# reference at `/home/server/woltk-server-core/Source/Game/Entities/Corpse/Corpse.cs` is the canonical fallback when 3.4 ambiguity hits.
 
 ---
 

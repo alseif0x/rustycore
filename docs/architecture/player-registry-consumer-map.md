@@ -1,11 +1,12 @@
 # PlayerRegistry consumer cutover map
 
 Issue #150 replaces the public `DashMap` alias with an opaque directory and removes the two
-production lifecycle storage operations. The exact remaining production `get`, `get_mut`, and
-`iter` calls are assigned once in
-[`player-registry-consumer-map.tsv`](player-registry-consumer-map.tsv). The syntax-aware
-`session-ownership-policy.json` remains the executable non-growth inventory; this map assigns its
-remaining storage operations to the consumer slices that must remove them.
+production lifecycle storage operations. The subsequent cutovers below retired the assigned
+production `get`, `get_mut`, and `iter` compatibility calls. The header-only
+[`player-registry-consumer-map.tsv`](player-registry-consumer-map.tsv) now retains their schema,
+not a list of unfinished consumers. The syntax-aware `session-ownership-policy.json` remains the
+executable non-reintroduction inventory. The current directory lives in
+`wow_world::session::directory`; gameplay state is not directory-owned.
 
 The assignment is responsibility-based even when a function lives in the session monolith:
 

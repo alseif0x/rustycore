@@ -37,12 +37,14 @@ Use for `handlers/misc.rs`, packet families, QA scenarios, or a cohesive impl bl
 4. Keep imports explicit; do not replace compile errors with broad `pub`.
 5. If handler registrations are affected, confirm every `(opcode, SessionStatus, PacketProcessing)`
    tuple is unchanged.
-6. For those handler moves, add or update a table-driven test for the exact expected opcode set,
-   metadata, handler names and uniqueness. Counts alone cannot detect replacement by the wrong
-   opcode. For other surfaces, preserve their actual call/test registration contract instead;
-   do not add unrelated opcode tests.
-7. Run focused tests, crate tests and `validation-v2 quick`; after committing to a clean HEAD,
-   run `validation-v2 final` before an authorized push.
+6. For those handler moves, reuse the existing exact-set registration guard when it covers the
+   affected tuples; add/update coverage only for a demonstrated gap. Assert metadata, handler
+   names and uniqueness, not counts alone. For other surfaces, preserve their actual call/test
+   registration contract instead; do not add unrelated opcode tests.
+7. During iteration, run focused evidence, affected checks and routed `validation-v2 quick`.
+   Run complete affected suites at responsibility/macro acceptance or when the change's risk
+   requires them, not automatically after every helper. Preserve explicit issue requirements;
+   after committing to a clean HEAD, run `validation-v2 final` before an authorized push.
 
 Keeping `impl WorldSession` across private modules can preserve the handler API during a
 mechanical split. It does not complete a semantic extraction of gameplay from Session; record
@@ -106,9 +108,10 @@ These names are guides, not permission for a bulk move.
 
 ## Handler-to-use-case extraction
 
-Extract one complete vertical operation. The following illustrates an operation with existing
-durable persistence. Omit inapplicable stages and preserve the actual C++/current contract;
-do not introduce a transaction merely to match this diagram:
+Extract one complete vertical operation. The following illustrates an existing
+commit-before-application operation, not periodic/deferred save of already-mutated canonical
+state. Preserve the actual C++/current contract; omit inapplicable stages and do not introduce
+a transaction or reorder a save merely to match this diagram:
 
 ```text
 decode packet
@@ -161,13 +164,13 @@ Do not use a new crate to conceal cyclic domain concepts.
 
 | Change surface | Minimum checks |
 |---|---|
-| Pure private move | format, diff check, focused tests, crate tests |
+| Pure private move | format, diff check, focused tests, affected compile check; complete suites at the appropriate acceptance/risk checkpoint |
 | Opcode handler move | exact-set registration test, handler tests, packet tests |
 | Persistence orchestration | positive/negative/deadlock/commit-unknown tests, DB statement order |
 | Map/runtime ownership | one-owner/multi-session tests, lock audit, tick-order tests |
 | Packet/presenter move | byte, connection, recipient, order, visibility, capture-diff |
 | Public API or crate edge | downstream check/tests, `cargo tree`, visibility/re-export audit |
-| QA bot split | scenario JSON fields, CLI compatibility, representative smoke dry run |
+| QA bot split | scenario JSON fields and CLI contract tests; safe planning/dry-run only where a real mode exists, authorized live QA when the affected runtime contract requires it |
 
 Use `validation-v2 final` as the aggregate gate before an authorized push. Apply AGENTS.md's
 capture-diff and runtime-QA triggers plus explicit issue acceptance requirements. Distinguish

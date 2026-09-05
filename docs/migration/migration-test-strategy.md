@@ -1,11 +1,23 @@
 # Migration: Test Strategy (cross-cutting)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** N/A — this is a meta-doc consolidating test approaches across all per-module audits in `/home/server/rustycore/docs/migration/`.
 > **Rust target crate(s):** workspace-wide (`crates/*` plus root `tests/` if introduced)
 > **Layer:** L0–L8 (cross-cutting)
 > **Status:** ⚠️ partial — `cargo test --workspace` passes 395 cases per AGENTS.md but ~zero are golden-vector cross-impl tests; coverage gap is the dominant residual risk per per-module §13 audits.
 > **Audited vs C++:** N/A (meta-doc)
 > **Last updated:** 2026-05-01
+
+This is a historical strategy proposal, not the current test harness contract.
+Useful negative/golden-test principles remain reference material; the 395-test
+baseline, absent-CI claim, proposed slow-test feature and absolute external bot
+path are obsolete setup/gate instructions. Current validation is documented in
+[validation-v2.md](../operations/validation-v2.md); integrated live QA lives in
+`tools/wow-test-bot`. Preserve explicit acceptance of the active issue.
 
 ---
 

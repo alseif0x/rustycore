@@ -1,5 +1,10 @@
 # Migration: Client-asset extractors (map / vmap / mmap build pipeline)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/tools/`
 > **Rust target crate(s):** *none yet* — would be a separate `tools/` workspace member or set of standalone CLI binaries (proposal: `tools/wow-map-extractor`, `tools/wow-vmap-extractor`, `tools/wow-vmap-assembler`, `tools/wow-mmaps-generator`, plus a shared `crates/wow-casc` library).
 > **Layer:** build-time tooling (sits *outside* the runtime layer stack — produces inputs that the runtime expects on disk).
@@ -202,7 +207,7 @@ None. Build-time tooling.
 - No `crates/wow-casc/`, no `crates/wow-mpq/`, no `wow-extractor*`.
 - No `tools/` workspace directory at the repo root (`/home/server/rustycore/tools/` does not exist).
 - No `data/` directory at the repo root either — meaning even pre-extracted client data is not committed/sym-linked.
-- `wow-data` (the runtime DBC/DB2 reader, `Wdc4Reader`) reads from `<DataDir>/dbc/<locale>/Item.db2` etc. — i.e. it already *expects* extractor output, but no Rust code actually produces that output. Tests in `wow-data/src/item.rs:101` hard-code `/home/server/woltk-server-core/Data` as data dir, implying current development uses an external, manually-extracted dataset (presumably from the C# legacy reference, which itself uses the C++ TC extractors).
+- The old `wow-data` snapshot expected `<DataDir>/dbc/<locale>/Item.db2` and used a machine-specific external test-data path. That observation did not establish data provenance or current tool coverage. Verify current configuration and the exact client build/extractor before using a dataset.
 
 **What's implemented:** **nothing**. Zero of the five tools, zero of `extractor_common`, no CASC reader, no DB2 readers in extractor form, no ADT/WDT chunk parser, no WMO/M2 reader, no Recast/Detour FFI layer, no `.map` writer, no `.mmtile` writer, no `MmapTileHeader` struct.
 
@@ -248,7 +253,7 @@ These tests apply **whether we port the extractors or rely on TC's**, because th
 
 ## 11. Notes / gotchas
 
-- **The runtime in RustyCore *already* expects extracted data.** `wow-data/src/item.rs:43` reads `{data_dir}/dbc/{locale}/Item.db2`; the test on line 101 hard-codes `/home/server/woltk-server-core/Data`. So the data trees produced by these tools are a load-bearing input *today*, even though the tools themselves aren't ported. Any developer setting up a fresh box will hit this within minutes.
+- **Extracted data is an explicit input.** The recorded path was `{data_dir}/dbc/{locale}/Item.db2`; the old absolute test path is not a current setup instruction or provenance proof. Check the active client-tools issue and configured data directory.
 
 - **CASC, not MPQ.** Wrath Classic 3.4.3.54261 ships on the modern CASC/TACT pipeline, same as retail. The TC extractor's `RetardCheck()` (vmapexport.cpp:411) explicitly bails out if it sees `.MPQ` files, with a now-stale "use 3.3.5 branch" message that *predates* the WoLK Classic release. The 3.4.3 branch of TC handles wow_classic CASC fine; that comment should not be taken to mean "tools are MPQ-only". Porting to a Rust MPQ reader (the original 3.3.5-vanilla way) **would be wrong** — the 3.4.3 client has no MPQs to read.
 

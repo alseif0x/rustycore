@@ -1,6 +1,11 @@
 # Login/world-load C++ parity plan
 
-Status: active plan.
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
+Status: historical plan; current scope and dependencies are in PORT_PLAN.md and the active issue.
 
 Goal: make RustyCore enter the world with the same observable order and packet/state
 semantics as the C++ reference. This is not a diagnostic track and not a patch track.
@@ -18,10 +23,10 @@ Reference source of truth:
 
 Non-negotiable rules:
 
-- C++ is the authority. Rust comments, old summaries, C# references, and prior AI
+- C++ is the authority. Rust comments, old summaries, and prior AI
   conclusions are not authority.
-- If a Rust function says `C#`, `csharp`, or implies C# packet order/layout, treat it
-  as suspicious until re-anchored to C++ or removed.
+- Claims about packet order/layout require a C++ anchor or identified capture;
+  remove unsupported implementation guidance.
 - No diagnostic flag may become part of the final behavior. The final path must run
   without `RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC` or equivalent behavior gates.
 - If a dependency is missing while porting this flow, continue by implementing that
@@ -101,7 +106,7 @@ These are already visible in `crates/wow-world/src/handlers/character.rs`:
   before `SendInitialPacketsAfterAddToMap`.
 - `PhaseShiftChange::default_for(guid)` is sent twice in the current login sequence.
   C++ sends the map-change phase update inside `Map::AddPlayerToMap` after visibility.
-- Some comments around spell modifier/login setup still reference C# order. Those
+- Some comments around spell modifier/login setup still lack canonical order anchors. Those
   references must be removed or replaced with exact C++ anchors.
 - Initial Rust visibility is much smaller than C++ in observed logs. This means the
   visible-object pass is not yet equivalent even if the packet does not crash.
@@ -122,7 +127,7 @@ Acceptance:
 
 - `git status --short --branch` is captured before implementation.
 - C++ login order above is re-confirmed from source and, when useful, logs.
-- Any old C# references in the touched code are removed or converted to C++ references.
+- Any unsupported ordering claim in touched code requires exact C++ evidence before acceptance.
 
 ## Phase 1 - Reorder Rust login state to match C++ AddPlayerToMap
 
@@ -165,7 +170,7 @@ Tasks:
   and related object value builders.
 - Preserve the C++ block order: all visible inventory/item create blocks first, then
   the player create block, in one `UpdateObject` packet.
-- Remove any field order described as C# order. Re-anchor every contested field group
+- Remove unsupported field-order claims. Re-anchor every contested field group
   to the C++ writer that produces it.
 - For every conditional movement/update field in player create, document the exact C++
   condition and implement the same condition.
@@ -217,7 +222,7 @@ Tasks:
 - Make `client_visible_guids_like_cpp` follow the same lifecycle as C++
   `m_clientGUIDs`: cleared after init self/transports, repopulated by visibility.
 - Build initial creature/gameobject create blocks from C++ object builders, not from
-  C# layouts or simplified structs.
+  unverified layouts or simplified structs.
 - If missing creature/gameobject fields cause client instability, port those fields in
   this phase.
 
@@ -356,7 +361,7 @@ Start with Phase 1 only:
 
 - Reorder Rust login state and object accessor sync to the C++ structural order.
 - Remove duplicate phase send.
-- Replace touched C# comments with C++ anchors.
+- Anchor touched behavior comments to the actual C++ branches.
 - Add trace markers matching C++ names.
 - Build, restart, real-client test.
 

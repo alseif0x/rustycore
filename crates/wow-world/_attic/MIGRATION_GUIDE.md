@@ -1,5 +1,10 @@
 # Guía de Migración Completa - Fase 2
 
+> Archivo histórico del intento fallido de abril de 2026. Los cambios y comandos
+> siguientes no son instrucciones vigentes y no deben ejecutarse como plan de
+> migración. Consultar [el índice del archivo](README.md) y
+> [STATE.md](../../../docs/migration/STATE.md) para la realidad actual.
+
 ## Resumen
 
 Esta guía describe cómo migrar completamente de `self.creatures: HashMap<>` local al `MapManager` global.

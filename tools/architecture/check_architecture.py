@@ -1298,14 +1298,14 @@ def validate_runtime_syntax_coverage(
 
 
 def validate_runtime_clock_phase_trace(repository_root: Path) -> int:
-    """Check the #188 clock/phase trace still describes the code it claims to.
+    """Check the #188 trace's declarations and existing source/test anchors.
 
-    The trace is a reviewed description, not a target, so this guard proves it
-    stays truthful rather than prescribing a shape: every clock must name a
-    source and entry point that exist, declare its cadence, diff source and
-    availability, and state the guard that stops a second owner resolving the
-    same transition. A clock that admits delivering under a map guard fails,
-    because the campaign's non-negotiable invariant forbids it.
+    Identifier-shaped entries must name a function in their source; descriptive
+    entries are not resolved and empty regression-anchor lists are accepted.
+    Cadence, diff and resolution guards are declarations, not analyzed behavior.
+    Reject a declared map-guard delivery, but do not claim to prove spawn
+    reachability, phase order, lock safety or single resolution from metadata.
+    Those require affected source review and production integration evidence.
     """
     trace_path = repository_root / "tools/architecture/runtime-clock-phase-trace.json"
     trace = load_json(trace_path)

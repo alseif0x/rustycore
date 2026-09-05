@@ -1,5 +1,10 @@
 # Migration: Scenarios
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Scenarios/`
 > **Rust target crate(s):** *N/A para WoLK 3.4.x* — placeholder en `crates/wow-world/src/scenarios/` (skeleton only)
 > **Layer:** L7

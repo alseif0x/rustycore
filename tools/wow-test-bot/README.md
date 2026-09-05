@@ -2,11 +2,17 @@
 
 Headless Rust bot used to smoke-test RustyCore and the legacy TrinityCore test
 server. This copy is integrated into the RustyCore repo as a QA tool.
+Even login-only mode uses live authentication/player state and can write DB rows.
+Run only within approved runtime and disposable-fixture scope; ordinary validation
+does not authorize a service swap, bootstrap, SQL cleanup or gameplay action.
 
 For the current RustyCore login gate, see:
 
 - `RUSTYCORE_SMOKE.md`
 - `run_rustycore_login_smoke.sh`
+
+Examples beginning `tools/` run from the repository root; examples beginning
+`./run_rustycore_login_smoke.sh` run from `tools/wow-test-bot`.
 
 The wrapper also supports `WOW_BOT_QUEST_SMOKE=1` for questgiver/gossip QA. It
 logs in, targets a configured creature entry/spawn, verifies the server responds
@@ -166,7 +172,9 @@ For the two-session atomic loot-claim smoke, run the bot directly:
 
 ```bash
 test -z "$(git status --porcelain=v1 --untracked-files=normal)"
+loot_recovery_dir=$(mktemp -d)
 WOW_BOT_DB_CONF=/home/server/trinity-legacy-install/bin/worldserver.conf \
+  WOW_BOT_FIXTURE_JOURNAL="$loot_recovery_dir/fixture.journal" \
   ./tools/wow-test-bot/target/debug/wow-test-bot \
   --loot-race-smoke --ack-disposable-overworld-loot-race
 ```
@@ -182,14 +190,22 @@ leaving that build installed, use `tools/qa-runtime.sh` (#334):
 It snapshots the live build by path and SHA-256, refuses to start while a packet
 dump is configured or while the world and instance ports are not owned by the
 service's own process, installs the candidate through `systemctl`, waits until
-it is serving again, runs this smoke, and restores the original build on every
-exit path — including failure, interruption and a hung bot. A restore that does
+it is serving again, runs this smoke, and attempts to restore the original build on
+normal and trapped exits — including failure, caught interruption and a hung bot. A restore that does
 not come back clean is reported as the run's outcome even when the smoke passed.
 `./tools/qa-runtime.sh self-test` proves that restore path against fake services;
 `snapshot` prints the live identity without touching anything.
 
 Until #331 this was driven by `pr-preflight.sh qa-loot-race` against PM2, which
 this host no longer runs.
+
+The current systemd `loot-race` command requires chest spawn `9106001` to exist
+before the swap; it does not install/remove the capture wrapper's chest fixture.
+It reports a surviving bot journal as failure but still enters build restoration;
+it does not provide the PM2 capture wrapper's journal-gated restart guarantee.
+`SIGKILL` and host failure also bypass shell traps. Preserve recovery evidence and
+recover deliberately; a restored executable alone does not prove fixture restoration.
+See [the operator policy](../../docs/operations/local-first-development.md).
 
 This live mode is never part of normal CI. Both guards are mandatory because it
 temporarily mutates a world GameObject fixture and two disposable characters.
@@ -207,8 +223,8 @@ first mutation, removes it after verified restoration, then atomically writes
 the mode-0600 JSON marker `${WOW_BOT_FIXTURE_JOURNAL}.cleanup-complete`. The
 marker records schema version `1`, the journal SHA-256, and the cleanup PID. A
 matching journal+marker pair is recoverable/idempotent; a mismatched marker is
-rejected. The guarded preflight supplies a private path automatically and will
-not restart the normal PM2 world while the journal is pending or the marker is
+rejected. The PM2 capture procedure supplies a private path and will
+not restart its normal PM2 world while the journal is pending or the marker is
 missing, unsafe, or malformed. Loot workflows also have a hard end-to-end
 deadline of 900 seconds; override it with
 `WOW_BOT_LOOT_WORKFLOW_DEADLINE_SECS` or `--loot-workflow-deadline`.
@@ -226,7 +242,9 @@ tools/wow-test-bot/target/debug/wow-test-bot --recover-loot-fixture
 
 Recovery performs no login or service action. Only after it verifies bounded
 database restoration does it remove the journal and produce the cleanup marker;
-the operator may then let the outer capture/preflight wrapper restore PM2.
+the operator may then let the outer PM2 capture wrapper restore its normal service.
+This paragraph describes capture orchestration, not the systemd wrapper's weaker
+journal handling described above.
 
 The race fixture is the existing Tattered Chest template (entry `2846`, loot
 template `2278`) plus wrapper-owned spawn `9106001`. The guard temporarily
@@ -289,18 +307,12 @@ Overrides are available through `WOW_BOT_LOOT_RACE_ACCOUNT_A/B`,
 `WOW_BOT_LOOT_RACE_CREATURE_SPAWN_GUID` names remain fallback aliases so
 existing callers do not break; they describe the GameObject only in race mode.
 
-The preflight first snapshots and accredits the exact normal PM2 executable,
-then drives `capture-rust.sh loot-two-session-atomic-race --yes` through a FIFO.
-After its ready marker, it accredits the new capture PID against the pinned
-target path/hash and world/instance listeners. That identity must not restart or
-change during the bot run. The preflight then signals completion, waits for the
-capture wrapper to stop the QA world and restore the fixture plus original PM2
-profile, and accredits the restored original executable again. The wrapper gets
-the same fresh `WOW_BOT_REPORT` path and pinned bot path/hash and independently
-requires the exact successful two-session report before it can publish a
-completed capture. A failed report therefore still drives fixture/runtime
-cleanup but leaves no completed race artifact. Bot failure, capture drift, or
-wrapper cleanup failure all remain failures.
+Fresh packet evidence has a separate [capture contract](../../crates/capture-diff/README.md#recording-a-capture).
+Its PM2 wrappers still require the pinned bot identity, successful two-session
+report and verified fixture/process restoration before publishing a completed dump.
+The old FIFO-driven `pr-preflight.sh` orchestration was retired; a manual capture
+must supply that evidence explicitly. The systemd runtime smoke does not replace
+the capture orchestrator or create equivalent provenance.
 
 The bot endpoints are forced to `WORLD_HOST=127.0.0.1`, the accredited world
 port, `INSTANCE_HOST=127.0.0.1`, and an expected `INSTANCE_PORT`; the bot rejects

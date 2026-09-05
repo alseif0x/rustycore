@@ -77,16 +77,17 @@ capabilities, including composition order, conflicts, failures, and module-state
 
 Zero optional modules must preserve base behavior and required first-party scripts. Optional
 customization needs an explicit behavior contract and cannot bypass core integrity invariants.
-Address API compatibility and install/update/removal
-where relevant. A narrow API does not sandbox trusted native code; do not promise isolation or hot
+Address API compatibility and install/update/removal where relevant. A narrow API does not sandbox
+trusted native code; do not promise isolation or hot
 reload without an implementation and evidence. Do not freeze a universal plugin framework from a demo.
 
 ## 6. Deliver complete capabilities with proportional evidence
 
 Honor the approved delivery size, including macrodeliverables, with coherent internal commits and
 checkpoints rather than automatic micro-issues, micro-PRs, or repeated approvals. Select cuts by
-complete operations and their dependency/bridge retirement, not a mandatory mechanical-move sequence. Keep restructuring
-and intentional behavior changes distinguishable; do not silently expand or reduce accepted scope.
+complete operations and their dependency/bridge retirement, not a mandatory mechanical-move sequence.
+Keep restructuring and intentional behavior changes distinguishable; do not silently expand or
+reduce accepted scope.
 
 Use focused positive/negative tests during iteration and affected integration/failure cases at
 owner boundaries. Retain `AGENTS.md` and explicit issue acceptance gates for capture, live QA, and

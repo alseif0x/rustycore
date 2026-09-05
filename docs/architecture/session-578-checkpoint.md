@@ -88,6 +88,13 @@ Separate intentional observable timing corrections from behavior-preserving move
 
 ### Proportional evidence inside the macro
 
+The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
+are the review cadence: finite conformance before storage migration; then the first production
+C1/C2 vertical with C0 admission/phase evidence **before replicating it to other families**.
+Review the complete C0–C4 balance at C4 before #583 production integration. #153 audits both
+merged macros; #47/M6.2 triggers the later whole-port planning pass. These are internal evidence
+reviews, not routine approval requests or reasons to stop after each helper.
+
 1. During iteration: focused positive/negative tests, formatting/diff checks, routed quick
    validation and syntax-only ownership ratchets where affected.
 2. At each affected contract checkpoint: focused adversarial local review and production-linked
@@ -179,6 +186,11 @@ production code, the ECS ADR, PR contents and runtime were not changed. This is 
 metadata consistency evidence, not a new gameplay, exhaustive inventory or final macro pass.
 
 ## Historical checkpoint basis
+
+The sections below retain bounded implementation snapshots and validation runs at their named
+commits. Earlier “next” investigations and runtime service states are historical, not a second
+execution queue or present deployment evidence. Use the approved remaining plan above to choose
+work; recheck source/runtime state before relying on an old path, count or installed-build note.
 
 Initial reviewed source: `74daf3f9` plus the active-Player relocation and borrowed grid-capability
 slice committed with this checkpoint. The prior runtime family membership was last edited
@@ -785,7 +797,7 @@ existing Rust filtering/authority rules, not full `IsValidEntry` parity: malform
 or missing catalog data still cannot authorize trait spells, while represented raw
 configuration packet values remain unchanged. No extra SQL, load, packet, connection
 or publication reorder is introduced. The teleport admission comment now cites
-`MovementHandler.cpp:44-57`, not C#; no claim of full teleport parity is made.
+`MovementHandler.cpp:44-57`; no claim of full teleport parity is made.
 
 Coverage: required borrowed catalog with positive/missing-node/missing-definition
 cases for active and detached Player, clearing previous trait authority; stale and
@@ -1908,10 +1920,11 @@ Final validation on code HEAD `10684ccb` also passed:
 (6,745 library tests, 315 contract-checker tests, and the isolated bot check). This evidence
 predates only the documentation closeout commit; the 142 bot tests were run separately.
 
-### User-prioritized next front: automatic Dungeon Finder
+### Earlier Dungeon Finder scope note — not the current execution order
 
-The user approved this order: repair and verify current login first, then audit and scope LFG
-as its own issue/branch. This does not close or silently defer #578's remaining ownership work.
+At that earlier checkpoint, the user requested login repair/verification followed by an LFG audit.
+The later approved #133/#578/#583 plan above now governs execution; this retained scope note
+does not start another issue, bypass prerequisites or silently defer #578's remaining work.
 No LFG gameplay implementation or database repair is included in this checkpoint.
 
 Preliminary evidence (not a completed subsystem audit):
@@ -1933,7 +1946,7 @@ Preliminary evidence (not a completed subsystem audit):
   these local IDs without auditing references and the effective local DB2/Hotfix overlay.
 - Issues #550/#552 closed loader/capability extraction only, not the gameplay system.
 
-The next scope should cover roles, join/leave, matching, proposals, group creation, teleport,
+When LFG is selected through the current plan, its scope should cover roles, join/leave, matching, proposals, group creation, teleport,
 completion/reward and cancellation/disconnect/retry cases. First audit C++ gaps, data integrity,
 current Player/Group/Map dependencies and packet-capture availability. Missing C++ behavior
 requires exact-build client/capture evidence. Manual LFG List remains a separate scope, and no
@@ -1952,7 +1965,7 @@ login`, after map selection. Guarded QA reported `failed-restored` in
 `/tmp/rustycore-578-login-owner-runtime.json`; private evidence is
 `/tmp/rustycore-login-qa.8sJ1lB`. The original executable was restored and serving.
 
-The next regression reproduces this difference without a live DB: initial map selection followed
+The subsequent regression reproduced this difference without a live DB: initial map selection followed
 by collection reads and interleaved map ticks passes in dev but fails in release. Root cause:
 `Map::insert_map_object_record` put its actual insertion inside `debug_assert!`, so optimized
 builds erased the mutation. Moving the insertion into an unconditional statement adds exactly

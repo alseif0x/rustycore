@@ -1,5 +1,10 @@
 # Migration: Quests
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Quests/` (+ `src/server/game/Pools/QuestPools.*`, `src/server/game/Handlers/QuestHandler.cpp`)
 > **Rust target crate(s):** `crates/wow-data/` (templates + XP), `crates/wow-packet/src/packets/quest.rs` (wire), `crates/wow-world/src/handlers/quest.rs` (session handlers). No dedicated `wow-quest` crate yet.
 > **Layer:** L6 (Game systems — depends on Entities/Player L4, Loot L6 quest items, Conditions L7, Achievements L7, Pools L7)

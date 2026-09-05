@@ -1,5 +1,10 @@
 # Migration: shared/Packets
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Packets/`
 > **Rust target crate(s):** `crates/wow-packet/`
 > **Layer:** L0
@@ -428,4 +433,3 @@ Existing #PACKETS.1 (cross-impl bit roundtrip test) — superseded by §13.4; cl
 Existing #PACKETS.2 (`ReadPackedGuid` / `WritePackedGuid`) — done (write_packed_guid, read_packed_guid, see ObjectGuid 128-bit confirmation in §13.2).
 Existing #PACKETS.3 (string encoding per opcode) — sampled 5/many; close-to-done but the full sweep across all ~50 packet types remains future work.
 Existing #PACKETS.4 (`append_bytes` / `read_bytes`) — done (`write_bytes`, `read_bytes`).
-

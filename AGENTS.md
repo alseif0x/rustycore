@@ -1,508 +1,216 @@
 # AGENTS.md
 
-This file is the shared operating guide for AI agents working in this repository (Claude Code, Codex, and others). `CLAUDE.md` imports this file via `@AGENTS.md`, so Claude Code reads it too. Keep it factual and current. If it conflicts with the current worktree or with C++ source, the current worktree plus C++ source wins.
+Shared operating guide for agents working in RustyCore. CLAUDE.md imports this file.
+Use current code to establish implementation state and the legacy C++/capture evidence
+to establish required base-server behavior. Neither old documentation nor existing Rust
+is correctness proof. This guide does not override explicit user scope or approval gates.
 
-## Project And Source Of Truth
+## Project and sources of truth
 
-RustyCore is a Rust port of a TrinityCore-derived World of Warcraft Wrath/Cata-classic private server. The port target is full functional parity with the legacy C++ server, not a smaller compatible subset.
+- Repository: /home/server/rustycore; remote: https://github.com/alseif0x/rustycore.git.
+- Behavioral reference: /home/server/woltk-trinity-legacy.
+- Target: full functional parity with the TrinityCore-derived WoW 3.4.3 server, not a
+  smaller compatible subset. A bounded milestone never silently reduces the full port.
+- Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
+  one PR into 3.4.3. Main is only an optional stable release pointer; releases are tags.
+- Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
+- Development host is aarch64; hosted runners are x86_64. Label machine-dependent evidence.
+- Local protoc: /home/ubuntu/.local/protoc/bin/protoc. Set PROTOC for protobuf-dependent builds.
 
-- Rust repo: `/home/server/rustycore`
-- Legacy C++ reference: `/home/server/woltk-trinity-legacy`
-- Remote: `https://github.com/alseif0x/rustycore.git`
-- Branch model: **version branches, TrinityCore-style** (#4). The integration **and default**
-  branch is **`3.4.3`** (the WoW 3.4.3 target; cf. TrinityCore's `3.3.5`/`cata_classic`). All work
-  is feature branches → PR into `3.4.3`; releases are tags on `3.4.3`.
-- `main` is retained as an optional stable pointer (ff-advanced at release checkpoints); it is no
-  longer the default and not used for day-to-day work. A pre-rebrand backup is `backup/pre-3.4.3-rebrand`.
-- Rust toolchain: Rust 1.98.0, edition 2024.
-- `protoc`: `/home/ubuntu/.local/protoc/bin/protoc` (it is on `PATH`; the harnesses discover it
-  rather than hard-coding a home, so a different machine needs no edit here)
-- Development host: **aarch64**. GitHub runners are x86_64, so any measurement that depends on the
-  machine — stack budgets, timings, perf numbers — must say which of the two produced it.
+Start each session with:
 
-Do not trust existing Rust, old AI summaries, or migration docs as correctness proof. Always contrast behavior against the C++ source before implementing or approving a change.
-
-### Reference Priority
-
-The legacy C# server and older C#-based notes are secondary historical references only. They are useful for finding intent, old diagnostics, or previous packet experiments, but they are not an authority for this port.
-
-For protocol, gameplay, database, map/runtime, and persistence behavior, the final implementation must be anchored to the C++ source under `/home/server/woltk-trinity-legacy` or to a real client/server packet capture when C++ is incomplete or ambiguous. Do not approve a layout, field order, bit count, opcode response, or runtime rule merely because a Rust comment says "C# format", "C# ref", or "matches C#".
-
-When touching code that still cites C#:
-
-1. Treat the C# citation as suspect until checked.
-2. Locate the equivalent C++ packet/class/function.
-3. Update the comment to cite C++ once verified.
-4. If C++ and C# disagree, pause the affected mutation and document the discrepancy. Continue safe inspection, reproduction and C++/capture comparison; resume only once the evidence resolves the difference within the approved scope. Ask the user if resolution requires new authority, a material scope change or a choice the evidence cannot settle.
-5. If keeping C# behavior intentionally, explain why C++ does not answer the case and add the packet capture/client-build evidence.
-
-## Current Checkpoint
-
-**Status source of truth (2026-06-27 refresh):** the per-module status snapshots below and in
-`_INDEX.md` / `MIGRATION_ROADMAP.md` §3 are **stale and not authoritative**. Use these instead:
-
-- `docs/migration/STATE.md` — honest current state (audited HEAD, subsystem-level).
-- `docs/migration/PORT_PLAN.md` — the two-part plan (Part 1 playable M0–M6, Part 2 full-1:1 ledgers) + D-track.
-- `docs/migration/EXISTING-CODE-DEFECTS.md` — bugs found in already-shipped code.
-- `docs/migration/adr-runtime-tick-ownership.md` — runtime architecture decision.
-
-**Plan execution:** work the GitHub issues in the order of the pinned index issue (port-plan
-tracking). Part 1 = playable end-to-end (milestones M0–M6, issues #7–#47 + the C#-audit issues
-#50–#66); apply the validation and capture-diff requirements in the issue kickoff below. **When Part 1 is done
-("playable end-to-end" at M6.2 / #47), run a fresh planning pass before Part 2**: re-audit HEAD,
-then break the Part-2 epic (#48, ledgers L1–L25) into PR-sized child issues at that point — see
-the "Part 2 transition gate" in `PORT_PLAN.md`. Do not pre-granulate Part 2 now.
-
-The old `1af9223` "last audited base" is **~1400 commits stale** — do not treat it as the
-reliable base, and do not cite the `96.97%` / `98.15%` headline (it measured "represented",
-not a working server; see STATE.md §0/§1). The 1.8 MB `current-session-handoff.md` is **frozen**
-(append-log; read STATE.md instead).
-
-Start every session with:
-
-```bash
+~~~bash
 cd /home/server/rustycore
 git status --short --branch
 git log --oneline --decorate -8
 sed -n '1,80p' docs/migration/STATE.md
-```
+~~~
 
-If HEAD has moved, audit the commits against C++ instead of trusting their messages. A
-documentation-only commit is not a new port base; code-bearing commits must still be reviewed
-against C++ before being relied upon.
+Read the active issue/checkpoint and relevant changes before relying on them. Review
+code-bearing changes against exact C++ paths for affected behavior; documentation-only
+changes do not require a new whole-port audit or create a new parity base.
 
-## Working An Issue (session kickoff)
+Documentation entry point: [docs/README.md](docs/README.md). Current authorities:
 
-The port plan is tracked as GitHub issues (`alseif0x/rustycore`), ordered by a `[NN]` prefix
-in the title (the pinned `[INDEX]` issue lists them top-to-bottom). **GitHub's #numbers are
-creation order — ignore them; follow `[NN]`.** One implementation issue = one feature branch =
-one PR. An issue may span multiple conversation turns or sessions; reuse its existing branch
-when resuming.
+- [STATE.md](docs/migration/STATE.md): dated state and evidence boundaries, not an undated guarantee.
+- [PORT_PLAN.md](docs/migration/PORT_PLAN.md) and GitHub #49: execution order, including the
+  architecture track; issue numbers themselves are not execution order.
+- [EXISTING-CODE-DEFECTS.md](docs/migration/EXISTING-CODE-DEFECTS.md): reported defects,
+  each requiring current reproduction/contrast before being treated as still open.
+- [Session checkpoint](docs/architecture/session-578-checkpoint.md): #578 acceptance and remaining work.
+- [Modularity/ECS plan](docs/architecture/modularity-and-ecs-plan.md): current design and proof gates.
+- [Ownership boundaries](docs/architecture/ownership-and-boundaries.md) and
+  [module design](docs/architecture/module-design-guidelines.md): semantic/physical policy.
+- Runtime ADRs and [clock trace](docs/architecture/runtime-clock-phase-trace.md): relevant
+  decisions and dated evidence; verify current spawn/call paths before changing runtime owners.
 
-### Autonomy, clarification, and completion
+Historical migration tables, percentage headlines, old checklists and the frozen
+current-session-handoff.md are not active instructions or current completion proof.
+Read them for a specific historical question, not as a mandatory session preflight.
+Update the owning current document instead of creating another competing plan or status log.
 
-Divide implementation into small, independently validated slices. A slice or commit is not
-automatically the end of the user's task. Continue through the remaining authorized steps until
-the requested acceptance criteria are met, the user redirects the task, or a genuine blocker
-requires user input. Do not require "continue" between routine steps. This does not authorize
-starting unrelated issues or expanding the requested scope.
+## Scope, autonomy and completion
 
-For review-only requests, inspect and report without mutations. In execution work, resolve
-routine uncertainties through safe inspection and tests. Ask only when missing information
-materially affects the result and cannot be reasonably inferred, or when new authority is needed.
+- Review-only requests mean inspect/report without mutations. An explicit request to review
+  and fix documentation authorizes those document changes, not gameplay implementation.
+- Continue authorized work through its acceptance criteria; a helper, commit or passing test
+  is not an automatic stopping point. Small validated slices belong inside the approved
+  macrodeliverable, not automatic micro-issues, micro-PRs or requests to "continue".
+- Resolve routine uncertainty through inspection and tests. Ask only for material missing
+  information that evidence cannot settle, new authority, or a material scope/design choice.
+- Reuse explicit approval for its task, targets and conditions. Do not request it again unless
+  those materially change or approval is withdrawn. Preserve explicit new-design review gates.
+- "Test environment" is not blanket permission for destructive actions, publication or deployment.
+- A stop condition pauses the affected mutation, not safe investigation. Resume when evidence
+  resolves it within scope; do not force changes through unresolved behavior or overlapping work.
+- Distinguish local completion from publication. No push without explicit authorization;
+  push/PR creation does not authorize merge, deployment, restart or destructive database work.
+- Do not claim an issue complete from a partial slice, or manual-test-ready without actually
+  installing/restarting the target build and exercising the required client/runtime scenario.
+- Follow real dependencies. Safe inspection and explicitly allowed isolated experiments may
+  proceed before a production prerequisite, but do not enable production paths ahead of their gate.
 
-Reuse an explicit approval for its stated task, targets and conditions. Ask again only if those
-materially change or the approval is withdrawn. "Test environment" alone is not approval for every
-destructive or publishing action. An approved design plus an implementation request does not
-require the same approval again; retain any explicit review gate for a new design.
+## Fidelity and implementation
 
-When a rule says "stop", pause the affected mutation, not safe investigation. Resume once the
-uncertainty is resolved within scope; do not force changes through unresolved evidence or
-unrelated dirty work that cannot be isolated safely.
+For protocol, gameplay, database, lifetime, persistence and runtime behavior:
 
-Separate local completion from publication: without push authorization, report "locally complete;
-publication pending" only after all authorized local acceptance work is complete. Push or PR
-creation does not itself authorize merging. Do not report an entire issue complete merely because
-one slice or a partial test passed.
+1. Identify the complete in-scope operation and current callers/owners.
+2. Locate exact C++ classes/functions before changing or approving the behavior. Use a real
+   client/server capture when C++ is incomplete or ambiguous; do not silently invent parity.
+3. Freeze relevant packet metadata/bytes/connection/order, admission/phase, state authority,
+   transactions, rollback/unknown-COMMIT, cancellation, recovery and publication semantics.
+4. Implement the smallest coherent faithful change with positive/negative and relevant
+   integration/failure tests. Separate structural movement from intentional behavior changes.
+5. Update the owning checkpoint/acceptance with exact source anchors, code targets, command,
+   SHA, result and remaining boundary. Existing inventory gaps may be closed only with real
+   implementation evidence; no new #NEXT row or percentage calculation for every helper.
+6. Validate proportionally and commit coherent validated changes on the issue branch.
+   Continue remaining authorized work; publication retains its own gate.
 
-To start a session on an issue, the kickoff is:
+The behavioral audit is against C++ exclusively, supplemented by appropriate real captures where
+that source is incomplete. If an affected comment/test relies on an unsupported earlier analysis,
+locate the C++ equivalent and correct the evidence before approving the behavior. Pause an
+unresolved mutation while continuing safe inspection; resume from evidence within scope, or ask
+for a material choice/new authority that evidence cannot settle. An intentional departure requires
+an explicit contract. A legacy bug repair must not be hidden inside a behavior-preserving refactor.
 
-```
-Work issue #<N> (alseif0x/rustycore).
-1. Read: AGENTS.md, docs/migration/STATE.md, and the issue (gh issue view <N>).
-2. C++ is the source of truth (/home/server/woltk-trinity-legacy): contrast BEFORE editing.
-3. Smallest faithful change + focused tests (positive/negative); validate with PROTOC=... cargo check/test.
-4. Git: if the issue has no existing feature branch, create it LINKED with `gh issue develop <N> --base 3.4.3`
-   (not a bare `git checkout -b`), 1 issue = 1 PR into `3.4.3` (put `Closes #<N>` in the PR body), commit per gap, NO push unless asked.
-   Once push is approved, open the PR immediately; creating the PR is not the same as closing/merging it.
-5. For first-party PRs authored by exactly `alseif0x`, use `./tools/validation-v2 final` plus
-   focused evidence. External PRs retain remote CI/review. Require capture-diff only when bytes,
-   metadata, connection choice or observable ordering changed, and runtime QA only for a live
-   lifecycle/runtime change. Also satisfy explicit issue acceptance requirements. Distinguish
-   capture-diff regression tests from fresh action-specific captures.
-```
+Do not bulk-close inventory rows or report planning/test-debt work as gameplay progress.
+Use implemented, production-integrated and parity-proven as distinct evidence levels.
 
-**Linking the branch/PR to the issue:** the repo's **default branch is `3.4.3`** (the version/
-integration branch), so a PR into `3.4.3` with `Closes #<N>` in its body **links the issue and
-auto-closes it on merge** — always put it in the PR body (GitHub honors closing keywords only
-for PRs targeting the default branch). To also get a linked *branch* in the issue's *Development*
-panel, start the branch with `gh issue develop <N> --base 3.4.3` (not a bare `git checkout -b`);
-this must happen **at branch creation** — an existing branch **cannot be linked retroactively**
-(the `createLinkedBranch` API only creates new branches from the issue; to re-attach a closing
-keyword on an existing PR you must toggle its body via REST `gh api -X PATCH repos/.../pulls/N`).
+## Architecture and skills
 
-Caveats: respect dependency order — don't start an issue whose deps are open (e.g. M3 spell
-prerequisites need M0.1 stores; many "done" criteria need the harness `[01]/#66`). Work issues
-in `[NN]` order from the top of the `[INDEX]`. The issues are self-contained (C++ refs + Rust
-target + done criteria inline). Part 2 (epic #48) stays a single epic until Part 1 lands.
+Use the existing architecture skill for boundary/design questions and the safe-refactor skill
+for approved behavior-preserving restructuring. They apply the maintained project documents;
+they are not separate frozen architecture snapshots.
 
-## Mandatory Porting Method
+- Require both correct semantic ownership and manageable production/test/fixture files.
+  The module-design guide owns the numeric budgets and bounded exception policy.
+- Prefer private modules/submodules before crates. No crate/trait per helper, universal
+  context, second mutable mirror, extra lock or public field merely to relocate code.
+- Keep one canonical authority and execution owner per transition; trace readers, writers,
+  lifetime, persistence and publication together. A detached Player is not automatically missing.
+- Preserve C++ phase order and established persistence fences. No synchronous map/entity guard
+  across await, I/O or packet delivery under a map lock. Intentional async operation gates need
+  explicit lock order, cancellation/recovery and blocking-scope contracts.
+- Read the current runtime composition and relevant trace; do not infer clock count or
+  scheduling ownership from a stale summary, registration enum or an ECS dependency.
+- PacketHandlerEntry is the single opcode registration and call source. Inspect
+  crates/wow-world/src/session/registry.rs and actual registrations for the current thunk
+  signature; do not copy an outdated snippet or reintroduce a dispatcher opcode match.
+  Keep exact-set metadata/registration tests for changes to that boundary.
+- The current execution track is #578 -> #583 -> #153 before #133 closes. Reanalysis points
+  live in the checkpoint/plan: pre-migration conformance, first real operation integration,
+  macro acceptance, then terminal audit. These are evidence reviews, not new routine approvals.
+- After playable M6.2/#47, perform the fresh whole-port planning pass before decomposing
+  Part 2/#48. Do not prematurely create its child issue tree.
 
-Every implementation slice must follow this sequence:
+## Validation
 
-1. Inspect current repo state, the active issue, STATE.md and its relevant checkpoint. Consult the frozen handoff only for a specific historical question.
-2. Work a real gap within the authorized scope. A newly reproduced defect may be documented and addressed without first creating an inventory item; this does not authorize choosing another task.
-3. Locate exact C++ source anchors in `/home/server/woltk-trinity-legacy`.
-4. Compare existing Rust against C++ before editing.
-5. Implement the smallest faithful Rust change that moves the full port forward.
-6. Add focused tests, preferably positive and negative branches.
-7. Update migration docs/checklists with the new `#NEXT.R8.ENTITIES.xxx` item when closing a represented implementation gap.
-8. Recalculate progress honestly.
-9. Run validation.
-10. Commit validated implementation changes locally on the issue's feature branch. Push only
-    when explicitly authorized; after an authorized push, open a PR into `3.4.3` (`Closes #<N>`).
-    For an `alseif0x` PR, the local final harness and focused evidence are the required gate;
-    hosted checks intentionally skip. For any other author, require the configured remote checks
-    and reviewer verdict. In both cases, fix or explicitly defer actionable review comments and
-    resolve conversations before merge. Tag releases on `3.4.3`.
+Use [validation-v2](docs/operations/validation-v2.md) and
+[local-first development](docs/operations/local-first-development.md) for the actual profiles.
 
-Do not do "bulk close" inventory edits. A closed `#NEXT` item must correspond to real code and tests, with exact C++ refs, Rust targets, checks run, and remaining boundaries stated. Discovering or documenting a gap is useful, but it is not an implementation closeout.
-
-Do not mark anything `manual-test-ready` unless it has actually been installed/restarted and exercised manually against the client/runtime.
-
-## Build And Test
-
-Use `PROTOC` explicitly for any command that may compile protobuf-dependent crates:
-
-```bash
+~~~bash
 PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p world-server
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world --lib
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-map --lib
-```
-
-Fast iteration commands:
-
-```bash
-cargo fmt --check
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world <focused-test> --lib
 cargo fmt --all -- --check
-cargo test -p wow-world some_test_name --lib
-cargo test -p wow-map some_test_name --lib
-cargo clippy -p wow-map -p wow-world --all-targets
 git diff --check
-```
-
-Local-first commands for ordinary development:
-
-```bash
-# During iteration (path-routed lightweight checks):
 ./tools/validation-v2 quick --base origin/3.4.3
+~~~
 
-# Before push, after committing to a clean HEAD:
-./tools/validation-v2 final --base origin/3.4.3
-```
+Choose the real library/binary/integration target; do not assume every crate has a library.
+Run affected production-linked integration targets explicitly when required; library tests
+alone do not establish production composition. Record evidence at the actual tested SHA.
 
-Run focused tests explicitly when behavior changes. `./tools/validation-v2 audit` is the
-exhaustive budget; it is not the daily pre-push gate and every push to `3.4.3` runs it remotely.
-See `docs/operations/validation-v2.md` and `docs/operations/local-first-development.md`.
+Ordinary ownership/module iteration:
 
-For ordinary architecture/module work, use the syntax-only Session ownership ratchet:
-
-```bash
-cargo run --release --locked \
+~~~bash
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo run --release --locked \
   --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
   --bin session-ownership-check -- check --syntax-only
 python3 tools/architecture/check_architecture.py check
 python3 tools/architecture/check_architecture.py self-test
-```
+~~~
 
-`session-ownership-check -- check` **without** `--syntax-only` also recomputes the exhaustive
-workspace persistence inventory and can run for many minutes. It is reserved for an explicitly
-requested persistence audit, release/scheduled audit, or investigation that actually changes that
-inventory; it is not an ordinary iteration or pre-push command. Do not pipe validation through
-`head`, `grep`, or a trailing command that can hide its exit status. When an exact syntax baseline
-must move, generate `print-baseline` into a temporary file, review the semantic delta, install it
-only after that review, and rerun `check --syntax-only`.
+The Session check without --syntax-only recomputes the exhaustive persistence inventory.
+Use it for an explicitly requested relevant audit, actual inventory changes or required
+macro/terminal acceptance, not routine helpers. Metadata-only plan changes still require
+the applicable preserved persistence-reference and snapshot-policy consistency checks.
+Never blindly regenerate a baseline to hide drift; review the semantic delta and tighten
+ceilings after validated retirement. Keep changed TSV schemas valid; the R8 ledger has nine
+tab-separated columns. Do not pipe checks through a command that masks their exit status.
 
-TSV inventory files must keep 9 tab-separated columns:
+Before an authorized push, on clean committed HEAD:
 
-```bash
-awk -F '\t' 'NF != 9 { print FNR ":" NF ":" $0; bad=1 } END { if (bad) exit 1; print "TSV_OK" }' docs/migration/inventory/r8-entities-miniphase.tsv
-```
-
-Current useful baselines from recent handoff:
-
-- `wow-world --lib`: clean in recent runs.
-- `wow-map --lib`: cleaned to `614/0` in `#NEXT.R8.ENTITIES.765`.
-- `world-server` check passes with existing warnings.
-
-If a test fails, do not assume production is wrong or the test is wrong. Contrast with C++ and document which one it is.
-
-## QA Bot / Client Automation
-
-The live client QA bot is an integrated project QA tool, not throwaway scratch code or a separate
-side project.
-
-- Integrated bot path: `tools/wow-test-bot`
-- It is intentionally excluded from the root Cargo workspace so its live-QA dependencies and local
-  runtime assumptions do not affect normal `cargo check/test` or CI.
-- Temporary experiments may use a `/tmp/...` copy when sandbox permissions require it, but useful
-  bot improvements must be ported back to `tools/wow-test-bot` and committed with the RustyCore PR
-  before the work is considered preserved.
-- Keep server fixes and bot-tooling changes logically separated in the commit message/body when
-  practical. Mention the bot scenario and report path in issue/PR QA notes when a PR depends on a
-  new bot capability.
-
-Baseline login smoke:
-
-```bash
-cd /home/server/rustycore/tools/wow-test-bot
-WOW_BOT_PASSWORD='local-password' ./run_rustycore_login_smoke.sh
-```
-
-Useful overrides:
-
-```bash
-WOW_BOT_PASSWORD='local-password' WOW_BOT_ACCOUNT=TESTBOT5@bot.local ./run_rustycore_login_smoke.sh
-WOW_BOT_PASSWORD='local-password' WOW_BOT_REPORT=/tmp/rustycore-bot-report.json WOW_BOT_LOG=/tmp/rustycore-bot.log ./run_rustycore_login_smoke.sh
-WOW_BOT_PASSWORD='local-password' BNET_HOST=127.0.0.1 BNET_PORT=8081 WORLD_HOST=127.0.0.1 WORLD_PORT=8085 REALM_ID=1 ./run_rustycore_login_smoke.sh
-```
-
-Quest/gossip smoke for QA of one questgiver:
-
-```bash
-WOW_BOT_QUEST_SMOKE=1 \
-WOW_BOT_QUEST_CREATURE_ENTRY=<creature-template-entry> \
-WOW_BOT_QUEST_EXPECT_ID=<quest-id> \
-WOW_BOT_PASSWORD='local-password' \
-./run_rustycore_login_smoke.sh
-```
-
-Optional quest overrides include `WOW_BOT_QUEST_CREATURE_GUID` for an exact
-`world.creature.guid`, `WOW_BOT_QUEST_MAP_ID`, `WOW_BOT_QUEST_FORBID_ID`,
-`WOW_BOT_QUEST_FORBID_TITLE_CONTAINS`, `WOW_BOT_QUEST_QUERY_DETAILS=0`,
-`WOW_BOT_QUEST_RESET=1`, `WOW_BOT_QUEST_RELOCATE=1`,
-`WOW_BOT_QUEST_RUNTIME_COUNTER=<visible-counter>`, `WOW_BOT_QUEST_SET_RACE=<id>`,
-`WOW_BOT_QUEST_SET_CLASS=<id>`, `WOW_BOT_QUEST_SET_LEVEL=<1-80>`, and
-`WOW_BOT_QUEST_ACCEPT=1`.
-
-For deterministic quest accept QA, prefer a fully specified flow that prepares the selected test
-character before login, for example:
-
-```bash
-WOW_BOT_QUEST_SMOKE=1 \
-WOW_BOT_QUEST_CREATURE_ENTRY=15278 \
-WOW_BOT_QUEST_RUNTIME_COUNTER=90 \
-WOW_BOT_QUEST_MAP_ID=530 \
-WOW_BOT_QUEST_EXPECT_ID=9393 \
-WOW_BOT_QUEST_RESET=1 \
-WOW_BOT_QUEST_RELOCATE=1 \
-WOW_BOT_QUEST_SET_RACE=10 \
-WOW_BOT_QUEST_SET_CLASS=3 \
-WOW_BOT_QUEST_SET_LEVEL=3 \
-WOW_BOT_QUEST_ACCEPT=1 \
-WOW_BOT_PASSWORD='local-password' \
-./run_rustycore_login_smoke.sh
-```
-
-The bot authenticates against the live `bnet-server`, writes/uses auth DB session data, connects to
-`world-server`, enumerates characters, and enters world. It requires the local runtime and MariaDB
-databases (`auth`, `characters`, `world`, `hotfixes`) to be available. Do not print, stage, or
-commit bot credentials, local configs, DB URLs with secrets, generated logs containing secrets, or
-runtime certificates. `tools/wow-test-bot/config.example.json` is versioned with blank passwords;
-use `WOW_BOT_PASSWORD`, `WOW_BOT_PASSWORD_<ACCOUNT>`, or an ignored local `config.json`.
-`tools/wow-test-bot/.env.local` is also ignored and may be used for local-only passwords or DB URL
-overrides. If DB URL env vars are omitted, the bot reads database connection info from
-`WOW_BOT_DB_CONF` (default `/home/server/trinity-legacy-install/etc/worldserver.conf`).
-
-When extending the bot for an issue:
-
-1. Anchor packet layouts/opcodes to C++ source or to a real capture before sending new packets.
-2. Add a focused CLI mode or wrapper script for the QA scenario, not a one-off manual edit.
-3. Report pass/fail as structured JSON fields so PR QA can cite the exact checks.
-4. Keep the first version narrow: login, one interaction, one expected server response, then expand.
-5. Commit useful bot work under `tools/wow-test-bot`; do not leave the only copy in `/tmp`.
-
-Runtime bot QA complements, but does not replace, `cargo` validation and CI. A PR is not
-`manual-test-ready` merely because bot code exists; install/restart the target server build, run the
-bot scenario, and record the result in the PR/issue. Until CI has a full live server + DB fixture,
-bot runs are local QA evidence rather than required GitHub status checks.
-
-## Architecture: Current Runtime Reality
-
-The runtime currently has three coexisting world models. This is important; old notes that describe a single pending `MapManager` integration are stale.
-
-1. Legacy `wow_world::MapManager`
-   - Shared as `Arc<RwLock<...>>` from the world-server composition root.
-   - Shared across sessions.
-   - **Has its own global clock.** `spawn_legacy_creature_runtime_update_loop_like_cpp`
-     (`crates/world-server/src/runtime/delivery.rs`) is started from `app.rs` at the configured
-     map-update interval and is enabled by default; `RustyCore.LegacyCreatureGlobalRuntime = 0`
-     turns it off for local diagnostics.
-   - Who ticks a creature is decided by `RuntimeTickOwner` (`crate::map_manager`), set once at
-     startup before that loop spawns. Under `GlobalLegacy` the loop owns creature lifecycle,
-     movement, aggro, spells, creature melee and — since #28 — the player->creature melee swing;
-     the session driver skips those. Under `Session` the session driver runs them, which is the
-     supported diagnostic path.
-   - Session still owns aura expiry unconditionally.
-
-2. Canonical `wow_map::MapManager`
-   - Owns the global canonical map tick loop (`spawn_canonical_map_update_loop`, about 10ms).
-   - Has a C++-like `Map::Update` structure and map/spawn/respawn infrastructure.
-   - Creature runtime update currently uses default context and does not dispatch real AI/combat side effects such as `AiUpdateTick` or `MeleeAttackIfReady`.
-
-3. There is no separate "global world loop"
-   - The production binary spawns exactly two periodic game-state clocks: the canonical map
-     update loop and the legacy creature runtime loop above. `world_update_loop_step_like_cpp`
-     exists but is called only from tests.
-   - The two loops measure their own wall-clock diff independently, so a creature's position and
-     its movement generator can advance on different clocks (#371).
-
-Regression anchors:
-
-- `canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp`
-- `two_sessions_sharing_legacy_map_manager_see_same_creature_state`
-- `two_players_attacking_one_creature_resolve_once_under_the_map_owner_like_cpp` (#28)
-- `the_player_melee_phase_is_inert_under_the_session_owner_like_cpp` (#28)
-
-The old statement that `WorldSession` owns a `creatures: HashMap<ObjectGuid, CreatureAI>` field is false. Do not build new work around that field.
-
-Incremental live-runtime roadmap from handoff:
-
-1. Characterize current split. Done in `#NEXT.R8.ENTITIES.764`.
-2. Give the legacy map a sessionless clock. **Done** — see the global loop above.
-3. Add creature movement fanout from global tick via per-map session registry. **Done.**
-4. Move combat resolution to global clock, resolving once rather than per session. **Done for
-   the player melee swing in #28**; one diff and one clock identity across every phase is not,
-   and is tracked in #371.
-5. Unify respawn from per-session queue into canonical runtime.
-6. Move to a single source of truth for creatures, method by method.
-7. Add real `SendObjectUpdates`, scripts, weather, threat, and remaining fanout.
-
-Steps 2+ are architectural-risk work. Avoid big-bang rewrites. Previous `_attic/` attempts failed with large compile-error blasts; use them only as historical context.
-
-## Important Current Open Gaps
-
-The exact list changes as the port advances. Start with the active issue, current code, STATE.md
-and its relevant checkpoint; consult the frozen handoff only for a specific historical question.
-Historically documented gaps include:
-
-- Full `ConditionMgr` target/searcher/map/world-state/active-event coverage.
-- `Player::SatisfyQuestBreadcrumbQuest` recursive `CanTakeQuest` gate.
-- `SatisfyQuestTimed`, day, week, month gates at accept.
-- GM override visibility and server-side visibility infrastructure.
-- AI override dialog status.
-- Battleground chest `CanActivateGO`.
-- Live-runtime / map-manager tick integration.
-- Runtime install/restart/manual client-test readiness for many represented slices.
-
-Do not use this list as exhaustive or current proof; contrast relevant inventory entries with the
-active issue and current code before planning work.
-
-## Migration Documents
-
-Primary current-state sources are the active issue/checkpoint, current code, `STATE.md`,
-`PORT_PLAN.md`, and `EXISTING-CODE-DEFECTS.md`. Supporting migration records:
-
-- `docs/migration/current-session-handoff.md` — frozen historical reference, not a required kickoff read.
-- `docs/migration/inventory/r8-entities-miniphase.md`
-- `docs/migration/inventory/r8-entities-miniphase.tsv`
-- `docs/migration/honest-progress-audit.md` (honest progress audit; or similarly named audit docs if present).
-- `docs/MIGRATION_ROADMAP.md` (phase-ordered execution plan) and `docs/migration/_INDEX.md` (per-module status/audit). Use them for plan/order; their status snapshots predate the R8-entities work and have drifted, so they are not proof of current state.
-
-Older snapshots such as `MIGRATION_STATUS.md` may be stale. They can help find concepts but are not proof of current parity.
-
-When updating docs:
-
-- Put newest items at the top where the file already follows reverse chronological order.
-- Include C++ refs, Rust targets, acceptance, checks, and boundaries.
-- Keep `represented-partial` unless full runtime parity is actually proven.
-- Do not inflate progress with planning-only or test-debt-only work.
-
-## Packet Handler Dispatch
-
-The world server uses static registration via the `inventory` crate. **An opcode is declared
-exactly once**: its `PacketHandlerEntry` carries the admission metadata *and* the call. Registering
-it is the only thing needed to make it reachable, and forgetting to register it is the only way to
-lose it (#359 — before that an opcode also needed a dispatcher match arm, and forgetting either
-silently dropped the packet).
-
-Each `PacketHandlerEntry` declares opcode, `SessionStatus`, `PacketProcessing` mode, the handler
-name, and a `handler` thunk — a non-capturing closure, so a registration stays one literal:
-
-```rust
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::Inspect,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_inspect",
-        handler: |session, pkt| Box::pin(async move { session.handle_inspect(pkt).await }),
-    }
-}
-```
-
-`WorldSession::dispatch_packet` decodes the opcode, applies the entry's status gate and then calls
-`(entry.handler)(self, pkt)`. It names no opcode and no handler method; `handler-contract-check`
-fails closed if either comes back.
-
-The registry type lives in `crates/wow-world/src/session/registry.rs` (it names `WorldSession`);
-`crates/wow-handler/src/lib.rs` keeps the shared vocabulary (`SessionStatus`, `PacketProcessing`,
-`HandlerFuture`). Handler modules live under `crates/wow-world/src/handlers/`.
-
-## Coding Patterns
-
-- Prefer existing local helpers and `*_like_cpp` functions over inventing new abstractions.
-- Use C++ names/order when mirroring C++ behavior.
-- Collect packets into `Vec<Vec<u8>>` before sending when it avoids borrow conflicts.
-- In tick methods, use `send_tx.send(pkt.to_bytes())` rather than `send_packet` if `send_packet` would double-borrow.
-- `Position` fields are `.x`, `.y`, `.z`, `.orientation`; not `.o`.
-- Import `wow_packet::ClientPacket` explicitly in handler modules that decode packets.
-- Use `rg` for searching.
-- Use `apply_patch` for manual edits.
-- Do not revert unrelated user/agent changes without explicit instruction.
-
-## Runtime / Config
-
-Two primary binaries:
-
-- `bnet-server`: Battle.net auth, TCP+TLS on `1119`, REST on `8081`. Reads `BNetServer.conf` and PEM files.
-- `world-server`: game server, TCP on `8085` / `8086`. Reads `WorldServer.conf`.
-
-MariaDB databases: `auth`, `characters`, `world`, `hotfixes`.
-
-Gitignored runtime files may contain credentials or keys:
-
-- `*.pem`
-- `BNetServer.conf`
-- `WorldServer.conf`
-- root `world-server` / `bnet-server` binaries
-
-Never stage credentials, certs, local configs, or built binaries.
-
-## Git Discipline
-
-Version-branch model (#4): `3.4.3` is the default/integration branch; one feature branch per
-issue → PR into `3.4.3`. No `develop`→`main` ff dance.
-
-Per-issue closeout workflow:
-
-```bash
-# first creation only: gh issue develop <N> --base 3.4.3 --checkout
-# when resuming, reuse the issue's existing feature branch
-git status --short --branch
-# focused tests
-git add <changed files>
-git commit -m "<short faithful summary>"
+~~~bash
 ./tools/validation-v2 final --base origin/3.4.3
-git push origin <feature-branch>        # NO push unless asked
-# after push, open the PR into 3.4.3 with `Closes #<N>` in the body.
-# alseif0x PRs use the local evidence above and allocate no hosted validation runner.
-# External PRs must satisfy the configured remote checks and reviewer verdict.
-# Resolve or explicitly defer every actionable review comment before merge.
-```
+~~~
 
-Only do this after the slice is genuinely validated. If the tree contains changes from another agent, audit them before building on top of them.
+For exactly alseif0x-authored PRs, local final plus focused evidence is the required gate;
+configured hosted validation/reviewer jobs intentionally skip. External authors retain
+configured remote checks/review. Never broaden trust to an author-association role.
+The audit profile is exhaustive, not the routine pre-push profile; integration-branch
+pushes run it remotely. Preserve explicit issue acceptance even when a profile is green.
 
-Branch protection on `3.4.3` requires strict status checks, linear history, conversation
-resolution, and exactly two contexts: **`Validation V2`** and **`Codex reviewer verdict`**. Both
-are author-gated jobs: they report `skipped` for the exact trusted login `alseif0x`, which
-satisfies protection, and they run for every other author. Never broaden trust to an
-author-association role.
+Capture-diff applies to changed bytes, metadata, connection or observable order. Fresh
+action-specific captures are distinct from regression goldens. Live lifecycle/runtime changes
+need authorized runtime QA; real durability claims need real DB/restart/relogin evidence,
+not only mocked futures. Missing runtime authority does not block remaining safe local work.
 
-The validation job's name is deliberately static. A skipped job publishes its check under the raw,
-unexpanded expression, so a templated name cannot be a required context (#336); the profile it ran
-is in the run summary instead.
+## Runtime and sensitive data
 
-## Local Context Files
+The integrated QA bot is tools/wow-test-bot, outside the root workspace. Read its README and
+RUSTYCORE_SMOKE.md plus the relevant operation guide before use. Live modes can write auth,
+session or character data; scope the target/accounts and obtain any required runtime authority.
+Preserve useful QA improvements in the integrated tool, not only in /tmp; record structured
+scenario results. Bot code existing does not establish live acceptance.
 
-The `.gitignore` excludes local agent/workflow files that may exist and contain useful context, such as `AGENTS.md`, `PLAN.md`, `MIGRATION_STATUS.md`, `INVENTORY.md`, `memory/`, `.claude/`, `.agents/`, `.openclaw/`, and similar directories. Read them if useful, but do not commit ignored local context unless the user explicitly asks for it.
+Use the current configuration loader and examples: worldserver.conf / bnetserver.conf are
+preferred, with legacy mixed-case compatibility filenames. The processes are world-server
+and bnet-server; the MariaDB schemas are auth, characters, world and hotfixes. Read the
+operation guide/current config safely before acting; documentation is not runtime authorization.
+
+Never print, stage or commit credentials, local configs, certificates/keys, secret-bearing logs,
+DB URLs with secrets, built binaries or private QA configuration. Use environment/local ignored
+configuration for secrets. A file being ignored does not make it safe to print.
+
+## Git and local work
+
+Reuse the active issue branch. At first implementation branch creation use:
+
+~~~bash
+gh issue develop <N> --repo alseif0x/rustycore --base 3.4.3 --checkout
+~~~
+
+PRs target 3.4.3 with Closes #<N> in the body. After an authorized push, create the PR if it
+does not already exist; update the existing PR rather than duplicating it. Resolve or explicitly
+defer actionable review findings and resolve conversations before an authorized merge.
+Do not infer merge authority from a commit, push or PR request.
+
+Use rg for search and apply_patch for manual edits. Preserve unrelated dirty work and other
+agents' changes; inspect overlaps before relying on them. Stage exact validated paths only.
+Do not revert, delete or overwrite unrelated work to obtain a clean tree.
+
+AGENTS.md, CLAUDE.md and the selected .agents/skills resources are tracked shared instructions.
+Other local agent/workflow paths may be ignored; consult git ls-files and .gitignore rather than
+assuming. Do not force-add private local context unless explicitly requested. Keep one source
+for each rule; retire or redirect superseded guidance without discarding useful evidence.

@@ -1,5 +1,10 @@
 # Migration: BlackMarket
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/BlackMarket/` + `src/server/game/Handlers/BlackMarketHandler.cpp` + `src/server/game/Server/Packets/BlackMarketPackets.{h,cpp}`
 > **Rust target crate(s):** *none yet* — would live as `crates/wow-world/src/blackmarket/` or new `wow-blackmarket` crate. Depends on Mail (`wow-world` mail handlers), `wow-database` (4 prepared statements + 2 tables), `wow-packet` (4 SMSG + 2 CMSG opcodes already enumerated).
 > **Layer:** L7 (game systems, optional content)

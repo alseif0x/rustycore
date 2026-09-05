@@ -1,5 +1,10 @@
 # Migration: game/World
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/World/`
 > **Rust target crate(s):** `crates/world-server/`, `crates/wow-network/`
 > **Layer:** L0 — Global state, update loop, server lifecycle

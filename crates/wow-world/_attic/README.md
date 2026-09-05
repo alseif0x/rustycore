@@ -4,21 +4,26 @@
 
 Aquí viven los restos del intento de migración hacia el `MapManager` global (commits WIP `b6f5e4cad`, `cd2fa6a7f`, `f83c48d82`). El intento dejó el árbol con 176 errores de compilación porque el "puente" entre `WorldSession` y `MapManager` se escribió contra structs que ya no existían.
 
-Este directorio **no se compila** (los `.rs` fueron renombrados a `.rs.txt`). Sirve como **catálogo operativo de TODOs**: cuando llegue el momento de implementar uno de los handlers o métodos que aquí estaban esbozados, vienes aquí, copias la firma y la implementación que se intentó, y la rehaces en su sitio definitivo con los tipos actuales.
+Este directorio **no se compila** (los `.rs` fueron renombrados a `.rs.txt`). Es
+historia de un intento fallido, no un catálogo operativo de TODOs ni evidencia
+de que falte el código descrito. Los tamaños, tipos, rutas y estados del inventario
+siguiente pertenecen a aquel intento. `WorldSession.creatures` ya no es la
+realidad actual; no reconstruir ese diseño a partir de estos apuntes.
 
-## Cómo resucitar un archivo
+## Cómo consultar el archivo histórico
 
-```bash
-git mv crates/wow-world/_attic/X.rs.txt crates/wow-world/src/X.rs
-# añadir el `pub mod X;` en lib.rs/handlers/mod.rs
-# arreglar los imports y signatures contra la API actual
-```
+Empezar por [STATE.md](../../../docs/migration/STATE.md), el issue/checkpoint
+activo y [los criterios de módulos](../../../docs/architecture/module-design-guidelines.md).
+Consultar un fragmento sólo para una pregunta histórica concreta; contrastar C++
+y los lectores/escritores actuales antes de reutilizar una idea. No ejecutar los
+scripts archivados ni mover implementaciones o stubs enteros al árbol activo.
 
-Los `.md` y `.sh` se quedaron con su extensión original — no compilan, son documentación.
+Los `.md` y `.sh` conservaron su extensión original. Los scripts siguen siendo
+ejecutables potencialmente mutantes, no documentación segura para ejecutar.
 
 ---
 
-## Inventario
+## Inventario histórico — afirmaciones del intento fallido, no tareas vigentes
 
 ### Bridge `WorldSession` ↔ `MapManager` (roto)
 
@@ -85,24 +90,9 @@ Quests:
 
 ---
 
-## Patrón canónico de migración (extraído de `MIGRATION_GUIDE.md`)
+## Reanudación actual
 
-Para un futuro intento — esta vez correctamente:
-
-```rust
-// ANTES (legacy, vive en WorldSession.creatures: HashMap<ObjectGuid, CreatureAI>):
-self.creatures.get(&guid)
-self.creatures.insert(guid, ai)
-self.visible_creatures.contains(&guid)
-
-// DESPUÉS (vía MapManager global):
-self.get_creature(&guid)              // wrapper en map_helpers.rs
-self.with_creature_mut(&guid, |c| {…}) // wrapper en map_helpers.rs
-self.spawn_creature_global(creature)   // wrapper en map_helpers.rs
-```
-
-`WorldCreature` (en `map_manager.rs`) es el tipo correcto, **no** `CreatureAI`. Tiene 14+ campos. Si se necesita conservar estado de IA aparte del estado de mundo, dejarlo en una tabla separada keyed por `ObjectGuid`.
-
-`CreatureCreateData` (en `wow-packet/src/packets/update.rs`) tiene los campos `entry`, `faction_template`, `health`, `max_health`, `display_id`, etc. **NO** tiene `entry_id`, `faction`, `position`, `current_hp`, `max_hp` — esos nombres son ficción del bridge antiguo.
-
-Migrar **un método a la vez**, con `cargo check -p wow-world` verde después de cada uno. Sin archivos puente. Sin stubs masivos. Cuando un método se migra, el código viejo se borra en el mismo commit.
+La unidad aprobada es la operación/responsabilidad completa dentro del macro activo,
+no una PR o aprobación por método. El [checkpoint #578](../../../docs/architecture/session-578-checkpoint.md)
+define ownership, eliminación de puentes y aceptación; el archivo histórico no
+elige almacenamiento, API ni un orden alternativo de migración.

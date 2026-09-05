@@ -1,5 +1,10 @@
 # Migration: Entities / SceneObject
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/SceneObject/`
 > **Rust target crate(s):** `crates/wow-world/`, `crates/wow-data/`, `crates/wow-constants/`
 > **Layer:** L4 (sub-modules)
@@ -233,7 +238,6 @@ DBC stores (post-WoLK):
 
 - **WoLK 3.4.3 retail client cannot render scenes or pet battles.** All structural code is dead infrastructure. Spawning a SceneObject on a real 3.4 client will at best be ignored.
 - **Pet battles are explicitly out of scope** for a 3.4 server even with full SceneObject support — they require their own DB tables (`battle_pet_*`), DB2 files, and a 6v6 turn-based combat engine. Do not start that work without explicit user direction.
-- The C# legacy reference at `/home/server/woltk-server-core/Source/` likely **does not** have a SceneObject class.
 - Private-object-owner pattern is shared with `Conversation`. If both end up being implemented, factor a `PrivateObjectFilter` into MapManager visibility checks.
 - `_createdBySpellCast` is the **cast id** (a `Cast` instance GUID), not the spell id — do not conflate.
 - `RndSeedVal` (UF field) is a per-entity random seed used to deterministically vary scene playback across clients; if implemented, generate at create time and never mutate.

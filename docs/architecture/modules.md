@@ -3,7 +3,8 @@
 Issue #228 earned the source API; issue #229 makes independent module repositories
 compilable into the server through an explicit, reproducible step.
 
-**Reviewed implementation:** local feature HEAD `32d9a683`, 2026-09-05. #228–#231 provide
+**Bounded source review:** local feature HEAD `7eaf8ddc`, 2026-09-05 (production code
+`93e4002a`; no fresh live acceptance in this document review). #228–#231 provide
 the source/build tooling, typed configuration and the bounded
 `player.login -> SendSystemMessageSelf` contract. They do not yet provide general gameplay
 policies, behavior scripting or host-managed persistent module state. The
@@ -55,7 +56,7 @@ source_api = "1"
 
 ```bash
 python3 tools/modules/compose.py sync     # regenerate lock + compositor
-cargo build -p world-modules              # build the server with modules
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo build -p world-modules  # composed server
 python3 tools/modules/compose.py check    # CI: fail if the tree drifted
 ```
 
@@ -87,8 +88,9 @@ It holds no credentials and no URLs with secrets.
 
 With nothing under `modules/`, the compositor is a no-op that calls
 `world_server::run_with_modules` with an empty registry, and `world-server`'s own
-binary still calls `world_server::run`. A server without modules never consults a
-registry and its capture and state behaviour are untouched.
+binary still calls `world_server::run`. That entry creates an empty registry; the login adapter
+checks `registry.is_empty()` and returns before constructing a snapshot or invoking callbacks.
+This is the current zero-module source path, not fresh capture proof for every server action.
 
 ## The module manager
 
@@ -162,8 +164,10 @@ welcome_text = "Example Greeter is installed."
 welcome_text = "Welcome to our realm!"
 ```
 
-Overrides never live inside the checkout, so updating a module cannot clobber operator
-settings and a module repository never carries a secret.
+The override path is outside the checkout so module source updates do not replace that file.
+Keep credentials out of module repositories and embedded options: composition writes typed
+configuration into generated source/binaries, which are not secret storage. A separate path
+does not itself guarantee that configuration values contain no secrets.
 
 `sync` merges defaults with overrides, validates them, and **embeds the typed result** in the
 generated compositor. A module therefore reads its configuration exactly once, at registration:
@@ -312,6 +316,12 @@ These are implementation acceptance requirements, not results of this documentat
 Use focused tests during internal cuts and the relevant production/live evidence at acceptance;
 existing migration, deployment, push and merge approvals remain unchanged.
 
+Follow the [shared reanalysis cadence](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication):
+#578 first proves conformance and a real C1/C2 vertical before replication, then completes its
+C4 balance. #583 tests its first independent production module before extending the API and
+finishes the durable/operator contract before #153 audits both macros. These are internal
+evidence checkpoints, not another issue or routine approval for each hook.
+
 ## Remaining boundaries
 
 Remote checkout management and typed configuration are already implemented by #230/#231.
@@ -319,4 +329,4 @@ The broader policy/behavior/state contracts and integrated migration/disable lif
 remain #583 work under #99, now including the operator-optional Wasm adapter and Rust/C proof.
 No production sandbox, native ABI stability or hot reload exists. The selected executor/backend
 direction is not a claim of installation or acceptance; current source manager commands and the
-bounded login hook remain the implemented product at `ee9a0128`.
+bounded login hook remain the implemented product at the reviewed code above.

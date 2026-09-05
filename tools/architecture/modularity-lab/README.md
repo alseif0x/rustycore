@@ -6,7 +6,13 @@ The two standalone crates avoid conflating entity storage with extension executi
 
 - `storage`: one owner/operation driver over aggregate/sidecar storage or selective hecs.
 - `execution`: identical shared Rust decision logic compiled natively and to Core Wasm,
-  over the same aggregate host. Wasmtime is the first pinned execution candidate.
+  over the same aggregate host. Wasmtime was the pinned execution candidate for V1.
+
+**Post-campaign direction:** the approved [modularity/ECS plan](../../../docs/architecture/modularity-and-ecs-plan.md)
+now selects private selective hecs and native Rust plus operator-optional Wasmtime/Core Wasm.
+That decision does not install them or extend what V1 proved. Finite third-module conformance
+inside #578 precedes production storage migration; #583 subsequently delivers the external
+stateful-module contract and Rust/C Wasm evidence. #578 does not depend on finishing #583.
 
 ## Pre-registered controls and decision rules
 
@@ -105,8 +111,9 @@ Build artifacts and ordinary results are ignored. Preserve the bounded evidence 
 
 This is an executable **laboratory model**, not the real Map/Session owner, full SDK, fresh
 client capture, end-to-end encounter, distributed race test or real durable storage test.
-Passing requires a subsequent affected-family production cut/integration under #578 and real
-external consumers/operator lifecycle under #583 before production adoption is approved.
+After the independent-state conformance gate, affected-family production ownership/integration
+still needs #578 acceptance. External consumers, durable operator lifecycle and the bounded
+native/Wasm SDK separately need #583 acceptance; a V1 pass closes neither macro.
 Existing `production_login_player_owner` tests cover early hydration only, not that full proof.
 The storage fixture knows two optional types in `Bundle`/`Row`/`Store` and enumerates their
 four combinations on ECS extraction. It proves their coexistence and lifetime, not addition of
@@ -122,6 +129,9 @@ sandbox guarantee, stable public ABI or production decision is created by this e
 Campaigns and the reviewed verdict are retained in
 [the result report](../../../docs/architecture/modularity-lab-results.md). A raw automatic
 success flag may be superseded by the accompanying adversarial review; retain both records.
+This README has post-campaign clarifications. `run.py` includes Markdown in its source digest,
+so reproducing the historical digest requires the recorded campaign tree, not this later
+documentation revision. Existing evidence and recorded source/binary hashes are not rewritten.
 
 Primary references: [hecs](https://github.com/Ralith/hecs),
 [Wasmtime interruption](https://docs.wasmtime.dev/examples-interrupting-wasm.html),

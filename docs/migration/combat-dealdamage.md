@@ -1,5 +1,10 @@
 # Migration: Combat — DealDamage pipeline
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Entities/Unit/Unit.cpp` (damage subset: lines ~746-1800, 6592-7800, 10457+) + `src/server/game/Entities/Unit/Unit.h` (lines ~880-1620 — DamageInfo / CalcDamageInfo / CleanDamage / Damage* prototypes)
 > **Rust target crate(s):** `crates/wow-combat/` (empty — see §13), `crates/wow-spell/` (school mask + immunity hooks), `crates/wow-world/src/handlers/combat.rs` (entry-point bridge)
 > **Layer:** L5 sub-module of `combat.md`. Depends on `entities-unit.md` (L4 — Unit stats, auras), `spells-effects.md` (L5 — SpellInfo, SchoolMask, AuraEffect), `loot.md` (L6 — kill drops), `quests.md` (L6 — kill credit). Sibling of `combat-threat.md`, `combat-manager.md`.

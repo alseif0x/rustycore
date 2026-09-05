@@ -1,5 +1,10 @@
 # Migration: Spells — SpellMgr (loader / static-data registry)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Spells/SpellMgr.{h,cpp}` (~5,855 lines combined: 827 + 5,028)
 > **Rust target crate(s):** `crates/wow-spell/src/spell_mgr.rs` (planned), `crates/wow-data/src/spell.rs` (DB2 readers — partial)
 > **Layer:** L5 sub-module (Game systems — Spells loader). Parent: `spells.md`. Sibling: `spells-info.md`. Depends downward on `shared-datastores.md` (DB2 readers) and on `wow-database` (SQL).

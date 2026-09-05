@@ -5,6 +5,12 @@ It is not a claim that Rust already implements all of `Player::LoadFromDB` or `P
 The executable fixture is
 `crates/wow-world/tests/fixtures/player-lifecycle-contract.json`.
 
+This remains a bounded compatibility contract, not a current full-persistence
+audit. The #187/#200/#286 notes below retain their implementation history;
+current ownership and remaining work follow [STATE.md](STATE.md) and
+[#578 C0–C4](../architecture/session-578-checkpoint.md). Do not recompute the full
+persistence inventory for a metadata-only refresh of this document.
+
 ## C++ anchors
 
 - Load: `Player::LoadFromDB` and the `LoginQueryHolder` path in
@@ -45,8 +51,11 @@ SQL.
 - Rust explicitly fences an indeterminate COMMIT and forces relogin. The fixture preserves that
   current safety behavior without claiming it is a completed C++ parity implementation.
 
-These discrepancies are inputs to #200 and later parity work. Changing them in the architecture
-move requires an explicit behavior PR rather than silently changing the fixture.
+These discrepancies were inputs to #200 and remain bounded historical findings
+until re-contrasted. Intentionally changing behavior still requires explicit
+approval and separate behavior evidence; do not silently change the fixture in
+a refactor. An already approved behavior change need not acquire a second
+approval or a micro-PR solely because it is part of a larger authorized macro.
 
 ## #286 character-save port
 

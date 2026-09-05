@@ -1,5 +1,10 @@
 # Migration: Performance Strategy (cross-cutting)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** N/A — this is a meta-doc consolidating perf goals across all per-module audits in `/home/server/rustycore/docs/migration/`.
 > **Rust target crate(s):** workspace-wide (`crates/*` plus per-crate `benches/` to be created)
 > **Layer:** L0–L8 (cross-cutting)
@@ -7,13 +12,20 @@
 > **Audited vs C++:** N/A (meta-doc)
 > **Last updated:** 2026-05-01
 
+This is an unadopted historical measurement proposal, not current performance
+acceptance. Its tool/host choices, fixed throughput targets and per-push CI
+thresholds are not repository gates. Use the active issue and dated experiment
+protocol for the question being measured; record host, workload, baseline and
+limits. The current bounded architecture experiment is linked from the
+[modularity plan](../architecture/modularity-and-ecs-plan.md).
+
 ---
 
 ## 1. Purpose
 
 Consolidate every "Benchmark X vs C++" item that per-module audits have generated (e.g. `#PACKETS.6 Benchmark serialization Rust vs C++ on packet típico 512 bytes`, `#CRYPTO.12 Benchmark SRP6 verify vs C++`, `#MAPS.N Benchmark grid-update at 64×64`) into one performance plan: target tps, target latency, packet/sec, concurrent sessions, MapManager update frequency, criterion-bench layout, and the profiling-tool kit needed to validate them.
 
-The Rust port's headline value-prop over the C# original (and over C++ TC) is throughput-per-core and tail-latency. Without measurement, that claim is theatre. This doc specifies the measurement.
+Throughput-per-core and tail latency require representative measurements. This historical proposal does not establish superiority, current budgets, or performance acceptance.
 
 ---
 
@@ -243,7 +255,6 @@ Each regression "test" is enforced by `#PERF.15` (CI perf-regression job).
 7. **`MapManager` is not yet wired into the live tick path** (AGENTS.md "Creature storage" section). Bench numbers for it today reflect the standalone module, not the in-flight game state. Re-bench after the migration is complete.
 8. **`PROTOC=/home/ubuntu/.local/protoc/bin/protoc`** is required to build the workspace, hence required to run benches. CI configs for perf must set it.
 9. **Prefer `samply` over `perf` on hosts where `perf_event_paranoid > 1`** and you can't change it. Same flamegraph output, different permissions model.
-10. **The C# legacy at `/home/server/woltk-server-core/Source/`** (the original C# port that this Rust project replaces) is **not** the comparison baseline. The C++ TC at `/home/server/woltk-trinity-legacy/` is. The C# numbers are uninteresting except as a "must-beat-this" floor.
 
 ---
 

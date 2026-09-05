@@ -1,5 +1,10 @@
 # Migration: anticheat (cross-cutting reference)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** scattered — primarily `src/server/game/Entities/Player/Player.cpp`, `src/server/game/Handlers/MovementHandler.cpp`, `src/server/game/Server/WorldSession.cpp`
 > **Rust target crate(s):** `crates/wow-world/` (handler-level), `crates/wow-anticheat/` (portable movement sanitizer core)
 > **Layer:** L8 (game-rule policy / enforcement)

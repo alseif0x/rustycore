@@ -371,7 +371,7 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
     each concrete mutation committed before runtime publication. Paired installed C++/Rust QA
     proved the invalid container-aware source error on the C++ realm route plus forward/reverse
     occupied swaps and fresh-auth metadata; strict capture-diff matched request and response with
-    zero value/routing/count differences. This closes the bounded C#-ITEM.2 behavior, not broader
+    zero value/routing/count differences. This closes the bounded #LegacyAudit.ITEM.2 behavior, not broader
     item/gem/durability parity, and remains pending PR CI/current-HEAD review/merge. GitHub review
     additionally applied current upstream TrinityCore's missing legacy `AutoUnequipChildItem`
     pre-step before child redirects and stopped internal inventory relocations from re-crediting
