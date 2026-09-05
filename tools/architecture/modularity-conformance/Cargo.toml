@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["contract", "host", "modules/encounter", "modules/policy", "driver"]
+members = ["contract", "host", "modules/encounter", "modules/policy", "modules/expedition", "driver"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +12,7 @@ conformance-contract = { path = "contract" }
 conformance-host = { path = "host" }
 conformance-encounter = { path = "modules/encounter" }
 conformance-policy = { path = "modules/policy" }
+conformance-expedition = { path = "modules/expedition" }
 hecs = "=0.11.1"
 wasmtime = { version = "=47.0.3", default-features = false, features = ["runtime", "cranelift", "std", "wat"] }
 serde = { version = "1", features = ["derive"] }

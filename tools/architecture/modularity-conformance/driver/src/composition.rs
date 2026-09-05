@@ -1,6 +1,7 @@
 //! The third-module challenge may add declarative registration here, not host logic.
 use conformance_contract::Result;
 use conformance_encounter::Encounter;
+use conformance_expedition::Expedition;
 use conformance_host::Limits;
 use conformance_policy::Policy;
 
@@ -13,6 +14,7 @@ pub fn descriptors() -> Vec<Descriptor> {
     vec![
         descriptor::<Encounter>("conformance_encounter.wasm", "encounter-c.wasm"),
         descriptor::<Policy>("conformance_policy.wasm", "policy-c.wasm"),
+        descriptor::<Expedition>("conformance_expedition.wasm", "expedition-c.wasm"),
     ]
 }
 

@@ -13,6 +13,7 @@ conformance-contract.workspace = true
 conformance-host.workspace = true
 conformance-encounter.workspace = true
 conformance-policy.workspace = true
+conformance-expedition.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
