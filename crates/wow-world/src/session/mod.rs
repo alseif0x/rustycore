@@ -20828,16 +20828,11 @@ impl WorldSession {
         canonical
     }
 
-    fn replace_player_spell_history_like_cpp(
+    #[cfg(test)]
+    fn store_spell_history_fixture_like_cpp(
         &mut self,
         history: wow_entities::SpellHistory,
     ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.unit_mut().subsystems_mut().spells.history = history.clone();
-            })
-            .is_some();
-        #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
             self.represented_character_spell_cooldowns_loaded_like_cpp = history.cooldowns_loaded;
             self.represented_character_spell_charges_loaded_like_cpp = history.charges_loaded;
@@ -20883,17 +20878,27 @@ impl WorldSession {
                 .collect();
             return true;
         }
-        canonical
+        false
     }
 
     fn mutate_player_spell_history_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::SpellHistory) -> R,
     ) -> Option<R> {
-        let mut history = self.player_spell_history_snapshot_like_cpp()?;
-        let result = f(&mut history);
-        self.replace_player_spell_history_like_cpp(history)
-            .then_some(result)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut history = self.player_spell_history_snapshot_like_cpp()?;
+            let result = f(&mut history);
+            return self
+                .store_spell_history_fixture_like_cpp(history)
+                .then_some(result);
+        }
+        // C++ Unit owns one SpellHistory (Unit.h:1417-1418,1945).
+        // Mutate that value under one generation-checked owner access; a
+        // snapshot followed by replacement could overwrite another transition.
+        self.with_owned_player_mut_like_cpp(|player| {
+            f(&mut player.unit_mut().subsystems_mut().spells.history)
+        })
     }
 
     pub(crate) fn reset_represented_character_spell_cooldowns_like_cpp(&mut self) {

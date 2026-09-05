@@ -22,6 +22,8 @@ mod routing;
 mod save_plan_order;
 #[path = "session/tests/session_account_state.rs"]
 mod session_account_state;
+#[path = "session/tests/spell_history_owner.rs"]
+mod spell_history_owner;
 
 use routing::assert_destroyed_party_update_like_cpp;
 
@@ -33978,7 +33980,7 @@ fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownersh
     assert_eq!(session.player_spell_history_snapshot_like_cpp(), None);
     assert_eq!(session.completed_achievement_ids_snapshot_like_cpp(), None);
     assert!(!session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
-    assert!(!session.replace_player_spell_history_like_cpp(Default::default()));
+    assert_eq!(session.mutate_player_spell_history_like_cpp(|_| ()), None);
     assert!(!session.replace_completed_achievement_ids_like_cpp([100]));
     session.set_loaded_player_customizations_like_cpp(vec![
         wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {

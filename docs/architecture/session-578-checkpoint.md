@@ -56,6 +56,57 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — mutate SpellHistory inside its canonical owner
+
+Ownership-boundary correction on #578, based on `7802ed56`. Before moving the remaining
+Session cast clocks, retire `replace_player_spell_history_like_cpp`: the old mutation helper
+cloned the complete canonical history under a read access, changed the clone after releasing
+the manager, and replaced the canonical history under a second access. That left an
+interleaving window in which a different history mutation could be overwritten. This is a
+source-proven window, not a claim of an observed live data-loss incident.
+
+`mutate_player_spell_history_like_cpp` now resolves the generation and mutates the Unit's
+existing history under exactly one canonical owner access. Its seven production callers
+only clear/mark/insert cooldowns or charges, or restore a charge; none performs delivery,
+database work, another manager acquisition or an await inside the closure. The guard is
+released before the caller resumes. Stale/missing ownership returns `None` without invoking
+the operation; active and detached residence use the same lifetime contract.
+
+C++ anchors: `Unit.h:1417-1418,1945` owns one SpellHistory; `SpellHistory.cpp:147-175`
+loads directly into that owner's containers, `554-571` changes cooldown entries in place,
+and `852-861` restores a charge on the same owner before publication. This change preserves
+the existing Rust duration/category/charge policy and its persistence and packet order; it
+does not claim full SpellHistory policy parity or change any clock.
+
+The historical handle-less fixture conversion is now explicitly test-only
+`store_spell_history_fixture_like_cpp`; it cannot assign canonical history. Read-only
+snapshots remain for queries, but production no longer writes one back through this path.
+The syntax policy removes the production replacement and adds only the cfg(test) fixture
+method. The field inventory stays 291 production + 428 fixtures, and the legacy/canonical
+bridge scanner's 65 rows are unchanged: that scanner is not a count of every substate
+write-back operation. The remaining cast timestamps/current cast and other substate
+write-back paths remain #578 work.
+
+Two focused tests pass on aarch64: active/detached callbacks run once with the manager
+locked, the guard is available immediately afterward, and stale/missing owners never
+invoke the callback or alter replacement history. The existing spell-family ownership
+test now tests rejected mutation instead of the removed replacement API.
+Reviewed logical LOC: Session production 81,412 -> 81,417 (+5 for the single-owner path),
+tests 102,269 -> 102,370 (+101 for ownership regressions and fixture classification).
+Validation on aarch64 passes: `wow-world --lib` 3,675 passed / zero failures / one ignored;
+syntax-only ownership ratchet; architecture check and self-test; formatting/diff checks;
+and `validation-v2 quick --base origin/3.4.3`, including workspace/all-targets and isolated
+bot checks. Manifest `target/validation-v2/manifests/20260905T013345.023415Z-111320-quick.json`
+records the implementation worktree based on `7802ed56`, not a clean post-commit final.
+No restart, capture, push, new clock or terminal #133/#153 acceptance is claimed.
+
+Follow-on source audit identifies equivalent production read-copy-write helpers in
+`mutate_player_talent_runtime_like_cpp` and `mutate_player_spell_runtime_like_cpp`; they
+remain open. The remaining cast clocks also interact with active-cast metadata that saves
+and restores a previous timestamp on power failure, so their migration must preserve the
+selected-character incarnation together with that lifecycle rather than moving isolated
+timer fields and leaving a stale cast able to target a replacement.
+
 ### 2026-09-05 — borrowed hotfix delivery capability
 
 Boundary extraction on #578, based on `13c984a6`: delete the production

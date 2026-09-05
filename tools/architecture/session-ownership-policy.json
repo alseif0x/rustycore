@@ -36687,9 +36687,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "replace_player_spell_history_like_cpp",
+          "name": "replace_player_spell_runtime_like_cpp",
           "visibility": "private",
-          "signature": "fn replace_player_spell_history_like_cpp (& mut self , history : wow_entities :: SpellHistory ,) -> bool",
+          "signature": "fn replace_player_spell_runtime_like_cpp (& mut self , runtime : RepresentedPlayerSpellRuntimeLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -36698,11 +36698,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "replace_player_spell_runtime_like_cpp",
+          "name": "store_spell_history_fixture_like_cpp",
           "visibility": "private",
-          "signature": "fn replace_player_spell_runtime_like_cpp (& mut self , runtime : RepresentedPlayerSpellRuntimeLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn store_spell_history_fixture_like_cpp (& mut self , history : wow_entities :: SpellHistory ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
