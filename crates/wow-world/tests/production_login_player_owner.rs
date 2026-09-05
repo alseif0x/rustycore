@@ -356,6 +356,7 @@ async fn exercise_initial_hydration(install_manager: bool, stop_at_pet_load: boo
         power_types: Arc::new(PowerTypeStore::from_entries([])),
     };
     let progression = ProgressionCatalogsLikeCpp {
+        no_reset_talent_cost: false,
         player_xp: Arc::new(vec![0, 400]),
         exploration_base_xp: Arc::new(ExplorationBaseXpStoreLikeCpp::default()),
         exploration_xp_rate: 1.0,

@@ -4704,6 +4704,11 @@ async fn run_inner(
                     power_types: Arc::clone(&power_type_store),
                 }),
                 progression: Arc::new(wow_world::session::ProgressionCatalogsLikeCpp {
+                    no_reset_talent_cost: world_config_bool(
+                        &world_configs,
+                        "CONFIG_NO_RESET_TALENT_COST",
+                        false,
+                    ),
                     player_xp: Arc::clone(&player_xp_table),
                     exploration_base_xp: Arc::clone(&exploration_base_xp_store),
                     exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
@@ -5053,11 +5058,6 @@ async fn run_inner(
             reputation_rates: reputation_rates_like_cpp(&world_configs),
             repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
             reset_schedule: reset_schedule_like_cpp(&world_configs),
-            no_reset_talent_cost: world_config_bool(
-                &world_configs,
-                "CONFIG_NO_RESET_TALENT_COST",
-                false,
-            ),
             offhand_check_at_spell_unlearn: world_config_bool(
                 &world_configs,
                 "CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN",

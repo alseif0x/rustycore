@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 717,
+      "expected_field_count": 716,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -867,12 +867,11 @@
       },
       {
         "id": "player_spells_quests_and_progression",
-        "expected_field_count": 16,
+        "expected_field_count": 15,
         "field_names": [
           "legacy_spell_script_spell_ids_like_cpp",
           "min_quest_scaled_xp_ratio_like_cpp",
           "movement_visibility_refresh_requests_like_cpp",
-          "no_reset_talent_cost_like_cpp",
           "quest_high_level_hide_diff_like_cpp",
           "quest_low_level_hide_diff_like_cpp",
           "represented_offhand_check_at_spell_unlearn_like_cpp",
@@ -886,7 +885,7 @@
           "spell_script_exact_spell_ids_like_cpp",
           "time_sync_pending_requests"
         ],
-        "current_storage": "Canonical Player owns migrated progression and the pending cast; its Unit owns retained active cast execution and represented cooldown timestamps. The 16 exact production fields here remain Session application/runtime coordination debt. All four former cast/timing/queue fields are cfg(test)-only, with generation-checked production access. Separate current-spell-reference policy and Session scheduling/application convergence remain open.",
+        "current_storage": "Canonical Player owns migrated progression and the pending cast; its Unit owns retained active cast execution and represented cooldown timestamps. The 15 exact production fields here remain Session application/runtime coordination debt. Talent-reset cost policy is borrowed from the process Progression capability; the Session field/setter are deleted. All four former cast/timing/queue fields are cfg(test)-only, with generation-checked production access. Separate current-spell-reference policy and Session scheduling/application convergence remain open.",
         "sole_writer": "The owning Session/handler path currently mutates each represented family; specialized acquisition and battle-pet sagas own their durable transitions where already implemented.",
         "readers": "Spell/quest/character/misc handlers, conditions, packet builders, persistence, and bounded directory projections.",
         "clock_lifetime": "Selected-character or account lifetime; cooldown/history and timed quest state also have explicit clocks.",
@@ -1057,9 +1056,9 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       }
     ],
-    "expected_field_count": 717,
-    "expected_unique_field_count": 717,
-    "expected_production_field_count": 285,
+    "expected_field_count": 716,
+    "expected_unique_field_count": 716,
+    "expected_production_field_count": 284,
     "expected_test_fixture_field_count": 432
   },
   "inventories": {
@@ -1468,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81439,
-          "test_lines": 103093,
-          "total_lines": 184532,
+          "production_lines": 81436,
+          "test_lines": 103118,
+          "total_lines": 184554,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 Player talent-point operation: Session production shrinks 13 lines as counting/rewards/bounds/update move into Player progression; the obsolete Session setter becomes test-only. Player grows 26 production and 63 test lines for the narrow domain operation and exact field-mask/idempotence/filter/bounds regressions. No new retained catalog, dependency, clock or mirror. Catalog/identity retirement remains #578 work; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 talent-reset policy: remove one production Session config field/setter and runtime resource installation; borrow the process Progression policy at the registered handler. Session production shrinks 3 lines and tests grow 25 for alternating free/paid persistence requests without publication. Handler coverage invokes the actual thunk with the free policy and retains exact packet/criteria assertions. No new state, clock or dependency; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

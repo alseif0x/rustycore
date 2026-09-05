@@ -11,8 +11,8 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 
 ## Exact membership and remaining work
 
-After the 2026-09-05 talent-tab capability slice, the AST has **717 WorldSession fields:
-285 production and 432 test fixtures**. The runtime
+After the 2026-09-05 talent-reset policy slice, the AST has **716 WorldSession fields:
+284 production and 432 test fixtures**. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -36,7 +36,7 @@ The following are still open #578 work, not stable exceptions or work deferred t
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
   remove Session map selection/gameplay and the remaining legacy/canonical bridges incrementally.
-- Inventory/loot/economy has 15 remaining production members, spells/progression 16,
+- Inventory/loot/economy has 15 remaining production members, spells/progression 15,
   movement/combat seven, social three, and the unresolved residual 18. The exact field lists
   remain executable ledger data; their inclusion does not endorse their current owner.
 - Handler and external Session impl bodies still coordinate gameplay. Moving data to Player
@@ -47,8 +47,8 @@ The following are still open #578 work, not stable exceptions or work deferred t
 
 `SessionResources` has eight required aggregate fields (`core`, `inventory`, `player`, `spells`,
 `world`, `progression`, `runtime`, `realm`), rather than 273 flat fields with 216 optional slots.
-Their immediate capability types contain respectively 5, 30, 22, 34, 29, 21, 20 and six members:
-**167 first-level members, plus further nested handler/persistence bundles**. Glyph and
+Their immediate capability types contain respectively 5, 30, 22, 34, 29, 21, 19 and six members:
+**166 first-level members, plus further nested handler/persistence bundles**. Glyph and
 talent-tab catalogs are required members of the process-owned PlayerBootstrap catalog,
 borrowed by login/learning instead of installed on Session. The hotfix
 dependency now lives in the nested, process-owned handler capabilities instead of the
@@ -57,6 +57,40 @@ aggregate stays in world-server, not wow-network. Its `install_into_session_like
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — Talent reset borrows process-owned cost policy
+
+Ownership migration based on `7de52e09`: `CONFIG_NO_RESET_TALENT_COST` is built
+once in the required Progression capability. The ConfirmRespecWipe registration
+passes only that bool, together with its existing item generator, through the
+transaction adapter. Session's field, initializer and setter and the old runtime
+resource installation are removed without a test-only mirror.
+
+C++ `Player.cpp:3505-3524` (`ResetTalents`) reads the World configuration before
+the money check. Its explicit `noCost` parameter is a separate policy: the
+script-hook argument remains false and login's free-reset path is unchanged.
+Rust retains cost planning before its exclusive money guard, the same persistence
+request and Applied/Failed/Unknown handling, and publication only after COMMIT.
+This move does not claim full C++ reset semantics or change any packet metadata.
+
+The free-reset test now invokes the actual registry thunk with explicit process
+policy, retaining byte-exact output/criteria assertions and checking metadata and
+no retained Arc. A new recording-port test alternates free and paid policy on the
+same session: each request has the expected cost/money, while runtime publication
+remains separate. Existing rollback and unknown-COMMIT tests pass the paid policy
+explicitly. Remaining catalogs and talent gameplay adapters stay open #578 work.
+
+On aarch64, `wow-world --lib` passes 3,693/0 with one ignored and the production-
+linked login regression passes 3/0. Syntax-only ownership and architecture
+check/self-test pass. Reviewed syntax removes one field/setter, changes three
+signatures and the Session fingerprint only: 284 production + 432 fixtures,
+3,659 associated items, 590 registrations. The removed config was ledgered in
+spells/progression (16 -> 15), not the separate 134-member catalog family.
+Session measures 81,436 production + 103,118 test lines; world-server shrinks
+three production lines. No packet, transaction or clock contract changes.
+Formatting, diff checks and `validation-v2 quick` pass (exit 0), manifest
+`target/validation-v2/manifests/20260905T033628.948629Z-298213-quick.json`.
+No fresh capture, runtime install, push or terminal acceptance is claimed.
 
 ### 2026-09-05 — Player owns the represented talent-point operation
 

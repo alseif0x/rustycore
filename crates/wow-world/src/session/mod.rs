@@ -376,6 +376,8 @@ pub struct ProgressionCatalogsLikeCpp {
     pub exploration_base_xp: Arc<ExplorationBaseXpStoreLikeCpp>,
     pub exploration_xp_rate: f32,
     pub min_discovered_scaled_xp_ratio: u32,
+    /// C++ World policy read by Player::ResetTalents, never cached on Session.
+    pub no_reset_talent_cost: bool,
 }
 
 #[cfg(test)]
@@ -7322,8 +7324,6 @@ pub struct WorldSession {
     repair_cost_rate_like_cpp: f32,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
     reset_schedule_like_cpp: wow_instances::ResetSchedule,
-    /// C++ `CONFIG_NO_RESET_TALENT_COST` represented switch.
-    no_reset_talent_cost_like_cpp: bool,
     /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
     represented_offhand_check_at_spell_unlearn_like_cpp: bool,
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
@@ -9181,7 +9181,6 @@ impl WorldSession {
             reputation_rates: ReputationRatesLikeCpp::default(),
             repair_cost_rate_like_cpp: 1.0,
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
-            no_reset_talent_cost_like_cpp: false,
             represented_offhand_check_at_spell_unlearn_like_cpp: true,
             vmap_indoor_check_like_cpp: false,
             #[cfg(test)]
@@ -22841,10 +22840,6 @@ impl WorldSession {
 
     pub fn set_reset_schedule_like_cpp(&mut self, schedule: wow_instances::ResetSchedule) {
         self.reset_schedule_like_cpp = schedule;
-    }
-
-    pub fn set_no_reset_talent_cost_like_cpp(&mut self, no_cost: bool) {
-        self.no_reset_talent_cost_like_cpp = no_cost;
     }
 
     pub fn set_offhand_check_at_spell_unlearn_like_cpp(&mut self, enabled: bool) {
@@ -36621,20 +36616,22 @@ impl WorldSession {
 
     pub(crate) async fn commit_represented_talent_reset_like_cpp(
         &mut self,
+        no_reset_talent_cost: bool,
     ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
         let now_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        self.commit_represented_talent_reset_at_like_cpp(now_secs)
+        self.commit_represented_talent_reset_at_like_cpp(now_secs, no_reset_talent_cost)
             .await
     }
 
     async fn commit_represented_talent_reset_at_like_cpp(
         &mut self,
         now_secs: u64,
+        no_reset_talent_cost: bool,
     ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
-        let cost = if self.no_reset_talent_cost_like_cpp {
+        let cost = if no_reset_talent_cost {
             0
         } else {
             u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs)?)

@@ -1834,13 +1834,6 @@
           "source_class": "production"
         },
         {
-          "name": "no_reset_talent_cost_like_cpp",
-          "type": "bool",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "npc_spell_click_store",
           "type": "Option < Arc < NpcSpellClickStoreLikeCpp > >",
           "visibility": "private",
@@ -19860,7 +19853,7 @@
           "kind": "method",
           "name": "handle_confirm_respec_wipe_with_generator_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_confirm_respec_wipe_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut packet : WorldPacket ,)",
+          "signature": "async fn handle_confirm_respec_wipe_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , no_reset_talent_cost : bool , mut packet : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25767,7 +25760,7 @@
           "kind": "method",
           "name": "commit_represented_talent_reset_at_like_cpp",
           "visibility": "private",
-          "signature": "async fn commit_represented_talent_reset_at_like_cpp (& mut self , now_secs : u64 ,) -> Option < CommittedRepresentedTalentResetLikeCpp >",
+          "signature": "async fn commit_represented_talent_reset_at_like_cpp (& mut self , now_secs : u64 , no_reset_talent_cost : bool ,) -> Option < CommittedRepresentedTalentResetLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -25778,7 +25771,7 @@
           "kind": "method",
           "name": "commit_represented_talent_reset_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn commit_represented_talent_reset_like_cpp (& mut self ,) -> Option < CommittedRepresentedTalentResetLikeCpp >",
+          "signature": "async fn commit_represented_talent_reset_like_cpp (& mut self , no_reset_talent_cost : bool ,) -> Option < CommittedRepresentedTalentResetLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -47719,20 +47712,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_no_reset_talent_cost_like_cpp",
-          "visibility": "pub",
-          "signature": "fn set_no_reset_talent_cost_like_cpp (& mut self , no_cost : bool)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -75957,7 +75936,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:17b132afb6bac15bc2ee9580ce2146ae:len=96622|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:953e304f0fecf56821380f5fb9ac5953:len=96516|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

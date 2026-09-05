@@ -39,6 +39,7 @@ inventory::submit! {
                 session
                     .handle_confirm_respec_wipe_with_generator_like_cpp(
                         catalogs.id_generators.item.as_ref(),
+                        catalogs.progression.no_reset_talent_cost,
                         pkt,
                     )
                     .await
@@ -130,6 +131,7 @@ impl WorldSession {
     pub async fn handle_confirm_respec_wipe_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        no_reset_talent_cost: bool,
         mut packet: WorldPacket,
     ) {
         let request = match ConfirmRespecWipe::read(&mut packet) {
@@ -162,7 +164,10 @@ impl WorldSession {
         self.record_represented_talent_reset_script_hook_like_cpp(false);
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
 
-        let Some(committed) = self.commit_represented_talent_reset_like_cpp().await else {
+        let Some(committed) = self
+            .commit_represented_talent_reset_like_cpp(no_reset_talent_cost)
+            .await
+        else {
             return;
         };
 
@@ -181,8 +186,12 @@ impl WorldSession {
     #[cfg(test)]
     pub async fn handle_confirm_respec_wipe(&mut self, packet: WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
-        self.handle_confirm_respec_wipe_with_generator_like_cpp(generators.item.as_ref(), packet)
-            .await;
+        self.handle_confirm_respec_wipe_with_generator_like_cpp(
+            generators.item.as_ref(),
+            false,
+            packet,
+        )
+        .await;
     }
 
     fn represented_can_confirm_respec_wipe_like_cpp(
@@ -866,16 +875,25 @@ mod tests {
         let trainer = test_creature_guid(78);
         register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
         session.mark_represented_talents_loaded_like_cpp();
-        session.set_no_reset_talent_cost_like_cpp(true);
         session.set_player_gold_like_cpp(0);
         session.set_represented_talent_reset_state_like_cpp(500_000, 123);
 
-        session
-            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
-                trainer,
-                SPEC_RESET_TALENTS_LIKE_CPP,
-            ))
-            .await;
+        let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        let entry =
+            crate::session::registry::get_handler(ClientOpcodes::ConfirmRespecWipe).unwrap();
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        Arc::get_mut(&mut catalogs.progression)
+            .unwrap()
+            .no_reset_talent_cost = true;
+        let references = Arc::strong_count(&catalogs.progression);
+        (entry.handler)(
+            &mut session,
+            &catalogs,
+            confirm_respec_wipe_packet(trainer, SPEC_RESET_TALENTS_LIKE_CPP),
+        )
+        .await;
+        assert_eq!(Arc::strong_count(&catalogs.progression), references);
 
         let reset_update = send_rx
             .try_recv()

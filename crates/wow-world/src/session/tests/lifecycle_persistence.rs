@@ -686,7 +686,7 @@ async fn talent_reset_reaches_the_sqlx_free_port_before_runtime_publication_like
         talent_reset_session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 3 }, 0x7500_0201);
 
     let committed = session
-        .commit_represented_talent_reset_at_like_cpp(123)
+        .commit_represented_talent_reset_at_like_cpp(123, false)
         .await
         .expect("an applied adapter outcome should return the unpublished runtime plan");
 
@@ -716,7 +716,7 @@ async fn definite_talent_reset_rollback_does_not_publish_runtime_state_like_cpp(
 
     assert!(
         session
-            .commit_represented_talent_reset_at_like_cpp(123)
+            .commit_represented_talent_reset_at_like_cpp(123, false)
             .await
             .is_none()
     );
@@ -730,6 +730,31 @@ async fn definite_talent_reset_rollback_does_not_publish_runtime_state_like_cpp(
 }
 
 #[tokio::test]
+async fn talent_reset_uses_each_supplied_cost_policy_without_caching_it() {
+    let (mut session, port) =
+        talent_reset_session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 3 }, 0x7500_0204);
+    for (free, expected_money, expected_cost) in [(true, 100_000, 0), (false, 90_000, 10_000)] {
+        let committed = session
+            .commit_represented_talent_reset_at_like_cpp(123, free)
+            .await
+            .expect("supplied policy must reach the persistence plan");
+        let requests = port.talent_resets();
+        let request = requests.last().unwrap();
+        assert_eq!(request.money_before, 100_000);
+        assert_eq!(request.money_after, expected_money);
+        assert_eq!(request.reset_cost, expected_cost);
+        assert_eq!(request.reset_time_secs, 123);
+        assert_eq!(
+            session.player_gold_like_cpp(),
+            100_000,
+            "publication stays separate"
+        );
+        drop(committed);
+    }
+    assert_eq!(port.talent_resets().len(), 2);
+}
+
+#[tokio::test]
 async fn unknown_talent_reset_commit_quarantines_without_publication_like_cpp() {
     let (mut session, port) = talent_reset_session_with_port(
         PersistenceOutcomeLikeCpp::Unknown {
@@ -740,7 +765,7 @@ async fn unknown_talent_reset_commit_quarantines_without_publication_like_cpp() 
 
     assert!(
         session
-            .commit_represented_talent_reset_at_like_cpp(123)
+            .commit_represented_talent_reset_at_like_cpp(123, false)
             .await
             .is_none()
     );
