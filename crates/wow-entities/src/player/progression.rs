@@ -88,6 +88,23 @@ mod rest_flag_tests {
     use super::*;
 
     #[test]
+    fn rest_bonus_preserves_max_level_raf_priority_and_fractional_no_change_mask() {
+        let mut player = Player::new(None, false);
+        player.set_next_level_xp(100);
+        player.load_xp_rest_bonus_like_cpp(2, 0.5);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(0.9, false, false), 0);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.9);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(200.0, false, false), 7);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 75.0);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 1);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(200.0, true, true), 7);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.0);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 6);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(200.0, true, false), 7);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 2);
+    }
+
+    #[test]
     fn rest_flags_only_start_and_stop_time_at_zero_crossings() {
         for deferred in [false, true] {
             let mut state = PlayerRestState {
@@ -329,6 +346,54 @@ impl Player {
             state.rest_state = state_id;
             state.rest_bonus = bonus;
         });
+    }
+
+    /// C++ RestMgr::SetRestBonus (RestMgr.cpp:33-80), with the existing
+    /// represented non-finite input and unavailable-next-level-XP guards.
+    /// Policy is borrowed; previous/new rest values and NextLevelXP are local.
+    pub fn set_xp_rest_bonus_like_cpp(
+        &mut self,
+        bonus: f32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> u8 {
+        let next_level_xp = self.active_data().next_level_xp.max(0) as u32;
+        let old = self.rest_state_like_cpp();
+        let old_threshold = old.rest_bonus.clamp(0.0, u32::MAX as f32) as u32;
+        let old_state = old.rest_state;
+        let mut bonus = if bonus.is_finite() { bonus } else { 0.0 };
+        if at_configured_max_level || next_level_xp == 0 || next_level_xp == u32::MAX {
+            bonus = 0.0;
+        }
+        bonus = bonus.clamp(0.0, next_level_xp as f32 * (1.5 / 2.0));
+        let state_id = if raf_linked {
+            6
+        } else if bonus >= 1.0 {
+            1
+        } else {
+            2
+        };
+        self.mutate_rest_state_like_cpp(|state| {
+            state.rest_bonus = bonus;
+            state.rest_state = state_id;
+        });
+        let new_threshold = bonus.clamp(0.0, u32::MAX as f32) as u32;
+        // Both nested fields are published whenever either value changes.
+        if old_threshold != new_threshold || old_state != state_id {
+            0x07
+        } else {
+            0
+        }
+    }
+
+    pub fn add_xp_rest_bonus_like_cpp(
+        &mut self,
+        bonus: f32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> u8 {
+        let total = self.rest_state_like_cpp().rest_bonus + bonus;
+        self.set_xp_rest_bonus_like_cpp(total, at_configured_max_level, raf_linked)
     }
 
     /// Mutate this Player's RestMgr state and refresh its represented fields.

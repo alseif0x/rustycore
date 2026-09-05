@@ -3,6 +3,55 @@
 use super::*;
 
 #[test]
+fn native_rest_bonus_set_and_add_match_previous_projection_for_active_and_detached_player() {
+    let (mut session, _, send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for next_xp in [0, 100] {
+            for bonus in [-1.0, 0.5, 42.5, 1e9, f32::INFINITY, f32::NAN] {
+                for add in [false, true] {
+                    let prepare = |player: &mut Player| {
+                        player.set_next_level_xp(next_xp);
+                        player.load_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 0.5);
+                        player.clear_data_changes();
+                    };
+                    let projection = |player: &Player| {
+                        (
+                            player.rest_state_like_cpp().clone(),
+                            player.active_data().rest_info[0].threshold,
+                            player.active_data().rest_info[0].state_id,
+                            player.active_player_data_changes_mask().blocks().to_vec(),
+                        )
+                    };
+                    session.with_owned_player_mut_like_cpp(prepare).unwrap();
+                    let expected_mask = session.fixture_set_xp_rest_bonus_like_cpp(if add {
+                        0.5 + bonus
+                    } else {
+                        bonus
+                    });
+                    let expected = session.with_owned_player_like_cpp(projection).unwrap();
+                    session.with_owned_player_mut_like_cpp(prepare).unwrap();
+                    let mask = if add {
+                        session.add_represented_xp_rest_bonus_like_cpp(bonus)
+                    } else {
+                        session.set_represented_xp_rest_bonus_like_cpp(bonus)
+                    };
+                    assert_eq!(mask, expected_mask);
+                    assert_eq!(
+                        session.with_owned_player_like_cpp(projection),
+                        Some(expected)
+                    );
+                    assert!(send_rx.is_empty());
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn rest_load_resets_transient_location_but_preserves_loaded_flags_and_unrelated_state() {
     let (mut session, _, send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

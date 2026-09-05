@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81485,
-          "test_lines": 103805,
-          "total_lines": 185290,
+          "production_lines": 81507,
+          "test_lines": 103856,
+          "total_lines": 185363,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 rest flag rules: Session set/remove adapters delegate to PlayerRestState methods under the existing mutation owner. Production decreases 32 measured lines; tests unchanged. Clock acquisition stays lazy at the first nonempty flag transition, publication stays outside the guard, and no fields, Session signatures or registrations change; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 rest bonus: native Player set/add commands replace repeated rest/next-XP reads and addition outside the guard. Session retains external max-level/RaF policy inputs, not bonus decisions. Measured growth 22 production-classified and 51 test lines for explicit native/fixture routing, test-only cap constant and 48-case differential coverage. One test-only oracle method added; cap helper becomes test-only. No fields or registrations added; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1546,11 +1546,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10517,
-          "test_lines": 9429,
-          "total_lines": 19946,
+          "production_lines": 10565,
+          "test_lines": 9446,
+          "total_lines": 20011,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: PlayerRestState owns set/remove flag rules. Growth: 49 production and 58 test lines; tests pin lazy clock acquisition, overlapping and repeated flags, first/last transition, deferred dirty state and the existing absent-tavern cleanup. No new state, dependency or clock; full RestMgr parity remains open. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: Player owns rest bonus normalization, cap, previous/new state mask and addition. Growth: 48 production and 17 test lines; pure tests pin configured maximum, RaF priority and fractional no-change masks, with native world differential coverage. Max-level/RaF inputs remain borrowed adapter policy; no new state, dependency or clock. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

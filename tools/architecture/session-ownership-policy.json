@@ -27506,6 +27506,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_set_xp_rest_bonus_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_set_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "flush_packet_spoof_ban_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn flush_packet_spoof_ban_like_cpp (& mut self)",
@@ -41900,8 +41913,10 @@
           "name": "represented_xp_rest_bonus_cap_like_cpp",
           "visibility": "private",
           "signature": "fn represented_xp_rest_bonus_cap_like_cpp (& self) -> Option < f32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {

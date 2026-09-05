@@ -58,6 +58,43 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player owns bonus normalization and addition
+
+Ownership migration based on `132f3943`: native set/add bonus commands now read
+Player's NextLevelXP and previous rest state, apply represented normalization and
+cap, mutate/project once and return the nested change mask under one existing
+owner guard. Addition reads its current bonus inside that guard instead of a
+Session snapshot followed by a separate write. Session still obtains max-level
+and RaF policy outside the guard; those catalog/social policy boundaries remain
+open and this slice does not switch Session's staged level authority to Player.
+
+C++ `RestMgr.cpp:33-80` owns cap/state selection and the combined old/new mask
+decision; `RestMgr.h:44-47` defines states 1, 2 and 6. Existing Rust non-finite
+input rejection, negative-input clamp, unavailable NextLevelXP guards and config
+max-level semantics remain unchanged. The same native rest mutation still
+projects flags/RestInfo, including fractional-only mutations whose returned wire
+mask stays zero. No packet, SQL, clock or consumption-percentage rule changes.
+
+The previous set algorithm is a test-only oracle and handleless fixture path;
+its cap helper and constant are test-only too. A 48-case differential test covers
+active/detached Player, zero/nonzero next XP, set/add and negative, fractional,
+oversized, infinite and NaN inputs, asserting exact state, RestInfo and dirty
+mask equality plus no publication. A domain test pins max-level reset, RaF
+priority and fractional no-change masks. Existing stale-owner tests remain active.
+
+The reviewed syntax delta adds one fixture oracle (3,659 associated items) and
+reclassifies the cap helper; Session fields and registrations are unchanged.
+Logical ceilings: Session 81,507 + 103,856 = 185,363; Player 10,565 + 9,446 =
+20,011. Fixtures remain explicit debt, not production owners. Broader rested-XP
+runtime parity and #578 acceptance remain open.
+
+Validation on aarch64: world library 3,708 passed/zero failed/one ignored;
+entities library 704 passed/zero failed. Compilation, formatting/diff checks,
+syntax ownership, architecture check/self-test and quick validation pass.
+Quick evidence:
+`target/validation-v2/manifests/20260905T044325.277207Z-400861-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
+
 ### 2026-09-05 — Player rest state owns flag transition rules
 
 Ownership migration based on `986665be`: the Session set/remove flag adapters

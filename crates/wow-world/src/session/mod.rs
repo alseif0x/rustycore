@@ -1143,6 +1143,7 @@ const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
 const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;
 const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
 // C++ `RestMgr::SetRestBonus`: `float(next_level_xp) * 1.5f / 2`.
+#[cfg(test)]
 const REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP: f32 = 1.5 / 2.0;
 const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
 const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
@@ -32162,6 +32163,7 @@ impl WorldSession {
         Some(next_level_xp != 0 && next_level_xp != u32::MAX)
     }
 
+    #[cfg(test)]
     fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
         Some(
             self.resolved_player_next_level_xp_like_cpp()? as f32
@@ -32307,6 +32309,20 @@ impl WorldSession {
     }
 
     fn set_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_set_xp_rest_bonus_like_cpp(rest_bonus);
+        }
+        let at_max = self.player_is_at_configured_max_level_like_cpp();
+        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.set_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
+        })
+        .unwrap_or(0)
+    }
+
+    #[cfg(test)]
+    fn fixture_set_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
         let Some(old_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
             return 0;
         };
@@ -32361,11 +32377,19 @@ impl WorldSession {
     }
 
     pub(crate) fn add_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
-        let Some(current) = self.resolved_xp_rest_bonus_like_cpp() else {
-            return 0;
-        };
-        let total = current + rest_bonus;
-        self.set_represented_xp_rest_bonus_like_cpp(total)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let Some(current) = self.resolved_xp_rest_bonus_like_cpp() else {
+                return 0;
+            };
+            return self.set_represented_xp_rest_bonus_like_cpp(current + rest_bonus);
+        }
+        let at_max = self.player_is_at_configured_max_level_like_cpp();
+        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.add_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
+        })
+        .unwrap_or(0)
     }
 
     fn calc_represented_xp_rest_extra_per_sec_like_cpp(&self, bubble: f32) -> Option<f32> {
