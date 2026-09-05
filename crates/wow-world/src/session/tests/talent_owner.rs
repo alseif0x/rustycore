@@ -3,6 +3,84 @@
 use super::*;
 
 #[test]
+fn talent_reset_price_reads_active_and_detached_owner_without_mutation() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let month = 30 * 24 * 60 * 60;
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        session
+            .mutate_player_talent_runtime_like_cpp(|runtime| {
+                runtime.reset_talents_cost = 500_000;
+                runtime.reset_talents_time_secs = month;
+                runtime.talent_groups[0].insert(42, 2);
+            })
+            .unwrap();
+        let before = session.player_talent_runtime_snapshot_like_cpp().unwrap();
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(2 * month),
+            Some(450_000)
+        );
+        assert_eq!(
+            session.represented_talent_reset_cost_like_cpp(),
+            Some(500_000)
+        );
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(month)
+        );
+        assert_eq!(
+            session.player_talent_runtime_snapshot_like_cpp().unwrap(),
+            before
+        );
+        assert!(manager.try_lock().is_ok());
+    }
+    session.canonical_map_manager = None;
+    assert_eq!(
+        session.represented_next_reset_talents_cost_like_cpp(month),
+        None
+    );
+    assert_eq!(session.represented_talent_reset_cost_like_cpp(), None);
+    assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), None);
+}
+
+#[test]
+fn talent_reset_price_rejects_stale_generation_instead_of_pricing_replacement() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    replacement.gameplay_state_mut().talents.reset_talents_cost = 500_000;
+    let handle = manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    assert_eq!(
+        session.represented_next_reset_talents_cost_like_cpp(0),
+        None
+    );
+    assert_eq!(session.represented_talent_reset_cost_like_cpp(), None);
+    assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), None);
+    assert_eq!(
+        manager
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(handle, |player| {
+                player
+                    .talent_runtime_like_cpp()
+                    .next_reset_talents_cost_like_cpp(0)
+            }),
+        Some(500_000)
+    );
+}
+
+#[test]
 fn talent_points_refresh_reads_active_group_and_rewards_from_active_and_detached_owner() {
     let (mut session, _, send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

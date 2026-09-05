@@ -58,6 +58,39 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Talent reset pricing belongs to canonical Player talent state
+
+Ownership migration based on `95cb0a34`: `PlayerTalentRuntimeState` now owns the
+represented `GetNextResetTalentsCost` rule in Player's private progression module.
+Session resolves the generation-checked owner once and borrows its reset history;
+the former two whole talent snapshots and the Session pricing helper/constants
+are gone. Individual reset cost/time getters also read scalars directly under
+the owner instead of cloning talent/glyph groups. Only handle-less tests retain
+their fixture path; stale/missing owners remain `None`.
+
+C++ `Player.cpp:3472-3503` reads both reset-history fields from the same Player;
+`Common.h:33` defines the 30-day month and `SharedDefines.h:259-264` the gold unit.
+The rule keeps the existing first-use steps, monthly decay floor and cap. Rust's
+saturating/narrowing differences for abnormal persisted values are explicitly
+recorded in `EXISTING-CODE-DEFECTS.md`, preserved rather than silently corrected.
+No persistence request, money guard, publication order, opcode or runtime clock
+changes. The broader reset adapter and other Session catalogs remain #578 debt.
+
+A native entity test covers fourteen fee/time boundaries and no state mutation.
+Two Session tests cover active and detached state, unchanged talent groups,
+scalar reads, guard release, missing manager and stale-generation rejection
+without querying or mutating the replacement Player through the old session.
+
+On aarch64, `wow-entities --lib` passes 701/0 and `wow-world --lib` passes
+3,695/0 with one ignored. Syntax-only ownership and architecture check/self-test
+pass. Reviewed syntax removes only the old Session pricing helper: 3,658
+associated items; fields, registrations and bridges are unchanged. Session
+measures 81,427 production + 103,196 test lines; Player measures 10,424 production
++ 9,371 test lines. The growth is the moved rule and the three owner/boundary tests.
+Formatting, diff checks and `validation-v2 quick` pass (exit 0), manifest
+`target/validation-v2/manifests/20260905T034508.665422Z-311385-quick.json`.
+No fresh capture, runtime install, push or terminal acceptance is claimed.
+
 ### 2026-09-05 — Talent reset borrows process-owned cost policy
 
 Ownership migration based on `7de52e09`: `CONFIG_NO_RESET_TALENT_COST` is built

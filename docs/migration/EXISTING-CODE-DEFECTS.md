@@ -17,6 +17,16 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-05, #578 talent-reset cost ownership — arithmetic boundary discrepancy.**
+  Verified on `95cb0a34`: Rust's `next_reset_talents_cost_like_cpp` uses
+  saturating time subtraction and fee addition, and a widened signed monthly
+  reduction. C++ `Player.cpp:3472-3503` uses unsigned subtraction followed by
+  signed narrowing. Normal reset history follows the same schedule, but future
+  reset timestamps and extreme stored costs are not proven equivalent. The
+  ownership move preserves Rust arithmetic; reconciling abnormal persisted
+  values requires a separate behavior analysis, not an unannounced refactor
+  change. No live-client failure is asserted.
+
 - **2026-09-05, #578 talent-tab extraction — login applies extra tab/class gates.**
   On pre-slice `194f9d1b`, `load_represented_talent_row_like_cpp` validates a
   TalentTab row and class mask for both login and learning. C++

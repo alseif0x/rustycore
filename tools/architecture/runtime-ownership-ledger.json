@@ -1467,11 +1467,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81436,
-          "test_lines": 103118,
-          "total_lines": 184554,
+          "production_lines": 81427,
+          "test_lines": 103196,
+          "total_lines": 184623,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 talent-reset policy: remove one production Session config field/setter and runtime resource installation; borrow the process Progression policy at the registered handler. Session production shrinks 3 lines and tests grow 25 for alternating free/paid persistence requests without publication. Handler coverage invokes the actual thunk with the free policy and retains exact packet/criteria assertions. No new state, clock or dependency; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 talent-reset price ownership: Session production shrinks 9 lines as the price rule moves onto PlayerTalentRuntimeState and reset-history scalar getters stop cloning talent groups. Two active/detached/stale/missing-owner tests grow Session tests by 78 lines. Player grows 28 production and 35 test lines for the unchanged rule and fourteen boundary cases. No new state, dependency or clock; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1546,11 +1546,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 10396,
-          "test_lines": 9336,
-          "total_lines": 19732,
+          "production_lines": 10424,
+          "test_lines": 9371,
+          "total_lines": 19795,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05: Player progression owns the represented talent-point count/reward/bounds/update operation, receiving only a base value and borrowed validity predicate. Growth: 26 production and 63 test lines; exact field-mask equality, unchanged-result idempotence, active-group filtering and bounds coverage. No stored catalog or cross-layer dependency. Full C++ InitTalentForLevel remains unproven; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05: PlayerTalentRuntimeState owns next reset price, preserving represented arithmetic. Growth: 28 production and 35 test lines; fourteen fee/time boundaries and pure-read coverage. Session price queries borrow this owner once; scalar metadata getters no longer clone the whole state. No stored catalog, mirror or cross-layer dependency. C++ abnormal-value arithmetic discrepancy is documented, not silently changed; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

@@ -61794,7 +61794,7 @@ fn talent_reset_persistence_plan_clears_active_preserves_inactive_and_keeps_zero
 fn talent_reset_persistence_plan_carries_capped_fee_and_empty_retained_set() {
     let (mut session, _, _) = make_session();
     session.mark_represented_talents_loaded_like_cpp();
-    let month = TALENT_RESET_MONTH_SECS_LIKE_CPP;
+    let month = 30 * 24 * 60 * 60;
     let now = 10 * month;
     session.set_represented_talent_reset_state_like_cpp(500_000, now);
     let cost = session

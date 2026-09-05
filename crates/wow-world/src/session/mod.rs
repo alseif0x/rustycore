@@ -261,9 +261,7 @@ const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
 const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
-const COPPER_PER_GOLD_LIKE_CPP: u32 = 10_000;
 const DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP: u32 = 15 * 60 * 1000;
-const TALENT_RESET_MONTH_SECS_LIKE_CPP: u64 = 30 * 24 * 60 * 60;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
@@ -36607,11 +36605,18 @@ impl WorldSession {
         &self,
         now_secs: u64,
     ) -> Option<u32> {
-        Some(Self::next_reset_talents_cost_like_cpp(
-            self.represented_talent_reset_cost_like_cpp()?,
-            self.represented_talent_reset_time_secs_like_cpp()?,
-            now_secs,
-        ))
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .talent_runtime_like_cpp()
+                .next_reset_talents_cost_like_cpp(now_secs)
+        });
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .player_talent_runtime_snapshot_like_cpp()
+                .map(|runtime| runtime.next_reset_talents_cost_like_cpp(now_secs));
+        }
+        canonical
     }
 
     pub(crate) async fn commit_represented_talent_reset_like_cpp(
@@ -36808,32 +36813,6 @@ impl WorldSession {
             .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
         #[cfg(not(test))]
         let _ = cost;
-    }
-
-    fn next_reset_talents_cost_like_cpp(
-        reset_cost: u32,
-        reset_time_secs: u64,
-        now_secs: u64,
-    ) -> u32 {
-        let gold = COPPER_PER_GOLD_LIKE_CPP;
-        if reset_cost < gold {
-            return gold;
-        }
-        if reset_cost < 5 * gold {
-            return 5 * gold;
-        }
-        if reset_cost < 10 * gold {
-            return 10 * gold;
-        }
-
-        let months = now_secs.saturating_sub(reset_time_secs) / TALENT_RESET_MONTH_SECS_LIKE_CPP;
-        if months > 0 {
-            let reduced = i64::from(reset_cost)
-                - i64::try_from(5 * u64::from(gold) * months).unwrap_or(i64::MAX);
-            return reduced.max(i64::from(10 * gold)) as u32;
-        }
-
-        reset_cost.saturating_add(5 * gold).min(50 * gold)
     }
 
     #[cfg(test)]
@@ -46342,13 +46321,25 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> Option<u32> {
-        self.player_talent_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.reset_talents_cost)
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.talent_runtime_like_cpp().reset_talents_cost
+        });
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_talent_reset_cost_like_cpp);
+        }
+        canonical
     }
 
     pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> Option<u64> {
-        self.player_talent_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.reset_talents_time_secs)
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player.talent_runtime_like_cpp().reset_talents_time_secs
+        });
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_talent_reset_time_secs_like_cpp);
+        }
+        canonical
     }
 
     pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {

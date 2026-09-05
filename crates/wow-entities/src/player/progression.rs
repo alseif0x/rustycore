@@ -7,9 +7,72 @@
 
 use super::*;
 
+impl PlayerTalentRuntimeState {
+    /// C++ Player::GetNextResetTalentsCost (Player.cpp:3472-3503).
+    /// Keep the represented saturating arithmetic for anomalous timestamps/costs;
+    /// this is a read of this Player's reset history, not a Session policy.
+    pub fn next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
+        let gold = 10_000;
+        let reset_cost = self.reset_talents_cost;
+        if reset_cost < gold {
+            return gold;
+        }
+        if reset_cost < 5 * gold {
+            return 5 * gold;
+        }
+        if reset_cost < 10 * gold {
+            return 10 * gold;
+        }
+
+        let months = now_secs.saturating_sub(self.reset_talents_time_secs) / (30 * 24 * 60 * 60);
+        if months > 0 {
+            let reduced = i64::from(reset_cost)
+                - i64::try_from(5 * u64::from(gold) * months).unwrap_or(i64::MAX);
+            return reduced.max(i64::from(10 * gold)) as u32;
+        }
+
+        reset_cost.saturating_add(5 * gold).min(50 * gold)
+    }
+}
+
 #[cfg(test)]
 mod talent_point_tests {
     use super::*;
+
+    #[test]
+    fn reset_fee_preserves_steps_monthly_decay_and_represented_arithmetic_bounds() {
+        let month = 30 * 24 * 60 * 60;
+        let now = 10 * month;
+        for (cost, stamp, expected) in [
+            (0, now, 10_000),
+            (9_999, now, 10_000),
+            (10_000, now, 50_000),
+            (49_999, now, 50_000),
+            (50_000, now, 100_000),
+            (99_999, now, 100_000),
+            (100_000, now, 150_000),
+            (500_000, now, 500_000),
+            (500_000, now - month + 1, 500_000),
+            (500_000, now - month, 450_000),
+            (100_000, now - month, 100_000),
+            (500_000, 0, 100_000),
+            (100_000, now + 1, 150_000),
+            (u32::MAX, now, 500_000),
+        ] {
+            let state = PlayerTalentRuntimeState {
+                reset_talents_cost: cost,
+                reset_talents_time_secs: stamp,
+                ..Default::default()
+            };
+            let before = state.clone();
+            assert_eq!(
+                state.next_reset_talents_cost_like_cpp(now),
+                expected,
+                "cost={cost}, timestamp={stamp}"
+            );
+            assert_eq!(state, before, "a price query cannot mutate talent state");
+        }
+    }
 
     #[test]
     fn refresh_counts_only_valid_active_talents_and_marks_the_same_update_field() {

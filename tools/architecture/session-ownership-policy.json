@@ -31873,17 +31873,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "next_reset_talents_cost_like_cpp",
-          "visibility": "private",
-          "signature": "fn next_reset_talents_cost_like_cpp (reset_cost : u32 , reset_time_secs : u64 , now_secs : u64 ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "next_spell_in_chain_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn next_spell_in_chain_like_cpp (& self , spell_id : u32) -> u32",
