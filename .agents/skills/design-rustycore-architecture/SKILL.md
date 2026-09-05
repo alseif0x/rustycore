@@ -108,9 +108,12 @@ Split the work so every PR has one dominant change class:
 - ownership migration with one source of truth;
 - intentional behavior change or proven legacy defect repair.
 
-Never combine all four. Preserve compatibility paths with temporary re-exports where useful, but
-attach a deletion condition. Require focused positive/negative tests and capture-diff for
-client-visible behavior.
+Do not mix all four in one undifferentiated change. Keep structural changes and behavior repairs
+in distinct commits; repairs of regressions introduced by the authorized slice belong to that
+slice. Pre-existing unrelated behavior changes require separate scope; use a separate issue/PR
+when independently deliverable. Preserve compatibility paths with temporary re-exports where
+useful, but attach a deletion condition. Require focused positive/negative tests; apply AGENTS.md's
+capture-diff and runtime-QA triggers plus explicit issue acceptance requirements.
 
 ## Hard invariants
 
@@ -141,5 +144,7 @@ Lead with a verdict. Then provide:
 6. invariants and verification for each slice;
 7. explicit deferrals and bridge-retirement conditions.
 
-If implementation is requested after approval, hand the selected slice to
-`$refactor-rustycore-safely`.
+If the user already approved the selected design and requested implementation, continue with
+`$refactor-rustycore-safely` without requesting the same approval again. For design-only requests,
+stop after the proposal. If approval of a new design is required and has not been given, preserve
+that gate. A switch of skills does not itself require a new user turn or expand authority.

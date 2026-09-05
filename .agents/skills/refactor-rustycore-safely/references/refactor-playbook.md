@@ -23,7 +23,8 @@ Explicit non-goals:
 Bridge or re-export deletion condition:
 ```
 
-Reject a slice whose target owner, frozen contract, or non-goals are unclear.
+Pause mutation while a slice's target owner, frozen contract or non-goals are unclear. Continue
+safe investigation under the skill's stop conditions; request a user decision only when needed.
 
 ## Mechanical feature split
 
@@ -36,7 +37,8 @@ Use for `handlers/misc.rs`, packet families, QA scenarios, or a cohesive impl bl
 5. Confirm every `(opcode, SessionStatus, PacketProcessing)` tuple is unchanged.
 6. Add or update a table-driven test for the exact expected opcode set, metadata, handler names,
    and uniqueness. Counts alone cannot detect replacement by the wrong opcode.
-7. Run focused tests, crate tests, quick preflight, then full preflight after commit.
+7. Run focused tests, crate tests and `validation-v2 quick`; after committing to a clean HEAD,
+   run `validation-v2 final` before an authorized push.
 
 Keep `impl WorldSession` across modules when that preserves C++ handler naming. Do not add
 `CharacterHandlers`-style traits solely for organization.
@@ -155,6 +157,6 @@ Do not use a new crate to conceal cyclic domain concepts.
 | Public API or crate edge | downstream check/tests, `cargo tree`, visibility/re-export audit |
 | QA bot split | scenario JSON fields, CLI compatibility, representative smoke dry run |
 
-Use the repository preflight as the final aggregate gate; its capture-diff harness is mandatory for
-every PR. Require fresh scenario capture or live bot QA only when the issue calls for it. Do not
-replace focused reasoning with a green build.
+Use `validation-v2 final` as the aggregate gate before an authorized push. Apply AGENTS.md's
+capture-diff and runtime-QA triggers plus explicit issue acceptance requirements. Distinguish
+regression tests from fresh scenario captures. Do not replace focused reasoning with a green build.

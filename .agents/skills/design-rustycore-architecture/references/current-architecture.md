@@ -14,7 +14,8 @@ that old counts remain exact.
   `WorldListenerPolicyLikeCpp` and authenticated connection outputs.
 - `wow-network::player_registry::SessionCommand` contains gameplay commands and packet payloads;
   network therefore still depends upward on game data and loot.
-- Legacy `wow_world::MapManager`, canonical `wow_map::MapManager`, and the global world loop coexist.
+- Runtime topology is a dated snapshot, not an invariant. Establish active clocks and owners from
+  the current composition root and runtime ADR; do not assume a separate global world loop.
   The accepted runtime ADR requires one tick owner and method-by-method convergence.
 - Player and creature state still have represented/session, legacy map, canonical entity/map, and
   registry mirrors in several paths.

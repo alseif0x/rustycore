@@ -148,5 +148,6 @@ Reject a new mirror without all fields.
 6. Delete the superseded mirror or document its precise remaining boundary.
 7. Only then change behavior or concurrency.
 
-Keep mechanical relocation, ownership migration, and behavior correction in separate commits or
-PRs.
+Keep structural changes and behavior repairs in distinct commits. Repairs of regressions
+introduced by the current authorized slice belong to that slice. Pre-existing unrelated behavior
+changes require separate scope; use a separate issue/PR when independently deliverable.

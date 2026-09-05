@@ -7,6 +7,8 @@ description: Implement or review behavior-preserving RustyCore restructuring wit
 
 Execute one small structural slice while preserving runtime ownership, database atomicity, packet
 bytes/routing, C++ phase order, and public behavior.
+Use small slices as implementation boundaries, not automatic conversation endpoints; follow
+AGENTS.md's autonomy, approval and completion rules throughout the authorized task.
 
 ## Select review or execution mode
 
@@ -33,8 +35,10 @@ If the request is ambiguous between inspection and mutation, use review mode.
    path before editing.
 5. Inspect the issue, branch, worktree, related review history, and existing tests.
 
-If the canonical owner or desired dependency direction is not explicit, stop implementation and
-use `$design-rustycore-architecture`.
+If the canonical owner or desired dependency direction is not explicit, pause the affected
+mutation and use `$design-rustycore-architecture` to investigate and design. Do not end safe
+investigation merely because ownership needs clarification. Preserve any required design approval;
+do not request the same approval again for an already approved design and implementation scope.
 
 ## Classify the change before editing
 
@@ -49,8 +53,11 @@ Choose exactly one dominant class:
 4. **Behavior correction:** change observable or persistence behavior because C++ parity or a
    proven legacy defect requires it.
 
-Do not combine class 4 with classes 1–3. Prefer separate PRs for relocation, boundary change, and
-ownership migration when the diff would otherwise obscure review.
+Separate structural changes and behavior repairs into distinct commits. Repairs of regressions
+introduced by the current authorized slice belong to that slice; do not disguise them as moves.
+Pre-existing unrelated behavior changes require separate scope. Use a separate issue/PR when
+independently deliverable, and prefer separate PRs for relocation, boundary change and ownership
+migration when the diff would otherwise obscure review.
 
 ## Refactor workflow (execution mode)
 
@@ -133,9 +140,9 @@ After committing to a clean HEAD and before an authorized push, run:
 ./tools/validation-v2 final --base origin/3.4.3
 ```
 
-Treat the capture-diff harness inside `full` preflight as mandatory for every PR. Run a fresh
-action-specific capture or live bot QA when the owning issue requires it. A file move is not
-evidence that observable behavior stayed equal.
+Apply AGENTS.md's capture-diff and runtime-QA triggers plus explicit issue acceptance requirements.
+Distinguish regression tests from fresh action-specific captures. A file move is not evidence
+that observable behavior stayed equal. Use `validation-v2`, not the retired `full` preflight.
 
 ### 6. Audit the finished diff
 
@@ -153,20 +160,27 @@ Verify:
 
 ### 7. Publish only through the repository workflow
 
-Use one issue, one linked branch, and one PR into `3.4.3`. Do not push unless the user asks. After
-push, open the PR immediately with `Closes #<issue>` and wait for CI plus a clean Codex reviewer
-verdict on the current HEAD. Address or explicitly defer every actionable review and resolve its
-thread before merge.
+Use one issue, one linked branch, and one PR into `3.4.3`; reuse the branch when resuming.
+Do not push unless the user asks. After an authorized push, open the PR immediately with
+`Closes #<issue>`. Follow AGENTS.md's author-specific validation policy: for exactly `alseif0x`,
+require the local final gate and focused evidence; do not wait for a non-skipped remote reviewer
+verdict. For other authors, require the configured remote checks and review on the current HEAD.
+Address or explicitly defer every actionable review and resolve its thread before merge.
+Push or PR creation does not itself authorize merging.
 
 ## Stop conditions
 
-Stop and separate the work when:
+Pause the affected mutation and investigate or separate the work when:
 
 - the move reveals an undocumented behavior difference;
 - C++ and Rust ownership disagree and the target is not already decided;
 - preserving behavior requires a new mirror or cross-layer dependency;
 - a test fails for a reason that has not been contrasted with C++;
-- the diff combines structural movement with a gameplay/protocol change;
+- a commit mixes structural movement with a gameplay/protocol change instead of separating them;
 - the target overlaps unrelated dirty work that cannot be isolated safely.
 
-Report the evidence and propose the smallest next slice instead of forcing the refactor through.
+Continue safe inspection, reproduction, C++/capture comparison and diagnosis. Resume once the
+uncertainty is resolved within the approved scope. Ask the user only when resolution requires
+new authority, a material scope change, or a choice the evidence cannot settle. If unrelated dirty
+work cannot be isolated safely, leave it untouched and report the blocker. Report the evidence
+and separate any out-of-scope repair instead of forcing the refactor through.

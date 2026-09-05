@@ -33,7 +33,7 @@ When touching code that still cites C#:
 1. Treat the C# citation as suspect until checked.
 2. Locate the equivalent C++ packet/class/function.
 3. Update the comment to cite C++ once verified.
-4. If C++ and C# disagree, stop and document the discrepancy before changing Rust.
+4. If C++ and C# disagree, pause the affected mutation and document the discrepancy. Continue safe inspection, reproduction and C++/capture comparison; resume only once the evidence resolves the difference within the approved scope. Ask the user if resolution requires new authority, a material scope change or a choice the evidence cannot settle.
 5. If keeping C# behavior intentionally, explain why C++ does not answer the case and add the packet capture/client-build evidence.
 
 ## Current Checkpoint
@@ -48,7 +48,7 @@ When touching code that still cites C#:
 
 **Plan execution:** work the GitHub issues in the order of the pinned index issue (port-plan
 tracking). Part 1 = playable end-to-end (milestones M0–M6, issues #7–#47 + the C#-audit issues
-#50–#66); validate every PR with the capture-diff harness (#66). **When Part 1 is done
+#50–#66); apply the validation and capture-diff requirements in the issue kickoff below. **When Part 1 is done
 ("playable end-to-end" at M6.2 / #47), run a fresh planning pass before Part 2**: re-audit HEAD,
 then break the Part-2 epic (#48, ledgers L1–L25) into PR-sized child issues at that point — see
 the "Part 2 transition gate" in `PORT_PLAN.md`. Do not pre-granulate Part 2 now.
@@ -75,7 +75,35 @@ against C++ before being relied upon.
 
 The port plan is tracked as GitHub issues (`alseif0x/rustycore`), ordered by a `[NN]` prefix
 in the title (the pinned `[INDEX]` issue lists them top-to-bottom). **GitHub's #numbers are
-creation order — ignore them; follow `[NN]`.** One issue = one session = one branch = one PR.
+creation order — ignore them; follow `[NN]`.** One implementation issue = one feature branch =
+one PR. An issue may span multiple conversation turns or sessions; reuse its existing branch
+when resuming.
+
+### Autonomy, clarification, and completion
+
+Divide implementation into small, independently validated slices. A slice or commit is not
+automatically the end of the user's task. Continue through the remaining authorized steps until
+the requested acceptance criteria are met, the user redirects the task, or a genuine blocker
+requires user input. Do not require "continue" between routine steps. This does not authorize
+starting unrelated issues or expanding the requested scope.
+
+For review-only requests, inspect and report without mutations. In execution work, resolve
+routine uncertainties through safe inspection and tests. Ask only when missing information
+materially affects the result and cannot be reasonably inferred, or when new authority is needed.
+
+Reuse an explicit approval for its stated task, targets and conditions. Ask again only if those
+materially change or the approval is withdrawn. "Test environment" alone is not approval for every
+destructive or publishing action. An approved design plus an implementation request does not
+require the same approval again; retain any explicit review gate for a new design.
+
+When a rule says "stop", pause the affected mutation, not safe investigation. Resume once the
+uncertainty is resolved within scope; do not force changes through unresolved evidence or
+unrelated dirty work that cannot be isolated safely.
+
+Separate local completion from publication: without push authorization, report "locally complete;
+publication pending" only after all authorized local acceptance work is complete. Push or PR
+creation does not itself authorize merging. Do not report an entire issue complete merely because
+one slice or a partial test passed.
 
 To start a session on an issue, the kickoff is:
 
@@ -84,13 +112,14 @@ Work issue #<N> (alseif0x/rustycore).
 1. Read: AGENTS.md, docs/migration/STATE.md, and the issue (gh issue view <N>).
 2. C++ is the source of truth (/home/server/woltk-trinity-legacy): contrast BEFORE editing.
 3. Smallest faithful change + focused tests (positive/negative); validate with PROTOC=... cargo check/test.
-4. Git: create the branch LINKED to the issue with `gh issue develop <N> --base 3.4.3`
+4. Git: if the issue has no existing feature branch, create it LINKED with `gh issue develop <N> --base 3.4.3`
    (not a bare `git checkout -b`), 1 issue = 1 PR into `3.4.3` (put `Closes #<N>` in the PR body), commit per gap, NO push unless asked.
    Once push is approved, open the PR immediately; creating the PR is not the same as closing/merging it.
 5. For first-party PRs authored by exactly `alseif0x`, use `./tools/validation-v2 final` plus
    focused evidence. External PRs retain remote CI/review. Require capture-diff only when bytes,
    metadata, connection choice or observable ordering changed, and runtime QA only for a live
-   lifecycle/runtime change.
+   lifecycle/runtime change. Also satisfy explicit issue acceptance requirements. Distinguish
+   capture-diff regression tests from fresh action-specific captures.
 ```
 
 **Linking the branch/PR to the issue:** the repo's **default branch is `3.4.3`** (the version/
@@ -111,8 +140,8 @@ target + done criteria inline). Part 2 (epic #48) stays a single epic until Part
 
 Every implementation slice must follow this sequence:
 
-1. Inspect current repo state and latest handoff.
-2. Pick a real documented gap from `docs/migration/current-session-handoff.md` or the inventory files.
+1. Inspect current repo state, the active issue, STATE.md and its relevant checkpoint. Consult the frozen handoff only for a specific historical question.
+2. Work a real gap within the authorized scope. A newly reproduced defect may be documented and addressed without first creating an inventory item; this does not authorize choosing another task.
 3. Locate exact C++ source anchors in `/home/server/woltk-trinity-legacy`.
 4. Compare existing Rust against C++ before editing.
 5. Implement the smallest faithful Rust change that moves the full port forward.
@@ -120,7 +149,8 @@ Every implementation slice must follow this sequence:
 7. Update migration docs/checklists with the new `#NEXT.R8.ENTITIES.xxx` item when closing a represented implementation gap.
 8. Recalculate progress honestly.
 9. Run validation.
-10. Commit on the issue's feature branch, push, and open a PR into `3.4.3` (`Closes #<N>`).
+10. Commit validated implementation changes locally on the issue's feature branch. Push only
+    when explicitly authorized; after an authorized push, open a PR into `3.4.3` (`Closes #<N>`).
     For an `alseif0x` PR, the local final harness and focused evidence are the required gate;
     hosted checks intentionally skip. For any other author, require the configured remote checks
     and reviewer verdict. In both cases, fix or explicitly defer actionable review comments and
@@ -342,7 +372,9 @@ Steps 2+ are architectural-risk work. Avoid big-bang rewrites. Previous `_attic/
 
 ## Important Current Open Gaps
 
-The exact list changes as the port advances. Always read the handoff first. Current repeatedly documented gaps include:
+The exact list changes as the port advances. Start with the active issue, current code, STATE.md
+and its relevant checkpoint; consult the frozen handoff only for a specific historical question.
+Historically documented gaps include:
 
 - Full `ConditionMgr` target/searcher/map/world-state/active-event coverage.
 - `Player::SatisfyQuestBreadcrumbQuest` recursive `CanTakeQuest` gate.
@@ -353,13 +385,15 @@ The exact list changes as the port advances. Always read the handoff first. Curr
 - Live-runtime / map-manager tick integration.
 - Runtime install/restart/manual client-test readiness for many represented slices.
 
-Do not use this list as exhaustive; use the migration inventory as the source for current planning.
+Do not use this list as exhaustive or current proof; contrast relevant inventory entries with the
+active issue and current code before planning work.
 
 ## Migration Documents
 
-Primary current-state docs:
+Primary current-state sources are the active issue/checkpoint, current code, `STATE.md`,
+`PORT_PLAN.md`, and `EXISTING-CODE-DEFECTS.md`. Supporting migration records:
 
-- `docs/migration/current-session-handoff.md`
+- `docs/migration/current-session-handoff.md` — frozen historical reference, not a required kickoff read.
 - `docs/migration/inventory/r8-entities-miniphase.md`
 - `docs/migration/inventory/r8-entities-miniphase.tsv`
 - `docs/migration/honest-progress-audit.md` (honest progress audit; or similarly named audit docs if present).
@@ -443,7 +477,8 @@ issue → PR into `3.4.3`. No `develop`→`main` ff dance.
 Per-issue closeout workflow:
 
 ```bash
-# at kickoff: gh issue develop <N> --base 3.4.3 --checkout   (creates the linked branch)
+# first creation only: gh issue develop <N> --base 3.4.3 --checkout
+# when resuming, reuse the issue's existing feature branch
 git status --short --branch
 # focused tests
 git add <changed files>
