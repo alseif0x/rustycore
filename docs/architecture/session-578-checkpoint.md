@@ -3,6 +3,54 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Failed map/lifetime transitions preserve Player — 2026-09-05
+
+The next C1 cut above `b3d899c3` exercises the production `wow-map` library, not a fabricated
+player-count-only fixture. Two tests ran red: `destroy_map` returned success for an occupied
+map, and `update` on an unload candidate made the current Player handle stop resolving.
+No live map loss is claimed; these are deterministic API/runtime-update reproductions.
+
+`manager/map_lifetime.rs` now owns removal admission. Destruction refuses real typed Players
+even when the compatibility count is zero, keeps the instance ID reserved on rejection, and
+only removes the empty map after actual detach. `unload_all` now returns a typed
+`MapUnloadBlockedLikeCpp` with ordered occupied map keys, rejecting the entire unload before
+any map is changed. Once active Players are drained, it removes map storage without retiring
+their still-valid detached lifetimes. No production caller of this bulk-unload API was found;
+the automatic update path does call the shared destruction helper and is covered explicitly.
+
+C++ anchors: `Maps/MapManager.cpp:322-339`, `Maps/Map.cpp:1629-1643` and
+`worldserver/Main.cpp:390-391` (KickAll/UpdateSessions teardown precedes the map cleanup at
+`:345`). C++ requests homebind evacuation and refuses deletion while Players remain. Rust's
+old `remove_all_players` only set a counter to zero; that fake evacuation is deleted. The
+automatic evacuation request/delivery is still open C1/C3 work: refusal preserves the owner
+but is not full evacuation or shutdown parity. No I/O or packet delivery is added under a lock.
+
+An additional failure test reproduced generation exhaustion retiring the previous Player
+before returning `GenerationExhausted`. Replacement now reserves the generation before
+retirement. The rejection preserves both active and detached old incarnations. This is an
+artificial allocator-boundary test, not a claim that normal play exhausts u64 generations;
+failure may consume a generation but never reuses one. The C++ single-Player lifetime and
+the approved Rust generation contract remain the ownership constraints.
+
+Five production-linked cases cover explicit/automatic occupied destruction, unadopted typed
+Players, atomic bulk-unload rejection followed by detached persistence, and instance-ID reuse.
+The old count-only test now expects refusal until its declared occupants have actually been
+cleared. aarch64 validation above `b3d899c3` (with explicit `PROTOC` and two build jobs):
+
+- `cargo test --offline --locked -p wow-map --lib --test production_player_lifetime -- --quiet`:
+  704 library passes, zero failures, one ignored; five production integration passes.
+- `cargo test --offline --locked -p wow-map --release --test production_player_lifetime`:
+  five passes; `-p wow-world --test production_login_player_owner`: six passes again against
+  the changed map library, including pending-save and stale-incarnation confirmation.
+- Architecture check/self-test, syntax-only ownership check, formatting and diff checks pass;
+  no checked-in ceiling or syntax waiver changed for this map cut.
+- `./tools/validation-v2 quick --base b3d899c3`: pass, green manifest verified at
+  `target/validation-v2/manifests/20260905T204257.069964Z-1183102-quick.json`.
+
+New private removal implementation / production tests / allocator failure tests are 61/146/35
+physical lines. This does not close the larger manager/Player or physical-ratchet C4 work.
+No new clock, writer, storage backend, baseline waiver, restart, deployment or DB action.
+
 ## Coherent full-save capture and acknowledgement — 2026-09-05
 
 Implementation starts above `abb072a9`, inside #578 C1. This is an explicit deferred-save
@@ -204,11 +252,11 @@ before organizing files. Keep all C0–C4 obligations and PR #579; no helper iss
   and inconsistent residence must be distinguishable internally; never fabricate defaults.
 - Attach/detach, failed transfer, map destruction/unload and generation retirement use the
   same lifetime authority. Review or restrict mutable Map escapes that can bypass it.
-  `ManagedMap::remove_all_players` currently clears a counter, and destroy/unload can remove
-  storage without reconciling residence (`crates/wow-map/src/manager.rs`). This is an API
-  inconsistency to resolve, **not a demonstrated live loss**; no production caller was found
-  in this review. C++ `Map.cpp:1629-1643` requests evacuation and
-  `MapManager.cpp:322-339` refuses destruction while players remain.
+  The failed-transition cut above deletes fake counter-only evacuation and refuses occupied
+  destruction/bulk unload, with real typed-Player and automatic-update reproductions. Actual
+  evacuation delivery remains open; this is **not demonstrated live loss or complete shutdown
+  parity**. C++ `Map.cpp:1629-1643` requests evacuation and `MapManager.cpp:322-339` refuses
+  destruction while players remain. Mutable Map escapes still need their stated retirement.
 - Prepare a coherent owned save DTO for the intended incarnation. Acknowledgement after
   `.await` may clear only the confirmed saved revisions, or must have an explicit equivalent
   exclusion proof. A late result must not affect a replacement incarnation or erase a newer

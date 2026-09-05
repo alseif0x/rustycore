@@ -28,7 +28,9 @@ use crate::spawn::{Difficulty, SpawnId, SpawnObjectType, SpawnStore};
 use wow_core::{GameTime, ObjectGuid};
 use wow_entities::CreatureRuntimeUpdateContext;
 
+mod map_lifetime;
 mod player_owner;
+pub use map_lifetime::MapUnloadBlockedLikeCpp;
 pub use player_owner::{PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp};
 
 pub const MIN_GRID_DELAY_MS: u32 = 60_000;
@@ -458,12 +460,8 @@ impl ManagedMap {
         self.can_unload
     }
 
-    fn remove_all_players(&mut self) {
-        self.player_count = 0;
-    }
-
     fn have_players(&self) -> bool {
-        self.player_count > 0
+        self.player_count > 0 || self.runtime.map.typed_player_counts_like_cpp().0 > 0
     }
 
     fn update(&mut self, diff_ms: u32) {
@@ -1375,42 +1373,6 @@ impl MapManager {
 
         self.timer.set_current(0);
         Some(current)
-    }
-
-    pub fn destroy_map(&mut self, map_id: u32, instance_id: u32) -> bool {
-        let key = MapKey::new(map_id, instance_id);
-        let Some(map) = self.maps.get_mut(&key) else {
-            return false;
-        };
-
-        if Self::destroy_map_inner(map, &mut self.instance_ids) {
-            self.maps.remove(&key);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn destroy_map_inner(map: &mut ManagedMap, instance_ids: &mut InstanceIdAllocator) -> bool {
-        map.remove_all_players();
-        if map.have_players() {
-            return false;
-        }
-
-        map.unload_all();
-
-        if map.kind().frees_instance_id_on_destroy() {
-            instance_ids.free_instance_id(map.instance_id());
-        }
-
-        true
-    }
-
-    pub fn unload_all(&mut self) {
-        for map in self.maps.values_mut() {
-            map.unload_all();
-        }
-        self.maps.clear();
     }
 
     pub fn num_instances(&self) -> u32 {
@@ -3271,10 +3233,13 @@ mod tests {
     }
 
     #[test]
-    fn destroy_map_removes_players_then_unloads_and_removes_entry() {
+    fn destroy_map_refuses_reported_players_until_evacuation_finishes() {
         let mut manager = MapManager::default();
         manager.create_world_map(1, 0).set_player_count(2);
 
+        assert!(!manager.destroy_map(1, 0));
+        assert_eq!(manager.find_map(1, 0).unwrap().player_count(), 2);
+        manager.find_map_mut(1, 0).unwrap().set_player_count(0);
         assert!(manager.destroy_map(1, 0));
         assert!(manager.find_map(1, 0).is_none());
     }

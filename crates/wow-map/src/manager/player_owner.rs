@@ -21,6 +21,9 @@ use crate::map::{
 };
 use crate::{MapKey, MapObjectRelocationError, MapObjectRelocationOutcome, RemoveFromMapError};
 
+#[cfg(test)]
+mod failure_tests;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerHandle {
     guid: ObjectGuid,
@@ -121,6 +124,10 @@ impl MapManager {
             return Err(PlayerOwnerError::InvalidGuid { guid });
         }
 
+        // Admission can fail when the incarnation space is exhausted. Reserve it
+        // before retiring the existing Player; failed replacement must not destroy
+        // that owner. A later retirement failure may consume a generation, never reuse it.
+        let generation = self.allocate_player_generation_like_cpp()?;
         if let Some(previous) = self.player_owners_like_cpp.get(&guid).copied() {
             let previous = PlayerHandle {
                 guid,
@@ -142,7 +149,6 @@ impl MapManager {
             let _ = player.unit_mut().world_mut().reset_map();
         }
 
-        let generation = self.allocate_player_generation_like_cpp()?;
         self.detached_players_like_cpp.insert(guid, player);
         self.player_owners_like_cpp.insert(
             guid,
