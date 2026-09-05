@@ -58,6 +58,40 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Talent points refresh uses one canonical Player access
+
+Ownership migration based on `1b9731d2`: refresh now borrows the active talent
+group, reads quest-awarded points and writes CharacterPoints under one
+generation-checked Player mutation. It no longer clones the talent runtime or
+re-resolves the owner between counting, reading rewards and publishing the update
+field. The immutable talent/spell validation path cannot re-enter the owner;
+no packet, SQL, await or runtime task runs under this guard. Existing handle-less
+fixture helpers are test-only, and a stale/missing owner cannot use them.
+
+C++ `Player.cpp:26356-26359` (`CalculateTalentsPoints`) and `28670-28679`
+(`GetSpentTalentPointsCount`) put both inputs on Player; `2344-2362`
+(`InitTalentForLevel`) writes CharacterPoints there. This slice preserves Rust's
+represented catalog-validity filter, Session level/class inputs, absent-level-
+catalog base zero, saturating subtraction and signed-field clamp. It does not
+claim C++'s full removed-talent, reset, permission, tier or publication behavior.
+Level/class ownership, catalog retirement and the enclosing gameplay adapters
+remain #578 work. No Session field or bridge is retired by this slice.
+
+Three new canonical-owner tests cover active/detached refresh, active-group
+selection, invalid talent/spell exclusion, quest rewards, absent level catalog,
+saturation/clamping, no packet emission, guard release, and stale-generation or
+missing-manager rejection without touching the replacement Player.
+
+On aarch64, the focused tests pass 3/3 and `wow-world --lib` passes 3,692 with
+zero failures and one ignored. Syntax-only ownership, architecture check and
+self-test, formatting and diff checks pass. The reviewed syntax delta classifies
+three private helpers as test-only; fields, total associated items, registrations
+and bridge inventory are unchanged. The logical Session measure is 81,452
+production + 103,093 test lines. `validation-v2 quick` passes (exit 0), manifest
+`target/validation-v2/manifests/20260905T032537.552346Z-283211-quick.json`.
+No packet layout, metadata, connection or observable publication order changed;
+no fresh capture, live runtime restart, push or terminal acceptance is claimed.
+
 ### 2026-09-05 — Talent login and learning borrow the same required tab catalog
 
 Ownership migration based on `194f9d1b`: world-server bootstrap installs one shared

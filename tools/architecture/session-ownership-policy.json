@@ -37560,8 +37560,10 @@
           "name": "represented_calculate_talents_points_like_cpp",
           "visibility": "private",
           "signature": "fn represented_calculate_talents_points_like_cpp (& self) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -40392,8 +40394,10 @@
           "name": "represented_quest_rewarded_talent_points_like_cpp",
           "visibility": "private",
           "signature": "fn represented_quest_rewarded_talent_points_like_cpp (& self) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -40922,8 +40926,10 @@
           "name": "represented_spent_talent_points_count_like_cpp",
           "visibility": "private",
           "signature": "fn represented_spent_talent_points_count_like_cpp (& self) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {

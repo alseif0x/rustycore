@@ -34158,6 +34158,7 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
     fn represented_spent_talent_points_count_like_cpp(&self) -> Option<u32> {
         let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
         let talent_group_index = usize::from(runtime.active_group);
@@ -34176,6 +34177,7 @@ impl WorldSession {
         )
     }
 
+    #[cfg(test)]
     fn represented_quest_rewarded_talent_points_like_cpp(&self) -> Option<u32> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             player.gameplay_state().quest_rewarded_talent_points
@@ -34192,6 +34194,7 @@ impl WorldSession {
         canonical
     }
 
+    #[cfg(test)]
     fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
         let base_points = self
             .num_talents_at_level_store()
@@ -34206,16 +34209,54 @@ impl WorldSession {
     }
 
     pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
-        let Some(spent) = self.represented_spent_talent_points_count_like_cpp() else {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let Some(spent) = self.represented_spent_talent_points_count_like_cpp() else {
+                return;
+            };
+            let Some(available) = self
+                .represented_calculate_talents_points_like_cpp()
+                .map(|points| points.saturating_sub(spent))
+            else {
+                return;
+            };
+            self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
             return;
-        };
-        let Some(available) = self
-            .represented_calculate_talents_points_like_cpp()
-            .map(|points| points.saturating_sub(spent))
-        else {
-            return;
-        };
-        self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
+        }
+        let base_points = self
+            .num_talents_at_level_store()
+            .map(|store| {
+                store.num_talents_at_level_like_cpp(
+                    u32::from(self.player_level_like_cpp()),
+                    self.player_class_like_cpp(),
+                )
+            })
+            .unwrap_or(0);
+        // Player.cpp:26356,28670: total and spent points belong to the same Player.
+        // Keep the represented catalog-validity filter and Session identity inputs.
+        // The filter only reads immutable catalogs; it must not re-enter the owner.
+        let _points = self.with_owned_player_mut_like_cpp(|player| {
+            let runtime = player.talent_runtime_like_cpp();
+            let spent: u32 = runtime
+                .talent_groups
+                .get(usize::from(runtime.active_group))
+                .into_iter()
+                .flat_map(|talents| talents.iter())
+                .filter(|(talent_id, rank)| {
+                    self.represented_talent_info_like_cpp(**talent_id, **rank)
+                        .is_some()
+                })
+                .map(|(_, rank)| u32::from(*rank) + 1)
+                .sum();
+            let total = base_points + player.gameplay_state().quest_rewarded_talent_points;
+            let points = total.saturating_sub(spent).min(i32::MAX as u32) as i32;
+            player.set_character_points_like_cpp(points);
+            points
+        });
+        #[cfg(test)]
+        if let Some(points) = _points {
+            self.player_character_points_like_cpp = points;
+        }
     }
 
     pub(crate) fn add_represented_quest_reward_talent_points_like_cpp(

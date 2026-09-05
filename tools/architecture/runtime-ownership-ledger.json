@@ -1468,11 +1468,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81411,
-          "test_lines": 102986,
-          "total_lines": 184397,
+          "production_lines": 81452,
+          "test_lines": 103093,
+          "total_lines": 184545,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 talent-tab borrowing: production shrinks 8 lines after removing the catalog, setter and getter. Login and learning pass one required shared reference through the existing adapters. Session tests grow 41 lines for active/detached catalog filtering and missing-owner rejection; handler tests also prove registered-thunk routing with empty and populated catalogs. Character login grows one line for the borrowed argument. No new clock or mutable state; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 talent-point refresh: one generation-checked Player mutation replaces separate snapshot/read/write accesses. Production measure grows 41 lines, retaining the handle-less test path; three old helpers become cfg(test). Tests grow 107 lines covering active/detached ownership, invalid rows, rewards, bounds and stale/missing-owner rejection. No field, dependency, clock or mirror is added. Catalog/identity retirement remains #578 work; docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
