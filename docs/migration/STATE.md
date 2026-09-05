@@ -88,6 +88,13 @@ group-wide ACK is test-only. Production-linked controlled-persistence tests cove
 replacement, rollback, Unknown and cancellation; they do not establish real DB/relogin or
 scheduler parity. All C0–C4 acceptance remains open to the extent recorded in the
 [checkpoint](../architecture/session-578-checkpoint.md), including far-transfer save semantics.
+An authorized live run on 2026-09-05 now adds bounded **real normal-save/relogin** evidence
+for runtime `68fb338b` with QA tooling `04d54074`: two confirmed MariaDB save transactions,
+two fresh logins, 13 skill/207 reputation rows retained, and identical 42-known-spell packets.
+Persisted spell/favorite/equipment/transmog tables were empty, so their nonempty mutation
+branches are not claimed live-proven. The original world executable was restored and verified
+serving; BNet was not restarted. No crash, injected failure, scheduler/transfer parity,
+publication or macro completion is implied. Exact hashes, scope and reports are in the checkpoint.
 The C1 lifetime cut rejects occupied-map destruction/bulk unload and preserves the old
 incarnation when replacement cannot allocate a generation. Controlled production-linked map
 tests reproduce the old failure; automatic evacuation and complete shutdown QA remain open.

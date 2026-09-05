@@ -3,6 +3,71 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Authorized real save/relogin QA — 2026-09-05
+
+The user explicitly authorized temporary installation/restart of the test `world-server`,
+normal auth/character writes for existing `TESTBOT1@bot.local`, and restoration of the prior
+executable. The bounded run **passed and restored**. It did not authorize fixture setup,
+account provisioning, publication or merge; none occurred. `bnet-server` stayed on PID 4153913.
+
+Runtime source is `68fb338b`; QA tooling is committed at `04d54074`. The later commit changes
+only the integrated bot/docs, with no Cargo/runtime source delta. On aarch64,
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=2 cargo build --offline --locked
+--release -p world-server --bin world-server` passed (existing warnings; 8m46s). Bot build and
+all 143 tests passed; its row-retention test covers default additions versus removal/change.
+The report verifier passes one positive and 11 negative checks; runtime restoration self-test
+passes 69 checks. `validation-v2 quick --base 68fb338b` passed with manifest
+`target/validation-v2/manifests/20260905T212436.394907Z-1231315-quick.json`.
+
+The clean detached source checkout `/tmp/rustycore-578-runtime.l8Dzf9/source` is exactly
+`04d54074`; the tracked runtime sources were compared to the build source before copying the
+executables into that private evidence directory. This avoids moving or ignoring the unrelated
+untracked LFG audit in the primary worktree. The unchanged runtime guard ran from that clean
+checkout with `QA_LIVE_DIR=/home/server/rustycore/target/deploy/live`, the copied/hash-pinned
+bot, the operator's private `QA_ENV_FILE`, and `QA_SMOKE` pointing to the new maintained
+`tools/wow-test-bot/run_login_save_relog.sh`, using `--allow-runtime-qa ... login`.
+The guard disabled provisioning, password generation and fixture
+modes, checked both listening ports/PID, and retained its restore trap.
+
+Evidence at 21:27:53 / 21:27:55 UTC:
+
+- Exact account 8 / character 14 was verified offline and owned by the approved identity
+  before authentication. Two fresh BNet/world authentications entered world and drained
+  both login streams. Both normal logouts observed an empty `SMSG_LOGOUT_COMPLETE`, not
+  socket-loss fallback, followed by the exact character's offline database row.
+- `logout_time`: `1788568309 -> 1788643673 -> 1788643675`. The candidate's journal records
+  two full-save COMMIT confirmations for GUID 14, each with 428 statements; no failed or
+  Unknown full-save outcome was recorded during that process lifetime.
+- All existing rows survived both saves. The six ordered database projections match before,
+  between and after the sessions: **13 skill rows and 207 reputation rows**, with empty
+  persisted spell/favorite/equipment-set/transmog-outfit tables. Both client login packets
+  contain the same 42 known spells and zero favorites. Empty families are empty-state
+  regression evidence, **not proof of real spell/equipment INSERT/UPDATE/DELETE**. Default
+  known-spell hydration is not confused with nonempty `character_spell` durability.
+- Candidate process 1233909 served SHA-256
+  `3cc20114ca3c90508af2996e6d2d1a768e23541bc87de438e48ffbbe38c78378`.
+  Bot SHA-256: `198755ea45dc03e22d9680d04ad3efab0502c41f4323374d92be1b3fa46baab9`.
+- Original executable SHA-256
+  `c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`
+  was restored and verified serving on PID 1234826, both ports owned by that process,
+  zero automatic restarts, no packet dump. The character remained offline. Normal
+  authentication/logout writes are retained; no database rollback or fixture cleanup is claimed.
+
+Outer report: `/tmp/rustycore-578-runtime.l8Dzf9/runtime-report.json` has
+`outcome=passed-restored`, `bot_status=0`. Private phase reports/logs and the original executable
+are retained under `/tmp/rustycore-login-qa.v7SWud`; `bot.json` reports
+`login_save_relog_verified=true`. The paragraph above preserves sanitized results if temporary
+artifacts expire; credentials and raw logs are not committed.
+
+The reusable bot code is a private 175-line `src/login_save.rs` module plus a bounded two-pass
+wrapper/report checker. It adds no SQL writes or gameplay fixtures. C++ anchors remain
+`CharacterPackets.cpp:535 LogoutRequest::Read`, `WorldSession.cpp LogoutPlayer` (save before
+the `:676` completion packet), and `Player.cpp SaveToDB/_SaveSpells/_SaveSkills/
+_SaveEquipmentSets`. This is actual normal-save/relogin evidence, not a crash/restart-between-
+saves durability test, injected DB-failure/concurrent-edit proof, transfer/evacuation QA,
+scheduler parity, full character parity, or a fresh capture. Controlled tests retain those
+in-flight acknowledgement branches. Broader #578 C0–C4 and PR #579 acceptance remain open.
+
 ## Save acknowledgement follows reputation key selection — 2026-09-05
 
 Review above `ec3aa459` found a defensive edge in the first save cut: native reputation is
