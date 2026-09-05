@@ -1,150 +1,104 @@
 ---
 name: design-rustycore-architecture
-description: Design and audit RustyCore architecture using evidence from the current Rust workspace and the legacy C++ server. Use when deciding crate or module boundaries, assigning canonical state ownership, untangling dependencies, decomposing project-wide hotspots such as session, handlers, map, player, world-server, data, packets, or QA tooling, planning runtime convergence, or creating an incremental architecture/refactor campaign. Do not use for a small behavior fix that has no structural decision; use refactor-rustycore-safely when implementing an already approved behavior-preserving restructuring.
+description: Design, audit, or challenge RustyCore architecture and plans when ownership, runtime, dependency, or extension boundaries are in question. Compare alternatives against current evidence and the user's goals. Not for routine fixes or implementing an already approved behavior-preserving refactor.
 ---
 
 # Design RustyCore Architecture
 
-Produce an evidence-backed target architecture and an incremental migration path. Optimize for
-one canonical owner per mutable state, C++-faithful behavior, narrow public APIs, directional
-dependencies, and PR-sized delivery.
+Evaluate architecture by the capabilities it enables and the risks it controls. This is a
+decision method, not a fixed crate map, technology choice, issue sequence, or current-state audit.
 
-## Load the required context
+## 1. Start with the requested outcome
 
-1. Read the repository `AGENTS.md` completely and follow its session kickoff.
-2. Read `docs/migration/STATE.md` and the relevant `docs/migration/PORT_PLAN.md` sections. For
-   `docs/migration/adr-runtime-tick-ownership.md`, read its context, decision, risks, and the
-   current slice sections relevant to the task; do not load its entire historical progress log
-   for a bounded decision.
-3. Read [references/decision-rules.md](references/decision-rules.md) for every architecture
-   decision.
-4. Read [references/current-architecture.md](references/current-architecture.md) for workspace-wide
-   audits or changes involving session, network, runtime, map, player, data, handlers, binaries, or
-   large-file decomposition.
-5. Locate the exact C++ owner and call path under `/home/server/woltk-trinity-legacy` before
-   assigning gameplay responsibility. Treat C++ as the behavioral oracle, not as a required Rust
-   file layout.
+Identify the capability, scope, and acceptance the user needs. Distinguish analysis from execution.
+Do not measure success solely by fields moved, file sizes, crate counts, or closed issues.
+Physical navigability is a separate acceptance criterion, not proof of semantic modularity.
+Preserve useful completed work without treating its design as beyond challenge.
 
-Do not trust old migration percentages, crate names, comments, or previous summaries as proof of
-current ownership.
+## 2. Establish relevant evidence
 
-## Architecture workflow
+Read `AGENTS.md` completely and follow its kickoff. Consult relevant parts of `docs/migration/STATE.md`,
+the active issue/checkpoint, `PORT_PLAN.md`, and affected ADRs; inspect the actual callers, owners,
+manifests, and tests before relying on their claims. A bounded question does not require a fresh
+whole-workspace inventory or a complete historical-log read.
 
-### 1. Establish the current baseline
+For affected base-server behavior, locate exact C++ owners and call paths under
+`/home/server/woltk-trinity-legacy`; use real captures when C++ is incomplete or ambiguous. Existing
+Rust and old tests are not parity proof. Distinguish implemented, integrated, and parity-proven.
+Keep architecture snapshots and campaign plans in project documents with a date, audited commit,
+and coverage limits, not embedded in this skill.
 
-Inspect the current branch, latest commits, workspace manifest, target crate manifests, module
-trees, public re-exports, largest production files, and internal dependency edges. Recalculate
-metrics on HEAD; never copy stale counts into a decision.
+## 3. Compare meaningful alternatives
 
-Use `rg`, `rg --files`, `cargo metadata --format-version 1 --no-deps`, `cargo tree`, and focused
-source inspection. Distinguish production logic from inline tests and generated or declarative
-code.
+For a consequential decision, compare retaining or improving the existing design with credible
+alternatives. Explain capability benefits, complexity, migration cost, failure risks, and what
+evidence would change the recommendation. Measure representative paths when performance matters.
+Neither ECS nor a particular library, crate layout, or deployment topology is an end in itself.
 
-### 2. Map ownership before proposing folders
+Uncertain ownership is a subject for analysis, not a reason to forbid proposals. State assumptions;
+resolve ownership and execution contracts before enabling new writers or concurrency. Existing
+approved decisions govern execution until an authorized replacement; they are not correctness proof.
 
-For every important mutable state, record:
+## 4. Preserve invariants, not physical layouts
 
-- semantic owner in C++;
-- current Rust owner or owners;
-- all writers and readers;
-- mirrors, clones, caches, registries, and sync directions;
-- lock/task/tick owner;
-- persistence owner;
-- client-visible publication path;
-- intended canonical owner;
-- exact retirement condition for every temporary mirror.
+Keep one canonical authority per mutable state and one execution owner per transition. Trace the
+affected readers, writers, lifetime, persistence, and publication together; temporary mirrors need
+an explicit sync direction and retirement condition. Semantic ownership does not require a fixed
+class, struct, crate, or storage backend. Preserve C++ phase order and base behavior; handle proven
+legacy defects through the project's fidelity policy, separately from behavior-preserving changes.
 
-Do not propose concurrency, actors, worker pools, or new abstractions until the state owner is
-unambiguous.
+Keep domain rules separate from transport, SQL, and composition. Prefer private modules while
+boundaries evolve; justify crates, traits, and tasks by a useful contract, not diagram compliance.
+Do not expose internals just to relocate code or tests.
 
-### 3. Diagnose the architectural defect
+Never carry synchronous locks or map/entity state guards across `.await`, or perform I/O or packet
+delivery under a map lock. An intentional asynchronous operation gate may span `.await` when its
+owner, lock order, cancellation/recovery, and blocking scope are explicit; do not remove a persistence
+fence merely to satisfy a blanket lock rule. Preserve coherent mutation/commit/publication and
+backpressure semantics when changing an owner.
 
-Classify each finding as one or more of:
+## 5. Demonstrate modularity when it is the goal
 
-- mixed responsibilities inside one owner;
-- duplicated authority or transitional mirror;
-- dependency inversion;
-- infrastructure leaking into domain/application logic;
-- application orchestration leaking into network or binaries;
-- overly broad public API;
-- registration or dispatch with multiple sources of truth;
-- file-size or test-layout symptom without an ownership defect;
-- intentional aggregate that is large but cohesive.
+For module boundaries, source decomposition or refactor plans, read
+`docs/architecture/module-design-guidelines.md` completely. Apply its independent semantic and
+physical criteria to production, tests and fixtures; the project document owns the current
+budgets and exception policy. Prefer a responsibility-oriented module tree inside justified crate
+boundaries. Do not substitute a distributed God object for a giant file, or keep giant files merely
+because the logical aggregate is valid. Treat example skeletons as guides, not mandatory layers.
+Plan legacy file retirement inside the approved macro without adding routine approval gates.
 
-Prioritize duplicated authority and incorrect dependency direction over cosmetic file splitting.
+Distinguish internal organization, external extension contracts, and private runtime storage.
+For external extensibility, define acceptance through a useful independent module exercising the
+public contract without patching core implementation or importing its storage, entity guards, SQL
+connections, or packet writers. In design-only work, propose this acceptance; exercise it during
+authorized implementation, not as a prerequisite to discussing alternatives.
+Define the relevant before-decision hooks, confirmed-result notifications, or scoped behavior
+capabilities, including composition order, conflicts, failures, and module-state lifetime/persistence.
 
-### 4. Select modules, crates, ports, and tasks deliberately
+Zero optional modules must preserve base behavior and required first-party scripts. Optional
+customization needs an explicit behavior contract and cannot bypass core integrity invariants.
+Address API compatibility and install/update/removal
+where relevant. A narrow API does not sandbox trusted native code; do not promise isolation or hot
+reload without an implementation and evidence. Do not freeze a universal plugin framework from a demo.
 
-Apply the decision rules from the reference:
+## 6. Deliver complete capabilities with proportional evidence
 
-- start with a private module when ownership or API is still changing;
-- promote to a crate only with a stable owner, narrow contract, downward dependencies, and useful
-  independent tests/build;
-- introduce a trait only at a real adapter boundary or when a deterministic fake provides value;
-- introduce a task/channel only when one owner must serialize state or I/O and backpressure is
-  explicit;
-- keep Tokio, sockets, SQL, DB2 loading, filesystem, and packet presentation at the edges;
-- keep simulation and rules synchronous and deterministic where practical.
+Honor the approved delivery size, including macrodeliverables, with coherent internal commits and
+checkpoints rather than automatic micro-issues, micro-PRs, or repeated approvals. Select cuts by
+complete operations and their dependency/bridge retirement, not a mandatory mechanical-move sequence. Keep restructuring
+and intentional behavior changes distinguishable; do not silently expand or reduce accepted scope.
 
-### 5. Define the target and dependency direction
+Use focused positive/negative tests during iteration and affected integration/failure cases at
+owner boundaries. Retain `AGENTS.md` and explicit issue acceptance gates for capture, live QA, and
+final validation; do not repeat exhaustive audits after every helper or equate partial tests with
+terminal acceptance. Report the verdict, supporting anchors, tradeoffs, remaining risks, and next
+step concisely, with detail proportional to the decision.
 
-Describe:
+## 7. Preserve authority and completion boundaries
 
-- the canonical owner of each state;
-- the allowed dependency direction;
-- the small public commands, queries, outcomes, and events at each boundary;
-- where persistence and packet conversion occur;
-- how C++ phase order and observable behavior remain preserved;
-- which legacy bridge remains temporarily and how it will disappear.
-
-Prefer a modular monolith. Do not propose microservices merely to obtain code organization.
-
-### 6. Produce an incremental migration campaign
-
-Split the work so every PR has one dominant change class:
-
-- mechanical relocation with unchanged ownership and behavior;
-- dependency-boundary change;
-- ownership migration with one source of truth;
-- intentional behavior change or proven legacy defect repair.
-
-Do not mix all four in one undifferentiated change. Keep structural changes and behavior repairs
-in distinct commits; repairs of regressions introduced by the authorized slice belong to that
-slice. Pre-existing unrelated behavior changes require separate scope; use a separate issue/PR
-when independently deliverable. Preserve compatibility paths with temporary re-exports where
-useful, but attach a deletion condition. Require focused positive/negative tests; apply AGENTS.md's
-capture-diff and runtime-QA triggers plus explicit issue acceptance requirements.
-
-## Hard invariants
-
-- Preserve the accepted single tick-owner invariant and C++ `Map::Update` phase order.
-- Never add a second canonical `Player`, `Creature`, `Map`, combat relation, loot authority, or
-  persistence owner.
-- Never retain a lock across `.await` or send packets while holding a map lock.
-- Build plans or outcomes under the owner; persist and publish in the documented order outside
-  incompatible locks.
-- Keep packet handlers thin: decode, session gate, construct command, invoke use case, present
-  result.
-- Keep gameplay rules out of `wow-network`, SQL adapters, packet DTOs, and composition roots.
-- Keep public visibility narrow. Do not make internals `pub` merely to move files or test them.
-- Do not populate an empty domain crate by moving unstable code solely to satisfy the workspace
-  diagram.
-- Follow `docs/migration/STATE.md` fidelity policy for proven C++ defects. Separate a deliberate
-  correction from a behavior-preserving refactor.
-
-## Required output
-
-Lead with a verdict. Then provide:
-
-1. evidence with exact Rust and C++ anchors;
-2. current owners, mirrors, and dependency defects;
-3. target ownership and dependency direction;
-4. module-versus-crate decisions with reasons;
-5. a risk-ranked sequence of PR-sized slices;
-6. invariants and verification for each slice;
-7. explicit deferrals and bridge-retirement conditions.
-
-If the user already approved the selected design and requested implementation, continue with
-`$refactor-rustycore-safely` without requesting the same approval again. For design-only requests,
-stop after the proposal. If approval of a new design is required and has not been given, preserve
-that gate. A switch of skills does not itself require a new user turn or expand authority.
+Review-only requests remain read-only. Reuse approval within its stated scope; pause an unresolved
+mutation while continuing safe investigation. Changes to plans, behavior, or external systems need
+the applicable authority; this skill grants no new push, merge, deployment, or destructive permissions.
+Once design and implementation are approved, use `$refactor-rustycore-safely` for behavior-preserving
+restructuring without requesting the same approval again. Continue authorized work through acceptance,
+not merely to the next internal checkpoint; distinguish local completion from publication.

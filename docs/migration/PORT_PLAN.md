@@ -30,6 +30,13 @@ resource bag with fewer outer fields, or gameplay spread over more Session impls
 the terminal contract. Already-known cuts stay in #578; #153 verifies them rather than absorbing
 their implementation. Preserve the full #133 outcome.
 
+The [module design guidelines](../architecture/module-design-guidelines.md) add independent
+physical source/test acceptance to each semantic family: manageable files, bounded file-specific
+exceptions and legacy retirement inside #578 C2/C4. They include a Rust submodule skeleton and
+cover SDK/modules in #583. Safe mechanical splits need not wait for the hecs conformance gate,
+which remains mandatory before production storage migration. The existing checker does not yet
+enforce the new physical budgets; its extension belongs to #578 C4, not #153 or a new micro-issue.
+
 During development, run affected-crate checks, focused positive/negative tests, formatting and
 the inexpensive ownership/architecture checks. At an affected owner boundary, exercise bounded
 production-path integration and failure cases, including stale generation, detached transfer,

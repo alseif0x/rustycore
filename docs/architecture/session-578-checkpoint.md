@@ -24,9 +24,29 @@ alternative to complete feature boundaries.
 | --- | --- | --- |
 | C0 — Execution contract | Name owner, admitted residence, writer, phase/clock, persistence boundary and publication order before enabling new writers. Define executable `PacketProcessing` and world/map phase expectations. Implement the relevant scheduling proof alongside C1/C2, not as an untested timing rewrite at the end. | Open; metadata equality alone does not apply its temporal semantics. |
 | C1 — Player lifetime and persistence | Preserve one incarnation through login, active/detached state and transfers; replacement/retirement invalidate its old handle without affecting the new incarnation. Cover failed attach/unload and save/logout. Coherent save projection plus generation/revision-safe acknowledgement (or proven equivalent exclusion). Production-linked lifecycle and controlled-I/O interleaving tests. | Partial implementation; complete lifecycle/composition evidence remains open. |
-| C2 — Complete gameplay operations | Finish represented Player families through narrow command/query/outcome APIs, every related reader/writer and capability consumer, then retire old Session access. Keep transaction and publication semantics explicit. | Partial; catalog borrowing and native storage alone do not close a vertical. |
+| C2 — Complete gameplay operations | Finish represented Player families through narrow command/query/outcome APIs, every related reader/writer and capability consumer, then retire old Session access. Keep transaction and publication semantics explicit. Each family must also meet the physical source/test navigability policy. | Partial; catalog borrowing, native storage or file splitting alone do not close a vertical. |
 | C3 — Runtime and delivery completion | Execute migrated work under the admitted owner/phase; preserve #28/#371 cuts, barriers, backpressure and shutdown. No packet delivery or I/O under owner locks. Remove remaining Session/legacy authority and whole-entity bridges. | Open; C0 obligations accompany each writer migration. |
-| C4 — Boundary decisions and macro acceptance | Resolve the inherited #378 dispatch/kernel/transport decisions and remaining dependency/catalog exceptions; justify legitimate application-adapter edges by responsibility. Retire bridges, run final inventories and clean-HEAD validation, then hand off evidence to #153. | Open; #153 verifies the result, it does not implement these known cuts. |
+| C4 — Boundary decisions and macro acceptance | Resolve the inherited #378 dispatch/kernel/transport decisions and remaining dependency/catalog exceptions; justify legitimate application-adapter edges by responsibility. Complete remaining physical core/adapter/composition/tooling and test decomposition with bounded file-specific exceptions; extend the existing physical ratchet. Retire bridges, run final inventories and clean-HEAD validation, then hand off evidence to #153. | Open; #153 verifies the result, it does not implement these known cuts. |
+
+### Physical and semantic acceptance together
+
+Read [module design and source navigability](module-design-guidelines.md), including its Rust
+submodule skeleton. The usual 200–800 physical lines are a target, not a minimum; above 1,000
+prompts routine cohesion review, not another approval. No handwritten production/test/fixture/tool
+file above 2,000 physical lines is terminally accepted without a concrete justified file-specific
+owner/exit exception. There is no permanent Session or aggregate exemption. Each completed family
+must satisfy this and its semantic owner/API contract; a distributed God object is still debt.
+
+C4 inventories and retires the remaining legacy files in #133 scope inside this macro, including
+Session and its large tests, using per-file ceilings tightened after coherent validated reductions.
+It extends the existing architecture checker to physical files, integration tests, integrated tools
+and verifiable generated-source provenance, with negative fixtures for growth, move/rename escape,
+oversized tests and stale/expired exceptions. Keep logical-owner coverage independently. The current
+checker PASS only enforces selected logical ceilings; it does not establish physical completion.
+
+Safe same-owner mechanical source/test splits can precede or run alongside the selected-hecs
+conformance experiment. That gate remains mandatory before production storage migration, not
+before organizing files. Keep all C0–C4 obligations and PR #579; no helper issues or routine stops.
 
 ### C1: precise lifetime and save requirements
 

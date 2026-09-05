@@ -27,6 +27,12 @@ Repository refactors are governed by
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
 
+The approved [module design guidelines](../architecture/module-design-guidelines.md) now require
+both semantic boundaries and physical source/test navigability. Remaining monolith decomposition
+and a physical-file ratchet are #578 C2/C4 implementation work; #583 applies the same policy to
+its own SDK/modules. The current checker still enforces selected logical ceilings, not the new
+physical budgets. This policy/skeleton update does not mean that the large files have been split.
+
 ## Current architecture and execution checkpoint — 2026-09-05
 
 The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal

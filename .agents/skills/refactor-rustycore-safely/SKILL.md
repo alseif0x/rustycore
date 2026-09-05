@@ -31,6 +31,8 @@ If the request is ambiguous between inspection and mutation, use review mode.
    ADR. For `docs/migration/adr-runtime-tick-ownership.md`, do not load the entire historical
    progress log for a bounded refactor.
 3. Read [references/refactor-playbook.md](references/refactor-playbook.md).
+   For source/module decomposition, also read `docs/architecture/module-design-guidelines.md`
+   completely; it owns the physical budgets, bounded exceptions and semantic/physical done criteria.
 4. Inspect the exact C++ source for the moved responsibility and the complete current Rust call
    path before editing.
 5. Inspect the issue, branch, worktree, related review history, and existing tests.
@@ -55,9 +57,10 @@ Choose exactly one dominant class:
 
 Separate structural changes and behavior repairs into distinct commits. Repairs of regressions
 introduced by the current authorized slice belong to that slice; do not disguise them as moves.
-Pre-existing unrelated behavior changes require separate scope. Use a separate issue/PR when
-independently deliverable, and prefer separate PRs for relocation, boundary change and ownership
-migration when the diff would otherwise obscure review.
+Pre-existing unrelated behavior changes require separate scope. Within an approved macrodeliverable,
+separate relocation, boundary and ownership changes through coherent commits and review checkpoints,
+not automatic micro-PRs. Use another issue/PR only for independently deliverable, authorized scope;
+do not treat file count or a large internal diff as permission to change the delivery agreement.
 
 ## Refactor workflow (execution mode)
 
@@ -157,6 +160,10 @@ Verify:
 - no unrelated user/worktree changes entered the diff;
 - source paths and C++ anchors in docs remain accurate;
 - every compatibility re-export or bridge has a deletion condition.
+- each completed responsibility meets both the semantic boundary and physical source/test policy;
+  the remaining legacy size debt has specific exits, not a blanket Session/aggregate exemption;
+- physical before/after counts and the independent logical-owner view are honest about progress;
+  moved tests still run, and fixture/support files have not become the replacement monolith.
 
 ### 7. Publish only through the repository workflow
 

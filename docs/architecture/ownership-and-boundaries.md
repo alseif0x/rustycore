@@ -90,11 +90,17 @@ extraction must use an outcome/command/query boundary, preserve C++ order, and r
 access in the same slice; copying state or adding a P4 dependency is not an extraction.
 
 This direction also follows Rust's native boundaries: modules control visibility inside a crate,
-while Cargo packages are separate compilation and public-API boundaries. The checker publishes
-two independent measurements. The **physical view** counts every real `.rs` file separately, with
-production and tests split; ordinary `mod` extraction therefore appears immediately. Around 2,000
-productive lines triggers review and above 4,000 requires a split plan or explicit cohesive
-exception, but neither is a daily blocking threshold. The **logical view** counts each curated
+while crates provide compilation and public-API boundaries. Follow the current
+[module design and source navigability policy](module-design-guidelines.md): semantic boundaries
+and manageable physical production/test files are independent, jointly required criteria.
+The usual 200–800-line target is not a minimum; above 1,000 prompts routine review, and above
+2,000 handwritten physical lines requires a specific justified owner/exit exception at closeout.
+Legacy debt retires incrementally inside the macro, with no permanent Session exemption.
+
+The checker currently publishes two independent measurements. Its **physical view** counts Rust
+files under `crates/*/src`, with production and tests split; ordinary `mod` extraction appears
+immediately, but this does not yet cover all integration tests/tooling or enforce the new budgets.
+#578 C4 owns that extension to the existing checker. The **logical view** counts each curated
 owner root together with its reviewed private descendants, so distributing a God object cannot be
 claimed as ownership reduction. Logical production/test/total counts in
 `runtime-ownership-ledger.json` are independent non-growth ceilings. A logical owner row cannot
@@ -663,7 +669,7 @@ Issue #224 turns the last three handler monoliths into feature trees without mov
 owner: `handlers/character.rs` (20,272 lines), `handlers/loot.rs` (13,606) and
 `handlers/quest.rs` (8,274) become `character/` with eleven modules, `loot/` with ten and `quest/`
 with seven. Each packet entry point is filed under the feature it serves rather than pooled into
-one handler dump, which is what keeps every productive child under the 4,000-line review signal —
+one handler dump, which kept every productive child under the then-current 4,000-line review signal —
 the largest is `character/items.rs` at 3,735. The three logical ceilings rise by 75, 0 and 134
 lines respectively: module headers, docs and imports across 28 new files, with `loot/mod.rs`
 actually shrinking. 178 methods crossed a feature boundary and became `pub(super)`, so the widened

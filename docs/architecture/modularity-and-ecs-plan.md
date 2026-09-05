@@ -55,6 +55,13 @@ It does not require closing the entire evolving #99 ecosystem epic.
 
 ## 2. Authorities and dependency direction
 
+Internal organization follows [module design and source navigability](module-design-guidelines.md):
+each completed family must have both a correct owner/narrow dependencies and manageable physical
+production/test files. The guide defines project budgets, bounded exceptions, a Rust submodule
+skeleton and incremental legacy retirement. It supplements this plan; ECS and extension hooks do
+not discharge physical decomposition. #578 C2/C4 own the remaining core cuts and physical checker
+extension; #583 applies the policy to its own SDK/modules, and #153 verifies both completed macros.
+
 | Responsibility | Canonical authority | Extension access |
 | --- | --- | --- |
 | Identity, incarnation, residence and transfer | Named Player lifetime authority coordinated with Map admission | Scoped handles/queries; never storage identities or a second Player mirror |
@@ -270,8 +277,10 @@ records the selection and integration gates. Production still has no hecs depend
 | Wasm bounded delivery / broader language ecosystem | #583 delivers an optional executor with Rust/C bindings and explicit limits; further languages, WIT or hot reload are not implied | No M6 gate for the approved bounded #583 delivery; broader #99 expansion retains fresh planning |
 
 First run the finite pre-migration conformance checkpoint above; the architecture selection is
-already made. Then complete #578 lifetime/save and C0 phase proof alongside whole-operation C2
-integration, followed by C3/C4. Preserve the committed Player work. The production module product
+already made. This sequence gates production storage migration, not safe same-owner source/test
+splits, which may precede or run alongside the experiment. Then complete #578 lifetime/save and
+C0 phase proof alongside whole-operation C2 integration, followed by C3/C4. Preserve the committed
+Player work. The production module product
 is one subsequent #583 PR, not a series of greeting-size deliverables. Internal focused commits
 and checks are not user approval gates; runtime/publication authority remains separate.
 
@@ -301,6 +310,12 @@ path is an **inspection-based upgrade risk, not a reproduced failure**. #583 mus
 Git workflow, fixing it if necessary, rather than relying only on path-source fixtures.
 
 ## 7. Validation, stop conditions and future decisions
+
+Terminal acceptance includes independent physical-file and logical-owner reports under the
+module design guide, including tests/fixtures and file-specific exceptions. The existing checker
+currently enforces selected logical ceilings, not the new physical policy; #578 C4 implements
+that extension and retires the remaining core monoliths before #153's audit. No permanent Session
+exception, known future split plan or moved-file count substitutes for completion.
 
 Use focused positive/negative tests and inexpensive architecture/syntax checks during a cut.
 At affected boundaries, use production-linked dev/release integration tests, controlled I/O
@@ -403,3 +418,33 @@ new benchmark results, production ECS/Wasm integration, DB durability, live/capt
 clean-HEAD macro-final acceptance. No runtime/code, dependency allowlist, DB, PR or issue state
 was changed. This documentation commit preserves the earlier approved plan changes while leaving
 skill edits and the unrelated LFG audit outside it; no push or merge is included.
+
+## 11. Module-design policy adoption — 2026-09-05
+
+Reviewed above planning HEAD `816d5c84`, with production code still `93e4002a`:
+
+- Updated/read back exact GitHub bodies #133, #578, #583, #153, #99 and #49. Titles, states
+  and the existing dependency DAG are unchanged; all six remain open. No new issue or PR.
+- Added [module design guidelines](module-design-guidelines.md): independent physical and
+  semantic acceptance, project size budgets, bounded exceptions, test/fixture decomposition
+  and an illustrative Rust submodule skeleton. #578 C2/C4 own remaining core decomposition
+  and the physical checker extension; #583 applies the policy to its own module product.
+- Updated the existing architecture and safe-refactor skills, preserving the earlier approved
+  simplification. The canonical policy stays in project docs, not duplicated skill snapshots.
+  A four-scenario independent instruction review led to conditional opcode checks, a thin
+  `main`/composition distinction and an explicit non-universal persistence example. No new
+  routine approval or micro-PR requirement was added.
+- Only three narrative hotspot-ledger fields changed; numeric ceilings, members, paths,
+  issue references and the historical persistence snapshot remain identical to HEAD.
+- On aarch64, architecture check/self-test, syntax-only Session ownership and live
+  `refresh-issue-state --check`: PASS. Both skill validators and `git diff --check`: PASS.
+  `checked_persistence_policy_matches_the_checked_snapshot` (release): 1 passed, 0 failed.
+- Bounded validation against the persistence policy rules: PASS, 1,041 classified groups,
+  1,038 workflows and 120 preserved issue references. Policy/workflows/snapshot are identical
+  to HEAD; historical #153 attribution still requires C4's semantic reconciliation. This is
+  reference/classification consistency, not a fresh exhaustive source inventory or DB evidence.
+
+This is policy/planning and metadata validation, not implementation of physical enforcement,
+source decomposition, production ECS/Wasm migration, gameplay parity, live/capture acceptance
+or clean-HEAD macro-final validation. No production source, dependency, schema, runtime or PR
+was changed. The unrelated local LFG audit stays outside this change; no push or merge.

@@ -21,6 +21,7 @@ Focused tests:
 Capture/live QA requirement:
 Explicit non-goals:
 Bridge or re-export deletion condition:
+Physical source/test split and remaining file-specific exception exit:
 ```
 
 Pause mutation while a slice's target owner, frozen contract or non-goals are unclear. Continue
@@ -34,14 +35,20 @@ Use for `handlers/misc.rs`, packet families, QA scenarios, or a cohesive impl bl
 2. Create a private module in the same crate.
 3. Move definitions and tests without renaming or reordering logic.
 4. Keep imports explicit; do not replace compile errors with broad `pub`.
-5. Confirm every `(opcode, SessionStatus, PacketProcessing)` tuple is unchanged.
-6. Add or update a table-driven test for the exact expected opcode set, metadata, handler names,
-   and uniqueness. Counts alone cannot detect replacement by the wrong opcode.
+5. If handler registrations are affected, confirm every `(opcode, SessionStatus, PacketProcessing)`
+   tuple is unchanged.
+6. For those handler moves, add or update a table-driven test for the exact expected opcode set,
+   metadata, handler names and uniqueness. Counts alone cannot detect replacement by the wrong
+   opcode. For other surfaces, preserve their actual call/test registration contract instead;
+   do not add unrelated opcode tests.
 7. Run focused tests, crate tests and `validation-v2 quick`; after committing to a clean HEAD,
    run `validation-v2 final` before an authorized push.
 
-Keep `impl WorldSession` across modules when that preserves C++ handler naming. Do not add
-`CharacterHandlers`-style traits solely for organization.
+Keeping `impl WorldSession` across private modules can preserve the handler API during a
+mechanical split. It does not complete a semantic extraction of gameplay from Session; record
+that remaining boundary and finish it within the approved macro. Do not add
+`CharacterHandlers`-style traits solely for organization. Mechanical source/test organization
+does not need to wait for an unrelated storage-backend proof when owners and behavior stay fixed.
 
 ## Composition-root split
 
@@ -56,8 +63,9 @@ Extract in this order when seams permit:
 5. runtime task supervision and routing;
 6. realm lifecycle and shutdown.
 
-Keep `main` responsible for construction and supervision. Do not move gameplay ownership into a
-binary module merely because it is convenient to wire there.
+Keep `main` a thin entrypoint into testable application composition; `app` and its private
+bootstrap/runtime modules own construction and supervision. Do not move gameplay ownership into
+a binary or composition module merely because it is convenient to wire there.
 
 ## Shared-service boundary
 
@@ -83,6 +91,8 @@ Use for `Map`, `Player`, `Unit`, or another legitimate aggregate.
 - Preserve invariant enforcement at the aggregate boundary.
 - Do not create submanagers that own copies of aggregate state.
 - Keep C++ update phase ordering explicit in the top-level method.
+- Apply `docs/architecture/module-design-guidelines.md` to each physical file, including tests
+  and fixture builders. A cohesive aggregate may span many small modules without duplicating state.
 
 Candidate private modules:
 
@@ -96,7 +106,9 @@ These names are guides, not permission for a bulk move.
 
 ## Handler-to-use-case extraction
 
-Extract one complete vertical operation:
+Extract one complete vertical operation. The following illustrates an operation with existing
+durable persistence. Omit inapplicable stages and preserve the actual C++/current contract;
+do not introduce a transaction merely to match this diagram:
 
 ```text
 decode packet
