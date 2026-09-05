@@ -1,0 +1,46 @@
+<svg width="722" height="722" viewBox="0 0 722 722" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M361 0L673 181V542L361 722L49 542V181L361 0Z" fill="url(#paint0_linear_1_114)"/>
+<path d="M361 61L620 211V511L361 661L102 511V211L361 61Z" fill="url(#paint1_linear_1_114)"/>
+<path d="M361 61L620 211V511L361 661L102 511V211L361 61Z" stroke="#F0A35D" stroke-opacity="0.28" stroke-width="12"/>
+<path d="M361 124L565 243V479L361 597L157 479V243L361 124Z" fill="#171E22" stroke="#0B1114" stroke-width="16"/>
+<path d="M361 577C459.307 577 539 497.307 539 399C539 300.693 459.307 221 361 221C262.693 221 183 300.693 183 399C183 497.307 262.693 577 361 577Z" fill="#20282D" stroke="#859196" stroke-width="18"/>
+<path d="M361 517C426.17 517 479 464.17 479 399C479 333.83 426.17 281 361 281C295.83 281 243 333.83 243 399C243 464.17 295.83 517 361 517Z" fill="url(#paint2_radial_1_114)" stroke="#D8F6FF" stroke-opacity="0.62" stroke-width="10"/>
+<path d="M361 185V270" stroke="#D87935" stroke-width="24" stroke-linecap="round"/>
+<path d="M361 528V613" stroke="#D87935" stroke-width="24" stroke-linecap="round"/>
+<path d="M176 292L249 335" stroke="#D87935" stroke-width="24" stroke-linecap="round"/>
+<path d="M473 463L546 506" stroke="#D87935" stroke-width="24" stroke-linecap="round"/>
+<path d="M176 506L249 463" stroke="#D87935" stroke-width="24" stroke-linecap="round"/>
+<path d="M473 335L546 292" stroke="#D87935" stroke-width="24" stroke-linecap="round"/>
+<path d="M273 399H161" stroke="#8FA0A7" stroke-width="18" stroke-linecap="round"/>
+<path d="M561 399H449" stroke="#8FA0A7" stroke-width="18" stroke-linecap="round"/>
+<path d="M361 311V199" stroke="#8FA0A7" stroke-width="18" stroke-linecap="round"/>
+<path d="M361 599V487" stroke="#8FA0A7" stroke-width="18" stroke-linecap="round"/>
+<path d="M161 418C171.493 418 180 409.493 180 399C180 388.507 171.493 380 161 380C150.507 380 142 388.507 142 399C142 409.493 150.507 418 161 418Z" fill="#77D9F2"/>
+<path d="M561 418C571.493 418 580 409.493 580 399C580 388.507 571.493 380 561 380C550.507 380 542 388.507 542 399C542 409.493 550.507 418 561 418Z" fill="#77D9F2"/>
+<path d="M361 218C371.493 218 380 209.493 380 199C380 188.507 371.493 180 361 180C350.507 180 342 188.507 342 199C342 209.493 350.507 218 361 218Z" fill="#77D9F2"/>
+<path d="M361 618C371.493 618 380 609.493 380 599C380 588.507 371.493 580 361 580C350.507 580 342 588.507 342 599C342 609.493 350.507 618 361 618Z" fill="#77D9F2"/>
+<path d="M361 319L431 359V439L361 479L291 439V359L361 319Z" fill="#10171B" fill-opacity="0.64" stroke="#BDF4FF" stroke-width="8"/>
+<path d="M361 357L397 378V420L361 441L325 420V378L361 357Z" fill="#EAFBFF"/>
+<path d="M475.867 306.836C458.022 268.241 464.142 224.992 493.402 198.612C518.8 175.986 554.948 173.472 582.555 190.141C553.302 206.672 537.446 232.452 543.521 258.144C550.003 282.923 575.275 297.459 607.869 295.551C589.066 325.491 555.345 342.222 518.49 338.949C497.372 337.209 482.149 327.147 475.867 306.836Z" fill="#C92A2A" stroke="#4A1414" stroke-width="12" stroke-linejoin="round"/>
+<path d="M582.555 190.141C613.715 206.204 632.78 242.058 626.36 278.607C602.007 254.629 572.16 247.908 547.275 262.005C525.03 275.088 517.296 302.294 518.49 338.949" stroke="#F06A4F" stroke-width="11" stroke-linecap="round"/>
+<path d="M480.961 280.644C485.922 301.462 501.753 315.078 528.252 317.024" stroke="#6F1D1D" stroke-width="10" stroke-linecap="round"/>
+<defs>
+<linearGradient id="paint0_linear_1_114" x1="17" y1="37" x2="702" y2="757" gradientUnits="userSpaceOnUse">
+<stop stop-color="#A9B0B1"/>
+<stop offset="0.31" stop-color="#4F585C"/>
+<stop offset="0.68" stop-color="#22282C"/>
+<stop offset="1" stop-color="#788286"/>
+</linearGradient>
+<linearGradient id="paint1_linear_1_114" x1="122" y1="71" x2="596" y2="730" gradientUnits="userSpaceOnUse">
+<stop stop-color="#D87935"/>
+<stop offset="0.46" stop-color="#A94D26"/>
+<stop offset="1" stop-color="#54291F"/>
+</linearGradient>
+<radialGradient id="paint2_radial_1_114" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(361 399) rotate(90) scale(214)">
+<stop stop-color="#EAFBFF"/>
+<stop offset="0.36" stop-color="#77D9F2"/>
+<stop offset="0.72" stop-color="#1E7E9A"/>
+<stop offset="1" stop-color="#0D2F3B"/>
+</radialGradient>
+</defs>
+</svg>

@@ -186,7 +186,7 @@ Useful default ports:
 | World socket | `8085` |
 | Instance socket | `8086` |
 
-The active realm row in `auth.realmlist` must match the Rust worldserver listener and the client build. For the tested client path, the game build is `51943`.
+The active realm row in `auth.realmlist` must match the Rust worldserver listener and the actual client build. Build `51943` belongs to historical smoke evidence; the maintained bot wrapper defaults to `54261` unless overridden. Neither a default nor a historical smoke proves acceptance of the current server commit.
 
 Operational DB/bootstrap details are in:
 

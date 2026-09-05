@@ -20,6 +20,8 @@ implementation and acceptance remain open. Keep those statuses separate.
 
 ## Development, operations and extensions
 
+- [Documentation site](wiki/README.md): VitePress authoring and local build instructions.
+  Published guides link to the maintained sources here; they are not a second status ledger.
 - [AGENTS.md](../AGENTS.md): shared scope, approval, fidelity, validation and Git rules.
   [CLAUDE.md](../CLAUDE.md) imports it; it is not a second operating guide.
 - [Validation V2](operations/validation-v2.md) and
