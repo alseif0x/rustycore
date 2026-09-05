@@ -5104,6 +5104,7 @@ pub(crate) struct RepresentedPlayerSpellLikeCpp {
 struct RepresentedPlayerSpellRuntimeLikeCpp {
     known_spells: Vec<i32>,
     rows: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
+    #[cfg(test)]
     rows_loaded: bool,
     rows_complete: bool,
     fallback_rows: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
@@ -5116,6 +5117,7 @@ struct RepresentedPlayerSpellRuntimeLikeCpp {
     trait_config_rows_complete: bool,
     trait_entry_rows_complete: bool,
     trait_entry_rows_empty: bool,
+    #[cfg(test)]
     override_spells: HashMap<i32, BTreeSet<i32>>,
     override_spells_complete: bool,
 }
@@ -5216,6 +5218,7 @@ fn represented_player_spell_runtime_like_cpp(
             .iter()
             .map(|(&spell_id, row)| (spell_id, represented_player_spell_record_like_cpp(row)))
             .collect(),
+        #[cfg(test)]
         rows_loaded: runtime.rows_loaded,
         rows_complete: runtime.rows_complete,
         fallback_rows: runtime
@@ -5236,6 +5239,7 @@ fn represented_player_spell_runtime_like_cpp(
         trait_config_rows_complete: runtime.trait_config_rows_complete,
         trait_entry_rows_complete: runtime.trait_entry_rows_complete,
         trait_entry_rows_empty: runtime.trait_entry_rows_empty,
+        #[cfg(test)]
         override_spells: runtime
             .override_spells
             .iter()
@@ -45021,8 +45025,8 @@ impl WorldSession {
         }
 
         let preserve_complete = self
-            .player_spell_runtime_snapshot_like_cpp()
-            .is_some_and(|runtime| runtime.rows_complete);
+            .with_player_spell_runtime_like_cpp(|runtime| runtime.rows_complete)
+            .unwrap_or(false);
         if !preserve_complete {
             self.invalidate_represented_player_spell_rows_like_cpp();
         }
@@ -46040,31 +46044,55 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_override_spells_like_cpp(&self) -> HashMap<i32, BTreeSet<i32>> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.override_spells)
-            .unwrap_or_default()
+        self.with_player_spell_runtime_like_cpp(|runtime| {
+            runtime
+                .override_spells
+                .iter()
+                .map(|(&id, values)| (id, values.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
     }
 
     pub(crate) fn represented_spell_trait_definition_ids_like_cpp(&self) -> HashMap<i32, i32> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.trait_definition_ids)
-            .unwrap_or_default()
+        self.with_player_spell_runtime_like_cpp(|runtime| {
+            runtime
+                .trait_definition_ids
+                .iter()
+                .map(|(&id, &value)| (id, value))
+                .collect()
+        })
+        .unwrap_or_default()
     }
 
     pub(crate) fn complete_represented_override_spells_like_cpp(
         &self,
     ) -> Option<HashMap<i32, BTreeSet<i32>>> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .filter(|runtime| runtime.override_spells_complete)
-            .map(|runtime| runtime.override_spells)
+        self.with_player_spell_runtime_like_cpp(|runtime| {
+            runtime.override_spells_complete.then(|| {
+                runtime
+                    .override_spells
+                    .iter()
+                    .map(|(&id, values)| (id, values.clone()))
+                    .collect()
+            })
+        })
+        .flatten()
     }
 
     pub(crate) fn complete_represented_spell_trait_definition_ids_like_cpp(
         &self,
     ) -> Option<HashMap<i32, i32>> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .filter(|runtime| runtime.trait_definition_ids_complete)
-            .map(|runtime| runtime.trait_definition_ids)
+        self.with_player_spell_runtime_like_cpp(|runtime| {
+            runtime.trait_definition_ids_complete.then(|| {
+                runtime
+                    .trait_definition_ids
+                    .iter()
+                    .map(|(&id, &value)| (id, value))
+                    .collect()
+            })
+        })
+        .flatten()
     }
 
     pub(crate) fn set_complete_represented_spell_trait_definition_ids_like_cpp(
@@ -46849,6 +46877,21 @@ impl WorldSession {
         false
     }
 
+    fn with_player_spell_runtime_like_cpp<R>(
+        &self,
+        query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let runtime = canonical_player_spell_runtime_like_cpp(
+                self.player_spell_runtime_snapshot_like_cpp()?,
+            );
+            return Some(query(&runtime));
+        }
+        // C++ Player::GetSpellMap returns the owner's map, not a Session copy.
+        self.with_owned_player_like_cpp(|player| query(player.spell_runtime_like_cpp()))
+    }
+
     fn mutate_player_spell_runtime_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
@@ -46871,8 +46914,7 @@ impl WorldSession {
     }
 
     pub(crate) fn resolved_known_spells_like_cpp(&self) -> Option<Vec<i32>> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.known_spells)
+        self.with_player_spell_runtime_like_cpp(|runtime| runtime.known_spells.clone())
     }
 
     pub(crate) fn known_spells_like_cpp(&self) -> Vec<i32> {
@@ -46885,9 +46927,10 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.dependent_known_spells)
-            .unwrap_or_default()
+        self.with_player_spell_runtime_like_cpp(|runtime| {
+            runtime.dependent_known_spells.iter().copied().collect()
+        })
+        .unwrap_or_default()
     }
 
     pub(crate) fn set_represented_favorite_known_spells_like_cpp(
@@ -46895,8 +46938,8 @@ impl WorldSession {
         favorite_spells: HashSet<i32>,
     ) {
         let preserve_complete = self
-            .player_spell_runtime_snapshot_like_cpp()
-            .is_some_and(|runtime| runtime.rows_complete);
+            .with_player_spell_runtime_like_cpp(|runtime| runtime.rows_complete)
+            .unwrap_or(false);
         if !preserve_complete {
             self.invalidate_represented_player_spell_rows_like_cpp();
         }
@@ -46954,22 +46997,30 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_player_spell_rows_loaded_like_cpp(&self) -> bool {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .is_some_and(|runtime| runtime.rows_loaded)
+        self.with_player_spell_runtime_like_cpp(|runtime| runtime.rows_loaded)
+            .unwrap_or(false)
     }
 
     pub(crate) fn complete_represented_player_spell_rows_like_cpp(
         &self,
     ) -> Option<BTreeMap<i32, RepresentedPlayerSpellLikeCpp>> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .filter(|runtime| runtime.rows_loaded && runtime.rows_complete)
-            .map(|runtime| runtime.rows)
+        self.with_player_spell_runtime_like_cpp(|runtime| {
+            (runtime.rows_loaded && runtime.rows_complete).then(|| {
+                runtime
+                    .rows
+                    .iter()
+                    .map(|(&id, row)| (id, represented_player_spell_record_like_cpp(row)))
+                    .collect()
+            })
+        })
+        .flatten()
     }
 
     pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> HashSet<i32> {
-        self.player_spell_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.favorite_known_spells)
-            .unwrap_or_default()
+        self.with_player_spell_runtime_like_cpp(|runtime| {
+            runtime.favorite_known_spells.iter().copied().collect()
+        })
+        .unwrap_or_default()
     }
 
     pub(crate) fn resolved_player_skill_values_like_cpp(&self) -> Option<HashMap<u16, u16>> {

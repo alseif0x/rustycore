@@ -58,6 +58,44 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Borrowed native spell queries
+
+Boundary extraction on `c9eef8d6`: nine leaf queries and two row-completeness
+predicates stop constructing the full represented spell-runtime snapshot. Ten
+are production reads; the loaded-row predicate is test-only. A private spell-only
+adapter resolves the existing generation-checked Player and borrows its native
+state for one synchronous query. Results copy only the requested collection, or
+return a scalar. The now-unused rows_loaded and override_spells fields of the
+remaining represented snapshot are test-only, eliminating those production copies.
+No state ownership, clock, writer, public API or resource changes.
+
+C++ `Player::GetSpellMap` (`Player.h:1852-1853`) returns Player-owned storage;
+`Player::HasSpell` (`Player.cpp:3764-3769`) reads it directly. This cut preserves
+the Rust represented known-spell projection rather than replacing it with a new
+C++ eligibility rule. Vector order, duplicate/signed IDs, map keys, raw rows,
+source-proof gates and existing empty-result adapters remain unchanged. The
+resolved owner query returns None on stale/missing ownership and never executes
+the callback there. Session-field fallback exists only in cfg(test).
+
+32 active/detached comparisons cover all combinations of loaded/complete row,
+trait and override proofs against the former whole-snapshot route. Tests pin
+single callback invocation under the owner guard, release after the query,
+stale/missing results and replacement isolation. No packets, publication, catalog
+lookups, persistence or await occur inside these callbacks. The private adapter
+retires with the remaining Session spell-query facade; whole snapshots still used
+by acquisition/trait-eligibility paths remain open #578 work, not stable exceptions.
+
+AST: 3,669 associated items (one private production adapter), 714 fields =
+282 production + 432 fixtures and 590 registrations unchanged. Logical Session
+ceiling: 81,809 + 105,360 = 187,169; other owner ceilings unchanged.
+Validation on aarch64: focused query tests 2/0; final full `wow-world --lib`
+3,731/0 (one ignored); final `world-server` check PASS (1m54s, existing warnings).
+Format/diff, syntax-only ownership, architecture check/self-test and final
+validation-v2 quick PASS (manifest `20260905T065332.781659Z-583889-quick.json`).
+The final compile and suite include the two removed production snapshot fields.
+No install, restart, capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Native spell-save finalization
 
 Ownership migration on `05f3235f`: `PlayerSpellRuntimeState` owns saved-row

@@ -3,6 +3,157 @@
 use super::*;
 
 #[test]
+fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for flags in 0..16 {
+            session
+                .with_owned_player_mut_like_cpp(|player| {
+                    let mut runtime = wow_entities::PlayerSpellRuntimeState::default();
+                    runtime.known_spells = vec![20, -1, 10, 20];
+                    runtime.dependent_known_spells = BTreeSet::from([-1, 20]);
+                    runtime.favorite_known_spells = BTreeSet::from([10, 30]);
+                    runtime.override_spells.insert(10, BTreeSet::from([-1, 20]));
+                    runtime.trait_definition_ids.insert(20, 200);
+                    runtime.rows_loaded = flags & 1 != 0;
+                    runtime.rows_complete = flags & 2 != 0;
+                    runtime.trait_definition_ids_complete = flags & 4 != 0;
+                    runtime.override_spells_complete = flags & 8 != 0;
+                    runtime.rows.insert(
+                        10,
+                        wow_entities::PlayerKnownSpellRecord {
+                            spell_id: 10,
+                            state: wow_entities::PlayerSpellLoadState::Removed,
+                            active: true,
+                            disabled: true,
+                            favorite: true,
+                            dependent: true,
+                        },
+                    );
+                    player.replace_spell_runtime_like_cpp(runtime);
+                })
+                .unwrap();
+            let expected = session.player_spell_runtime_snapshot_like_cpp().unwrap();
+            assert_eq!(
+                session.resolved_known_spells_like_cpp(),
+                Some(expected.known_spells.clone())
+            );
+            assert_eq!(session.known_spells_like_cpp(), expected.known_spells);
+            assert_eq!(
+                session.represented_dependent_known_spells_like_cpp(),
+                expected.dependent_known_spells
+            );
+            assert_eq!(
+                session.represented_favorite_known_spells_like_cpp(),
+                expected.favorite_known_spells
+            );
+            assert_eq!(
+                session.represented_override_spells_like_cpp(),
+                expected.override_spells
+            );
+            assert_eq!(
+                session.represented_spell_trait_definition_ids_like_cpp(),
+                expected.trait_definition_ids
+            );
+            assert_eq!(
+                session.complete_represented_override_spells_like_cpp(),
+                expected
+                    .override_spells_complete
+                    .then_some(expected.override_spells)
+            );
+            assert_eq!(
+                session.complete_represented_spell_trait_definition_ids_like_cpp(),
+                expected
+                    .trait_definition_ids_complete
+                    .then_some(expected.trait_definition_ids)
+            );
+            assert_eq!(
+                session.represented_player_spell_rows_loaded_like_cpp(),
+                expected.rows_loaded
+            );
+            assert_eq!(
+                session.complete_represented_player_spell_rows_like_cpp(),
+                (expected.rows_loaded && expected.rows_complete).then_some(expected.rows)
+            );
+            let calls = std::cell::Cell::new(0);
+            assert_eq!(
+                session.with_player_spell_runtime_like_cpp(|runtime| {
+                    calls.set(calls.get() + 1);
+                    assert!(manager.try_lock().is_err());
+                    runtime.known_spells.len()
+                }),
+                Some(4)
+            );
+            assert_eq!(calls.get(), 1);
+            assert!(manager.try_lock().is_ok());
+        }
+    }
+}
+
+#[test]
+fn narrow_spell_queries_reject_stale_and_missing_owner_without_fabricated_authority() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    replacement.gameplay_state_mut().spells.known_spells = vec![42];
+    manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    for missing in [false, true] {
+        if missing {
+            session.canonical_map_manager = None;
+        }
+        assert_eq!(
+            session.with_player_spell_runtime_like_cpp(|_| panic!(
+                "unresolved owner must not run query"
+            )),
+            None::<()>
+        );
+        assert_eq!(session.resolved_known_spells_like_cpp(), None);
+        assert_eq!(
+            session.complete_represented_player_spell_rows_like_cpp(),
+            None
+        );
+        assert_eq!(
+            session.complete_represented_override_spells_like_cpp(),
+            None
+        );
+        assert_eq!(
+            session.complete_represented_spell_trait_definition_ids_like_cpp(),
+            None
+        );
+        assert!(session.known_spells_like_cpp().is_empty());
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .is_empty()
+        );
+        assert!(
+            session
+                .represented_favorite_known_spells_like_cpp()
+                .is_empty()
+        );
+        assert!(session.represented_override_spells_like_cpp().is_empty());
+        assert!(
+            session
+                .represented_spell_trait_definition_ids_like_cpp()
+                .is_empty()
+        );
+        assert!(!session.represented_player_spell_rows_loaded_like_cpp());
+    }
+}
+
+#[test]
 fn spell_save_finalization_matches_previous_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
