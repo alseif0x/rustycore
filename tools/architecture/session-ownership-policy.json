@@ -27550,6 +27550,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_set_complete_spell_trait_definition_ids_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_set_complete_spell_trait_definition_ids_like_cpp (& mut self , traits : impl IntoIterator < Item = (i32 , i32) > ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "fixture_set_player_skill_occupied_slots_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_set_player_skill_occupied_slots_like_cpp (& mut self , occupied_slots : u16) -> bool",
@@ -45937,8 +45950,10 @@
           "name": "set_complete_represented_override_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_complete_represented_override_spells_like_cpp (& mut self , overrides : impl IntoIterator < Item = (i32 , i32) > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -50020,8 +50035,10 @@
           "name": "set_represented_spell_trait_definition_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_spell_trait_definition_id_like_cpp (& mut self , spell_id : i32 , trait_definition_id : i32 ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"

@@ -44919,6 +44919,7 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
     pub(crate) fn set_represented_spell_trait_definition_id_like_cpp(
         &mut self,
         spell_id: i32,
@@ -45955,11 +45956,7 @@ impl WorldSession {
             return;
         }
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime
-                .override_spells
-                .entry(overriden_spell_id)
-                .or_default()
-                .insert(new_spell_id);
+            runtime.add_override_spell_like_cpp(overriden_spell_id, new_spell_id);
         });
     }
 
@@ -45969,12 +45966,7 @@ impl WorldSession {
         new_spell_id: i32,
     ) {
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            if let Some(overrides) = runtime.override_spells.get_mut(&overriden_spell_id) {
-                overrides.remove(&new_spell_id);
-                if overrides.is_empty() {
-                    runtime.override_spells.remove(&overriden_spell_id);
-                }
-            }
+            runtime.remove_override_spell_like_cpp(overriden_spell_id, new_spell_id);
         });
     }
 
@@ -46029,6 +46021,21 @@ impl WorldSession {
         traits: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        // Keep caller-provided iteration outside the owner guard. The login
+        // loader supplies its already materialized exact-traits Vec here.
+        let traits = traits.into_iter().collect();
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.replace_complete_trait_definition_ids_like_cpp(traits)
+        })
+        .unwrap_or(false)
+    }
+
+    #[cfg(test)]
+    fn fixture_set_complete_spell_trait_definition_ids_like_cpp(
+        &mut self,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+    ) -> bool {
+        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let mut exact_traits = HashMap::new();
         for (spell_id, trait_definition_id) in traits {
             if spell_id <= 0
@@ -46050,6 +46057,7 @@ impl WorldSession {
         .is_some()
     }
 
+    #[cfg(test)]
     pub(crate) fn set_complete_represented_override_spells_like_cpp(
         &mut self,
         overrides: impl IntoIterator<Item = (i32, i32)>,

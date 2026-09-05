@@ -7,6 +7,49 @@
 
 use super::*;
 
+impl PlayerSpellRuntimeState {
+    /// Represented PlayerSpell::TraitDefinitionId authority (Player.h:191).
+    /// Invalid or duplicate input clears the previous proof, preserving the
+    /// port's fail-closed load contract independently of packet/catalog code.
+    pub fn replace_complete_trait_definition_ids_like_cpp(
+        &mut self,
+        traits: Vec<(i32, i32)>,
+    ) -> bool {
+        let mut exact = BTreeMap::new();
+        for (spell, definition) in traits {
+            if spell <= 0 || definition <= 0 || exact.insert(spell, definition).is_some() {
+                self.trait_definition_ids.clear();
+                self.trait_definition_ids_complete = false;
+                return false;
+            }
+        }
+        self.trait_definition_ids = exact;
+        self.trait_definition_ids_complete = true;
+        true
+    }
+
+    /// C++ Player::AddOverrideSpell, Player.cpp:28581-28584, retaining the
+    /// represented signed-ID admission gate before accessing the native map.
+    pub fn add_override_spell_like_cpp(&mut self, overridden: i32, replacement: i32) {
+        if overridden > 0 && replacement > 0 {
+            self.override_spells
+                .entry(overridden)
+                .or_default()
+                .insert(replacement);
+        }
+    }
+
+    /// C++ Player::RemoveOverrideSpell, Player.cpp:28586-28596.
+    pub fn remove_override_spell_like_cpp(&mut self, overridden: i32, replacement: i32) {
+        if let Some(overrides) = self.override_spells.get_mut(&overridden) {
+            overrides.remove(&replacement);
+            if overrides.is_empty() {
+                self.override_spells.remove(&overridden);
+            }
+        }
+    }
+}
+
 impl Player {
     pub const fn titan_grip_penalty_spell_id(&self) -> u32 {
         self.titan_grip_penalty_spell_id

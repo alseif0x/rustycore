@@ -521,6 +521,35 @@ fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() 
 }
 
 #[test]
+fn native_spell_metadata_keeps_cpp_override_set_and_fail_closed_trait_semantics() {
+    let mut state = PlayerSpellRuntimeState::default();
+    assert!(state.replace_complete_trait_definition_ids_like_cpp(vec![(10, 20)]));
+    assert!(!state.replace_complete_trait_definition_ids_like_cpp(vec![(30, 40), (30, 40)]));
+    assert!(state.trait_definition_ids.is_empty());
+    assert!(!state.trait_definition_ids_complete);
+    assert!(state.replace_complete_trait_definition_ids_like_cpp(vec![]));
+    assert!(state.trait_definition_ids_complete);
+    state.add_override_spell_like_cpp(50, 60);
+    state.add_override_spell_like_cpp(50, 60);
+    state.add_override_spell_like_cpp(50, 70);
+    state.add_override_spell_like_cpp(-1, 70);
+    assert_eq!(
+        state.override_spells,
+        BTreeMap::from([(50, BTreeSet::from([60, 70]))])
+    );
+    state.remove_override_spell_like_cpp(50, 60);
+    assert_eq!(
+        state.override_spells,
+        BTreeMap::from([(50, BTreeSet::from([70]))])
+    );
+    state.remove_override_spell_like_cpp(50, 70);
+    state.remove_override_spell_like_cpp(50, 70);
+    state.override_spells.insert(0, BTreeSet::new());
+    state.remove_override_spell_like_cpp(0, 99);
+    assert!(state.override_spells.is_empty());
+}
+
+#[test]
 fn prepared_acquisition_validates_then_installs_both_families_preserving_source_evidence() {
     let spell = PlayerKnownSpellRecord {
         spell_id: 10,

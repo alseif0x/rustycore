@@ -58,6 +58,46 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Native trait-load and override transitions
+
+Ownership migration on `34703ca8`: PlayerSpellRuntimeState now owns complete
+trait-ID map validation/replacement and override add/remove rules. Session keeps
+the prior aura-authority invalidation before trait loading and the signed-ID early
+admission gate for override addition, then invokes native state operations under
+the existing owner helper. No runtime state is cloned in the production path.
+
+C++ `Player.h:191` owns PlayerSpell::TraitDefinitionId;
+`Player.cpp:28581-28596` adds set members and removes empty override keys.
+The port's existing positive-ID/duplicate/completeness rules are preserved,
+including clearing the previous trait proof after malformed input and preserving
+the override completeness flag. Caller iteration is materialized outside the
+owner lock; the sole production trait-load caller passes an already owned Vec.
+No callback/I/O is introduced inside the owner. No SQL, packet or timing changes.
+
+Full source search proves complete override replacement and single-trait
+assignment now have only fixture consumers, so both become cfg(test) instead of
+introducing unused native production APIs. The old complete-trait loader is a
+test oracle. Sixteen active/detached differential cases cover empty/valid/
+duplicate/nonpositive trait input, unrelated state and override set behavior;
+stale/missing owner coverage protects replacements. Tests also assert iterator
+evaluation outside the lock. Native tests pin invalid proof clearing, duplicate
+override collapse, last-member removal and pre-existing empty-key cleanup.
+
+Fields stay 714 total/282 production/432 fixtures; AST has 3,664 associated items
+(one new oracle and two existing methods reclassified). Registrations and
+persistence evidence remain unchanged. Logical ceilings: Session
+81,694 + 104,829 = 186,523; Player 10,937 + 9,755 = 20,692. No new state,
+resource, task, crate, trait or dependency. Catalog/handler convergence remains
+open under #578, not deferred as a stable exception to #153.
+
+Validation on aarch64: world library 3,723 passed/zero failed/one ignored;
+entities library 711 passed/zero failed. Focused tests, world-server check,
+formatting/diff checks, syntax ownership, architecture check/self-test and quick
+validation pass. Evidence:
+`target/validation-v2/manifests/20260905T062205.758562Z-534761-quick.json`.
+No install, restart, capture or remote publication.
+#578 and full #133/#153 acceptance remain open.
+
 ### 2026-09-05 — Prepare and apply acquisition on one Player owner
 
 Ownership migration on `ee78492f`: `PreparedPlayerSpellAcquisitionLikeCpp` is a
