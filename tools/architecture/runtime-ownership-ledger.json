@@ -1470,11 +1470,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81406,
-          "test_lines": 102556,
-          "total_lines": 183962,
+          "production_lines": 81410,
+          "test_lines": 102621,
+          "total_lines": 184031,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 spell-book write-back retirement: production drops 13 lines by mutating native canonical spell state; whole-substate replacement becomes a cfg(test)-only fixture store. Tests grow 129 including moved fixture conversion and active/detached lock, save normalization, stale/missing-owner and replacement preservation coverage. Prepared acquisition and fallback row-map installation remain ordered adapters, not whole-substate writes. Fields remain 291 production; remaining #578 debt: docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 taxi owner-access correction: production grows 4 lines for native mutation and a test-only fallback; whole-state Session replacement is private cfg(test). Tests grow 65 for active/detached lock, once-only mutation, guard release, route order, unrelated flags/mount preservation and stale/missing-owner rejection. No field, clock or bridge row is reclassified as final; previous spell-book cut and remaining #578 debt: docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

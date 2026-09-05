@@ -56,6 +56,44 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — taxi mutations inside canonical Player ownership
+
+Based on `e394af7d`, `mutate_player_taxi_state_like_cpp` now applies its callback
+under one generation-checked owner access. The previous read-copy-write sequence
+is confined to handle-less test fixtures; the whole-state Session replacement is
+private and `cfg(test)` only. Two production callers update the flight node or
+perform final cleanup; three test setters share the same helper. All callbacks
+are value/container operations without additional locks, delivery or await.
+
+C++ anchors: `PlayerTaxi.h:70-79` (owned route mutation),
+`Player.cpp:22019-22024` (`CleanupAfterTaxiFlight`) and
+`MovementHandler.cpp:667-722` (flight continuation before teleport; final cleanup
+before fall information and honorless-target effects). The existing represented
+Rust decisions and their ordering are preserved; this slice does not complete
+flight-generator parity or relocate the Session movement handler/map coordinator.
+
+New coverage checks exactly-once callback execution under the active/detached
+owner lock, guard release, preservation of flags/mount state when changing a route,
+and stale/missing-owner rejection without modifying the replacement Player.
+Validation on aarch64: `wow-world --lib` passes 3,678 / zero failures / one ignored.
+Syntax-only ownership, architecture check/self-test, formatting and diff checks pass.
+`validation-v2 quick --base origin/3.4.3` passes; manifest
+`target/validation-v2/manifests/20260905T015448.907973Z-148803-quick.json` records
+the worktree based on `e394af7d`, not a clean post-commit final. The reviewed syntax
+delta only makes the taxi replacement private/test-only. Logical Session production
+81,406 -> 81,410 (+4), tests 102,556 -> 102,621 (+65); field, registry and bridge
+totals stay unchanged. No runtime install, capture, push or terminal acceptance;
+#578 remains open.
+
+Next ownership investigation: `active_spell_cast`,
+`represented_pending_spell_cast_request_like_cpp`, `last_spell_cast_time` and
+`last_spell_cast_time_per_spell` remain production Session fields. C++ owns current
+spells on Unit (`Unit.h:1823`) and the pending request on Player (`Player.h:3154`).
+Rust's active/pending records currently contain packet-layer target/visual metadata,
+so moving fields alone would introduce an upward entity-to-packet dependency. The
+coherent cut must account for those adapters plus start, cancel, interrupt, delayed
+completion, queue promotion and cooldown timing; it is not closed by the taxi slice.
+
 ### 2026-09-05 — native canonical spell-book mutation
 
 Ownership-boundary correction based on `0de97d11`: production

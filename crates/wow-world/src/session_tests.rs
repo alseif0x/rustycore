@@ -28,6 +28,8 @@ mod spell_history_owner;
 mod spellbook_owner;
 #[path = "session/tests/talent_owner.rs"]
 mod talent_owner;
+#[path = "session/tests/taxi_owner.rs"]
+mod taxi_owner;
 
 use routing::assert_destroyed_party_update_like_cpp;
 

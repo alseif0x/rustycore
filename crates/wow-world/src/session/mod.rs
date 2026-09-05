@@ -58912,10 +58912,8 @@ impl WorldSession {
         canonical
     }
 
-    pub(crate) fn replace_player_taxi_state_like_cpp(
-        &mut self,
-        state: wow_entities::PlayerTaxiState,
-    ) -> bool {
+    #[cfg(test)]
+    fn replace_player_taxi_state_like_cpp(&mut self, state: wow_entities::PlayerTaxiState) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
                 player.replace_taxi_state_like_cpp(state.clone())
@@ -58937,10 +58935,16 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerTaxiState) -> R,
     ) -> Option<R> {
-        let mut state = self.player_taxi_state_snapshot_like_cpp()?;
-        let result = f(&mut state);
-        self.replace_player_taxi_state_like_cpp(state)
-            .then_some(result)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let mut state = self.player_taxi_state_snapshot_like_cpp()?;
+            let result = f(&mut state);
+            return self
+                .replace_player_taxi_state_like_cpp(state)
+                .then_some(result);
+        }
+        // PlayerTaxi mutates the owning Player's route, not a Session copy.
+        self.with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().taxi))
     }
 
     pub(crate) fn handle_move_spline_done_taxi_like_cpp(
