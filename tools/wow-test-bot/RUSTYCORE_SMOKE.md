@@ -20,9 +20,41 @@ and an ignored password file by default. Use only authorized test identities and
 approved runtime/DB targets; disabling bootstrap does not make gameplay read-only.
 Runtime swaps and destructive fixture modes retain their separate explicit guards.
 
+## Bounded normal save/relogin check (#578)
+
+With explicit approval to swap/restart `world-server` and use existing
+`TESTBOT1@bot.local`, run the maintained two-pass wrapper under the runtime guard:
+
+```bash
+QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_save_relog.sh \
+  ./tools/qa-runtime.sh --allow-runtime-qa \
+  --world-exec /absolute/path/to/verified/world-server \
+  --report /tmp/rustycore-save-relog-runtime.json login
+```
+
+Build the bot first. The wrapper inherits the guard's exact bot hash, loopback
+endpoints and disabled provisioning/fixture modes. `WOW_BOT_LOGIN_SAVE_CHECK=1`
+adds a pre-authentication check of the exact existing Battle.net/game-account
+ownership and sole offline character, then normal logout after login-stream
+drain. It requires the empty `SMSG_LOGOUT_COMPLETE` response, an offline row and
+a strictly newer `logout_time`; socket-loss fallback does not pass. It reads,
+but never seeds or cleans, the six spell/favorite/skill/equipment/transmog/
+reputation tables. Pre-existing rows must survive unchanged; login defaults may
+be added. Two fresh authentications must retain identical saved projections and
+known/favorite-spell packets. The private bot report has
+`login_save_relog_verified=true` only after both passes, while the outer runtime
+report separately records restoration. Ordinary auth/login/logout DB writes
+remain, by design. `bnet-server` is not restarted.
+
+This is bounded save/relogin evidence, not whole-character parity, a crash or
+unknown-COMMIT experiment, concurrency proof, or a fresh capture. The new QA
+module is private `src/login_save.rs`; `test_login_save_relog.sh` tests report
+acceptance without a server or database. Missing/mutated existing data is a
+failure to investigate, not permission to repair the fixture.
+
 ## What was adapted
 
-- `--login-only`: stops immediately after `SMSG_LOGIN_VERIFY_WORLD`.
+- `--login-only`: verifies world entry and drains the login streams.
 - `--quest-smoke`: after login, resolves one creature questgiver, sends
   `CMSG_GOSSIP_HELLO`, falls back to `CMSG_QUEST_GIVER_HELLO`, optionally sends
   `CMSG_QUEST_GIVER_QUERY_QUEST`, and reports the quest ids/titles received.

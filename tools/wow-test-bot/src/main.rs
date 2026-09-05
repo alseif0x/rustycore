@@ -16,6 +16,7 @@ use tracing::{debug, error, info, warn};
 
 mod bot_srp6;
 mod config;
+mod login_save;
 mod loot_race;
 mod packet_parser;
 mod protocol;
@@ -405,6 +406,7 @@ struct BotRunResult {
     enum_characters: bool,
     player_login_verified: bool,
     login_stream_drained: bool,
+    login_save: Option<login_save::Evidence>,
     login_only: bool,
     stand_state_smoke: bool,
     stand_state_smoke_passed: Option<bool>,
@@ -4879,6 +4881,7 @@ async fn run_bot_with_void_storage(
         enum_characters: false,
         player_login_verified: false,
         login_stream_drained: false,
+        login_save: None,
         login_only,
         stand_state_smoke: stand_state_options.is_some(),
         stand_state_smoke_passed: None,
@@ -5160,6 +5163,16 @@ async fn run_bot_with_void_storage(
         quest_titles_seen: Vec::new(),
         quest_failure: None,
         seen_opcodes: Vec::new(),
+    };
+
+    let login_save_before = if login_save::enabled() {
+        if !login_only {
+            bail!("login save check requires login-only mode");
+        }
+        let selected = bot.clone();
+        Some(tokio::task::spawn_blocking(move || login_save::preflight(&selected)).await??)
+    } else {
+        None
     };
 
     // ── Step 1: Prepare the World session key ────────────────────────────────
@@ -5498,10 +5511,12 @@ async fn run_bot_with_void_storage(
         bail!("WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS requires login-only mode");
     }
     let require_known_spells = login_only
-        && (expected_known_spells.is_some()
+        && (login_save_before.is_some()
+            || expected_known_spells.is_some()
             || std::env::var("WOW_BOT_LOGIN_REQUIRE_KNOWN_SPELLS")
                 .is_ok_and(|value| is_truthy(&value)));
     let mut known_spells_seen = false;
+    let mut saved_known_spells = None;
     let mut loot_race_target_seen = false;
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut void_storage_target_seen: Option<DiscoveredCreatureGuid> = None;
@@ -5532,6 +5547,7 @@ async fn run_bot_with_void_storage(
                         }
                     }
                     known_spells_seen = true;
+                    saved_known_spells = Some(decoded.clone());
                     info!(
                         "[Bot {}] ✅ SMSG_SEND_KNOWN_SPELLS received (known={}, favorites={})",
                         bot_index,
@@ -6183,6 +6199,27 @@ async fn run_bot_with_void_storage(
             &mut result,
         )
         .await?;
+        if let Some(before) = login_save_before {
+            let confirmed = loot_race::logout_and_wait_routed_like_cpp(
+                bot_index,
+                &mut stream,
+                &mut crypt,
+                &mut server_inflater,
+                realm_connection.as_mut(),
+                bot.character_guid,
+                &mut result,
+            )
+            .await?;
+            if !confirmed {
+                bail!("save check requires SMSG_LOGOUT_COMPLETE, not socket-loss fallback");
+            }
+            let selected = bot.clone();
+            let known = saved_known_spells.context("save check missing known-spell packet")?;
+            result.login_save = Some(
+                tokio::task::spawn_blocking(move || login_save::finish(&selected, before, known))
+                    .await??,
+            );
+        }
         info!(
             "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
             bot_index
