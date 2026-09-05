@@ -3,6 +3,119 @@
 use super::*;
 
 #[test]
+fn rest_accrual_rejects_stale_and_missing_owner_without_touching_replacement() {
+    let (mut session, _, _) = make_session();
+    let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    replacement.set_next_level_xp(72_000);
+    replacement.load_xp_rest_bonus_like_cpp(1, 70.0);
+    replacement.gameplay_state_mut().rest.rest_time_secs = 100;
+    let expected = replacement.rest_state_like_cpp().clone();
+    let handle = manager
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    let policy = PlayerRestRatePolicyLikeCpp {
+        offline_wilderness: 1.0,
+        offline_tavern_or_city: 1.0,
+        ingame: 1.0,
+    };
+    for missing in [false, true] {
+        if missing {
+            session.canonical_map_manager = None;
+        }
+        assert_eq!(
+            session.apply_offline_xp_rest_bonus_with_policy_like_cpp(&policy, 1, 86401, true),
+            0.0
+        );
+        assert_eq!(
+            session.update_represented_online_xp_rest_bonus_with_policy_like_cpp(&policy, 200),
+            (0.0, 0)
+        );
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .with_player_like_cpp(handle, |player| player.rest_state_like_cpp().clone()),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
+fn rest_accrual_matches_previous_online_and_offline_routes_on_active_and_detached_player() {
+    let (mut session, _, send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let policy = PlayerRestRatePolicyLikeCpp {
+        offline_wilderness: 2.0,
+        offline_tavern_or_city: 3.0,
+        ingame: 4.0,
+    };
+    for detached in [false, true] {
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        for resting in [false, true] {
+            for (start, now) in [
+                (0, 200),
+                (300, 200),
+                (200, 200),
+                (100, 109),
+                (100, 110),
+                (100, 10_000_000),
+            ] {
+                for online in [false, true] {
+                    let prepare = |player: &mut Player| {
+                        player.set_next_level_xp(72_000);
+                        player.load_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 70.0);
+                        player.gameplay_state_mut().rest.rest_time_secs = start;
+                        player.clear_data_changes();
+                    };
+                    let projection = |player: &Player| {
+                        (
+                            player.rest_state_like_cpp().clone(),
+                            player.active_player_data_changes_mask().blocks().to_vec(),
+                        )
+                    };
+                    session.with_owned_player_mut_like_cpp(prepare).unwrap();
+                    let expected_return = if online {
+                        session.fixture_update_online_xp_rest_bonus_like_cpp(&policy, now)
+                    } else {
+                        (
+                            session.fixture_apply_offline_xp_rest_bonus_like_cpp(
+                                &policy, start, now, resting,
+                            ),
+                            0,
+                        )
+                    };
+                    let expected = session.with_owned_player_like_cpp(projection);
+                    session.with_owned_player_mut_like_cpp(prepare).unwrap();
+                    let result = if online {
+                        session.update_represented_online_xp_rest_bonus_with_policy_like_cpp(
+                            &policy, now,
+                        )
+                    } else {
+                        (
+                            session.apply_offline_xp_rest_bonus_with_policy_like_cpp(
+                                &policy, start, now, resting,
+                            ),
+                            0,
+                        )
+                    };
+                    assert_eq!(result, expected_return);
+                    assert_eq!(session.with_owned_player_like_cpp(projection), expected);
+                    assert!(send_rx.is_empty());
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn rest_consumption_matches_previous_route_and_empty_victim_does_not_normalize() {
     let (mut session, _, send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);

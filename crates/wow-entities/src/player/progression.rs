@@ -88,6 +88,49 @@ mod rest_flag_tests {
     use super::*;
 
     #[test]
+    fn rest_accrual_preserves_guards_timer_boundary_and_computed_extra_return() {
+        let mut player = Player::new(None, false);
+        player.set_next_level_xp(72_000);
+        player.load_xp_rest_bonus_like_cpp(6, 0.5);
+        let before = player.rest_state_like_cpp().clone();
+        for (logout, now) in [(0, 100), (100, 99), (100, 100)] {
+            assert_eq!(
+                player.apply_offline_xp_rest_bonus_like_cpp(logout, now, 0.125, false, false),
+                0.0
+            );
+            assert_eq!(player.rest_state_like_cpp(), &before);
+        }
+        player.gameplay_state_mut().rest.rest_time_secs = 100;
+        for now in [99, 100, 109] {
+            assert_eq!(
+                player.update_online_xp_rest_bonus_like_cpp(now, 0.125, false, false),
+                (0.0, 0)
+            );
+            assert_eq!(player.rest_state_like_cpp().rest_time_secs, 100);
+        }
+        assert_eq!(
+            player.update_online_xp_rest_bonus_like_cpp(110, 0.125, false, false),
+            (1.25, 7)
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_time_secs, 110);
+        assert_eq!(
+            player.update_online_xp_rest_bonus_like_cpp(110, 0.125, false, false),
+            (0.0, 0)
+        );
+        assert_eq!(
+            player.apply_offline_xp_rest_bonus_like_cpp(1, 1_000_001, 0.125, false, false),
+            125_000.0
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 54_000.0);
+        assert_eq!(
+            player.update_online_xp_rest_bonus_like_cpp(120, 0.125, true, false),
+            (0.0, 7)
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_time_secs, 120);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.0);
+    }
+
+    #[test]
     fn rest_consumption_preserves_integer_percentage_bounds_and_zero_award_normalization() {
         for (xp, pct, remaining) in [
             (40, 50, 10.0),
@@ -448,6 +491,65 @@ impl Player {
             raf_linked,
         );
         (award, mask)
+    }
+
+    /// C++ RestMgr::CalcExtraPerSec (RestMgr.cpp:162-174), retaining the
+    /// represented unavailable-next-level and configured-maximum guards.
+    fn xp_rest_extra_per_sec_like_cpp(&self, bubble: f32, at_max: bool) -> f32 {
+        let next = self.active_data().next_level_xp.max(0) as u32;
+        if at_max || next == 0 || next == u32::MAX {
+            return 0.0;
+        }
+        next as f32 / 72_000.0 * bubble
+    }
+
+    /// C++ Player.cpp:17892-17901. Preserve #81's rejection of zero/future
+    /// logout timestamps and return the computed extra, not the capped balance.
+    pub fn apply_offline_xp_rest_bonus_like_cpp(
+        &mut self,
+        logout: u64,
+        now: u64,
+        bubble: f32,
+        at_max: bool,
+        raf: bool,
+    ) -> f32 {
+        if logout == 0 {
+            return 0.0;
+        }
+        let Some(diff) = now.checked_sub(logout) else {
+            return 0.0;
+        };
+        if diff == 0 {
+            return 0.0;
+        }
+        let extra = diff as f32 * self.xp_rest_extra_per_sec_like_cpp(bubble, at_max);
+        self.add_xp_rest_bonus_like_cpp(extra, at_max, raf);
+        extra
+    }
+
+    /// C++ RestMgr::Update (RestMgr.cpp:141-153), after the caller's existing
+    /// random gate. Timer and bonus belong to this same Player mutation.
+    pub fn update_online_xp_rest_bonus_like_cpp(
+        &mut self,
+        now: u64,
+        bubble: f32,
+        at_max: bool,
+        raf: bool,
+    ) -> (f32, u8) {
+        let rest_time = self.rest_state_like_cpp().rest_time_secs;
+        if rest_time == 0 {
+            return (0.0, 0);
+        }
+        let Some(diff) = now.checked_sub(rest_time) else {
+            return (0.0, 0);
+        };
+        if diff < 10 {
+            return (0.0, 0);
+        }
+        self.mutate_rest_state_like_cpp(|state| state.rest_time_secs = now);
+        let extra = diff as f32 * self.xp_rest_extra_per_sec_like_cpp(bubble, at_max);
+        let mask = self.add_xp_rest_bonus_like_cpp(extra, at_max, raf);
+        (extra, mask)
     }
 
     /// Mutate this Player's RestMgr state and refresh its represented fields.

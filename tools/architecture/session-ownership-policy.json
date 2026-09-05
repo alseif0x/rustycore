@@ -24416,8 +24416,10 @@
           "name": "calc_represented_xp_rest_extra_per_sec_like_cpp",
           "visibility": "private",
           "signature": "fn calc_represented_xp_rest_extra_per_sec_like_cpp (& self , bubble : f32) -> Option < f32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -24594,8 +24596,10 @@
           "name": "can_gain_represented_xp_rest_bonus_like_cpp",
           "visibility": "private",
           "signature": "fn can_gain_represented_xp_rest_bonus_like_cpp (& self) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -27495,6 +27499,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "fixture_apply_offline_xp_rest_bonus_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_apply_offline_xp_rest_bonus_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "fixture_player_save_to_db_snapshot_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_player_save_to_db_snapshot_like_cpp (& self) -> Option < PlayerSaveToDbSnapshotLikeCpp >",
@@ -27524,6 +27541,19 @@
           "name": "fixture_take_xp_rest_bonus_like_cpp",
           "visibility": "private",
           "signature": "fn fixture_take_xp_rest_bonus_like_cpp (& mut self , xp : u32 , victim : wow_core :: ObjectGuid ,) -> (u32 , u8)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "fixture_update_online_xp_rest_bonus_like_cpp",
+          "visibility": "private",
+          "signature": "fn fixture_update_online_xp_rest_bonus_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
           "cfg": [
             "cfg (test)"
           ],

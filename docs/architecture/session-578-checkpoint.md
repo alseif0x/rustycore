@@ -58,6 +58,43 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Player owns timed online/offline rest accumulation
+
+Ownership migration based on `76755a8c`: native Player commands own elapsed-time
+guards, NextLevelXP calculation, timer update and bonus addition under one
+generation-checked owner guard. Session still selects borrowed rate inputs and
+max-level/RaF policy; the existing 3% RNG gate remains outside the online command
+and no random draw or clock is added. The old eligibility/per-second helpers are
+test-only, with separate online/offline fixture oracles.
+
+C++ `RestMgr.cpp:141-153,162-174` defines the ten-second timer boundary and
+per-second XP formula; `Player.cpp:17892-17901` selects the offline rate. Rust's
+#81 zero/future logout-time rejection, online checked subtraction, unchanged
+timestamp no-op, configured-maximum guard and float operation order are preserved.
+The timer projection still precedes bonus projection. Offline returns computed
+extra rather than the capped balance delta, matching the previous Rust API.
+Packet and persistence ordering are unchanged; rate/social ownership, RNG and
+full Player tick convergence remain open, not deferred to #153.
+
+Native differential coverage checks 48 online/offline, active/detached,
+city/wilderness and temporal-boundary cases against the old route, including
+state and dirty masks. A separate stale/missing-owner test verifies both commands
+leave a replacement Player untouched. Entity coverage pins timestamp rejection,
+ten-second boundary, no repeat, capped balance versus returned extra and max-level
+timer advancement. No publication occurs inside the commands.
+
+The reviewed syntax delta adds two fixture oracles (3,662 associated items) and
+reclassifies two calculation helpers; fields/registrations are unchanged.
+Logical ceilings: Session 81,592 + 104,010 = 185,602; Player 10,647 + 9,520 =
+20,167. Full RestMgr parity, live acceptance and #578 remain open.
+
+Validation on aarch64: world library 3,711 passed/zero failed/one ignored;
+entities library 706 passed/zero failed. Compilation, formatting/diff checks,
+syntax ownership, architecture check/self-test and quick validation pass.
+Quick evidence:
+`target/validation-v2/manifests/20260905T045827.298793Z-428352-quick.json`.
+No installation, restart, fresh capture or remote publication was performed.
+
 ### 2026-09-05 — Player owns rest award and consumption
 
 Ownership migration based on `b98903e8`: the native Player command reads the

@@ -32154,6 +32154,7 @@ impl WorldSession {
         u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
     }
 
+    #[cfg(test)]
     fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
         if self.player_is_at_configured_max_level_like_cpp() {
             return Some(false);
@@ -32393,6 +32394,7 @@ impl WorldSession {
         .unwrap_or(0)
     }
 
+    #[cfg(test)]
     fn calc_represented_xp_rest_extra_per_sec_like_cpp(&self, bubble: f32) -> Option<f32> {
         if !self.can_gain_represented_xp_rest_bonus_like_cpp()? {
             return Some(0.0);
@@ -32401,6 +32403,42 @@ impl WorldSession {
     }
 
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        logout_time_secs: u64,
+        now_secs: u64,
+        was_logout_resting: bool,
+    ) -> f32 {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_apply_offline_xp_rest_bonus_like_cpp(
+                policy,
+                logout_time_secs,
+                now_secs,
+                was_logout_resting,
+            );
+        }
+        let bubble = if was_logout_resting {
+            REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP * policy.offline_tavern_or_city
+        } else {
+            REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * policy.offline_wilderness
+        };
+        let at_max = self.player_is_at_configured_max_level_like_cpp();
+        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.apply_offline_xp_rest_bonus_like_cpp(
+                logout_time_secs,
+                now_secs,
+                bubble,
+                at_max,
+                raf,
+            )
+        })
+        .unwrap_or(0.0)
+    }
+
+    #[cfg(test)]
+    fn fixture_apply_offline_xp_rest_bonus_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
         logout_time_secs: u64,
@@ -32452,6 +32490,25 @@ impl WorldSession {
     }
 
     fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        now_secs: u64,
+    ) -> (f32, u8) {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.fixture_update_online_xp_rest_bonus_like_cpp(policy, now_secs);
+        }
+        let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
+        let at_max = self.player_is_at_configured_max_level_like_cpp();
+        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        self.with_owned_player_mut_like_cpp(|player| {
+            player.update_online_xp_rest_bonus_like_cpp(now_secs, bubble, at_max, raf)
+        })
+        .unwrap_or((0.0, 0))
+    }
+
+    #[cfg(test)]
+    fn fixture_update_online_xp_rest_bonus_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
         now_secs: u64,
