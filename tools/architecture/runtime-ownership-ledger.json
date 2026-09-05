@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "baseline_commit": "74daf3f9dd337d1ed69701153111f3e740fc7bac",
-  "curated_at": "2026-09-04",
-  "purpose": "Exact ownership checkpoint at 74daf3f9 plus the reviewed active-relocation/grid-capability slice; see docs/architecture/session-578-checkpoint.md. #578 remains open; no terminal ownership or full parity acceptance is implied.",
+  "curated_at": "2026-09-05",
+  "purpose": "Exact ownership checkpoint at 74daf3f9 plus the reviewed active-relocation/grid-capability and hotfix-capability slices; see docs/architecture/session-578-checkpoint.md. #578 remains open; no terminal ownership or full parity acceptance is implied.",
   "authorities": {
     "behavior": "C++ under /home/server/woltk-trinity-legacy and committed packet/runtime traces",
     "syntax": "Rust AST at baseline_commit",
@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "720 exact Rust named-field identifiers: 292 production and 428 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
+    "field_identity": "719 exact Rust named-field identifiers: 291 production and 428 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 720,
+      "expected_field_count": 719,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -634,7 +634,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 137,
+        "expected_field_count": 136,
         "field_names": [
           "access_requirement_store",
           "area_table_store",
@@ -669,7 +669,6 @@
           "gem_properties_store",
           "glyph_properties_store",
           "heirloom_store",
-          "hotfix_blob_cache",
           "item_appearance_store",
           "item_bonus_db2_store",
           "item_child_equipment_store",
@@ -774,7 +773,7 @@
           "waypoint_path_resolver_like_cpp",
           "world_safe_loc_store_like_cpp"
         ],
-        "current_storage": "137 production immutable catalog/configuration/service fields remain on WorldSession. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. The grid-load callback is removed: one process-owned required adapter is borrowed for movement/login. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
+        "current_storage": "136 production immutable catalog/configuration/service fields remain on WorldSession. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. The grid-load callback is borrowed for movement/login. Hotfix delivery now borrows the process catalog for initialization and requests; its Session field, setter and getter are deleted, with no fixture mirror. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
         "sole_writer": "world-server bootstrap constructs the process-wide value; create_session/setters assign the Session handle once. Runtime code should read but not mutate immutable catalogs.",
         "readers": "Handlers and gameplay helpers across wow-world.",
         "clock_lifetime": "Mostly process lifetime; a Session retains Arc handles for its connection lifetime. Generators and mutable services retain their own process-wide owner.",
@@ -1060,9 +1059,9 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       }
     ],
-    "expected_field_count": 720,
-    "expected_unique_field_count": 720,
-    "expected_production_field_count": 292,
+    "expected_field_count": 719,
+    "expected_unique_field_count": 719,
+    "expected_production_field_count": 291,
     "expected_test_fixture_field_count": 428
   },
   "inventories": {
@@ -1471,11 +1470,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81427,
-          "test_lines": 102131,
-          "total_lines": 183558,
+          "production_lines": 81412,
+          "test_lines": 102269,
+          "total_lines": 183681,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "PlayerHandle/Option migration, explicit canonical lookup closures, borrowed capability arguments and fixture migration. Production field count is 292, but application/gameplay methods and catalogs remain: this increased logical size is unresolved #578 debt, not a thin-shell exception. Review and exact deltas: docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 hotfix capability extraction: production drops 15 lines; tests grow 138 for shared-catalog auth/request routing, locale misses, exact packet bytes/order and live-Session non-retention. The pre-existing primary-channel routing defect is characterized, not repaired. Production fields drop to 291. Remaining application/gameplay/catalog authority is unresolved #578 debt, not a thin-shell exception. Review: docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1497,9 +1496,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20587,
-          "test_lines": 12803,
-          "total_lines": 33390,
+          "production_lines": 20588,
+          "test_lines": 12810,
+          "total_lines": 33398,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "latest_growth_review": "Canonical Player lookup/Option propagation through login and instance hydration, borrowed required grid capability and updated fixtures. Smaller tests are ratcheted down. Gameplay/application orchestration remains pending #578. Review and exact deltas: docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [

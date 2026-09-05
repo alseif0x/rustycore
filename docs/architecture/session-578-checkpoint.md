@@ -1,9 +1,9 @@
-# Session convergence checkpoint — 2026-09-04
+# Session convergence checkpoint — updated 2026-09-05
 
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
-Reviewed source: `74daf3f9` plus the active-Player relocation and borrowed grid-capability
+Initial reviewed source: `74daf3f9` plus the active-Player relocation and borrowed grid-capability
 slice committed with this checkpoint. The prior runtime family membership was last edited
 at `9a29e195`; the prior syntax snapshot was last edited at `26f72455`. Neither described the
 current source. The historical persistence snapshot is deliberately unchanged: ordinary
@@ -11,7 +11,8 @@ iteration uses `session-ownership-check check --syntax-only`, not an exhaustive 
 
 ## Exact membership and remaining work
 
-The AST has **720 WorldSession fields: 292 production and 428 test fixtures**. The runtime
+After the 2026-09-05 hotfix capability slice, the AST has **719 WorldSession fields:
+291 production and 428 test fixtures**. The runtime
 ledger previously assigned 726 identifiers and classified only 32 as test fixtures. Every
 current `cfg(test)` identifier is now assigned exclusively to `test_only_fixtures`; production
 members retain their semantic family. This classification does not prove that callers are thin
@@ -30,7 +31,7 @@ members. Three identifiers absent from the old runtime ledger are explicitly cla
 
 The following are still open #578 work, not stable exceptions or work deferred to #153:
 
-- 137 production catalog/configuration/service fields still reside on Session. Required
+- 136 production catalog/configuration/service fields still reside on Session. Required
   construction is not enough: the owning vertical must consume the narrow capability.
 - The map/runtime family still has 20 production fields, including both map-manager handles,
   creature scheduling/delivery state and GameObject state. Keep one clock per responsibility;
@@ -46,12 +47,68 @@ The following are still open #578 work, not stable exceptions or work deferred t
 
 `SessionResources` has eight required aggregate fields (`core`, `inventory`, `player`, `spells`,
 `world`, `progression`, `runtime`, `realm`), rather than 273 flat fields with 216 optional slots.
-Their immediate capability types contain respectively 5, 30, 25, 34, 29, 21, 20 and six members:
-**170 first-level members, plus further nested handler/persistence bundles**. The constructor
+Their immediate capability types contain respectively 5, 30, 24, 34, 29, 21, 20 and six members:
+**169 first-level members, plus further nested handler/persistence bundles**. The hotfix
+dependency now lives in the nested, process-owned handler capabilities instead of the
+Player catalog bundle and is borrowed by its consumers. The constructor
 aggregate stays in world-server, not wow-network. Its `install_into_session_like_cpp` methods
 still install many catalogs on Session, so eight fields are not evidence of final convergence.
 
 ## C++ contrast for this slice
+
+### 2026-09-05 — borrowed hotfix delivery capability
+
+Boundary extraction on #578, based on `13c984a6`: delete the production
+`WorldSession.hotfix_blob_cache`, its setter and getter, with no test fixture mirror.
+Bootstrap still builds/overlays the same immutable `HotfixBlobCache` before listeners start.
+`SessionHandlerCatalogsLikeCpp.hotfixes` holds that required process-owned catalog; the
+session factory and HotfixRequest registration each pass only `&HotfixBlobCache` to the
+existing initialization/request consumer. Session retains no catalog or aggregate handle.
+
+C++ anchors: `Handlers/HotfixHandler.cpp:61-135` borrows `sDB2Manager.GetHotfixData()` for
+both advertisement and requests. `Server/WorldSession.cpp:1193-1206` places advertisement
+after client cache version and before account data/tutorials. `Server/Protocol/Opcodes.cpp`
+registers the request as `STATUS_AUTHED/PROCESS_THREADUNSAFE` at line 541 and routes
+AvailableHotfixes/HotfixConnect over Realm at lines 1117/1566.
+
+Frozen contract: identical startup data source and overlay order, locale selection, request
+iteration order, empty/unknown response, raw-DB2 fail-closed behavior, SQL-blob payload,
+opcode metadata and current primary-channel routing. No SQL, clock, lock, persistence or gameplay changes.
+The pre-existing typed DB2 serializer gap and optional-data projection are not repaired or
+claimed C++-complete by this structural slice. No new capture/live-runtime claim is made.
+
+Tests cover one shared catalog across esES/enUS/deDE sessions, exact initialization opcode
+order and advertisement bytes, real request dispatch metadata and response bytes, unknown
+push IDs, locale misses, current primary-channel delivery, and no retained Arc. Existing raw DB2 and
+SQL-blob tests now inject the capability directly; DBQueryBulk's raw-cache rejection test
+uses actual dispatch with a populated catalog.
+
+The initial Realm-only assertions exposed a pre-existing mismatch: HotfixConnect goes through
+generic `send_packet`, hence the primary channel after ConnectTo, unlike C++'s Realm route.
+The test now explicitly characterizes that existing defect without claiming parity. See
+`docs/migration/EXISTING-CODE-DEFECTS.md`; correcting routing is a separate behavioral slice.
+Initialization still runs before ConnectTo, when primary is Realm.
+
+Reviewed syntax delta: one field and two accessors removed; two consumer signatures gain a
+borrowed cache. Factory fingerprint gains only that argument. All 65 bridges remain; the
+WorldSession surface fingerprint changes from the deleted field, not new bridge authority.
+The generator also sorts the unchanged `represented_seer_kinds_like_cpp` entry.
+
+Validation (aarch64 development host): `wow-world --lib` passes 3,673 tests, zero failures,
+one ignored; this includes both new shared-catalog tests and the adapted raw/SQL-blob
+regressions. The syntax-only ownership gate passes 291 production + 428 fixture fields,
+49 impl owners / 3,656 associated items, and 590 direct-registry rows. Architecture check
+and self-test pass. Reviewed logical LOC: Session production 81,427 -> 81,412, tests
+102,131 -> 102,269 (+138 for capability/routing coverage); character-handler production
+20,587 -> 20,588 (explicit borrowed signature), tests 12,803 -> 12,810 (direct injection
+and dispatch coverage). No bridge or historical persistence inventory is closed.
+
+`cargo check -p world-server`, format and diff checks also pass. `validation-v2 quick
+--base origin/3.4.3` passes the full workspace/all-targets check and isolated bot check;
+manifest `target/validation-v2/manifests/20260905T012145.604272Z-98232-quick.json`.
+That manifest records the dirty implementation worktree based on `13c984a6`, not a clean
+post-commit final gate. No push, server restart or fresh capture was performed. The prior
+login runtime/final evidence below belongs to its stated revisions, not this new slice.
 
 Active position changes must use the owning Map: `Unit::UpdatePosition`
 (`src/server/game/Entities/Unit/Unit.cpp:12257-12284`) calls `Map::PlayerRelocation`

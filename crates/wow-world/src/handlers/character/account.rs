@@ -349,10 +349,10 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_hotfix_request",
-        handler: |session, _catalogs, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::HotfixRequest::read(&mut pkt) {
-                    Ok(req) => session.handle_hotfix_request(req).await,
+                    Ok(req) => session.handle_hotfix_request(catalogs.hotfixes.as_ref(), req).await,
                     Err(e) => tracing::warn!("Failed to read HotfixRequest: {e}"),
                 }
             })
@@ -1505,7 +1505,13 @@ impl WorldSession {
     }
 
     /// Handle CMSG_HOTFIX_REQUEST — client requests hotfix data.
-    pub async fn handle_hotfix_request(&mut self, req: wow_packet::packets::misc::HotfixRequest) {
+    /// Borrows C++ `sDB2Manager.GetHotfixData()`; Session owns no catalog.
+    /// C++ `Handlers/HotfixHandler.cpp:77-135`.
+    pub async fn handle_hotfix_request(
+        &mut self,
+        cache: &wow_data::HotfixBlobCache,
+        req: wow_packet::packets::misc::HotfixRequest,
+    ) {
         info!(
             "HotfixRequest: client_build={}, data_build={}, {} hotfixes for account {}, first={:?}, last={:?}",
             req.client_build,
@@ -1515,11 +1521,6 @@ impl WorldSession {
             req.hotfixes.first(),
             req.hotfixes.last()
         );
-
-        let Some(cache) = self.hotfix_blob_cache().map(Arc::clone) else {
-            self.send_packet(&HotfixConnect::empty());
-            return;
-        };
 
         let mut response = HotfixConnect::empty();
         let locale_mask = hotfix_locale_mask(&self.locale);

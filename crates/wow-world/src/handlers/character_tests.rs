@@ -10584,13 +10584,18 @@ async fn db_query_bulk_raw_blob_cache_is_not_sent_as_typed_cpp_storage() {
     let (mut session, instance_rx, realm_rx) = make_session_with_realm_send_capacity(1);
     let mut cache = wow_data::HotfixBlobCache::new();
     cache.insert_blob(0x919B_E54E, 198647, vec![0xAA; 408]);
-    session.set_hotfix_blob_cache(Arc::new(cache));
-
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp {
+        hotfixes: Arc::new(cache),
+        ..Default::default()
+    };
+    let mut request = WorldPacket::new_empty();
+    request.write_uint16(wow_constants::ClientOpcodes::DbQueryBulk as u16);
+    request.write_uint32(0x919B_E54E);
+    request.write_bits(1, 13);
+    request.flush_bits();
+    request.write_int32(198647);
     session
-        .handle_db_query_bulk(wow_packet::packets::misc::DbQueryBulk {
-            table_hash: 0x919B_E54E,
-            queries: vec![198647],
-        })
+        .dispatch_packet(&catalogs, WorldPacket::from_bytes(request.data()))
         .await;
 
     let bytes = realm_rx.try_recv().expect("db reply");
@@ -10623,14 +10628,15 @@ async fn hotfix_request_local_db2_blob_is_not_sent_as_typed_cpp_storage() {
         status: wow_data::HotfixRecordStatus::Valid,
         available_locales_mask: wow_data::hotfix_locale_mask("esES"),
     });
-    session.set_hotfix_blob_cache(Arc::new(cache));
-
     session
-        .handle_hotfix_request(wow_packet::packets::misc::HotfixRequest {
-            client_build: 54261,
-            data_build: 54261,
-            hotfixes: vec![77],
-        })
+        .handle_hotfix_request(
+            &cache,
+            wow_packet::packets::misc::HotfixRequest {
+                client_build: 54261,
+                data_build: 54261,
+                hotfixes: vec![77],
+            },
+        )
         .await;
 
     let bytes = send_rx.try_recv().expect("hotfix connect");
@@ -10665,14 +10671,15 @@ async fn hotfix_request_sql_hotfix_blob_keeps_valid_cpp_blob_path() {
         status: wow_data::HotfixRecordStatus::Valid,
         available_locales_mask: wow_data::hotfix_locale_mask("esES"),
     });
-    session.set_hotfix_blob_cache(Arc::new(cache));
-
     session
-        .handle_hotfix_request(wow_packet::packets::misc::HotfixRequest {
-            client_build: 54261,
-            data_build: 54261,
-            hotfixes: vec![78],
-        })
+        .handle_hotfix_request(
+            &cache,
+            wow_packet::packets::misc::HotfixRequest {
+                client_build: 54261,
+                data_build: 54261,
+                hotfixes: vec![78],
+            },
+        )
         .await;
 
     let bytes = send_rx.try_recv().expect("hotfix connect");

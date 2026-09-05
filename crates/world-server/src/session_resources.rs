@@ -142,7 +142,6 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) spell_item_enchantment_condition_store:
         Arc<wow_data::SpellItemEnchantmentConditionStore>,
     pub(super) gem_properties_store: Arc<wow_data::GemPropertiesStore>,
-    pub(super) hotfix_blob_cache: Arc<wow_data::HotfixBlobCache>,
     pub(super) skill_store: Arc<wow_data::SkillStore>,
     pub(super) trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
     pub(super) trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
@@ -353,7 +352,6 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
             &self.spell_item_enchantment_condition_store,
         ));
         session.set_gem_properties_store(Arc::clone(&self.gem_properties_store));
-        session.set_hotfix_blob_cache(Arc::clone(&self.hotfix_blob_cache));
         session.set_skill_store(Arc::clone(&self.skill_store));
         session.set_trait_definition_store(Arc::clone(&self.trait_definition_store));
         session.set_trait_node_entry_store(Arc::clone(&self.trait_node_entry_store));

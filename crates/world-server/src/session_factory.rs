@@ -158,6 +158,7 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
     }
     session.send_session_init_packets_with_policy_like_cpp(
         handler_catalogs.support_feature_policy.as_ref(),
+        handler_catalogs.hotfixes.as_ref(),
     );
 
     info!("Session ready for account {account_id}");

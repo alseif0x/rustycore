@@ -4848,6 +4848,7 @@ async fn run_inner(
                 graveyards: Arc::clone(&graveyard_store),
                 lfg_dungeons: Arc::clone(&lfg_dungeon_store_like_cpp),
                 tact_keys: Arc::clone(&tact_key_store),
+                hotfixes: Arc::clone(&hotfix_blob_cache),
                 modules: Arc::clone(&modules),
                 id_generators: Arc::new(wow_world::session::SessionIdGeneratorsLikeCpp {
                     player: Arc::clone(&guid_generator),
@@ -4911,7 +4912,6 @@ async fn run_inner(
                 &spell_item_enchantment_condition_store,
             ),
             gem_properties_store: Arc::clone(&gem_properties_store),
-            hotfix_blob_cache: Arc::clone(&hotfix_blob_cache),
             skill_store: Arc::clone(&skill_store),
             trait_definition_store: Arc::clone(&trait_definition_store),
             trait_node_entry_store: Arc::clone(&trait_node_entry_store),

@@ -15,6 +15,20 @@ identical bytes otherwise. Severity reflects my judgment after that filter.
 Headline: the scoped **D-C1…D-C9 CRIT integrity track is closed**. The HIGH/MED defects below
 remain real; "sends the packet and mutates DB" still does not imply full gameplay parity.
 
+## Later verified open findings
+
+- **2026-09-05, #578 catalog extraction — HotfixConnect uses the primary socket.**
+  Confirmed against pre-slice `13c984a6`: `handle_hotfix_request` in
+  `crates/wow-world/src/handlers/character/account.rs` calls generic `send_packet`, which
+  writes to the primary channel (`session/mod.rs`). `wow-session/src/lib.rs`
+  `poll_instance_link` replaces that channel with the instance writer after ConnectTo.
+  C++ `Opcodes.cpp:1566` routes `SMSG_HOTFIX_CONNECT` exclusively over Realm.
+  Before ConnectTo the primary is Realm and delivery agrees. The new shared-catalog
+  dispatch test reproduces primary delivery with a parked Realm channel, including an
+  empty response. This behavior is deliberately preserved by the structural extraction;
+  a separate response-routing correction needs byte/routing regression and capture
+  evidence. No live client failure or affected-client frequency is claimed.
+
 ## Later verified Rust-port repairs
 
 - **2026-09-05, #578 optimized runtime QA — Map insertion vanished in release.**

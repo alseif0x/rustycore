@@ -362,6 +362,7 @@ impl WorldSession {
                 .tact_key_store
                 .clone()
                 .unwrap_or(empty_catalogs.tact_keys),
+            hotfixes: empty_catalogs.hotfixes,
             modules: self
                 .module_registry_like_cpp
                 .clone()

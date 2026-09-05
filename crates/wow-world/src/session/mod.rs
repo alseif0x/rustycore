@@ -622,6 +622,8 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub graveyards: Arc<GraveyardStore>,
     pub lfg_dungeons: Arc<LfgDungeonStoreLikeCpp>,
     pub tact_keys: Arc<TactKeyStore>,
+    /// C++ `sDB2Manager` hotfix delivery data, borrowed by auth and requests.
+    pub hotfixes: Arc<HotfixBlobCache>,
     pub modules: Arc<wow_module_api::ModuleRegistry>,
     pub id_generators: Arc<SessionIdGeneratorsLikeCpp>,
 }
@@ -655,6 +657,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             graveyards: Arc::new(GraveyardStore::default()),
             lfg_dungeons: Arc::new(LfgDungeonStoreLikeCpp::default()),
             tact_keys: Arc::new(TactKeyStore::from_entries([])),
+            hotfixes: Arc::new(HotfixBlobCache::new()),
             modules: Arc::new(wow_module_api::ModuleRegistry::new()),
             id_generators: Arc::new(SessionIdGeneratorsLikeCpp::default()),
         }
@@ -5904,8 +5907,6 @@ pub struct WorldSession {
     #[cfg(test)]
     spell_enchant_proc_store: Option<Arc<SpellEnchantProcStoreLikeCpp>>,
 
-    // Hotfix blob cache: raw DB2 record bytes for DBReply responses
-    hotfix_blob_cache: Option<Arc<HotfixBlobCache>>,
     #[cfg(test)]
     tact_key_store: Option<Arc<TactKeyStore>>,
 
@@ -8311,7 +8312,6 @@ impl WorldSession {
             gem_properties_store: None,
             #[cfg(test)]
             spell_enchant_proc_store: None,
-            hotfix_blob_cache: None,
             #[cfg(test)]
             tact_key_store: None,
             skill_store: None,
@@ -28059,16 +28059,6 @@ impl WorldSession {
         )
     }
 
-    /// Set the hotfix blob cache for this session.
-    pub fn set_hotfix_blob_cache(&mut self, cache: Arc<HotfixBlobCache>) {
-        self.hotfix_blob_cache = Some(cache);
-    }
-
-    /// Get the hotfix blob cache reference.
-    pub fn hotfix_blob_cache(&self) -> Option<&Arc<HotfixBlobCache>> {
-        self.hotfix_blob_cache.as_ref()
-    }
-
     /// Set the TactKey.db2 store for typed SMSG_DB_REPLY serialization.
     #[cfg(test)]
     pub fn set_tact_key_store(&mut self, store: Arc<TactKeyStore>) {
@@ -41562,6 +41552,7 @@ impl WorldSession {
     pub fn send_session_init_packets_with_policy_like_cpp(
         &self,
         policy: &SupportFeaturePolicyLikeCpp,
+        hotfixes: &HotfixBlobCache,
     ) {
         use wow_packet::packets::auth::*;
         use wow_packet::packets::misc::*;
@@ -41618,20 +41609,14 @@ impl WorldSession {
             cache_version: 24081,
         });
 
-        let hotfixes = self
-            .hotfix_blob_cache
-            .as_ref()
-            .map(|cache| {
-                cache
-                    .available_hotfix_ids(&self.locale)
-                    .into_iter()
-                    .map(|id| HotfixId {
-                        push_id: id.push_id,
-                        unique_id: id.unique_id,
-                    })
-                    .collect()
+        let hotfixes = hotfixes
+            .available_hotfix_ids(&self.locale)
+            .into_iter()
+            .map(|id| HotfixId {
+                push_id: id.push_id,
+                unique_id: id.unique_id,
             })
-            .unwrap_or_default();
+            .collect();
 
         // 5. AvailableHotfixes
         self.send_packet(&AvailableHotfixes {

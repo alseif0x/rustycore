@@ -1023,13 +1023,6 @@
           "source_class": "production"
         },
         {
-          "name": "hotfix_blob_cache",
-          "type": "Option < Arc < HotfixBlobCache > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "import_price_stores",
           "type": "Option < Arc < ImportPriceStores > >",
           "visibility": "private",
@@ -6410,7 +6403,7 @@
           "kind": "method",
           "name": "handle_hotfix_request",
           "visibility": "pub",
-          "signature": "async fn handle_hotfix_request (& mut self , req : wow_packet :: packets :: misc :: HotfixRequest)",
+          "signature": "async fn handle_hotfix_request (& mut self , cache : & wow_data :: HotfixBlobCache , req : wow_packet :: packets :: misc :: HotfixRequest ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28395,19 +28388,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "hotfix_blob_cache",
-          "visibility": "pub",
-          "signature": "fn hotfix_blob_cache (& self) -> Option < & Arc < HotfixBlobCache > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "hydrate_canonical_threat_relevant_auras_like_cpp",
           "visibility": "private",
           "signature": "fn hydrate_canonical_threat_relevant_auras_like_cpp (& mut self)",
@@ -34081,17 +34061,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_seer_kinds_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_seer_kinds_like_cpp () -> & 'static [AccessorObjectKind]",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -40641,6 +40610,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "represented_seer_kinds_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_seer_kinds_like_cpp () -> & 'static [AccessorObjectKind]",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "represented_set_action_bar_toggles_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_set_action_bar_toggles_like_cpp (& mut self , mask : u8) -> bool",
@@ -44833,7 +44813,7 @@
           "kind": "method",
           "name": "send_session_init_packets_with_policy_like_cpp",
           "visibility": "pub",
-          "signature": "fn send_session_init_packets_with_policy_like_cpp (& self , policy : & SupportFeaturePolicyLikeCpp ,)",
+          "signature": "fn send_session_init_packets_with_policy_like_cpp (& self , policy : & SupportFeaturePolicyLikeCpp , hotfixes : & HotfixBlobCache ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46648,20 +46628,6 @@
           "source_class": "production",
           "guards": [
             "setter"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_hotfix_blob_cache",
-          "visibility": "pub",
-          "signature": "fn set_hotfix_blob_cache (& mut self , cache : Arc < HotfixBlobCache >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
           ]
         },
         {
@@ -55086,7 +55052,7 @@
           "module": "crate::session_factory",
           "name": "run_world_session_until_disconnect_like_cpp",
           "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , handler_catalogs : & wow_world :: session :: SessionHandlerCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp ,) -> WorldSessionRunOutcomeLikeCpp",
-          "body_fingerprint": "fnv1a64x2:f1a05bf679a96228190c62c85a50146b:len=1802",
+          "body_fingerprint": "fnv1a64x2:f75d21d5fd71daf8a134fe890e505813:len=1844",
           "cfg": [],
           "source_class": "production"
         }
@@ -75938,7 +75904,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:82eb00112378158eb41078ebc01cc915:len=96741|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:70a224732ff5a3f9a499cbe350025a40:len=96684|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
