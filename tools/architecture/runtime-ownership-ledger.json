@@ -1465,11 +1465,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 81838,
-          "test_lines": 105503,
-          "total_lines": 187341,
+          "production_lines": 81844,
+          "test_lines": 105504,
+          "total_lines": 187348,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-05 catalog routing audit: production unchanged, +34 test lines including module declaration. Canonical Player characterization contrasts absent/present cinematic catalog and distinguishes packet emission from camera initialization. Audit-only, no owner retirement or parity closure; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +6 production/+1 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1491,11 +1491,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20592,
+          "production_lines": 20622,
           "test_lines": 12811,
-          "total_lines": 33403,
+          "total_lines": 33433,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-05 TraitNodeEntry borrowing: production +2 and test +1 line thread the required bootstrap catalog to trait loading. DB order, validation and publication remain unchanged. Gameplay/application orchestration remains pending #578; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +30 production/+0 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1518,11 +1518,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28883,
+          "production_lines": 28884,
           "test_lines": 27021,
-          "total_lines": 55904,
+          "total_lines": 55905,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "2026-09-05 TraitNodeEntry borrowing: production -2 lines, tests unchanged. The startup-loaded Arc moves from the installed Player capability to required nested PlayerBootstrap. Loading/error behavior remains unchanged; no new clock or Session locator; docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +1 production/+0 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578
@@ -1531,11 +1531,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8882,
-          "test_lines": 10752,
-          "total_lines": 19634,
+          "production_lines": 8907,
+          "test_lines": 10824,
+          "total_lines": 19731,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
-          "latest_growth_review": "2026-09-05 pure quest dialog boundary: +25 production and +132 test lines. Six Session classification helpers become a private presentation value plus one catalog adapter (net -5 Session associated items); 80 metadata/flag combinations and unrelated-bit negatives preserve C++ precedence. Catalog routing and broader application extraction remain open. docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +25 production/+72 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

@@ -341,6 +341,10 @@ impl WorldSession {
                 .adventure_map_poi_store
                 .clone()
                 .unwrap_or(empty_catalogs.adventure_map_pois),
+            quest_info: self
+                .quest_info_store
+                .clone()
+                .unwrap_or(empty_catalogs.quest_info),
             battlemaster_lists: self
                 .battlemaster_list_store
                 .clone()

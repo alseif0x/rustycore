@@ -58,6 +58,62 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Borrowed QuestInfo for all three questgiver query registrations
+
+Boundary extraction on `43a81376`: single, visible-multiple and tracked queries
+borrow the required process QuestInfo catalog through their existing registrations.
+The collector and dialog calculation accept the dependency explicitly. The former
+public handler signatures are cfg(test) adapters only; production dispatch never
+falls back to the Session catalog. Startup shares the already-loaded immutable Arc,
+with no new load, mutable owner, lookup service or per-request catalog clone.
+
+C++ `QuestHandler.cpp:41-78,770-778`, `Player.cpp:16803-16834`,
+`QuestDef.cpp:430-445` and `Opcodes.cpp:782-784` anchor lookup, selection and
+admission. All three stay LoggedIn; multiple stays ThreadUnsafe, single/tracked
+stay Inplace. Packet layouts, single-versus-multiple envelopes, GUID selection,
+tracked count validation, relation/eligibility gates and send calls are unchanged.
+
+The new registered-handler test covers three catalog states (empty, important,
+covenant) across all three opcodes, deliberately installing conflicting Session
+metadata. It checks decoded packet results, no extra packet, admission metadata
+and no retained Arc. The first run exposed an incorrect test expectation that
+multiple was Inplace; C++ and unchanged production both say ThreadUnsafe, so only
+the test expectation was corrected. This test exercises the registry thunk, not
+the outer driver's complete admission/lifecycle path.
+
+No Session field is retired yet: the old adapter remains for GameObject quest
+activation, and quest-list/gossip presentation still reads the Session field.
+Both use the same startup-loaded Arc in production. Threading those consumers
+through visibility/runtime and interaction entrypoints, then deleting the field,
+setter and install clone together, remains required #578 work.
+
+Remaining dynamic-flags call graph, audited in this worktree:
+`update_visible_gameobjects_like_cpp`, `visible_gameobjects_from_canonical_map_like_cpp`,
+`gameobject_create_data_from_canonical_like_cpp`, `handlers/loot/claims.rs` and
+both visibility assembly paths in `handlers/character/visibility.rs` call
+`represented_gameobject_dynamic_flags_for_player_like_cpp`. That helper reaches
+the old dialog adapter through GameObject activation. These are real catalog
+consumers even though they never name the QuestInfo field directly.
+
+Exact syntax inventory: 282 production + 432 fixture fields, 49 impl owners,
+3,671 associated items (+one explicit-catalog calculation and three test-only
+handler adapters), 590 registry rows. SessionResources still has eight top-level /
+164 immediate capability members; the nested handler bundle adds one required
+QuestInfo dependency. Logical LOC: Session 81,844 + 105,504 = 187,348; character
+20,622 + 12,811 = 33,433; quest 8,907 + 10,824 = 19,731; world-server
+28,884 + 27,021 = 55,905. The classifier counts cfg(test) methods nested inside
+production impls in production LOC; syntax inventory distinguishes them exactly.
+No hotspot shrink, full catalog retirement or terminal #578/#133 acceptance is claimed.
+
+Validation on aarch64: initial focused status suite 28/0; final full
+`wow-world --lib` 3,737/0 (one ignored), including the corrected registered-handler
+metadata test. `world-server` check, format/diff, syntax-only ownership and
+architecture check/self-test PASS. The final full run supersedes the first
+registered-handler test run with the incorrect processing expectation.
+Validation-v2 quick PASS: `20260905T073112.646172Z-633673-quick.json`.
+No fresh capture or live install/restart is claimed; packet/runtime behavior is
+unchanged. Publication and terminal acceptance remain pending.
+
 ### 2026-09-05 — Pure quest dialog presentation boundary
 
 Boundary extraction on `e478ac5d`: the private quest `dialog_status` module

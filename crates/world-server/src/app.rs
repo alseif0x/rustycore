@@ -4720,6 +4720,7 @@ async fn run_inner(
                     ),
                 }),
                 battle_pet_trainer_selection: Arc::clone(&battle_pet_selection_store),
+                quest_info: Arc::clone(&quest_info_store),
                 chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
                     addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
                     fake_message_preventing: world_config_bool(

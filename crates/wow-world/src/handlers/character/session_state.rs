@@ -1029,6 +1029,7 @@ impl WorldSession {
 
     pub(super) fn collect_quest_giver_status_multiple_like_cpp(
         &self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
         guids: impl IntoIterator<Item = ObjectGuid>,
     ) -> Vec<(ObjectGuid, u64)> {
         let mut statuses = Vec::new();
@@ -1042,7 +1043,8 @@ impl WorldSession {
                     continue;
                 }
 
-                let status = self.get_represented_quest_giver_status_like_cpp(
+                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                    Some(quest_info),
                     RepresentedQuestGiverStatusSourceLikeCpp::Creature {
                         entry: access.entry,
                     },
@@ -1062,7 +1064,8 @@ impl WorldSession {
                     continue;
                 }
 
-                let status = self.get_represented_quest_giver_status_like_cpp(
+                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                    Some(quest_info),
                     RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
                         entry: access.entry,
                     },

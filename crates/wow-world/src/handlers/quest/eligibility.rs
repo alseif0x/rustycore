@@ -44,6 +44,17 @@ impl WorldSession {
         &self,
         source: RepresentedQuestGiverStatusSourceLikeCpp,
     ) -> u64 {
+        self.get_represented_quest_giver_status_with_catalog_like_cpp(
+            self.quest_info_store.as_deref(),
+            source,
+        )
+    }
+
+    pub(crate) fn get_represented_quest_giver_status_with_catalog_like_cpp(
+        &self,
+        quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
+        source: RepresentedQuestGiverStatusSourceLikeCpp,
+    ) -> u64 {
         let Some(store) = &self.quest_store else {
             return quest_giver_status::NONE;
         };
@@ -65,14 +76,14 @@ impl WorldSession {
             };
             match status {
                 QUEST_STATUS_COMPLETE_LIKE_CPP => {
-                    result |= self
-                        .represented_quest_dialog_classification_like_cpp(quest)
-                        .reward_complete();
+                    result |=
+                        Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
+                            .reward_complete();
                 }
                 QUEST_STATUS_INCOMPLETE_LIKE_CPP => {
-                    result |= self
-                        .represented_quest_dialog_classification_like_cpp(quest)
-                        .reward();
+                    result |=
+                        Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
+                            .reward();
                 }
                 _ => {}
             }
@@ -114,12 +125,10 @@ impl WorldSession {
             }
 
             if self.satisfy_quest_level_represented_like_cpp(quest) {
-                result |= self
-                    .represented_quest_dialog_classification_like_cpp(quest)
+                result |= Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
                     .available(self.represented_quest_is_trivial_like_cpp(quest));
             } else {
-                result |= self
-                    .represented_quest_dialog_classification_like_cpp(quest)
+                result |= Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
                     .future();
             }
         }
@@ -409,15 +418,13 @@ impl WorldSession {
     }
 
     fn represented_quest_dialog_classification_like_cpp(
-        &self,
         quest: &wow_data::quest::QuestTemplate,
+        quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
     ) -> super::dialog_status::QuestDialogClassificationLikeCpp {
         super::dialog_status::QuestDialogClassificationLikeCpp::new(
             quest.flags,
             quest.flags_ex,
-            self.quest_info_store
-                .as_ref()
-                .and_then(|store| store.get(quest.quest_info_id as u32)),
+            quest_info.and_then(|store| store.get(quest.quest_info_id as u32)),
         )
     }
 
@@ -425,8 +432,11 @@ impl WorldSession {
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        self.represented_quest_dialog_classification_like_cpp(quest)
-            .is_important()
+        Self::represented_quest_dialog_classification_like_cpp(
+            quest,
+            self.quest_info_store.as_deref(),
+        )
+        .is_important()
     }
 
     fn represented_quest_is_trivial_like_cpp(

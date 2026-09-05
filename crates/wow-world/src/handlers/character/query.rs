@@ -490,6 +490,25 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
+    pub async fn handle_quest_giver_status_multiple_query(&mut self) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.handle_quest_giver_status_multiple_query_with_catalog_like_cpp(
+            catalogs.quest_info.as_ref(),
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_quest_giver_status_tracked_query(&mut self, pkt: WorldPacket) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.handle_quest_giver_status_tracked_query_with_catalog_like_cpp(
+            catalogs.quest_info.as_ref(),
+            pkt,
+        )
+        .await;
+    }
+
     /// Handle CMSG_QUEST_GIVER_STATUS_MULTIPLE_QUERY — client asks quest status for visible questgivers.
     ///
     /// C++ anchors:
@@ -500,7 +519,10 @@ impl WorldSession {
     /// `QuestStore` relations -> one outbound packet only. This handler must not mutate map,
     /// QuestStore, ObjectAccessor/GameEvent, or player state. Exact Creature hostility/faction remains
     /// a documented gap; represented Creature NPC QUEST_GIVER flag is enforced when available.
-    pub async fn handle_quest_giver_status_multiple_query(&mut self) {
+    pub async fn handle_quest_giver_status_multiple_query_with_catalog_like_cpp(
+        &mut self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
+    ) {
         trace!(
             "QuestGiverStatusMultipleQuery from account {}",
             self.account_id
@@ -511,7 +533,7 @@ impl WorldSession {
             .snapshot_like_cpp()
             .into_iter()
             .collect();
-        let statuses = self.collect_quest_giver_status_multiple_like_cpp(visible_guids);
+        let statuses = self.collect_quest_giver_status_multiple_like_cpp(quest_info, visible_guids);
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 
@@ -526,7 +548,11 @@ impl WorldSession {
     /// read-only `QuestStore` status -> one outbound packet only. This must not read the visible GUID
     /// cache and must not mutate map, QuestStore, ObjectAccessor/GameEvent, player quest state, or
     /// represented visibility state.
-    pub async fn handle_quest_giver_status_tracked_query(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_quest_giver_status_tracked_query_with_catalog_like_cpp(
+        &mut self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
+        mut pkt: WorldPacket,
+    ) {
         trace!(
             "QuestGiverStatusTrackedQuery from account {}",
             self.account_id
@@ -562,7 +588,8 @@ impl WorldSession {
             }
         }
 
-        let statuses = self.collect_quest_giver_status_multiple_like_cpp(quest_giver_guids);
+        let statuses =
+            self.collect_quest_giver_status_multiple_like_cpp(quest_info, quest_giver_guids);
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 }

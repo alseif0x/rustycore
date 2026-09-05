@@ -1042,6 +1042,78 @@ async fn run_status_query(session: &mut WorldSession, guid: ObjectGuid) {
     session.handle_quest_giver_status_query(pkt).await;
 }
 
+#[tokio::test]
+async fn quest_giver_status_queries_borrow_process_metadata_not_session_catalog() {
+    use crate::session::SessionHandlerCatalogsLikeCpp;
+    use wow_constants::ClientOpcodes;
+    use wow_handler::{PacketProcessing, SessionStatus};
+    for (metadata, expected) in [
+        (None, quest_giver_status::QUEST),
+        (Some((2, 0x400)), quest_giver_status::IMPORTANT_QUEST),
+        (Some((15, 0)), quest_giver_status::COVENANT_CALLING_QUEST),
+    ] {
+        for opcode in [
+            ClientOpcodes::QuestGiverStatusQuery,
+            ClientOpcodes::QuestGiverStatusMultipleQuery,
+            ClientOpcodes::QuestGiverStatusTrackedQuery,
+        ] {
+            let (mut session, send_rx) = make_session();
+            let mut quest = quest_template(9010);
+            quest.quest_level = 80;
+            quest.quest_info_id = 710;
+            let mut store = QuestStore::from_quests_like_cpp([quest]);
+            store.starter_quests.entry(9010).or_default().push(9010);
+            session.set_quest_store(Arc::new(store));
+            // Deliberately disagree with each borrowed catalog. A hidden Session
+            // lookup or empty-catalog fallback would change the packet assertion.
+            let cached = if expected == quest_giver_status::IMPORTANT_QUEST {
+                0
+            } else {
+                0x400
+            };
+            session.set_quest_info_store(Arc::new(QuestInfoStore::from_entries([
+                quest_info_entry_like_cpp(710, 2, cached),
+            ])));
+            let catalogs = SessionHandlerCatalogsLikeCpp {
+                quest_info: Arc::new(QuestInfoStore::from_entries(
+                    metadata.map(|(tag, modifiers)| quest_info_entry_like_cpp(710, tag, modifiers)),
+                )),
+                ..Default::default()
+            };
+            let guid = creature_guid(9010, 10);
+            let mut manager = wow_map::MapManager::default();
+            insert_creature(&mut manager, guid, 9010);
+            attach_map_manager(&mut session, manager);
+            mark_visible(&mut session, guid);
+            let entry = crate::session::registry::get_handler(opcode).unwrap();
+            assert_eq!(entry.status, SessionStatus::LoggedIn);
+            assert_eq!(
+                entry.processing,
+                if opcode == ClientOpcodes::QuestGiverStatusMultipleQuery {
+                    PacketProcessing::ThreadUnsafe
+                } else {
+                    PacketProcessing::Inplace
+                }
+            );
+            let mut request = WorldPacket::new_empty();
+            if opcode == ClientOpcodes::QuestGiverStatusTrackedQuery {
+                request.write_uint32(1);
+            }
+            if opcode != ClientOpcodes::QuestGiverStatusMultipleQuery {
+                request.write_packed_guid(&guid);
+            }
+            (entry.handler)(&mut session, &catalogs, request).await;
+            if opcode == ClientOpcodes::QuestGiverStatusQuery {
+                assert_eq!(recv_status(&send_rx), (guid, expected));
+            } else {
+                assert_eq!(recv_status_multiple(&send_rx), [(guid, expected)]);
+            }
+            assert!(send_rx.is_empty());
+            assert_eq!(Arc::strong_count(&catalogs.quest_info), 1);
+        }
+    }
+}
+
 fn add_active_quest(session: &mut WorldSession, quest_id: u32) {
     let slot = session.first_free_quest_slot_like_cpp().unwrap_or(0);
     add_active_quest_in_slot(session, quest_id, slot);

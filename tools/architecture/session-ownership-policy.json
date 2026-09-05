@@ -7944,6 +7944,22 @@
           "name": "handle_quest_giver_status_multiple_query",
           "visibility": "pub",
           "signature": "async fn handle_quest_giver_status_multiple_query (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_status_multiple_query_with_catalog_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_quest_giver_status_multiple_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7957,7 +7973,23 @@
           "kind": "method",
           "name": "handle_quest_giver_status_tracked_query",
           "visibility": "pub",
-          "signature": "async fn handle_quest_giver_status_tracked_query (& mut self , mut pkt : WorldPacket)",
+          "signature": "async fn handle_quest_giver_status_tracked_query (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_status_tracked_query_with_catalog_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_quest_giver_status_tracked_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore , mut pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8041,7 +8073,7 @@
           "kind": "method",
           "name": "collect_quest_giver_status_multiple_like_cpp",
           "visibility": "pub (super)",
-          "signature": "fn collect_quest_giver_status_multiple_like_cpp (& self , guids : impl IntoIterator < Item = ObjectGuid > ,) -> Vec < (ObjectGuid , u64) >",
+          "signature": "fn collect_quest_giver_status_multiple_like_cpp (& self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore , guids : impl IntoIterator < Item = ObjectGuid > ,) -> Vec < (ObjectGuid , u64) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17234,6 +17266,20 @@
           "module": "crate::handlers::quest::eligibility",
           "trait_path": null,
           "kind": "method",
+          "name": "get_represented_quest_giver_status_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn get_represented_quest_giver_status_with_catalog_like_cpp (& self , quest_info : Option < & wow_data :: progression_rewards :: QuestInfoStore > , source : RepresentedQuestGiverStatusSourceLikeCpp ,) -> u64",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::eligibility",
+          "trait_path": null,
+          "kind": "method",
           "name": "has_quest",
           "visibility": "pub",
           "signature": "fn has_quest (& self , quest_id : u32) -> bool",
@@ -17290,7 +17336,7 @@
           "kind": "method",
           "name": "represented_quest_dialog_classification_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_quest_dialog_classification_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> super :: dialog_status :: QuestDialogClassificationLikeCpp",
+          "signature": "fn represented_quest_dialog_classification_like_cpp (quest : & wow_data :: quest :: QuestTemplate , quest_info : Option < & wow_data :: progression_rewards :: QuestInfoStore > ,) -> super :: dialog_status :: QuestDialogClassificationLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17657,7 +17703,23 @@
           "kind": "method",
           "name": "handle_quest_giver_status_query",
           "visibility": "pub",
-          "signature": "async fn handle_quest_giver_status_query (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "signature": "async fn handle_quest_giver_status_query (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_status_query_with_catalog_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_quest_giver_status_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [

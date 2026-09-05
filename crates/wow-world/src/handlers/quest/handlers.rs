@@ -33,8 +33,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_status_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_status_query(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_quest_giver_status_query_with_catalog_like_cpp(catalogs.quest_info.as_ref(), pkt).await })
         },
     }
 }
@@ -318,9 +318,23 @@ impl WorldSession {
             .await;
     }
 
+    #[cfg(test)]
+    pub async fn handle_quest_giver_status_query(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.handle_quest_giver_status_query_with_catalog_like_cpp(
+            catalogs.quest_info.as_ref(),
+            pkt,
+        )
+        .await;
+    }
+
     /// CMSG_QUEST_GIVER_STATUS_QUERY — returns the quest status icon for an NPC.
-    /// Legacy non-canonical note: QuestHandler.HandleQuestGiverStatusQuery
-    pub async fn handle_quest_giver_status_query(&mut self, mut pkt: wow_packet::WorldPacket) {
+    /// C++ QuestHandler.cpp: HandleQuestgiverStatusQueryOpcode -> Player::GetQuestDialogStatus.
+    pub async fn handle_quest_giver_status_query_with_catalog_like_cpp(
+        &mut self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
             Err(_) => {
@@ -337,7 +351,8 @@ impl WorldSession {
             );
             return;
         };
-        let status = self.get_represented_quest_giver_status_like_cpp(source);
+        let status =
+            self.get_represented_quest_giver_status_with_catalog_like_cpp(Some(quest_info), source);
 
         debug!(
             account = self.account_id,

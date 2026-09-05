@@ -1048,8 +1048,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_quest_giver_status_multiple_query",
-        handler: |session, _catalogs, _pkt| {
-            Box::pin(async move { session.handle_quest_giver_status_multiple_query().await })
+        handler: |session, catalogs, _pkt| {
+            Box::pin(async move { session.handle_quest_giver_status_multiple_query_with_catalog_like_cpp(catalogs.quest_info.as_ref()).await })
         },
     }
 }
@@ -1060,8 +1060,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_status_tracked_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_status_tracked_query(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_quest_giver_status_tracked_query_with_catalog_like_cpp(catalogs.quest_info.as_ref(), pkt).await })
         },
     }
 }

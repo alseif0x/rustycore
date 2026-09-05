@@ -623,6 +623,8 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
+    /// C++ sQuestInfoStore: borrowed by questgiver queries, never installed by dispatch.
+    pub quest_info: Arc<QuestInfoStore>,
     pub battlemaster_lists: Arc<BattlemasterListStore>,
     pub emotes: Arc<EmotesStore>,
     pub emotes_text: Arc<EmotesTextStore>,
@@ -658,6 +660,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
+            quest_info: Arc::new(QuestInfoStore::from_entries([])),
             battlemaster_lists: Arc::new(BattlemasterListStore::from_entries([])),
             emotes: Arc::new(EmotesStore::from_entries([])),
             emotes_text: Arc::new(EmotesTextStore::from_entries([])),
