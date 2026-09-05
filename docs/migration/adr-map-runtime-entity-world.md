@@ -4,7 +4,11 @@
 
 **Status:** Canonical ownership and selective private `hecs` are selected. Cohesive domain
 aggregates are retained. This architectural decision is not production integration or acceptance;
-the finite pre-migration conformance proof below has no result yet.
+the finite pre-migration conformance proof below now passes its freeze/third-module correctness
+and all 320 preregistered aarch64 cost samples. See the
+[V2 evidence and remaining production boundaries](../architecture/modularity-conformance-results.md).
+Continue to the first real C1/C2 vertical with C0 admission/phase evidence before replication;
+the laboratory's provisional cost gates do not establish a production 10 ms frame budget.
 
 **2026-09-05 controlled-lab result:** [the corrected comparison](../architecture/modularity-lab-results.md)
 passes its functional/resource gates and supports the feasibility of the selected `hecs` design;
@@ -274,9 +278,10 @@ falsification test before migrating authoritative production state:
    CPU/RSS/action/state budgets in a new versioned protocol before measuring. Separate update,
    churn, transfer, dispatch and cold costs; preserve all failed samples. Name date, toolchain,
    architecture and payload limits. V1's provisional resource budgets are not a server SLA.
-6. **Conformance verdict:** record pass/fail and remaining production boundaries. This proof has
-   **no result yet** and must pass before the affected production migration, not after migration
-   or after the entire #583 SDK. It is not a new issue, broad framework or approval per component.
+6. **Conformance verdict:** record pass/fail and remaining production boundaries. This proof now
+   **passes** at `c67acbfd` on aarch64; [V2 evidence](../architecture/modularity-conformance-results.md)
+   precedes the affected production migration and the #583 SDK. It is not production acceptance,
+   a new issue, broad framework or approval per component.
 
 Fix implementation errors and rerun their affected cases. Reopen the backend decision only for a
 demonstrated hecs-specific obstacle: unavoidable duplicate authority, failure to support independent

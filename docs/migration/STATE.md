@@ -77,8 +77,11 @@ laboratory HEAD `ee9a0128`, **selects private selective `hecs` now**, retaining 
 aggregates. This is a design choice, not an installed backend or proof it beats every alternative.
 The next #578 checkpoint is finite independent-state/third-module conformance before production
 migration, not another open-ended backend selection. Its two-module pre-freeze stage now passes
-at `118171c1`; the third-module challenge and measurement verdict remain pending. See the
-[retained conformance evidence](../architecture/session-578-checkpoint.md#conformance-implementation-checkpoint--2026-09-05-118171c1).
+at `118171c1`; the post-freeze independent third module also passes all four producer/lifecycle
+tests at `c67acbfd`, without host/ABI/oracle edits. The 320-sample aarch64 campaign also passes
+all preregistered gates: [result, costs and retained evidence](../architecture/modularity-conformance-results.md).
+This completes finite pre-migration conformance, not production acceptance or a 10 ms frame
+budget; the next checkpoint is the first real C1/C2 vertical with C0 admission/phase evidence.
 All C0–C4 obligations and
 production save/admission/phase/lifetime acceptance remain open as recorded in the checkpoint.
 
@@ -93,8 +96,9 @@ The completed [V1 laboratory](../architecture/modularity-lab-results.md) supplie
 checks and 120 corrected-campaign samples on aarch64, all within its pre-registered budgets.
 It demonstrates the modeled contracts/costs, not arbitrary module state, a non-Rust guest, real
 save durability or production integration. Its first campaign is retained as superseded after
-three test/adapter defects were corrected. No new benchmark, production ECS/Wasm dependency,
-deployment, gameplay completion state or whole-port capability-audit base follows from this plan.
+three test/adapter defects were corrected. The separate V2 result above adds independent-module
+evidence; neither experiment installs a production ECS/Wasm dependency, deploys code, advances
+gameplay completion or establishes a whole-port capability-audit base.
 
 Database migration boundary (issue #256): the daemon-owned permissive `DbUpdater` has been
 retired. The `rustycore-db` composition binary is the sole schema migration authority, using a

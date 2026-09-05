@@ -3,6 +3,45 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Independent extension checkpoint — 2026-09-05, `c67acbfd`
+
+The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,
+C-Wasm and mixed lifecycle challenge. Its contract-only crate adds a non-Clone variable
+15–23-byte stampbook, sorted unique checkpoints, retained lifetime history and map-residence
+contribution suspension/restoration. The C implementation independently encodes the same rules.
+This custom behavior is not a C++ gameplay port, durable reward or production SDK.
+
+- The original freeze remains unchanged: 53 existing files byte-identical, four permitted
+  declarative dependency/registration changes and seven new extension files. No host, ABI,
+  oracle, benchmark or supervisor implementation changed to accommodate this module.
+- [Correctness evidence](evidence/modularity-conformance-v2-expedition-20260905.json.gz):
+  51 host tests, 89 common/native-negative case executions and all four full lifecycle tests
+  pass; `passed: true`, `decision_eligible: false` before costs. Canonical bytes, revisions,
+  complete ordered traces/callback results and observables agree across actual producers.
+- [Root semantic review](evidence/modularity-conformance-v2-expedition-20260905.review.json)
+  binds all 64 current source files to the original freeze. The extension author did not
+  author the core or initial modules but previously worked on the supervisor; this is not
+  a blind external-consumer audit. Dependency edits were inspected, not merely hash-approved.
+- Negative coverage includes malformed variable state, capacity/overflow, duplicate writes,
+  detached admission, transfer failure, stale incarnation, reset, removal/reinstallation and
+  unload. A calls=4 limit intentionally leaves an accepted stamp without its later contribution;
+  retry does not duplicate history and detach/attach restores the derived contribution.
+  This demonstrates explicit partial effects, not transaction rollback or durable recovery.
+- The new module's native/Wasm strict Clippy checks pass. Strict driver Clippy reports existing
+  `drop_non_drop` at `driver/src/bench/dispatch.rs:96` and `large_enum_variant` at
+  `driver/src/harness.rs:61`; frozen code was not changed to silence them.
+
+The preregistered 320-sample cost campaign now **passes** on aarch64, with
+`decision_eligible: true` and no errors: see the [full result and retained raw evidence](modularity-conformance-results.md).
+The original freeze and thresholds remain unchanged. Dense/10k median update batch p99 is
+25.44 ms native, 34.77 ms Rust-Wasm, 32.74 ms C-Wasm and 29.97 ms mixed. These pass the
+provisional laboratory bound, **not a hypothetical 10 ms whole-map frame**. The custom STAMP
+operation is covered by lifecycle tests, not a dedicated timed workload.
+
+The finite pre-migration gate is complete; next is the first production C1/C2 vertical with C0
+admission/phase evidence before replication. No production migration is yet implemented or
+accepted. All production C0–C4 obligations remain open as described below.
+
 ## Conformance implementation checkpoint — 2026-09-05, `118171c1`
 
 The private V2 laboratory now has two independently defined modules running as native Rust,
@@ -27,10 +66,11 @@ the complete third-module/cost gate and not a production storage or SDK integrat
 - All timing thresholds remain provisional laboratory gates. The protocol's pre-measurement
   completion added a 4 MiB artifact cap and increased command supervision from 120 to 240s
   to accommodate the already allowed batch/cold work; it did not change timing/RSS thresholds.
-  No V2 measurement campaign has run. Native-only compilation passes with two unused-code
+  At this pre-freeze checkpoint no V2 measurement campaign had run. Native-only compilation passes with two unused-code
   warnings for the intentionally unavailable opaque adapter; native execution is not sandboxed.
 
-Next: the third independent state/lifecycle module must use only its own code plus the permitted
+The next step at this historical checkpoint was the third independent state/lifecycle module,
+using only its own code plus the permitted
 dependency/declarative registration edits. Verify the unchanged freeze, review the new module and
 exercise all four real compositions before the predeclared measurement campaign. A host fix
 invalidates that challenge; do not rehash its existing third module into a supposed fresh proof.
@@ -183,7 +223,8 @@ inside #578 is the plan's finite **conformance proof before production storage m
 another indefinite backend selection. Freeze a private host/adapter contract after two independent
 modules, then add a third module with a new state type without module-specific host/storage edits.
 Exercise equivalent native Rust, Rust Core Wasm and C Core Wasm cases, mixed executors, lifecycle,
-composition/conflicts, reentry and bounded failures. This proof has not run; mock state replay is
+composition/conflicts, reentry and bounded failures. The current correctness/measurement status
+is recorded at the top of this checkpoint; mock state replay is
 not durable DB evidence. Reopen the choice only for a demonstrated backend-specific limitation,
 not a generic ABI or implementation bug. No SDK-wide prerequisite or new spike issue is added.
 

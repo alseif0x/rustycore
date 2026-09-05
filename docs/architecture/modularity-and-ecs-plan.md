@@ -250,7 +250,11 @@ selected design, not a prerequisite to naming the choice. Preserve the useful fa
    central code touched and state/lifecycle plumbing as well as timing; no favourable-run selection.
 6. Record pass/fail of the selected implementation and exact remaining production boundaries.
    Continue into affected #578 integration only after this proof passes; do not postpone it until
-   after production migration or the entire #583 SDK. This planned proof has **no result yet**.
+   after production migration or the entire #583 SDK. The [two-module freeze and third-module
+   correctness stages](session-578-checkpoint.md#independent-extension-checkpoint--2026-09-05-c67acbfd)
+   now pass, as do all 320 preregistered cost samples on aarch64. See the [V2 results and
+   remaining boundaries](modularity-conformance-results.md). The finite pre-migration gate is
+   complete; production acceptance and actual frame-budget evidence remain open.
 
 An implementation error means fix and rerun the affected case. A Wasm/ABI defect is not evidence
 against ECS. Reopen the backend decision only for a demonstrated hecs-specific obstacle such as

@@ -5,8 +5,8 @@ private selective hecs and a native/Wasm module product now, with a finite indep
 conformance proof before production migration. That later choice supersedes the *next-step
 recommendation* below, not these measurements or their limits. V1 did not run a second-language
 or third-module experiment; the Wasm guest's schema-v2 test is not such an experiment. The later
-[V2 checkpoint](session-578-checkpoint.md#conformance-implementation-checkpoint--2026-09-05-118171c1)
-records its separate Rust/C two-module proof and pending third-module/cost acceptance.
+[V2 result](modularity-conformance-results.md) records its separate frozen-host Rust/C
+third-module proof and 320 passing cost samples; production acceptance remains separate.
 
 ## Laboratory verdict and current planning boundary
 
