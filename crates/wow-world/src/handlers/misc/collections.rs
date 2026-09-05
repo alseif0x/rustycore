@@ -422,11 +422,11 @@ impl crate::session::WorldSession {
             self.active_spell_cast = Some(crate::session::SpellCastState {
                 spell_id: request.cast.spell_id,
                 target_guid,
-                target_data: spell_target,
+                target_data: crate::spell_cast_adapter::retain_targets(spell_target),
                 cast_id: server_cast_id,
                 cast_start_time: std::time::Instant::now(),
                 cast_time_ms: spell_info.cast_time_ms,
-                spell_visual,
+                spell_visual: crate::spell_cast_adapter::retain_visual(spell_visual),
                 metadata,
             });
         } else if let Err(error) = self

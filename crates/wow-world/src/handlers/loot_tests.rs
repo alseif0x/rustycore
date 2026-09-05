@@ -5971,7 +5971,7 @@ fn install_active_spell_cast(session: &mut WorldSession, player_guid: ObjectGuid
     session.active_spell_cast = Some(SpellCastState {
         spell_id: 133,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData {
+        target_data: wow_entities::SpellCastTargetsLikeCpp {
             flags: 0x2,
             unit: player_guid,
             ..Default::default()
@@ -5979,7 +5979,7 @@ fn install_active_spell_cast(session: &mut WorldSession, player_guid: ObjectGuid
         cast_id: ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7),
         cast_start_time: std::time::Instant::now(),
         cast_time_ms: 30_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual {
+        spell_visual: wow_entities::SpellCastVisualLikeCpp {
             spell_visual_id: 1,
             script_visual_id: 0,
         },

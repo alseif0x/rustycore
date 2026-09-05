@@ -56,6 +56,55 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — packet-independent retained cast data
+
+Verdict: the cast ownership migration needs a downward dependency boundary first.
+Based on `150d0b1f`, `wow-entities` now defines active/queued cast records and their
+target, visual and metadata values in private `spell_cast.rs`. Production active,
+queued and toy casts use these records; `wow-world::spell_cast_adapter` converts
+at admission, deferred execution and failure publication. No packet implementation,
+SQL, loader, channel or runtime task is added to entities. No Cargo edge is added.
+This is a dependency-boundary change, **not yet a mutable-owner transfer**: the four
+Session cast/queue/timing fields remain production debt in the exact ledger.
+
+C++ evidence: `Spell.h:554,592-602,899` retains cast identity, visuals, targets and
+timer; `Spell.cpp:133-171,174` converts request targets into cast-owned data and back
+for publication; `SpellDefines.h:497-502` separates cast visual from its packet
+conversion. `SpellCastRequest.h:33-43` retains the pending request, owned by Player
+(`Player.h:3154`), while Unit owns current spells (`Unit.h:1823`). Rust deliberately
+keeps packet decoding out of domain types rather than reproducing the C++ include
+dependency. The reduced target record preserves existing Rust values exactly; it
+does not claim full C++ target-resolution/transport/trajectory policy coverage.
+
+Use a private entity module plus the existing public value boundary, not a new crate
+or generic context. Existing Session type aliases preserve consumer paths temporarily;
+delete them when the cast consumers have moved to their owning vertical. No second
+mutable cast record is installed or synchronized. Two adapter tests cover all sixteen
+optional-target combinations, default/absent targets, bidirectional value preservation,
+wire-byte equality and retention of script-visual evidence that remains unserialized.
+Metadata defaults, original-cast fallback and timestamps are moved unchanged.
+
+Remaining risk-ordered implementation: (1) install the active record on Unit and the
+queue on Player, redirect all writers/readers and reject stale owners; (2) move both
+represented cooldown timestamp stores without changing their policy or power-failure
+restore order; (3) converge current-spell references and move scheduling/application
+effects behind MapRuntime outcomes. Freeze queue replacement/cancellation, interruption,
+delay completion, target/visual bytes, publication connection/order and existing clock
+ownership in each cut. No lock may span execution await or packet delivery. The old
+fields are retired only with their last production consumer, not by relabeling them.
+
+Validation on aarch64: `wow-world --lib` passes 3,680 / zero failures / one ignored;
+`wow-entities --lib` passes 694 / zero failures; `cargo check -p wow-world --all-targets`,
+syntax-only ownership, architecture check/self-test, formatting and diff checks pass.
+The generated syntax inventory is byte-for-byte unchanged. Logical Session production
+81,410 -> 81,313 (-97), tests unchanged at 102,621. New entity data and the private
+packet adapter are each 118 physical lines; this is redistribution plus a dependency
+boundary, not gameplay progress or owner retirement.
+`validation-v2 quick --base origin/3.4.3` passes workspace/all-targets and isolated bot
+checks; manifest `target/validation-v2/manifests/20260905T020247.924270Z-160062-quick.json`
+records the worktree based on `150d0b1f`, not a clean post-commit final. No fresh capture,
+live runtime install, push or terminal #578/#133 acceptance is claimed.
+
 ### 2026-09-05 — taxi mutations inside canonical Player ownership
 
 Based on `e394af7d`, `mutate_player_taxi_state_like_cpp` now applies its callback
@@ -89,8 +138,9 @@ Next ownership investigation: `active_spell_cast`,
 `represented_pending_spell_cast_request_like_cpp`, `last_spell_cast_time` and
 `last_spell_cast_time_per_spell` remain production Session fields. C++ owns current
 spells on Unit (`Unit.h:1823`) and the pending request on Player (`Player.h:3154`).
-Rust's active/pending records currently contain packet-layer target/visual metadata,
-so moving fields alone would introduce an upward entity-to-packet dependency. The
+At this taxi checkpoint, Rust's active/pending records still contained packet-layer
+target/visual metadata; the subsequent retained-cast boundary above removes that
+dependency prerequisite. Moving fields alone would have introduced an upward edge. The
 coherent cut must account for those adapters plus start, cancel, interrupt, delayed
 completion, queue promotion and cooldown timing; it is not closed by the taxi slice.
 

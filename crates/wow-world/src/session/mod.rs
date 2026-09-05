@@ -5395,111 +5395,12 @@ pub enum SessionState {
     Disconnecting,
 }
 
-/// Additional spell cast metadata that C++ stores on `Spell` before `prepare`.
-///
-/// Default values preserve the represented normal-cast path: `OriginalCastID`
-/// is the same as `CastID`, `CastFlagsEx` is zero, and no item entry/misc data
-/// is attached.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SpellCastBattlePetItemModifiersLikeCpp {
-    /// Stable identity of the caged item consumed by C++
-    /// `SPELL_EFFECT_UNCAGE_BATTLEPET`.
-    pub source_item_guid: ObjectGuid,
-    pub species_id: u32,
-    pub breed_data: u32,
-    pub level: u16,
-    pub display_id: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SpellCastMetadata {
-    pub from_client: bool,
-    /// Overrides the visible/effect caster for represented triggered casts.
-    /// Normal player casts leave this empty and use the logged-in player GUID.
-    pub caster_guid_override: Option<ObjectGuid>,
-    /// C++ `SpellCastData::CastFlags` for the emitted `SMSG_SPELL_GO`.
-    pub cast_flags: u32,
-    pub misc: [i32; 2],
-    pub cast_item_entry: Option<u32>,
-    pub cast_item_battle_pet_modifiers: Option<SpellCastBattlePetItemModifiersLikeCpp>,
-    pub cast_flags_ex: u32,
-    pub original_cast_id: ObjectGuid,
-    pub unit_target_battle_pet_companion_guid: Option<ObjectGuid>,
-    pub restore_last_spell_cast_time_on_power_failure: bool,
-    pub previous_last_spell_cast_time_on_power_failure: Option<Instant>,
-}
-
-impl Default for SpellCastMetadata {
-    fn default() -> Self {
-        Self {
-            from_client: false,
-            caster_guid_override: None,
-            cast_flags: 0,
-            misc: [0, 0],
-            cast_item_entry: None,
-            cast_item_battle_pet_modifiers: None,
-            cast_flags_ex: 0,
-            original_cast_id: ObjectGuid::EMPTY,
-            unit_target_battle_pet_companion_guid: None,
-            restore_last_spell_cast_time_on_power_failure: false,
-            previous_last_spell_cast_time_on_power_failure: None,
-        }
-    }
-}
-
-impl SpellCastMetadata {
-    pub fn original_cast_id_or(self, cast_id: ObjectGuid) -> ObjectGuid {
-        if self.original_cast_id.is_empty() {
-            cast_id
-        } else {
-            self.original_cast_id
-        }
-    }
-}
+// Compatibility paths while #578 moves cast consumers out of the Session adapter.
+pub(crate) use wow_entities::PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp;
+pub use wow_entities::{SpellCastBattlePetItemModifiersLikeCpp, SpellCastMetadata, SpellCastState};
 
 const SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS: u32 = 400;
 const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
-
-/// Spell casting state — tracks an in-progress spell cast with a timer.
-///
-/// Used for spells with cast time > 0. When the player initiates a cast,
-/// this stores the spell ID, target, and cast start time. The main loop
-/// calls `tick_active_spell_cast()` each frame to check if casting completes.
-#[derive(Debug, Clone)]
-pub struct SpellCastState {
-    /// Spell ID being cast.
-    pub spell_id: i32,
-    /// Target GUID for the spell.
-    pub target_guid: ObjectGuid,
-    /// Full target data from SpellCastTargets; preserves DstLocation for delayed completion.
-    pub target_data: SpellTargetData,
-    /// Client's cast ID (for SMSG_SPELL_GO echo).
-    pub cast_id: ObjectGuid,
-    /// When the cast started (Instant::now()).
-    pub cast_start_time: Instant,
-    /// Total cast time in milliseconds.
-    pub cast_time_ms: u32,
-    /// Spell visual IDs.
-    pub spell_visual: wow_packet::packets::spell::SpellCastVisual,
-    /// C++ `Spell` metadata that must survive delayed completion.
-    pub metadata: SpellCastMetadata,
-}
-
-/// Minimal represented state for C++ `Player::_pendingSpellCastRequest`.
-///
-/// This covers the represented player-caster queue path and the fields C++
-/// `CancelPendingCastRequest` needs to clear the queued button highlight
-/// without touching the currently active spell cast.
-#[derive(Debug, Clone)]
-pub(crate) struct RepresentedPendingSpellCastRequestLikeCpp {
-    pub cast_id: ObjectGuid,
-    pub spell_id: i32,
-    pub casting_unit_guid: ObjectGuid,
-    pub target_guid: ObjectGuid,
-    pub target_data: SpellTargetData,
-    pub spell_visual: wow_packet::packets::spell::SpellCastVisual,
-    pub metadata: SpellCastMetadata,
-}
 
 /// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -61148,7 +61049,7 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::spell::CastFailed {
             cast_id: request.cast_id,
             spell_id: request.spell_id,
-            visual: request.spell_visual,
+            visual: crate::spell_cast_adapter::present_visual(request.spell_visual),
             reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
             fail_arg1: 0,
             fail_arg2: 0,
@@ -61234,8 +61135,8 @@ impl WorldSession {
                 request.spell_id,
                 request.target_guid,
                 request.cast_id,
-                request.spell_visual.clone(),
-                request.target_data,
+                crate::spell_cast_adapter::present_visual(request.spell_visual.clone()),
+                crate::spell_cast_adapter::present_targets(request.target_data),
                 request.metadata,
             )
             .await
@@ -61248,7 +61149,7 @@ impl WorldSession {
             self.send_packet(&wow_packet::packets::spell::CastFailed {
                 cast_id: request.cast_id,
                 spell_id: request.spell_id,
-                visual: request.spell_visual,
+                visual: crate::spell_cast_adapter::present_visual(request.spell_visual),
                 reason: SpellCastResult::NotKnown as i32,
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -69656,9 +69557,11 @@ impl WorldSession {
         if elapsed_ms >= cast_state.cast_time_ms {
             let spell_id = cast_state.spell_id;
             let target = cast_state.target_guid;
-            let target_data = cast_state.target_data.clone();
+            let target_data =
+                crate::spell_cast_adapter::present_targets(cast_state.target_data.clone());
             let cast_id = cast_state.cast_id;
-            let spell_visual = cast_state.spell_visual.clone();
+            let spell_visual =
+                crate::spell_cast_adapter::present_visual(cast_state.spell_visual.clone());
             let mut metadata = cast_state.metadata;
             let previous_last_spell_cast_time = self.last_spell_cast_time;
             metadata.restore_last_spell_cast_time_on_power_failure = true;

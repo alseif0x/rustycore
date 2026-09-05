@@ -9821,11 +9821,11 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
         session.active_spell_cast = Some(SpellCastState {
             spell_id: generic_spell_id,
             target_guid: player_guid,
-            target_data: SpellTargetData::default(),
+            target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
             cast_id: ObjectGuid::new(6, 71_006),
             cast_start_time: Instant::now(),
             cast_time_ms: 1_000,
-            spell_visual: wow_packet::packets::spell::SpellCastVisual {
+            spell_visual: wow_entities::SpellCastVisualLikeCpp {
                 spell_visual_id: 0,
                 script_visual_id: 0,
             },
@@ -9944,11 +9944,11 @@ fn stand_state_channel_boundary_requires_casting_standing_transition() {
         session.active_spell_cast = Some(SpellCastState {
             spell_id: 72_002,
             target_guid: player_guid,
-            target_data: SpellTargetData::default(),
+            target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
             cast_id: ObjectGuid::new(6, 72_003),
             cast_start_time: Instant::now(),
             cast_time_ms: 1_000,
-            spell_visual: wow_packet::packets::spell::SpellCastVisual {
+            spell_visual: wow_entities::SpellCastVisualLikeCpp {
                 spell_visual_id: 0,
                 script_visual_id: 0,
             },
@@ -47896,11 +47896,11 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
     session.active_spell_cast = Some(SpellCastState {
         spell_id: 61_806,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData::default(),
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
         cast_id: ObjectGuid::EMPTY,
         cast_start_time: Instant::now(),
         cast_time_ms: 10_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
     });
     add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
@@ -47985,11 +47985,11 @@ async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() 
     session.active_spell_cast = Some(SpellCastState {
         spell_id: 61_809,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData::default(),
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
         cast_id: ObjectGuid::EMPTY,
         cast_start_time: Instant::now(),
         cast_time_ms: 10_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
     });
     add_canonical_test_player_on_map(
@@ -48076,11 +48076,11 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
     session.active_spell_cast = Some(SpellCastState {
         spell_id: 61_810,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData::default(),
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
         cast_id: ObjectGuid::EMPTY,
         cast_start_time: Instant::now(),
         cast_time_ms: 10_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
     });
     add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);

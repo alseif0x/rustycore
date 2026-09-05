@@ -19,6 +19,7 @@ mod pet;
 mod player;
 mod player_gameplay_state;
 mod scene_object;
+mod spell_cast;
 mod totem;
 mod transport;
 mod unit;
@@ -26,6 +27,12 @@ mod unit_subsystems;
 mod update_fields;
 mod vehicle;
 mod world_object;
+
+pub use spell_cast::{
+    PendingSpellCastRequestLikeCpp, SpellCastBattlePetItemModifiersLikeCpp,
+    SpellCastLocationLikeCpp, SpellCastMetadata, SpellCastState, SpellCastTargetsLikeCpp,
+    SpellCastVisualLikeCpp,
+};
 
 pub use area_trigger::{
     AREA_TRIGGER_DATA_BOUNDS_RADIUS_2D_BIT, AREA_TRIGGER_DATA_CASTER_BIT,

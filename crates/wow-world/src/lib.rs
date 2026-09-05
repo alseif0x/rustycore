@@ -28,6 +28,7 @@ mod session_persistence_capabilities;
 mod session_policy;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
+mod spell_cast_adapter;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 pub(crate) mod trainer_offer;
 

@@ -694,8 +694,8 @@ impl WorldSession {
                     spell_id,
                     casting_unit_guid: player_guid,
                     target_guid,
-                    target_data: spell_target,
-                    spell_visual: SpellCastVisual {
+                    target_data: crate::spell_cast_adapter::retain_targets(spell_target),
+                    spell_visual: wow_entities::SpellCastVisualLikeCpp {
                         spell_visual_id: req.visual.spell_visual_id,
                         script_visual_id: 0,
                     },
@@ -775,11 +775,11 @@ impl WorldSession {
             self.active_spell_cast = Some(crate::session::SpellCastState {
                 spell_id,
                 target_guid,
-                target_data: spell_target.clone(),
+                target_data: crate::spell_cast_adapter::retain_targets(spell_target.clone()),
                 cast_id,
                 cast_start_time: std::time::Instant::now(),
                 cast_time_ms: spell_info.cast_time_ms,
-                spell_visual: SpellCastVisual {
+                spell_visual: wow_entities::SpellCastVisualLikeCpp {
                     spell_visual_id: req.visual.spell_visual_id,
                     script_visual_id: 0,
                 },
@@ -3248,7 +3248,7 @@ mod tests {
         session.active_spell_cast = Some(SpellCastState {
             spell_id,
             target_guid: player_guid,
-            target_data: SpellTargetData {
+            target_data: wow_entities::SpellCastTargetsLikeCpp {
                 flags: 0x2, // SpellCastTargetFlags::Unit
                 unit: player_guid,
                 ..Default::default()
@@ -3256,7 +3256,7 @@ mod tests {
             cast_id,
             cast_start_time: std::time::Instant::now(),
             cast_time_ms: 30_000,
-            spell_visual: super::SpellCastVisual {
+            spell_visual: wow_entities::SpellCastVisualLikeCpp {
                 spell_visual_id: 1,
                 script_visual_id: 0,
             },
@@ -3275,12 +3275,12 @@ mod tests {
                 spell_id,
                 casting_unit_guid: ObjectGuid::create_player(1, 42),
                 target_guid: ObjectGuid::create_player(1, 42),
-                target_data: SpellTargetData {
+                target_data: wow_entities::SpellCastTargetsLikeCpp {
                     flags: 0x2,
                     unit: ObjectGuid::create_player(1, 42),
-                    ..SpellTargetData::default()
+                    ..Default::default()
                 },
-                spell_visual: SpellCastVisual {
+                spell_visual: wow_entities::SpellCastVisualLikeCpp {
                     spell_visual_id: 0,
                     script_visual_id: 0,
                 },
