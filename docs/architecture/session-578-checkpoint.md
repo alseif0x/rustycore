@@ -118,7 +118,58 @@ unchanged Group hotspot ceiling is left untouched.
 
 ## Validation boundaries
 
+### User-prioritized next front: automatic Dungeon Finder
+
+The user approved this order: repair and verify current login first, then audit and scope LFG
+as its own issue/branch. This does not close or silently defer #578's remaining ownership work.
+No LFG gameplay implementation or database repair is included in this checkpoint.
+
+Preliminary evidence (not a completed subsystem audit):
+
+- Rust registers information/status/blacklist handlers in `handlers/misc/lfg.rs`, but the
+  production handler search does not find DFJoin/DFLeave/DFProposalResponse/DFSetRoles/DFTeleport.
+  Its LFG-list status explicitly represents removed-from-queue while the manager is unported.
+- C++ does contain automatic matching: `LFGHandler.cpp:31-104`, registrations at
+  `Opcodes.cpp:425-430`, `LFGMgr.cpp:286,397,945,1052,1357,1472`, and
+  `LFGQueue.cpp:288,358`. Existing code is not proof of complete client-3.4.3 behavior.
+  Manual listings are a different surface: `LFGHandler.cpp:584-632` returns zero search results
+  and an explicitly unimplemented application response, despite a partial `LFGListManager`.
+- Local Hotfix rows 256/258 are named Random Lich King Heroic/Normal with build 12340; the
+  other 97 rows have build 52237. Provenance remains unknown. The downloaded
+  [Wago LFGDungeons export for 3.4.3.54261](https://wago.tools/db2/LFGDungeons/csv?build=3.4.3.54261)
+  (SHA-256 `fe615884df9b32a1a281d94499509dd4f80da61160156e31d8f39523815e1d47`)
+  has empty descriptions for Random Lich King Dungeon/Heroic at IDs 261/262. IDs 256/258 instead
+  mean Halls of Reflection/Random Classic Dungeon. Do not infer missing descriptions or rewrite
+  these local IDs without auditing references and the effective local DB2/Hotfix overlay.
+- Issues #550/#552 closed loader/capability extraction only, not the gameplay system.
+
+The next scope should cover roles, join/leave, matching, proposals, group creation, teleport,
+completion/reward and cancellation/disconnect/retry cases. First audit C++ gaps, data integrity,
+current Player/Group/Map dependencies and packet-capture availability. Missing C++ behavior
+requires exact-build client/capture evidence. Manual LFG List remains a separate scope, and no
+queue owner or new runtime clock is chosen here.
+
 ### Runtime follow-up and production-only construction regression
+
+On `d9f1e5ee`, final validation passed:
+`target/validation-v2/manifests/20260904T234919.430148Z-4193605-final.json` (6,745 library
+tests and 315 checker tests). The two production-linked login tests and 157 capture-diff
+regressions passed separately. The release build completed on aarch64 in 8m13s.
+
+Installed candidate `8281cd5aebdedd7ae792493d8da356937fff0791b3ed416855025a7993a9c1fc`
+passed initial mail hydration but stopped at `canonical Player currency owner unavailable during
+login`, after map selection. Guarded QA reported `failed-restored` in
+`/tmp/rustycore-578-login-owner-runtime.json`; private evidence is
+`/tmp/rustycore-login-qa.8sJ1lB`. The original executable was restored and serving.
+
+The next regression reproduces this difference without a live DB: initial map selection followed
+by collection reads and interleaved map ticks passes in dev but fails in release. Root cause:
+`Map::insert_map_object_record` put its actual insertion inside `debug_assert!`, so optimized
+builds erased the mutation. Moving the insertion into an unconditional statement adds exactly
+one production Map line (16,167 -> 16,168; tests stay 18,728; total 34,895 -> 34,896). This is the
+only hotspot-ceiling adjustment; field/bridge/syntax policy is not refreshed. It is a behavior
+repair of the staged storage change, not completion of #578. Post-fix final/live results remain
+to be recorded.
 
 The local final gate passed on `e1daed4c` and again on `fbd762c6`; the latter manifest is
 `target/validation-v2/manifests/20260904T230645.707038Z-3-final.json` (6,745 library tests

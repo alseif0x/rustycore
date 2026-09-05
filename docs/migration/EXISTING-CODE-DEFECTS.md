@@ -17,6 +17,18 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified Rust-port repairs
 
+- **2026-09-05, #578 optimized runtime QA — Map insertion vanished in release.**
+  `Map::insert_map_object_record` performed `entity_world.insert(record)` inside `debug_assert!`.
+  With debug assertions disabled, the record was never inserted; the derived indexes could still
+  be updated and a Player lifetime could claim Active residence without a stored Player. This
+  affects all map-record kinds, not only login. The insertion now executes unconditionally and
+  only the displaced-record invariant is debug-only. C++ `Map::AddPlayerToMap`
+  (`Map.cpp:427-445`) performs insertion independently of `ASSERT`. The production-linked login
+  test now also reaches EquipmentInventory after map selection and interleaved map ticks.
+  On the old code it passes in dev and fails in release; the missing-manager rejection and
+  pre-map hydration tests pass in both. No ownership duplication, SQL, opcode or new clock is
+  introduced. Post-fix validation and installed QA are recorded in the Session checkpoint.
+
 - **2026-09-04, #578 runtime QA — initial Player construction depended on its own inventory.**
   Production login reached the instance socket, then kicked with `canonical Player mail owner
   disappeared`. `build_initial_player_for_owner_like_cpp` called presentation hydration, which

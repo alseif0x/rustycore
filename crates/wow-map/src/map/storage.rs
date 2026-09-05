@@ -413,7 +413,8 @@ where
             self.unindex_map_object_record_by_spawn_id_like_cpp(previous_record);
         }
         self.index_map_object_record_by_spawn_id_like_cpp(&record);
-        debug_assert!(self.entity_world.insert(record).is_none());
+        let displaced = self.entity_world.insert(record);
+        debug_assert!(displaced.is_none());
         Ok(previous)
     }
 

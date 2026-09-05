@@ -1484,9 +1484,9 @@
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
-          "production_lines": 16167,
+          "production_lines": 16168,
           "test_lines": 18728,
-          "total_lines": 34895,
+          "total_lines": 34896,
           "owner": "wow-map canonical MapManager/runtime.",
           "open_retirement_issues": [
             153,

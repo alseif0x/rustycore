@@ -1,8 +1,9 @@
 //! Production-linked login regression: wow-world is compiled WITHOUT cfg(test).
 //! C++ CharacterHandler.cpp:1065-1070 constructs Player before LoadFromDB;
 //! Player.cpp:17748/17759 loads inventory/mail on that same Player.
-//! This fixture stops at PetStable, after mail and initial scalar hydration.
+//! Fixtures stop at PetStable or EquipmentInventory, after initial map selection.
 //! It is deliberately not a complete login or database integration test.
+//! Run in both dev and release: storage mutations must survive disabled debug assertions.
 
 use std::sync::{
     Arc,
@@ -16,6 +17,9 @@ use wow_world::{WorldSession, session::*};
 
 struct LoginPort {
     reached_pet_load: AtomicBool,
+    reached_inventory_load: AtomicBool,
+    stop_at_pet_load: bool,
+    manager: Arc<std::sync::Mutex<wow_map::MapManager>>,
 }
 
 // Unexpected persistence calls fail the test rather than silently succeeding.
@@ -105,9 +109,33 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
     }
     fn load_account_collection_like_cpp<'a>(
         &'a self,
-        _: AccountCollectionLoadRequestLikeCpp,
+        request: AccountCollectionLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp> {
-        panic!("unexpected load_account_collection_like_cpp");
+        // Deterministic interleaving while login waits for collection rows.
+        self.manager.lock().unwrap().update(10);
+        let rows = match request {
+            AccountCollectionLoadRequestLikeCpp::Mounts { .. } => {
+                AccountCollectionLoadedLikeCpp::Mounts(vec![])
+            }
+            AccountCollectionLoadRequestLikeCpp::Toys { .. } => {
+                AccountCollectionLoadedLikeCpp::Toys(vec![])
+            }
+            AccountCollectionLoadRequestLikeCpp::Heirlooms { .. } => {
+                AccountCollectionLoadedLikeCpp::Heirlooms(vec![])
+            }
+            AccountCollectionLoadRequestLikeCpp::ItemAppearances { .. } => {
+                AccountCollectionLoadedLikeCpp::ItemAppearances {
+                    appearance_blocks: AccountCollectionRowsLikeCpp::Loaded(vec![]),
+                    favorite_appearance_ids: AccountCollectionRowsLikeCpp::Loaded(vec![]),
+                }
+            }
+            AccountCollectionLoadRequestLikeCpp::TransmogIllusions { .. } => {
+                AccountCollectionLoadedLikeCpp::TransmogIllusions {
+                    illusion_blocks: vec![],
+                }
+            }
+        };
+        Box::pin(async move { AccountCollectionLoadOutcomeLikeCpp::Loaded(rows) })
     }
     fn persist_login_item_repairs_like_cpp<'a>(
         &'a self,
@@ -230,8 +258,24 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
             }),
             PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { .. } => {
                 self.reached_pet_load.store(true, Ordering::SeqCst);
+                if !self.stop_at_pet_load {
+                    return Box::pin(async {
+                        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                            PlayerLoginAuxiliaryLoadedLikeCpp::PetStable(vec![]),
+                        )
+                    });
+                }
                 // Yield indefinitely so the test can cancel here. No late-login
                 // fixture, map publication, timers or persistent writes are needed.
+                Box::pin(std::future::pending())
+            }
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership { .. } => Box::pin(async {
+                PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    PlayerLoginAuxiliaryLoadedLikeCpp::GroupMembership(vec![]),
+                )
+            }),
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory { .. } => {
+                self.reached_inventory_load.store(true, Ordering::SeqCst);
                 Box::pin(std::future::pending())
             }
             _ => panic!("unexpected auxiliary request"),
@@ -239,7 +283,7 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
     }
 }
 
-async fn exercise_initial_hydration(install_manager: bool) {
+async fn exercise_initial_hydration(install_manager: bool, stop_at_pet_load: bool) {
     let (_, packet_rx) = flume::bounded(8);
     let (send_tx, send_rx) = flume::bounded(8);
     let mut session = WorldSession::new(
@@ -255,8 +299,12 @@ async fn exercise_initial_hydration(install_manager: bool) {
         send_tx,
     );
     let guid = ObjectGuid::create_player(1, 42);
+    let manager = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(300_000, 10)));
     let port = Arc::new(LoginPort {
         reached_pet_load: AtomicBool::new(false),
+        reached_inventory_load: AtomicBool::new(false),
+        stop_at_pet_load,
+        manager: Arc::clone(&manager),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {
         id: 0,
@@ -269,9 +317,7 @@ async fn exercise_initial_hydration(install_manager: bool) {
     }]));
     session.set_map_store(Arc::clone(&maps));
     if install_manager {
-        session.set_canonical_map_manager(Arc::new(std::sync::Mutex::new(
-            wow_map::MapManager::new(300_000, 10),
-        )));
+        session.set_canonical_map_manager(manager);
     }
     session.set_player_lifecycle_port_like_cpp(port.clone());
     session.set_player_loading(Some(guid));
@@ -331,7 +377,7 @@ async fn exercise_initial_hydration(install_manager: bool) {
             &grid,
         ),
     );
-    // Poll exactly once: all early fixture reads are ready; only PetStable is pending.
+    // Poll once: early fixture reads are ready; the selected checkpoint is pending.
     let pending =
         std::future::poll_fn(|cx| std::task::Poll::Ready(login.as_mut().poll(cx).is_pending()))
             .await;
@@ -340,6 +386,11 @@ async fn exercise_initial_hydration(install_manager: bool) {
         port.reached_pet_load.load(Ordering::SeqCst),
         install_manager,
         "initial mail/scalar hydration must resolve the production Player owner"
+    );
+    assert_eq!(
+        port.reached_inventory_load.load(Ordering::SeqCst),
+        install_manager && !stop_at_pet_load,
+        "map selection must preserve the Player for currency/inventory hydration"
     );
     assert_eq!(pending, install_manager);
     assert!(
@@ -350,10 +401,15 @@ async fn exercise_initial_hydration(install_manager: bool) {
 
 #[tokio::test]
 async fn production_login_constructs_player_before_inventory_and_mail_hydration() {
-    exercise_initial_hydration(true).await;
+    exercise_initial_hydration(true, true).await;
 }
 
 #[tokio::test]
 async fn production_login_without_player_manager_does_not_continue_hydration() {
-    exercise_initial_hydration(false).await;
+    exercise_initial_hydration(false, true).await;
+}
+
+#[tokio::test]
+async fn production_login_preserves_player_through_initial_map_selection() {
+    exercise_initial_hydration(true, false).await;
 }
