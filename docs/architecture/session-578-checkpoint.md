@@ -58,6 +58,41 @@ still install many catalogs on Session, so eight fields are not evidence of fina
 
 ## C++ contrast for this slice
 
+### 2026-09-05 — Pure quest dialog presentation boundary
+
+Boundary extraction on `e478ac5d`: the private quest `dialog_status` module
+classifies borrowed QuestInfo metadata and quest flags without Session, catalog
+ownership, SQL, locks or packet publication. Six Session helpers become this
+presentation value and one narrow catalog adapter; the important predicate
+remains an adapter for quest-list and gossip presentation. Associated items fall
+3,672 -> 3,667; all 714 fields (282 production), 49 impl owners and 590 registry
+rows remain unchanged. No catalog field or resource-install clone is retired.
+
+C++ `Player.cpp:15706-15784` and `QuestDef.cpp:438-445` anchor the classification.
+Important wins over covenant/legendary/daily; future status deliberately has no
+covenant branch. The moved branches preserve the old Rust results, missing
+metadata fallback, eligibility gates and packet assembly. The separate repeatable
+turn-in trivial-marker discrepancy is recorded in EXISTING-CODE-DEFECTS.md and
+not repaired in this structural commit.
+
+Two new tests exercise 80 metadata/legendary/daily/hidden-POI/trivial combinations
+plus unrelated modifier/type/flag negatives. Existing handler tests still cover
+the Session adapter. Quest logical LOC is 8,882 production + 10,752 tests =
+19,634 (+25/+132); logical Session is unchanged at 81,838 + 105,503 = 187,341.
+This is semantic separation, not a claim that the logical quest hotspot shrank.
+
+Validation on aarch64: focused 2/0; full `wow-world --lib` 3,736/0 with one
+ignored; `world-server` check, format/diff, syntax-only ownership, architecture
+check/self-test and validation-v2 quick PASS (manifest
+`20260905T072307.026594Z-626321-quick.json`). No fresh capture, live install,
+restart or publication is claimed; packet layouts/routing and runtime lifecycle
+are unchanged by this boundary extraction.
+
+Remaining #578 work: thread the process-owned QuestInfo capability through
+questgiver query/visibility, quest-list and gossip paths, then remove the Session
+field, setter and installation together. This private boundary adds no crate,
+trait, locator, persistent mirror or owner. Full #578/#133 acceptance stays open.
+
 ### 2026-09-05 — Catalog routing audit and cinematic characterization
 
 Verdict on `a3b03e65`: small reference counts are not evidence of unused Session
@@ -69,7 +104,7 @@ Audited consumer boundaries:
 
 | Catalog | Existing consumers and owner defect | Required retirement boundary |
 | --- | --- | --- |
-| QuestInfo | `handlers/quest/eligibility.rs:406-518` drives important/covenant dialog statuses; Session quest POI/greeting builders also call the important predicate. C++ `QuestDef.cpp:438-445` reads global sQuestInfoStore. | Borrow one immutable quest metadata capability through every dialog and POI/greeting path; remove field, setter and resource installation together. |
+| QuestInfo | `handlers/quest/eligibility.rs:406-518` at the audited base drives important/covenant dialog statuses; Session quest-list/gossip builders also call the important predicate. C++ `QuestDef.cpp:438-445` reads global sQuestInfoStore. | Borrow one immutable quest metadata capability through every dialog and quest-list/gossip path; remove field, setter and resource installation together. |
 | LFGDungeons DB2 | `represented_championing_faction_for_kill_like_cpp` reads map/difficulty target level. LFG system-info already borrows a different, derived LfgDungeonStoreLikeCpp. | Migrate kill-reputation consumers too; removing the DB2 field merely because LFG handlers use a process catalog would break championing. |
 | TraitDefinition | Login trait loading, spell-acquisition adapter, recursive unlearning and base-grant fallback all read it. | One process-owned catalog, borrowed through all four paths; no second locator on Session and no partial login-only retirement. |
 | CinematicSequences | `opening_cinematic_like_cpp` and GameObject camera use call `send_represented_cinematic_start_like_cpp`; the only setter callers are tests. | Separate missing-startup-wiring correction from field removal. Both verticals must borrow the same catalog; mutable camera state stays in Player. |
@@ -88,7 +123,7 @@ dungeon and the LFG target level; `DB2Stores.cpp:331,906` owns/loads
 TraitDefinition and `Player.cpp:2824,3022,3411` uses it during add/remove.
 
 Risk-ranked implementation sequence within #578: (1) close the complete QuestInfo
-query vertical with positive/negative dialog and POI evidence; (2) converge shared
+query vertical with positive/negative dialog and quest-list/gossip evidence; (2) converge shared
 TraitDefinition consumption across loading/acquisition/removal, preserving commit
 and publication order; (3) handle cinematic bootstrap correction in a distinct
 behavior commit with present/missing DB2, opening/GameObject camera, stale/detached

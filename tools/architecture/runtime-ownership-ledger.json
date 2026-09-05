@@ -1531,11 +1531,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8857,
-          "test_lines": 10620,
-          "total_lines": 19477,
+          "production_lines": 8882,
+          "test_lines": 10752,
+          "total_lines": 19634,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
-          "latest_growth_review": "Canonical Player Option propagation and catalog/owner-based query fixtures; missing owners stay explicit. Handler application logic still needs the #578 vertical boundary cut. Review and exact deltas: docs/architecture/session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-05 pure quest dialog boundary: +25 production and +132 test lines. Six Session classification helpers become a private presentation value plus one catalog adapter (net -5 Session associated items); 80 metadata/flag combinations and unrelated-bit negatives preserve C++ precedence. Catalog routing and broader application extraction remain open. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [
             153,
             578

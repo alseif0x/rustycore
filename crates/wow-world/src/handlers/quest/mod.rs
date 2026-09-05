@@ -10,6 +10,7 @@
 //! dispatcher arm are unchanged; this module keeps the shared constants,
 //! helper types and free functions the features build on.
 
+mod dialog_status;
 mod eligibility;
 mod handlers;
 mod objectives;
@@ -37,7 +38,7 @@ use wow_data::{
     DISABLE_TYPE_QUEST,
     progression_rewards::{
         QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP, QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP,
-        QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP, QuestInfoEntry, QuestPackageItemEntry,
+        QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP, QuestPackageItemEntry,
     },
     quest::QuestStore,
     reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,

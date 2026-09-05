@@ -38,8 +38,8 @@ impl WorldSession {
 
     /// Bounded representation of C++ `Player::GetQuestDialogStatus(Object const*)`.
     /// Creature sources use Creature starter/ender relations; GameObject sources use
-    /// GO starter/ender relations. Full AI dialog status, ConditionMgr, event overlays
-    /// and important/covenant/journey DB2 classification remain documented migration gaps.
+    /// GO starter/ender relations. AI status, ConditionMgr, events and journey remain gaps;
+    /// important/covenant presentation uses the optional QuestInfo catalog below.
     pub(crate) fn get_represented_quest_giver_status_like_cpp(
         &self,
         source: RepresentedQuestGiverStatusSourceLikeCpp,
@@ -65,10 +65,14 @@ impl WorldSession {
             };
             match status {
                 QUEST_STATUS_COMPLETE_LIKE_CPP => {
-                    result |= self.represented_quest_reward_complete_status_like_cpp(quest);
+                    result |= self
+                        .represented_quest_dialog_classification_like_cpp(quest)
+                        .reward_complete();
                 }
                 QUEST_STATUS_INCOMPLETE_LIKE_CPP => {
-                    result |= self.represented_quest_reward_status_like_cpp(quest);
+                    result |= self
+                        .represented_quest_dialog_classification_like_cpp(quest)
+                        .reward();
                 }
                 _ => {}
             }
@@ -110,12 +114,13 @@ impl WorldSession {
             }
 
             if self.satisfy_quest_level_represented_like_cpp(quest) {
-                result |= self.represented_quest_available_status_like_cpp(
-                    quest,
-                    self.represented_quest_is_trivial_like_cpp(quest),
-                );
+                result |= self
+                    .represented_quest_dialog_classification_like_cpp(quest)
+                    .available(self.represented_quest_is_trivial_like_cpp(quest));
             } else {
-                result |= self.represented_quest_future_status_like_cpp(quest);
+                result |= self
+                    .represented_quest_dialog_classification_like_cpp(quest)
+                    .future();
             }
         }
 
@@ -403,120 +408,25 @@ impl WorldSession {
         true
     }
 
-    fn represented_quest_info_like_cpp(
+    fn represented_quest_dialog_classification_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
-    ) -> Option<&QuestInfoEntry> {
-        self.quest_info_store
-            .as_ref()
-            .and_then(|store| store.get(quest.quest_info_id as u32))
+    ) -> super::dialog_status::QuestDialogClassificationLikeCpp {
+        super::dialog_status::QuestDialogClassificationLikeCpp::new(
+            quest.flags,
+            quest.flags_ex,
+            self.quest_info_store
+                .as_ref()
+                .and_then(|store| store.get(quest.quest_info_id as u32)),
+        )
     }
 
     pub(crate) fn represented_quest_is_important_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        const QUEST_INFO_MODIFIER_IMPORTANT_LIKE_CPP: i32 = 0x400;
-        self.represented_quest_info_like_cpp(quest)
-            .is_some_and(|info| (info.modifiers & QUEST_INFO_MODIFIER_IMPORTANT_LIKE_CPP) != 0)
-    }
-
-    fn represented_quest_is_covenant_calling_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        const QUEST_TAG_TYPE_COVENANT_CALLING_LIKE_CPP: i8 = 15;
-        self.represented_quest_info_like_cpp(quest)
-            .is_some_and(|info| info.quest_type == QUEST_TAG_TYPE_COVENANT_CALLING_LIKE_CPP)
-    }
-
-    fn represented_quest_reward_complete_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-                quest_giver_status::IMPORTANT_QUEST_REWARD_COMPLETE_NO_POI
-            } else {
-                quest_giver_status::IMPORTANT_QUEST_REWARD_COMPLETE_POI
-            }
-        } else if self.represented_quest_is_covenant_calling_like_cpp(quest) {
-            if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-                quest_giver_status::COVENANT_CALLING_REWARD_COMPLETE_NO_POI
-            } else {
-                quest_giver_status::COVENANT_CALLING_REWARD_COMPLETE_POI
-            }
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-                quest_giver_status::LEGENDARY_REWARD_COMPLETE_NO_POI
-            } else {
-                quest_giver_status::LEGENDARY_REWARD_COMPLETE_POI
-            }
-        } else if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-            quest_giver_status::REWARD_COMPLETE_NO_POI
-        } else {
-            quest_giver_status::REWARD_COMPLETE_POI
-        }
-    }
-
-    fn represented_quest_reward_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            quest_giver_status::IMPORTANT_REWARD
-        } else if self.represented_quest_is_covenant_calling_like_cpp(quest) {
-            quest_giver_status::COVENANT_CALLING_REWARD
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            quest_giver_status::LEGENDARY_REWARD
-        } else {
-            quest_giver_status::REWARD
-        }
-    }
-
-    fn represented_quest_available_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-        trivial: bool,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            if trivial {
-                quest_giver_status::TRIVIAL_IMPORTANT_QUEST
-            } else {
-                quest_giver_status::IMPORTANT_QUEST
-            }
-        } else if self.represented_quest_is_covenant_calling_like_cpp(quest) {
-            quest_giver_status::COVENANT_CALLING_QUEST
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            if trivial {
-                quest_giver_status::TRIVIAL_LEGENDARY_QUEST
-            } else {
-                quest_giver_status::LEGENDARY_QUEST
-            }
-        } else if quest.is_daily_like_cpp() {
-            if trivial {
-                quest_giver_status::TRIVIAL_DAILY_QUEST
-            } else {
-                quest_giver_status::DAILY_QUEST
-            }
-        } else if trivial {
-            quest_giver_status::TRIVIAL
-        } else {
-            quest_giver_status::QUEST
-        }
-    }
-
-    fn represented_quest_future_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            quest_giver_status::FUTURE_IMPORTANT_QUEST
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            quest_giver_status::FUTURE_LEGENDARY_QUEST
-        } else {
-            quest_giver_status::FUTURE
-        }
+        self.represented_quest_dialog_classification_like_cpp(quest)
+            .is_important()
     }
 
     fn represented_quest_is_trivial_like_cpp(

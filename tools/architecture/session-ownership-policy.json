@@ -17288,22 +17288,9 @@
           "module": "crate::handlers::quest::eligibility",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_quest_available_status_like_cpp",
+          "name": "represented_quest_dialog_classification_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_quest_available_status_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate , trivial : bool ,) -> u64",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::eligibility",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_future_status_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_future_status_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> u64",
+          "signature": "fn represented_quest_dialog_classification_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> super :: dialog_status :: QuestDialogClassificationLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17328,32 +17315,6 @@
           "module": "crate::handlers::quest::eligibility",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_quest_info_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_info_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < & QuestInfoEntry >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::eligibility",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_is_covenant_calling_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_is_covenant_calling_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::eligibility",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_quest_is_important_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_quest_is_important_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
@@ -17371,32 +17332,6 @@
           "name": "represented_quest_is_trivial_like_cpp",
           "visibility": "private",
           "signature": "fn represented_quest_is_trivial_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::eligibility",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_reward_complete_status_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_reward_complete_status_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> u64",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::eligibility",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_reward_status_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_reward_status_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> u64",
           "cfg": [],
           "source_class": "production",
           "guards": [

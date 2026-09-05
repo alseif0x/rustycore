@@ -17,6 +17,16 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-05, #578 quest dialog — repeatable turn-in markers reversed.**
+  Source-verified on `e478ac5d`: in `handlers/quest/eligibility.rs`,
+  `get_represented_quest_giver_status_like_cpp` selects TRIVIAL_REPEATABLE_TURNIN
+  when `represented_quest_is_trivial_like_cpp` is true and REPEATABLE_TURNIN
+  otherwise. C++ `Player.cpp:15742-15748` selects RepeatableTurnin above the
+  quest-level-plus-hide-difference threshold and TrivialRepeatableTurnin otherwise.
+  This is a static branch discrepancy, not a live-client reproduction. The pure
+  dialog-classification extraction leaves this eligibility branch unchanged;
+  correcting it needs a separate behavior change and packet-status evidence.
+
 - **2026-09-05, #578 cinematic catalog — production wiring absent.**
   Source-audited on `a3b03e65`: `WorldSession::cinematic_sequences_store` starts
   as None; `set_cinematic_sequences_store` is called only by tests. No
