@@ -290,6 +290,141 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
     );
     assert!(!player.gameplay_state().using_pvp_item_levels);
 }
+
+#[tokio::test]
+async fn production_disconnect_completes_pending_far_transfer_before_save() {
+    pending_far_disconnect(DisconnectDestination::Requested).await;
+}
+
+#[tokio::test]
+async fn production_disconnect_recovers_pending_far_transfer_to_homebind_without_packets() {
+    pending_far_disconnect(DisconnectDestination::Homebind).await;
+}
+
+#[tokio::test]
+async fn production_disconnect_rejected_far_and_homebind_preserves_terminal_source_save() {
+    pending_far_disconnect(DisconnectDestination::Rejected).await;
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum DisconnectDestination {
+    Requested,
+    Homebind,
+    Rejected,
+}
+
+async fn pending_far_disconnect(outcome: DisconnectDestination) {
+    let (mut session, port, output, receiver) = hydrate(true, true, true).await;
+    let guid = ObjectGuid::create_player(1, 42);
+    let destination = Position::new(7.0, 8.0, 9.0, 0.5);
+    let home = Position::new(100.0, 200.0, 300.0, 0.0);
+    session.set_map_store(Arc::new(MapStore::from_entries([0, 1].map(|id| {
+        MapEntry {
+            id,
+            instance_type: 0,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }
+    }))));
+    {
+        let mut manager = port.manager.lock().unwrap();
+        let player = manager
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(guid)
+            .unwrap();
+        player.unit_mut().set_max_health(1000);
+        player.unit_mut().set_health(500);
+        player
+            .gameplay_state_mut()
+            .homebind
+            .as_mut()
+            .unwrap()
+            .position = home;
+        player
+            .resurrection_state_mut_like_cpp()
+            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionRequestLikeCpp {
+            resurrecter: guid,
+            map_id: 1,
+            position: destination,
+            health: 123,
+            mana: 0,
+            aura: 0,
+        });
+    }
+    session.set_state(SessionState::LoggedIn);
+    session.teleport_to(1, destination).await;
+    if outcome != DisconnectDestination::Requested {
+        session.set_map_store(Arc::new(MapStore::from_entries(
+            (outcome == DisconnectDestination::Homebind).then_some(MapEntry {
+                id: 0,
+                instance_type: 0,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            }),
+        )));
+    }
+    while receiver.try_recv().is_ok() {}
+    for _ in 0..8 {
+        output.try_send(vec![0]).unwrap();
+    }
+    assert!(output.is_full());
+    session.kick("controlled disconnect before suspend/worldport ACK");
+    let probe = Arc::new(SaveProbe {
+        requests: Mutex::new(vec![]),
+        released: AtomicBool::new(true),
+        outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    });
+    *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    session
+        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .await;
+    assert_eq!(
+        receiver.len(),
+        8,
+        "disconnect admission/recovery cannot publish into full output"
+    );
+    let requests = probe.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    let manager = port.manager.lock().unwrap();
+    if outcome == DisconnectDestination::Rejected {
+        assert_eq!(requests[0].character.position.map_id, 0);
+        assert_eq!(requests[0].character.position.x, 0.0);
+        assert_eq!(requests[0].character.position.y, 0.0);
+        assert_eq!(requests[0].character.position.z, 0.0);
+        assert_eq!(requests[0].character.health, 500);
+        assert!(manager.find_map(1, 0).is_none());
+        assert_eq!(session.state(), SessionState::Disconnecting);
+        return;
+    }
+    let (expected_map, expected_position) = if outcome == DisconnectDestination::Requested {
+        (1, destination)
+    } else {
+        (0, home)
+    };
+    let player = manager
+        .find_map(expected_map, 0)
+        .and_then(|map| map.map().get_typed_player(guid))
+        .expect(
+            "disconnect must finish native entry before save, not only save proposed coordinates",
+        );
+    assert_eq!(player.unit().world().position(), expected_position);
+    assert!(!player.teleport_state_like_cpp().far_pending);
+    assert!(player.teleport_state_like_cpp().far_destination.is_none());
+    assert!(player.teleport_state_like_cpp().post_add.is_none());
+    assert_eq!(requests[0].character.health, 123);
+    assert_eq!(requests[0].character.position.map_id, expected_map as u16);
+    assert_eq!(requests[0].character.position.x, expected_position.x);
+    assert_eq!(session.state(), SessionState::Disconnecting);
+}
 #[tokio::test]
 async fn production_save_old_completion_does_not_clean_replacement_incarnation() {
     exercise(true, false, PersistenceOutcomeLikeCpp::Applied { rows: 1 }).await;

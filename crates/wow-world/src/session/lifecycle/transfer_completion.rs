@@ -54,9 +54,22 @@ impl WorldSession {
         if self.player_guid().is_none() {
             return true;
         }
-        let Some(state) = self.player_teleport_state_snapshot_like_cpp() else {
+        let Some(mut state) = self.player_teleport_state_snapshot_like_cpp() else {
             return false;
         };
+        if state.far_pending && state.recovery != wow_entities::PlayerTransferRecovery::Terminal {
+            if !self.finish_pending_far_entry_before_disconnect_like_cpp() {
+                return false;
+            }
+            let Some(updated) = self.player_teleport_state_snapshot_like_cpp() else {
+                return false;
+            };
+            state = updated;
+            if state.far_pending && state.recovery != wow_entities::PlayerTransferRecovery::Terminal
+            {
+                return false;
+            }
+        }
         let Some(progress) = state.post_add else {
             return true;
         };
@@ -94,14 +107,66 @@ impl WorldSession {
         })
         .is_some()
     }
+
+    /// C++ LogoutPlayer completes a pending far transfer without waiting for a client ACK.
+    /// Preserve the existing bounded homebind/terminal-source contract, without packets.
+    fn finish_pending_far_entry_before_disconnect_like_cpp(&mut self) -> bool {
+        use wow_entities::PlayerTransferRecovery;
+        let Some(state) = self.player_teleport_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if state.can_delay || state.post_add.is_some() {
+            return false;
+        }
+        let Some(mut destination) = state.far_destination else {
+            return false;
+        };
+        if !self.try_attach_worldport_destination_with_publication_like_cpp(
+            destination.0,
+            destination.1,
+            false,
+        ) {
+            let homebind = self
+                .represented_homebind_like_cpp()
+                .filter(|home| (home.map_id, home.position) != destination);
+            if state.recovery != PlayerTransferRecovery::None || homebind.is_none() {
+                self.terminate_worldport_recovery_like_cpp();
+                return true;
+            }
+            let homebind = homebind.expect("checked homebind");
+            destination = (homebind.map_id, homebind.position);
+            if !self.update_player_teleport_state_like_cpp(|state| {
+                state.recovery = PlayerTransferRecovery::Homebind;
+                state.far_destination = Some(destination);
+            }) {
+                return false;
+            }
+            if !self.try_attach_worldport_destination_with_publication_like_cpp(
+                destination.0,
+                destination.1,
+                false,
+            ) {
+                self.terminate_worldport_recovery_like_cpp();
+                return true;
+            }
+        }
+        if !self.update_player_teleport_state_like_cpp(|state| {
+            state.far_pending = false;
+            state.far_destination = None;
+        }) {
+            return false;
+        }
+        self.reset_movement_counter_like_cpp();
+        self.update_registry_position();
+        self.begin_worldport_post_add_like_cpp(destination.0, destination.1)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn prepared_save_rejects_retained_post_add_until_native_completion() {
+    fn save_fixture() -> WorldSession {
         let (_input, packets) = flume::unbounded();
         let (output, _receiver) = flume::unbounded();
         let mut session = WorldSession::new(
@@ -122,6 +187,12 @@ mod tests {
             571,
             0,
         );
+        session
+    }
+
+    #[test]
+    fn prepared_save_rejects_retained_post_add_until_native_completion() {
+        let mut session = save_fixture();
         let position = session.player_position_like_cpp().unwrap();
         assert!(session.prepare_player_save_like_cpp(1).is_some());
         assert!(session.begin_worldport_post_add_like_cpp(571, position));
@@ -134,6 +205,21 @@ mod tests {
                 .is_some()
         );
         assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+        assert!(session.prepare_player_save_like_cpp(1).is_some());
+    }
+
+    #[test]
+    fn prepared_save_rejects_pending_far_but_preserves_terminal_source_exception() {
+        let mut session = save_fixture();
+        assert!(session.prepare_player_save_like_cpp(1).is_some());
+        assert!(session.update_player_teleport_state_like_cpp(|state| {
+            state.far_pending = true;
+            state.far_destination = Some((1, Position::new(7.0, 8.0, 9.0, 0.5)));
+        }));
+        assert!(session.prepare_player_save_like_cpp(1).is_none());
+        assert!(session.update_player_teleport_state_like_cpp(|state| {
+            state.recovery = wow_entities::PlayerTransferRecovery::Terminal;
+        }));
         assert!(session.prepare_player_save_like_cpp(1).is_some());
     }
 }

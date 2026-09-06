@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82599,
-          "test_lines": 107144,
-          "total_lines": 189743,
+          "production_lines": 82706,
+          "test_lines": 107164,
+          "total_lines": 189870,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +116 production/+48 tests. A 139-line private lifecycle module (98 production/41 tests) retains native phases on Player, checks the immutable target, completes remaining work without output and gates disconnect cleanup. A focused test pins save rejection until native completion; existing exact-state tests cover retained progress and stale completion. Scaling distinguishes availability/publication. No new Session field or clock. Whole-transfer admission, phase coordination and C4 remain; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 pre-ACK disconnect above fbad212b: +107 production/+20 tests. Existing private map-entry methods gain nonpublishing adapters that retain all admission decisions/side effects. Completion admits the pending destination, retries homebind once and retains the approved terminal-source save exception. Prepared save rejects unresolved nonterminal far transfers; co-located tests pin that boundary. Production-linked coverage separately checks requested/homebind/rejected entry with full output. No new field, clock or physical ceiling; full native/protocol parity and C0-C4 remain; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

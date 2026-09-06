@@ -21,6 +21,15 @@ impl WorldSession {
         map_id: u32,
         position: wow_core::Position,
     ) -> bool {
+        self.try_attach_worldport_destination_with_publication_like_cpp(map_id, position, true)
+    }
+
+    pub(in crate::session) fn try_attach_worldport_destination_with_publication_like_cpp(
+        &mut self,
+        map_id: u32,
+        position: wow_core::Position,
+        publish: bool,
+    ) -> bool {
         if self
             .player_teleport_state_snapshot_like_cpp()
             .is_some_and(|state| state.recovery == wow_entities::PlayerTransferRecovery::Terminal)
@@ -36,7 +45,7 @@ impl WorldSession {
         let Some(
             wow_map::CreateMapDecision::Existing { key, .. }
             | wow_map::CreateMapDecision::Create { key, .. },
-        ) = self.prepare_canonical_map_entry_like_cpp(map_id)
+        ) = self.prepare_canonical_map_entry_with_publication_like_cpp(map_id, publish)
         else {
             return false;
         };
@@ -74,6 +83,14 @@ impl WorldSession {
         &mut self,
         map_id: u32,
     ) -> Option<wow_map::CreateMapDecision> {
+        self.prepare_canonical_map_entry_with_publication_like_cpp(map_id, true)
+    }
+
+    fn prepare_canonical_map_entry_with_publication_like_cpp(
+        &mut self,
+        map_id: u32,
+        publish: bool,
+    ) -> Option<wow_map::CreateMapDecision> {
         let map_entry = self.map_store.as_ref()?.get(map_id).copied()?;
         if map_entry.is_battleground_or_arena() {
             return None;
@@ -107,7 +124,9 @@ impl WorldSession {
                 .create_map_db2_entries_like_cpp(map_id, requested_difficulty)
                 .is_none()
         {
-            self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP);
+            if publish {
+                self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP);
+            }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
@@ -119,12 +138,14 @@ impl WorldSession {
             && let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
                 self.access_requirement_abort_like_cpp(map_id, requested_difficulty as u8)
         {
-            self.send_transfer_aborted_with_params_like_cpp(
-                map_id,
-                transfer_abort,
-                arg,
-                map_difficulty_x_condition_id,
-            );
+            if publish {
+                self.send_transfer_aborted_with_params_like_cpp(
+                    map_id,
+                    transfer_abort,
+                    arg,
+                    map_difficulty_x_condition_id,
+                );
+            }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
@@ -136,7 +157,9 @@ impl WorldSession {
             && !self.instance_ignore_raid_like_cpp
             && !self.current_player_is_in_raid_group_like_cpp()
         {
-            self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP);
+            if publish {
+                self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP);
+            }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
@@ -222,7 +245,12 @@ impl WorldSession {
             && let Some(entries) = self.create_map_db2_entries_like_cpp(key.map_id, *difficulty_id)
             && player_count >= entries.max_players
         {
-            self.send_transfer_aborted_like_cpp(key.map_id, TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP);
+            if publish {
+                self.send_transfer_aborted_like_cpp(
+                    key.map_id,
+                    TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP,
+                );
+            }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
@@ -235,7 +263,12 @@ impl WorldSession {
             && let wow_map::CreateMapDecision::Existing { key, .. } = &decision
             && existing_instance_encounter_in_progress == Some(true)
         {
-            self.send_transfer_aborted_like_cpp(key.map_id, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP);
+            if publish {
+                self.send_transfer_aborted_like_cpp(
+                    key.map_id,
+                    TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
+                );
+            }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
@@ -256,7 +289,9 @@ impl WorldSession {
                 )
                 .unwrap_or(wow_instances::TransferAbortReason::None);
             if deny_reason != wow_instances::TransferAbortReason::None {
-                self.send_transfer_aborted_like_cpp(key.map_id, deny_reason as u32);
+                if publish {
+                    self.send_transfer_aborted_like_cpp(key.map_id, deny_reason as u32);
+                }
                 return Some(wow_map::CreateMapDecision::Reject {
                     side_effects: Vec::new(),
                 });
@@ -270,10 +305,12 @@ impl WorldSession {
             && !self.check_instance_count_like_cpp(key.instance_id)
             && self.resolved_player_is_alive_like_cpp() == Some(true)
         {
-            self.send_transfer_aborted_like_cpp(
-                key.map_id,
-                TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
-            );
+            if publish {
+                self.send_transfer_aborted_like_cpp(
+                    key.map_id,
+                    TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
+                );
+            }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });

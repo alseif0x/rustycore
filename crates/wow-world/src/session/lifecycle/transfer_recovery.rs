@@ -61,7 +61,7 @@ impl WorldSession {
         }
     }
 
-    fn terminate_worldport_recovery_like_cpp(&mut self) {
+    pub(in crate::session) fn terminate_worldport_recovery_like_cpp(&mut self) {
         let _ = self.update_player_teleport_state_like_cpp(|state| {
             state.recovery = PlayerTransferRecovery::Terminal;
             // Cancel stale near/delayed commands, not the unresolved far transfer.

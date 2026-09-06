@@ -1543,6 +1543,61 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1 disconnect completes pending far admission without client ACK — above `fbad212b`, 2026-09-06
+
+The public production disconnect-save path previously returned after saving proposed
+destination coordinates while the Player remained detached from that map. The new
+`production_disconnect_completes_pending_far_transfer_before_save` fails on `fbad212b`
+at its native destination-owner assertion: 0 passed / 1 failed,
+`/tmp/rustycore-disconnect-pre-ack-before.log`. This controlled persistence-port evidence
+is not a real database write or restart/relogin observation.
+
+C++ `WorldSession.cpp:544-551` calls HandleMoveWorldportAck until pending far transfer is
+finished before setting logout state. `MovementHandler.cpp:49-134` clears the semaphore,
+checks/adopts the destination and falls back to homebind; its successful tail then runs
+post-add/zone/pet/delayed work (`:153-234`). `Player.cpp:19324-19333` does not save a pending
+far transfer. Existing Rust already retained the canonical Player and pending destination,
+but disconnect completion only examined post-add progress and returned early before ACK.
+
+The same completion entry now also processes pending far admission. It reuses the existing
+map decision/admission/attachment functions with publication disabled; every rejection,
+instance decision and native side effect remains shared with the unchanged publishing
+network path. It never sends ResumeToken, self CREATE, TransferAborted or a new handshake
+during disconnect. After successful admission it clears far/destination together, resets
+the represented movement counter, updates the derived registry position and starts the
+existing native post-add completion. It does not claim LoggedIn or client initialization.
+
+Rejection gets at most one distinct homebind attempt. Failure retains the already-approved
+Terminal/source-save policy, including the unresolved far flag and source location; it
+does not save the rejected target or loop forever. Unavailable owner/destination or an
+inconsistent active operation refuses completion under the existing factory gate. Normal
+save projection now also rejects pending nonterminal far transfers. This is **not** the
+missing delayed-autosave scheduling/receipt implementation; that remains C1 work.
+
+Three production-linked scenarios cover requested destination, homebind fallback and both
+destinations rejected, all with saturated output. Successful saves carry the post-resurrection
+health and actual admitted map; terminal rejection saves source coordinates/health. The
+co-located preparation test pins rejection before far completion and the terminal exception.
+The Session logical delta is +107 production/+20 tests (82,706 / 107,164 / 189,870 total).
+Physical files remain bounded: map entry 353 lines, transfer completion 225, production save
+tests 451. No new field, clock, query or physical ceiling is added.
+
+Syntax policy reviews three new internal methods and the recovery terminator's narrow
+Session visibility. It also reconciles the co-located test constructor added late in
+`fbad212b`: that cut's syntax check preceded the final fixture addition, and quick does not
+run the ownership checker. The current exact syntax recheck includes that fixture; this is
+not a new production constructor or persistence access. Full before/after-add native and
+protocol parity, cross-clock admission/mutation barriers, delayed saves and live QA still
+remain C0–C4 obligations; these bounded scenarios do not close the macro.
+
+Local aarch64 validation above `fbad212b`: `cargo test --offline --locked -p wow-world
+--lib` passes 3,770 tests (one ignored), and `--test production_login_player_owner` passes
+16. Exact syntax ownership passes with 3,697 associated items, unchanged 282 production /
+433 fixture Session fields and 590 registry rows. Architecture check/self-test and the
+five persistence-policy tests pass; no inventory row is closed. Format/diff checks pass,
+and quick manifest `target/validation-v2/manifests/20260906T201503.360086Z-3-quick.json`
+verifies green. No release/live DB/capture/restart acceptance or publication is claimed.
+
 ### C1 retained native post-add completion — working tree above `e8a3fb1f`, 2026-09-06
 
 The `cancelled_worldport_finishes_native_effects_before_disconnect_save` regression
