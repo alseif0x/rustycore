@@ -1296,6 +1296,49 @@ Local aarch64 validation on the working cut above `8c9a8042`:
   `before` is the interrupted deadlock reproduction; `unlocked` records the expected
   failing near/far assertion, not passing acceptance. No real-client or DB result is claimed.
 
+### C1 rejected-entry publication fence — 2026-09-06, above `a7ddabe8`
+
+The production-linked missing-destination regression reproduced the old ACK continuing
+into initialization (`unexpected auxiliary request`) after map admission failed.
+`handlers/misc/travel.rs` now consumes the pending destination/far semaphore only after
+`session/lifecycle/map_entry.rs::try_attach_worldport_destination_like_cpp` succeeds.
+That synchronous operation validates coordinates and rejects map IDs that cannot fit the
+existing Session map representation, selects/admit-prepares the map, detaches if needed,
+attaches the same owner and only then updates Session destination bookkeeping.
+
+Missing/rejected admission and failed attachment no longer write destination coordinates
+onto the detached source Player or continue ResumeToken/initialization/LoggedIn publication.
+Map creation and existing admission side effects are still impure and not rolled back.
+The existing canonical runtime validates attachment before changing binding/coordinates
+(`wow-map/src/map/runtime.rs:162-231`); its error path returns the same Box to the manager.
+The new private regression checks missing catalog and duplicate destination GUID, exact
+handle/object address, retained source map/position and released guards. Existing positive
+immediate/delayed return tests now exercise this entry operation directly.
+
+C++ `MovementHandler.cpp:90-134` does not proceed with successful entry after rejected
+admission/add. This local fence does not yet implement its full bind/before-add/add order:
+the existing successful Rust packet sequence is unchanged. Failure retains Transfer state
+and the pending destination as an intermediate recoverable state, not a terminal policy or
+an approved unbounded retry loop. Automatic bounded homebind recovery, terminal fallback,
+interrupted publication, deferred save and logout transfer completion remain C1 work.
+
+Local aarch64 working-cut evidence above `a7ddabe8`:
+
+- `cargo test --offline --locked -p wow-world --lib`: 3,757 passed, zero failed,
+  one ignored. `--test production_login_player_owner`: eleven passed, including the
+  formerly failing ACK regression. Existing validation dev target, two build jobs, local PROTOC.
+- Syntax ownership and five persistence-policy tests pass; one reviewed crate-visible
+  operation is added, without fields, opcode registration changes or persistence rows.
+- Architecture check/self-test, formatting and diff checks pass. No physical ceiling or
+  exception changes. Private production map-entry module: 307 lines; tests: 172.
+  Logical Session: 82,209 production + 106,865 tests = 189,074 (+31/+37).
+- Quick validation passes, manifest
+  `target/validation-v2/manifests/20260906T161035.034988Z-3-quick.json`.
+- Logs: `/tmp/rustycore-578-entry-reject-{before,lib,production,ownership,policy,architecture,self-test,quick}.log`.
+
+No runtime was installed/restarted and no capture, DB durability, complete recovery or
+C0-C4 acceptance is claimed. The unrelated LFG audit remains untouched.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,

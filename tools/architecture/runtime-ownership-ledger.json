@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82178,
-          "test_lines": 106828,
-          "total_lines": 189006,
+          "production_lines": 82209,
+          "test_lines": 106865,
+          "total_lines": 189074,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 detached recovery prerequisite above 8c9a8042: +21 production/+108 test lines. Near requires active same-map residence in immediate/delayed paths; detached entry suppresses seamless and clears obsolete near state. Missing-map/player combat finalization releases its map guard. Seven active-owner fixtures add 42 lines; private map-entry suite adds 66. No new owner, field, clock, lock or persistence path. Full failed-ACK recovery/save/logout and client capture remain open.",
+          "latest_growth_review": "2026-09-06 rejected worldport entry above a7ddabe8: +31 production/+37 test lines in small private map-entry modules. ACK consumes transfer only after a synchronous successful attachment; invalid admission/add preserves source coordinates and pending transfer. Existing positive test uses this operation; new failure test checks exact owner and source position on missing catalog/duplicate target. No new field, lock, clock or persistence path; full recovery/save/logout, phase order and client capture remain open.",
           "open_retirement_issues": [
             578
           ],

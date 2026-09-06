@@ -2,6 +2,47 @@
 //! composes both synchronously; a decision is not a durable/asynchronous permit.
 use super::*;
 
+#[test]
+fn rejected_entry_preserves_source_coordinates_and_exact_detached_owner() {
+    for collision in [false, true] {
+        let (mut session, _, _) = make_session();
+        let guid = install_canonical_player_owner_for_test(&mut session, 0, 0);
+        session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+        let source = Position::new(1.0, 2.0, 3.0, 0.5);
+        session.set_player_position_like_cpp(source);
+        let handle = session.player_handle_like_cpp.unwrap();
+        let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+        let address = session
+            .with_owned_player_like_cpp(|p| p as *const Player as usize)
+            .unwrap();
+        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        if collision {
+            add_canonical_test_player_on_map(&manager, guid, Position::default(), 1, 0);
+        } else {
+            session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
+        }
+        assert!(
+            !session
+                .try_attach_worldport_destination_like_cpp(1, Position::new(10.0, 20.0, 30.0, 0.0))
+        );
+        assert_eq!(session.player_handle_like_cpp, Some(handle));
+        assert_eq!(session.player_map_id_like_cpp(), 0);
+        let manager = manager.try_lock().expect("failure releases map guards");
+        assert_eq!(
+            manager.player_residence_like_cpp(handle),
+            Some(wow_map::PlayerResidenceLikeCpp::Detached)
+        );
+        assert_eq!(
+            manager.with_player_like_cpp(handle, |p| (
+                p as *const Player as usize,
+                p.unit().world().map_id(),
+                p.unit().world().position()
+            )),
+            Some((address, 0, source))
+        );
+    }
+}
+
 #[tokio::test]
 async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry() {
     for delayed in [false, true] {
@@ -48,11 +89,7 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
         assert_eq!(session.player_handle_like_cpp, Some(handle));
         // Exercise attachment separately from packet publication. This is not
         // full ACK/client acceptance; preparing a map must not count as entry.
-        session.set_player_map_position_like_cpp(0, destination);
-        assert!(matches!(
-            session.ensure_canonical_world_map_for_current_player_like_cpp(),
-            Some(wow_map::CreateMapDecision::Existing { .. })
-        ));
+        assert!(session.try_attach_worldport_destination_like_cpp(0, destination));
         assert_eq!(
             session.current_canonical_player_map_key_like_cpp(),
             Some(wow_map::MapKey::new(0, 0))

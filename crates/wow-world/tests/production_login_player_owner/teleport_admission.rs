@@ -3,6 +3,60 @@
 use super::*;
 
 #[tokio::test]
+async fn production_rejected_worldport_does_not_publish_entry_or_consume_transfer() {
+    let (mut session, port, _, receiver) = hydrate(true, true, true).await;
+    let maps = |ids: Vec<u32>| {
+        Arc::new(MapStore::from_entries(ids.into_iter().map(|id| MapEntry {
+            id,
+            instance_type: 0,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        })))
+    };
+    session.set_map_store(maps(vec![0, 1]));
+    session.set_state(SessionState::LoggedIn);
+    session
+        .teleport_to(1, Position::new(7.0, 8.0, 9.0, 0.5))
+        .await;
+    while receiver.try_recv().is_ok() {}
+    // Admission can change in transit. The ACK must not treat a missing
+    // destination as successful entry, run initialization or consume transfer.
+    session.set_map_store(maps(vec![0]));
+    let catalogs = CreatureSpawnCatalogsLikeCpp {
+        difficulty: Arc::new(CreatureDifficultyStoreLikeCpp::default()),
+        base_stats: Arc::new(CreatureBaseStatsStoreLikeCpp::default()),
+        health_rates: CreatureClassificationHealthRatesLikeCpp::default(),
+        addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
+        equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
+        power_types: Arc::new(PowerTypeStore::from_entries([])),
+    };
+    session
+        .handle_world_port_response_with_catalogs_like_cpp(
+            &catalogs,
+            &trait_tree::TraitNodeEntryStore::from_entries([]),
+            wow_packet::WorldPacket::new_empty(),
+        )
+        .await;
+    assert_eq!(session.state(), SessionState::Transfer);
+    assert!(receiver.is_empty());
+    assert!(port.manager.try_lock().unwrap().find_map(1, 0).is_none());
+    session
+        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
+        .await;
+    let bytes = receiver
+        .try_recv()
+        .expect("failed admission retains pending transfer");
+    assert_eq!(
+        u16::from_le_bytes([bytes[0], bytes[1]]),
+        wow_constants::ServerOpcodes::NewWorld as u16
+    );
+    assert!(receiver.is_empty());
+}
+
+#[tokio::test]
 async fn production_detached_return_to_source_requires_world_entry_handshake() {
     let (mut session, port, _, receiver) = hydrate(true, true, true).await;
     session.set_map_store(Arc::new(MapStore::from_entries([0, 1].map(|id| {

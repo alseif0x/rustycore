@@ -53450,6 +53450,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "try_attach_worldport_destination_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn try_attach_worldport_destination_like_cpp (& mut self , map_id : u32 , position : wow_core :: Position ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "try_claim_character_login_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn try_claim_character_login_like_cpp (& mut self , guid : ObjectGuid) -> bool",

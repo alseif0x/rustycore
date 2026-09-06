@@ -342,13 +342,14 @@ impl crate::session::WorldSession {
             );
             return;
         };
-        // C++ MovementHandler.cpp:84-100 removes a still-active Player before
-        // relocating it. Otherwise the canonical same-map relocation guard
-        // rejects this cross-map position and attachment uses the old position.
-        if !self.remove_current_player_from_canonical_current_map_like_cpp() {
+        // C++ MovementHandler.cpp:90-134 does not continue successful entry
+        // after failed admission/add. Retain the pending transfer until the
+        // same Player is attached; recovery must not save destination coordinates
+        // paired with the old map or publish a false LoggedIn transition.
+        if !self.try_attach_worldport_destination_like_cpp(new_map, new_pos) {
             warn!(
                 account = self.account_id,
-                "WorldPortResponse cannot detach its Player owner"
+                "WorldPortResponse could not attach its Player; transfer remains pending"
             );
             return;
         }
@@ -364,9 +365,6 @@ impl crate::session::WorldSession {
             new_pos.z
         );
 
-        // Update internal state
-        self.set_player_map_position_like_cpp(new_map as u16, new_pos);
-        let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         // C++ updates area-based item scaling from SendInitialPacketsAfterAddToMap,
         // after the same Player has been attached to its destination Map
         // (Player.cpp:23650). Resolve/adopt that canonical owner first so the

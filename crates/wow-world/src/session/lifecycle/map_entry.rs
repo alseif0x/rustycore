@@ -12,6 +12,37 @@ use std::sync::Arc;
 use tracing::warn;
 
 impl WorldSession {
+    /// Synchronous entry attempt. Failure retains the source coordinates and
+    /// transfer state; preparation can still create maps/admission side effects.
+    /// Full C++ before-add publication ordering and homebind recovery remain
+    /// separate obligations; this is not a reservation across asynchronous work.
+    pub(crate) fn try_attach_worldport_destination_like_cpp(
+        &mut self,
+        map_id: u32,
+        position: wow_core::Position,
+    ) -> bool {
+        let Ok(map_id_u16) = u16::try_from(map_id) else {
+            return false;
+        };
+        if !position.is_valid_map_coord_like_cpp() {
+            return false;
+        }
+        let Some(
+            wow_map::CreateMapDecision::Existing { key, .. }
+            | wow_map::CreateMapDecision::Create { key, .. },
+        ) = self.prepare_canonical_map_entry_like_cpp(map_id)
+        else {
+            return false;
+        };
+        if !self.remove_current_player_from_canonical_current_map_like_cpp()
+            || !self.ensure_canonical_player_owner_for_map_like_cpp(key, position)
+        {
+            return false;
+        }
+        self.set_player_map_position_like_cpp(map_id_u16, position);
+        true
+    }
+
     pub(crate) fn ensure_canonical_world_map_for_current_player_like_cpp(
         &mut self,
     ) -> Option<wow_map::CreateMapDecision> {
