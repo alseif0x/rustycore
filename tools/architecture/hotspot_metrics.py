@@ -802,6 +802,3 @@ def print_hotspots(runtime: dict[str, Any], limit: int = 10) -> None:
     print(f"{'total':>8} {'prod':>8} {'tests':>8}  owner root")
     for total, production, tests, path in logical_hotspot_rows(runtime, limit):
         print(f"{total:8d} {production:8d} {tests:8d}  {path}")
-
-
-
