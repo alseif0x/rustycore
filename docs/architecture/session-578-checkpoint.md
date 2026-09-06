@@ -3,6 +3,81 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## Scoped callable provenance guard — 2026-09-06
+
+The local C4 change above published `9cd1da41` repairs the callable import/reexport
+limitation recorded in the adapter cut below. Two adversarial fixtures first failed:
+crate-restricted statement-builder returns lost value/argument provenance, and a private
+ancestor import chain lost the returned pool. The incomplete boundary was the AST inventory;
+this repair does not alter the server operation.
+
+Callable collection and resolution now live in a private 402-line module with a separate
+570-line responsibility test module. The main parser shrinks from 21,248 to 21,030 lines;
+its non-growth ceiling is tightened to that size. It remains oversized C4 debt, not a
+terminal exception. There are still 101 initial oversized files. No server code, packet,
+SQL plan, transaction, runtime owner, public server API or lifecycle contract changes.
+
+Public provider reexport resolution retains its existing algorithm. Crate-local aliases
+are resolved only **after** dependency caches are assembled, so restricted/private names
+do not become exports in another package. Fixed-point resolution follows named and immediate
+glob imports, preserves explicit/local function shadowing, honors cfg context and bounds
+cycles without inventing recursive `tests::tests` paths. Return information, generic inputs
+and mutable-argument effects follow the same local aliases. This is provenance for the
+bounded AST grammar, not an implementation of Rust privacy/type checking.
+
+A further adversarial case rejected the initial candidate: an unresolved
+`F: FnMut() -> Fut`, `Fut: Future<Output = Result<T, E>>` chain could silently lose a
+callback's actual returned pool. Unresolved generic output slots now conservatively retain
+known argument provenance. Explicitly substituted outputs keep their precision; declared
+concrete String returns do not acquire a pool merely because an input contains one. Higher-order
+where-clause inference is **not solved**: false positives can remain where the grammar
+cannot separate captures from results. Concrete pool-bearing containers, unknown calls,
+mutable outputs and returned callback pools remain covered by adversarial fixtures.
+
+The aarch64 locked/offline release checker suite passes **329 tests**, including all
+315 pre-existing tests and 14 new cases. The differential statement test preserves consumer
+targets, operations, symbols and counts across direct versus reexported builders.
+Architecture check/physical budgets, formatting and diff checks pass. Routed quick validation
+is verified green at the recorded dirty iteration above `9cd1da41`:
+`target/validation-v2/manifests/20260906T105240.399402Z-3-quick.json`.
+
+The first 10,062-row inventory was **not accepted or installed**: it predates the conservative
+generic-output safeguard. The final exhaustive run yields **10,084 rows**, versus 10,116
+at `9cd1da41`: 10,063 existing rows remain identical, including occurrence counts; 53 false
+concrete-pool aliases/escapes are removed and 21 rows added. Every changed row was reviewed:
+
+| Reviewed inventory delta | Rows | Current source evidence |
+| --- | ---: | --- |
+| Task/mailbox/stop results incorrectly treated as concrete pools | -19 | `world-server/lib.rs:310,322,346,436,495`; `runtime/map.rs:1606`; `runtime/delivery.rs:1606`. Mailboxes hold commands; returned handles/stop flags are not DB handles. Actual worker/port operations remain inventoried. |
+| Listener-count summary incorrectly treated as four DB kinds | -12 | `world-server/shutdown.rs:37,182`: the result owns only a `usize` listener count. |
+| Owned disable catalog and derived mmap configuration incorrectly treated as WorldDatabase | -21 | `world-server/bootstrap/config.rs:255,267`; `condition_disable_catalog.rs:53`; `wow-data/disable_mgr.rs:74,124`: owned flags/ID sets and configuration, not a retained pool. |
+| Locale String incorrectly treated as LoginDatabase | -1 | `world-server/session_factory.rs:474`: concrete owned String return. |
+| Actual cleanup transaction passed to commit | +1 | `world-server/lib.rs:191`, consumed by `app.rs:291`: six prepared cleanup statements, returned as `SqlTransaction`. |
+| Unresolved generic integer results retained conservatively | +17 | `wow-database/{battle_pet_selection,game_tele,item_random_enchantment}_catalog_adapter.rs:13–35` and `player_creation_catalog_adapter.rs:56`. Numeric DTO fields are not new DB handles; this is documented over-reporting, not gameplay work. |
+| Generic async lock fixture provenance retained conservatively | +3 | `wow-database/transaction.rs:778,1604`, test-only source class. |
+
+The two retry-result `Applied` rows in group/stored-item loot money are deliberately retained;
+the rejected first candidate dropped them. No previously recorded direct SQL operation is
+removed or reclassified. The final policy generated from the reviewed snapshot compares
+**byte-identically** to the existing policy; workflow annotations, ordering, connection,
+unknown-COMMIT and retirement contracts are unchanged. No policy ceiling or exception is widened.
+
+Installed snapshot SHA-256: `27009495e4d54fd339c93a21a7bef48a365b8e7a2f86110fe4b506884efc3d4e`;
+unchanged policy SHA-256: `98baa1e37e3d4320109eae698d796af2a20e41a69dd10672c54b210e2956ef1f`.
+The snapshot was installed with a reviewed patch and compares byte-for-byte to the generated
+artifact. Full delta: `/tmp/rustycore-578-scoped-callable-conservative-review.json`.
+After installation, all five persistence-policy consistency/rejection tests pass; post-install
+quick validation is verified green:
+`target/validation-v2/manifests/20260906T111125.449900Z-3-quick.json`.
+The adapter's currency builder and explicit test imports are deliberately not moved again
+in this guard repair. This improves the checked grammar; it does not close C4 or prove a
+complete Rust type system, production storage migration or live durability.
+
+Publication already completed separately at clean `9cd1da41abb6721be91155707492ef80dc787710`:
+20/20 final commands, 7,185 Rust tests passed, four ignored, no failures; manifest verification
+is green (`854a7ac38d23de054b79`). PR #579 remains draft. That publication does not include
+this local guard repair, close #578/#133, or authorize a merge/runtime restart.
+
 ## MariaDB lifecycle adapter decomposition — 2026-09-06
 
 The structural cut above `1e6b7c40` preserves the existing
@@ -53,10 +128,10 @@ packet or database parity; unrelated historical policies/retirement issues are n
 The initial test-module import chain also hid PreparedStatement value/argument/macro evidence;
 tests now name concrete builder imports explicitly. Retaining the original currency definition
 protects vendor/inventory transaction provenance instead of accepting four missing inventory
-rows (including the vendor row's three occurrences). **Remaining C4 guard work:** add an
-adversarial scoped-callable reexport/import-chain fixture and fix the analyzer before relying
-on that mechanism in future adapter splits. No analyzer weakening or blanket baseline drop
-is part of this cut.
+rows (including the vendor row's three occurrences). The follow-up C4 scoped-callable guard
+recorded above addresses that prerequisite for its tested grammar; the explicit imports and
+root currency definition remain unchanged. No analyzer weakening or blanket baseline drop
+was part of this adapter cut.
 
 The final exhaustive `session-ownership-check print-persistence-baseline` run completed on
 the final source, with **10,116 access rows** versus the checked 10,255. The reviewed delta

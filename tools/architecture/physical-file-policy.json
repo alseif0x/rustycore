@@ -672,8 +672,8 @@
     {
       "path": "tools/architecture/handler-contract-check/src/persistence_access.rs",
       "observed_lines": 21248,
-      "ceiling_lines": 21248,
-      "split": "Separate persistence AST traversal, statement/workflow classification, provenance, policy validation and their independent adversarial suites.",
+      "ceiling_lines": 21030,
+      "split": "Separate persistence AST traversal, statement/workflow classification, provenance and policy validation; callable import/reexport resolution and its adversarial tests now have private modules.",
       "review_checkpoint": "578:C4"
     },
     {

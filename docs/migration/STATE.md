@@ -44,6 +44,15 @@ These are physical decompositions, not closure of broad lifecycle capability coh
 logical-owner guards remain. Migration PASS is not terminal acceptance: the legacy files
 still need their stated splits or concrete bounded exceptions before #578 closes.
 
+The following local C4 guard repair above published `9cd1da41` preserves scoped callable
+reexport/import-chain provenance without exporting private aliases across packages. Unresolved
+generic outputs conservatively retain known argument provenance instead of silently losing pools;
+329 checker tests pass. Its reviewed exhaustive snapshot contains 10,084 rows: 53 explained
+false aliases removed, 21 references added (20 deliberately conservative), with no direct SQL
+operation removed and a byte-identical policy. Exact deltas and limitations live in the
+owning checkpoint. The parser root's ceiling shrinks from 21,248 to 21,030 lines, with small
+private provenance/test modules; this is not terminal physical or semantic closure.
+
 ## Current architecture and execution checkpoint — 2026-09-05
 
 The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal
