@@ -3,6 +3,90 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C1 deferred-save admission review — `ae7a01b7`, 2026-09-06
+
+This is a bounded implementation-prerequisite review, not deferred-save implementation
+or a new approval gate. The native disconnect completion already committed at this SHA
+does not retain a direct full-save request rejected during transfer.
+
+Exact source contrast:
+
+- C++ `Entities/Player/Player.cpp:19324-19333` resets the autosave timer and schedules
+  `DELAYED_SAVE_PLAYER` when far teleport is pending. `ProcessDelayedOperations`
+  (`:1494-1503`) executes resurrection before that save; `:1535-1536` clears delayed
+  operations afterward. That synchronous flag clearing is not a Rust COMMIT receipt.
+- Rust `session/mod.rs::process_pending_periodic_player_save_with_generator_like_cpp`
+  preserves an already-due periodic flag while a destination remains pending or Session
+  is not LoggedIn. This existing behavior must not be described as losing every autosave.
+- In contrast, `session/lifecycle/persistence.rs::save_current_player_to_db_with_generator_like_cpp`
+  resets that timer/flag before waiting for durable work and preparing the snapshot.
+  `persistence/prepared.rs` rejects nonterminal far transfer and retained post-add work.
+  No canonical delayed-save request replaces the cleared periodic flag. The periodic
+  processor is also after the whole packet-drain loop in `session/driver/mod.rs`, not
+  at C++'s delayed-operation point in the worldport handler.
+
+A temporary private regression above this exact SHA reused
+`transfer_completion::tests::save_fixture`, set the interval to 100 ms, advanced it
+100 ms and verified the periodic flag was true; it then set canonical `far_pending`
+and destination `(1, Position::new(7, 8, 9, 0.5))`, awaited
+`save_current_player_to_db_like_cpp`, and asserted the flag remained true. It fails
+at that last assertion: **0 passed / 1 failed**, local aarch64, log
+`/tmp/rustycore-deferred-save-loss-reproduction.log`. Command:
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR=/home/server/rustycore/target/validation-v2/cargo/209fefad83026767 cargo test --offline --locked -p wow-world --lib direct_save_during_far_transfer_preserves_an_already_due_save_request`.
+The temporary failing test was removed after observation; production code is unchanged.
+The final correction should test retained canonical intent, not require the current
+Session boolean to remain its owner. This proves the direct-call behavior, not that
+an actual client can currently invoke every direct caller while Transfer is admitted.
+
+### Required implementation contract inside C1
+
+1. Keep the deferred request on the same canonical Player incarnation, separate from
+   the periodic timer and from native post-add completion. Coalesce requests without
+   erasing a newer request through a late receipt; review a revision-bound intent and
+   the existing incarnation-bound acknowledgement together. Missing/stale ownership
+   is not a successful deferral. Preserve the approved Terminal/source-save exception.
+2. Give full-save orchestration an explicit outcome: confirmed application, deferred,
+   not admitted/unavailable, known failure and unknown/quarantined must not all be `()`.
+   Preserve existing money/item admission, reconciliation and cancellation fences.
+   Dropping a submitted save future does not permit replay; cancellation before submission
+   must not discard the retained request. Do not acknowledge intent before confirmed
+   application or blindly retry known failure on every Session tick.
+   A confirmed DB application whose old owner can no longer be acknowledged remains a
+   confirmed application, not a failed transaction to retry against the replacement.
+3. Drain at the worldport delayed-operation phase, after native delayed resurrection
+   and before handler completion admits subsequent packets. Pass the already process-owned
+   item generator through the registered capability, not a new Session-owned generator.
+   After an awaited save, never overwrite Disconnecting/quarantine with LoggedIn.
+   Disconnect completion must save the completed owner without replaying the ACK or
+   depending on output capacity. Complete the corresponding pending-ACK, post-add,
+   recovery and Terminal cases together; do not install a flag with no consumer.
+4. Audit **all four** current production full-save callers: periodic processor,
+   disconnect adapter, trainer pre-save and explicit logout in
+   `handlers/character/world_entry.rs`. The trainer revalidates after its awaits;
+   preserve that behavior. Explicit logout and the disconnect wrapper currently proceed
+   toward offline/cleanup after the unit-returning save. Establish admission and outcome
+   handling rather than claiming a durable save from their completion log. The explicit
+   logout path does not call the new native completion helper; verify actual dispatch
+   eligibility before claiming a reachable transfer bug or changing its behavior.
+5. Exercise the real registered ACK and production-linked save boundary: no transaction
+   while deferred, one retained request across detach/attach, resurrection reflected in
+   the saved projection, confirmed acknowledgement, newer intent and replacement
+   isolation, pre-submit cancellation, submitted cancellation/unknown COMMIT without
+   replay, known rollback, closed/full output and disconnect/homebind/Terminal fallback.
+   Existing dirty-state save tests are regression evidence, not coverage of the new intent.
+
+This contract refines the already approved C1 operation; it adds no issue, publication
+authority or production clock. Cross-clock admission/exclusion remains C0 work, and
+real MariaDB/restart/relogin and action-specific captures remain separate acceptance.
+C0–C4 are still open. No runtime, database, deployment or publication was performed.
+
+Controls on unchanged production code `ae7a01b7` pass: the focused existing periodic
+deferral test (1/1, `/tmp/rustycore-deferred-save-periodic-control.log`) and the
+production-linked `production_save_rollback_unknown_and_cancellation_keep_native_dirty_state`
+test (1/1, `/tmp/rustycore-deferred-save-fence-control.log`). The latter uses a controlled
+port, not MariaDB. Five preserved persistence-policy tests pass. Documentation-only
+quick and manifest verification pass; no full-suite rerun or new parity base is claimed.
+
 ## C0/C3 callback backpressure and worker failure — above `b35bba96`, 2026-09-06
 
 The first callback integration still reached blocking `WorldSession::send_packet`.
