@@ -1543,6 +1543,53 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1/C2 post-add zone application boundary — above `c936c826`, 2026-09-06
+
+Behavior-preserving boundary extraction: the existing terrain resolution and represented
+zone/rest application now live in private `handlers/character/entry_zone.rs` (80 lines).
+The after-add adapter invokes the synchronous operation at exactly the previous position,
+after visibility and before InitWorldStates/CUF/auras/phase/rest publication. It still owns
+the canonical Player through existing scoped access; no state, lock, query, opcode or
+execution owner is added. Terrain reads are file I/O outside Player/map guards, not a
+pure calculation. False means the existing missing-seeded-state early exit, not a general
+owner validation result; true is not proof of complete terrain authority.
+
+C++ `Entities/Player/Player.cpp:7298-7438` anchors area/zone rest transitions and their
+broader effects. The Rust packet-suppressed zone path and its transitive area, hostile-area
+and native rest mutators were inspected: this represented subset does not publish. It is
+not full C++ UpdateZone parity: phasing, PvP, auras, channels, scripts and other zone effects
+still require complete treatment before logout reuse can claim the full operation.
+
+The existing worldport rest scenario retains its destination and packet-order assertions.
+Additional assertions directly apply the same transition with an open and closed sink,
+read authority from the canonical Player, and retain the deferred rest update marker.
+Truncated terrain preserves the seeded location with incomplete authority; a missing tile
+instead uses the catalog fallback (zero in this fixture), also with incomplete authority.
+These are distinct existing branches, not a new fallback policy.
+
+Physical session_state shrinks 2,834 -> 2,778; character root 2,729 -> 2,728, both ceilings
+tightened. Logical Character grows by 23 production lines for the private wrapper/imports
+and scope documentation, with no logical-owner retirement claimed. Travel tests grow
+631 -> 686. One exact impl and method are added to syntax policy; no fields or registrations
+change and the exhaustive persistence snapshot is unchanged. The 101 legacy ceilings remain.
+
+Local aarch64 evidence on this working cut above `c936c826`, pinned PROTOC and the
+validation Cargo cache: `cargo test --offline --locked -p wow-world --lib` passes
+3,761 tests (one ignored); `--test production_login_player_owner` passes 12 controlled
+production-linked cases. Syntax-only ownership passes (3,688 exact items, unchanged
+283 production/432 fixture fields and 590 registry rows). Architecture check/self-test,
+five standalone `persistence_policy` tests, format and diff checks pass. No live DB,
+restart, client/capture or durability acceptance is claimed.
+Bounded `validation-v2 quick --base HEAD` passes; verified manifest:
+`target/validation-v2/manifests/20260906T182156.268630Z-3-quick.json`.
+This is working-tree evidence; only this evidence paragraph was added afterward.
+
+Separate unresolved cancellation boundary: after-add still consumes the deferred rest flag
+before awaiting world-state loading. Cancellation can lose that presentation intention;
+zone reentry also resets the marker. This refactor deliberately does not change those
+semantics. A repair needs cancellation/reentry/delivery-acceptance tests, not an untested
+line move. Full worldport/logout/deferred-save integration and C0–C4 remain open.
+
 ### C1/C2 self-CREATE construction/delivery boundary — above `a1610315`, 2026-09-06
 
 Behavior-preserving adapter extraction under the safe-refactor skill. The complete

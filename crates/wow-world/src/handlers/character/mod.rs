@@ -12,6 +12,7 @@
 
 mod account;
 mod bank;
+mod entry_zone;
 mod gossip;
 mod items;
 mod lifecycle;
@@ -84,9 +85,7 @@ use wow_persistence::{
 };
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
-use crate::map_manager::{
-    terrain_grid_area_id_for_position_like_cpp, zone_and_area_for_position_like_cpp,
-};
+use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,

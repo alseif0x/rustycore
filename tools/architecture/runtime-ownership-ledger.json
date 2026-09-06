@@ -1470,11 +1470,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20618,
+          "production_lines": 20641,
           "test_lines": 12813,
-          "total_lines": 33431,
+          "total_lines": 33454,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 native trait retention above 2fdbd962: +1 production/+0 test lines. The existing login loader retains full parsed config details after its complete-header proof. No new query, transaction, field or lock. Full TraitMgr parity and C4 split exit remain; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 post-add zone extraction above c936c826: +23 production/+0 tests in the logical Character owner. Existing terrain/application body moves into private entry_zone (80 lines); wrapper/imports and explicit scope comments account for the delta, while session_state shrinks by 56 and root by 1. No new state, query, lock or scheduling owner. Canonical zone/rest application is packet-free, not full C++ UpdateZone parity or logout completion. C4 split exit remains; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

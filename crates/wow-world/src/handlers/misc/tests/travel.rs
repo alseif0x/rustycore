@@ -422,6 +422,61 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         last_update_index > init_world_states_index,
         "the destination RESTING field update must follow post-add InitWorldStates"
     );
+
+    // The same canonical transition can run without publishing, including after disconnect.
+    let zone_authority_complete = || {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player_guid)
+            .unwrap()
+            .gameplay_state()
+            .world_local
+            .zone_area_authority_complete
+    };
+    let mut send_rx = Some(send_rx);
+    for disconnected in [false, true] {
+        assert!(session.update_zone_represented_without_rest_update_packet_like_cpp(20, 20));
+        assert!(session.represented_is_resting_like_cpp());
+        if disconnected {
+            drop(send_rx.take());
+        }
+        assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
+        assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
+        assert!(!session.represented_is_resting_like_cpp());
+        assert!(zone_authority_complete());
+        assert!(session.take_deferred_rest_flag_update_dirty_like_cpp());
+        if let Some(receiver) = &send_rx {
+            assert!(
+                receiver.try_recv().is_err(),
+                "zone application must not publish"
+            );
+        }
+    }
+
+    // A terrain-read failure retains the seeded location but cannot prove its authority.
+    let (gx, gy) = crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(
+        destination.x,
+        destination.y,
+    );
+    std::fs::write(
+        data_dir
+            .join("maps")
+            .join(format!("0571_{gx:02}_{gy:02}.map")),
+        b"truncated",
+    )
+    .expect("corrupt only this test's terrain fixture");
+    assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
+    assert!(!zone_authority_complete());
+
+    // Missing tiles instead use MapStore's fallback (zero here), not the I/O-error branch.
+    assert!(session.apply_post_add_zone_from_terrain_like_cpp(9999, &destination));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((0, 0)));
+    assert!(!zone_authority_complete());
 }
 
 #[tokio::test]

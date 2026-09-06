@@ -5907,6 +5907,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::character::entry_zone",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::character::gossip",
           "trait_path": null,
           "cfg": [],
@@ -6748,6 +6754,20 @@
           "name": "send_show_bank_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn send_show_bank_like_cpp (& mut self , banker_guid : ObjectGuid)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::entry_zone",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_post_add_zone_from_terrain_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_post_add_zone_from_terrain_like_cpp (& mut self , map_id : i32 , position : & Position ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

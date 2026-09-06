@@ -468,15 +468,15 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/mod.rs",
-      "observed_lines": 2729,
-      "ceiling_lines": 2729,
+      "observed_lines": 2728,
+      "ceiling_lines": 2728,
       "split": "Separate character admission and lifecycle dispatch by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2834,
-      "ceiling_lines": 2834,
+      "observed_lines": 2778,
+      "ceiling_lines": 2778,
       "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above 2fdbd962 +1 line retains full login trait configurations in the same Player-owned map. Complete login/worldport separation and C4 retirement remain.",
       "review_checkpoint": "578:C4"
     },
