@@ -34,8 +34,10 @@ The [module design guidelines](../architecture/module-design-guidelines.md) add 
 physical source/test acceptance to each semantic family: manageable files, bounded file-specific
 exceptions and legacy retirement inside #578 C2/C4. They include a Rust submodule skeleton and
 cover SDK/modules in #583. Safe mechanical splits need not wait for the hecs conformance gate,
-which remains mandatory before production storage migration. The existing checker does not yet
-enforce the new physical budgets; its extension belongs to #578 C4, not #153 or a new micro-issue.
+which remains mandatory before production storage migration. The existing checker now enforces
+physical migration ceilings and a separate terminal mode. Remaining legacy-file retirement and
+semantic acceptance belong to #578 C2/C4, not #153 or a new micro-issue; a migration PASS is not
+terminal acceptance. The owning checkpoint records the exact remaining ceilings and evidence.
 
 During development, run affected-crate checks, focused positive/negative tests, formatting and
 the inexpensive ownership/architecture checks. At an affected owner boundary, exercise bounded

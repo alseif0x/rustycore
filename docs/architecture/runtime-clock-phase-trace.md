@@ -11,6 +11,11 @@ does not prove reachability, exact phase order or lock safety.
 
 ## Why a trace before a cut
 
+The [C0/C3 integration constraints](session-578-checkpoint.md#c0c3-integration-constraints--2026-09-06)
+record the bounded `b6faea6f` review of Session callback waits, phase tails, participant
+readiness and shutdown barriers. They refine the upcoming coordination cut; no production
+clock or phase is changed by that review.
+
 The convergence plan in [`adr-runtime-tick-ownership.md`](../migration/adr-runtime-tick-ownership.md)
 removes one legacy writer at a time. Every such cut needs to know which clock currently owns the
 transition and what stops a second owner resolving it. Prior notes overstated how much of C++'s

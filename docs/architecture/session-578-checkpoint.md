@@ -823,7 +823,8 @@ Session and its large tests, using per-file ceilings tightened after coherent va
 It extends the existing architecture checker to physical files, integration tests, integrated tools
 and verifiable generated-source provenance, with negative fixtures for growth, move/rename escape,
 oversized tests and stale/expired exceptions. Keep logical-owner coverage independently. The current
-checker PASS only enforces selected logical ceilings; it does not establish physical completion.
+checker now enforces physical migration ceilings alongside the logical guards; its migration
+PASS still does not establish terminal physical completion.
 
 Safe same-owner mechanical source/test splits can precede or run alongside the selected-hecs
 conformance experiment. That gate remains mandatory before production storage migration, not
@@ -867,6 +868,100 @@ its consumers, preserving relevant absolute deadlines as well as elapsed diffs. 
 MapManager mutex is a transitional access mechanism, not the final gameplay API. A single
 writer per responsibility does not require a Tokio task per map or a new worker pool.
 Separate intentional observable timing corrections from behavior-preserving movement.
+
+### C0/C3 integration constraints — 2026-09-06
+
+Bounded source review at `b6faea6f`, using `sed` on the functions below and `rg`
+for callers. This refines the next integration cut, not the acceptance scope or
+runtime authority. These are source findings, not timing measurements, live QA or
+a new whole-port audit. C++ paths are relative to the legacy tree's `src/`.
+
+- `server/worldserver/Main.cpp:519-552` measures world diff and honors
+  `MinWorldUpdateTime` (default 1 ms). `server/game/Maps/MapManager.cpp:287-318`
+  accumulates that diff until its separate map interval passes, then joins map
+  updates before delayed updates. Rust `world-server/src/session_factory.rs:170-208`
+  measures a diff per Session task and sleeps 50 ms when idle. Neither that idle
+  sleep nor the map interval is a substitute for the C++ world cadence.
+- `server/game/Server/WorldSession.cpp:488-540` advances time sync in the map
+  pass, processes ready query callbacks in both passes, and confines logout/socket
+  retirement to the world pass. Calling the whole current Rust Session update twice
+  would duplicate unrelated work and would not preserve these phase tails.
+- `server/game/Handlers/CharacterHandler.cpp:1550-1561` submits the rename query
+  and returns. `common/Utilities/AsyncCallbackProcessor.h:40-51` snapshots callbacks;
+  `server/database/Database/QueryCallback.cpp:205-224` invokes a prepared callback
+  only if ready, without waiting for the DB. Rust
+  `wow-world/src/handlers/character/lifecycle.rs:253-304` instead awaits the rename
+  candidate inside its mutable Session handler. A global barrier awaiting unchanged
+  Rust handlers would promote this per-session wait into a server-wide stall.
+  This proves a scheduling mismatch, not that every C++ DB operation is async.
+- `server/game/Maps/MapReference.cpp:22-28` inserts Player references at the front;
+  `server/game/Maps/Map.cpp:666-718` iterates them for map sessions before respawns
+  and Player/object updates. A GUID-sorted visit plan is not that membership order.
+  Transfers, unlink and new participants need explicit iteration semantics, not
+  a cached `is_in_world` flag or a second mutable Player mirror.
+- Rust `world-server/src/session_factory.rs:269-277,346-408` registers before async
+  initialization and unregisters after disconnect persistence/cleanup. Registration
+  therefore does not imply readiness to acknowledge a simulation grant.
+- Rust `world-server/src/runtime/delivery.rs:1639-1699` awaits a `spawn_blocking`
+  tick that owns cloned mutation handles. Dropping its async waiter does not prove
+  the blocking work stopped. Cancellation is not a successful barrier acknowledgement.
+- Rust `world-server/src/app.rs:5480-5620` closes registration, queues kicks, waits
+  for Session flush acknowledgements, drains sessions and only then stops respawn
+  producers/writer. A Session waiting for a grant from an already stopped scheduler
+  cannot consume that flush. Terminal world/control execution must remain possible.
+- `server/game/World/World.cpp:2748,2817-2823` updates maps before world game events.
+  The Rust canonical loop also contains game-event orchestration; its entire body
+  cannot be relabeled as a map phase without separating that responsibility.
+
+Integration direction within the approved single-owner design:
+
+1. Keep mutable Session ownership in its existing task and canonical Player/Map
+   ownership in their authority. Compose bounded phase execution at startup, without
+   `Arc<Mutex<WorldSession>>`, a map guard across handler futures or a generic bus.
+   A mutex around autonomous loops excludes overlap but does not establish phase order.
+2. Before placing dispatch behind a shared barrier, classify asynchronous boundaries
+   against C++. Convert submit/ready-callback operations into owned requests and
+   completions applied by the Session in its permitted callback pass. Preserve actual
+   synchronous contracts, transaction fences, unknown-COMMIT recovery and publication
+   order. A pending `&mut Session` future cannot be retained while reborrowing Session
+   for another pass; detaching it is not an ownership solution either.
+3. Distinguish registration, phase readiness and finalization. Identify admitted work
+   by epoch and session incarnation; Player work additionally revalidates its canonical
+   handle/residence at execution. Stale completion must neither mutate a replacement
+   nor release its barrier. Session and Player identities are distinct; account for
+   identity reuse/exhaustion before relying on them as acknowledgement fences.
+4. Compose world and accumulated map diffs as independent gameplay diff producers
+   retire; do not add a third autonomous simulation loop beside the existing two.
+   Preserve serial world-session and within-map session execution. Cross-map parallel
+   execution requires the map/delayed-update barrier. Retain #28/#371 guarantees.
+5. Separate packet admission, ready callbacks, phase-specific Session tails and map
+   simulation. Use registry metadata as the only opcode call source and retain FIFO
+   head eligibility. Name lock order and out-of-lock delivery, including saturated
+   sinks and pending persistence, for each integrated operation.
+6. Keep shutdown control progress after simulation admission closes. Retain and join
+   actual mutation work before declaring quiescence; failed/cancelled acknowledgement
+   is not success. Preserve disconnect save/cleanup and producer-before-writer drain
+   order without introducing unscheduled finalization mutations.
+
+The next implementation must connect the handler continuation boundary and phase-specific
+passes to real Session/composition paths, not add another isolated enum/demo scheduler.
+Integrate a real Player lifecycle/save operation before replicating across families.
+Rename is a required pending-callback regression, not a substitute for that C1/C2 vertical.
+Production-linked tests must drive two sessions, a pending DB result, world/map transitions,
+logout/transfer, stale completion, cancellation of an active blocking tick and a saturated
+sink. Prove eligible work progresses while an asynchronous query is pending, completions
+apply only in their permitted pass, and shutdown never acknowledges unfinished mutation.
+Runtime/capture and real durability gates remain. This refinement adds no routine approval
+gate or micro-issue and does not reduce C0–C4.
+
+Documentation-only validation above `b6faea6f` (aarch64): standalone checker
+`cargo test --offline --locked --release --lib persistence_policy` with its manifest
+passes all five tests, including preserved workflow semantics and checked snapshot/policy
+consistency. `validation-v2 quick --base HEAD` passes, with verified manifest
+`target/validation-v2/manifests/20260906T122545.109184Z-2-quick.json`; `git diff --check`
+passes. No source, policy or inventory baseline changes, runtime tests, publication or
+deployment are part of this review. The earlier physical-checker status wording in
+PORT_PLAN and this checkpoint is reconciled with the already implemented ratchet.
 
 ### Proportional evidence inside the macro
 
