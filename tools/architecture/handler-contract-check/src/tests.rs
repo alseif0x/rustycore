@@ -33,8 +33,8 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("one dispatch mechanism"), "{report}");
-    // #578 adds 13 reviewed Session test mounts to the previous 27-module graph.
-    assert!(report.contains("40 #[path] modules verified"), "{report}");
+    // Added: lifecycle_persistence/save_interleaving.rs and tests/instance_occupancy.rs.
+    assert!(report.contains("42 #[path] modules verified"), "{report}");
 }
 
 #[test]
