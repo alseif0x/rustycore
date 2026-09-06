@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76529,
-      "ceiling_lines": 76529,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above cf5b0757 +8 root lines: six reject teleport revival after approved terminal recovery, two initialize the Player recovery marker in existing test adapters. Recovery implementation stays in its private lifecycle module. No new Session owner or field; C4 root retirement remains open.",
+      "observed_lines": 76530,
+      "ceiling_lines": 76530,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above b769b860 +1 root line registers the ten-line private appearance reader. No new root method, state owner or field; C4 root retirement remains open.",
       "review_checkpoint": "578:C4"
     },
     {

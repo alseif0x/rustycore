@@ -81,6 +81,16 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         10,
         0,
     ));
+    let canonical = shared_canonical_map_manager_for_misc_test();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map_for_misc_test(
+        &canonical,
+        player_guid,
+        Position::new(1.0, 2.0, 3.0, 0.0),
+        571,
+        0,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_xp_like_cpp(1_234_567);
     session.set_player_next_level_xp_like_cpp(2_345_678);
 
@@ -150,6 +160,19 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.pending_teleport = Some((0, destination));
     session.set_player_health_like_cpp(135_791, 2_000_000);
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_player_mut(player_guid)
+        .unwrap()
+        .gameplay_state_mut()
+        .customizations = vec![wow_entities::PlayerCustomizationChoice {
+        option_id: 0x1234ABCD,
+        choice_id: 0x3456CDEF,
+    }];
     assert!(
         session.schedule_represented_resurrection_after_teleport_like_cpp(
             wow_entities::PlayerResurrectionRequestLikeCpp {
@@ -212,6 +235,11 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
             u16::from_le_bytes([bytes[0], bytes[1]]) == ServerOpcodes::UpdateObject as u16
         })
         .expect("destination self CREATE");
+    let choice_bytes = [0x1234ABCDu32.to_le_bytes(), 0x3456CDEFu32.to_le_bytes()].concat();
+    assert!(
+        create.windows(8).any(|bytes| bytes == choice_bytes),
+        "worldport must serialize current canonical customizations without reloading login rows"
+    );
     // MovementHandler.cpp:156-234: initialization precedes pet resummon and
     // ProcessDelayedOperations (Player.cpp:1494), including delayed resurrection.
     assert!(

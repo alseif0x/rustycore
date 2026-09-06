@@ -182,7 +182,20 @@ impl crate::session::WorldSession {
         let trait_configs = self
             .load_active_player_trait_configs_like_cpp(trait_node_entries, guid)
             .await;
-        let player_customizations = self.load_player_customizations_like_cpp(guid).await;
+        // PlayerData::WriteCreate serializes current Player fields, not a new
+        // login query (UpdateFields.cpp:1777,1822-1825). Missing owner is not empty.
+        let Some(customizations) = self.owned_player_customizations_like_cpp() else {
+            return;
+        };
+        let player_customizations = customizations
+            .into_iter()
+            .map(
+                |choice| wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+                    option_id: choice.option_id,
+                    choice_id: choice.choice_id,
+                },
+            )
+            .collect();
         let party_type = self.party_member_party_type_like_cpp();
         let display_id = crate::handlers::character::default_display_id(race, gender);
 

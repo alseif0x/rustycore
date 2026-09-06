@@ -2,6 +2,41 @@
 //! composes both synchronously; a decision is not a durable/asynchronous permit.
 use super::*;
 
+#[test]
+fn appearance_read_distinguishes_missing_active_and_detached_owner() {
+    let (mut session, _, _) = make_session();
+    assert_eq!(session.owned_player_customizations_like_cpp(), None);
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
+    assert_eq!(session.owned_player_customizations_like_cpp(), Some(vec![]));
+    let choices = vec![wow_entities::PlayerCustomizationChoice {
+        option_id: 17,
+        choice_id: 29,
+    }];
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().customizations = choices.clone();
+        })
+        .unwrap();
+    assert_eq!(
+        session.owned_player_customizations_like_cpp(),
+        Some(choices.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        session.owned_player_customizations_like_cpp(),
+        Some(choices)
+    );
+    session
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .retire_player_like_cpp(session.player_handle_like_cpp.unwrap())
+        .unwrap();
+    assert_eq!(session.owned_player_customizations_like_cpp(), None);
+}
+
 #[tokio::test]
 async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
     use wow_entities::PlayerTransferRecovery;

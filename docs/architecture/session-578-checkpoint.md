@@ -1443,6 +1443,49 @@ merely deferring save would skip existing disconnect persistence without a compl
 Before-add parity, cancellation/recovery across initialization, full logout completion,
 real durability and action-specific captures remain open.
 
+### C1 worldport appearance authority — above `b769b860`, 2026-09-06
+
+`send_player_self_create_for_teleport_like_cpp` incorrectly repeated the login
+customization query instead of serializing the current Player. With a canonical choice
+present and no auxiliary persistence result, the old handler omitted that choice from
+self CREATE. The existing worldport test reproduces this on `b769b860` plus the new
+assertion (`customization-before` log: one failure at the expected appearance assertion).
+
+C++ loads customization rows once into Player at `Entities/Player/Player.cpp:17304-17318`.
+`Entities/Object/Updates/UpdateFields.cpp:1620-1624,1777,1822-1825` serializes those owned
+choices in CREATE. Paths are under the legacy `src/server/game` tree. Rust now projects
+the existing native choices through `session/appearance.rs`, using the generation-checked
+owner and returning `None` rather than guessed empty state for an unavailable incarnation.
+The ten-line reader owns no state and releases its map guard before packet construction.
+Login hydration and its persistence helper remain unchanged; no extra cache is added.
+
+Coverage includes appearance bytes in the actual worldport self CREATE and a narrow
+missing/authoritative-empty/active/detached/retired-owner test. The existing XP self-CREATE
+fixture now adopts a real canonical Player before setup; production has no ownerless
+appearance fallback. Logical Session growth: +11 production (reader and module declaration)
+and +35 test lines in the small map-entry suite; root growth is only one declaration.
+One exact read-only associated item is added to the reviewed policy. No existing field,
+lock, registry row, transaction or physical exception is added.
+
+Local aarch64 validation above `b769b860`, using pinned PROTOC and the existing Cargo
+cache: `cargo test --offline --locked -p wow-world --lib` passes 3,760 tests (one ignored);
+`cargo test --offline --locked -p wow-world --test production_login_player_owner` passes
+11 controlled integration regressions. Session syntax/exact-item policy, five preserved
+persistence-policy tests, architecture check/self-test, format and diff checks pass.
+`validation-v2 quick --base HEAD` passes; verified manifest:
+`target/validation-v2/manifests/20260906T173917.775025Z-3-quick.json`.
+This is not real DB/client/relogin or action-specific capture evidence.
+
+The parallel trait review found a different boundary: `PlayerSpellRuntimeState` retains
+only `(type, specialization, combat flags)` by config ID and entry completeness flags.
+It does not retain config names, local identifiers, skill/system IDs or complete entries
+required by `TraitConfigCreateData`. The current worldport loader still queries them and
+restarts trait authority hydration. Removing those queries by substituting empty data or
+duplicating a packet cache would not complete ownership. Expand the canonical trait model
+and migrate its actual readers/writers before retiring that loader. Whole-packet coherent
+preparation, before-add ordering, transfer cancellation, logout completion and ordinary
+far-save deferral/resumption remain open; this appearance repair does not close C1/C2.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,

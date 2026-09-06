@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82318,
-          "test_lines": 106955,
-          "total_lines": 189273,
+          "production_lines": 82329,
+          "test_lines": 106990,
+          "total_lines": 189319,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 approved terminal recovery above cf5b0757: +109 production/+90 test lines. Private recovery module and map-entry/save seams enforce one homebind attempt, terminal rejection and coherent retained-source projection; Player owns the marker, with no Session mirror, lock or transaction path. Root growth is six guard lines and two test-literal lines; new scenario bodies remain in the small map-entry suite. Ordinary far-save deferral/logout completion, publication order and C4 retirement remain open. Evidence: session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 worldport appearance above b769b860: +11 production/+35 test lines. A ten-line private appearance reader plus one module declaration project the generation-checked Player choices without a login query. Small map-entry suite covers missing/empty/active/detached/retired owner. No new field, lock, persistent mirror or transaction. Trait reconstruction, full transfer/save/logout and C4 retirement remain open. Evidence: session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

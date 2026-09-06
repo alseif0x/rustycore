@@ -7,6 +7,7 @@
 //! [`WorldSocket`](wow_network::WorldSocket) and dispatches them to handlers.
 
 mod admission;
+mod appearance;
 mod connection;
 pub use crate::player_directory as directory;
 mod dispatch;
