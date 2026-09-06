@@ -475,9 +475,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2778,
-      "ceiling_lines": 2778,
-      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above 2fdbd962 +1 line retains full login trait configurations in the same Player-owned map. Complete login/worldport separation and C4 retirement remain.",
+      "observed_lines": 2782,
+      "ceiling_lines": 2782,
+      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above bb0c6d7e +4 lines retain the rest marker across the world-state await and consume only after channel acceptance. Complete login/worldport separation and C4 retirement remain.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -496,9 +496,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12618,
-      "ceiling_lines": 12618,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above 8c9a8042 the shared hearth fixture installs its canonical active Player before state setup (+1 line), covering both admission and rejection cases. No new scenario or terminal exception; C4 split exit remains.",
+      "observed_lines": 12631,
+      "ceiling_lines": 12631,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above bb0c6d7e +13 lines register a small private cancellation scenario and allow the existing world-state fixture queue to own ready/pending futures. No duplicate lifecycle fixture; C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76535,
-      "ceiling_lines": 76535,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above 2fdbd962 +5 lines register trait projection and adapt the existing header reader/fixture conversion. Same native map value is retained through transient snapshots; no new Session field. C4 retirement remains open.",
+      "observed_lines": 76540,
+      "ceiling_lines": 76540,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above bb0c6d7e +5 lines expose rest-packet channel acceptance, retain pending markers on zone reentry and guard their retirement in both zone branches. No new state or owner; C4 retirement remains open.",
       "review_checkpoint": "578:C4"
     },
     {

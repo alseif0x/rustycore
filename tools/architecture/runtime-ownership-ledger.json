@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82449,
+          "production_lines": 82454,
           "test_lines": 107066,
-          "total_lines": 189515,
+          "total_lines": 189520,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 full trait representation above 2fdbd962: +120 production/+76 test lines. Private trait-config hydration/projection retains native details in the existing map, including insertion order; transient snapshots and the fixture field use that same value. Tests cover full reconstruction, header-only rejection, atomic mismatch rejection, detached reads, reset and real login-loader retention. No new Session field, lock or packet cache. Trait gameplay validation, full transfer/logout/save and C4 retirement remain open. Evidence: session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 rest cancellation repair above bb0c6d7e: +5 production/+0 test lines. Rest sender reports channel acceptance; both zone branches retire the existing native marker only on acceptance, and zone reentry does not reset it. No new state, lock, writer or serialization. Full lifecycle/phase integration and C4 retirement remain. Evidence: session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1470,11 +1470,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20641,
-          "test_lines": 12813,
-          "total_lines": 33454,
+          "production_lines": 20645,
+          "test_lines": 12934,
+          "total_lines": 33579,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 post-add zone extraction above c936c826: +23 production/+0 tests in the logical Character owner. Existing terrain/application body moves into private entry_zone (80 lines); wrapper/imports and explicit scope comments account for the delta, while session_state shrinks by 56 and root by 1. No new state, query, lock or scheduling owner. Canonical zone/rest application is packet-free, not full C++ UpdateZone parity or logout completion. C4 split exit remains; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 rest cancellation repair above bb0c6d7e: +4 production/+121 test lines. Post-add leaves the native marker pending across world-state await and acknowledges channel acceptance afterward. A private 108-line canonical-Player test cancels exactly at a controlled read, reenters and checks accepted/closed output. Existing lifecycle fixture gains 13 lines for queued futures and module registration, with no duplicate fixture. C0-C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

@@ -1914,8 +1914,6 @@ impl WorldSession {
         if !self.apply_post_add_zone_from_terrain_like_cpp(map_id, position) {
             return;
         }
-        let rest_flag_update_dirty = self.take_deferred_rest_flag_update_dirty_like_cpp();
-
         // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
         // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
         // values filtered by AreaIDs.
@@ -1949,8 +1947,14 @@ impl WorldSession {
         self.send_packet(&PhaseShiftChange::default_for(guid));
         // C++ RestMgr only dirties PLAYER_FLAGS_RESTING during UpdateZone; the
         // map object-update owner flushes that field after post-add packets.
-        if rest_flag_update_dirty {
-            self.send_represented_resting_player_flag_update_like_cpp();
+        // Keep the marker on Player across the world-state await; only channel acceptance
+        // retires it. This is not a client acknowledgement or a restart durability claim.
+        if self
+            .player_rest_state_snapshot_like_cpp()
+            .is_some_and(|rest| rest.deferred_flag_update_dirty)
+            && self.send_represented_resting_player_flag_update_like_cpp()
+        {
+            self.take_deferred_rest_flag_update_dirty_like_cpp();
         }
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");

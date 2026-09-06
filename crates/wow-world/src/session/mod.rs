@@ -32757,19 +32757,19 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn send_represented_resting_player_flag_update_like_cpp(&self) {
+    pub(crate) fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool {
         let Some(guid) = self.player_guid() else {
-            return;
+            return false;
         };
         let Some(mut player) = self.player_values_update_snapshot() else {
-            return;
+            return false;
         };
 
         let canonical_flags = self
             .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
             .unwrap_or_default();
         let Some(is_resting) = self.resolved_is_resting_like_cpp() else {
-            return;
+            return false;
         };
         if is_resting {
             player.replace_all_player_flags(canonical_flags & !PLAYER_FLAGS_RESTING_LIKE_CPP);
@@ -32782,8 +32782,9 @@ impl WorldSession {
         if let Some(packet) =
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
         {
-            self.send_packet(&packet);
+            return self.send_packet(&packet);
         }
+        false
     }
 
     pub(crate) fn send_represented_rest_info_update_like_cpp(&self, nested_mask: u8) {
@@ -33351,7 +33352,7 @@ impl WorldSession {
         });
         if self
             .mutate_player_rest_state_like_cpp(|state| {
-                state.deferred_flag_update_dirty = false;
+                // Pending publication survives same-zone reentry after a cancelled post-add.
                 state.defer_flag_sync = true;
             })
             .is_none()
@@ -33371,8 +33372,10 @@ impl WorldSession {
                     state.deferred_flag_update_dirty
                 })
                 .unwrap_or(false);
-            if send_rest_update && rest_flag_update_dirty {
-                self.send_represented_resting_player_flag_update_like_cpp();
+            if send_rest_update
+                && rest_flag_update_dirty
+                && self.send_represented_resting_player_flag_update_like_cpp()
+            {
                 let _ = self.mutate_player_rest_state_like_cpp(|state| {
                     state.deferred_flag_update_dirty = false;
                 });
@@ -33400,8 +33403,10 @@ impl WorldSession {
                 state.deferred_flag_update_dirty
             })
             .unwrap_or(false);
-        if send_rest_update && rest_flag_update_dirty {
-            self.send_represented_resting_player_flag_update_like_cpp();
+        if send_rest_update
+            && rest_flag_update_dirty
+            && self.send_represented_resting_player_flag_update_like_cpp()
+        {
             let _ = self.mutate_player_rest_state_like_cpp(|state| {
                 state.deferred_flag_update_dirty = false;
             });

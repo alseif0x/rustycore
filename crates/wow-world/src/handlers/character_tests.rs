@@ -9,6 +9,9 @@
 
 #![cfg(test)]
 
+#[path = "character_tests/post_add_rest.rs"]
+mod post_add_rest;
+
 // Explicit database imports: this module reaches its parent through
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
@@ -344,8 +347,11 @@ struct CollectionLoadPortLikeCpp {
     requests: std::sync::Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
     login_transport_requests: std::sync::Mutex<Vec<PlayerLoginTransportLoadRequestLikeCpp>>,
     outcomes: std::sync::Mutex<std::collections::VecDeque<AccountCollectionLoadOutcomeLikeCpp>>,
-    initial_world_state_outcomes:
-        std::sync::Mutex<std::collections::VecDeque<PlayerInitialWorldStatesLoadOutcomeLikeCpp>>,
+    initial_world_state_outcomes: std::sync::Mutex<
+        std::collections::VecDeque<
+            PersistenceFutureLikeCpp<'static, PlayerInitialWorldStatesLoadOutcomeLikeCpp>,
+        >,
+    >,
     login_transport_outcomes:
         std::sync::Mutex<std::collections::VecDeque<PlayerLoginTransportLoadOutcomeLikeCpp>>,
     bank_slot_purchase_requests:
@@ -375,7 +381,14 @@ impl CollectionLoadPortLikeCpp {
             requests: std::sync::Mutex::new(Vec::new()),
             login_transport_requests: std::sync::Mutex::new(Vec::new()),
             outcomes: std::sync::Mutex::new(Default::default()),
-            initial_world_state_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+            initial_world_state_outcomes: std::sync::Mutex::new(
+                outcomes
+                    .into_iter()
+                    .map(|outcome| {
+                        Box::pin(async move { outcome }) as PersistenceFutureLikeCpp<'static, _>
+                    })
+                    .collect(),
+            ),
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
@@ -574,7 +587,7 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
             .unwrap()
             .pop_front()
             .expect("one typed initial-world-state outcome per request");
-        Box::pin(async move { outcome })
+        outcome
     }
 
     fn load_login_transports_like_cpp<'a>(

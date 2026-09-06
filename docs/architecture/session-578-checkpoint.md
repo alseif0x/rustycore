@@ -1543,6 +1543,58 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1/C3 rest publication survives cancellation — above `bb0c6d7e`, 2026-09-06
+
+Intentional Rust async-lifecycle repair, separate from the preceding structural extraction.
+The controlled canonical-Player scenario cancels post-add exactly at a pending initial-world-
+state read, after leaving faction-area rest, then reenters the same destination. Against
+`bb0c6d7e` with the test, it fails: the last packet is PhaseShiftChange rather than the
+required resting-field UpdateObject (`/tmp/rustycore-rest-cancel-before.log`). The first
+city-rest fixture exposed the separate missing-zone-data early return and was corrected
+to use the represented faction-area transition; no city-rest rule was changed to pass it.
+
+The existing native Player rest marker now survives the world-state await and zone reentry.
+After-add consumes it only after the existing sender reports channel acceptance. Both
+normal zone-update branches likewise retain it on unavailable projection/closed output.
+The sender returns its existing send result; serialization, connection and ordinary packet
+order are unchanged. There is no await between projection/send/marker retirement, no new
+state, lock, retry task or persistence query. Channel acceptance is not client receipt.
+
+C++ anchors: `RestMgr.cpp:95-122` changes Player flags on zero/nonzero crossings;
+`Object.cpp:3722-3728` builds updates before clearing the object mask;
+`Map.cpp:1929-1948` collects updates and sends them in the map update phase. C++ does not
+have this Rust database await/cancellation point. Retaining pending presentation is the
+async adaptation; this does not claim C++ retains a marker until client acknowledgement.
+
+The new 108-line private test uses the existing lifecycle fixture with queued owned
+ready/pending futures, polls the actual after-add operation to the controlled read, and
+drops it without timeout or abandoned task. It verifies the native marker after cancellation,
+the delayed packet on same-zone reentry, retirement after acceptance, and retention with
+a closed sink in the ordinary known-zone branch. Its empty temporary terrain directory
+isolates the scenario from installed map data. Affected library tests pass: 3,762, one
+ignored (`cargo test --offline --locked -p wow-world --lib`, local aarch64, pinned PROTOC
+and existing validation Cargo cache).
+
+`cargo test --offline --locked -p wow-world --test production_login_player_owner` passes
+12 controlled integration cases. Syntax-only ownership, architecture check/self-test,
+five standalone persistence-policy tests and format/diff checks pass. Bounded quick
+passes with verified manifest
+`target/validation-v2/manifests/20260906T183316.652618Z-3-quick.json` (working-tree evidence;
+the checkpoint text was completed afterward, without changing the tested code).
+
+Reviewed footprint: Session +5 production lines, Character +4 production/+121 tests
+(108 new scenario lines and 13 shared-fixture/module lines). The three exact legacy file
+ceilings rise by those local deltas; their C4 split exits remain, without new exceptions.
+The only syntax contract change is the rest sender's boolean result; fields, owners and
+590 registry entries remain unchanged. The persistence snapshot is not regenerated.
+
+This closes the reproduced marker-loss path, not restart durability, whole-post-add replay
+safety, global nonblocking output or full worldport/logout completion. Earlier visibility
+and initialization effects can already have occurred when post-add is cancelled; blindly
+replaying the entire ACK is not justified. Ordinary output remains synchronous; saturation,
+phase-coordinated ownership and remaining direct rest senders still need their complete
+C0/C3 treatment. No live DB/client/capture/restart acceptance is claimed.
+
 ### C1/C2 post-add zone application boundary — above `c936c826`, 2026-09-06
 
 Behavior-preserving boundary extraction: the existing terrain resolution and represented
@@ -1584,11 +1636,12 @@ Bounded `validation-v2 quick --base HEAD` passes; verified manifest:
 `target/validation-v2/manifests/20260906T182156.268630Z-3-quick.json`.
 This is working-tree evidence; only this evidence paragraph was added afterward.
 
-Separate unresolved cancellation boundary: after-add still consumes the deferred rest flag
+At this earlier cut, the separate unresolved cancellation boundary was: after-add consumes the deferred rest flag
 before awaiting world-state loading. Cancellation can lose that presentation intention;
 zone reentry also resets the marker. This refactor deliberately does not change those
 semantics. A repair needs cancellation/reentry/delivery-acceptance tests, not an untested
-line move. Full worldport/logout/deferred-save integration and C0–C4 remain open.
+line move. The marker-loss repair and its bounded evidence are recorded immediately above;
+full worldport/logout/deferred-save integration and C0–C4 remain open.
 
 ### C1/C2 self-CREATE construction/delivery boundary — above `a1610315`, 2026-09-06
 
