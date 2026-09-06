@@ -50,6 +50,18 @@ impl WorldSession {
         let residence = manager.player_residence_like_cpp(handle)?;
         manager.with_player_like_cpp(handle, |player| {
             let header = self.player_save_header_from_owner_like_cpp(player, residence);
+            if player.teleport_state_like_cpp().recovery
+                == wow_entities::PlayerTransferRecovery::Terminal
+            {
+                let world = player.unit().world();
+                if !world.position().is_valid_map_coord_like_cpp()
+                    || u32::from(header.map_id) != world.map_id()
+                    || header.instance_id != world.instance_id()
+                    || header.position != world.position()
+                {
+                    return None;
+                }
+            }
             let request = projection::request(self, player, &header, now)?;
             Some(PreparedPlayerSave {
                 receipt: SavedPlayerReceipt {
@@ -70,15 +82,18 @@ impl WorldSession {
         residence: wow_map::PlayerResidenceLikeCpp,
     ) -> PlayerSaveToDbSnapshotLikeCpp {
         let teleport = &player.gameplay_state().teleport;
-        let destination = self
-            .pending_teleport
-            .map(|(map, position)| (u16::try_from(map).unwrap_or(u16::MAX), position))
-            .or_else(|| {
-                teleport
-                    .near_pending
-                    .then_some(teleport.near_destination)
-                    .flatten()
-            });
+        let destination = (teleport.recovery != wow_entities::PlayerTransferRecovery::Terminal)
+            .then(|| {
+                self.pending_teleport
+                    .map(|(map, position)| (u16::try_from(map).unwrap_or(u16::MAX), position))
+                    .or_else(|| {
+                        teleport
+                            .near_pending
+                            .then_some(teleport.near_destination)
+                            .flatten()
+                    })
+            })
+            .flatten();
         let (map_id, instance_id, position) = if let Some((map_id, position)) = destination {
             (map_id, 0, position)
         } else {

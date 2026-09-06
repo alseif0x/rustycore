@@ -368,6 +368,7 @@ pub struct PlayerResurrectionStateLikeCpp {
 /// teleport.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct PlayerTeleportStateLikeCpp {
+    pub recovery: PlayerTransferRecovery,
     pub can_delay: bool,
     pub has_delayed: bool,
     pub near_pending: bool,
@@ -375,6 +376,17 @@ pub struct PlayerTeleportStateLikeCpp {
     pub near_destination: Option<(u16, wow_core::Position)>,
     pub delayed: Option<(u32, wow_core::Position, u32)>,
     pub near_destination_zone_area: Option<(u32, u32)>,
+}
+
+/// Approved bounded recovery extension; owned by the same Player incarnation.
+/// Terminal is not successful entry and must not erase the far semaphore.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlayerTransferRecovery {
+    #[default]
+    None,
+    Homebind,
+    HomebindWorldportReady,
+    Terminal,
 }
 
 /// Player-owned C++ pet lifetime bookkeeping. The live `Pet` remains owned by

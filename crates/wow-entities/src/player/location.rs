@@ -97,6 +97,7 @@ mod tests {
         let destination = Position::new(11.0, 22.0, 33.0, 1.5);
 
         *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
+            recovery: Default::default(),
             can_delay: true,
             has_delayed: true,
             near_pending: true,
@@ -109,6 +110,7 @@ mod tests {
         assert_eq!(
             *player.teleport_state_like_cpp(),
             PlayerTeleportStateLikeCpp {
+                recovery: Default::default(),
                 can_delay: true,
                 has_delayed: true,
                 near_pending: true,

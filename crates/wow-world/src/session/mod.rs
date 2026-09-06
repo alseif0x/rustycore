@@ -10720,6 +10720,7 @@ impl WorldSession {
                 area_spirit_healer_guid: self.area_spirit_healer_guid_like_cpp,
             };
             *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
+                recovery: Default::default(),
                 can_delay: self.represented_can_delay_teleport_like_cpp,
                 has_delayed: self.represented_has_delayed_teleport_like_cpp,
                 near_pending: self.near_teleport_pending_like_cpp,
@@ -40170,6 +40171,12 @@ impl WorldSession {
         new_pos: wow_core::Position,
         mut options: TeleportToOptionsLikeCpp,
     ) {
+        if self
+            .player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.recovery == wow_entities::PlayerTransferRecovery::Terminal)
+        {
+            return;
+        }
         // C++ Player.cpp:1239 validates the catalog map and all four coordinates
         // before movement, combat, pet, ownership or teleport state is changed.
         if self
@@ -59855,6 +59862,7 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(PlayerTeleportStateLikeCpp {
+                recovery: Default::default(),
                 can_delay: self.represented_can_delay_teleport_like_cpp,
                 has_delayed: self.represented_has_delayed_teleport_like_cpp,
                 near_pending: self.near_teleport_pending_like_cpp,

@@ -250,6 +250,7 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         0,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_zone_area_like_cpp(10, 10);
     assert!(session.update_zone_represented_like_cpp(20, 20));
     assert!(
@@ -319,6 +320,7 @@ async fn world_port_response_activates_pvp_item_levels_for_flagged_map_like_cpp(
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.pending_teleport = Some((30, destination));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
@@ -363,6 +365,7 @@ async fn world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp
         30,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.pending_teleport = Some((571, destination));
     session.set_represented_far_teleport_pending_like_cpp(true);

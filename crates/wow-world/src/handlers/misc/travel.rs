@@ -297,17 +297,24 @@ impl crate::session::WorldSession {
     /// the client send CMSG_WORLD_PORT_RESPONSE. Without this step the client sits on the
     /// loading screen at 0% forever. #NEXT.R8.ENTITIES.1229.
     pub async fn handle_suspend_token_response(&mut self, _pkt: wow_packet::WorldPacket) {
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return;
+        }
         if !self.represented_far_teleport_pending_like_cpp() {
             return;
         }
         let Some((new_map, new_pos)) = self.pending_teleport else {
             return;
         };
-        self.send_packet(&wow_packet::packets::misc::NewWorld {
+        if !self.send_packet(&wow_packet::packets::misc::NewWorld {
             map_id: new_map,
             pos: new_pos,
             reason: 0,
-        });
+        }) {
+            self.kick("worldport NewWorld could not be queued");
+            return;
+        }
+        self.recovery_new_world_sent_like_cpp();
         info!(
             account = self.account_id,
             map = new_map,
@@ -328,6 +335,11 @@ impl crate::session::WorldSession {
     ) {
         use wow_packet::packets::misc::ResumeToken;
 
+        if self.state() == crate::session::SessionState::Disconnecting
+            || !self.recovery_worldport_ack_ready_like_cpp()
+        {
+            return;
+        }
         if !self.represented_far_teleport_pending_like_cpp() {
             warn!(
                 "WorldPortResponse from account {} but far teleport semaphore is not set",
@@ -351,6 +363,7 @@ impl crate::session::WorldSession {
                 account = self.account_id,
                 "WorldPortResponse could not attach its Player; transfer remains pending"
             );
+            self.recover_rejected_worldport_like_cpp().await;
             return;
         }
         self.set_represented_far_teleport_pending_like_cpp(false);

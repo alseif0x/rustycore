@@ -32869,6 +32869,7 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
     let player_guid = ObjectGuid::create_player(1, 5_580);
     let destination = Position::new(3701.0, 1501.0, 121.0, 0.5);
     let owned = wow_entities::PlayerTeleportStateLikeCpp {
+        recovery: Default::default(),
         can_delay: true,
         has_delayed: true,
         near_pending: true,
@@ -32915,6 +32916,7 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
     );
 
     let replacement_state = wow_entities::PlayerTeleportStateLikeCpp {
+        recovery: Default::default(),
         can_delay: false,
         has_delayed: false,
         near_pending: false,

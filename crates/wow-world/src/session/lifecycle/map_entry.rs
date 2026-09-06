@@ -21,6 +21,12 @@ impl WorldSession {
         map_id: u32,
         position: wow_core::Position,
     ) -> bool {
+        if self
+            .player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.recovery == wow_entities::PlayerTransferRecovery::Terminal)
+        {
+            return false;
+        }
         let Ok(map_id_u16) = u16::try_from(map_id) else {
             return false;
         };
@@ -40,6 +46,9 @@ impl WorldSession {
             return false;
         }
         self.set_player_map_position_like_cpp(map_id_u16, position);
+        let _ = self.update_player_teleport_state_like_cpp(|state| {
+            state.recovery = wow_entities::PlayerTransferRecovery::None;
+        });
         true
     }
 

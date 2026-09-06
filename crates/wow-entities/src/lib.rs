@@ -281,6 +281,7 @@ pub use player_gameplay_state::{
     PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp, PlayerItemSetEffectLikeCpp,
     PlayerMenuStateLikeCpp, PlayerMovementControlStateLikeCpp, PlayerPetLifecycleStateLikeCpp,
     PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
+    PlayerTransferRecovery,
 };
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,

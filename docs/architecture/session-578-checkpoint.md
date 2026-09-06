@@ -1339,6 +1339,65 @@ Local aarch64 working-cut evidence above `a7ddabe8`:
 No runtime was installed/restarted and no capture, DB durability, complete recovery or
 C0-C4 acceptance is claimed. The unrelated LFG audit remains untouched.
 
+### Bounded terminal recovery — 2026-09-06, working tree above `cf5b0757`
+
+The user's continuation approved the proposed terminal policy below, an intentional
+legacy departure. C++ `WorldSession.cpp:544-551` loops while a
+far transfer remains pending; `Player.cpp:19327-19333` defers saves in that state.
+Combining those literally with repeated failed far-homebind recovery risks a retry loop
+or a permanently deferred disconnect save. Current Rust instead goes straight to save
+in `session/lifecycle/logout.rs`, without completing the transfer. Neither is acceptance.
+
+Approved bounded contract: attempt the requested destination, then at most
+one homebind recovery. If neither can admit the same Player, close gameplay admission
+and disconnect without publishing entry success. If the retained incarnation and its
+source map/instance/coordinates still form a coherent snapshot, persist current Player
+progress at that retained source location using the existing full-save transaction and
+all existing fences. This is a saved return location for relogin, not a claim of active
+membership or an immediate successful return to the old map. Revalidate entry at login.
+
+Never substitute a guessed location, save the rejected destination, infer a successful
+COMMIT, or clear dirty revisions on Failed/Unknown. A missing/stale owner or an
+indeterminate durable base keeps the existing no-overwrite/quarantine rule. Explicit
+terminal recovery state must distinguish this save from an ordinary in-flight far save;
+merely clearing the far flag to bypass deferral is not the implementation contract.
+
+Implemented in `session/lifecycle/transfer_recovery.rs`, the travel handlers and the
+Player-owned teleport state: one homebind attempt, ACK admission only after recovery
+NewWorld is queued, then terminal disconnect on rejection. Repeated ACKs cannot restart
+terminal recovery. Queue acceptance is not delivery proof or perfect empty-ACK correlation.
+Successful attachment clears the recovery marker; terminal failure retains far-pending.
+`persistence/prepared.rs` explicitly ignores the rejected pending destination only in
+terminal state and validates the same retained owner's map, instance and finite position.
+This fixes the prior save header's pending-destination precedence for this terminal case;
+no Session mirror, new lock or transaction path is added.
+
+Local aarch64 evidence: `cargo test --offline --locked -p wow-world --lib` passes
+3,759 tests (one ignored); the two new map-entry tests cover bounded/missing/invalid
+homebind, terminal replay rejection and incoherent-source save refusal. Existing travel
+fixtures now adopt their installed canonical Player before setting transfer state.
+`cargo test --offline --locked -p wow-entities --lib player::location` passes one test.
+Production-linked `cargo test --offline --locked -p wow-world --test
+production_login_player_owner` passes 11 tests and exercises rejected destination,
+homebind NewWorld, second rejection and the existing disconnect full-save entrypoint
+against a controlled port, distinguishing native origin from both rejected destinations.
+This is not real DB durability, restart/relogin or client capture evidence.
+
+Local structural validation also passes: Session syntax/exact-item policy, five
+preserved persistence-policy tests, architecture check and self-test (20 fixtures),
+format and diff checks. `PROTOC=/home/ubuntu/.local/protoc/bin/protoc
+./tools/validation-v2 quick --base HEAD` passes above `cf5b0757`; verified manifest:
+`target/validation-v2/manifests/20260906T172106.098493Z-3-quick.json`.
+Reviewed logical Session growth is +109 production/+90 test lines, mostly private
+modules; root files gain only six terminal guard lines and four fixture-literal lines
+combined. All 101 existing physical migration ceilings still require C4 retirement.
+
+Still open: ordinary in-flight far-save deferral and its resumption, nonterminal transfer
+completion during logout, before-add publication order and cancellation after attachment.
+Calling the network ACK handler during logout is not a substitute: it can publish packets
+or await auxiliary reads. This slice does not close C1 or C0–C4 and does not authorize
+runtime installation, DB mutations, capture sessions, push or merge.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,

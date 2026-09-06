@@ -3,8 +3,21 @@
 use super::*;
 
 #[tokio::test]
-async fn production_rejected_worldport_does_not_publish_entry_or_consume_transfer() {
+async fn production_rejected_worldport_recovers_once_then_saves_retained_source() {
     let (mut session, port, _, receiver) = hydrate(true, true, true).await;
+    port.manager
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_player_mut(ObjectGuid::create_player(1, 42))
+        .unwrap()
+        .gameplay_state_mut()
+        .homebind
+        .as_mut()
+        .unwrap()
+        .position = Position::new(100.0, 200.0, 300.0, 0.0);
     let maps = |ids: Vec<u32>| {
         Arc::new(MapStore::from_entries(ids.into_iter().map(|id| MapEntry {
             id,
@@ -41,8 +54,30 @@ async fn production_rejected_worldport_does_not_publish_entry_or_consume_transfe
         )
         .await;
     assert_eq!(session.state(), SessionState::Transfer);
-    assert!(receiver.is_empty());
+    assert_eq!(
+        receiver
+            .try_iter()
+            .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+            .collect::<Vec<_>>(),
+        vec![
+            wow_constants::ServerOpcodes::CancelCombat as u16,
+            wow_constants::ServerOpcodes::TransferPending as u16,
+            wow_constants::ServerOpcodes::SuspendToken as u16,
+        ]
+    );
     assert!(port.manager.try_lock().unwrap().find_map(1, 0).is_none());
+    session
+        .handle_world_port_response_with_catalogs_like_cpp(
+            &catalogs,
+            &trait_tree::TraitNodeEntryStore::from_entries([]),
+            wow_packet::WorldPacket::new_empty(),
+        )
+        .await;
+    assert!(
+        receiver.is_empty(),
+        "an old ACK cannot complete the new recovery before NewWorld"
+    );
+    assert_eq!(session.state(), SessionState::Transfer);
     session
         .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
         .await;
@@ -54,6 +89,26 @@ async fn production_rejected_worldport_does_not_publish_entry_or_consume_transfe
         wow_constants::ServerOpcodes::NewWorld as u16
     );
     assert!(receiver.is_empty());
+    session.set_map_store(maps(vec![]));
+    for _ in 0..2 {
+        session
+            .handle_world_port_response_with_catalogs_like_cpp(
+                &catalogs,
+                &trait_tree::TraitNodeEntryStore::from_entries([]),
+                wow_packet::WorldPacket::new_empty(),
+            )
+            .await;
+        assert_eq!(session.state(), SessionState::Disconnecting);
+        assert!(
+            receiver.is_empty(),
+            "terminal rejection cannot start another handshake"
+        );
+    }
+    session
+        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
+        .await;
+    assert!(receiver.is_empty());
+    save::assert_terminal_source_save(&mut session, &port).await;
 }
 
 #[tokio::test]

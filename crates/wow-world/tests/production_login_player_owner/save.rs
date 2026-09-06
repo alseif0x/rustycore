@@ -4,6 +4,27 @@
 use super::*;
 use std::sync::Mutex;
 
+pub(super) async fn assert_terminal_source_save(session: &mut WorldSession, port: &LoginPort) {
+    let probe = Arc::new(SaveProbe {
+        requests: Mutex::new(vec![]),
+        released: AtomicBool::new(true),
+        outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    });
+    *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    session
+        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .await;
+    let requests = probe.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    // The login fixture installs its canonical Player at the origin, not the rejected
+    // destination (7,8,9) or homebind (100,200,300).
+    assert_eq!(requests[0].character.position.map_id, 0);
+    assert_eq!(requests[0].character.position.x, 0.0);
+    assert_eq!(requests[0].character.position.y, 0.0);
+    assert_eq!(requests[0].character.position.z, 0.0);
+}
+
 pub(super) struct SaveProbe {
     requests: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     released: AtomicBool,

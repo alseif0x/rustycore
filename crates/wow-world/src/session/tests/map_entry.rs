@@ -2,6 +2,92 @@
 //! composes both synchronously; a decision is not a durable/asynchronous permit.
 use super::*;
 
+#[tokio::test]
+async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
+    use wow_entities::PlayerTransferRecovery;
+    let (mut session, _, output) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+    let source = Position::new(1.0, 2.0, 3.0, 0.5);
+    let home = Position::new(10.0, 20.0, 30.0, 0.5);
+    session.set_player_position_like_cpp(source);
+    assert!(
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 0,
+            position: home,
+        })
+    );
+    let handle = session.player_handle_like_cpp.unwrap();
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    session.pending_teleport = Some((1, Position::default()));
+    assert!(session.set_represented_far_teleport_pending_like_cpp(true));
+    session.state = SessionState::Transfer;
+    session.recover_rejected_worldport_like_cpp().await;
+    assert_eq!(
+        session
+            .player_teleport_state_snapshot_like_cpp()
+            .unwrap()
+            .recovery,
+        PlayerTransferRecovery::Homebind
+    );
+    assert_eq!(session.pending_teleport, Some((0, home)));
+    drain_server_opcodes(&output);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([]));
+    assert!(!session.try_attach_worldport_destination_like_cpp(0, home));
+    for _ in 0..2 {
+        session.recover_rejected_worldport_like_cpp().await;
+        assert_eq!(session.state, SessionState::Disconnecting);
+        let state = session.player_teleport_state_snapshot_like_cpp().unwrap();
+        assert_eq!(state.recovery, PlayerTransferRecovery::Terminal);
+        assert!(state.far_pending, "terminal is not successful entry");
+        assert_eq!(session.player_handle_like_cpp, Some(handle));
+        assert!(output.is_empty());
+    }
+    let save = session
+        .prepare_player_save_like_cpp(0)
+        .expect("coherent source can be saved");
+    assert_eq!(save.header.map_id, 0);
+    assert_eq!(save.header.position, source);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
+    session.teleport_to(0, home).await;
+    assert!(!session.try_attach_worldport_destination_like_cpp(0, home));
+    assert!(output.is_empty());
+    session
+        .with_owned_player_mut_like_cpp(|p| {
+            p.unit_mut()
+                .world_mut()
+                .relocate(Position::new(f32::NAN, 2.0, 3.0, 0.5))
+        })
+        .unwrap();
+    assert!(session.prepare_player_save_like_cpp(0).is_none());
+}
+
+#[tokio::test]
+async fn recovery_missing_or_invalid_homebind_terminates_without_replacing_source() {
+    for invalid in [false, true] {
+        let (mut session, _, output) = make_session();
+        install_canonical_player_owner_for_test(&mut session, 0, 0);
+        session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
+        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        session.pending_teleport = Some((1, Position::default()));
+        assert!(session.set_represented_far_teleport_pending_like_cpp(true));
+        if invalid {
+            assert!(
+                session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+                    map_id: 0,
+                    area_id: 0,
+                    position: Position::new(f32::NAN, 0.0, 0.0, 0.0),
+                })
+            );
+        }
+        session.recover_rejected_worldport_like_cpp().await;
+        assert_eq!(session.state, SessionState::Disconnecting);
+        assert_eq!(session.pending_teleport, Some((1, Position::default())));
+        assert!(output.is_empty());
+    }
+}
+
 #[test]
 fn rejected_entry_preserves_source_coordinates_and_exact_detached_owner() {
     for collision in [false, true] {

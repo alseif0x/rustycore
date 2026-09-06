@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82209,
-          "test_lines": 106865,
-          "total_lines": 189074,
+          "production_lines": 82318,
+          "test_lines": 106955,
+          "total_lines": 189273,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 rejected worldport entry above a7ddabe8: +31 production/+37 test lines in small private map-entry modules. ACK consumes transfer only after a synchronous successful attachment; invalid admission/add preserves source coordinates and pending transfer. Existing positive test uses this operation; new failure test checks exact owner and source position on missing catalog/duplicate target. No new field, lock, clock or persistence path; full recovery/save/logout, phase order and client capture remain open.",
+          "latest_growth_review": "2026-09-06 approved terminal recovery above cf5b0757: +109 production/+90 test lines. Private recovery module and map-entry/save seams enforce one homebind attempt, terminal rejection and coherent retained-source projection; Player owns the marker, with no Session mirror, lock or transaction path. Root growth is six guard lines and two test-literal lines; new scenario bodies remain in the small map-entry suite. Ordinary far-save deferral/logout completion, publication order and C4 retirement remain open. Evidence: session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1520,10 +1520,10 @@
         {
           "path": "crates/wow-entities/src/player/mod.rs",
           "production_lines": 11287,
-          "test_lines": 10130,
-          "total_lines": 21417,
+          "test_lines": 10132,
+          "total_lines": 21419,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-05 reputation projection selection: +9 production/+2 test lines. Receipt capture follows C++ FactionStateList's ReputationListID key exactly, retaining omitted malformed rows as dirty. The ordinary two-faction test now uses distinct list keys. No persistent mirror, SQL dependency or clock; 210-line native ACK and 222-line tests. Prior full-save review, focused evidence and C1/C4 boundaries: session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 bounded recovery above cf5b0757: +0 production/+2 test lines in this logical Player module for exhaustive teleport-state literals. The native recovery enum lives in the separately measured player_gameplay_state.rs file; no Session mirror or clock is introduced. Prior save acknowledgement boundaries are unchanged. C1/C4 evidence: session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
