@@ -705,6 +705,7 @@ async fn world_session_shutdown_finalize_success_keeps_clean_exit_like_cpp() {
             async {},
         )
         .await
+        .is_some()
     );
     assert_eq!(world.get_exit_code_like_cpp(), SHUTDOWN_EXIT_CODE_LIKE_CPP);
 }
@@ -714,12 +715,13 @@ async fn world_session_shutdown_finalize_timeout_sets_terminal_error_like_cpp() 
     let world = WorldRuntimeStateLikeCpp::new();
 
     assert!(
-        !run_world_session_shutdown_finalize_step_like_cpp(
+        run_world_session_shutdown_finalize_step_like_cpp(
             &world,
             Duration::from_millis(1),
             std::future::pending::<()>(),
         )
         .await
+        .is_none()
     );
     assert!(world.is_stopped_like_cpp());
     assert_eq!(world.get_exit_code_like_cpp(), ERROR_EXIT_CODE_LIKE_CPP);

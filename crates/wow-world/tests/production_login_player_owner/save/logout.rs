@@ -3,6 +3,86 @@
 use super::*;
 
 #[tokio::test]
+async fn production_disconnect_reports_incomplete_native_work_before_persistence() {
+    let (mut session, port, _output, _receiver) = hydrate(true, true, true).await;
+    let guid = ObjectGuid::create_player(1, 42);
+    {
+        let mut owner = port.manager.lock().unwrap();
+        let player = owner
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(guid)
+            .unwrap();
+        player.teleport_state_mut_like_cpp().post_add =
+            Some(wow_entities::PlayerWorldportPostAddLikeCpp {
+                map_id: 1, // Does not match this incarnation's actual map.
+                position: player.unit().world().position(),
+                phase: wow_entities::PlayerWorldportPostAddPhaseLikeCpp::ZoneApplied,
+            });
+    }
+    // No save probe: the port panics on unexpected persistence/offline calls.
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    assert_eq!(
+        session
+            .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+            .await,
+        DisconnectSaveAttemptLikeCpp::NativeCompletionUnavailable
+    );
+    assert_eq!(session.player_guid(), Some(guid));
+    assert_eq!(session.state(), SessionState::Disconnecting);
+}
+
+#[tokio::test]
+async fn production_disconnect_reports_unavailable_save_without_retiring_owner() {
+    let (mut session, port, _output, _receiver) = hydrate(true, true, true).await;
+    session.kick("controlled disconnect before unavailable projection");
+    let guid = ObjectGuid::create_player(1, 42);
+    let probe = Arc::new(SaveProbe {
+        requests: Mutex::new(vec![]),
+        released: AtomicBool::new(true),
+        outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    });
+    *port.save_probe.lock().unwrap() = Some(probe.clone());
+    {
+        let mut owner = port.manager.lock().unwrap();
+        let player = owner
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(guid)
+            .unwrap();
+        player.teleport_state_mut_like_cpp().recovery =
+            wow_entities::PlayerTransferRecovery::Terminal;
+        player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(f32::NAN, 0.0, 0.0, 0.0));
+    }
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let report = session
+        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .await;
+    assert_eq!(
+        report,
+        DisconnectSaveAttemptLikeCpp::Character(PlayerSaveOutcomeLikeCpp::Unavailable)
+    );
+    assert_eq!(session.state(), SessionState::Disconnecting);
+    assert_eq!(session.player_guid(), Some(guid));
+    assert!(probe.requests.lock().unwrap().is_empty());
+    assert!(
+        port.manager
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .is_some()
+    );
+}
+
+#[tokio::test]
 async fn production_explicit_logout_completes_pending_transfer_before_save_and_retirement() {
     pending_far_disconnect(DisconnectDestination::Requested, true).await;
 }
@@ -104,6 +184,14 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
                 .get_typed_player(guid)
                 .is_none()
         );
+        drop(manager);
+        assert_eq!(
+            session
+                .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+                .await,
+            DisconnectSaveAttemptLikeCpp::NoPlayer,
+        );
+        assert_eq!(probe.requests.lock().unwrap().len(), 1);
     }
 }
 

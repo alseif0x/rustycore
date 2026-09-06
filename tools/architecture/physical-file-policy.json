@@ -62,8 +62,8 @@
     },
     {
       "path": "crates/world-server/src/main_tests.rs",
-      "observed_lines": 13038,
-      "ceiling_lines": 13038,
+      "observed_lines": 13040,
+      "ceiling_lines": 13040,
       "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders.",
       "review_checkpoint": "578:C4"
     },

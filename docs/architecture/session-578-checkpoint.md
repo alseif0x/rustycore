@@ -3,6 +3,84 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C1 disconnect attempt reaches supervision — above `ab753fe5`, 2026-09-06
+
+The disconnect wrapper previously discarded `PlayerSaveOutcomeLikeCpp`, and the
+shutdown helper accepted only unit futures. This cut propagates a public, narrow
+`DisconnectSaveAttemptLikeCpp`: NoPlayer, NativeCompletionUnavailable or the actual
+character-save classification. It is deliberately **not** a whole-finalization receipt.
+The existing outcome type is reexported, not mirrored or reconstructed from Session
+state. Applied remains Applied if its old incarnation cannot receive the local receipt;
+Quarantined includes pre-existing reconciliation failure, not just a newly submitted
+unknown COMMIT. Collection/offline methods still classify their own failures locally.
+
+The production factory consumes the report in both normal and shutdown branches. Its
+bounded helper now returns `Option<F::Output>`: Some preserves the exact operation
+result, None marks the existing timeout failure. A completed future is no longer a
+boolean that can be mistaken for a successful save. The existing independent cleanup
+attempt after timeout remains; timeout does not prove rollback or worker quiescence.
+Only the already established native-completion gate refuses normal cleanup. Returned
+non-Applied character outcomes are explicitly logged before existing retirement, with
+no automatic replay, no new global-fatal policy and no invented durable-recovery claim.
+The former unconditional “Finished disconnect save” log is replaced by an attempt log
+with character classification and an explicit independent-durability boundary.
+
+**Decision from the caller review:** do not generalize the native-failure fatal gate to
+all Deferred/Unavailable results. The latter combines missing/replaced owner, invalid
+projection and absent lifecycle port (`persistence/deferred.rs`, `prepared.rs`, and
+`persistence.rs`). These do not provide the cause or phase evidence needed for one
+safe recovery/retention policy. Nor does stopping the process preserve unsaved RAM.
+The preliminary generalized gate was removed before acceptance; this cut preserves
+existing cleanup behavior and makes its incomplete contract visible rather than
+pretending a report alone repairs it. The next C1 boundary must distinguish admission
+causes and legitimate lifecycle exits, then coordinate collection/offline outcomes,
+cancellation and exact-incarnation cleanup for the complete operation.
+In particular, `cleanup.rs::unregister_canonical_player_from_map_like_cpp` consumes
+the handle before retirement and retains a GUID/map fallback when no handle exists.
+Before allowing repeated cleanup, test an old session against a replacement on the
+same map across **two** cleanup calls; single-call handle checks are not idempotence
+proof. This is a source-review risk to reproduce, not a tested defect closure.
+
+C++ anchors: `Server/WorldSession.cpp:544-551` completes far transfers before logout;
+`:633` submits save, `:672-676` retires Player and sends LogoutComplete.
+`Entities/Player/Player.cpp:19312-19322` submits character/login transactions separately;
+`:19324-19333` defers far-transfer saves. Those call sequences do not supply a confirmed
+Rust async finalization receipt. This is a supervision/result-contract change, not a
+claim of full C++ logout parity or a hidden behavioral repair to known rollback.
+
+Controlled production-library regressions assert Applied/Failed/Quarantined reports,
+confirmed old-incarnation results, submitted cancellation without replay, unavailable
+source projection, incomplete native work before any persistence, and NoPlayer after
+explicit logout. A small private factory module tests all seven returned variants and
+independent cleanup after timeout. Neither fixture is a live socket/DB/restart scenario.
+Reviewed growth: Session +19 production lines (82,820 / 107,490 / 190,310 logical
+production/test/total); server +62 production and +73 fixture lines
+(28,980 / 27,094 / 56,074). The private factory module is 114 lines and the production
+logout integration module 278 lines, with a 537-line save fixture parent. Only the
+existing main_tests.rs physical ceiling grows by two lines for the changed Option
+assertions; its named C4 split remains. There are 997 physical files and 101 legacy
+ceilings. Syntax remains 282 + 433 Session fields, 3,699 associated items and 590
+registry rows. Reviewed exact deltas are the disconnect method return type, generic
+shutdown helper signature/body and both factory body fingerprints; no persistence
+inventory row, registry metadata, clock or state field changes.
+
+Local aarch64 evidence (pinned PROTOC, offline/locked Cargo, existing validation cache):
+`cargo test -p wow-world --lib --test production_login_player_owner` passes 3,776 library
+tests (one ignored) and 24 production-linked integration tests in
+`/tmp/rustycore-disconnect-report-final-tests.log`. Syntax-only ownership, architecture
+check/self-test and five preserved persistence-policy tests pass. The initial server
+binary test target compiled but contains zero tests; it is **not** supervision test
+evidence. The actual tests are in `world-server --lib shutdown_`.
+That target passes all ten selected tests (559 filtered) on the final source in
+`/tmp/rustycore-disconnect-report-server-lib-final.log`. Quick compiles the affected
+production/test targets and passes, with verified manifest
+`target/validation-v2/manifests/20260906T214151.364190Z-3-quick.json`. This evidence
+paragraph was completed afterward; no live durability or full finalization is inferred.
+
+**Still open:** full finalization and recovery, C0 cross-clock admission, complete C++
+before/after-add and logout semantics, C2/C3/C4 retirement, and authorized real DB/restart/
+relogin/action-specific captures. No publication or runtime action is part of this cut.
+
 ## C1 explicit logout preserves save quarantine — above `c61903fc`, 2026-09-06
 
 The next caller review reproduced an actual production-linked failure: an explicit

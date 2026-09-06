@@ -155,7 +155,14 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
     };
     if !cancel {
         probe.released.store(true, Ordering::SeqCst);
-        future.await;
+        assert_eq!(
+            future.await,
+            DisconnectSaveAttemptLikeCpp::Character(match outcome {
+                PersistenceOutcomeLikeCpp::Applied { .. } => PlayerSaveOutcomeLikeCpp::Applied,
+                PersistenceOutcomeLikeCpp::Failed { .. } => PlayerSaveOutcomeLikeCpp::Failed,
+                PersistenceOutcomeLikeCpp::Unknown { .. } => PlayerSaveOutcomeLikeCpp::Quarantined,
+            })
+        );
     } else {
         drop(future);
     }
@@ -202,9 +209,13 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
     );
     assert_eq!(probe.requests.lock().unwrap().len(), 1);
     if cancel || matches!(outcome, PersistenceOutcomeLikeCpp::Unknown { .. }) {
-        session
+        let report = session
             .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
             .await;
+        assert_eq!(
+            report,
+            DisconnectSaveAttemptLikeCpp::Character(PlayerSaveOutcomeLikeCpp::Quarantined)
+        );
         assert_eq!(
             probe.requests.lock().unwrap().len(),
             1,

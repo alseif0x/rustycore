@@ -13,7 +13,7 @@ pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
 mod lifecycle;
-pub(crate) use lifecycle::PlayerSaveOutcomeLikeCpp;
+pub use lifecycle::{DisconnectSaveAttemptLikeCpp, PlayerSaveOutcomeLikeCpp};
 pub mod mailbox;
 pub mod registry;
 mod trait_configs;

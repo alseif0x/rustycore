@@ -1446,9 +1446,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82801,
+          "production_lines": 82820,
           "test_lines": 107490,
-          "total_lines": 190291,
+          "total_lines": 190310,
           "owner": "wow-world WorldSession/application monolith.",
           "latest_growth_review": "2026-09-06 deferred-save integration above bc3bdd2f: +95 production/+326 tests. A private persistence adapter retains transfer-blocked requests on canonical Player and returns explicit save outcomes. Worldport drains intent after resurrection; an already-due periodic save joins that phase. Known rollback retains intent until the next scheduled save without disconnecting solely for rollback. Focused private tests cover registered ACK, success/failure/unknown, pre/post-submit cancellation and newer-intent receipts. No new Session field or clock. Unit-returning outer logout/factory finalization and C0-C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
@@ -1495,9 +1495,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28918,
-          "test_lines": 27021,
-          "total_lines": 55939,
+          "production_lines": 28980,
+          "test_lines": 27094,
+          "total_lines": 56074,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +10 production/+0 tests. After existing rename-commit draining, factory completes retained native transfer work before ordinary save/cleanup. Unavailable completion selects the existing fatal exit and refuses normal cleanup; no new clock or timeout. This is not a durable-save receipt or full shutdown acceptance. session-578-checkpoint.md.",
           "open_retirement_issues": [

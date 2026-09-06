@@ -1,6 +1,8 @@
 //! Authenticated connection to configured `WorldSession` composition.
 
 use super::*;
+mod finalization;
+use finalization::allow_disconnect_cleanup_after_attempt_like_cpp;
 
 pub(super) fn load_realm_info_from_snapshot_like_cpp(
     realm_list: &SharedRealmListLikeCpp,
@@ -123,17 +125,18 @@ pub(super) async fn run_world_session_shutdown_finalize_step_like_cpp<F>(
     world_runtime_state: &WorldRuntimeStateLikeCpp,
     step_timeout: Duration,
     step: F,
-) -> bool
+) -> Option<F::Output>
 where
-    F: std::future::Future<Output = ()>,
+    F: std::future::Future,
 {
-    if tokio::time::timeout(step_timeout, step).await.is_ok() {
-        true
-    } else {
-        // A bounded shutdown must not look successful after abandoning player
-        // persistence or shared-runtime cleanup work.
-        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        false
+    match tokio::time::timeout(step_timeout, step).await {
+        Ok(output) => Some(output),
+        Err(_) => {
+            // A bounded shutdown must not look successful after abandoning player
+            // persistence or shared-runtime cleanup work.
+            world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+            None
+        }
     }
 }
 
@@ -367,12 +370,13 @@ pub(super) async fn create_session(
         }
     };
     if active_session_registry.is_shutting_down_like_cpp() {
-        if !run_world_session_shutdown_finalize_step_like_cpp(
+        if run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state.as_ref(),
             WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
             rename_drain,
         )
         .await
+        .is_none()
         {
             tracing::error!(
                 account_id,
@@ -397,22 +401,29 @@ pub(super) async fn create_session(
     // bounded attempt. Normal disconnects preserve the prior unbounded save
     // contract and are never truncated by shutdown policy.
     if active_session_registry.is_shutting_down_like_cpp() {
-        if !run_world_session_shutdown_finalize_step_like_cpp(
+        let attempt = run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state.as_ref(),
             WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
             session.save_disconnect_player_to_db_with_generator_like_cpp(
                 resources.core.handler_catalogs.id_generators.item.as_ref(),
             ),
         )
-        .await
-        {
+        .await;
+        if attempt.is_none() {
             tracing::error!(
                 account_id,
                 timeout_ms = WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP.as_millis(),
                 "Timed out saving disconnected world session during shutdown finalization"
             );
         }
-        if !run_world_session_shutdown_finalize_step_like_cpp(
+        if !allow_disconnect_cleanup_after_attempt_like_cpp(
+            world_runtime_state.as_ref(),
+            account_id,
+            attempt,
+        ) {
+            return;
+        }
+        if run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state.as_ref(),
             WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
             session.cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
@@ -420,6 +431,7 @@ pub(super) async fn create_session(
             ),
         )
         .await
+        .is_none()
         {
             tracing::error!(
                 account_id,
@@ -428,11 +440,18 @@ pub(super) async fn create_session(
             );
         }
     } else {
-        session
+        let attempt = session
             .save_disconnect_player_to_db_with_generator_like_cpp(
                 resources.core.handler_catalogs.id_generators.item.as_ref(),
             )
             .await;
+        if !allow_disconnect_cleanup_after_attempt_like_cpp(
+            world_runtime_state.as_ref(),
+            account_id,
+            Some(attempt),
+        ) {
+            return;
+        }
         session
             .cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
                 resources.core.handler_catalogs.id_generators.item.as_ref(),

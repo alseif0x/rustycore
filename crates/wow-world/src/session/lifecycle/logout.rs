@@ -12,27 +12,36 @@
 //! collections, then the three offline marks — is the observable one and is
 //! preserved exactly.
 //!
-//! The concrete database calls stay as they are behind this seam. #200
-//! replaces the persistence boundary once #187 has frozen the focused Player
-//! contract; this module exists so that replacement has one place to happen.
+//! Persistence uses the existing lifecycle port. A completed attempt is not
+//! proof that every independent collection/offline write committed.
 
 use tracing::info;
 
-use super::super::{SessionState, WorldSession};
+use super::super::{PlayerSaveOutcomeLikeCpp, SessionState, WorldSession};
+
+/// Character-save classification, not a receipt for the entire logout operation.
+/// Collection/offline helpers still report their independent failures locally.
+/// Dropping the future produces no report and does not prove rollback/quiescence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisconnectSaveAttemptLikeCpp {
+    NativeCompletionUnavailable,
+    NoPlayer,
+    Character(PlayerSaveOutcomeLikeCpp),
+}
 
 impl WorldSession {
     pub async fn save_disconnect_player_to_db_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) {
+    ) -> DisconnectSaveAttemptLikeCpp {
         if !self.finish_worldport_native_before_disconnect_like_cpp() {
             self.kick("disconnect save refused incomplete worldport native work");
-            return;
+            return DisconnectSaveAttemptLikeCpp::NativeCompletionUnavailable;
         }
         let Some(player_guid) = self.player_guid() else {
             self.mark_login_account_offline_on_disconnect_like_cpp()
                 .await;
-            return;
+            return DisconnectSaveAttemptLikeCpp::NoPlayer;
         };
 
         info!(
@@ -47,7 +56,8 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.clear_buyback_on_logout().await;
-        self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+        let outcome = self
+            .save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
             .await;
         self.save_account_mounts_like_cpp().await;
         self.save_account_toys_like_cpp().await;
@@ -61,8 +71,10 @@ impl WorldSession {
         info!(
             account = self.account_id,
             guid = player_guid.counter(),
-            "Finished disconnect save"
+            ?outcome,
+            "Disconnect persistence attempt returned; collection/offline durability is independent"
         );
+        DisconnectSaveAttemptLikeCpp::Character(outcome)
     }
 
     #[cfg(test)]

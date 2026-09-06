@@ -12,7 +12,7 @@ use std::sync::Arc;
 mod deferred;
 #[cfg(test)]
 mod fixture_tests;
-pub(crate) use deferred::PlayerSaveOutcomeLikeCpp;
+pub use deferred::PlayerSaveOutcomeLikeCpp;
 mod prepared;
 mod projection;
 
