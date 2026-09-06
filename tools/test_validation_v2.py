@@ -512,6 +512,19 @@ def test_planner_contract(repo: Path) -> None:
     assert "a" in final_test and "b" not in final_test and "c" not in final_test
     ratchet = ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"]
     assert ratchet in final and ratchet not in quick
+    physical = ["python3", "tools/architecture/check_architecture.py", "physical-files"]
+    assert physical in final and physical not in quick
+    # Not conditional on a workspace crate: source deletions, integrated tools
+    # and generation inputs/policy changes all retain the physical gate.
+    for changed in ("tools/qa.py", "tools/bot/src/main.rs", "tools/guest/test.c",
+                    "crates/a/tests/deleted.rs", "data/generator-input.txt", "docs/state.md"):
+        only_groups = runner.grouped_paths([changed])
+        only_final, _ = runner.validation_commands(repo, "final", 2, "base", only_groups, None)
+        assert physical in only_final, changed
+        assert ratchet not in only_final, changed
+    physical_groups = runner.grouped_paths(["tools/architecture/physical-file-policy.json"])
+    physical_quick, _ = runner.validation_commands(repo, "quick", 2, "base", physical_groups, None)
+    assert ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_physical_files.py"] in physical_quick
     assert len({tuple(command) for command in final}) == len(final)
 
     # A root-wide path widens the check to the whole workspace. It must not

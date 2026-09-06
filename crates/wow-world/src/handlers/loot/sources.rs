@@ -12,15 +12,18 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) async fn open_represented_gameobject_chest_like_cpp(
+    pub(crate) async fn open_represented_gameobject_chest_with_template_money_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
+        template_money: (u32, u32),
     ) {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
@@ -40,6 +43,7 @@ impl WorldSession {
             });
             if source.should_autostore_push_loot_like_cpp() {
                 self.autostore_represented_gameobject_chest_push_loot_like_cpp(
+                    item_guid_generator,
                     gameobject_guid,
                     source,
                 )
@@ -80,6 +84,7 @@ impl WorldSession {
             player_guid,
             source,
             &allowed_looters,
+            template_money,
         )
         .await;
         if should_record_generation_effects && self.loot_table.contains_key(&gameobject_guid) {
@@ -141,11 +146,17 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(gameobject_guid);
-        self.represented_on_loot_opened_like_cpp(gameobject_guid, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            gameobject_guid,
+            player_guid,
+            response,
+        );
     }
 
-    pub(crate) async fn open_represented_fishing_hole_like_cpp(
+    pub(crate) async fn open_represented_fishing_hole_with_catalogs_like_cpp(
         &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         gameobject_entry: u32,
         loot_id: u32,
@@ -153,9 +164,10 @@ impl WorldSession {
         let player_guid = self.player_guid();
         let should_update_criteria = player_guid.is_some()
             && loot_id != 0
-            && self.player_is_alive_like_cpp()
+            && self.resolved_player_is_alive_like_cpp() == Some(true)
             && self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid);
         self.open_represented_gameobject_personal_loot_like_cpp(
+            item_valuation,
             gameobject_guid,
             loot_id,
             LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
@@ -174,8 +186,26 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn open_represented_fishing_node_loot_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn open_represented_fishing_hole_like_cpp(
         &mut self,
+        gameobject_guid: ObjectGuid,
+        gameobject_entry: u32,
+        loot_id: u32,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.open_represented_fishing_hole_with_catalogs_like_cpp(
+            &item_valuation,
+            gameobject_guid,
+            gameobject_entry,
+            loot_id,
+        )
+        .await;
+    }
+
+    pub(crate) async fn open_represented_fishing_node_loot_with_catalogs_like_cpp(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         area_id: u32,
         junk: bool,
@@ -183,7 +213,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
@@ -293,11 +323,34 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(gameobject_guid);
-        self.represented_on_loot_opened_like_cpp(gameobject_guid, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            gameobject_guid,
+            player_guid,
+            response,
+        );
     }
 
-    pub(crate) async fn open_represented_gathering_node_like_cpp(
+    #[cfg(test)]
+    pub(crate) async fn open_represented_fishing_node_loot_like_cpp(
         &mut self,
+        gameobject_guid: ObjectGuid,
+        area_id: u32,
+        junk: bool,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.open_represented_fishing_node_loot_with_catalogs_like_cpp(
+            &item_valuation,
+            gameobject_guid,
+            area_id,
+            junk,
+        )
+        .await;
+    }
+
+    pub(crate) async fn open_represented_gathering_node_with_catalogs_like_cpp(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         gameobject_entry: u32,
         source: GatheringNodeUseSource,
@@ -305,7 +358,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
@@ -324,6 +377,7 @@ impl WorldSession {
         }
 
         self.open_represented_gameobject_personal_loot_like_cpp(
+            item_valuation,
             gameobject_guid,
             source.loot_id,
             LOOT_TYPE_CHEST_LIKE_CPP,
@@ -578,8 +632,11 @@ impl WorldSession {
         };
         manager
             .find_map(map_key.map_id, map_key.instance_id)
-            .and_then(|map| map.map().get_typed_creature(creature_guid))
-            .is_some_and(|creature| !creature.is_alive())
+            .and_then(|map| {
+                map.map()
+                    .creature_transform_vitals_snapshot_like_cpp(creature_guid)
+            })
+            .is_some_and(|creature| !creature.is_alive)
     }
 
     fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
@@ -695,6 +752,23 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) async fn open_represented_gathering_node_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        gameobject_entry: u32,
+        source: GatheringNodeUseSource,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.open_represented_gathering_node_with_catalogs_like_cpp(
+            &item_valuation,
+            gameobject_guid,
+            gameobject_entry,
+            source,
+        )
+        .await;
+    }
+
     fn record_represented_gameobject_use_effects_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -735,11 +809,12 @@ impl WorldSession {
                     xp_difficulty,
                 )
             })
-            .unwrap_or(0)
+            .unwrap_or_default()
     }
 
     async fn open_represented_gameobject_personal_loot_like_cpp(
         &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         gameobject_guid: ObjectGuid,
         loot_id: u32,
         loot_type: u8,
@@ -748,7 +823,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if loot_id == 0 || !self.player_is_alive_like_cpp() {
+        if loot_id == 0 || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
@@ -874,7 +949,12 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(gameobject_guid);
-        self.represented_on_loot_opened_like_cpp(gameobject_guid, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            gameobject_guid,
+            player_guid,
+            response,
+        );
     }
 
     pub(super) fn sync_represented_gameobject_loot_to_canonical_like_cpp(
@@ -1500,6 +1580,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
         source: GameObjectLootSource,
         allowed_looters: &[ObjectGuid],
+        template_money: (u32, u32),
     ) {
         // C++ creates `m_loot` synchronously in `GameObject::Use`
         // (`GameObject.cpp:2559-2575`). Capture the exact map-owned lifetime
@@ -1589,11 +1670,12 @@ impl WorldSession {
                 .as_ref()
                 .map_or(allowed_looters, |looters| looters.as_slice());
             let Some(mut loot) = self
-                .generate_represented_gameobject_chest_loot_like_cpp(
+                .generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
                     gameobject_guid,
                     player_guid,
                     source,
                     generation_allowed_looters,
+                    template_money,
                 )
                 .await
             else {
@@ -1692,12 +1774,13 @@ impl WorldSession {
         }
     }
 
-    pub(super) async fn generate_represented_gameobject_chest_loot_like_cpp(
+    pub(super) async fn generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
         source: GameObjectLootSource,
         allowed_looters: &[ObjectGuid],
+        template_money: (u32, u32),
     ) -> Option<CreatureLoot> {
         let personal_loot = source.uses_personal_loot_like_cpp();
         let personal_encounter = source.is_personal_encounter_loot_like_cpp();
@@ -1726,9 +1809,7 @@ impl WorldSession {
                 Vec::new()
             })
         };
-        let (min_money, max_money) = self
-            .load_gameobject_template_addon_money_loot_like_cpp(gameobject_guid.entry())
-            .await;
+        let (min_money, max_money) = template_money;
         let coins = self.represented_money_loot_with_rate_like_cpp(
             min_money,
             max_money,
@@ -1822,6 +1903,52 @@ impl WorldSession {
         Some(loot)
     }
 
+    #[cfg(test)]
+    pub(crate) async fn open_represented_gameobject_chest_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        source: GameObjectLootSource,
+    ) {
+        let template_money = self
+            .world_query_catalogs_like_cpp()
+            .and_then(|catalogs| catalogs.gameobject.get(gameobject_guid.entry()))
+            .map(|row| (row.min_money, row.max_money))
+            .unwrap_or((0, 0));
+        let generators = self.id_generators_for_test_like_cpp();
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.open_represented_gameobject_chest_with_template_money_like_cpp(
+            generators.item.as_ref(),
+            &item_valuation,
+            gameobject_guid,
+            source,
+            template_money,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub(super) async fn generate_represented_gameobject_chest_loot_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        source: GameObjectLootSource,
+        allowed_looters: &[ObjectGuid],
+    ) -> Option<CreatureLoot> {
+        let template_money = self
+            .world_query_catalogs_like_cpp()
+            .and_then(|catalogs| catalogs.gameobject.get(gameobject_guid.entry()))
+            .map(|row| (row.min_money, row.max_money))
+            .unwrap_or((0, 0));
+        self.generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
+            gameobject_guid,
+            player_guid,
+            source,
+            allowed_looters,
+            template_money,
+        )
+        .await
+    }
+
     fn represented_gameobject_personal_encounter_tappers_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
@@ -1864,7 +1991,7 @@ impl WorldSession {
         if !use_group_loot_rules {
             return (0, ObjectGuid::EMPTY, ObjectGuid::EMPTY);
         }
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return (0, ObjectGuid::EMPTY, ObjectGuid::EMPTY);
         };
         let Some(registry) = self.group_registry() else {
@@ -2141,6 +2268,7 @@ impl WorldSession {
 
     async fn autostore_represented_gameobject_chest_push_loot_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
     ) -> bool {
@@ -2163,7 +2291,11 @@ impl WorldSession {
         let mut all_stored = true;
         for entry in items {
             if !self
-                .store_direct_loot_item_like_cpp(&entry, source.dungeon_encounter_id)
+                .store_direct_loot_item_with_generator_like_cpp(
+                    item_guid_generator,
+                    &entry,
+                    source.dungeon_encounter_id,
+                )
                 .await
             {
                 all_stored = false;
@@ -2326,7 +2458,7 @@ impl WorldSession {
         &self,
         loot_owner_guid: ObjectGuid,
     ) -> (u8, ObjectGuid, ObjectGuid) {
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return (0, ObjectGuid::EMPTY, ObjectGuid::EMPTY);
         };
         let Some(registry) = self.group_registry() else {
@@ -2638,8 +2770,8 @@ impl WorldSession {
                 let item_count = if player_context.is_current {
                     self.direct_inventory_item_count_like_cpp(condition.value1)
                 } else {
-                    player_context.inventory_item_count(condition.value1)
-                };
+                    Some(player_context.inventory_item_count(condition.value1))
+                }?;
                 Some(item_count >= condition.value2)
             }
             6 => Some(
@@ -2907,7 +3039,7 @@ impl WorldSession {
             }
 
             for spell_id in self.known_spells_like_cpp() {
-                let Some(spell) = self.spell_store().and_then(|store| store.get(*spell_id)) else {
+                let Some(spell) = self.spell_store().and_then(|store| store.get(spell_id)) else {
                     continue;
                 };
                 let can_open_lock = spell.effects().iter().any(|effect| {
@@ -2916,7 +3048,7 @@ impl WorldSession {
                         && effect.effect_base_points >= i32::from(lock.skill[i])
                 });
                 if can_open_lock {
-                    if let Some(range) = self.represented_spell_max_range_like_cpp(*spell_id) {
+                    if let Some(range) = self.represented_spell_max_range_like_cpp(spell_id) {
                         return Some(range);
                     }
                 }

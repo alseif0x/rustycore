@@ -1,5 +1,10 @@
 # Migration: AI
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/AI/` (incluye `CoreAI/`, `ScriptedAI/`, `SmartScripts/`, `PlayerAI/`)
 > **Rust target crate(s):** `crates/wow-ai/`, `crates/wow-script/`, `crates/wow-scripts/`
 > **Layer:** L5/L6 (game systems — creature behavior + scripting)

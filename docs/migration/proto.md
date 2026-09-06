@@ -1,5 +1,10 @@
 # Migration: proto (Battle.net RPC protobuf)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/proto/`
 > **Rust target crate(s):** `crates/wow-proto/`
 > **Layer:** L1 (infrastructure — consumed by `bnet-server`, `wow-network`, `wow-handler`)
@@ -1032,13 +1037,17 @@ Field-number parity was confirmed by cross-referencing `static const int kXxxFie
 
 ### 13.6 JSON encoding (proto3 zero-value vs RapidJSON)
 
-The doc's pre-audit hypothesis ("`serde_json` may include defaults where TrinityCore's RapidJSON would omit them, breaking proto3 zero-value semantics") **does not apply in practice** in this codebase, because:
+The old analysis tried to dismiss the JSON default/null hypothesis using the
+observations below. Those observations do not establish canonical JSON parity;
+compare the actual C++ serializer or an identified capture before accepting it.
 
 1. The only JSON-encoded payloads are `Login.proto` and `RealmList.proto` — both `proto2` with `option optimize_for = CODE_SIZE`. Proto2 has **no** "zero-value omission" rule; presence is tracked explicitly via `required` / `optional`.
-2. The Rust side does not use prost JSON. It hand-rolls plain `serde::Serialize` structs (`AuthResult`, `RealmEntry`, `ClientVersion`, etc.) with `Option<T>` for optional fields. `serde_json` emits `null` for `None` and the value for `Some` — matching C# `JsonSerializer` defaults, which is what the WoW client expects.
+2. The recorded Rust path uses hand-rolled `serde::Serialize` structs (`AuthResult`, `RealmEntry`, `ClientVersion`, etc.) with `Option<T>`. Whether absent fields emit null or are omitted depends on the concrete serializer attributes; this is not proof of the client's expected representation.
 3. Required fields (e.g. `RealmEntry.wow_realm_address` as `i32`) are unconditionally serialized as their concrete value, including `0` if applicable — same as `RapidJSON` would do for a `proto2` `required uint32` field.
 
-A sample message inspected: `RealmEntry { wow_realm_address: 0, ... }` serializes as `{"wowRealmAddress":0,...}`. C# `JsonSerializer.Serialize(realmEntry)` produces `{"wowRealmAddress":0,...}` for the same input. Bytes-identical for the realm-list flow.
+A sample Rust message was recorded as `{"wowRealmAddress":0,...}`. The former
+byte-equivalence claim did not demonstrate a canonical C++ comparison and is
+withdrawn; no replacement parity verdict is asserted here.
 
 The one residual JSON risk is that the hand-rolled struct field set must stay in sync with the `Login.proto` / `RealmList.proto` schemas as Trinity evolves them — there is no compile-time check linking the two. If Trinity adds a field to `RealmEntry`, the Rust hand-roll silently misses it.
 

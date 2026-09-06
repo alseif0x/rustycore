@@ -44,7 +44,7 @@ use wow_social::group::{
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, ReadyCheckEventLikeCpp,
 };
 
-use crate::session::{WorldSession, player_team_for_race_cpp};
+use crate::session::{GroupInvitePolicyLikeCpp, WorldSession, player_team_for_race_cpp};
 
 const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(250);
 
@@ -101,7 +101,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_invite",
-        handler: |session, pkt| Box::pin(async move { session.handle_party_invite(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move {
+            session
+                .handle_party_invite_with_policy_like_cpp(
+                    pkt,
+                    catalogs.group_invite_policy.as_ref(),
+                )
+                .await
+        }),
     }
 }
 
@@ -111,7 +118,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_invite_response",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_party_invite_response(pkt).await })
         },
     }
@@ -123,7 +130,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_uninvite",
-        handler: |session, pkt| Box::pin(async move { session.handle_party_uninvite(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_party_uninvite(pkt).await }),
     }
 }
 
@@ -133,7 +140,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_leave_group",
-        handler: |session, pkt| Box::pin(async move { session.handle_leave_group(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_leave_group(pkt).await }),
     }
 }
 
@@ -143,7 +150,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_convert_raid",
-        handler: |session, pkt| Box::pin(async move { session.handle_convert_raid(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_convert_raid(pkt).await }),
     }
 }
 
@@ -153,7 +160,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_change_sub_group",
-        handler: |session, pkt| Box::pin(async move { session.handle_change_sub_group(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_change_sub_group(pkt).await }),
     }
 }
 
@@ -163,7 +170,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_swap_sub_groups",
-        handler: |session, pkt| Box::pin(async move { session.handle_swap_sub_groups(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_swap_sub_groups(pkt).await }),
     }
 }
 
@@ -173,7 +180,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_loot_method",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_loot_method(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_loot_method(pkt).await }),
     }
 }
 
@@ -183,7 +190,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_party_leader",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_party_leader(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_party_leader(pkt).await }),
     }
 }
 
@@ -193,7 +200,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_assistant_leader",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_assistant_leader(pkt).await })
         },
     }
@@ -205,7 +212,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_everyone_is_assistant",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_everyone_is_assistant(pkt).await })
         },
     }
@@ -217,7 +224,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_silence_party_talker",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_silence_party_talker(pkt).await })
         },
     }
@@ -229,7 +236,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_party_assignment",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_party_assignment(pkt).await })
         },
     }
@@ -241,7 +248,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_role",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_role(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_role(pkt).await }),
     }
 }
 
@@ -251,7 +258,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_initiate_role_poll",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_initiate_role_poll(pkt).await })
         },
     }
@@ -263,7 +270,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_update_raid_target",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_update_raid_target(pkt).await })
         },
     }
@@ -275,7 +282,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_party_join_updates",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_party_join_updates(pkt).await })
         },
     }
@@ -287,7 +294,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_party_member_stats",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_party_member_stats(pkt).await })
         },
     }
@@ -299,7 +306,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_do_ready_check",
-        handler: |session, pkt| Box::pin(async move { session.handle_do_ready_check(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_do_ready_check(pkt).await }),
     }
 }
 
@@ -309,7 +316,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_ready_check_response",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_ready_check_response(pkt).await })
         },
     }
@@ -321,7 +328,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_opt_out_of_loot",
-        handler: |session, pkt| Box::pin(async move { session.handle_opt_out_of_loot(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_opt_out_of_loot(pkt).await }),
     }
 }
 
@@ -331,7 +338,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_low_level_raid1",
-        handler: |session, pkt| Box::pin(async move { session.handle_low_level_raid1(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_low_level_raid1(pkt).await }),
     }
 }
 
@@ -341,7 +348,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_low_level_raid2",
-        handler: |session, pkt| Box::pin(async move { session.handle_low_level_raid2(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_low_level_raid2(pkt).await }),
     }
 }
 
@@ -351,7 +358,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_minimap_ping",
-        handler: |session, pkt| Box::pin(async move { session.handle_minimap_ping(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_minimap_ping(pkt).await }),
     }
 }
 
@@ -361,7 +368,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_random_roll",
-        handler: |session, pkt| Box::pin(async move { session.handle_random_roll(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_random_roll(pkt).await }),
     }
 }
 
@@ -1088,7 +1095,11 @@ impl WorldSession {
     ///   ReadString(name_len)
     ///   ReadString(realm_len)
     ///   [if has_party_index] ReadUInt8
-    pub async fn handle_party_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_party_invite_with_policy_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+        policy: &GroupInvitePolicyLikeCpp,
+    ) {
         info!(account = self.account_id, "handle_party_invite called");
         // — parse —
         let has_party_index = pkt.read_bit().unwrap_or(false);
@@ -1179,16 +1190,16 @@ impl WorldSession {
 
         // C++ `HandlePartyInviteOpcode` rejects inviting GM targets unless
         // `GM.AllowInvite` / `CONFIG_ALLOW_GM_GROUP` is enabled.
-        if !self.allow_gm_group_like_cpp()
-            && !self.player_is_game_master_like_cpp()
+        if !policy.allow_gm_group
+            && self.player_is_game_master_like_cpp() != Some(true)
             && target_snapshot.is_game_master
         {
             send_result!(party_result::BAD_PLAYER_NAME);
             return;
         }
 
-        if !self.allow_two_side_interaction_group_like_cpp()
-            && !self.player_is_game_master_like_cpp()
+        if !policy.allow_two_side_interaction
+            && self.player_is_game_master_like_cpp() != Some(true)
             && player_team_for_race_cpp(self.player_race_like_cpp())
                 != player_team_for_race_cpp(target_snapshot.race)
         {
@@ -1207,12 +1218,15 @@ impl WorldSession {
             return;
         }
 
-        if target_snapshot.instance_id != 0
-            && target_snapshot.dungeon_difficulty_id
-                != self.represented_dungeon_difficulty_id_like_cpp()
-        {
-            send_result!(party_result::IGNORING_YOU);
-            return;
+        if target_snapshot.instance_id != 0 {
+            let Some(inviter_difficulty_id) = self.resolved_dungeon_difficulty_id_like_cpp() else {
+                send_result!(party_result::IGNORING_YOU);
+                return;
+            };
+            if target_snapshot.dungeon_difficulty_id != inviter_difficulty_id {
+                send_result!(party_result::IGNORING_YOU);
+                return;
+            }
         }
 
         let social_port = self.social_persistence_port_like_cpp();
@@ -1228,7 +1242,7 @@ impl WorldSession {
             return;
         }
 
-        if u32::from(self.player_level_like_cpp()) < self.party_level_req_like_cpp()
+        if u32::from(self.player_level_like_cpp()) < policy.minimum_level
             && !target_social_has_inviter_friend_like_cpp(social_port, real_target_guid, my_guid)
                 .await
         {
@@ -1255,8 +1269,12 @@ impl WorldSession {
             None => return,
         };
 
-        let inviter_group_guid =
-            current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, party_index);
+        let inviter_group_guid = current_group_guid_like_cpp(
+            group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            party_index,
+        );
         let lookup_category = party_index.unwrap_or(GROUP_CATEGORY_HOME_LIKE_CPP);
         let invite = match group_reg.create_invite_like_cpp(
             pending,
@@ -1344,6 +1362,13 @@ impl WorldSession {
             result_data: 0,
             result_guid: ObjectGuid::EMPTY,
         });
+    }
+
+    #[cfg(test)]
+    pub async fn handle_party_invite(&mut self, pkt: wow_packet::WorldPacket) {
+        let policy = self.group_invite_policy_for_test_like_cpp();
+        self.handle_party_invite_with_policy_like_cpp(pkt, &policy)
+            .await;
     }
 
     /// CMSG_PARTY_INVITE_RESPONSE (0x3606)
@@ -1477,9 +1502,14 @@ impl WorldSession {
         };
         let group_guid = group.group_guid;
 
-        // Update self's group_guid in session — all Arc borrows are gone now.
-        self.group_guid = Some(group_guid);
-        let _ = self.load_represented_group_subgroup_like_cpp();
+        // Attach C++ `Player::m_group` after the Group owner accepted us.
+        if let Some(subgroup) = group_reg.get(&group_guid).and_then(|group| {
+            group
+                .member_slot_like_cpp(my_guid)
+                .map(|slot| slot.subgroup)
+        }) {
+            self.apply_group_join_like_cpp(group_guid, subgroup);
+        }
         if let Some(group) = group_reg.get(&group_guid) {
             self.send_player_party_type_update_like_cpp(
                 group.group_category_like_cpp(),
@@ -1542,7 +1572,7 @@ impl WorldSession {
         let pending_invites = self.pending_invites().map(std::sync::Arc::clone);
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             uninvite.party_index,
         ) else {
@@ -1563,7 +1593,7 @@ impl WorldSession {
             .unwrap_or(0);
         let any_member_in_combat = group_snapshot.members.iter().any(|member_guid| {
             if *member_guid == sender_guid {
-                self.in_combat
+                self.resolved_in_combat_like_cpp() != Some(false)
             } else {
                 registry.group_presence(*member_guid).is_some_and(|member| {
                     member.in_combat
@@ -1659,7 +1689,7 @@ impl WorldSession {
         }
 
         if should_disband {
-            self.group_guid = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
                 wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -1713,8 +1743,12 @@ impl WorldSession {
         let vra = self.virtual_realm_address();
 
         // 1. Find the real group or the C++ `GroupInvite` we're currently in.
-        let real_group_guid =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, party_index);
+        let real_group_guid = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            party_index,
+        );
         let pending_invite = pending_invites
             .as_ref()
             .and_then(|pending| pending.get(&my_guid));
@@ -1805,7 +1839,7 @@ impl WorldSession {
                 }
             }
             // Tell self to leave.
-            self.group_guid = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
                 wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -1821,7 +1855,7 @@ impl WorldSession {
         send_party_update(&outcome.group, &registry, vra);
 
         // 4. Uninvite self.
-        self.group_guid = None;
+        let _ = self.set_owned_player_group_like_cpp(None);
         self.clear_represented_group_subgroup_like_cpp();
         self.send_player_party_type_update_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -1852,9 +1886,12 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            None,
+        ) else {
             return;
         };
         let registry = match self.player_registry() {
@@ -1933,7 +1970,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             change.party_index,
         ) else {
@@ -2002,9 +2039,12 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, swap.party_index)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            swap.party_index,
+        ) else {
             return;
         };
 
@@ -2081,7 +2121,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_leader.party_index,
         ) else {
@@ -2136,7 +2176,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_assistant.party_index,
         ) else {
@@ -2189,7 +2229,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_everyone.party_index,
         ) else {
@@ -2233,9 +2273,12 @@ impl WorldSession {
             None => return,
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
             return;
         };
         let Some(group) = group_reg.get(&group_guid) else {
@@ -2280,7 +2323,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             ready_check.party_index,
         ) else {
@@ -2330,7 +2373,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             response.party_index,
         ) else {
@@ -2382,7 +2425,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             assignment.party_index,
         ) else {
@@ -2444,7 +2487,7 @@ impl WorldSession {
 
         let group_guid = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_role.party_index,
         );
@@ -2528,7 +2571,7 @@ impl WorldSession {
         };
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             update.party_index,
         ) else {
@@ -2608,9 +2651,12 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
             return;
         };
 
@@ -2651,7 +2697,7 @@ impl WorldSession {
         };
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             request.party_index,
         ) else {
@@ -2712,7 +2758,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             role_poll.party_index,
         ) else {
@@ -2762,7 +2808,7 @@ impl WorldSession {
             return;
         }
 
-        self.pass_on_group_loot = opt_out.pass_on_loot;
+        let _ = self.set_pass_on_group_loot_like_cpp(opt_out.pass_on_loot);
     }
 
     /// CMSG_LOW_LEVEL_RAID1 — no-op, C++ only logs at DEBUG level.
@@ -2825,9 +2871,12 @@ impl WorldSession {
             None => return,
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, ping.party_index)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            ping.party_index,
+        ) else {
             return;
         };
 
@@ -2904,9 +2953,12 @@ impl WorldSession {
             return;
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
             self.send_packet(&response);
             return;
         };

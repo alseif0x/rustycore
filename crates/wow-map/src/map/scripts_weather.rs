@@ -245,7 +245,7 @@ where
     /// Count exact typed in-world Creature/GameObject candidates for represented
     /// C++ `GameEventMgr::RunSmartAIScripts` evidence.
     ///
-    /// This intentionally reads only canonical `Map::map_objects`. Generic
+    /// This intentionally reads only canonical `Map::entity_world`. Generic
     /// fallback records are ignored because C++ uses typed object stores. Transport
     /// records are also ignored even though they can expose a GameObject view; the
     /// C++ hook worker's switch has no transport branch in this slice.
@@ -257,7 +257,7 @@ where
             ..GameEventSmartAiScriptCandidateSummaryLikeCpp::default()
         };
 
-        for record in self.map_objects.values() {
+        for record in self.entity_world.values() {
             match record.kind() {
                 AccessorObjectKind::Creature => {
                     if record

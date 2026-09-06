@@ -288,7 +288,9 @@ impl LfgDungeonStoreLikeCpp {
 }
 
 impl LfgDungeonsStore {
-    /// Apply complete C++ `LFGDungeonsEntry` replacements by ID.
+    /// Apply C++ `LFGDungeonsEntry` hotfixes by ID. Both text fields are
+    /// FT_STRING: DB2DatabaseLoader.cpp:121-132,275-287 preserves the previous
+    /// localized string when Field::GetString yields empty text (including NULL).
     pub fn apply_hotfix_entries_like_cpp(
         &mut self,
         hotfix_entries: impl IntoIterator<Item = LfgDungeonsEntry>,
@@ -299,7 +301,15 @@ impl LfgDungeonsStore {
             .map(|entry| (entry.id, entry))
             .collect::<HashMap<_, _>>();
         let mut hotfix_rows = 0usize;
-        for entry in hotfix_entries {
+        for mut entry in hotfix_entries {
+            if let Some(previous) = entries.get(&entry.id) {
+                if entry.name.is_empty() {
+                    entry.name.clone_from(&previous.name);
+                }
+                if entry.description.is_empty() {
+                    entry.description.clone_from(&previous.description);
+                }
+            }
             entries.insert(entry.id, entry);
             hotfix_rows += 1;
         }
@@ -357,6 +367,44 @@ mod tests {
             mentor_char_level: 0,
             flags: [0; 2],
         }
+    }
+
+    #[test]
+    fn empty_lfg_hotfix_text_preserves_previous_strings_but_updates_numeric_fields_like_cpp() {
+        let mut base = lfg_entry(1, LFG_TYPE_DUNGEON_LIKE_CPP, 33, 7);
+        base.description = "DB2 description".into();
+        let mut store = LfgDungeonsStore::from_entries([base]);
+        let mut overlay = lfg_entry(1, LFG_TYPE_DUNGEON_LIKE_CPP, 34, 8);
+        overlay.name.clear();
+        assert_eq!(store.apply_hotfix_entries_like_cpp([overlay]), 1);
+        let entry = store.get(1).unwrap();
+        assert_eq!(entry.name, "LFG 1");
+        assert_eq!(entry.description, "DB2 description");
+        assert_eq!(entry.map_id, 34);
+        assert_eq!(entry.group_id, 8);
+
+        let mut replacement = lfg_entry(1, LFG_TYPE_DUNGEON_LIKE_CPP, 35, 9);
+        replacement.name = "Hotfix name".into();
+        replacement.description = "Hotfix description".into();
+        let mut later_empty = replacement.clone();
+        later_empty.name.clear();
+        later_empty.description.clear();
+        assert_eq!(
+            store.apply_hotfix_entries_like_cpp([replacement, later_empty]),
+            2
+        );
+        assert_eq!(store.get(1).unwrap().name, "Hotfix name");
+        assert_eq!(store.get(1).unwrap().description, "Hotfix description");
+    }
+
+    #[test]
+    fn new_lfg_hotfix_id_keeps_empty_text_without_fabricating_a_previous_entry_like_cpp() {
+        let mut store = LfgDungeonsStore::from_entries([]);
+        let mut overlay = lfg_entry(2, LFG_TYPE_DUNGEON_LIKE_CPP, 33, 7);
+        overlay.name.clear();
+        assert_eq!(store.apply_hotfix_entries_like_cpp([overlay]), 1);
+        assert_eq!(store.get(2).unwrap().name, "");
+        assert_eq!(store.get(2).unwrap().description, "");
     }
 
     #[test]

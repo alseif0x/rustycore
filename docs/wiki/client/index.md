@@ -1,7 +1,10 @@
 # Client
 
 RustyCore targets the WoW Wrath of the Lich King Classic `3.4.3.54261` protocol. The
-currently exercised login path uses game build `51943`.
+[maintained bot wrapper](https://github.com/alseif0x/rustycore/blob/3.4.3/tools/wow-test-bot/run_rustycore_login_smoke.sh)
+defaults to build `54261` unless overridden. Older `51943` smoke records are historical
+evidence, not a claim about the current client path. A default build number is not itself
+acceptance evidence: record the actual client build, scenario and server commit for each run.
 
 The project contains prior smoke coverage for Battle.net authentication, realm selection,
 character enumeration, and initial world entry. Full gameplay parity is still under active

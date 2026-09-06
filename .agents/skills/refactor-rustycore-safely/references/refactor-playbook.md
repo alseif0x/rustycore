@@ -21,9 +21,11 @@ Focused tests:
 Capture/live QA requirement:
 Explicit non-goals:
 Bridge or re-export deletion condition:
+Physical source/test split and remaining file-specific exception exit:
 ```
 
-Reject a slice whose target owner, frozen contract, or non-goals are unclear.
+Pause mutation while a slice's target owner, frozen contract or non-goals are unclear. Continue
+safe investigation under the skill's stop conditions; request a user decision only when needed.
 
 ## Mechanical feature split
 
@@ -33,13 +35,22 @@ Use for `handlers/misc.rs`, packet families, QA scenarios, or a cohesive impl bl
 2. Create a private module in the same crate.
 3. Move definitions and tests without renaming or reordering logic.
 4. Keep imports explicit; do not replace compile errors with broad `pub`.
-5. Confirm every `(opcode, SessionStatus, PacketProcessing)` tuple is unchanged.
-6. Add or update a table-driven test for the exact expected opcode set, metadata, handler names,
-   and uniqueness. Counts alone cannot detect replacement by the wrong opcode.
-7. Run focused tests, crate tests, quick preflight, then full preflight after commit.
+5. If handler registrations are affected, confirm every `(opcode, SessionStatus, PacketProcessing)`
+   tuple is unchanged.
+6. For those handler moves, reuse the existing exact-set registration guard when it covers the
+   affected tuples; add/update coverage only for a demonstrated gap. Assert metadata, handler
+   names and uniqueness, not counts alone. For other surfaces, preserve their actual call/test
+   registration contract instead; do not add unrelated opcode tests.
+7. During iteration, run focused evidence, affected checks and routed `validation-v2 quick`.
+   Run complete affected suites at responsibility/macro acceptance or when the change's risk
+   requires them, not automatically after every helper. Preserve explicit issue requirements;
+   after committing to a clean HEAD, run `validation-v2 final` before an authorized push.
 
-Keep `impl WorldSession` across modules when that preserves C++ handler naming. Do not add
-`CharacterHandlers`-style traits solely for organization.
+Keeping `impl WorldSession` across private modules can preserve the handler API during a
+mechanical split. It does not complete a semantic extraction of gameplay from Session; record
+that remaining boundary and finish it within the approved macro. Do not add
+`CharacterHandlers`-style traits solely for organization. Mechanical source/test organization
+does not need to wait for an unrelated storage-backend proof when owners and behavior stay fixed.
 
 ## Composition-root split
 
@@ -54,8 +65,9 @@ Extract in this order when seams permit:
 5. runtime task supervision and routing;
 6. realm lifecycle and shutdown.
 
-Keep `main` responsible for construction and supervision. Do not move gameplay ownership into a
-binary module merely because it is convenient to wire there.
+Keep `main` a thin entrypoint into testable application composition; `app` and its private
+bootstrap/runtime modules own construction and supervision. Do not move gameplay ownership into
+a binary or composition module merely because it is convenient to wire there.
 
 ## Shared-service boundary
 
@@ -81,6 +93,8 @@ Use for `Map`, `Player`, `Unit`, or another legitimate aggregate.
 - Preserve invariant enforcement at the aggregate boundary.
 - Do not create submanagers that own copies of aggregate state.
 - Keep C++ update phase ordering explicit in the top-level method.
+- Apply `docs/architecture/module-design-guidelines.md` to each physical file, including tests
+  and fixture builders. A cohesive aggregate may span many small modules without duplicating state.
 
 Candidate private modules:
 
@@ -94,7 +108,10 @@ These names are guides, not permission for a bulk move.
 
 ## Handler-to-use-case extraction
 
-Extract one complete vertical operation:
+Extract one complete vertical operation. The following illustrates an existing
+commit-before-application operation, not periodic/deferred save of already-mutated canonical
+state. Preserve the actual C++/current contract; omit inapplicable stages and do not introduce
+a transaction or reorder a save merely to match this diagram:
 
 ```text
 decode packet
@@ -147,14 +164,14 @@ Do not use a new crate to conceal cyclic domain concepts.
 
 | Change surface | Minimum checks |
 |---|---|
-| Pure private move | format, diff check, focused tests, crate tests |
+| Pure private move | format, diff check, focused tests, affected compile check; complete suites at the appropriate acceptance/risk checkpoint |
 | Opcode handler move | exact-set registration test, handler tests, packet tests |
 | Persistence orchestration | positive/negative/deadlock/commit-unknown tests, DB statement order |
 | Map/runtime ownership | one-owner/multi-session tests, lock audit, tick-order tests |
 | Packet/presenter move | byte, connection, recipient, order, visibility, capture-diff |
 | Public API or crate edge | downstream check/tests, `cargo tree`, visibility/re-export audit |
-| QA bot split | scenario JSON fields, CLI compatibility, representative smoke dry run |
+| QA bot split | scenario JSON fields and CLI contract tests; safe planning/dry-run only where a real mode exists, authorized live QA when the affected runtime contract requires it |
 
-Use the repository preflight as the final aggregate gate; its capture-diff harness is mandatory for
-every PR. Require fresh scenario capture or live bot QA only when the issue calls for it. Do not
-replace focused reasoning with a green build.
+Use `validation-v2 final` as the aggregate gate before an authorized push. Apply AGENTS.md's
+capture-diff and runtime-QA triggers plus explicit issue acceptance requirements. Distinguish
+regression tests from fresh scenario captures. Do not replace focused reasoning with a green build.

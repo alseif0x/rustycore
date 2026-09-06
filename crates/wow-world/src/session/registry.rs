@@ -21,14 +21,18 @@ use wow_constants::ClientOpcodes;
 use wow_handler::{HandlerFuture, PacketProcessing, SessionStatus};
 use wow_packet::WorldPacket;
 
-use super::WorldSession;
+use super::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
 /// The call a registered opcode performs.
 ///
 /// Handlers are `async` methods on [`WorldSession`], so a registration boxes
 /// the future rather than storing an `async fn` pointer. A non-capturing
 /// closure coerces to this type, which keeps a registration one literal.
-pub type PacketHandlerFn = for<'a> fn(&'a mut WorldSession, WorldPacket) -> HandlerFuture<'a, ()>;
+pub type PacketHandlerFn = for<'a> fn(
+    &'a mut WorldSession,
+    &'a SessionHandlerCatalogsLikeCpp,
+    WorldPacket,
+) -> HandlerFuture<'a, ()>;
 
 /// A registered packet handler: its admission rules and the call itself.
 ///

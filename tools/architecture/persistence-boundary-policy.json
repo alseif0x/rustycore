@@ -6234,156 +6234,6 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-database:crate::creature_query_catalog_adapter:crates/wow-database/src/creature_query_catalog_adapter.rs::fn statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/creature_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "fn statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480) currently owns the complete wow-database workflow fn statement_like_cpp in crates/wow-database/src/creature_query_catalog_adapter.rs.",
-      "connection_affinity": "Pure construction of one World-database prepared statement; it opens no connection or transaction.",
-      "current_order": "Build the selected creature base, locale or display statement and bind the creature entry exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing a statement.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::creature_query_catalog_adapter:crates/wow-database/src/creature_query_catalog_adapter.rs::impl MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::new",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/creature_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "impl MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::new"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480) currently owns the complete wow-database workflow impl MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/creature_query_catalog_adapter.rs.",
-      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::creature_query_catalog_adapter:crates/wow-database/src/creature_query_catalog_adapter.rs::impl wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp for MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::load_creature_query_catalog_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/creature_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "impl wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp for MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::load_creature_query_catalog_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480) currently owns the complete wow-database workflow impl wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp for MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::load_creature_query_catalog_like_cpp in crates/wow-database/src/creature_query_catalog_adapter.rs.",
-      "connection_affinity": "All reads use the adapter's single World database handle; no cross-database boundary is implied.",
-      "current_order": "Read the base template first; if present, optionally read locale and then display rows, preserving the represented Rust handler order.",
-      "failure_and_unknown_commit": "Base failure is terminal, no base row is Missing, locale failure is returned as a non-fatal diagnostic, and display failure retains the empty-display fallback. Reads have no COMMIT outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::creature_query_catalog_adapter:crates/wow-database/src/creature_query_catalog_adapter.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/creature_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480) currently owns the complete wow-database workflow module in crates/wow-database/src/creature_query_catalog_adapter.rs.",
-      "connection_affinity": "The module owns only the transitional World catalog adapter.",
-      "current_order": "SQL identity, binds and row projection stay private; packet construction and per-session cache remain in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::creature_query_catalog_adapter:crates/wow-database/src/creature_query_catalog_adapter.rs::struct MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/creature_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "struct MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480) currently owns the complete wow-database workflow struct MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/creature_query_catalog_adapter.rs.",
-      "connection_affinity": "The adapter stores exactly one World database handle.",
-      "current_order": "The handle surface implies no runtime order beyond the port method.",
-      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
       "id": "workflow:wow-database:crate::database:crates/wow-database/src/database.rs::fn connect_pool_like_cpp",
       "source_class": "production",
       "packages": [
@@ -6608,8 +6458,41 @@
       ],
       "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl Database < S >::commit_transaction in crates/wow-database/src/database.rs.",
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "current_order": "Delegate the unchanged transaction to commit_transaction_with_outcome_like_cpp, retaining adapter attribution, diagnostic and statement order.",
+      "failure_and_unknown_commit": "Legacy compatibility API erases DefinitelyRolledBack versus CommitOutcomeUnknown into DatabaseError. A returned error is not proof of rollback; callers requiring that distinction must use the typed wrapper.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::database:crates/wow-database/src/database.rs::impl Database < S >::commit_transaction_with_outcome_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/database.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::database"
+      ],
+      "enclosings": [
+        "impl Database < S >::commit_transaction_with_outcome_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl Database < S >::commit_transaction_with_outcome_like_cpp in crates/wow-database/src/database.rs.",
+      "connection_affinity": "The adapter attributes the batch to its one configured logical database and uses its one pool; the supported database list does not imply a distributed transaction.",
+      "current_order": "Preserve the synchronous-query diagnostic, attribute the transaction to the adapter, then await SqlTransaction::commit_with_outcome_like_cpp with unchanged statement and deadlock-retry ordering.",
+      "failure_and_unknown_commit": "Return the original SqlTransactionCommitError distinction between DefinitelyRolledBack and CommitOutcomeUnknown. This wrapper neither reconciles nor replays an ambiguous COMMIT; cancellation does not establish rollback.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -8785,366 +8668,6 @@
       "connection_affinity": "The adapter stores exactly one World database handle.",
       "current_order": "The handle surface implies no order beyond the one typed load method.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_query_catalog_adapter:crates/wow-database/src/gameobject_query_catalog_adapter.rs::fn statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "fn statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482) currently owns the complete wow-database workflow fn statement_like_cpp in crates/wow-database/src/gameobject_query_catalog_adapter.rs.",
-      "connection_affinity": "Pure construction of one World-database prepared statement; it opens no connection or transaction.",
-      "current_order": "Build the selected gameobject base, locale or quest-item statement and bind the gameobject entry exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing a statement.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_query_catalog_adapter:crates/wow-database/src/gameobject_query_catalog_adapter.rs::impl MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::new",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "impl MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::new"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482) currently owns the complete wow-database workflow impl MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/gameobject_query_catalog_adapter.rs.",
-      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_query_catalog_adapter:crates/wow-database/src/gameobject_query_catalog_adapter.rs::impl wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp for MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::load_gameobject_query_catalog_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "impl wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp for MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::load_gameobject_query_catalog_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482) currently owns the complete wow-database workflow impl wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp for MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::load_gameobject_query_catalog_like_cpp in crates/wow-database/src/gameobject_query_catalog_adapter.rs.",
-      "connection_affinity": "All reads use the adapter's single World database handle; no cross-database boundary is implied.",
-      "current_order": "Read the base template first; if present, optionally read locale and then quest-item rows, preserving the represented Rust handler order.",
-      "failure_and_unknown_commit": "Base failure is terminal, no base row is Missing, and locale or quest-item failures return independent non-fatal diagnostics. Reads have no COMMIT outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_query_catalog_adapter:crates/wow-database/src/gameobject_query_catalog_adapter.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482) currently owns the complete wow-database workflow module in crates/wow-database/src/gameobject_query_catalog_adapter.rs.",
-      "connection_affinity": "The module owns only the transitional World catalog adapter.",
-      "current_order": "SQL identity, binds and row projection stay private; packet construction remains in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_query_catalog_adapter:crates/wow-database/src/gameobject_query_catalog_adapter.rs::struct MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_query_catalog_adapter"
-      ],
-      "enclosings": [
-        "struct MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482) currently owns the complete wow-database workflow struct MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/gameobject_query_catalog_adapter.rs.",
-      "connection_affinity": "The adapter stores exactly one World database handle.",
-      "current_order": "The handle surface implies no runtime order beyond the port method.",
-      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_use_template_adapter:crates/wow-database/src/gameobject_use_template_adapter.rs::fn gameobject_money_loot_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_use_template_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_use_template_adapter"
-      ],
-      "enclosings": [
-        "fn gameobject_money_loot_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462) currently owns the complete wow-database workflow fn gameobject_money_loot_statement_like_cpp in crates/wow-database/src/gameobject_use_template_adapter.rs.",
-      "connection_affinity": "Pure construction of one World-database statement; it opens no connection or transaction.",
-      "current_order": "Builds SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and binds the gameobject entry as one unsigned 32-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_use_template_adapter:crates/wow-database/src/gameobject_use_template_adapter.rs::fn gameobject_use_template_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_use_template_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_use_template_adapter"
-      ],
-      "enclosings": [
-        "fn gameobject_use_template_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462) currently owns the complete wow-database workflow fn gameobject_use_template_statement_like_cpp in crates/wow-database/src/gameobject_use_template_adapter.rs.",
-      "connection_affinity": "Pure construction of one World-database statement; it opens no connection or transaction.",
-      "current_order": "Builds SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and binds the gameobject entry as one unsigned 32-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_use_template_adapter:crates/wow-database/src/gameobject_use_template_adapter.rs::impl MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::new",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_use_template_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_use_template_adapter"
-      ],
-      "enclosings": [
-        "impl MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::new"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462) currently owns the complete wow-database workflow impl MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::new in crates/wow-database/src/gameobject_use_template_adapter.rs.",
-      "connection_affinity": "Composition supplies one process-wide World adapter before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_use_template_adapter:crates/wow-database/src/gameobject_use_template_adapter.rs::impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_money_loot_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_use_template_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_use_template_adapter"
-      ],
-      "enclosings": [
-        "impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_money_loot_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462) currently owns the complete wow-database workflow impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_money_loot_like_cpp in crates/wow-database/src/gameobject_use_template_adapter.rs.",
-      "connection_affinity": "Pure construction of one World-database statement; it opens no connection or transaction.",
-      "current_order": "Builds SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and binds the gameobject entry as one unsigned 32-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_use_template_adapter:crates/wow-database/src/gameobject_use_template_adapter.rs::impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_use_template_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_use_template_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_use_template_adapter"
-      ],
-      "enclosings": [
-        "impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_use_template_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462) currently owns the complete wow-database workflow impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_use_template_like_cpp in crates/wow-database/src/gameobject_use_template_adapter.rs.",
-      "connection_affinity": "Executes one non-transactional prepared read through the configured World adapter.",
-      "current_order": "Executes SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and projects type, IconName, size, Data0 through Data34 and ContentTuningId before returning a typed outcome.",
-      "failure_and_unknown_commit": "A row maps to Found, no row to Missing and a driver error to Failed; this read has no commit or unknown-commit phase.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_use_template_adapter:crates/wow-database/src/gameobject_use_template_adapter.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_use_template_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_use_template_adapter"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462) currently owns the complete wow-database workflow module in crates/wow-database/src/gameobject_use_template_adapter.rs.",
-      "connection_affinity": "The module is bound to one configured World adapter and opens no cross-database workflow.",
-      "current_order": "The adapter preserves the represented Rust query identity and tolerant projection while object admission, template interpretation and gameplay dispatch remain in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed gameobject-template port.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::gameobject_use_template_adapter:crates/wow-database/src/gameobject_use_template_adapter.rs::struct MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/gameobject_use_template_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::gameobject_use_template_adapter"
-      ],
-      "enclosings": [
-        "struct MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462) currently owns the complete wow-database workflow struct MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp in crates/wow-database/src/gameobject_use_template_adapter.rs.",
-      "connection_affinity": "The adapter stores exactly one World-database handle.",
-      "current_order": "Construction stores the handle only; the typed method owns statement execution and row projection.",
-      "failure_and_unknown_commit": "No I/O occurs while storing the adapter.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -13264,156 +12787,6 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::fn next_mail_time_load_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/next_mail_time_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::next_mail_time_adapter"
-      ],
-      "enclosings": [
-        "fn next_mail_time_load_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow fn next_mail_time_load_statement_like_cpp in crates/wow-database/src/next_mail_time_adapter.rs.",
-      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
-      "current_order": "Builds CHAR_SEL_MAIL and binds the player GUID as one unsigned 64-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/next_mail_time_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::next_mail_time_adapter"
-      ],
-      "enclosings": [
-        "impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new in crates/wow-database/src/next_mail_time_adapter.rs.",
-      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/next_mail_time_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::next_mail_time_adapter"
-      ],
-      "enclosings": [
-        "impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp in crates/wow-database/src/next_mail_time_adapter.rs.",
-      "connection_affinity": "Executes one non-transactional prepared read through the configured Characters adapter.",
-      "current_order": "Executes CHAR_SEL_MAIL, projects message type, sender, delivery time, checked flags and stationery from their C++ column positions, then returns typed rows to the session.",
-      "failure_and_unknown_commit": "Successful execution maps to Loaded and a driver error to Failed; this read has no commit or unknown-commit phase.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/next_mail_time_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::next_mail_time_adapter"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow module in crates/wow-database/src/next_mail_time_adapter.rs.",
-      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
-      "current_order": "The adapter preserves the represented Rust query identity, bind and projection while leaving mail filtering, sender deduplication, cap and packet routing in the session.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed mail-read port.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::struct MariaDbNextMailTimePersistenceAdapterLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/next_mail_time_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::next_mail_time_adapter"
-      ],
-      "enclosings": [
-        "struct MariaDbNextMailTimePersistenceAdapterLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow struct MariaDbNextMailTimePersistenceAdapterLikeCpp in crates/wow-database/src/next_mail_time_adapter.rs.",
-      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
-      "current_order": "Construction stores the handle only; the typed method owns statement execution and row projection.",
-      "failure_and_unknown_commit": "No I/O occurs while storing the adapter.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
       "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::fn account_ban_statements_like_cpp",
       "source_class": "production",
       "packages": [
@@ -13649,156 +13022,6 @@
       "connection_affinity": "The adapter holds the one configured Login-database handle used by both semantic operations.",
       "current_order": "Construction stores the handle only; admission invokes lookup and persistence in its existing order.",
       "failure_and_unknown_commit": "No I/O occurs while constructing or storing the adapter.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::fn statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/page_text_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::page_text_catalog_adapter"
-      ],
-      "enclosings": [
-        "fn statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow fn statement_like_cpp in crates/wow-database/src/page_text_catalog_adapter.rs.",
-      "connection_affinity": "Pure construction of one World-database prepared statement; it opens no connection or transaction.",
-      "current_order": "Build the selected page or locale statement and bind the page-text identifier exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing a statement.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::impl MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/page_text_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::page_text_catalog_adapter"
-      ],
-      "enclosings": [
-        "impl MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow impl MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/page_text_catalog_adapter.rs.",
-      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::impl wow_persistence::PageTextCatalogPersistencePortLikeCpp for MariaDbPageTextCatalogPersistenceAdapterLikeCpp::load_page_text_catalog_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/page_text_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::page_text_catalog_adapter"
-      ],
-      "enclosings": [
-        "impl wow_persistence::PageTextCatalogPersistencePortLikeCpp for MariaDbPageTextCatalogPersistenceAdapterLikeCpp::load_page_text_catalog_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow impl wow_persistence::PageTextCatalogPersistencePortLikeCpp for MariaDbPageTextCatalogPersistenceAdapterLikeCpp::load_page_text_catalog_like_cpp in crates/wow-database/src/page_text_catalog_adapter.rs.",
-      "connection_affinity": "Every page and locale read uses the adapter's single World database handle; no cross-database boundary is implied.",
-      "current_order": "For each page, read the base row and then the optional locale before following NextPageID; preserve missing-row, cycle and 100-page termination.",
-      "failure_and_unknown_commit": "A base-read failure terminates with the pages already loaded; a locale failure records a non-fatal diagnostic and keeps the base text. Reads have no COMMIT outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/page_text_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::page_text_catalog_adapter"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow module in crates/wow-database/src/page_text_catalog_adapter.rs.",
-      "connection_affinity": "The module owns only the transitional World catalog adapter.",
-      "current_order": "SQL identity, binds, chain iteration and row projection stay private; diagnostics and packet construction remain in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::struct MariaDbPageTextCatalogPersistenceAdapterLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/page_text_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::page_text_catalog_adapter"
-      ],
-      "enclosings": [
-        "struct MariaDbPageTextCatalogPersistenceAdapterLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow struct MariaDbPageTextCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/page_text_catalog_adapter.rs.",
-      "connection_affinity": "The adapter stores exactly one World database handle.",
-      "current_order": "The handle surface implies no runtime order beyond the port method.",
-      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -16897,276 +16120,6 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn account_collection_load_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn account_collection_load_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free account collection loads (#386) currently owns the complete wow-database workflow fn account_collection_load_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Login-database statement construction; the lifecycle adapter performs each read on the configured Login adapter.",
-      "current_order": "Maps each semantic collection request to the existing prepared statement order; appearances remain two independent reads, appearances before favourites.",
-      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter reports each read failure through the typed outcome without fabricating rows.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn append_player_currency_save_request_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn append_player_currency_save_request_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "transitional MariaDB rendering bridge for mixed Player currency transactions (#446) currently owns the complete wow-database workflow fn append_player_currency_save_request_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Appends only to the explicit Characters transaction supplied by the owning mixed inventory/vendor/quest workflow; it acquires no connection itself.",
-      "current_order": "Appends every rendered currency statement at the same position formerly occupied by the Session builder, preserving the wider transaction order.",
-      "failure_and_unknown_commit": "No I/O or classification occurs here; each mixed workflow retains its existing rollback and unknown-COMMIT policy until its whole transaction moves behind a capability.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn build_tutorials_save_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn build_tutorials_save_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286) currently owns the complete wow-database workflow fn build_tutorials_save_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; the caller's lifecycle adapter supplies the transaction connection.",
-      "current_order": "Binds the eight tutorial words followed by account id exactly as the existing INS/UPD statement requires.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies the surrounding transaction outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_bank_slot_purchase_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_bank_slot_purchase_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free bank-slot purchase persistence (#464) currently owns the complete wow-database workflow fn player_bank_slot_purchase_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure construction of one Characters-database statement; the lifecycle adapter appends it to one checked transaction.",
-      "current_order": "Binds absolute money, bank-slot count and player GUID in the same order as the pre-cut statement.",
-      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter owns the expected-row check, transaction outcome and durable-money observation.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_buyback_clear_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_buyback_clear_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free logout buyback cleanup (#400) currently owns the complete wow-database workflow fn player_buyback_clear_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete plan to one transaction.",
-      "current_order": "For every request item in order, builds DEL_CHAR_INVENTORY_ITEM followed by DEL_ITEM_INSTANCE with the existing bind widths.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and unknown COMMIT without publishing runtime state.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_character_base_load_row_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_character_base_load_row_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414) currently owns the complete wow-database workflow fn player_character_base_load_row_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure decoding of one successful Characters result row; it opens no connection and executes no statement.",
-      "current_order": "Decodes the exact CHAR_SEL_CHARACTER columns consumed by the existing Rust Player-login path; required fields retain strict reads and optional fields remain Option values for caller-owned defaults.",
-      "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and absence are classified by the owning adapter, and reads have no unknown-COMMIT state.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_character_base_load_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_character_base_load_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414) currently owns the complete wow-database workflow fn player_character_base_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; one semantic Player GUID selects the existing core login statement.",
-      "current_order": "Builds exactly CHAR_SEL_CHARACTER with the existing UInt64 GUID bind and introduces no wider query reordering.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as loaded, absent or failed.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_character_save_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_character_save_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player character-save plan (#286) currently owns the complete wow-database workflow fn player_character_save_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; all rows are later appended to the one lifecycle transaction.",
-      "current_order": "Each private adapter operation maps to exactly one existing MariaDB prepared statement with its existing parameter order; no operation identity crosses the port.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter normalizes definite rollback and unknown COMMIT.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_character_save_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_character_save_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player character-save snapshot (#286) currently owns the complete wow-database workflow fn player_character_save_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure plan expansion; the lifecycle adapter appends the resulting statements to one Characters transaction.",
-      "current_order": "Expands semantic groups in the frozen Player-save order without exposing that decomposition through the port.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter normalizes definite rollback and unknown COMMIT.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
       "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_currency_save_statements_like_cpp",
       "source_class": "production",
       "packages": [
@@ -17192,487 +16145,6 @@
       "connection_affinity": "Pure Characters-database statement construction; standalone and mixed callers append the typed plan to their existing transaction boundary.",
       "current_order": "Builds each typed row in gameplay iteration order, mapping NEW to REPLACE and CHANGED to UPDATE with the exact C++ bind widths and order.",
       "failure_and_unknown_commit": "No I/O occurs here; the standalone lifecycle operation classifies definite rollback and unknown COMMIT, while mixed transaction owners retain their existing classification.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_durability_repair_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_durability_repair_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for standalone SQLx-free item-durability persistence (#456) currently owns the complete wow-database workflow fn player_durability_repair_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection and is shared by standalone and player-money transaction callers.",
-      "current_order": "Builds UPD_ITEM_INSTANCE_DURABILITY with durability first and the item database GUID second, preserving the pre-cut bind widths and order.",
-      "failure_and_unknown_commit": "No I/O occurs here; the standalone lifecycle operation classifies its later single-statement execution while the money transaction retains its existing outcome classification.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_homebind_persistence_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_homebind_persistence_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player homebind persistence (#394) currently owns the complete wow-database workflow fn player_homebind_persistence_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; each semantic homebind request selects one existing statement with its exact C++ bind widths and order.",
-      "current_order": "Builds exactly one delete-invalid, insert-repaired or update-live statement; UInt16 narrowing for the live update occurs at this adapter boundary.",
-      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later single-statement write as Applied or Failed.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_inventory_item_load_row_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_inventory_item_load_row_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login inventory reads (#428) currently owns the complete wow-database workflow fn player_inventory_item_load_row_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure decoding of one successful Characters inventory result row; it opens no connection and executes no statement.",
-      "current_order": "Decodes the exact shared item-instance projection selected by CHAR_SEL_CHAR_EQUIPMENT and CHAR_SEL_CHAR_BAG_CONTENTS; the caller retains slot/container interpretation and repair decisions.",
-      "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and loaded-empty outcomes are classified by the owning adapter, and reads have no unknown-COMMIT state.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_admission_load_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_login_admission_load_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login admission reads (#416) currently owns the complete wow-database workflow fn player_login_admission_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; each semantic admission request binds one UInt64 Player GUID.",
-      "current_order": "Maps battleground location, homebind location and guild membership to their existing C++ LoginQueryHolder statements without reordering the caller's reads.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_auxiliary_load_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_login_auxiliary_load_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424/#426/#428) currently owns the complete wow-database workflow fn player_login_auxiliary_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; each semantic request selects one existing statement and exact identity bind.",
-      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet, group, profile, progression, character-aura and inventory requests preserve their exact identity and bind widths without introducing a wider transaction.",
-      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later read as Loaded typed rows or Failed.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_item_repair_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_login_item_repair_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login item repair writes (#430) currently owns the complete wow-database workflow fn player_login_item_repair_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure statement expansion for one Characters transaction; it opens no connection and the caller cannot observe a pool or driver type.",
-      "current_order": "Expands each typed action in caller order: ClearRefundable becomes DEL_ITEM_REFUND_INSTANCE then UPD_ITEM_INSTANCE_FLAGS, and NormalizeOnLoad becomes UPD_ITEM_INSTANCE_ON_LOAD.",
-      "failure_and_unknown_commit": "No I/O occurs in this helper; the owning adapter classifies the later COMMIT.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_pet_talent_reset_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_login_pet_talent_reset_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow fn player_login_pet_talent_reset_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure construction of two independent Characters-database statements; it opens no connection and exposes no adapter type to gameplay.",
-      "current_order": "Build DEL_ALL_PET_SPELLS_BY_OWNER first and UPD_PET_SPECS_BY_OWNER second, both with the same UInt64 owner bind.",
-      "failure_and_unknown_commit": "No I/O occurs here; each later non-transactional execution receives its own classified outcome.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_transport_load_rows_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_login_transport_load_rows_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free transport login reads (#406) currently owns the complete wow-database workflow fn player_login_transport_load_rows_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure decoding of one World query result; it opens no connection and executes no statement.",
-      "current_order": "Decodes every joined transport row in database order and preserves the existing defensive field narrowing/default rules.",
-      "failure_and_unknown_commit": "The helper receives only a successful result set; query failure is classified by the owning adapter and reads have no unknown-COMMIT state.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_transport_load_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_login_transport_load_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free transport login reads (#406) currently owns the complete wow-database workflow fn player_login_transport_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure World-database statement construction; each semantic request selects the all-transports statement or the single bound-GUID statement.",
-      "current_order": "Builds exactly one statement; the all request retains GUID ordering and the by-GUID request binds one GUID before its limit.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_money_transaction_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_money_transaction_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free direct player-money and durability persistence (#444) currently owns the complete wow-database workflow fn player_money_transaction_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete money/durability plan to one transaction.",
-      "current_order": "Builds the absolute money update first, then every requested item-durability replacement in gameplay-selected order with the existing bind widths.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and observes durable money after unknown COMMIT before Session publication.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_money_write_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_money_write_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free direct player-money persistence (#444) currently owns the complete wow-database workflow fn player_money_write_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection and exposes no adapter type to gameplay.",
-      "current_order": "Builds UPD_CHAR_MONEY with the absolute money value followed by the player GUID, preserving the pre-cut bind order.",
-      "failure_and_unknown_commit": "No I/O occurs here; the transactional or checked-write adapter method owns the relevant outcome classification.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_online_mark_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_online_mark_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow fn player_online_mark_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure construction of the current Rust Characters-database online-mark statement; it opens no connection.",
-      "current_order": "Build UPD_CHAR_ONLINE with the existing Rust UInt32 GUID bind. C++ UInt64 binding and account-online timing remain separately documented fidelity gaps.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later non-transactional execution.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_realm_character_count_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_realm_character_count_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "login"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free realm character-count refresh (#402) currently owns the complete wow-database workflow fn player_realm_character_count_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure statement construction names one Characters count and one Login replacement; it creates no shared connection or distributed transaction.",
-      "current_order": "Builds SEL_SUM_CHARS before REP_REALM_CHARACTERS with the existing account/count/realm bind widths and order.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter short-circuits a failed count and classifies the later single Login write as Applied or Failed.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_talent_reset_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_talent_reset_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free talent-reset persistence (#408) currently owns the complete wow-database workflow fn player_talent_reset_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete plan to one transaction.",
-      "current_order": "Builds absolute money, reset metadata, delete-all, then every retained talent insert in specialization-group order with the existing bind widths.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and reconciles unknown COMMIT before runtime publication.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_uncage_item_state_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_uncage_item_state_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free uncaged battle-pet item-state reads (#466) currently owns the complete wow-database workflow fn player_uncage_item_state_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
-      "current_order": "Builds SEL_UNCAGE_ITEM_STATE and binds item GUID, player GUID, item GUID in the same order as the pre-cut Session helper.",
-      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter classifies the later read without a COMMIT phase.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_xp_persistence_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/player_lifecycle_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_lifecycle_adapter"
-      ],
-      "enclosings": [
-        "fn player_xp_persistence_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented XP/rest persistence (#410) currently owns the complete wow-database workflow fn player_xp_persistence_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete plan to one transaction.",
-      "current_order": "Builds UPD_CHAR_LEVEL when level changed or UPD_CHAR_XP otherwise, then optionally appends UPD_CHAR_ONLINE_REST_STATE with the existing bind widths.",
-      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and unknown COMMIT while gameplay state remains owned by the caller.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -18365,9 +16837,9 @@
         "login"
       ],
       "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286) currently owns the complete wow-database workflow impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::save_account_collection_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "connection_affinity": "Each collection request builds one transaction on the configured Login pool; this is not the complete C++ Login-side Player save transaction.",
+      "current_order": "Append the selected collection's existing statements in source order, then await its classified COMMIT before returning the persistence outcome. No batching across collection requests or automatic replay is added.",
+      "failure_and_unknown_commit": "Confirmed COMMIT maps to Applied with the existing row count; DefinitelyRolledBack maps to Failed and CommitOutcomeUnknown maps to Unknown. Session callers still log and discard these outcomes; this boundary does not establish whole-finalization recovery.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -18462,6 +16934,998 @@
       "connection_affinity": "The workflow acquires or uses the characters/login/world adapters as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::collections:crates/wow-database/src/player_lifecycle_adapter/collections.rs::fn account_collection_commit_outcome_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/collections.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::collections"
+      ],
+      "enclosings": [
+        "fn account_collection_commit_outcome_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "Private result translation within the Login account-collection adapter currently owns the complete wow-database workflow fn account_collection_commit_outcome_like_cpp in crates/wow-database/src/player_lifecycle_adapter/collections.rs.",
+      "connection_affinity": "No pool, connection or transaction is acquired here; the input is the already classified result of the caller's one Login collection transaction.",
+      "current_order": "Translate the result only after the caller's COMMIT future returns; preserve the supplied row count on confirmation.",
+      "failure_and_unknown_commit": "Map only DefinitelyRolledBack to Failed and preserve CommitOutcomeUnknown as Unknown. This pure adapter function adds no retry, reconciliation or publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::collections:crates/wow-database/src/player_lifecycle_adapter/collections.rs::fn account_collection_load_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/collections.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::collections"
+      ],
+      "enclosings": [
+        "fn account_collection_load_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free account collection loads (#386) currently owns the complete wow-database workflow fn account_collection_load_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/collections.rs.",
+      "connection_affinity": "Pure Login-database statement construction; the lifecycle adapter performs each read on the configured Login adapter.",
+      "current_order": "Maps each semantic collection request to the existing prepared statement order; appearances remain two independent reads, appearances before favourites.",
+      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter reports each read failure through the typed outcome without fabricating rows.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::collections:crates/wow-database/src/player_lifecycle_adapter/collections.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/collections.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::collections"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "Private Player lifecycle statement module imports (#578) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter/collections.rs.",
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn append_player_currency_save_request_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn append_player_currency_save_request_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "transitional MariaDB rendering bridge for mixed Player currency transactions (#446) currently owns the complete wow-database workflow fn append_player_currency_save_request_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Appends only to the explicit Characters transaction supplied by the owning mixed inventory/vendor/quest workflow; it acquires no connection itself.",
+      "current_order": "Appends every rendered currency statement at the same position formerly occupied by the Session builder, preserving the wider transaction order.",
+      "failure_and_unknown_commit": "No I/O or classification occurs here; each mixed workflow retains its existing rollback and unknown-COMMIT policy until its whole transaction moves behind a capability.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_bank_slot_purchase_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_bank_slot_purchase_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free bank-slot purchase persistence (#464) currently owns the complete wow-database workflow fn player_bank_slot_purchase_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure construction of one Characters-database statement; the lifecycle adapter appends it to one checked transaction.",
+      "current_order": "Binds absolute money, bank-slot count and player GUID in the same order as the pre-cut statement.",
+      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter owns the expected-row check, transaction outcome and durable-money observation.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_buyback_clear_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_buyback_clear_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free logout buyback cleanup (#400) currently owns the complete wow-database workflow fn player_buyback_clear_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete plan to one transaction.",
+      "current_order": "For every request item in order, builds DEL_CHAR_INVENTORY_ITEM followed by DEL_ITEM_INSTANCE with the existing bind widths.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and unknown COMMIT without publishing runtime state.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_durability_repair_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_durability_repair_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for standalone SQLx-free item-durability persistence (#456) currently owns the complete wow-database workflow fn player_durability_repair_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection and is shared by standalone and player-money transaction callers.",
+      "current_order": "Builds UPD_ITEM_INSTANCE_DURABILITY with durability first and the item database GUID second, preserving the pre-cut bind widths and order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the standalone lifecycle operation classifies its later single-statement execution while the money transaction retains its existing outcome classification.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_money_transaction_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_money_transaction_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free direct player-money and durability persistence (#444) currently owns the complete wow-database workflow fn player_money_transaction_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete money/durability plan to one transaction.",
+      "current_order": "Builds the absolute money update first, then every requested item-durability replacement in gameplay-selected order with the existing bind widths.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and observes durable money after unknown COMMIT before Session publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_money_write_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_money_write_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free direct player-money persistence (#444) currently owns the complete wow-database workflow fn player_money_write_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection and exposes no adapter type to gameplay.",
+      "current_order": "Builds UPD_CHAR_MONEY with the absolute money value followed by the player GUID, preserving the pre-cut bind order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the transactional or checked-write adapter method owns the relevant outcome classification.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_realm_character_count_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_realm_character_count_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free realm character-count refresh (#402) currently owns the complete wow-database workflow fn player_realm_character_count_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure statement construction names one Characters count and one Login replacement; it creates no shared connection or distributed transaction.",
+      "current_order": "Builds SEL_SUM_CHARS before REP_REALM_CHARACTERS with the existing account/count/realm bind widths and order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter short-circuits a failed count and classifies the later single Login write as Applied or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_talent_reset_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_talent_reset_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free talent-reset persistence (#408) currently owns the complete wow-database workflow fn player_talent_reset_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete plan to one transaction.",
+      "current_order": "Builds absolute money, reset metadata, delete-all, then every retained talent insert in specialization-group order with the existing bind widths.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and reconciles unknown COMMIT before runtime publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_uncage_item_state_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_uncage_item_state_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free uncaged battle-pet item-state reads (#466) currently owns the complete wow-database workflow fn player_uncage_item_state_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
+      "current_order": "Builds SEL_UNCAGE_ITEM_STATE and binds item GUID, player GUID, item GUID in the same order as the pre-cut Session helper.",
+      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter classifies the later read without a COMMIT phase.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::fn player_xp_persistence_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "fn player_xp_persistence_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented XP/rest persistence (#410) currently owns the complete wow-database workflow fn player_xp_persistence_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete plan to one transaction.",
+      "current_order": "Builds UPD_CHAR_LEVEL when level changed or UPD_CHAR_XP otherwise, then optionally appends UPD_CHAR_ONLINE_REST_STATE with the existing bind widths.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and unknown COMMIT while gameplay state remains owned by the caller.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::economy:crates/wow-database/src/player_lifecycle_adapter/economy.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/economy.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::economy"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "capability_owner": "Private Player lifecycle statement module imports (#578) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter/economy.rs.",
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_reads:crates/wow-database/src/player_lifecycle_adapter/login_reads.rs::fn player_character_base_load_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_reads"
+      ],
+      "enclosings": [
+        "fn player_character_base_load_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414) currently owns the complete wow-database workflow fn player_character_base_load_row_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_reads.rs.",
+      "connection_affinity": "Pure decoding of one successful Characters result row; it opens no connection and executes no statement.",
+      "current_order": "Decodes the exact CHAR_SEL_CHARACTER columns consumed by the existing Rust Player-login path; required fields retain strict reads and optional fields remain Option values for caller-owned defaults.",
+      "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and absence are classified by the owning adapter, and reads have no unknown-COMMIT state.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_reads:crates/wow-database/src/player_lifecycle_adapter/login_reads.rs::fn player_character_base_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_reads"
+      ],
+      "enclosings": [
+        "fn player_character_base_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414) currently owns the complete wow-database workflow fn player_character_base_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_reads.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; one semantic Player GUID selects the existing core login statement.",
+      "current_order": "Builds exactly CHAR_SEL_CHARACTER with the existing UInt64 GUID bind and introduces no wider query reordering.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as loaded, absent or failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_reads:crates/wow-database/src/player_lifecycle_adapter/login_reads.rs::fn player_inventory_item_load_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_reads"
+      ],
+      "enclosings": [
+        "fn player_inventory_item_load_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login inventory reads (#428) currently owns the complete wow-database workflow fn player_inventory_item_load_row_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_reads.rs.",
+      "connection_affinity": "Pure decoding of one successful Characters inventory result row; it opens no connection and executes no statement.",
+      "current_order": "Decodes the exact shared item-instance projection selected by CHAR_SEL_CHAR_EQUIPMENT and CHAR_SEL_CHAR_BAG_CONTENTS; the caller retains slot/container interpretation and repair decisions.",
+      "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and loaded-empty outcomes are classified by the owning adapter, and reads have no unknown-COMMIT state.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_reads:crates/wow-database/src/player_lifecycle_adapter/login_reads.rs::fn player_login_admission_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_reads"
+      ],
+      "enclosings": [
+        "fn player_login_admission_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login admission reads (#416) currently owns the complete wow-database workflow fn player_login_admission_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_reads.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; each semantic admission request binds one UInt64 Player GUID.",
+      "current_order": "Maps battleground location, homebind location and guild membership to their existing C++ LoginQueryHolder statements without reordering the caller's reads.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_reads:crates/wow-database/src/player_lifecycle_adapter/login_reads.rs::fn player_login_auxiliary_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_reads"
+      ],
+      "enclosings": [
+        "fn player_login_auxiliary_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424/#426/#428) currently owns the complete wow-database workflow fn player_login_auxiliary_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_reads.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; each semantic request selects one existing statement and exact identity bind.",
+      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet, group, profile, progression, character-aura and inventory requests preserve their exact identity and bind widths without introducing a wider transaction.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later read as Loaded typed rows or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_reads:crates/wow-database/src/player_lifecycle_adapter/login_reads.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_reads"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Private Player lifecycle statement module imports (#578) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter/login_reads.rs.",
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_writes:crates/wow-database/src/player_lifecycle_adapter/login_writes.rs::fn player_homebind_persistence_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_writes"
+      ],
+      "enclosings": [
+        "fn player_homebind_persistence_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player homebind persistence (#394) currently owns the complete wow-database workflow fn player_homebind_persistence_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_writes.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; each semantic homebind request selects one existing statement with its exact C++ bind widths and order.",
+      "current_order": "Builds exactly one delete-invalid, insert-repaired or update-live statement; UInt16 narrowing for the live update occurs at this adapter boundary.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later single-statement write as Applied or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_writes:crates/wow-database/src/player_lifecycle_adapter/login_writes.rs::fn player_login_item_repair_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_writes"
+      ],
+      "enclosings": [
+        "fn player_login_item_repair_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login item repair writes (#430) currently owns the complete wow-database workflow fn player_login_item_repair_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_writes.rs.",
+      "connection_affinity": "Pure statement expansion for one Characters transaction; it opens no connection and the caller cannot observe a pool or driver type.",
+      "current_order": "Expands each typed action in caller order: ClearRefundable becomes DEL_ITEM_REFUND_INSTANCE then UPD_ITEM_INSTANCE_FLAGS, and NormalizeOnLoad becomes UPD_ITEM_INSTANCE_ON_LOAD.",
+      "failure_and_unknown_commit": "No I/O occurs in this helper; the owning adapter classifies the later COMMIT.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_writes:crates/wow-database/src/player_lifecycle_adapter/login_writes.rs::fn player_login_pet_talent_reset_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_writes"
+      ],
+      "enclosings": [
+        "fn player_login_pet_talent_reset_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow fn player_login_pet_talent_reset_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_writes.rs.",
+      "connection_affinity": "Pure construction of two independent Characters-database statements; it opens no connection and exposes no adapter type to gameplay.",
+      "current_order": "Build DEL_ALL_PET_SPELLS_BY_OWNER first and UPD_PET_SPECS_BY_OWNER second, both with the same UInt64 owner bind.",
+      "failure_and_unknown_commit": "No I/O occurs here; each later non-transactional execution receives its own classified outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_writes:crates/wow-database/src/player_lifecycle_adapter/login_writes.rs::fn player_online_mark_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_writes"
+      ],
+      "enclosings": [
+        "fn player_online_mark_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow fn player_online_mark_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/login_writes.rs.",
+      "connection_affinity": "Pure construction of the current Rust Characters-database online-mark statement; it opens no connection.",
+      "current_order": "Build UPD_CHAR_ONLINE with the existing Rust UInt32 GUID bind. C++ UInt64 binding and account-online timing remain separately documented fidelity gaps.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later non-transactional execution.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::login_writes:crates/wow-database/src/player_lifecycle_adapter/login_writes.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::login_writes"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Private Player lifecycle statement module imports (#578) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter/login_writes.rs.",
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::save_plan:crates/wow-database/src/player_lifecycle_adapter/save_plan.rs::fn build_tutorials_save_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/save_plan.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::save_plan"
+      ],
+      "enclosings": [
+        "fn build_tutorials_save_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286) currently owns the complete wow-database workflow fn build_tutorials_save_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/save_plan.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; the caller's lifecycle adapter supplies the transaction connection.",
+      "current_order": "Binds the eight tutorial words followed by account id exactly as the existing INS/UPD statement requires.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies the surrounding transaction outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::save_plan:crates/wow-database/src/player_lifecycle_adapter/save_plan.rs::fn player_character_save_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/save_plan.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::save_plan"
+      ],
+      "enclosings": [
+        "fn player_character_save_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player character-save snapshot (#286) currently owns the complete wow-database workflow fn player_character_save_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter/save_plan.rs.",
+      "connection_affinity": "Pure plan expansion; the lifecycle adapter appends the resulting statements to one Characters transaction.",
+      "current_order": "Expands semantic groups in the frozen Player-save order without exposing that decomposition through the port.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter normalizes definite rollback and unknown COMMIT.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::save_plan:crates/wow-database/src/player_lifecycle_adapter/save_plan.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/save_plan.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::save_plan"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Private Player lifecycle statement module imports (#578) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter/save_plan.rs.",
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::save_steps:crates/wow-database/src/player_lifecycle_adapter/save_steps.rs::fn player_character_save_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/save_steps.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::save_steps"
+      ],
+      "enclosings": [
+        "fn player_character_save_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player character-save plan (#286) currently owns the complete wow-database workflow fn player_character_save_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/save_steps.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; all rows are later appended to the one lifecycle transaction.",
+      "current_order": "Each private adapter operation maps to exactly one existing MariaDB prepared statement with its existing parameter order; no operation identity crosses the port.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter normalizes definite rollback and unknown COMMIT.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::save_steps:crates/wow-database/src/player_lifecycle_adapter/save_steps.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/save_steps.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::save_steps"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Private Player lifecycle statement module imports (#578) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter/save_steps.rs.",
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::transports:crates/wow-database/src/player_lifecycle_adapter/transports.rs::fn player_login_transport_load_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/transports.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::transports"
+      ],
+      "enclosings": [
+        "fn player_login_transport_load_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free transport login reads (#406) currently owns the complete wow-database workflow fn player_login_transport_load_rows_like_cpp in crates/wow-database/src/player_lifecycle_adapter/transports.rs.",
+      "connection_affinity": "Pure decoding of one World query result; it opens no connection and executes no statement.",
+      "current_order": "Decodes every joined transport row in database order and preserves the existing defensive field narrowing/default rules.",
+      "failure_and_unknown_commit": "The helper receives only a successful result set; query failure is classified by the owning adapter and reads have no unknown-COMMIT state.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::transports:crates/wow-database/src/player_lifecycle_adapter/transports.rs::fn player_login_transport_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/transports.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::transports"
+      ],
+      "enclosings": [
+        "fn player_login_transport_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free transport login reads (#406) currently owns the complete wow-database workflow fn player_login_transport_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter/transports.rs.",
+      "connection_affinity": "Pure World-database statement construction; each semantic request selects the all-transports statement or the single bound-GUID statement.",
+      "current_order": "Builds exactly one statement; the all request retains GUID ordering and the by-GUID request binds one GUID before its limit.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter::transports:crates/wow-database/src/player_lifecycle_adapter/transports.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter/transports.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter::transports"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Private Player lifecycle statement module imports (#578) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter/transports.rs.",
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -31290,6 +30754,186 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::world_query_catalog_adapter:crates/wow-database/src/world_query_catalog_adapter.rs::impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::creature_rows",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_query_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_query_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::creature_rows"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::creature_rows in crates/wow-database/src/world_query_catalog_adapter.rs.",
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_query_catalog_adapter:crates/wow-database/src/world_query_catalog_adapter.rs::impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::gameobject_rows",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_query_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_query_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::gameobject_rows"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::gameobject_rows in crates/wow-database/src/world_query_catalog_adapter.rs.",
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_query_catalog_adapter:crates/wow-database/src/world_query_catalog_adapter.rs::impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_query_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_query_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/world_query_catalog_adapter.rs.",
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_query_catalog_adapter:crates/wow-database/src/world_query_catalog_adapter.rs::impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::page_rows",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_query_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_query_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::page_rows"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::page_rows in crates/wow-database/src/world_query_catalog_adapter.rs.",
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_query_catalog_adapter:crates/wow-database/src/world_query_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_query_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_query_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow module in crates/wow-database/src/world_query_catalog_adapter.rs.",
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_query_catalog_adapter:crates/wow-database/src/world_query_catalog_adapter.rs::struct MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_query_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_query_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow struct MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/world_query_catalog_adapter.rs.",
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::world_reference_catalog_adapter:crates/wow-database/src/world_reference_catalog_adapter.rs::fn read_world_id_like_cpp",
       "source_class": "production",
       "packages": [
@@ -31722,15 +31366,12 @@
         "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
         "crates/wow-database/src/condition_disable_catalog_adapter.rs",
         "crates/wow-database/src/creature_display_hotfix_adapter.rs",
-        "crates/wow-database/src/creature_query_catalog_adapter.rs",
         "crates/wow-database/src/database.rs",
         "crates/wow-database/src/difficulty_hotfix_adapter.rs",
         "crates/wow-database/src/exploration_base_xp_catalog_adapter.rs",
         "crates/wow-database/src/game_event_persistence_adapter.rs",
         "crates/wow-database/src/game_event_world_catalog_adapter.rs",
         "crates/wow-database/src/game_tele_catalog_adapter.rs",
-        "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
-        "crates/wow-database/src/gameobject_use_template_adapter.rs",
         "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
         "crates/wow-database/src/gossip_catalog_adapter.rs",
         "crates/wow-database/src/group_loot_money_adapter.rs",
@@ -31744,9 +31385,7 @@
         "crates/wow-database/src/loot_template_catalog_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
         "crates/wow-database/src/migration.rs",
-        "crates/wow-database/src/next_mail_time_adapter.rs",
         "crates/wow-database/src/packet_spoof_ban_adapter.rs",
-        "crates/wow-database/src/page_text_catalog_adapter.rs",
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
         "crates/wow-database/src/phase_hotfix_catalog_adapter.rs",
@@ -31755,7 +31394,11 @@
         "crates/wow-database/src/player_choice_catalog_adapter.rs",
         "crates/wow-database/src/player_creation_catalog_adapter.rs",
         "crates/wow-database/src/player_inventory_adapter.rs",
-        "crates/wow-database/src/player_lifecycle_adapter.rs",
+        "crates/wow-database/src/player_lifecycle_adapter/collections.rs",
+        "crates/wow-database/src/player_lifecycle_adapter/tests/economy.rs",
+        "crates/wow-database/src/player_lifecycle_adapter/tests/login.rs",
+        "crates/wow-database/src/player_lifecycle_adapter/tests/save_order.rs",
+        "crates/wow-database/src/player_lifecycle_adapter/tests/save_steps.rs",
         "crates/wow-database/src/player_name_query_adapter.rs",
         "crates/wow-database/src/player_quest_adapter.rs",
         "crates/wow-database/src/player_spell_acquisition_adapter.rs",

@@ -98,7 +98,8 @@ async fn set_currency_flags_updates_existing_currency_and_sends_setup_like_cpp()
     request.reset_read();
     session.handle_set_currency_flags(request).await;
 
-    let currency = session.player_currencies_like_cpp().get(&395).unwrap();
+    let currencies = session.player_currencies_like_cpp().unwrap();
+    let currency = currencies.get(&395).unwrap();
     assert_eq!(currency.flags, 0x1f);
     assert_eq!(currency.state, crate::session::PlayerCurrencyState::Changed);
 
@@ -137,7 +138,13 @@ async fn set_currency_flags_missing_player_currency_still_replays_like_cpp() {
     request.reset_read();
     session.handle_set_currency_flags(request).await;
 
-    assert!(session.player_currencies_like_cpp().get(&395).is_none());
+    assert!(
+        session
+            .player_currencies_like_cpp()
+            .unwrap()
+            .get(&395)
+            .is_none()
+    );
     let sent = send_rx.try_recv().expect("C++ still calls SendCurrencies");
     assert_eq!(
         WorldPacket::from_bytes(&sent).server_opcode(),

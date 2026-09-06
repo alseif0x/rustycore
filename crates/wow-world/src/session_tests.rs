@@ -1,13 +1,23 @@
 #![cfg(test)]
 
+#[path = "session/tests/active_cast_owner.rs"]
+mod active_cast_owner;
 #[path = "session/tests/admission.rs"]
 mod admission;
+#[path = "session/tests/cinematic_catalog.rs"]
+mod cinematic_catalog;
 #[path = "session/tests/connection.rs"]
 mod connection;
+#[path = "session/tests/difficulty_owner.rs"]
+mod difficulty_owner;
 #[path = "session/tests/dispatch.rs"]
 mod dispatch;
 #[path = "session/tests/driver.rs"]
 mod driver;
+#[path = "session/tests/glyph_catalog.rs"]
+mod glyph_catalog;
+#[path = "session/tests/instance_occupancy.rs"]
+mod instance_occupancy;
 #[path = "session/tests/lifecycle.rs"]
 mod lifecycle;
 #[path = "session/tests/lifecycle_persistence.rs"]
@@ -16,12 +26,34 @@ mod lifecycle_persistence;
 mod login_auxiliary_persistence;
 #[path = "session/tests/mailbox_pump.rs"]
 mod mailbox_pump;
+#[path = "session/tests/map_entry.rs"]
+mod map_entry;
+#[path = "session/tests/pending_cast_owner.rs"]
+mod pending_cast_owner;
+#[path = "session/tests/player_detach.rs"]
+mod player_detach;
+#[path = "session/tests/rest_owner.rs"]
+mod rest_owner;
 #[path = "session/tests/routing.rs"]
 mod routing;
 #[path = "session/tests/save_plan_order.rs"]
 mod save_plan_order;
+#[path = "session/tests/save_snapshot_owner.rs"]
+mod save_snapshot_owner;
 #[path = "session/tests/session_account_state.rs"]
 mod session_account_state;
+#[path = "session/tests/skill_owner.rs"]
+mod skill_owner;
+#[path = "session/tests/spell_history_owner.rs"]
+mod spell_history_owner;
+#[path = "session/tests/spellbook_owner.rs"]
+mod spellbook_owner;
+#[path = "session/tests/talent_catalog.rs"]
+mod talent_catalog;
+#[path = "session/tests/talent_owner.rs"]
+mod talent_owner;
+#[path = "session/tests/taxi_owner.rs"]
+mod taxi_owner;
 
 use routing::assert_destroyed_party_update_like_cpp;
 
@@ -86,12 +118,12 @@ use wow_data::{
 };
 use wow_data::{ItemStatEntry, PvpItemEntry};
 use wow_entities::{
-    AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
-    ApplyEnchantmentSkipReason, BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType,
-    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, ItemBonusKey, MapObjectRecord, PlayerEnchantDuration,
-    REAGENT_BAG_SLOT_START, SendNewItemInstancePlan, SendNewItemModifier, SocketedGem, TYPEID_UNIT,
-    UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues, UnitValuesUpdate, UpdateMask,
+    ApplyEnchantmentDurationAction, ApplyEnchantmentResult, ApplyEnchantmentSkipReason,
+    BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
+    EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ItemBonusKey,
+    PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan, SendNewItemModifier,
+    SocketedGem, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues, UnitValuesUpdate,
+    UpdateMask,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{
@@ -800,7 +832,7 @@ fn player_spell_hit_source_authority_requires_empty_traits_and_active_glyphs_lik
     );
 
     assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
-    assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(123), 0, 0, 123));
     assert!(
         !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
         "C++ _LoadGlyphAuras casts every nonzero active-group glyph"
@@ -818,6 +850,26 @@ fn player_spell_hit_source_authority_requires_empty_traits_and_active_glyphs_lik
 #[test]
 fn player_spell_hit_source_authority_gates_update_zone_aura_producers_like_cpp() {
     let mut session = complete_empty_player_spell_hit_authority_fixture_like_cpp();
+    assert_eq!(
+        session.player_world_local_state_like_cpp(),
+        Some(wow_entities::PlayerWorldLocalState {
+            zone_id: 1,
+            area_id: 12,
+            zone_area_authority_complete: true,
+            ..Default::default()
+        })
+    );
+    assert_eq!(session.represented_player_flags_value_like_cpp(), Some(0));
+    assert!(!session.represented_player_has_flag_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP));
+    assert_eq!(
+        (
+            session.represented_spell_area_autocast_source_is_empty_like_cpp(),
+            session.represented_war_mode_update_zone_aura_source_is_empty_like_cpp(),
+            session.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp(),
+            session.represented_update_zone_script_aura_source_is_hit_inert_like_cpp(),
+        ),
+        (true, true, true, true),
+    );
     assert!(session.can_authorize_empty_player_spell_hit_aura_source_like_cpp());
 
     session.set_loaded_player_flags_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP);
@@ -1277,7 +1329,8 @@ fn player_spell_hit_source_sync_sets_and_mutations_invalidate_canonical_auras_li
         1,
         0,
     ));
-    add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 571, 0);
+    assert!(session.install_detached_canonical_player_for_test_like_cpp());
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     session.set_player_aura_authority_complete_like_cpp(true);
     session.complete_player_equipment_inventory_authority_load_like_cpp();
     assert!(
@@ -2222,12 +2275,12 @@ fn movement_counter_post_increments_and_resets_like_cpp() {
     // C++ Unit::m_movementCounter: post-increment per movement-control packet, reset to
     // 0 in SendInitialPacketsBeforeAddToMap on a non-seamless add. #NEXT.R8.ENTITIES.1229.
     let (mut session, _, _) = make_session();
-    assert_eq!(session.next_movement_counter_like_cpp(), 0);
-    assert_eq!(session.next_movement_counter_like_cpp(), 1);
-    assert_eq!(session.next_movement_counter_like_cpp(), 2);
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(1));
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(2));
     session.reset_movement_counter_like_cpp();
-    assert_eq!(session.next_movement_counter_like_cpp(), 0);
-    assert_eq!(session.next_movement_counter_like_cpp(), 1);
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(1));
 }
 
 #[test]
@@ -2627,7 +2680,7 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
     assert_eq!(known_spells, vec![10, 20]);
     assert_eq!(
         session.represented_override_spells_like_cpp(),
-        &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),]),
+        HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),]),
         "C++ AddSpell rebuilds active OverridesSpell edges outside the AutoLearned branch"
     );
 
@@ -2641,7 +2694,7 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
     assert_eq!(active_projection, vec![20]);
     assert_eq!(
         session.represented_override_spells_like_cpp(),
-        &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
+        HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
     );
 }
 
@@ -4180,8 +4233,12 @@ fn auto_unequip_offhand_records_average_equipped_item_level_like_cpp() {
         &[25.0],
         "C++ UpdateAverageItemLevelEquipped divides equipped item-level sum by 16 and counts a remaining main-hand 2H twice without Titan Grip"
     );
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
     assert_eq!(
         context.avg_equipped_item_level, 25.0,
         "C++ PlayerCondition uses PlayerData::AvgItemLevel[1], so the represented context must use the same equipped-average formula"
@@ -4248,8 +4305,12 @@ fn represented_condition_total_avg_item_level_uses_cpp_slot_formula_like_cpp() {
         InventoryType::Weapon2Hand,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 25.0,
@@ -4344,8 +4405,12 @@ fn represented_condition_total_avg_item_level_uses_best_represented_slot_candida
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 12.5,
@@ -4467,8 +4532,12 @@ fn represented_condition_avg_item_level_uses_runtime_item_level_like_cpp() {
         },
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 16.25,
@@ -4565,8 +4634,12 @@ fn represented_condition_avg_item_level_applies_item_bonus_level_like_cpp() {
         },
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 9.6875,
@@ -5001,7 +5074,7 @@ fn represented_item_level_area_scaling_deactivates_without_activity_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
     let item_id = 30_157_u32;
     install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 20);
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         represented_item_level_area_map_like_cpp(30_157, wow_data::map::MAP_COMMON, 0),
     ])));
@@ -5134,7 +5207,7 @@ fn represented_item_level_applies_pvp_item_level_bonus_when_active_like_cpp() {
         "C++ only adds GetPvpItemLevelBonus when Player::IsUsingPvpItemLevels is true"
     );
 
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     assert_eq!(
         session.represented_item_level_like_cpp(item_id, None),
         Some(125),
@@ -5167,7 +5240,7 @@ fn represented_item_level_applies_max_cap_after_pvp_bonus_like_cpp() {
         item_id: item_id as i32,
         item_level_delta: 75,
     }])));
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
         max_item_level: 150,
         ..Default::default()
@@ -5205,7 +5278,7 @@ fn represented_item_level_min_cutoff_uses_pre_pvp_item_level_like_cpp() {
         item_id: item_id as i32,
         item_level_delta: 50,
     }])));
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
         min_item_level_cutoff: 120,
         min_item_level: 200,
@@ -5369,8 +5442,12 @@ fn represented_condition_total_avg_item_level_skips_can_use_rejected_candidates_
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -5507,8 +5584,12 @@ fn represented_condition_total_avg_item_level_skips_unique_limit_candidates_like
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -5705,8 +5786,12 @@ fn represented_condition_total_avg_item_level_skips_socketed_gem_limit_candidate
         },
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -5882,8 +5967,12 @@ fn represented_condition_total_avg_item_level_rejects_twohand_candidate_with_off
         InventoryType::Weapon2Hand,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 12.5,
@@ -6047,8 +6136,12 @@ fn represented_condition_total_avg_item_level_counts_contained_items_for_max_cou
     second_contained_chest.set_container_guid_and_slot(bag_guid, 1);
     session.insert_inventory_item_object(second_contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -6167,8 +6260,12 @@ fn represented_condition_total_avg_item_level_uses_represented_bag_contents_like
     contained_chest.set_container_guid_and_slot(bag_guid, INVENTORY_SLOT_BAG_START);
     session.insert_inventory_item_object(contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 13.75,
@@ -6263,8 +6360,12 @@ fn represented_condition_total_avg_item_level_uses_represented_bank_item_like_cp
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 15.0,
@@ -6383,8 +6484,12 @@ fn represented_condition_total_avg_item_level_uses_represented_bank_bag_contents
     contained_chest.set_container_guid_and_slot(bank_bag_guid, BANK_SLOT_BAG_START);
     session.insert_inventory_item_object(contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 16.25,
@@ -6503,8 +6608,12 @@ fn represented_condition_total_avg_item_level_uses_represented_reagent_bank_cont
     contained_chest.set_container_guid_and_slot(reagent_bag_guid, REAGENT_BAG_SLOT_START);
     session.insert_inventory_item_object(contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 17.5,
@@ -6568,8 +6677,12 @@ fn represented_condition_total_avg_item_level_does_not_count_same_ring_twice_lik
         InventoryType::Finger,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(
         context.avg_item_level, 6.25,
@@ -7843,6 +7956,82 @@ fn represented_player_recent_instance_tracks_id_by_map_like_cpp() {
 }
 
 #[test]
+fn canonical_player_recent_instances_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_579);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "RecentInstanceOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_player_recent_instance_like_cpp(631, 9_001));
+    assert_eq!(
+        session.resolved_player_recent_instance_id_like_cpp(631),
+        Some(9_001)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_recent_instance_id_like_cpp(631),
+        Some(9_001)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement
+        .gameplay_state_mut()
+        .recent_instances
+        .insert(631, 7_777);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.resolved_player_recent_instance_id_like_cpp(631),
+        None
+    );
+    assert!(!session.set_represented_player_recent_instance_like_cpp(631, 0));
+    assert!(!session.forget_represented_player_recent_instance_like_cpp(631));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .gameplay_state()
+                .recent_instances
+                .get(&631)
+                .copied(),),
+        Some(Some(7_777))
+    );
+}
+
+#[test]
 fn create_map_player_context_uses_solo_recent_instance_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
@@ -7852,7 +8041,9 @@ fn create_map_player_context_uses_solo_recent_instance_like_cpp() {
     session.represented_dungeon_difficulty_id_like_cpp = 2;
     session.set_represented_player_recent_instance_like_cpp(631, 9001);
 
-    let context = session.create_map_player_context_like_cpp(631, map_entry, player_guid);
+    let context = session
+        .create_map_player_context_like_cpp(631, map_entry, player_guid)
+        .expect("test Player difficulty owner resolves");
 
     assert_eq!(context.guid_counter, player_guid.counter() as u64);
     assert_eq!(context.player_difficulty_id, 2);
@@ -7879,7 +8070,9 @@ fn create_map_player_context_uses_group_recent_instance_like_cpp() {
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    let context = session.create_map_player_context_like_cpp(631, map_entry, member);
+    let context = session
+        .create_map_player_context_like_cpp(631, map_entry, member)
+        .expect("test Player difficulty owner resolves");
     let group = context.group.unwrap();
 
     assert_eq!(context.guid_counter, member.counter() as u64);
@@ -7913,7 +8106,9 @@ fn create_map_player_context_group_owner_falls_back_to_leader_like_cpp() {
         DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT,
     );
 
-    let context = session.create_map_player_context_like_cpp(631, map_entry, leader);
+    let context = session
+        .create_map_player_context_like_cpp(631, map_entry, leader)
+        .expect("test Player difficulty owner resolves");
     let group = context.group.unwrap();
 
     assert_eq!(group.difficulty_id, 15);
@@ -7940,7 +8135,9 @@ fn create_map_player_context_uses_legacy_raid_difficulty_like_cpp() {
         DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT | DifficultyFlags::LEGACY,
     );
 
-    let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
+    let context = session
+        .create_map_player_context_like_cpp(249, map_entry, player_guid)
+        .expect("test Player difficulty owner resolves");
 
     assert_eq!(context.player_difficulty_id, 4);
 }
@@ -7955,7 +8152,9 @@ fn create_map_player_context_missing_default_raid_metadata_falls_back_to_legacy_
     session.represented_raid_difficulty_id_like_cpp = 15;
     session.represented_legacy_raid_difficulty_id_like_cpp = 4;
 
-    let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
+    let context = session
+        .create_map_player_context_like_cpp(249, map_entry, player_guid)
+        .expect("test Player difficulty owner resolves");
 
     assert_eq!(context.player_difficulty_id, 4);
 }
@@ -8461,6 +8660,7 @@ fn load_represented_player_difficulties_accepts_selectable_cpp_types() {
     assert_eq!(
         session
             .represented_dungeon_difficulty_packet_like_cpp()
+            .expect("test Player difficulty owner resolves")
             .difficulty_id,
         2
     );
@@ -8713,21 +8913,21 @@ fn reset_group_update_sequence_starts_loaded_group_at_one_like_cpp() {
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        2
+        Some(2)
     );
 }
 
@@ -8739,21 +8939,21 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        2
+        Some(2)
     );
 
     assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
@@ -8761,7 +8961,7 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        3
+        Some(3)
     );
 }
 
@@ -8785,13 +8985,13 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        2
+        Some(2)
     );
 
     session.group_guid = Some(second_group_guid);
@@ -8800,7 +9000,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
 }
 
@@ -8813,9 +9013,9 @@ fn reset_group_update_sequence_without_group_is_noop_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        0
+        Some(0)
     );
-    assert_eq!(session.next_group_update_sequence_number_like_cpp(99), 0);
+    assert_eq!(session.next_group_update_sequence_number_like_cpp(99), None);
 }
 
 #[tokio::test]
@@ -8826,8 +9026,8 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     session.set_player_guid(Some(player_guid));
     session.state = SessionState::LoggedIn;
 
@@ -9050,8 +9250,8 @@ fn represented_group_leader_flag_is_set_for_loaded_leader_like_cpp() {
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
     assert!(session.apply_represented_group_leader_flag_like_cpp());
 
@@ -9112,7 +9312,7 @@ fn drain_server_packet_bytes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>>
 
 #[test]
 fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -9121,7 +9321,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                 let (mut source, _, source_send_rx) = make_session();
                 let (mut viewer, _, viewer_send_rx) = make_session();
                 let canonical = shared_canonical_map_manager();
-                let accessor = new_shared_object_accessor();
                 let source_guid = ObjectGuid::create_player(1, 90_210);
                 let viewer_guid = ObjectGuid::create_player(1, 90_211);
                 let position = Position::ZERO;
@@ -9196,7 +9395,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                 source.player_name = Some("BridgeSource".into());
                 source.set_player_map_position_like_cpp(571, position);
                 source.set_canonical_map_manager(Arc::clone(&canonical));
-                source.set_object_accessor(Arc::clone(&accessor));
                 source.set_spell_store(Arc::new(spell_store));
                 source.set_difficulty_store(Arc::new(difficulty_store));
                 source.set_player_stand_state_like_cpp(UnitStandStateType::Sit);
@@ -9270,7 +9468,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         );
                     })
                     .unwrap();
-                source.sync_object_accessor_player();
 
                 for (slot, spell_id) in [
                     (represented_standing_slot, standing_spell_id),
@@ -9376,59 +9573,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         assert!(!player.unit().world().object().is_object_updated());
                     })
                     .unwrap();
-                {
-                    let accessor = accessor.read();
-                    let player = accessor
-                        .find_connected_player_entity(source_guid)
-                        .expect("Kneel bridge refreshes canonical ObjectAccessor snapshot");
-                    assert_eq!(
-                        player.unit().stand_state_like_cpp(),
-                        UnitStandStateType::Kneel
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_standing)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_snapshot_standing)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_standing_owned)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_kept_owned)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_snapshot_standing_owned)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .unit_data_changes_mask()
-                            .is_set(wow_entities::UNIT_DATA_STAND_STATE_BIT),
-                        "ObjectAccessor snapshots do not own canonical dirty masks"
-                    );
-                    assert!(!player.unit().world().object().is_object_updated());
-                }
                 source.represented_live_applications_like_cpp.clear();
 
                 viewer.set_player_guid(Some(viewer_guid));
@@ -9570,77 +9714,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         );
                     })
                     .unwrap();
-                {
-                    let accessor = accessor.read();
-                    let player = accessor
-                        .find_connected_player_entity(source_guid)
-                        .expect("stand bridge refreshes ObjectAccessor snapshot");
-                    assert_eq!(
-                        player.unit().stand_state_like_cpp(),
-                        UnitStandStateType::Stand
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_standing)
-                    );
-                    assert!(player.unit().subsystems().auras.has_applied(canonical_kept));
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_snapshot_standing)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .visible_auras
-                            .contains_key(&represented_standing_slot)
-                    );
-                    assert_eq!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .visible_auras
-                            .get(&represented_kept_slot),
-                        Some(&canonical_kept.aura_ref())
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .visible_auras
-                            .contains_key(&represented_snapshot_standing_slot)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_standing_owned)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_kept_owned)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_snapshot_standing_owned)
-                    );
-                }
                 assert_eq!(
                     source.represented_live_applications_like_cpp(),
                     &[RepresentedLiveApplicationLikeCpp {
@@ -9658,10 +9731,9 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
 
 #[test]
 fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
-        let accessor = new_shared_object_accessor();
         let player_guid = ObjectGuid::create_player(1, 90_212);
         let position = Position::ZERO;
         let generic_spell_id = 71_001;
@@ -9694,7 +9766,6 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
         session.player_name = Some("StandBoundary".into());
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
-        session.set_object_accessor(Arc::clone(&accessor));
         session.set_spell_store(Arc::new(spell_store));
         session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([
             wow_data::DifficultyEntry {
@@ -9771,23 +9842,19 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
                 applied_at: Instant::now(),
             },
         );
-        let canonical_snapshot = session
-            .canonical_player_snapshot_like_cpp(Clone::clone)
-            .expect("canonical channel-boundary baseline");
-        session.sync_object_accessor_player_entity_like_cpp(canonical_snapshot);
-        session.active_spell_cast = Some(SpellCastState {
+        session.set_active_spell_cast_like_cpp(Some(SpellCastState {
             spell_id: generic_spell_id,
             target_guid: player_guid,
-            target_data: SpellTargetData::default(),
+            target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
             cast_id: ObjectGuid::new(6, 71_006),
             cast_start_time: Instant::now(),
             cast_time_ms: 1_000,
-            spell_visual: wow_packet::packets::spell::SpellCastVisual {
+            spell_visual: wow_entities::SpellCastVisualLikeCpp {
                 spell_visual_id: 0,
                 script_visual_id: 0,
             },
             metadata: SpellCastMetadata::default(),
-        });
+        }));
 
         let outcome = session.apply_represented_live_intent_like_cpp(
             RepresentedLiveIntentLikeCpp::StandStateChanged(RepresentedStandStateChangedLikeCpp {
@@ -9816,7 +9883,7 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
             session.player_stand_state_like_cpp(),
             UnitStandStateType::Stand
         );
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(!session.visible_auras.contains_key(&standing_aura_slot));
         assert_eq!(
             session.represented_live_applications_like_cpp(),
@@ -9868,23 +9935,6 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
                 assert!(!unit.has_unit_state(UnitState::CASTING.bits()));
             })
             .unwrap();
-        {
-            let accessor = accessor.read();
-            let player = accessor
-                .find_connected_player_entity(player_guid)
-                .expect("channel-boundary bridge refreshes ObjectAccessor snapshot");
-            assert_eq!(
-                player.unit().stand_state_like_cpp(),
-                UnitStandStateType::Stand
-            );
-            assert!(!player.unit().subsystems().auras.has_applied(standing_aura));
-            assert_eq!(
-                player
-                    .unit()
-                    .current_spell(wow_entities::CurrentSpellSlot::Channeled),
-                None
-            );
-        }
     });
 }
 
@@ -9915,26 +9965,26 @@ fn stand_state_channel_boundary_requires_casting_standing_transition() {
                 player.clear_data_changes();
             })
             .unwrap();
-        session.active_spell_cast = Some(SpellCastState {
+        session.set_active_spell_cast_like_cpp(Some(SpellCastState {
             spell_id: 72_002,
             target_guid: player_guid,
-            target_data: SpellTargetData::default(),
+            target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
             cast_id: ObjectGuid::new(6, 72_003),
             cast_start_time: Instant::now(),
             cast_time_ms: 1_000,
-            spell_visual: wow_packet::packets::spell::SpellCastVisual {
+            spell_visual: wow_entities::SpellCastVisualLikeCpp {
                 spell_visual_id: 0,
                 script_visual_id: 0,
             },
             metadata: SpellCastMetadata::default(),
-        });
+        }));
 
         let outcome = session.apply_represented_live_intent_like_cpp(
             RepresentedLiveIntentLikeCpp::StandStateChanged(RepresentedStandStateChangedLikeCpp {
                 state: requested_state,
             }),
         );
-        assert!(session.active_spell_cast.is_some());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_some());
         session
             .mutate_canonical_player_like_cpp(|player| {
                 assert_eq!(
@@ -10393,15 +10443,26 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
 }
 
 #[test]
-fn reset_seasonal_clears_quest_v2_completed_bit_from_bridge_and_canonical_like_cpp() {
+fn reset_seasonal_clears_quest_v2_completed_bit_from_canonical_player_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 12_345);
     let canonical = shared_canonical_map_manager();
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
-    session.set_player_guid(Some(player_guid));
-    session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "SeasonalOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical seasonal map");
     session.seed_seasonal_quest_status_like_cpp(7, 1001, 99);
     session.set_quest_v2_store(Arc::new(seasonal_quest_v2_store_like_cpp([(1001, 65)])));
     assert!(session.set_loaded_quest_completed_bit_like_cpp(65));
@@ -10415,7 +10476,6 @@ fn reset_seasonal_clears_quest_v2_completed_bit_from_bridge_and_canonical_like_c
     assert_eq!(outcome.completed_bit_no_change_or_noop, 0);
     assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
     assert_eq!(session.seasonal_quest_bucket_like_cpp(7), None);
-    assert!(session.represented_quest_completed_bits_like_cpp.is_empty());
     let guard = canonical.lock().expect("canonical lock");
     let player = guard
         .find_map(571, 0)
@@ -11189,8 +11249,8 @@ async fn creature_attack_start_command_rejects_dead_victim_like_cpp() {
         .process_represented_session_commands_like_cpp()
         .await;
 
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
     assert!(
         send_rx.try_recv().is_err(),
         "dead victim must not receive attack-start"
@@ -11702,6 +11762,8 @@ async fn durable_creature_runtime_overflow_disconnects_desynchronized_session() 
 async fn refresh_visible_world_creatures_command_forces_creature_visibility_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 90_009);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_guid = test_creature_guid(90_010);
     let creature_position = Position::new(12.0, 10.0, 0.0, 0.0);
@@ -11730,7 +11792,21 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
 
     session.state = SessionState::LoggedIn;
     session.set_map_manager(manager);
-    session.set_player_map_position_like_cpp(571, player_position);
+    session.set_canonical_map_manager(canonical);
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "RefreshVisibility".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     // Prove the command bypasses the 50-yard visibility throttle.
     session.last_visibility_pos = Some(player_position);
 
@@ -12867,23 +12943,11 @@ async fn complete_quest_triggers_visible_spellclick_refresh_like_cpp() {
     });
 
     session.set_player_guid(Some(player_guid));
-    session.set_player_gold_like_cpp(90);
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "Tester".to_string(),
@@ -12894,6 +12958,33 @@ async fn complete_quest_triggers_visible_spellclick_refresh_like_cpp() {
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical spell-click viewer map");
+    session.set_player_gold_like_cpp(90);
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.statuses.insert(
+                    quest_id,
+                    crate::handlers::quest::PlayerQuestStatus {
+                        quest_id,
+                        status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 0,
+                        end_time_secs: 0,
+                        objective_counts: vec![],
+                        slot: 0,
+                    },
+                );
+            })
+            .is_some(),
+        "quest fixture must be loaded into the canonical Player owner"
+    );
+    session.set_item_guid_generator_like_cpp(Arc::new(wow_core::ObjectGuidGenerator::new(
+        HighGuid::Item,
+        1,
+    )));
     session.set_condition_store(Arc::new(
         ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
             source_type: ConditionSourceType::SpellClickEvent,
@@ -13148,6 +13239,58 @@ fn seasonal_quest_store_like_cpp(
     )
 }
 
+/// Move an old handle-less quest fixture onto the same generation-checked
+/// canonical `Player` owner exercised by production before the behavior under
+/// test can trigger map/visibility work and establish that owner itself.
+fn adopt_player_quest_fixture_into_canonical_owner_like_cpp(session: &mut WorldSession) {
+    assert!(session.player_handle_like_cpp.is_none());
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("handle-less quest fixture");
+    let currencies = session
+        .player_currencies_like_cpp()
+        .expect("handle-less currency fixture");
+    let gold = session.player_gold_like_cpp();
+    let reputation = session.reputation_mgr_like_cpp().clone();
+    install_canonical_player_owner_for_test(session, 0, 0);
+    session.set_item_guid_generator_like_cpp(Arc::new(wow_core::ObjectGuidGenerator::new(
+        HighGuid::Item,
+        1,
+    )));
+    assert!(session.set_player_currencies_like_cpp(currencies));
+    session.set_player_gold_like_cpp(gold);
+    assert!(
+        session
+            .mutate_reputation_mgr_like_cpp(|manager| *manager = reputation)
+            .is_some()
+    );
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| *state = quests)
+            .is_some(),
+        "quest fixture must move to the canonical Player owner"
+    );
+}
+
+fn assert_canonical_quest_status_like_cpp(
+    session: &WorldSession,
+    quest_id: u32,
+    expected_status: Option<u8>,
+    expected_rewarded: bool,
+) {
+    let state = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
+    assert_eq!(
+        state.statuses.get(&quest_id).map(|status| status.status),
+        expected_status
+    );
+    assert_eq!(
+        state.rewarded_quest_ids.contains(&quest_id),
+        expected_rewarded
+    );
+}
+
 #[tokio::test]
 async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
@@ -13187,12 +13330,12 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
         .on_creature_killed(creature_entry, creature_guid)
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13258,10 +13401,10 @@ async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.killed_player_credit_like_cpp(victim_guid).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13334,9 +13477,13 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.killed_player_credit_like_cpp(victim_guid).await;
 
-    let status = session.player_quests.get(&quest_id).expect("quest remains");
+    let state = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
+    let status = state.statuses.get(&quest_id).expect("quest remains");
     assert_eq!(status.objective_counts, vec![0]);
     assert!(send_rx.try_recv().is_err());
 }
@@ -13380,12 +13527,12 @@ async fn talked_to_creature_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
         .talked_to_creature_like_cpp(creature_entry, creature_guid)
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13451,12 +13598,12 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
         .kill_credit_criteria_tree_objective_like_cpp(criteria_tree_id)
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13522,10 +13669,10 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.money_changed_like_cpp(100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session.represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -13590,11 +13737,11 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.apply_player_money_change_like_cpp(90, 100).await;
 
     assert_eq!(session.player_gold_like_cpp(), 100);
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13642,14 +13789,14 @@ async fn money_changed_loss_marks_complete_money_objective_incomplete_like_cpp()
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.money_changed_like_cpp(50).await;
 
-    assert_eq!(
-        session
-            .player_quests
-            .get(&quest_id)
-            .map(|status| status.status),
-        Some(crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+    assert_canonical_quest_status_like_cpp(
+        &session,
+        quest_id,
+        Some(crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+        false,
     );
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
 }
@@ -13714,6 +13861,7 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     assert!(
         session
             .complete_represented_quest_after_add_if_ready_like_cpp(&reward_quest)
@@ -13721,14 +13869,8 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
     );
 
     assert_eq!(session.player_gold_like_cpp(), 100);
-    assert!(!session.player_quests.contains_key(&reward_quest_id));
-    assert!(
-        !session
-            .player_quests
-            .contains_key(&money_objective_quest_id)
-    );
-    assert!(session.rewarded_quests.contains(&reward_quest_id));
-    assert!(session.rewarded_quests.contains(&money_objective_quest_id));
+    assert_canonical_quest_status_like_cpp(&session, reward_quest_id, None, true);
+    assert_canonical_quest_status_like_cpp(&session, money_objective_quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13792,10 +13934,10 @@ async fn currency_tracking_event_objective_auto_rewards_like_cpp() {
     );
     let _ = drain_server_opcodes(&send_rx);
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13845,10 +13987,10 @@ async fn have_currency_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13898,10 +14040,10 @@ async fn obtain_currency_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -13960,10 +14102,10 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -14016,10 +14158,10 @@ async fn increase_reputation_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, 100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -14078,10 +14220,10 @@ async fn reputation_max_tracking_event_objective_auto_rewards_like_cpp() {
         },
     );
 
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, -100).await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
@@ -14218,7 +14360,7 @@ fn load_seasonal_quest_status_repeated_bit_counts_no_change_like_cpp() {
 }
 
 #[test]
-fn canonical_player_entity_snapshot_preserves_loaded_seasonal_unique_bit_like_cpp() {
+fn initial_canonical_player_preserves_loaded_seasonal_unique_bit_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 12_345)));
     session.set_loaded_player_name_like_cpp("SeasonalBit".to_string());
@@ -14238,7 +14380,7 @@ fn canonical_player_entity_snapshot_preserves_loaded_seasonal_unique_bit_like_cp
 
     assert_eq!(outcome.completed_bit_set, 1);
     let player = session
-        .canonical_player_entity_snapshot_like_cpp()
+        .initial_player_fixture_like_cpp()
         .expect("canonical player snapshot");
     assert_eq!(player.quest_completed_block_like_cpp(1), Some(1));
 }
@@ -14440,8 +14582,12 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     session.rewarded_quests.insert(200);
     session.set_player_zone_area_like_cpp(12, 34);
 
-    let owned = session.represented_player_condition_context_like_cpp();
-    let context = owned.as_context(&session);
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
+    let context = owned
+        .as_context(&session)
+        .expect("test Player condition owner");
 
     assert_eq!(context.race, 1);
     assert_eq!(context.class_mask, 0b10);
@@ -17140,6 +17286,7 @@ async fn db_implicit_caster_destination_ignores_other_map_for_non_teleport_bind_
 #[tokio::test]
 async fn teleport_units_uses_cross_map_db_destination_for_player_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 717_i32;
     let player_guid = ObjectGuid::create_player(1, 7023);
     let player_position = Position::new(260.0, 360.0, 52.0, 0.5);
@@ -17201,7 +17348,7 @@ async fn teleport_units_uses_cross_map_db_destination_for_player_like_cpp() {
         .expect("TARGET_DEST_DB teleport should execute");
 
     assert_eq!(
-        session.pending_teleport,
+        session.pending_teleport_like_cpp(),
         Some((
             1,
             Position::new(
@@ -17252,6 +17399,7 @@ fn decode_spell_go_target_data_like_cpp(bytes: &[u8], expected_spell_id: i32) ->
 #[tokio::test]
 async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 8690_i32;
     let player_guid = ObjectGuid::create_player(1, 7040);
     let player_position = Position::new(300.0, 400.0, 60.0, 0.5);
@@ -17276,7 +17424,7 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         80,
         0,
     ));
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 1,
         area_id: 1519,
         position: home_position,
@@ -17320,13 +17468,17 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         "C++ SelectSpellTargets resolves TARGET_DEST_HOME before SpellGo"
     );
     assert_eq!(packet_target.map_id, None);
-    assert_eq!(session.pending_teleport, Some((1, home_position)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((1, home_position))
+    );
     assert_eq!(session.state, SessionState::Transfer);
 }
 
 #[tokio::test]
 async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     let spell_id = 86_902_i32;
     let player_guid = ObjectGuid::create_player(1, 7043);
     let creature_guid = test_creature_guid(7043);
@@ -17359,7 +17511,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
         80,
         0,
     ));
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 1,
         area_id: 1519,
         position: home_position,
@@ -17529,6 +17681,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
 #[tokio::test]
 async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 86_901_i32;
     let player_guid = ObjectGuid::create_player(1, 7042);
     let player_position = Position::new(310.0, 410.0, 62.0, 0.5);
@@ -17569,12 +17722,13 @@ async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() 
         80,
         0,
     ));
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 1,
         area_id: 1519,
         position: home_position,
     });
-    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(spell_id, spell_info.clone());
     session.set_spell_store(Arc::new(spell_store));
@@ -17627,7 +17781,10 @@ async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() 
         home_position,
         "effect 0 BIND keeps its HOME snapshot while later TELEPORT uses DB"
     );
-    assert_eq!(session.pending_teleport, Some((1, db_destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((1, db_destination))
+    );
 }
 
 #[tokio::test]
@@ -17675,7 +17832,7 @@ async fn teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_
         .await
         .expect("missing represented homebind keeps current bounded no-op");
 
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -17724,7 +17881,8 @@ async fn teleport_units_without_destination_is_noop_like_cpp() {
         .expect("destination-less teleport should execute as effect no-op");
 
     assert_eq!(
-        session.pending_teleport, None,
+        session.pending_teleport_like_cpp(),
+        None,
         "C++ EffectTeleportUnits returns when m_targets.HasDst() is false"
     );
     assert_ne!(session.state, SessionState::Transfer);
@@ -17733,6 +17891,7 @@ async fn teleport_units_without_destination_is_noop_like_cpp() {
 #[tokio::test]
 async fn primary_teleport_units_uses_explicit_destination_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 730_i32;
     let player_guid = ObjectGuid::create_player(1, 7029);
     let player_position = Position::new(271.0, 371.0, 55.0, 0.75);
@@ -17795,7 +17954,7 @@ async fn primary_teleport_units_uses_explicit_destination_like_cpp() {
         .expect("represented primary teleport should execute");
 
     assert_eq!(
-        session.pending_teleport,
+        session.pending_teleport_like_cpp(),
         Some((
             1,
             Position::new(
@@ -19523,12 +19682,15 @@ fn represented_mounted_aura_recalculates_amount_from_mount_capability_like_cpp()
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert!(session.visible_auras.values().any(|aura| {
+    let visible_auras = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert!(visible_auras.values().any(|aura| {
         aura.spell_id == 100
             && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
             && aura.represented_amount == 77
     }));
-    assert!(session.visible_auras.values().any(|aura| {
+    assert!(visible_auras.values().any(|aura| {
         aura.spell_id == 12_346
             && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
             && aura.represented_amount == 100
@@ -19576,6 +19738,87 @@ fn represented_player_speed_change_propagates_to_active_pet_like_cpp() {
         session.represented_pet_speed_propagations_like_cpp(),
         1,
         "C++ Pet::SetSpeedRate returns early when the rate is unchanged"
+    );
+}
+
+#[test]
+fn canonical_pet_owns_live_mode_spell_and_speed_state_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_582);
+    let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 7_001, 5_582);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CanonicalPetOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    add_canonical_test_pet_with_number(
+        &canonical,
+        pet_guid,
+        player_guid,
+        7_001,
+        position,
+        42,
+        9_001,
+        0,
+    );
+    session.client_visible_guids_like_cpp.insert(pet_guid);
+    session.set_represented_pet_mode_state_with_spell_like_cpp(
+        Some(pet_guid),
+        wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP,
+        wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP,
+        9_002,
+    );
+
+    session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+    let manager = canonical.lock().unwrap();
+    let pet = manager
+        .find_map(571, 0)
+        .unwrap()
+        .map()
+        .get_typed_pet(pet_guid)
+        .expect("canonical pet");
+    assert_eq!(pet.created_by_spell_id_like_cpp(), 9_002);
+    assert_eq!(
+        pet.creature().react_state(),
+        wow_entities::ReactState::Passive
+    );
+    assert_eq!(
+        pet.creature()
+            .unit()
+            .subsystems()
+            .control
+            .charm_info
+            .as_ref()
+            .unwrap()
+            .command_state,
+        wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP
+    );
+    assert_eq!(
+        pet.creature()
+            .unit()
+            .speed_rate_at_like_cpp(UnitMoveTypeLikeCpp::Run.index()),
+        Some(2.0)
+    );
+    drop(manager);
+
+    assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 1);
+    assert!(
+        drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSplineSetRunSpeed),
+        "C++ Pet::SetSpeedRate publishes the canonical Pet speed after mutation"
     );
 }
 
@@ -21542,7 +21785,7 @@ fn account_mount_load_adds_faction_counterpart_like_cpp() {
     assert!(session.known_spells_like_cpp().contains(&101));
     assert_eq!(
         session.account_mount_save_rows_like_cpp(),
-        vec![
+        Some(vec![
             AccountMountSaveRowLikeCpp {
                 bnet_account_id: 77,
                 mount_spell_id: 100,
@@ -21553,7 +21796,7 @@ fn account_mount_load_adds_faction_counterpart_like_cpp() {
                 mount_spell_id: 101,
                 flags: 2,
             },
-        ],
+        ]),
         "C++ CollectionMgr::SaveAccountMounts persists the final std::map collection, including faction-specific mounts"
     );
 }
@@ -21811,7 +22054,7 @@ fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
         }]),
     ));
 
-    assert_eq!(session.player_zone_area_like_cpp(), (0, 0));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((0, 0)));
     assert_eq!(
         session
             .represented_mount_capability_for_type_from_session_like_cpp(7, None)
@@ -22292,9 +22535,11 @@ fn add_canonical_test_pet_with_number(
     entry: u32,
     position: Position,
     pet_number: u32,
+    created_by_spell_id: u32,
     duration_ms: i32,
 ) {
     let mut pet = wow_entities::Pet::new(owner_guid, wow_entities::PetType::Hunter);
+    pet.set_created_by_spell_id_like_cpp(created_by_spell_id);
     pet.creature_mut()
         .unit_mut()
         .world_mut()
@@ -22357,6 +22602,20 @@ fn add_canonical_test_player_on_map(
         instance_id,
         0,
     );
+}
+
+/// C++ `Player::GetNPCIfCanInteractWith` requires the canonical Player to be
+/// in-world, alive and to carry a resolvable faction before a positive NPC
+/// interaction fixture is meaningful.
+fn adopt_live_canonical_test_player_for_interaction_like_cpp(session: &mut WorldSession) {
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.unit_mut().set_faction(1);
+        })
+        .expect("live canonical Player interaction fixture");
 }
 
 fn bind_canonical_test_player_to_registry_like_cpp(
@@ -23340,8 +23599,7 @@ fn add_farsight_session_caller_preserves_destination_radius_duration_like_cpp() 
         .find_map(571, 0)
         .unwrap()
         .map()
-        .map_object_record(dynamic_guid)
-        .and_then(wow_entities::MapObjectRecord::dynamic_object)
+        .get_typed_dynamic_object(dynamic_guid)
         .expect("created farsight dynamic object should be canonical map-owned");
     assert_eq!(dynamic_object.world().position(), destination);
     assert_eq!(dynamic_object.radius(), 25.0);
@@ -26540,8 +26798,7 @@ async fn add_farsight_live_spell_sets_session_seer_to_created_dynamic_object_lik
         .find_map(571, 0)
         .unwrap()
         .map()
-        .map_object_record(seer_guid)
-        .and_then(wow_entities::MapObjectRecord::dynamic_object)
+        .get_typed_dynamic_object(seer_guid)
         .expect("represented session seer should be the created map-owned DynamicObject");
     assert_eq!(dynamic_object.world().position(), destination);
     assert_eq!(dynamic_object.caster_guid(), player_guid);
@@ -26889,6 +27146,8 @@ fn gameobject_interaction_resolves_canonical_map_object_like_cpp() {
 fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 26_820);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let visible_guid = test_creature_guid(20);
     let far_guid = test_creature_guid(21);
@@ -26896,6 +27155,21 @@ fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
     let far_pos = Position::new(5000.0, 5000.0, 0.0, 0.0);
 
     session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "VisibilityOwner".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     for (guid, position) in [(visible_guid, visible_pos), (far_guid, far_pos)] {
         let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
         manager.write().unwrap().add_creature(
@@ -26929,6 +27203,7 @@ fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_li
 
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "VisibleCreatureViewer".to_string(),
@@ -26939,7 +27214,9 @@ fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_li
         80,
         0,
     ));
-    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     add_canonical_test_creature_on_map_with_world_state(
         &canonical,
         creature_guid,
@@ -27161,6 +27438,7 @@ fn visible_creatures_skip_not_in_world_canonical_objects_like_cpp() {
     ));
     session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_test_creature_indexed_on_map_with_level(
         &canonical,
         in_world_guid,
@@ -27529,6 +27807,17 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&registry));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 571,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "MapVisibility".to_string(),
@@ -27539,6 +27828,9 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("visibility fixture should install its canonical Player owner");
     session.apply_move_init_active_mover_complete_like_cpp(0);
     let _ = drain_server_packet_bytes(&send_rx);
 
@@ -27665,6 +27957,7 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
 
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "LoginVisibility".to_string(),
@@ -27675,6 +27968,9 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     session.apply_move_init_active_mover_complete_like_cpp(0);
     let _ = drain_server_packet_bytes(&send_rx);
 
@@ -27735,6 +28031,7 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
 
     session.set_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "LoginAfterAddVisibility".to_string(),
@@ -27745,6 +28042,9 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
     session.apply_move_init_active_mover_complete_like_cpp(0);
     let _ = drain_server_packet_bytes(&send_rx);
 
@@ -27951,7 +28251,9 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
         Some(seer_position)
     );
 
-    session.update_visibility().await;
+    tokio::time::timeout(Duration::from_secs(1), session.update_visibility())
+        .await
+        .expect("visibility must not re-enter the canonical map mutex");
 
     assert!(
         session
@@ -29399,6 +29701,10 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
     );
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+    assert!(session.ensure_canonical_player_owner_for_map_like_cpp(
+        wow_map::MapKey::new(571, 0),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+    ));
     session.mutate_canonical_player_like_cpp(|player| {
         player.unit_mut().set_max_health(100);
         player.unit_mut().set_health(50);
@@ -29826,6 +30132,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical map");
+    session.set_player_faction_template_like_cpp(1);
 
     add_canonical_test_creature(
         &canonical,
@@ -30001,7 +30308,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
         ),
         None
     );
-    session.taxi_flight_state_like_cpp = None;
+    assert!(session.replace_player_taxi_state_like_cpp(Default::default()));
 
     session.set_player_alive_like_cpp(false);
     assert_eq!(
@@ -30103,6 +30410,13 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
             .unwrap()
             .unit_mut()
             .set_unit_flags2_like_cpp(wow_constants::unit::UnitFlags2::INTERACT_WHILE_HOSTILE);
+        let player = managed
+            .map()
+            .get_typed_player(player_guid)
+            .expect("canonical Player owner remains active");
+        assert!(player.unit().world().object().is_in_world());
+        assert!(player.unit().is_alive());
+        assert_eq!(player.unit().data().health, 100);
     }
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
@@ -30753,16 +31067,7 @@ fn canonical_player_map_transfer_sync_removes_stale_old_map_like_cpp() {
     other_session.player_name = Some("TransferOther".into());
     other_session.player_position = Some(Position::new(3710.0, 1510.0, 120.0, 0.0));
     other_session.current_map_id = 571;
-    {
-        let other_player = other_session
-            .canonical_player_entity_snapshot_like_cpp()
-            .unwrap();
-        let mut manager = canonical.lock().unwrap();
-        other_session.sync_canonical_player_entity_like_cpp(
-            manager.find_map_mut(571, 0).unwrap(),
-            other_player,
-        );
-    }
+    insert_session_player_into_canonical_map_like_cpp(&other_session, &canonical, 571, 0);
     add_canonical_test_creature(
         &canonical,
         creature_guid,
@@ -30780,7 +31085,11 @@ fn canonical_player_map_transfer_sync_removes_stale_old_map_like_cpp() {
     let old_map = manager.find_map(571, 0).unwrap().map();
     assert!(old_map.get_typed_player(player_guid).is_none());
     assert!(old_map.get_typed_player(other_player_guid).is_some());
-    assert!(old_map.get_typed_creature(creature_guid).is_some());
+    assert!(
+        old_map
+            .with_creature_like_cpp(creature_guid, Clone::clone)
+            .is_some()
+    );
 
     let target_player = manager
         .find_map(0, 0)
@@ -30798,7 +31107,7 @@ fn canonical_player_same_target_sync_preserves_mutable_state_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 53);
     let target_guid = test_creature_guid(19_053);
-    let updated_position = Position::new(3725.0, 1525.0, 120.0, 2.0);
+    let updated_position = Position::new(3800.0, 1525.0, 120.0, 2.0);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
@@ -30822,10 +31131,10 @@ fn canonical_player_same_target_sync_preserves_mutable_state_like_cpp() {
         })
         .unwrap();
 
-    session.set_player_map_position_like_cpp(571, updated_position);
-    session
-        .ensure_canonical_world_map_for_current_player_like_cpp()
-        .expect("same target world map");
+    assert!(session.ensure_canonical_player_owner_for_map_like_cpp(
+        wow_map::MapKey::new(571, 0),
+        updated_position,
+    ));
 
     let manager = canonical.lock().unwrap();
     let player = manager
@@ -30837,6 +31146,4010 @@ fn canonical_player_same_target_sync_preserves_mutable_state_like_cpp() {
     assert_eq!(player.unit().attacking(), Some(target_guid));
     assert!(player.has_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP));
     assert_eq!(player.unit().world().position(), updated_position);
+    let cell = wow_map::cell_from_world(updated_position.x, updated_position.y);
+    assert_eq!(
+        player.unit().world().current_cell(),
+        Some((cell.cell_x(), cell.cell_y())),
+        "same-map residence must preserve C++ Map::PlayerRelocation cell membership"
+    );
+}
+
+#[test]
+fn canonical_player_far_teleport_keeps_one_detached_identity_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 55);
+    let target_guid = test_creature_guid(19_055);
+    let target_position = Position::new(-8815.0, 635.0, 94.0, 1.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "FarTeleport".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let handle = session.player_handle_like_cpp.expect("canonical handle");
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_attacking(Some(target_guid));
+            player.set_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP);
+        })
+        .unwrap();
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical.lock().unwrap().player_residence_like_cpp(handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.canonical_player_snapshot_like_cpp(|player| (
+            player.unit().attacking(),
+            player.has_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP),
+        )),
+        Some((Some(target_guid), true))
+    );
+
+    session.set_player_map_position_like_cpp(0, target_position);
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("target world map");
+
+    assert_eq!(session.player_handle_like_cpp, Some(handle));
+    let manager = canonical.lock().unwrap();
+    assert_eq!(
+        manager.player_residence_like_cpp(handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Active(
+            wow_map::MapKey::new(0, 0)
+        ))
+    );
+    assert_eq!(
+        manager.with_player_like_cpp(handle, |player| (
+            player.unit().world().position(),
+            player.unit().attacking(),
+            player.has_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP),
+        )),
+        Some((target_position, Some(target_guid), true))
+    );
+}
+
+#[test]
+fn canonical_player_vitals_follow_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_557);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "VitalOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_max_health(321);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
+            player.unit_mut().set_health(123);
+        })
+        .expect("active canonical Player");
+
+    assert_eq!(
+        session.resolved_player_vitals_like_cpp(),
+        Some((123, 321, true))
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_vitals_like_cpp(),
+        Some((123, 321, true))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.unit_mut().set_max_health(999);
+    replacement.unit_mut().set_health(999);
+    canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_vitals_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        None
+    );
+}
+
+#[test]
+fn canonical_player_powers_follow_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_558);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PowerOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    session.set_loaded_player_powers_like_cpp([123, 45, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert!(session.sync_canonical_player_primary_power_like_cpp(PowerType::Mana, 123, 321, 222,));
+
+    assert_eq!(
+        session.represented_player_power_values_like_cpp(),
+        Some([123, 45, 0, 0, 0, 0, 0, 0, 0, 0])
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.represented_player_power_values_like_cpp(),
+        Some([123, 45, 0, 0, 0, 0, 0, 0, 0, 0])
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(old_handle, |player| (
+                player.unit().get_max_power(PowerType::Mana),
+                player.unit().get_create_mana_like_cpp(),
+            )),
+        Some((321, 222))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_player_power_values_like_cpp(), None);
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        None
+    );
+}
+
+#[test]
+fn canonical_player_progression_follows_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_559);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ProgressionOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_player_xp_like_cpp(123));
+    assert!(session.set_player_next_level_xp_like_cpp(456));
+    assert!(session.set_player_character_points_like_cpp(7));
+
+    assert_eq!(session.resolved_player_xp_like_cpp(), Some(123));
+    assert_eq!(session.resolved_player_next_level_xp_like_cpp(), Some(456));
+    assert_eq!(session.resolved_player_character_points_like_cpp(), Some(7));
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_player_xp_like_cpp(), Some(123));
+    assert_eq!(session.resolved_player_next_level_xp_like_cpp(), Some(456));
+    assert_eq!(session.resolved_player_character_points_like_cpp(), Some(7));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_xp(900);
+    replacement.set_next_level_xp(1_000);
+    replacement.set_character_points_like_cpp(11);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_xp_like_cpp(), None);
+    assert_eq!(session.resolved_player_next_level_xp_like_cpp(), None);
+    assert_eq!(session.resolved_player_character_points_like_cpp(), None);
+    assert!(!session.set_player_xp_like_cpp(1));
+    assert!(!session.set_player_next_level_xp_like_cpp(2));
+    assert!(!session.set_player_character_points_like_cpp(3));
+    assert!(!session.give_xp_runtime_like_cpp(10, ObjectGuid::EMPTY, 1.0));
+    assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.active_data().xp,
+                player.active_data().next_level_xp,
+                player.active_data().character_points,
+            )),
+        Some((900, 1_000, 11))
+    );
+}
+
+#[test]
+fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_560);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "SpecializationOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_player_create_mode_like_cpp(1));
+    assert!(session.set_represented_shapeshift_form_like_cpp(5));
+    assert!(session.set_loot_specialization_id_like_cpp(65));
+    assert!(session.set_represented_primary_specialization_id_like_cpp(66));
+
+    assert_eq!(session.player_create_mode_like_cpp(), Some(1));
+    assert_eq!(session.represented_shapeshift_form_like_cpp(), Some(5));
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
+    assert_eq!(
+        session.represented_primary_specialization_id_like_cpp(),
+        Some(66)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.player_create_mode_like_cpp(), Some(1));
+    assert_eq!(session.represented_shapeshift_form_like_cpp(), Some(5));
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_create_mode_like_cpp(0);
+    replacement.set_shapeshift_form_id_like_cpp(2);
+    replacement.set_loot_specialization_id_like_cpp(70);
+    replacement.set_primary_specialization(71);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_create_mode_like_cpp(), None);
+    assert_eq!(session.represented_shapeshift_form_like_cpp(), None);
+    assert_eq!(session.loot_specialization_id_like_cpp(), None);
+    assert_eq!(
+        session.represented_primary_specialization_id_like_cpp(),
+        None
+    );
+    assert!(!session.set_player_create_mode_like_cpp(1));
+    assert!(!session.set_represented_shapeshift_form_like_cpp(5));
+    assert!(!session.set_loot_specialization_id_like_cpp(65));
+    assert!(!session.set_represented_primary_specialization_id_like_cpp(66));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.create_mode_like_cpp(),
+                player.shapeshift_form_id_like_cpp(),
+                player.loot_specialization_id_like_cpp(),
+                player.primary_specialization_id_like_cpp(),
+            )),
+        Some((0, 2, 70, 71))
+    );
+}
+
+#[test]
+fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_562);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TalentOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let mut owned = wow_entities::PlayerTalentRuntimeState {
+        talents_loaded: true,
+        glyphs_loaded: true,
+        active_group: 1,
+        bonus_groups: 1,
+        reset_talents_cost: 100_000,
+        reset_talents_time_secs: 12_345,
+        ..Default::default()
+    };
+    owned.talent_groups[1].insert(42, 1);
+    owned.glyph_groups[1][2] = 700;
+
+    assert_eq!(
+        session.mutate_player_talent_runtime_like_cpp(|runtime| *runtime = owned.clone()),
+        Some(())
+    );
+    assert_eq!(
+        session.player_talent_runtime_snapshot_like_cpp(),
+        Some(owned.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_talent_runtime_snapshot_like_cpp(),
+        Some(owned.clone())
+    );
+
+    let mut replacement_state = wow_entities::PlayerTalentRuntimeState {
+        talents_loaded: true,
+        glyphs_loaded: true,
+        active_group: 0,
+        bonus_groups: 0,
+        reset_talents_cost: 500_000,
+        reset_talents_time_secs: 98_765,
+        ..Default::default()
+    };
+    replacement_state.talent_groups[0].insert(99, 2);
+    replacement_state.glyph_groups[0][3] = 900;
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_talent_runtime_like_cpp(replacement_state.clone());
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_talent_runtime_snapshot_like_cpp(), None);
+    assert_eq!(
+        session
+            .mutate_player_talent_runtime_like_cpp(|_| panic!("stale owner must not run mutation")),
+        None::<()>
+    );
+    assert!(!session.set_represented_active_talent_group_like_cpp(1));
+    assert!(!session.set_represented_bonus_talent_groups_like_cpp(1));
+    assert!(!session.set_represented_talent_reset_state_like_cpp(10_000, 1));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.talent_runtime_like_cpp().clone()
+            }),
+        Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_skills_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_563);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "SkillOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let owned = HashMap::from([(
+        333,
+        RepresentedPlayerSkillLikeCpp {
+            skill_id: 333,
+            step: 1,
+            value: 150,
+            max: 225,
+            profession_slot: 0,
+            state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
+        },
+    )]);
+
+    assert!(session.set_complete_player_skill_records_like_cpp(owned.clone(), 1));
+    assert_eq!(
+        session.resolved_player_skill_records_like_cpp(),
+        Some(owned.clone())
+    );
+    assert_eq!(
+        session.complete_player_skill_occupied_slots_like_cpp(),
+        Some(1)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_skill_records_like_cpp(),
+        Some(owned.clone())
+    );
+
+    let replacement_record = wow_entities::PlayerSkillRecord {
+        skill_line_id: 202,
+        current_value: 300,
+        max_value: 300,
+        step: 1,
+        profession_slot: 1,
+        state: wow_entities::PlayerSkillLoadState::Unchanged,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_skill_records_like_cpp(
+        vec![replacement_record.clone()],
+        true,
+        true,
+        Some(1),
+        BTreeSet::new(),
+    );
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_skill_records_like_cpp(), None);
+    assert_eq!(session.resolved_player_skill_value_like_cpp(333), None);
+    assert!(!session.set_complete_player_skill_records_like_cpp(owned, 1));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.skill_records_like_cpp().to_vec()
+            }),
+        Some(vec![replacement_record])
+    );
+}
+
+#[test]
+fn canonical_player_guild_state_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_564);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "GuildOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_guild_id_like_cpp(12));
+    assert!(session.set_represented_guild_id_invited_like_cpp(13));
+    assert_eq!(session.resolved_represented_guild_id_like_cpp(), Some(12));
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_represented_guild_id_like_cpp(), Some(12));
+
+    let replacement_state = wow_entities::PlayerGuildState {
+        guild_id: Some(99),
+        invited_guild_id: Some(100),
+        rank_id: Some(4),
+        authority_complete: true,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().guild = replacement_state.clone();
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_represented_guild_id_like_cpp(), None);
+    assert!(!session.set_represented_guild_id_like_cpp(14));
+    assert!(!session.set_represented_guild_id_invited_like_cpp(15));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().guild.clone()
+            }),
+        Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_trade_state_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_565);
+    let partner_guid = ObjectGuid::create_player(1, 5_566);
+    let item_guid = ObjectGuid::create_item(1, 70_001);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TradeOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_active_trade_partner_like_cpp(Some(partner_guid)));
+    assert!(session.set_represented_partner_trade_server_state_index_like_cpp(7));
+    session.set_represented_trade_item_like_cpp_for_test(2, item_guid);
+    session.set_represented_trade_spell_like_cpp_for_test(7418, Some(item_guid));
+    session.set_represented_trade_accepted_like_cpp_for_test(true);
+    assert_eq!(
+        session.resolved_represented_active_trade_partner_like_cpp(),
+        Some(Some(partner_guid))
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.represented_trade_item_like_cpp(2), Some(item_guid));
+    assert_eq!(session.represented_trade_spell_like_cpp(), 7418);
+    assert!(session.represented_trade_accepted_like_cpp());
+
+    let replacement_partner = ObjectGuid::create_player(1, 5_567);
+    let replacement_state = wow_entities::PlayerTradeStateLikeCpp {
+        partner_guid: replacement_partner,
+        accepted: true,
+        partner_server_state_index: 12,
+        client_state_index: 13,
+        server_state_index: 14,
+        items: [None; wow_entities::PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],
+        money: 15,
+        spell_id: 16,
+        spell_cast_item_guid: None,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().trade = Some(replacement_state.clone());
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.resolved_represented_active_trade_partner_like_cpp(),
+        None
+    );
+    assert!(
+        !session.set_represented_active_trade_partner_like_cpp(Some(ObjectGuid::create_player(
+            1, 5_568
+        )))
+    );
+    assert!(!session.set_represented_trade_accepted_like_cpp_for_command(false));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().trade.clone()
+            }),
+        Some(Some(replacement_state))
+    );
+}
+
+#[test]
+fn canonical_player_persistent_capabilities_follow_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_569);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CapabilityOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_at_login_flags_like_cpp(0x24));
+    assert_eq!(
+        session.mutate_player_persistent_capability_state_like_cpp(|state| {
+            state.weapon_proficiency = 0x10;
+            state.armor_proficiency = 0x20;
+        }),
+        Some(())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_represented_at_login_flags_like_cpp(),
+        Some(0x24)
+    );
+
+    let replacement_state = wow_entities::PlayerPersistentCapabilityStateLikeCpp {
+        at_login_flags: 0x40,
+        weapon_proficiency: 0x80,
+        armor_proficiency: 0x100,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().persistent_capabilities = replacement_state;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_represented_at_login_flags_like_cpp(), None);
+    assert!(!session.set_represented_at_login_flags_like_cpp(0x2));
+    assert_eq!(
+        session.mutate_player_persistent_capability_state_like_cpp(|state| {
+            state.weapon_proficiency = 0;
+            state.armor_proficiency = 0;
+        }),
+        None
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().persistent_capabilities
+            }),
+        Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_battleground_context_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_570);
+    let queue_type = RepresentedBattlegroundQueueTypeIdLikeCpp {
+        battlemaster_list_id: 3,
+        queue_type: 1,
+        rated: false,
+        team_size: 0,
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "BattlegroundOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_battleground_context_like_cpp(3, 529));
+    assert!(session.set_represented_arena_team_id_invited_like_cpp(77));
+    session.set_represented_battleground_status_like_cpp(Some(4));
+    session.add_represented_battleground_queue_slot_like_cpp(1, queue_type, 88);
+    assert!(session.player_in_represented_battleground_like_cpp());
+    assert!(session.represented_battleground_status_is_wait_leave_like_cpp());
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.player_in_represented_battleground_like_cpp());
+    assert!(session.represented_battleground_status_is_wait_leave_like_cpp());
+    assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 77);
+
+    let replacement_state = wow_entities::PlayerBattlegroundState {
+        represented_type_id: Some(7),
+        represented_map_id: Some(30),
+        represented_status: Some(3),
+        represented_queue_slots: vec![wow_entities::PlayerBattlegroundQueueSlotLikeCpp {
+            slot: 2,
+            queue_type_id: queue_type,
+            invited_instance_guid: 99,
+        }],
+        arena_team_id_invited: 100,
+        ..Default::default()
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().battleground = replacement_state.clone();
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(!session.player_in_represented_battleground_like_cpp());
+    assert!(!session.set_player_battleground_context_like_cpp(1, 489));
+    assert!(!session.set_represented_arena_team_id_invited_like_cpp(101));
+    session.set_represented_battleground_status_like_cpp(Some(4));
+    assert!(!session.represented_battleground_status_is_wait_leave_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().battleground.clone()
+            }),
+        Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_571);
+    let groups = Arc::new(GroupRegistry::default());
+    let group = GroupInfo::new(player_guid);
+    let group_guid = group.group_guid;
+    groups.register_group_like_cpp(group_guid, group);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.set_group_registry(Arc::clone(&groups), Arc::new(PendingInvites::default()));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "GroupOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
+    assert_eq!(
+        session.next_group_update_sequence_number_like_cpp(0),
+        Some(1)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
+    assert_eq!(
+        session.next_group_update_sequence_number_like_cpp(0),
+        Some(2)
+    );
+
+    let replacement_state = wow_entities::PlayerGroupState {
+        group_guid: ObjectGuid::create_group(group_guid + 1),
+        leader_guid: ObjectGuid::create_player(1, 9_999),
+        role_mask: 4,
+        subgroup: 3,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().group = Some(replacement_state.clone());
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_group_guid_like_cpp(), None);
+    assert!(!session.set_owned_player_group_like_cpp(None));
+    assert_eq!(session.next_group_update_sequence_number_like_cpp(0), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().group.clone()
+            }),
+        Some(Some(replacement_state))
+    );
+}
+
+#[test]
+fn canonical_player_reputation_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_572);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ReputationOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session
+            .mutate_reputation_mgr_like_cpp(|mgr| {
+                let mut faction = crate::reputation::FactionStateLikeCpp::new_like_cpp(
+                    72,
+                    5,
+                    ReputationFlagsLikeCpp::VISIBLE,
+                );
+                faction.standing = 1_234;
+                mgr.insert_state_for_test_like_cpp(faction);
+                mgr.apply_force_reaction_like_cpp(
+                    87,
+                    wow_data::reputation::ReputationRankLikeCpp::Hostile,
+                    true,
+                );
+            })
+            .is_some()
+    );
+    session.set_championing_faction_like_cpp(72);
+    assert_eq!(
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            (
+                mgr.get_state(5).map(|state| state.standing),
+                mgr.forced_rank_by_faction_id_like_cpp(87),
+            )
+        }),
+        Some((
+            Some(1_234),
+            Some(wow_data::reputation::ReputationRankLikeCpp::Hostile)
+        ))
+    );
+    assert_eq!(session.resolved_championing_faction_like_cpp(), Some(72));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .with_reputation_mgr_like_cpp(|mgr| { mgr.get_state(5).map(|state| state.standing) }),
+        Some(Some(1_234))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().championing_faction_id = 999;
+    replacement
+        .gameplay_state_mut()
+        .reputations
+        .push(wow_entities::PlayerReputationRecord {
+            faction_id: 999,
+            reputation_list_id: 6,
+            standing: 7_777,
+            ..Default::default()
+        });
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.with_reputation_mgr_like_cpp(|_| ()), None);
+    assert_eq!(session.mutate_reputation_mgr_like_cpp(|_| ()), None);
+    session.set_championing_faction_like_cpp(72);
+    assert_eq!(session.resolved_championing_faction_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                (
+                    player.gameplay_state().championing_faction_id,
+                    player.gameplay_state().reputations.clone(),
+                )
+            }),
+        Some((
+            999,
+            vec![wow_entities::PlayerReputationRecord {
+                faction_id: 999,
+                reputation_list_id: 6,
+                standing: 7_777,
+                ..Default::default()
+            }]
+        ))
+    );
+}
+
+#[test]
+fn canonical_player_phase_shift_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_573);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PhaseOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    let active_phase = PhaseShift::from_phases([10]);
+    assert!(session.set_represented_player_phase_shift_like_cpp(active_phase.clone()));
+    assert_eq!(
+        session.represented_player_phase_shift_like_cpp(),
+        Some(active_phase.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.represented_player_phase_shift_like_cpp(),
+        Some(active_phase)
+    );
+
+    let replacement_phase = PhaseShift::from_phases([20]);
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    *replacement.unit_mut().world_mut().phase_shift_mut() = replacement_phase.clone();
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_player_phase_shift_like_cpp(), None);
+    assert!(!session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([30])));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.unit().world().phase_shift().clone()
+            }),
+        Some(replacement_phase)
+    );
+}
+
+#[test]
+fn canonical_player_menu_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_574);
+    let source_guid = test_creature_guid(574);
+    let option = GossipOptionInfo {
+        gossip_option_id: 7,
+        menu_id: 11,
+        order_index: 2,
+        option_npc: 3,
+        action_menu_id: 13,
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "MenuOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_trainer_interaction_like_cpp(source_guid, 77));
+    assert!(session.replace_player_gossip_options_like_cpp(vec![option.clone()]));
+    assert_eq!(
+        session.player_interaction_source_guid_like_cpp(),
+        Some(source_guid)
+    );
+    assert!(session.player_trainer_interaction_matches_like_cpp(source_guid, 77));
+    assert_eq!(
+        session.player_gossip_option_like_cpp(7),
+        Some(option.clone())
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.player_gossip_option_like_cpp(7), Some(option));
+
+    let replacement_source = test_creature_guid(575);
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_trainer_interaction_like_cpp(replacement_source, 99);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_interaction_source_guid_like_cpp(), None);
+    assert_eq!(
+        session.resolved_player_interaction_trainer_id_like_cpp(),
+        None
+    );
+    assert_eq!(session.player_gossip_option_like_cpp(7), None);
+    assert!(!session.set_player_interaction_source_like_cpp(source_guid));
+    assert!(!session.replace_player_gossip_options_like_cpp(Vec::new()));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                *player.interaction_data_like_cpp()
+            }),
+        Some(wow_entities::PlayerInteractionDataLikeCpp {
+            source_guid: replacement_source,
+            trainer_id: 99,
+            player_choice_id: 0,
+        })
+    );
+}
+
+#[test]
+fn canonical_player_movement_control_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_575);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "MovementControlOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_fall_information_like_cpp(1_200, 87.5));
+    session.set_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run, 2);
+    session.set_movement_force_mod_magnitude_changes_like_cpp(3);
+    session.set_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run, 1.5);
+    session.set_movement_force_mod_magnitude_like_cpp(1.25);
+    assert!(
+        session
+            .with_owned_player_mut_like_cpp(|player| {
+                let movement = &mut player.gameplay_state_mut().movement_control;
+                movement.can_swim_to_fly_transition = true;
+                movement.mover_fixed_position_vehicle = true;
+                movement.scale_duration = 250;
+            })
+            .is_some()
+    );
+    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
+    assert_eq!(session.fall_information_like_cpp(), (1_200, 87.5));
+    assert_eq!(
+        session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+        2
+    );
+    assert_eq!(
+        session.resolved_movement_force_mod_magnitude_changes_like_cpp(),
+        Some(3)
+    );
+    assert_eq!(
+        session.resolved_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+        Some(1.5)
+    );
+    assert_eq!(
+        session.resolved_movement_force_mod_magnitude_like_cpp(),
+        Some(1.25)
+    );
+    assert_eq!(session.movement_counter_like_cpp(), Some(1));
+    assert_eq!(
+        session.resolved_can_swim_to_fly_transition_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(
+        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(session.resolved_player_scale_duration_like_cpp(), Some(250));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.fall_information_like_cpp(), (1_200, 87.5));
+    assert_eq!(
+        session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+        2
+    );
+    assert_eq!(session.movement_counter_like_cpp(), Some(1));
+    assert_eq!(
+        session.resolved_can_swim_to_fly_transition_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(
+        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(session.resolved_player_scale_duration_like_cpp(), Some(250));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_fall_information_like_cpp(900, 44.0);
+    assert!(replacement.set_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run.index(), 7));
+    replacement.set_movement_force_mod_magnitude_changes_like_cpp(8);
+    assert!(
+        replacement
+            .unit_mut()
+            .set_speed_rate_at_like_cpp(UnitMoveTypeLikeCpp::Run.index(), 0.75)
+    );
+    replacement
+        .unit_mut()
+        .set_movement_force_mod_magnitude_like_cpp(0.8);
+    assert_eq!(replacement.unit_mut().next_movement_counter_like_cpp(), 0);
+    assert_eq!(replacement.unit_mut().next_movement_counter_like_cpp(), 1);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_fall_information_like_cpp(), None);
+    assert_eq!(
+        session.resolved_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+        None
+    );
+    assert_eq!(
+        session.resolved_movement_force_mod_magnitude_changes_like_cpp(),
+        None
+    );
+    assert_eq!(
+        session.resolved_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+        None
+    );
+    assert_eq!(
+        session.resolved_movement_force_mod_magnitude_like_cpp(),
+        None
+    );
+    assert_eq!(session.movement_counter_like_cpp(), None);
+    assert_eq!(session.resolved_can_swim_to_fly_transition_like_cpp(), None);
+    assert_eq!(
+        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        None
+    );
+    assert_eq!(session.resolved_player_scale_duration_like_cpp(), None);
+    assert!(!session.set_fall_information_like_cpp(2_000, 10.0));
+    assert!(!session.set_represented_can_swim_to_fly_transition_like_cpp(false));
+    session.set_represented_mover_fixed_position_vehicle_like_cpp(false);
+    assert_eq!(session.next_movement_counter_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.fall_information_like_cpp(),
+                player.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run.index()),
+                player.movement_force_mod_magnitude_changes_like_cpp(),
+                player
+                    .unit()
+                    .speed_rate_at_like_cpp(UnitMoveTypeLikeCpp::Run.index()),
+                player.unit().movement_force_mod_magnitude_like_cpp(),
+                player.unit().movement_counter_like_cpp(),
+                player
+                    .gameplay_state()
+                    .movement_control
+                    .can_swim_to_fly_transition,
+                player
+                    .gameplay_state()
+                    .movement_control
+                    .mover_fixed_position_vehicle,
+                player.gameplay_state().movement_control.scale_duration,
+            )),
+        Some(((900, 44.0), Some(7), 8, Some(0.75), 0.8, 2, false, false, 0))
+    );
+}
+
+#[test]
+fn canonical_player_outdoors_state_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_580);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "OutdoorsOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    session.set_represented_is_outdoors_like_cpp(true);
+    assert_eq!(
+        session
+            .player_world_local_state_like_cpp()
+            .and_then(|state| state.is_outdoors),
+        Some(true)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    session.set_represented_is_outdoors_like_cpp(false);
+    assert_eq!(
+        session
+            .player_world_local_state_like_cpp()
+            .and_then(|state| state.is_outdoors),
+        Some(false)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().world_local.is_outdoors = Some(true);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_world_local_state_like_cpp(), None);
+    session.set_represented_is_outdoors_like_cpp(false);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .gameplay_state()
+                .world_local
+                .is_outdoors,),
+        Some(Some(true))
+    );
+}
+
+#[test]
+fn canonical_player_damage_control_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_576);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "DamageControlOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    session.set_player_cheat_god_like_cpp(true);
+    session.set_player_normal_damage_immune_like_cpp(true);
+    session.set_player_environmental_damage_immune_like_cpp(true);
+    assert_eq!(
+        session.resolved_player_damage_control_like_cpp(),
+        Some(wow_entities::PlayerDamageControlStateLikeCpp {
+            cheat_god: true,
+            normal_damage_immune: true,
+            environmental_damage_immune: true,
+        })
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(
+        session
+            .resolved_player_damage_control_like_cpp()
+            .is_some_and(|state| state.cheat_god)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_normal_damage_immune_like_cpp(true);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_damage_control_like_cpp(), None);
+    session.set_player_cheat_god_like_cpp(true);
+    session.set_player_environmental_damage_immune_like_cpp(true);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .damage_control_like_cpp()),
+        Some(wow_entities::PlayerDamageControlStateLikeCpp {
+            cheat_god: false,
+            normal_damage_immune: true,
+            environmental_damage_immune: false,
+        })
+    );
+}
+
+#[test]
+fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_577);
+    let resurrecter = ObjectGuid::create_player(1, 5_578);
+    let healer_guid = test_creature_guid(578);
+    let request = wow_entities::PlayerResurrectionRequestLikeCpp {
+        resurrecter,
+        map_id: 571,
+        position: Position::new(3701.0, 1501.0, 121.0, 0.5),
+        health: 450,
+        mana: 120,
+        aura: 0,
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ResurrectionOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_represented_resurrection_request_like_cpp(request));
+    assert!(session.schedule_represented_resurrection_after_teleport_like_cpp(request));
+    session.add_represented_self_res_spell_like_cpp(21169);
+    assert!(session.set_area_spirit_healer_guid_like_cpp(healer_guid));
+    assert!(
+        session
+            .with_owned_player_mut_like_cpp(|player| {
+                player.resurrection_state_mut_like_cpp().death_timer_active = true;
+            })
+            .is_some()
+    );
+    assert_eq!(
+        session.player_resurrection_state_snapshot_like_cpp(),
+        Some(wow_entities::PlayerResurrectionStateLikeCpp {
+            request: Some(request),
+            delayed_after_teleport: Some(request),
+            self_res_spells: BTreeSet::from([21169]),
+            death_timer_active: true,
+            area_spirit_healer_guid: healer_guid,
+        })
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.represented_resurrection_requested_by_like_cpp(resurrecter));
+    assert!(session.has_represented_self_res_spell_like_cpp(21169));
+    assert_eq!(
+        session.area_spirit_healer_guid_like_cpp(),
+        Some(healer_guid)
+    );
+
+    let replacement_resurrecter = ObjectGuid::create_player(1, 5_579);
+    let replacement_healer = test_creature_guid(579);
+    let replacement_request = wow_entities::PlayerResurrectionRequestLikeCpp {
+        resurrecter: replacement_resurrecter,
+        map_id: 1,
+        position: Position::new(1.0, 2.0, 3.0, 0.0),
+        health: 99,
+        mana: 33,
+        aura: 7,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_resurrection_request_like_cpp(replacement_request);
+    replacement
+        .resurrection_state_mut_like_cpp()
+        .self_res_spells
+        .insert(20608);
+    replacement
+        .resurrection_state_mut_like_cpp()
+        .area_spirit_healer_guid = replacement_healer;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_resurrection_state_snapshot_like_cpp(), None);
+    assert!(!session.set_represented_resurrection_request_like_cpp(request));
+    assert!(!session.schedule_represented_resurrection_after_teleport_like_cpp(request));
+    session.add_represented_self_res_spell_like_cpp(21169);
+    assert!(!session.set_area_spirit_healer_guid_like_cpp(healer_guid));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .resurrection_state_like_cpp()
+                .clone()),
+        Some(wow_entities::PlayerResurrectionStateLikeCpp {
+            request: Some(replacement_request),
+            delayed_after_teleport: None,
+            self_res_spells: BTreeSet::from([20608]),
+            death_timer_active: false,
+            area_spirit_healer_guid: replacement_healer,
+        })
+    );
+}
+
+#[test]
+fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_580);
+    let destination = Position::new(3701.0, 1501.0, 121.0, 0.5);
+    let owned = wow_entities::PlayerTeleportStateLikeCpp {
+        recovery: Default::default(),
+        far_destination: Some((1, destination)),
+        post_add: Some(wow_entities::PlayerWorldportPostAddLikeCpp {
+            map_id: 1,
+            position: destination,
+            phase: wow_entities::PlayerWorldportPostAddPhaseLikeCpp::BeforeZone,
+        }),
+        can_delay: true,
+        has_delayed: true,
+        near_pending: true,
+        far_pending: false,
+        near_destination: Some((571, destination)),
+        delayed: Some((571, destination, TELE_TO_SPELL_LIKE_CPP)),
+        near_destination_zone_area: Some((20, 21)),
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TeleportOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.update_player_teleport_state_like_cpp(|state| *state = owned));
+    assert_eq!(session.pending_teleport_like_cpp(), owned.far_destination);
+    assert_eq!(
+        session.player_teleport_state_snapshot_like_cpp(),
+        Some(owned)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_teleport_state_snapshot_like_cpp(),
+        Some(owned)
+    );
+
+    let replacement_state = wow_entities::PlayerTeleportStateLikeCpp {
+        recovery: Default::default(),
+        far_destination: None,
+        post_add: None,
+        can_delay: false,
+        has_delayed: false,
+        near_pending: false,
+        far_pending: true,
+        near_destination: None,
+        delayed: None,
+        near_destination_zone_area: None,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    *replacement.teleport_state_mut_like_cpp() = replacement_state;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_teleport_state_snapshot_like_cpp(), None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
+    assert!(!session.finish_worldport_native_before_disconnect_like_cpp());
+    assert!(!session.set_pending_teleport_like_cpp(Some((1, destination))));
+    assert!(!session.set_represented_can_delay_teleport_like_cpp(true));
+    assert!(!session.set_represented_far_teleport_pending_like_cpp(false));
+    assert!(!session.set_near_teleport_pending_like_cpp(
+        true,
+        Some((571, destination)),
+        Some((20, 21)),
+    ));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| *player
+                .teleport_state_like_cpp()),
+        Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_pet_lifecycle_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_581);
+    let owned = wow_entities::PlayerPetLifecycleStateLikeCpp {
+        temporary_unsummoned_pet_number: 42,
+        old_pet_spell: 1234,
+        temporary_mount_react_state: Some(2),
+        ..Default::default()
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PetLifecycleOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.update_player_pet_lifecycle_state_like_cpp(|state| *state = owned.clone()));
+    assert_eq!(
+        session.player_pet_lifecycle_state_snapshot_like_cpp(),
+        Some(owned.clone())
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_pet_lifecycle_state_snapshot_like_cpp(),
+        Some(owned)
+    );
+
+    let replacement_state = wow_entities::PlayerPetLifecycleStateLikeCpp {
+        temporary_unsummoned_pet_number: 99,
+        old_pet_spell: 5678,
+        temporary_mount_react_state: Some(1),
+        ..Default::default()
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    *replacement.pet_lifecycle_state_mut_like_cpp() = replacement_state.clone();
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_pet_lifecycle_state_snapshot_like_cpp(), None);
+    assert!(
+        !session.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_unsummoned_pet_number = 7;
+        })
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .pet_lifecycle_state_like_cpp()
+                .clone()),
+        Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_564);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TravelOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let owned_taxi = wow_entities::PlayerTaxiState {
+        destinations: vec![10, 20],
+        flight: Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
+            current_node: wow_entities::PlayerTaxiFlightNodeLikeCpp {
+                map_id: 571,
+                position: Position::new(1.0, 2.0, 3.0, 0.0),
+                teleport_flag: false,
+            },
+            node_after_teleport: None,
+        }),
+        unit_flags: UnitFlags::ON_TAXI.bits(),
+        mounted: true,
+        ..Default::default()
+    };
+
+    assert!(session.replace_player_taxi_state_like_cpp(owned_taxi.clone()));
+    session.represented_learn_title_like_cpp(42);
+    session.represented_set_chosen_title_like_cpp(42);
+    assert_eq!(
+        session.player_taxi_state_snapshot_like_cpp(),
+        Some(owned_taxi.clone())
+    );
+    assert!(session.represented_has_title_like_cpp(42));
+    assert_eq!(session.represented_chosen_title_like_cpp(), 42);
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.player_taxi_state_snapshot_like_cpp(),
+        Some(owned_taxi.clone())
+    );
+    assert!(session.represented_has_title_like_cpp(42));
+
+    let replacement_taxi = wow_entities::PlayerTaxiState {
+        destinations: vec![90],
+        mounted: false,
+        ..Default::default()
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_taxi_state_like_cpp(replacement_taxi.clone());
+    replacement.learn_title_like_cpp(99);
+    replacement.set_chosen_title_like_cpp(99);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_taxi_state_snapshot_like_cpp(), None);
+    assert!(!session.represented_has_title_like_cpp(42));
+    assert!(!session.replace_player_taxi_state_like_cpp(owned_taxi));
+    session.represented_learn_title_like_cpp(42);
+    session.represented_set_chosen_title_like_cpp(42);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.taxi_state_like_cpp().clone(),
+                player.has_title_like_cpp(99),
+                player.has_title_like_cpp(42),
+                player.data().player_title,
+            )),
+        Some((replacement_taxi, true, false, 99))
+    );
+}
+
+#[test]
+fn canonical_player_rest_manager_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_565);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "RestOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+    assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
+    let active = session
+        .player_rest_state_snapshot_like_cpp()
+        .expect("active rest owner");
+    assert_eq!(active.rest_bonus, 70.0);
+    assert_eq!(active.rest_state, REST_STATE_RESTED_LIKE_CPP);
+    assert_eq!(active.rest_flag_mask, REST_FLAG_IN_CITY_LIKE_CPP);
+    assert!(active.location_initialized);
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP));
+    assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 77));
+    let detached = session
+        .player_rest_state_snapshot_like_cpp()
+        .expect("detached rest owner");
+    assert_eq!(detached.rest_bonus, 70.0);
+    assert_eq!(detached.rest_flag_mask, REST_FLAG_IN_TAVERN_LIKE_CPP);
+    assert_eq!(detached.inn_area_trigger_id, 77);
+
+    let replacement_state = wow_entities::PlayerRestState {
+        rest_bonus: 500.0,
+        rest_state: REST_STATE_NORMAL_LIKE_CPP,
+        rest_flag_mask: REST_FLAG_IN_TAVERN_LIKE_CPP,
+        location_initialized: true,
+        inn_area_trigger_id: 77,
+        rest_time_secs: 1234,
+        ..Default::default()
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_rest_state_like_cpp(replacement_state.clone());
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.player_rest_state_snapshot_like_cpp(), None);
+    assert_eq!(session.add_represented_xp_rest_bonus_like_cpp(25.0), 0);
+    assert!(!session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
+    session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 1.0);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.rest_state_like_cpp().clone()
+            }),
+        Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_difficulty_and_loot_preferences_follow_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_566);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PreferenceOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.replace_player_difficulty_preferences_like_cpp(2, 15, 4));
+    assert!(session.set_pass_on_group_loot_like_cpp(true));
+    assert_eq!(
+        session.player_difficulty_preferences_snapshot_like_cpp(),
+        Some((2, 15, 4))
+    );
+    assert_eq!(session.resolved_pass_on_group_loot_like_cpp(), Some(true));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(
+        session
+            .mutate_player_difficulty_preferences_like_cpp(|dungeon, raid, legacy_raid| {
+                *dungeon = 1;
+                *raid = 14;
+                *legacy_raid = 3;
+            })
+            .is_some()
+    );
+    assert!(session.set_pass_on_group_loot_like_cpp(false));
+    assert_eq!(
+        session.player_difficulty_preferences_snapshot_like_cpp(),
+        Some((1, 14, 3))
+    );
+    assert_eq!(session.resolved_pass_on_group_loot_like_cpp(), Some(false));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_difficulty_preferences_like_cpp(9, 8, 7);
+    replacement.set_pass_on_group_loot_like_cpp(true);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.player_difficulty_preferences_snapshot_like_cpp(),
+        None
+    );
+    assert_eq!(session.resolved_pass_on_group_loot_like_cpp(), None);
+    assert!(!session.replace_player_difficulty_preferences_like_cpp(2, 15, 4));
+    assert!(!session.set_pass_on_group_loot_like_cpp(false));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.difficulty_preferences_like_cpp(),
+                player.pass_on_group_loot_like_cpp(),
+            )),
+        Some(((9, 8, 7), true))
+    );
+}
+
+#[test]
+fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_like_cpp() {
+    let quest_status = |quest_id, status| wow_entities::PlayerQuestStatusRecord {
+        quest_id,
+        status,
+        explored: false,
+        accept_time_secs: 0,
+        end_time_secs: 0,
+        objective_counts: Vec::new(),
+        slot: 0,
+    };
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_567);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "MetadataOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let share_sender = ObjectGuid::create_player(1, 5_568);
+    let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 5_569, 10);
+    let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 7_005);
+    let transport_info = wow_packet::packets::movement::TransportInfo {
+        guid: transport_guid,
+        x: 1.0,
+        y: 2.0,
+        z: 3.0,
+        o: 0.5,
+        seat: 4,
+        time: 123,
+        prev_time: Some(122),
+        vehicle_id: Some(99),
+    };
+
+    session.set_loaded_player_flags_like_cpp(0x10);
+    session.set_loaded_player_flags_ex_like_cpp(0x20);
+    session.set_watched_faction_index_like_cpp(42);
+    assert!(session.set_loaded_quest_completed_bit_like_cpp(42));
+    assert_eq!(session.load_represented_explored_zones_like_cpp("1 0"), 1);
+    session.set_represented_pending_quest_sharing_like_cpp(share_sender, 400);
+    session.set_player_transport_info_like_cpp(Some(transport_info.clone()));
+    assert!(session.set_player_currencies_like_cpp(HashMap::from([(
+        395,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Unchanged,
+            quantity: 10,
+            weekly_quantity: 1,
+            tracked_quantity: 2,
+            increased_cap_quantity: 3,
+            earned_quantity: 4,
+            flags: 5,
+        },
+    )])));
+    assert!(session.set_player_pet_guid_like_cpp(Some(pet_guid)));
+    assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x10), Some(1001)));
+    session.set_player_zone_area_like_cpp(100, 101);
+    session.set_player_zone_area_authority_complete_like_cpp(true);
+    session.set_player_pvp_state_like_cpp(true, true, true);
+    session.set_player_game_master_like_cpp(true);
+    session.set_player_mounted_like_cpp(true);
+    assert!(
+        session
+            .mutate_active_player_update_state_like_cpp(|state| {
+                state.active_local_flags = 0x11;
+                state.active_transport_server_time = 111;
+                state.multi_action_bars = 0x1f;
+            })
+            .is_some()
+    );
+    session.set_player_moved_unit_guid_like_cpp(pet_guid);
+    assert!(
+        session
+            .mutate_player_unit_presentation_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().set_scale(1.25);
+            })
+            .is_some()
+    );
+    assert!(
+        session
+            .mutate_player_mount_vehicle_kit_like_cpp(|kit| {
+                *kit = Some(represented_vehicle_kit_with_passenger_like_cpp(
+                    player_guid,
+                    test_creature_guid(5_570),
+                    true,
+                ));
+            })
+            .is_some()
+    );
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.daily_quest_ids.insert(100);
+                state.last_daily_quest_time_secs = 10;
+                state.statuses.insert(
+                    200,
+                    quest_status(200, crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+                );
+                state.rewarded_quest_ids.insert(300);
+            })
+            .is_some()
+    );
+    assert_eq!(
+        session.resolved_player_flags_for_create_like_cpp(),
+        Some((0x210, 0x20))
+    );
+    assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(42));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((100, 101)));
+    assert_eq!(session.player_is_pvp_like_cpp(player_guid), Some(true));
+    assert_eq!(
+        session.player_has_in_pvp_flag_like_cpp(player_guid),
+        Some(true)
+    );
+    assert_eq!(session.player_is_game_master_like_cpp(), Some(true));
+    assert_eq!(
+        session.player_unit_presentation_snapshot_like_cpp(),
+        Some((UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT, 1, 1.25))
+    );
+    assert_eq!(
+        session.active_player_update_state_like_cpp(),
+        Some((0x11, 111, 0x1f))
+    );
+    assert_eq!(session.player_moved_unit_guid_like_cpp(), Some(pet_guid));
+    assert_eq!(
+        session
+            .player_quest_gameplay_snapshot_like_cpp()
+            .map(|state| (
+                state.daily_quest_ids,
+                state.last_daily_quest_time_secs,
+                state.pending_share,
+            )),
+        Some((BTreeSet::from([100]), 10, Some((share_sender, 400))))
+    );
+    assert_eq!(
+        session.player_transport_state_like_cpp(),
+        Some(Some(wow_entities::PlayerTransportState {
+            guid: transport_guid,
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+            orientation: 0.5,
+            seat: 4,
+            time: 123,
+            prev_time: Some(122),
+            vehicle_id: Some(99),
+        }))
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    session.set_loaded_player_flags_like_cpp(0x30);
+    session.set_loaded_player_flags_ex_like_cpp(0x40);
+    session.set_watched_faction_index_like_cpp(43);
+    assert!(session.clear_loaded_quest_completed_bit_like_cpp(42));
+    assert_eq!(session.load_represented_explored_zones_like_cpp("2 0"), 1);
+    session.clear_represented_pending_quest_sharing_like_cpp();
+    session.set_player_transport_position_like_cpp(Some(Position::new(4.0, 5.0, 6.0, 0.75)));
+    assert!(session.set_player_currencies_like_cpp(HashMap::from([(
+        395,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Changed,
+            quantity: 20,
+            weekly_quantity: 2,
+            tracked_quantity: 3,
+            increased_cap_quantity: 4,
+            earned_quantity: 5,
+            flags: 6,
+        },
+    )])));
+    assert!(session.set_player_pet_guid_like_cpp(None));
+    assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x20), Some(1002)));
+    session.set_player_zone_area_like_cpp(200, 201);
+    session.set_player_zone_area_authority_complete_like_cpp(true);
+    session.set_player_pvp_state_like_cpp(false, false, false);
+    session.set_player_game_master_like_cpp(false);
+    session.set_player_mounted_like_cpp(false);
+    assert!(
+        session
+            .mutate_active_player_update_state_like_cpp(|state| {
+                state.active_local_flags = 0x22;
+                state.active_transport_server_time = 222;
+                state.multi_action_bars = 0x2f;
+            })
+            .is_some()
+    );
+    session.set_player_moved_unit_guid_like_cpp(player_guid);
+    assert!(
+        session
+            .mutate_player_unit_presentation_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().set_scale(1.75);
+            })
+            .is_some()
+    );
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.daily_quest_ids.insert(101);
+                state.last_daily_quest_time_secs = 20;
+                state.statuses.insert(
+                    201,
+                    quest_status(201, crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP),
+                );
+                state.rewarded_quest_ids.insert(301);
+            })
+            .is_some()
+    );
+    assert_eq!(
+        session.resolved_player_flags_for_create_like_cpp(),
+        Some((0x30, 0x40))
+    );
+    assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(43));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 201)));
+    assert_eq!(session.player_is_pvp_like_cpp(player_guid), Some(false));
+    assert_eq!(
+        session.player_has_in_pvp_flag_like_cpp(player_guid),
+        Some(false)
+    );
+    assert_eq!(session.player_is_game_master_like_cpp(), Some(false));
+    assert_eq!(
+        session.player_unit_presentation_snapshot_like_cpp(),
+        Some((UnitFlags::PLAYER_CONTROLLED, 0, 1.75))
+    );
+    assert_eq!(
+        session.active_player_update_state_like_cpp(),
+        Some((0x22, 222, 0x2f))
+    );
+    assert_eq!(session.player_moved_unit_guid_like_cpp(), Some(player_guid));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_all_player_flags(0x100);
+    replacement.replace_all_player_flags_ex(0x200);
+    replacement.set_watched_faction_index_like_cpp(99);
+    replacement
+        .gameplay_state_mut()
+        .quests
+        .daily_quest_ids
+        .insert(999);
+    replacement.gameplay_state_mut().quests.statuses.insert(
+        9_999,
+        quest_status(9_999, crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP),
+    );
+    replacement
+        .gameplay_state_mut()
+        .quests
+        .rewarded_quest_ids
+        .insert(9_998);
+    replacement.gameplay_state_mut().quests.pending_share = Some((share_sender, 999));
+    replacement.gameplay_state_mut().transport = Some(wow_entities::PlayerTransportState {
+        guid: transport_guid,
+        x: 10.0,
+        y: 20.0,
+        z: 30.0,
+        orientation: 1.5,
+        seat: 2,
+        time: 456,
+        prev_time: Some(455),
+        vehicle_id: Some(100),
+    });
+    replacement.gameplay_state_mut().currencies.insert(
+        395,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Unchanged,
+            quantity: 999,
+            weekly_quantity: 9,
+            tracked_quantity: 9,
+            increased_cap_quantity: 9,
+            earned_quantity: 9,
+            flags: 9,
+        },
+    );
+    replacement.gameplay_state_mut().pet_guid = Some(pet_guid);
+    replacement.gameplay_state_mut().vehicle_seat_flags = Some(0x99);
+    replacement.gameplay_state_mut().vehicle_seat_id = Some(1999);
+    replacement.gameplay_state_mut().active_local_flags = 0x99;
+    replacement
+        .gameplay_state_mut()
+        .active_transport_server_time = 999;
+    replacement.gameplay_state_mut().multi_action_bars = 0x3f;
+    replacement
+        .unit_mut()
+        .subsystems_mut()
+        .control
+        .set_moved_unit(Some(pet_guid));
+    replacement.gameplay_state_mut().world_local = wow_entities::PlayerWorldLocalState {
+        zone_id: 900,
+        area_id: 901,
+        zone_area_authority_complete: true,
+        pvp_hostile: true,
+        pvp_end_timer: Some(123),
+        contested_pvp_timer: 456,
+        is_outdoors: Some(true),
+    };
+    replacement
+        .unit_mut()
+        .set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+    replacement.set_game_master_like_cpp(true);
+    replacement.unit_mut().set_unit_flags_like_cpp(
+        UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT | UnitFlags::IMMUNE,
+    );
+    replacement.unit_mut().set_mount_display_id(77);
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .set_scale(1.5);
+    replacement.gameplay_state_mut().mount_vehicle_kit =
+        Some(represented_vehicle_kit_with_passenger_like_cpp(
+            player_guid,
+            test_creature_guid(5_571),
+            false,
+        ));
+    assert!(replacement.set_quest_completed_bit_like_cpp(77, true));
+    assert!(replacement.set_explored_zones_block_like_cpp(0, 0x400));
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_flags_for_create_like_cpp(), None);
+    assert_eq!(session.player_explored_zones_snapshot_like_cpp(), None);
+    assert_eq!(session.resolved_watched_faction_index_like_cpp(), None);
+    assert_eq!(session.player_quest_gameplay_snapshot_like_cpp(), None);
+    assert_eq!(session.player_transport_state_like_cpp(), None);
+    assert_eq!(session.player_currencies_like_cpp(), None);
+    assert_eq!(session.player_pet_guid_state_like_cpp(), None);
+    assert_eq!(session.player_vehicle_seat_state_like_cpp(), None);
+    assert_eq!(session.player_mount_vehicle_kit_snapshot_like_cpp(), None);
+    assert_eq!(session.player_world_local_state_like_cpp(), None);
+    assert_eq!(session.player_zone_area_like_cpp(), None);
+    assert_eq!(session.player_is_pvp_like_cpp(player_guid), None);
+    assert_eq!(session.player_has_in_pvp_flag_like_cpp(player_guid), None);
+    assert_eq!(session.player_is_game_master_like_cpp(), None);
+    assert_eq!(session.player_unit_presentation_snapshot_like_cpp(), None);
+    assert_eq!(session.active_player_update_state_like_cpp(), None);
+    assert_eq!(session.player_moved_unit_guid_like_cpp(), None);
+    assert!(!session.set_near_teleport_pending_like_cpp(
+        true,
+        Some((571, Position::new(1.0, 2.0, 3.0, 0.0))),
+        Some((1, 2)),
+    ));
+    assert_eq!(
+        session.handle_move_teleport_ack_like_cpp(player_guid, 1, 2),
+        MoveTeleportAckActionLikeCpp::MissingPlayerOwner
+    );
+    assert!(!session.near_teleport_pending_like_cpp());
+    session.set_loaded_player_flags_like_cpp(0xdead);
+    session.set_loaded_player_flags_ex_like_cpp(0xbeef);
+    session.set_watched_faction_index_like_cpp(5);
+    assert!(!session.set_loaded_quest_completed_bit_like_cpp(42));
+    assert_eq!(session.load_represented_explored_zones_like_cpp("4 0"), 0);
+    session.set_represented_pending_quest_sharing_like_cpp(share_sender, 0xdead);
+    session.set_player_transport_info_like_cpp(None);
+    assert!(!session.set_player_currencies_like_cpp(HashMap::new()));
+    assert!(!session.set_player_pet_guid_like_cpp(None));
+    assert!(!session.set_player_vehicle_seat_state_like_cpp(None, None));
+    session.set_player_zone_area_like_cpp(0xdead, 0xbeef);
+    session.set_player_zone_area_authority_complete_like_cpp(false);
+    session.set_player_pvp_state_like_cpp(false, false, true);
+    session.set_player_game_master_like_cpp(false);
+    session.set_player_mounted_like_cpp(false);
+    assert!(
+        session
+            .mutate_active_player_update_state_like_cpp(|state| {
+                state.active_local_flags = 0xdead;
+                state.active_transport_server_time = -1;
+                state.multi_action_bars = 0;
+            })
+            .is_none()
+    );
+    session.set_player_moved_unit_guid_like_cpp(ObjectGuid::EMPTY);
+    assert!(
+        session
+            .mutate_player_unit_presentation_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().set_scale(9.0);
+            })
+            .is_none()
+    );
+    assert!(
+        session
+            .mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None)
+            .is_none()
+    );
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.daily_quest_ids.insert(0xdead);
+                state.statuses.remove(&9_999);
+                state.rewarded_quest_ids.insert(0xbeef);
+            })
+            .is_none()
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().active_local_flags,
+                player.gameplay_state().active_transport_server_time,
+                player.gameplay_state().multi_action_bars,
+                player.unit().subsystems().control.unit_moved_by_me,
+            )),
+        Some((0x99, 999, 0x3f, Some(pet_guid)))
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.data().player_flags,
+                player.data().player_flags_ex,
+                player.watched_faction_index_like_cpp(),
+                player.quest_completed_block_like_cpp(1),
+                player.explored_zones_block_like_cpp(0),
+                player.gameplay_state().quests.daily_quest_ids.clone(),
+                player.gameplay_state().quests.statuses.clone(),
+                player.gameplay_state().quests.rewarded_quest_ids.clone(),
+                player.gameplay_state().quests.pending_share,
+                player.gameplay_state().transport.clone(),
+                player.gameplay_state().currencies.clone(),
+            )),
+        Some((
+            0x100,
+            0x200,
+            99,
+            Some(1 << 12),
+            Some(0x400),
+            BTreeSet::from([999]),
+            BTreeMap::from([(
+                9_999,
+                quest_status(9_999, crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP),
+            )]),
+            BTreeSet::from([9_998]),
+            Some((share_sender, 999)),
+            Some(wow_entities::PlayerTransportState {
+                guid: transport_guid,
+                x: 10.0,
+                y: 20.0,
+                z: 30.0,
+                orientation: 1.5,
+                seat: 2,
+                time: 456,
+                prev_time: Some(455),
+                vehicle_id: Some(100),
+            }),
+            HashMap::from([(
+                395,
+                PlayerCurrency {
+                    state: PlayerCurrencyState::Unchanged,
+                    quantity: 999,
+                    weekly_quantity: 9,
+                    tracked_quantity: 9,
+                    increased_cap_quantity: 9,
+                    earned_quantity: 9,
+                    flags: 9,
+                },
+            )]),
+        ))
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.is_game_master_like_cpp(),
+                player.unit().unit_flags_like_cpp(),
+                player.unit().data().mount_display_id,
+                player.unit().world().object().scale(),
+            )),
+        Some((
+            true,
+            UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT | UnitFlags::IMMUNE,
+            77,
+            1.5,
+        ))
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().world_local,
+                player.unit().pvp_flags_like_cpp(),
+            )),
+        Some((
+            wow_entities::PlayerWorldLocalState {
+                zone_id: 900,
+                area_id: 901,
+                zone_area_authority_complete: true,
+                pvp_hostile: true,
+                pvp_end_timer: Some(123),
+                contested_pvp_timer: 456,
+                is_outdoors: Some(true),
+            },
+            UnitPvpFlags::PVP,
+        ))
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().pet_guid,
+                player.gameplay_state().vehicle_seat_flags,
+                player.gameplay_state().vehicle_seat_id,
+                player
+                    .gameplay_state()
+                    .mount_vehicle_kit
+                    .as_ref()
+                    .map(|kit| (kit.vehicle_id(), kit.status())),
+            )),
+        Some((
+            Some(pet_guid),
+            Some(0x99),
+            Some(1999),
+            Some((77, wow_entities::VehicleStatus::Installed)),
+        ))
+    );
+}
+
+#[test]
+fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_563);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "SpellOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let owned_row = RepresentedPlayerSpellLikeCpp {
+        spell_id: 635,
+        active: true,
+        disabled: false,
+        dependent: false,
+        favorite: true,
+        state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+    };
+
+    session.set_known_spells_like_cpp(vec![635]);
+    assert!(session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
+    assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([(635, 7)]));
+    assert!(session.set_complete_represented_override_spells_like_cpp([(600, 635)]));
+    assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
+    assert_eq!(
+        session
+            .complete_represented_player_spell_rows_like_cpp()
+            .and_then(|rows| rows.get(&635).copied()),
+        Some(owned_row)
+    );
+    assert_eq!(
+        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        Some(HashMap::from([(635, 7)]))
+    );
+    assert_eq!(
+        session.complete_represented_override_spells_like_cpp(),
+        Some(HashMap::from([(600, BTreeSet::from([635]))]))
+    );
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session.record_loaded_character_spell_cooldown_like_cpp(635, 6948, 9_000, 12, 8_000);
+    session.mark_represented_character_spell_charges_loaded_like_cpp();
+    session.record_loaded_character_spell_charge_like_cpp(42, 7_000, 8_000);
+    let owned_history = session
+        .player_spell_history_snapshot_like_cpp()
+        .expect("active canonical spell history");
+    assert!(owned_history.cooldowns_loaded);
+    assert!(owned_history.charges_loaded);
+    assert_eq!(owned_history.cooldowns[&635].item_id, 6948);
+    assert_eq!(owned_history.cooldowns[&635].cooldown_end_ms, 9_000_000);
+    assert_eq!(owned_history.charges[&42].len(), 1);
+    session.set_loaded_player_customizations_like_cpp(vec![
+        wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+            option_id: 50,
+            choice_id: 60,
+        },
+    ]);
+    assert!(session.replace_completed_achievement_ids_like_cpp([100, 200]));
+    assert_eq!(
+        session.completed_achievement_ids_snapshot_like_cpp(),
+        Some(HashSet::from([100, 200]))
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
+    assert_eq!(
+        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        Some(HashMap::from([(635, 7)]))
+    );
+    assert_eq!(
+        session.player_spell_history_snapshot_like_cpp(),
+        Some(owned_history)
+    );
+    assert_eq!(
+        session.completed_achievement_ids_snapshot_like_cpp(),
+        Some(HashSet::from([100, 200]))
+    );
+
+    let replacement_row = wow_entities::PlayerKnownSpellRecord {
+        spell_id: 900,
+        state: wow_entities::PlayerSpellLoadState::Unchanged,
+        active: true,
+        disabled: false,
+        favorite: false,
+        dependent: false,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.replace_spell_runtime_like_cpp(wow_entities::PlayerSpellRuntimeState {
+        known_spells: vec![900],
+        rows: BTreeMap::from([(900, replacement_row.clone())]),
+        rows_loaded: true,
+        rows_complete: true,
+        trait_definition_ids: BTreeMap::from([(900, 11)]),
+        trait_definition_ids_complete: true,
+        override_spells: BTreeMap::from([(800, BTreeSet::from([900]))]),
+        override_spells_complete: true,
+        ..Default::default()
+    });
+    let replacement_history = wow_entities::SpellHistory {
+        cooldowns: HashMap::from([(
+            900,
+            wow_entities::SpellCooldown {
+                spell_id: 900,
+                item_id: 0,
+                cooldown_end_ms: 90_000,
+                category_id: 90,
+                category_end_ms: 80_000,
+                on_hold: false,
+            },
+        )]),
+        cooldowns_loaded: true,
+        charges_loaded: true,
+        ..Default::default()
+    };
+    replacement.unit_mut().subsystems_mut().spells.history = replacement_history.clone();
+    replacement.gameplay_state_mut().customizations =
+        vec![wow_entities::PlayerCustomizationChoice {
+            option_id: 70,
+            choice_id: 80,
+        }];
+    replacement.gameplay_state_mut().achievements = vec![wow_entities::PlayerAchievementRecord {
+        achievement_id: 900,
+        completed_at: None,
+    }];
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_known_spells_like_cpp(), None);
+    assert_eq!(
+        session.complete_represented_player_spell_rows_like_cpp(),
+        None
+    );
+    assert_eq!(
+        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        None
+    );
+    assert_eq!(
+        session.complete_represented_override_spells_like_cpp(),
+        None
+    );
+    assert_eq!(session.player_spell_history_snapshot_like_cpp(), None);
+    assert_eq!(session.completed_achievement_ids_snapshot_like_cpp(), None);
+    assert!(!session.set_complete_represented_player_spell_rows_like_cpp([owned_row]));
+    assert_eq!(session.mutate_player_spell_history_like_cpp(|_| ()), None);
+    assert!(!session.replace_completed_achievement_ids_like_cpp([100]));
+    session.set_loaded_player_customizations_like_cpp(vec![
+        wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+            option_id: 50,
+            choice_id: 60,
+        },
+    ]);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.spell_runtime_like_cpp().clone()
+            }),
+        Some(wow_entities::PlayerSpellRuntimeState {
+            known_spells: vec![900],
+            rows: BTreeMap::from([(900, replacement_row)]),
+            rows_loaded: true,
+            rows_complete: true,
+            trait_definition_ids: BTreeMap::from([(900, 11)]),
+            trait_definition_ids_complete: true,
+            override_spells: BTreeMap::from([(800, BTreeSet::from([900]))]),
+            override_spells_complete: true,
+            ..Default::default()
+        })
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.unit().subsystems().spells.history.clone()
+            }),
+        Some(replacement_history)
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().customizations.clone(),
+                player.gameplay_state().achievements.clone(),
+            )),
+        Some((
+            vec![wow_entities::PlayerCustomizationChoice {
+                option_id: 70,
+                choice_id: 80,
+            }],
+            vec![wow_entities::PlayerAchievementRecord {
+                achievement_id: 900,
+                completed_at: None,
+            }],
+        ))
+    );
+}
+
+#[tokio::test]
+async fn canonical_player_money_follows_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_560);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "MoneyOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_player_gold_like_cpp(123));
+    assert_eq!(session.resolved_player_money_like_cpp(), Some(123));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_player_money_like_cpp(), Some(123));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_money(999);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_money_like_cpp(), None);
+    assert!(!session.set_player_gold_like_cpp(1));
+    session.set_loot_money_persistence_test_result_like_cpp(true);
+    assert_eq!(
+        session
+            .mutate_and_persist_player_gold_exclusive_like_cpp(|money| money + 10)
+            .await,
+        None
+    );
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, Player::money),
+        Some(999)
+    );
+}
+
+#[test]
+fn canonical_player_homebind_follows_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_565);
+    let original = RepresentedHomebindLikeCpp {
+        map_id: 571,
+        area_id: 67,
+        position: Position::new(3700.0, 1500.0, 120.0, 0.5),
+    };
+    let replacement_homebind = RepresentedHomebindLikeCpp {
+        map_id: 0,
+        area_id: 12,
+        position: Position::new(-8949.0, -132.0, 84.0, 1.0),
+    };
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "HomebindOwner".to_string(),
+        original.position,
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_represented_homebind_like_cpp(original));
+    assert_eq!(session.represented_homebind_like_cpp(), Some(original));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.represented_homebind_like_cpp(), Some(original));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().homebind = Some(replacement_homebind);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_homebind_like_cpp(), None);
+    assert!(!session.set_represented_homebind_like_cpp(original));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().homebind
+            }),
+        Some(Some(replacement_homebind))
+    );
+}
+
+#[test]
+fn canonical_player_cinematic_state_follows_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_566);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CinematicOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    session.set_represented_cinematic_like_cpp_for_test(Some(444));
+    session.set_represented_movie_like_cpp_for_test(Some(177));
+    assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
+    assert_eq!(session.represented_movie_like_cpp(), Some(177));
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
+    assert_eq!(session.represented_movie_like_cpp(), Some(177));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().cinematic = wow_entities::PlayerCinematicStateLikeCpp {
+        cinematic_id: Some(900),
+        camera_ids: Some([1, 2, 3, 0, 0, 0, 0, 0]),
+        camera_index: 1,
+        movie_id: Some(901),
+    };
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_cinematic_like_cpp(), None);
+    assert_eq!(session.represented_movie_like_cpp(), None);
+    session.set_represented_cinematic_like_cpp_for_test(Some(1));
+    session.set_represented_movie_like_cpp_for_test(Some(2));
+    session.complete_represented_cinematic_like_cpp();
+    session.complete_represented_movie_like_cpp();
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().cinematic
+            }),
+        Some(wow_entities::PlayerCinematicStateLikeCpp {
+            cinematic_id: Some(900),
+            camera_ids: Some([1, 2, 3, 0, 0, 0, 0, 0]),
+            camera_index: 1,
+            movie_id: Some(901),
+        })
+    );
+}
+
+#[test]
+fn canonical_player_pvp_item_level_mode_follows_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_567);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PvpItemLevelOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_represented_using_pvp_item_levels_like_cpp(true));
+    assert_eq!(
+        session.resolved_using_pvp_item_levels_like_cpp(),
+        Some(true)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_using_pvp_item_levels_like_cpp(),
+        Some(true)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_using_pvp_item_levels_like_cpp(), None);
+    assert!(!session.set_represented_using_pvp_item_levels_like_cpp(true));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().using_pvp_item_levels
+            }),
+        Some(false)
+    );
+}
+
+#[test]
+fn canonical_player_quest_rewarded_talent_points_follow_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_568);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "QuestTalentOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.add_represented_quest_reward_talent_points_like_cpp(10_001, 2));
+    assert_eq!(
+        session.represented_quest_rewarded_talent_points_like_cpp(),
+        Some(2)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.add_represented_quest_reward_talent_points_like_cpp(10_002, 3));
+    assert_eq!(
+        session.represented_quest_rewarded_talent_points_like_cpp(),
+        Some(5)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.represented_quest_rewarded_talent_points_like_cpp(),
+        None
+    );
+    assert!(!session.add_represented_quest_reward_talent_points_like_cpp(10_003, 7));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().quest_rewarded_talent_points
+            }),
+        Some(0)
+    );
+}
+
+#[test]
+fn canonical_player_item_modifier_runtime_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_569);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ItemModifierOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level: 100,
+            ..Default::default()
+        })
+    );
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 17 }
+    ));
+    assert!(
+        session
+            .mutate_player_item_modifier_runtime_like_cpp(|runtime| {
+                runtime.item_set_effects.insert(
+                    700,
+                    RepresentedItemSetEffectLikeCpp {
+                        item_set_id: 700,
+                        equipped_items: std::collections::HashSet::from([ObjectGuid::create_item(
+                            1, 88,
+                        )]),
+                        set_bonuses: BTreeSet::from([35]),
+                    },
+                );
+            })
+            .is_some()
+    );
+    assert_eq!(
+        session
+            .represented_item_bonus_state_like_cpp()
+            .shield_block_value,
+        17
+    );
+    assert_eq!(
+        session
+            .represented_item_set_effect_like_cpp(700)
+            .expect("canonical item-set effect")
+            .set_bonuses,
+        BTreeSet::from([35])
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 29 }
+    ));
+    assert!(
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 200,
+            ..Default::default()
+        })
+    );
+    let detached = session
+        .player_item_modifier_runtime_snapshot_like_cpp()
+        .expect("detached canonical item-modifier owner");
+    assert_eq!(detached.bonuses.shield_block_value, 29);
+    assert_eq!(detached.item_level_caps.max_item_level, 200);
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .player_item_modifier_runtime_snapshot_like_cpp()
+            .is_none()
+    );
+    assert!(!session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 99 }
+    ));
+    assert!(
+        !session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 999,
+            ..Default::default()
+        })
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().item_modifiers.clone()
+            }),
+        Some(wow_entities::PlayerItemModifierRuntimeStateLikeCpp::default())
+    );
+}
+
+#[test]
+fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_570);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "AuraAuthorityOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(
+        session.insert_player_visible_aura_like_cpp(AuraApplication {
+            spell_id: 43_621,
+            difficulty_id: 0,
+            caster_guid: player_guid,
+            slot: 8,
+            duration_total: 30_000,
+            duration_remaining: 20_000,
+            stack_count: 1,
+            aura_flags: 0,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: Some(RepresentedAuraEffectLikeCpp::SafeFall),
+            represented_amount: 7,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        })
+    );
+    assert!(
+        session
+            .mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.insert_threat_snapshot_like_cpp(
+                    4,
+                    wow_entities::AuraThreatSnapshotLikeCpp::new([7, 11], vec![(1, 13, 17, 19)]),
+                );
+            })
+            .is_some()
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_aura_authority_complete_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("detached canonical visible-aura owner")[&8]
+            .represented_amount,
+        7
+    );
+    assert_eq!(
+        session
+            .mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.runtime_application_mut_like_cpp(8).map(|aura| {
+                    aura.represented_amount = 21;
+                    aura.represented_amount
+                })
+            })
+            .flatten(),
+        Some(21)
+    );
+    session.tombstone_player_spell_hit_aura_authority_like_cpp();
+    let detached = session
+        .player_aura_subsystem_snapshot_like_cpp()
+        .expect("detached canonical aura owner");
+    assert!(detached.spell_hit_aura_authority_tombstoned_like_cpp());
+    assert_eq!(
+        detached
+            .threat_snapshot_like_cpp(4)
+            .expect("canonical threat snapshot")
+            .effects(),
+        &[(1, 13, 17, 19)]
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(session.player_aura_subsystem_snapshot_like_cpp().is_none());
+    assert_eq!(
+        session.resolved_player_aura_authority_complete_like_cpp(),
+        None
+    );
+    assert!(!session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(
+        session
+            .mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras
+                    .runtime_application_mut_like_cpp(8)
+                    .map(|aura| aura.represented_amount = 99)
+            })
+            .flatten()
+            .is_none()
+    );
+    assert!(session.remove_player_visible_aura_like_cpp(8).is_none());
+    let replacement_auras = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(replacement_handle, |player| {
+            player.unit().subsystems().auras.clone()
+        })
+        .expect("replacement aura owner");
+    assert!(!replacement_auras.persisted_player_aura_authority_complete_like_cpp());
+    assert!(!replacement_auras.spell_hit_aura_authority_tombstoned_like_cpp());
+    assert!(replacement_auras.threat_snapshot_like_cpp(4).is_none());
+    assert!(replacement_auras.runtime_applications_like_cpp().is_empty());
+}
+
+#[test]
+fn canonical_player_trait_config_authority_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_571);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TraitConfigOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session.complete_represented_trait_config_authority_load_like_cpp(
+            [(1, 1, 71, 1), (2, 1, 72, 1), (3, 1, 73, 1)],
+            true,
+        )
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    let detached = session
+        .player_spell_runtime_snapshot_like_cpp()
+        .expect("detached canonical trait-config owner");
+    assert!(detached.trait_config_rows_complete);
+    assert!(detached.trait_entry_rows_complete);
+    assert!(detached.trait_entry_rows_empty);
+    assert_eq!(detached.trait_config_rows.len(), 3);
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(session.player_spell_runtime_snapshot_like_cpp().is_none());
+    assert!(
+        !session.complete_represented_trait_config_authority_load_like_cpp(
+            [(9, 1, 71, 1), (10, 1, 72, 1), (11, 1, 73, 1)],
+            true,
+        ),
+        "a stale Session generation must not publish trait authority"
+    );
+    let replacement_runtime = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(replacement_handle, |player| {
+            player.spell_runtime_like_cpp().clone()
+        })
+        .expect("replacement spell owner");
+    assert!(replacement_runtime.trait_config_rows.is_empty());
+    assert!(!replacement_runtime.trait_config_rows_complete);
+    assert!(!replacement_runtime.trait_entry_rows_complete);
+    assert!(!replacement_runtime.trait_entry_rows_empty);
+}
+
+#[test]
+fn canonical_player_collection_authority_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_572);
+    let temporary_item_guid = ObjectGuid::create_item(1, 9_001);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CollectionOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session
+            .mutate_player_collection_state_like_cpp(|collections| {
+                collections.mounts.insert(100, 1);
+                collections.heirlooms.insert(
+                    200,
+                    wow_entities::PlayerAccountHeirloomDataLikeCpp {
+                        flags: 2,
+                        bonus_id: 3,
+                    },
+                );
+                collections.toys.insert(300, 4);
+                collections.item_appearances.insert(400);
+                collections.item_appearance_blocks.push(5);
+                collections
+                    .temporary_item_appearances
+                    .entry(401)
+                    .or_default()
+                    .insert(temporary_item_guid);
+                collections
+                    .favorite_item_appearances
+                    .insert(400, wow_entities::PlayerFavoriteAppearanceStateLikeCpp::New);
+                collections.transmog_illusions.insert(500);
+            })
+            .is_some()
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    let detached = session
+        .player_collection_state_snapshot_like_cpp()
+        .expect("detached canonical collection owner");
+    assert_eq!(detached.mounts.get(&100), Some(&1));
+    assert_eq!(
+        detached.heirlooms.get(&200).map(|data| data.bonus_id),
+        Some(3)
+    );
+    assert_eq!(detached.toys.get(&300), Some(&4));
+    assert!(detached.item_appearances.contains(&400));
+    assert_eq!(detached.item_appearance_blocks, vec![5]);
+    assert_eq!(
+        detached.temporary_item_appearances.get(&401),
+        Some(&HashSet::from([temporary_item_guid]))
+    );
+    assert!(detached.favorite_item_appearances.contains_key(&400));
+    assert!(detached.transmog_illusions.contains(&500));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .player_collection_state_snapshot_like_cpp()
+            .is_none()
+    );
+    assert!(
+        session
+            .mutate_player_collection_state_like_cpp(|collections| {
+                collections.mounts.insert(999, 0);
+            })
+            .is_none(),
+        "a stale Session generation must not mutate collection authority"
+    );
+    let replacement_collections = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(replacement_handle, |player| {
+            player.gameplay_state().collections.clone()
+        })
+        .expect("replacement collection owner");
+    assert_eq!(
+        replacement_collections,
+        wow_entities::PlayerCollectionStateLikeCpp::default()
+    );
+}
+
+#[test]
+fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_561);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "InventoryCapacityOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_inventory_slot_count_like_cpp(24));
+    assert!(session.set_player_bank_bag_slot_count_like_cpp(3));
+    assert!(session.set_represented_bank_bag_slot_flag_like_cpp(2, 0x40));
+    assert_eq!(
+        session.resolved_player_inventory_slot_count_like_cpp(),
+        Some(24)
+    );
+    assert_eq!(
+        session.resolved_player_bank_bag_slot_count_like_cpp(),
+        Some(3)
+    );
+    assert_eq!(
+        session.represented_bank_bag_slot_flag_like_cpp(2),
+        Some(0x40)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_inventory_slot_count_like_cpp(),
+        Some(24)
+    );
+    assert_eq!(
+        session.resolved_player_bank_bag_slot_count_like_cpp(),
+        Some(3)
+    );
+    assert_eq!(
+        session.represented_bank_bag_slot_flag_like_cpp(2),
+        Some(0x40)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_inventory_slot_count(30);
+    replacement.set_bank_bag_slot_count(7);
+    assert!(replacement.set_bank_bag_slot_flag_value_like_cpp(2, 0x80));
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.resolved_player_inventory_slot_count_like_cpp(),
+        None
+    );
+    assert_eq!(session.resolved_player_bank_bag_slot_count_like_cpp(), None);
+    assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), None);
+    assert!(!session.set_player_inventory_slot_count_like_cpp(16));
+    assert!(!session.set_player_bank_bag_slot_count_like_cpp(1));
+    assert!(!session.set_represented_bank_bag_slot_flag_like_cpp(2, 0));
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.inventory_slot_count(),
+                player.bank_bag_slot_count(),
+                player.bank_bag_slot_flag_value_like_cpp(2),
+            )),
+        Some((30, 7, Some(0x80)))
+    );
+}
+
+#[test]
+fn canonical_player_inventory_runtime_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_562);
+    let item_guid = ObjectGuid::create_item(1, 8_001);
+    let replacement_item_guid = ObjectGuid::create_item(1, 8_002);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "InventoryRuntimeOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    let inventory_item = InventoryItem {
+        guid: item_guid,
+        entry_id: 12_345,
+        db_guid: 8_001,
+        inventory_type: Some(1),
+    };
+    let mut item_object = Item::default();
+    item_object.object_mut().create(item_guid);
+    item_object.object_mut().set_entry(inventory_item.entry_id);
+    item_object.set_count(5);
+    assert_eq!(
+        session.insert_inventory_item_like_cpp(INVENTORY_SLOT_ITEM_START, inventory_item.clone()),
+        None
+    );
+    assert_eq!(session.insert_inventory_item_object(item_object), None);
+    session.insert_buyback_item_like_cpp(BUYBACK_SLOT_START, inventory_item.clone());
+    session.set_buyback_slot_metadata_like_cpp(BUYBACK_SLOT_START, 77, 88);
+
+    assert_eq!(
+        session
+            .resolved_inventory_item_like_cpp(INVENTORY_SLOT_ITEM_START)
+            .as_ref()
+            .map(|item| (item.guid, item.entry_id)),
+        Some((item_guid, 12_345))
+    );
+    assert_eq!(
+        session
+            .resolved_inventory_item_object_like_cpp(item_guid)
+            .map(|item| item.count()),
+        Some(5)
+    );
+    assert_eq!(
+        session
+            .resolved_buyback_price_like_cpp()
+            .map(|prices| prices[0]),
+        Some(77)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .resolved_inventory_item_object_like_cpp(item_guid)
+            .map(|item| item.count()),
+        Some(5)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_inventory_item = InventoryItem {
+        guid: replacement_item_guid,
+        entry_id: 54_321,
+        db_guid: 8_002,
+        inventory_type: Some(2),
+    };
+    let mut replacement_item_object = Item::default();
+    replacement_item_object
+        .object_mut()
+        .create(replacement_item_guid);
+    replacement_item_object
+        .object_mut()
+        .set_entry(replacement_inventory_item.entry_id);
+    replacement_item_object.set_count(9);
+    replacement
+        .inventory_runtime_mut_like_cpp()
+        .inventory_items_mut()
+        .insert(INVENTORY_SLOT_ITEM_START, replacement_inventory_item);
+    replacement
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .insert(replacement_item_guid, replacement_item_object);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_inventory_items_like_cpp(), None);
+    assert_eq!(session.resolved_inventory_item_objects_like_cpp(), None);
+    assert_eq!(
+        session.mutate_player_inventory_runtime_like_cpp(|inventory| {
+            inventory.inventory_items_mut().clear();
+        }),
+        None
+    );
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                let inventory = player.inventory_runtime_like_cpp();
+                (
+                    inventory
+                        .inventory_items()
+                        .get(&INVENTORY_SLOT_ITEM_START)
+                        .map(|item| item.guid),
+                    inventory
+                        .item_objects()
+                        .get(&replacement_item_guid)
+                        .map(|item| item.count()),
+                )
+            }),
+        Some((Some(replacement_item_guid), Some(9)))
+    );
 }
 
 #[test]
@@ -32278,226 +36591,6 @@ fn canonical_player_existing_instance_map_rejects_incompatible_player_lock_like_
 }
 
 #[test]
-fn canonical_player_existing_instance_map_full_sends_transfer_abort_like_cpp() {
-    let (mut session, _pkt_tx, send_rx) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let leader = ObjectGuid::create_player(1, 70);
-    let member = ObjectGuid::create_player(1, 71);
-
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.attach_player_controller_like_cpp(SessionPlayerController::new(
-        member,
-        "DungeonFullReject".to_string(),
-        Position::new(3700.0, 1500.0, 120.0, 0.0),
-        631,
-        1,
-        1,
-        80,
-        0,
-    ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
-    install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
-
-    let group_registry = Arc::new(GroupRegistry::default());
-    let mut group = GroupInfo::new(leader);
-    group.raid_difficulty_id = 3;
-    group.add_member(member);
-    group.set_recent_instance_like_cpp(631, leader, 9001);
-    let group_guid = group.group_guid;
-    group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
-    session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-
-    {
-        let mut manager = canonical.lock().unwrap();
-        manager
-            .create_map_entry(
-                631,
-                9001,
-                3,
-                wow_map::ManagedMapKind::Dungeon {
-                    has_reset_schedule: false,
-                },
-            )
-            .set_player_count(1);
-    }
-
-    assert_eq!(
-        session.ensure_canonical_world_map_for_current_player_like_cpp(),
-        Some(wow_map::CreateMapDecision::Reject {
-            side_effects: Vec::new()
-        })
-    );
-    assert_eq!(
-        send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
-        wow_packet::packets::misc::TransferAborted {
-            map_id: 631,
-            arg: 0,
-            map_difficulty_x_condition_id: 0,
-            transfer_abort: TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP,
-        }
-        .to_bytes()
-    );
-    assert!(
-        canonical
-            .lock()
-            .unwrap()
-            .find_map(631, 9001)
-            .unwrap()
-            .map()
-            .get_typed_player(member)
-            .is_none(),
-        "full instance rejection must not synchronize the player"
-    );
-}
-
-#[test]
-fn canonical_existing_instance_full_gate_does_not_count_game_masters_like_cpp() {
-    let (mut session, _pkt_tx, send_rx) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let leader = ObjectGuid::create_player(1, 94);
-    let member = ObjectGuid::create_player(1, 95);
-    let existing_gm = ObjectGuid::create_player(1, 96);
-
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.attach_player_controller_like_cpp(SessionPlayerController::new(
-        member,
-        "DungeonGmOccupant".to_string(),
-        Position::new(3700.0, 1500.0, 120.0, 0.0),
-        631,
-        1,
-        1,
-        80,
-        0,
-    ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
-    install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
-
-    let group_registry = Arc::new(GroupRegistry::default());
-    let mut group = GroupInfo::new(leader);
-    group.raid_difficulty_id = 3;
-    group.add_member(member);
-    group.set_recent_instance_like_cpp(631, leader, 9001);
-    let group_guid = group.group_guid;
-    group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
-    session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-
-    {
-        let mut manager = canonical.lock().unwrap();
-        let map = manager.create_map_entry(
-            631,
-            9001,
-            3,
-            wow_map::ManagedMapKind::Dungeon {
-                has_reset_schedule: false,
-            },
-        );
-        map.set_player_count(1);
-        let mut gm = Player::new(Some(1), false);
-        gm.unit_mut().world_mut().object_mut().create(existing_gm);
-        gm.unit_mut().world_mut().set_map(631, 9001).unwrap();
-        gm.unit_mut()
-            .world_mut()
-            .relocate(Position::new(3700.0, 1500.0, 120.0, 0.0));
-        gm.unit_mut().world_mut().object_mut().add_to_world();
-        gm.set_game_master_like_cpp(true);
-        map.map_mut()
-            .insert_map_object_record(MapObjectRecord::new_player(gm).unwrap())
-            .unwrap();
-    }
-
-    assert_eq!(
-        session.ensure_canonical_world_map_for_current_player_like_cpp(),
-        Some(wow_map::CreateMapDecision::Existing {
-            key: wow_map::MapKey::new(631, 9001),
-            difficulty_id: 3,
-            side_effects: Vec::new(),
-        })
-    );
-    assert!(send_rx.try_recv().is_err());
-    assert!(
-        canonical
-            .lock()
-            .unwrap()
-            .find_map(631, 9001)
-            .unwrap()
-            .map()
-            .get_typed_player(member)
-            .is_some(),
-        "GM occupants must not make a C++ instance full"
-    );
-}
-
-#[test]
-fn canonical_game_master_bypasses_existing_instance_full_gate_like_cpp() {
-    let (mut session, _pkt_tx, send_rx) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let leader = ObjectGuid::create_player(1, 72);
-    let gm = ObjectGuid::create_player(1, 73);
-
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.attach_player_controller_like_cpp(SessionPlayerController::new(
-        gm,
-        "DungeonFullGm".to_string(),
-        Position::new(3700.0, 1500.0, 120.0, 0.0),
-        631,
-        1,
-        1,
-        80,
-        0,
-    ));
-    session.set_player_game_master_like_cpp(true);
-    session.represented_raid_difficulty_id_like_cpp = 3;
-    install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
-
-    let group_registry = Arc::new(GroupRegistry::default());
-    let mut group = GroupInfo::new(leader);
-    group.raid_difficulty_id = 3;
-    group.add_member(gm);
-    group.set_recent_instance_like_cpp(631, leader, 9001);
-    let group_guid = group.group_guid;
-    group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
-    session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-
-    {
-        let mut manager = canonical.lock().unwrap();
-        manager
-            .create_map_entry(
-                631,
-                9001,
-                3,
-                wow_map::ManagedMapKind::Dungeon {
-                    has_reset_schedule: false,
-                },
-            )
-            .set_player_count(1);
-    }
-
-    assert_eq!(
-        session.ensure_canonical_world_map_for_current_player_like_cpp(),
-        Some(wow_map::CreateMapDecision::Existing {
-            key: wow_map::MapKey::new(631, 9001),
-            difficulty_id: 3,
-            side_effects: Vec::new(),
-        })
-    );
-    assert!(send_rx.try_recv().is_err());
-    assert!(
-        canonical
-            .lock()
-            .unwrap()
-            .find_map(631, 9001)
-            .unwrap()
-            .map()
-            .get_typed_player(gm)
-            .is_some(),
-        "GM bypass should still synchronize the represented player into the map"
-    );
-}
-
-#[test]
 fn canonical_player_existing_raid_in_progress_sends_transfer_abort_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -32724,7 +36817,7 @@ fn canonical_player_dungeon_create_map_regenerates_conflicting_encounter_lock_in
 }
 
 #[test]
-fn canonical_player_snapshot_syncs_display_mount_collision_shape_like_cpp() {
+fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let guid = ObjectGuid::create_player(1, 42);
@@ -32901,7 +36994,7 @@ fn canonical_world_map_login_binding_rejects_dungeon_missing_difficulty_like_cpp
 }
 
 #[test]
-fn session_player_controller_tracks_cpp_attached_player_identity() {
+fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let guid = ObjectGuid::create_player(1, 42);
     let start = Position::new(1.0, 2.0, 3.0, 4.0);
@@ -32923,7 +37016,7 @@ fn session_player_controller_tracks_cpp_attached_player_identity() {
         },
     );
     let item_guid = ObjectGuid::create_item(1, 500);
-    session.inventory_items.insert(
+    session.insert_inventory_item_like_cpp(
         23,
         InventoryItem {
             guid: item_guid,
@@ -32965,7 +37058,7 @@ fn session_player_controller_tracks_cpp_attached_player_identity() {
         Some(test_creature_guid(77))
     );
     assert_eq!(session.known_spells_like_cpp(), &[118, 133]);
-    assert_eq!(session.player_currency_quantity(395), 9);
+    assert_eq!(session.player_currency_quantity(395), Some(9));
     assert_eq!(session.inventory_items_like_cpp()[&23].guid, item_guid);
     assert_eq!(
         session.inventory_item_objects_like_cpp()[&item_guid].count(),
@@ -32982,8 +37075,6 @@ fn session_player_controller_tracks_cpp_attached_player_identity() {
     session.set_player_gold_like_cpp(2000);
     session.set_player_xp_like_cpp(66);
     session.learn_known_spell_like_cpp(116);
-    session.inventory_items.remove(&23);
-    assert!(session.inventory_items_like_cpp().contains_key(&23));
     session.remove_inventory_item_like_cpp(23);
 
     assert_eq!(session.player_position_like_cpp(), Some(moved));
@@ -32999,7 +37090,7 @@ fn session_player_controller_tracks_cpp_attached_player_identity() {
 
     session.set_player_guid(None);
     assert_eq!(session.player_guid(), None);
-    assert!(session.player_controller.is_none());
+    assert!(!session.player_bootstrap_attached_like_cpp);
 }
 
 #[test]
@@ -33179,59 +37270,55 @@ fn register_test_creature_mirrored_like_cpp(
 #[test]
 fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_creature_difficulty_store_like_cpp(Arc::new(
-        wow_data::CreatureDifficultyStoreLikeCpp::from_records(
-            [wow_data::CreatureDifficultyRecordLikeCpp {
-                entry: 90_021,
-                difficulty_id: 0,
-                min_level: 5,
-                max_level: 5,
-                health_scaling_expansion: 0,
-                health_modifier: 1.0,
-                mana_modifier: 1.0,
-                armor_modifier: 1.0,
-                damage_modifier: 1.0,
-                creature_difficulty_id: 0,
-                type_flags: 0,
-                type_flags2: 0,
-                loot_id: 0,
-                pickpocket_loot_id: 0,
-                skin_loot_id: 0,
-                gold_min: 0,
-                gold_max: 0,
-                static_flags: [0; 8],
-            }],
-            |_| 1.0,
+    let difficulty = Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::from_records(
+        [wow_data::CreatureDifficultyRecordLikeCpp {
+            entry: 90_021,
+            difficulty_id: 0,
+            min_level: 5,
+            max_level: 5,
+            health_scaling_expansion: 0,
+            health_modifier: 1.0,
+            mana_modifier: 1.0,
+            armor_modifier: 1.0,
+            damage_modifier: 1.0,
+            creature_difficulty_id: 0,
+            type_flags: 0,
+            type_flags2: 0,
+            loot_id: 0,
+            pickpocket_loot_id: 0,
+            skin_loot_id: 0,
+            gold_min: 0,
+            gold_max: 0,
+            static_flags: [0; 8],
+        }],
+        |_| 1.0,
+    ));
+    let base_stats = Arc::new(wow_data::CreatureBaseStatsStoreLikeCpp::from_records([
+        (
+            5,
+            2,
+            wow_data::CreatureBaseStatsRecordLikeCpp {
+                base_health: [100, 100, 100],
+                base_mana: 600,
+                base_armor: 0,
+                attack_power: 0,
+                ranged_attack_power: 0,
+                base_damage: [0.0; 3],
+            },
         ),
-    ));
-    session.set_creature_base_stats_store_like_cpp(Arc::new(
-        wow_data::CreatureBaseStatsStoreLikeCpp::from_records([
-            (
-                5,
-                2,
-                wow_data::CreatureBaseStatsRecordLikeCpp {
-                    base_health: [100, 100, 100],
-                    base_mana: 600,
-                    base_armor: 0,
-                    attack_power: 0,
-                    ranged_attack_power: 0,
-                    base_damage: [0.0; 3],
-                },
-            ),
-            (
-                5,
-                3,
-                wow_data::CreatureBaseStatsRecordLikeCpp {
-                    base_health: [100, 100, 100],
-                    base_mana: 600,
-                    base_armor: 0,
-                    attack_power: 0,
-                    ranged_attack_power: 0,
-                    base_damage: [0.0; 3],
-                },
-            ),
-        ]),
-    ));
+        (
+            5,
+            3,
+            wow_data::CreatureBaseStatsRecordLikeCpp {
+                base_health: [100, 100, 100],
+                base_mana: 600,
+                base_armor: 0,
+                attack_power: 0,
+                ranged_attack_power: 0,
+                base_damage: [0.0; 3],
+            },
+        ),
+    ]));
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([
         wow_data::character_progression::ChrClassesEntry {
             id: 2,
@@ -33244,7 +37331,7 @@ fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp(
             ..Default::default()
         },
     ])));
-    session.set_power_type_store(Arc::new(PowerTypeStore::from_entries([
+    let power_types = Arc::new(PowerTypeStore::from_entries([
         wow_data::character_progression::PowerTypeEntry {
             id: 800,
             name_global_string_tag: String::new(),
@@ -33275,22 +37362,55 @@ fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp(
             regen_combat: 0.0,
             flags: 0x0020 | 0x0080,
         },
-    ])));
+    ]));
+    let creature_spawn_catalogs = CreatureSpawnCatalogsLikeCpp {
+        difficulty,
+        base_stats,
+        power_types,
+        ..Default::default()
+    };
 
-    let full = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, true, 42, 77);
+    let full = session.creature_create_stats_with_catalogs_like_cpp(
+        &creature_spawn_catalogs,
+        90_021,
+        5,
+        2,
+        0,
+        true,
+        42,
+        77,
+    );
     assert_eq!(
         full.power, 600,
         "C++ SetFullPower(POWER_MANA) uses max/base mana when _regenerateHealth is true"
     );
 
-    let from_spawn = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, false, 42, 77);
+    let from_spawn = session.creature_create_stats_with_catalogs_like_cpp(
+        &creature_spawn_catalogs,
+        90_021,
+        5,
+        2,
+        0,
+        false,
+        42,
+        77,
+    );
     assert_eq!(
         from_spawn.power, 77,
         "C++ SetSpawnHealth copies CreatureData::curmana when _regenerateHealth is false"
     );
     assert_eq!(from_spawn.base_mana, 600);
 
-    let focus = session.creature_create_stats_like_cpp(90_021, 5, 3, 0, false, 42, 77);
+    let focus = session.creature_create_stats_with_catalogs_like_cpp(
+        &creature_spawn_catalogs,
+        90_021,
+        5,
+        3,
+        0,
+        false,
+        42,
+        77,
+    );
     assert_eq!(focus.power_type, PowerType::Focus);
     assert_eq!(focus.max_power, 100);
     assert_eq!(
@@ -34060,7 +38180,7 @@ fn register_world_creature_mirrors_existing_canonical_map_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("creature stored as typed Creature entity");
     assert_eq!(typed.unit().world().object().entry(), 9001);
     assert_eq!(typed.current_health(), 25);
@@ -34122,10 +38242,10 @@ fn register_world_creature_preserves_create_state_in_canonical_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("creature inserted into canonical map");
     let reconstructed =
-        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(creature);
+        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
 
     assert_eq!(reconstructed.display_id, create_data.display_id);
     assert_eq!(
@@ -34462,7 +38582,7 @@ fn mutate_world_creature_relocates_canonical_map_object_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("creature remains a typed Creature entity");
     assert_eq!(typed.position(), moved);
 }
@@ -34518,7 +38638,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .loot_authority_like_cpp()
         .clone();
@@ -34530,7 +38650,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .clone();
     creature.unit_mut().world_mut().relocate(synced);
@@ -34547,7 +38667,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("typed creature remains in explicit map instance");
     assert_eq!(typed.position(), synced);
     assert_eq!(typed.level(), 33);
@@ -34577,7 +38697,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .clone();
     reengaged
@@ -34685,7 +38805,7 @@ fn canonical_creature_sync_quarantines_distinct_active_loot_authorities_like_cpp
         .find_map(609, 7)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert!(selected.shares_storage_like_cpp(stored.loot_authority_like_cpp()));
 }
@@ -34747,7 +38867,7 @@ fn canonical_loot_object_lookups_and_mutations_use_player_instance_like_cpp() {
     let default_map = guard.find_map(571, 0).unwrap().map();
     assert_eq!(
         default_map
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap()
             .current_health(),
         100
@@ -34762,7 +38882,7 @@ fn canonical_loot_object_lookups_and_mutations_use_player_instance_like_cpp() {
     let player_map = guard.find_map(571, 7).unwrap().map();
     assert_eq!(
         player_map
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap()
             .current_health(),
         37
@@ -34995,7 +39115,7 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
             .find_map(571, 7)
             .unwrap()
             .map()
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap();
         assert_eq!(creature.entry(), 9_257);
         assert_eq!(creature.level(), 33);
@@ -35843,7 +39963,9 @@ fn loaded_player_visible_items_for_create_includes_loaded_enchant_visual_like_cp
     item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 908, 0, 0);
     session.insert_inventory_item_object(item);
 
-    let visible_items = session.loaded_player_visible_items_for_create_like_cpp();
+    let visible_items = session
+        .loaded_player_visible_items_for_create_like_cpp()
+        .expect("fixture canonical inventory owner");
 
     assert_eq!(
         visible_items[EQUIPMENT_SLOT_MAINHAND as usize],
@@ -36353,6 +40475,9 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 42);
     let registry = Arc::new(PlayerRegistry::default());
+    session.set_player_guid(Some(guid));
+    session.player_position = Some(Position::ZERO);
+    session.current_map_id = 0;
     bind_canonical_test_player_to_registry_like_cpp(
         &mut session,
         &registry,
@@ -36360,25 +40485,27 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
         Position::ZERO,
         0,
     );
-    session.set_player_guid(Some(guid));
-    session.player_position = Some(Position::ZERO);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.player_name = Some("Tester".to_string());
     session.known_spells = vec![12_345];
-    session.player_quests.insert(
-        100,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 100,
-            status: 1,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![2, 3],
-            slot: 0,
-        },
-    );
-    session.rewarded_quests.insert(200);
+    session.mutate_player_quest_gameplay_like_cpp(|state| {
+        state.statuses.insert(
+            100,
+            wow_entities::PlayerQuestStatusRecord {
+                quest_id: 100,
+                status: 1,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![2, 3],
+                slot: 0,
+            },
+        );
+        state.objective_counts_by_quest = vec![(100, vec![2, 3])];
+        state.rewarded_quest_ids.insert(200);
+    });
     let item_guid = ObjectGuid::create_item(1, 500);
-    session.inventory_items.insert(
+    session.insert_inventory_item_like_cpp(
         0,
         InventoryItem {
             guid: item_guid,
@@ -36397,7 +40524,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
         0,
     ));
     let bag_guid = ObjectGuid::create_item(1, 501);
-    session.inventory_items.insert(
+    session.insert_inventory_item_like_cpp(
         1,
         InventoryItem {
             guid: bag_guid,
@@ -36438,22 +40565,23 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     }
 
     session.known_spells.push(54_321);
-    session.player_quests.insert(
-        300,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 300,
-            status: 2,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![7],
-            slot: 1,
-        },
-    );
-    session.rewarded_quests.insert(400);
-    if let Some(item) = session.inventory_item_objects.get_mut(&item_guid) {
-        item.set_count(6);
-    }
+    session.mutate_player_quest_gameplay_like_cpp(|state| {
+        state.statuses.insert(
+            300,
+            wow_entities::PlayerQuestStatusRecord {
+                quest_id: 300,
+                status: 2,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![7],
+                slot: 1,
+            },
+        );
+        state.objective_counts_by_quest.push((300, vec![7]));
+        state.rewarded_quest_ids.insert(400);
+    });
+    assert!(session.update_inventory_item_object_like_cpp(item_guid, |item| item.set_count(6)));
     session.sync_player_registry_state_like_cpp();
 
     let info = registry.loot_player_context(guid).expect("synced player");
@@ -36942,7 +41070,13 @@ fn insert_represented_vehicle_target_like_cpp(
     add_canonical_test_player_on_map(canonical, target_guid, position, 571, 0);
     assert!(
         with_canonical_player_at_mut_like_cpp(canonical, target_guid, 571, 0, |player| {
-            player.gameplay_state_mut().has_vehicle_kit = has_vehicle_kit_like_cpp;
+            player.gameplay_state_mut().mount_vehicle_kit = has_vehicle_kit_like_cpp.then(|| {
+                represented_vehicle_kit_with_passenger_like_cpp(
+                    target_guid,
+                    test_creature_guid(62_000),
+                    true,
+                )
+            });
         })
         .is_some()
     );
@@ -39605,11 +43739,12 @@ async fn spell_reputation_effect_modifies_current_player_reputation_like_cpp() {
         .await
         .expect("represented EffectReputation should execute");
 
-    let state = session
-        .reputation_mgr_like_cpp()
-        .get_state(rep_list_id)
-        .expect("faction state");
-    assert_eq!(state.standing, 250);
+    assert_eq!(
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.get_state(rep_list_id).map(|state| state.standing)
+        }),
+        Some(Some(250))
+    );
 
     let packets = drain_server_packet_bytes(&send_rx);
     let opcodes: Vec<_> = packets
@@ -39704,12 +43839,10 @@ async fn spell_reputation_effect_uses_spell_reward_rate_like_cpp() {
         .expect("represented EffectReputation should execute");
 
     assert_eq!(
-        session
-            .reputation_mgr_like_cpp()
-            .get_state(rep_list_id)
-            .unwrap()
-            .standing,
-        300
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.get_state(rep_list_id).map(|state| state.standing)
+        }),
+        Some(Some(300))
     );
 }
 
@@ -39752,7 +43885,10 @@ async fn spell_reputation_effect_ignores_missing_faction_like_cpp() {
         .await
         .expect("missing faction represented EffectReputation should execute as C++ no-op");
 
-    assert!(session.reputation_mgr_like_cpp().get_state(5).is_none());
+    assert_eq!(
+        session.with_reputation_mgr_like_cpp(|mgr| mgr.get_state(5).is_none()),
+        Some(true)
+    );
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
@@ -39805,12 +43941,10 @@ async fn spell_reputation_effect_ignores_non_player_target_like_cpp() {
         .expect("non-player target represented EffectReputation should execute as C++ no-op");
 
     assert_eq!(
-        session
-            .reputation_mgr_like_cpp()
-            .get_state(rep_list_id)
-            .unwrap()
-            .standing,
-        0
+        session.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.get_state(rep_list_id).map(|state| state.standing)
+        }),
+        Some(Some(0))
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -39915,8 +44049,8 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
     assert_eq!(request.gameobject_entry, gameobject_entry as u32);
     assert!(!request.to_the_death);
     assert_eq!(
-        target_session.represented_duel_arbiter_guid_like_cpp,
-        Some(request.arbiter_guid)
+        target_session.resolved_represented_duel_arbiter_guid_like_cpp(),
+        Some(Some(request.arbiter_guid))
     );
     assert_eq!(
         session.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
@@ -40321,6 +44455,7 @@ async fn spell_self_resurrect_skips_alive_player_like_cpp() {
 #[tokio::test]
 async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     let spell_id = 783_i32;
     let player_guid = ObjectGuid::create_player(1, 783);
     let start = Position::new(10.0, 20.0, 30.0, 1.0);
@@ -40336,7 +44471,7 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,
@@ -40348,9 +44483,12 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         .await
         .expect("represented stuck spell should execute");
 
-    assert_eq!(session.pending_teleport, Some((0, home)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, home)));
     assert!(
-        session.last_spell_cast_time_per_spell.contains_key(&8690),
+        session
+            .spell_last_cast_time_like_cpp(8690)
+            .flatten()
+            .is_some(),
         "C++ EffectStuck starts Hearthstone cooldown after successful home teleport"
     );
     assert_eq!(
@@ -40429,7 +44567,7 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
     assert_eq!(
         session.selection_guid_like_cpp(),
@@ -40504,7 +44642,7 @@ async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_li
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects the instance cap"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
     assert!(
         canonical.lock().unwrap().find_map(631, 0).is_none(),
@@ -40592,7 +44730,10 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((631, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((631, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
     assert_eq!(
         session.selection_guid_like_cpp(),
@@ -40610,7 +44751,9 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             old_map.get_typed_player(player_guid).is_none(),
             "C++ far Player::TeleportTo removes the player from oldmap before storing the far teleport destination"
         );
-        let creature = old_map.get_typed_creature(selected_guid).unwrap();
+        let creature = old_map
+            .with_creature_like_cpp(selected_guid, Clone::clone)
+            .unwrap();
         assert!(!creature.unit().has_attacker_like_cpp(player_guid));
         assert!(
             !creature
@@ -40684,7 +44827,7 @@ async fn teleport_to_blocks_client_without_target_map_expansion_like_cpp() {
         .to_bytes()
     );
     assert!(send_rx.try_recv().is_err());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -40784,7 +44927,10 @@ async fn teleport_to_allows_target_map_when_session_expansion_matches_like_cpp()
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((870, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((870, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
 }
 
@@ -40821,7 +44967,7 @@ async fn teleport_to_battleground_without_assignment_is_silent_like_cpp() {
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns false without SMSG_TRANSFER_ABORTED for unassigned battleground/arena maps"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -40863,7 +45009,10 @@ async fn teleport_to_battleground_with_assignment_can_start_transfer_like_cpp() 
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((529, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((529, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
     assert_eq!(
         session.represented_battleground_leave_requests_like_cpp(),
@@ -40919,7 +45068,10 @@ async fn teleport_to_leaves_represented_battleground_when_target_map_differs_lik
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((571, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((571, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
     assert_eq!(
         session.represented_battleground_leave_requests_like_cpp(),
@@ -40974,7 +45126,16 @@ async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
-    add_canonical_test_pet_with_number(&canonical, pet_guid, player_guid, 500, source, 42, 0);
+    add_canonical_test_pet_with_number(
+        &canonical,
+        pet_guid,
+        player_guid,
+        500,
+        source,
+        42,
+        6_889,
+        0,
+    );
 
     session.teleport_to(0, destination).await;
 
@@ -40986,7 +45147,7 @@ async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
     assert_eq!(session.represented_pet_guid_like_cpp, None);
     assert_eq!(
@@ -41055,7 +45216,16 @@ async fn teleport_to_far_map_removes_temporary_pet_without_storing_pet_number_li
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
-    add_canonical_test_pet_with_number(&canonical, pet_guid, player_guid, 500, source, 43, 10_000);
+    add_canonical_test_pet_with_number(
+        &canonical,
+        pet_guid,
+        player_guid,
+        500,
+        source,
+        43,
+        6_890,
+        10_000,
+    );
 
     session.teleport_to(0, destination).await;
 
@@ -41254,7 +45424,10 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
     assert!(session.apply_represented_login_pet_talent_reset_like_cpp());
 
     assert!(
-        session.represented_pet_spells_like_cpp.is_empty(),
+        session
+            .pet_load_query_holder_rows_like_cpp
+            .spells
+            .is_empty(),
         "C++ deletes pet_spell rows for all pets owned by the player"
     );
     assert_eq!(
@@ -41274,11 +45447,17 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
         0
     );
     assert!(
-        !session.represented_pet_spell_cooldowns_like_cpp.is_empty(),
+        !session
+            .pet_load_query_holder_rows_like_cpp
+            .spell_cooldowns
+            .is_empty(),
         "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_cooldown rows in this block"
     );
     assert!(
-        !session.represented_pet_spell_charges_like_cpp.is_empty(),
+        !session
+            .pet_load_query_holder_rows_like_cpp
+            .spell_charges
+            .is_empty(),
         "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_charges rows in this block"
     );
     assert_eq!(
@@ -41392,8 +45571,15 @@ async fn first_login_cast_spells_use_player_create_mode_before_other_first_login
         70_001, 70_002,
     ])));
 
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawn_catalogs = session.creature_spawn_catalogs_for_test_like_cpp();
+    let player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
     let cast_count = session
-        .apply_represented_first_login_cast_spells_like_cpp()
+        .apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            &player_bootstrap,
+        )
         .await;
 
     assert_eq!(
@@ -41466,9 +45652,13 @@ fn start_all_spells_applies_custom_player_create_spells_like_cpp() {
             .is_empty()
     );
 
-    session.set_start_all_spells_like_cpp(true);
+    let mut player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
+    player_bootstrap.start_all_spells = true;
     assert_eq!(
-        session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+        session.apply_represented_start_all_spells_with_catalogs_like_cpp(
+            &player_bootstrap,
+            &mut known_spells,
+        ),
         1,
         "C++ AddSpell semantics do not duplicate an already known spell"
     );
@@ -41645,6 +45835,7 @@ fn first_login_start_all_explored_sets_all_cpp_blocks_and_sends_update() {
     assert!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .take(2)
             .eq(["4294967295", "4294967295"]),
@@ -41735,7 +45926,8 @@ fn load_represented_pet_spell_rows_filters_zero_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_spells_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .spells
             .get(&42)
             .and_then(|spells| spells.first())
             .map(|spell| spell.spell_id),
@@ -41780,7 +45972,8 @@ fn load_represented_pet_spell_cooldown_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_spell_cooldowns_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .spell_cooldowns
             .get(&42)
             .and_then(|cooldowns| cooldowns.first())
             .map(|cooldown| cooldown.spell_id),
@@ -41831,7 +46024,8 @@ fn load_represented_pet_spell_charge_rows_preserves_db_order_like_cpp() {
 
     assert_eq!(loaded, 2);
     let rows = session
-        .represented_pet_spell_charges_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .spell_charges
         .get(&42)
         .expect("represented pet charge rows");
     assert_eq!(rows[0].recharge_end_unix_secs, 4);
@@ -41890,7 +46084,8 @@ fn load_represented_pet_aura_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_auras_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .auras
             .get(&42)
             .and_then(|auras| auras.first())
             .map(|aura| aura.spell_id),
@@ -42018,7 +46213,8 @@ fn load_represented_pet_aura_rows_ticks_attr4_offline_auras_like_cpp() {
 
     assert_eq!(loaded, 2);
     let auras = session
-        .represented_pet_auras_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .auras
         .get(&42)
         .expect("represented pet auras");
     assert_eq!(auras[0].spell_id, 7_701);
@@ -42109,7 +46305,8 @@ fn load_represented_pet_aura_rows_normalizes_proc_charges_like_cpp() {
 
     assert_eq!(loaded, 3);
     let auras = session
-        .represented_pet_auras_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .auras
         .get(&42)
         .expect("represented pet auras");
     assert_eq!(
@@ -42180,7 +46377,8 @@ fn load_represented_pet_aura_rows_filters_unknown_difficulty_like_cpp() {
 
     assert_eq!(loaded, 2);
     let loaded_spell_ids: Vec<_> = session
-        .represented_pet_auras_like_cpp
+        .pet_load_query_holder_rows_like_cpp
+        .auras
         .get(&42)
         .expect("represented pet auras")
         .iter()
@@ -42222,7 +46420,8 @@ fn load_represented_pet_aura_effect_rows_filters_bad_effect_index_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
-            .represented_pet_aura_effects_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .aura_effects
             .get(&42)
             .and_then(|effects| effects.first())
             .map(|effect| effect.effect_index),
@@ -42239,15 +46438,96 @@ fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
 
     assert!(session.load_represented_pet_declined_names_like_cpp(42, Some(row.clone())));
     assert_eq!(
-        session.represented_pet_declined_names_like_cpp.get(&42),
+        session
+            .pet_load_query_holder_rows_like_cpp
+            .declined_names
+            .get(&42),
         Some(&row)
     );
     assert!(session.load_represented_pet_declined_names_like_cpp(42, None));
     assert!(
         !session
-            .represented_pet_declined_names_like_cpp
+            .pet_load_query_holder_rows_like_cpp
+            .declined_names
             .contains_key(&42)
     );
+}
+
+#[test]
+fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
+    let (mut session, _, _send_rx) = make_session();
+
+    session.load_represented_pet_spell_rows_like_cpp(
+        42,
+        [CharacterPetSpellRowLikeCpp {
+            spell_id: 123,
+            active: ActiveState::Enabled as u8,
+        }],
+    );
+    session.load_represented_pet_spell_cooldown_rows_like_cpp(
+        42,
+        [CharacterPetSpellCooldownRowLikeCpp {
+            spell_id: 123,
+            cooldown_end_unix_secs: 1,
+            category_id: 7,
+            category_end_unix_secs: 2,
+        }],
+    );
+    session.load_represented_pet_spell_charge_rows_like_cpp(
+        42,
+        [CharacterPetSpellChargeRowLikeCpp {
+            category_id: 7,
+            recharge_start_unix_secs: 1,
+            recharge_end_unix_secs: 2,
+        }],
+    );
+    session.load_represented_pet_aura_rows_like_cpp(
+        42,
+        [CharacterPetAuraRowLikeCpp {
+            caster_guid: ObjectGuid::EMPTY,
+            spell_id: 123,
+            effect_mask: 1,
+            recalculate_mask: 0,
+            difficulty: 0,
+            stack_count: 1,
+            max_duration_ms: 10,
+            remain_time_ms: 10,
+            remain_charges: 0,
+        }],
+    );
+    session.load_represented_pet_aura_effect_rows_like_cpp(
+        42,
+        [CharacterPetAuraEffectRowLikeCpp {
+            caster_guid: ObjectGuid::EMPTY,
+            spell_id: 123,
+            effect_mask: 1,
+            effect_index: 0,
+            amount: 3,
+            base_amount: 3,
+        }],
+    );
+    session.load_represented_pet_declined_names_like_cpp(
+        42,
+        Some(CharacterPetDeclinedNamesRowLikeCpp {
+            names: ["a", "b", "c", "d", "e"].map(str::to_string),
+        }),
+    );
+    assert!(
+        !session
+            .pet_load_query_holder_rows_like_cpp
+            .spells
+            .is_empty()
+    );
+
+    session.begin_represented_character_pet_authority_load_like_cpp();
+
+    let holder = &session.pet_load_query_holder_rows_like_cpp;
+    assert!(holder.spells.is_empty());
+    assert!(holder.spell_cooldowns.is_empty());
+    assert!(holder.spell_charges.is_empty());
+    assert!(holder.auras.is_empty());
+    assert!(holder.aura_effects.is_empty());
+    assert!(holder.declined_names.is_empty());
 }
 
 #[test]
@@ -42786,7 +47066,7 @@ async fn teleport_to_far_map_without_pet_does_not_request_pet_unsummon_like_cpp(
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
 }
 
@@ -42847,7 +47127,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         Some((0, destination, TELE_TO_NONE_LIKE_CPP))
     );
     assert!(session.represented_far_teleport_pending_like_cpp());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(
         session.in_combat,
         "C++ delayed far branch returns before CombatStop"
@@ -42915,7 +47195,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
         ]
     );
     assert_eq!(session.state, SessionState::Transfer);
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
@@ -42948,7 +47228,7 @@ async fn teleport_to_far_map_clears_transport_server_time_override_like_cpp() {
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 42_000;
+    session.set_active_player_transport_server_time_like_cpp(42_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportClearTransportTime".to_string(),
@@ -42970,7 +47250,7 @@ async fn teleport_to_far_map_clears_transport_server_time_override_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert_eq!(
         session.active_player_local_flags_like_cpp()
@@ -43002,7 +47282,7 @@ async fn teleport_to_preflight_abort_preserves_transport_server_time_override_li
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 43_000;
+    session.set_active_player_transport_server_time_like_cpp(43_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRejectKeepsTransportTime".to_string(),
@@ -43066,7 +47346,7 @@ async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 44_000;
+    session.set_active_player_transport_server_time_like_cpp(44_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportSeamless".to_string(),
@@ -43077,6 +47357,12 @@ async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
 
     session
         .teleport_to_with_options(0, destination, TELE_TO_SEAMLESS_LIKE_CPP)
@@ -43101,7 +47387,7 @@ async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_
         }
         .to_bytes()
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_ne!(
         session.active_player_local_flags_like_cpp()
             & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
@@ -43142,7 +47428,7 @@ async fn teleport_to_invalid_seamless_falls_back_to_normal_transfer_like_cpp() {
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 45_000;
+    session.set_active_player_transport_server_time_like_cpp(45_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportInvalidSeamless".to_string(),
@@ -43209,7 +47495,7 @@ async fn teleport_to_player_logout_suppresses_transfer_packets_like_cpp() {
         },
     ])));
     session.expansion = 1;
-    session.active_player_transport_server_time_like_cpp = 46_000;
+    session.set_active_player_transport_server_time_like_cpp(46_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportLogout".to_string(),
@@ -43229,7 +47515,7 @@ async fn teleport_to_player_logout_suppresses_transfer_packets_like_cpp() {
         vec![ServerOpcodes::CancelCombat],
         "C++ Player::TeleportTo suppresses both TransferPending and SuspendToken during PlayerLogout"
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_ne!(
         session.active_player_local_flags_like_cpp()
             & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
@@ -43314,7 +47600,7 @@ async fn teleport_to_far_map_removes_current_player_dynamic_objects_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     let manager = canonical.lock().unwrap();
     let map = manager.find_map(571, 0).unwrap().map();
     assert!(
@@ -43400,7 +47686,7 @@ async fn teleport_to_far_map_removes_current_player_area_triggers_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     let manager = canonical.lock().unwrap();
     let map = manager.find_map(571, 0).unwrap().map();
     assert!(
@@ -43460,16 +47746,16 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
         80,
         0,
     ));
-    session.active_spell_cast = Some(SpellCastState {
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 61_806,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData::default(),
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
         cast_id: ObjectGuid::EMPTY,
         cast_start_time: Instant::now(),
         cast_time_ms: 10_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
-    });
+    }));
     add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
         let unit = player.unit_mut();
@@ -43489,9 +47775,9 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(
-        session.active_spell_cast.is_none(),
+        session.active_spell_cast_snapshot_like_cpp().is_none(),
         "C++ Player::TeleportTo interrupts non-melee casts before transfer"
     );
     session.mutate_canonical_player_like_cpp(|player| {
@@ -43549,16 +47835,16 @@ async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() 
         58,
         0,
     ));
-    session.active_spell_cast = Some(SpellCastState {
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 61_809,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData::default(),
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
         cast_id: ObjectGuid::EMPTY,
         cast_start_time: Instant::now(),
         cast_time_ms: 10_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
-    });
+    }));
     add_canonical_test_player_on_map(
         &canonical,
         player_guid,
@@ -43585,7 +47871,7 @@ async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() 
         .to_bytes()
     );
     assert!(
-        session.active_spell_cast.is_some(),
+        session.active_spell_cast_snapshot_like_cpp().is_some(),
         "C++ Player::TeleportTo returns before spell interruption on preflight aborts"
     );
     session.mutate_canonical_player_like_cpp(|player| {
@@ -43640,17 +47926,18 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         80,
         0,
     ));
-    session.active_spell_cast = Some(SpellCastState {
+    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 61_810,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData::default(),
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
         cast_id: ObjectGuid::EMPTY,
         cast_start_time: Instant::now(),
         cast_time_ms: 10_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
-    });
-    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+    }));
     session.mutate_canonical_player_like_cpp(|player| {
         player
             .unit_mut()
@@ -43670,17 +47957,18 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         ]
     );
     assert!(
-        session.active_spell_cast.is_some(),
+        session.active_spell_cast_snapshot_like_cpp().is_some(),
         "C++ Player::TeleportTo skips InterruptNonMeleeSpells when TELE_TO_SPELL is set"
     );
-    session.mutate_canonical_player_like_cpp(|player| {
-        assert_eq!(
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
             player
                 .unit()
-                .current_spell(wow_entities::CurrentSpellSlot::Generic),
-            Some(generic_spell)
-        );
-    });
+                .current_spell(wow_entities::CurrentSpellSlot::Generic)
+        }),
+        Some(Some(generic_spell)),
+        "the exact detached Player must retain its active spell"
+    );
 }
 
 #[tokio::test]
@@ -43795,7 +48083,7 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(!session.visible_auras.contains_key(&represented_moving_slot));
     assert!(
         !session
@@ -43861,7 +48149,7 @@ async fn teleport_to_blocks_unescaped_death_knight_leaving_start_map_like_cpp() 
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -43934,7 +48222,7 @@ async fn teleport_to_dk_escape_abort_still_masks_movement_flags_like_cpp() {
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -43977,7 +48265,10 @@ async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((571, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((571, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
 }
 
@@ -44011,6 +48302,12 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
 
     session.teleport_to(571, destination).await;
 
@@ -44036,7 +48333,7 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
         .to_bytes()
     );
     assert!(session.near_teleport_pending_like_cpp());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
     assert_eq!(session.fall_information_like_cpp(), (0, source.z));
 }
@@ -44112,28 +48409,30 @@ async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
         0,
         "C++ Player::TeleportTo resets MovementInfo::jump before the same-map branch"
     );
-    let canonical = canonical.lock().unwrap();
-    let player = canonical
-        .find_map(571, 0)
-        .and_then(|map| map.map().get_typed_player(player_guid))
-        .expect("canonical player after teleport");
-    assert_eq!(
-        player.unit().movement_flags_like_cpp(),
-        MovementFlag::ROOT | MovementFlag::CAN_FLY,
-        "C++ Player::TeleportTo writes the masked flags back to Unit::m_movementInfo"
-    );
-    let motion = &player.unit().subsystems().motion;
-    assert!(
-        motion.spline.finalized,
-        "C++ Player::TeleportTo calls Unit::DisableSpline before the same-map branch"
-    );
-    assert!(
-        !motion
-            .active_generators
-            .iter()
-            .any(|generator| generator.kind == MovementGeneratorKind::Effect),
-        "C++ Player::TeleportTo removes EFFECT_MOTION_TYPE before the same-map branch"
-    );
+    {
+        let canonical = canonical.lock().unwrap();
+        let player = canonical
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(player_guid))
+            .expect("canonical player after teleport");
+        assert_eq!(
+            player.unit().movement_flags_like_cpp(),
+            MovementFlag::ROOT | MovementFlag::CAN_FLY,
+            "C++ Player::TeleportTo writes the masked flags back to Unit::m_movementInfo"
+        );
+        let motion = &player.unit().subsystems().motion;
+        assert!(
+            motion.spline.finalized,
+            "C++ Player::TeleportTo calls Unit::DisableSpline before the same-map branch"
+        );
+        assert!(
+            !motion
+                .active_generators
+                .iter()
+                .any(|generator| generator.kind == MovementGeneratorKind::Effect),
+            "C++ Player::TeleportTo removes EFFECT_MOTION_TYPE before the same-map branch"
+        );
+    }
     assert!(session.near_teleport_pending_like_cpp());
 }
 
@@ -44291,8 +48590,14 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.set_player_health_like_cpp(100, 100);
-    session.in_combat = true;
+    session.set_in_combat_like_cpp(true);
     session.set_represented_can_delay_teleport_like_cpp(true);
     session.teleport_to(571, destination).await;
     assert!(send_rx.try_recv().is_err());
@@ -44307,7 +48612,7 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
     );
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
     assert!(session.near_teleport_pending_like_cpp());
 }
 
@@ -44319,6 +48624,7 @@ async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_li
     let (mut source, _, source_rx) = make_session();
     let (mut viewer, _, viewer_rx) = make_session();
     let source_guid = ObjectGuid::create_player(1, 817);
+    source.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let viewer_guid = ObjectGuid::create_player(1, 818);
     let source_position = Position::new(10.0, 20.0, 30.0, 0.5);
     let viewer_position = Position::new(11.0, 21.0, 30.0, 0.0);
@@ -44335,6 +48641,12 @@ async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_li
         80,
         0,
     ));
+    source.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        source
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     source.set_player_movement_time_like_cpp(456);
     source.register_in_player_registry();
 
@@ -44409,6 +48721,12 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.combat_target = Some(creature_guid);
     session.in_combat = true;
 
@@ -44453,6 +48771,12 @@ async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp()
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.set_player_logout_like_cpp(true);
 
     session
@@ -44464,7 +48788,7 @@ async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp()
         "C++ same-map TeleportTo does not SendTeleportPacket during PlayerLogout"
     );
     assert!(session.near_teleport_pending_like_cpp());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
 }
 
 #[tokio::test]
@@ -44499,9 +48823,16 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
     ));
     session.set_player_health_like_cpp(0, 400);
     add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
+    assert!(
+        session
+            .ensure_canonical_player_owner_for_map_like_cpp(wow_map::MapKey::new(571, 0), source,)
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_max_health(400);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Corpse);
             player.unit_mut().set_health(0);
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
             player.unit_mut().set_power_index(PowerType::Rage, Some(1));
@@ -44576,6 +48907,12 @@ async fn teleport_to_same_map_without_revive_flag_keeps_dead_player_like_cpp() {
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.set_player_health_like_cpp(0, 400);
 
     session.teleport_to(571, destination).await;
@@ -44765,9 +49102,9 @@ async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
     ));
     session.set_player_health_like_cpp(100, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session
-        .last_spell_cast_time_per_spell
-        .insert(8690, Instant::now());
+    session.mutate_cast_execution_like_cpp(|state| {
+        state.last_cast_time_per_spell.insert(8690, Instant::now());
+    });
     set_stuck_spell_store_like_cpp(&mut session, spell_id);
 
     session
@@ -44842,7 +49179,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,
@@ -44862,9 +49199,12 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         .await
         .expect("represented stuck spell in-flight branch should execute as no-op");
 
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(
-        !session.last_spell_cast_time_per_spell.contains_key(&8690),
+        session
+            .spell_last_cast_time_like_cpp(8690)
+            .flatten()
+            .is_none(),
         "C++ EffectStuck returns before Hearthstone cooldown while player is in flight"
     );
     assert_eq!(
@@ -44885,7 +49225,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         0,
     ));
     disabled_session.set_player_health_like_cpp(100, 100);
-    disabled_session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    let _ = disabled_session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,
@@ -44897,11 +49237,12 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         .await
         .expect("disabled CastUnstuck should execute as C++ no-op");
 
-    assert_eq!(disabled_session.pending_teleport, None);
+    assert_eq!(disabled_session.pending_teleport_like_cpp(), None);
     assert!(
-        !disabled_session
-            .last_spell_cast_time_per_spell
-            .contains_key(&8690)
+        disabled_session
+            .spell_last_cast_time_like_cpp(8690)
+            .flatten()
+            .is_none()
     );
     assert_eq!(
         drain_server_opcodes(&disabled_rx),
@@ -45575,7 +49916,9 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         let canonical_guard = canonical.lock().unwrap();
         let map = canonical_guard.find_map(0, 0).unwrap().map();
         let player = map.get_typed_player(player_guid).unwrap();
-        let creature = map.get_typed_creature(creature_guid).unwrap();
+        let creature = map
+            .with_creature_like_cpp(creature_guid, Clone::clone)
+            .unwrap();
         assert!(!player.unit().subsystems().combat.has_pve_combat());
         assert!(
             !creature
@@ -50333,7 +54676,7 @@ fn combat_tick_damage_adds_creature_threat_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert_eq!(
         creature_entity
@@ -50643,8 +54986,8 @@ fn combat_tick_canonical_player_without_victim_does_not_use_stale_session_target
             .current_hp(),
         40
     );
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 }
 
 #[test]
@@ -51528,7 +55871,7 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert!(
         !creature_entity
@@ -51545,8 +55888,9 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
             .threat_value(player),
         None
     );
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    drop(guard);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 }
 
 #[test]
@@ -51966,8 +56310,11 @@ fn player_attack_accepts_typed_player_victim_with_pvp_flag_snapshot_like_cpp() {
         assert_eq!(attacker_entity.unit().data().target, victim);
         assert!(victim_entity.unit().has_attacker_like_cpp(attacker));
     }
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -52304,8 +56651,8 @@ fn player_attack_uses_owner_group_visibility_like_cpp() {
     group.add_member(owner);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     assert_eq!(
         session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Accepted {
@@ -52394,8 +56741,8 @@ fn player_attack_uses_private_object_group_visibility_like_cpp() {
     );
 
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     assert_eq!(
         session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Accepted {
@@ -52498,7 +56845,6 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(attacker);
     let group_guid = group.group_guid;
-    session.group_guid = Some(group_guid);
     let properties = SummonPropertiesEntry {
         id: 2,
         control: 0,
@@ -52510,9 +56856,11 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
             0,
         ],
     };
-    let private_owner =
-        session.summon_private_object_owner_like_cpp(attacker, ObjectGuid::EMPTY, &properties);
-    assert_eq!(private_owner, ObjectGuid::create_group(group_guid));
+    assert_eq!(
+        session.summon_private_object_owner_like_cpp(attacker, ObjectGuid::EMPTY, &properties),
+        attacker
+    );
+    let private_owner = ObjectGuid::create_group(group_guid);
     assert!(session.set_canonical_creature_private_object_owner_like_cpp(summon, private_owner));
 
     assert_eq!(
@@ -52522,6 +56870,11 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
 
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert_eq!(
+        session.summon_private_object_owner_like_cpp(attacker, ObjectGuid::EMPTY, &properties),
+        private_owner
+    );
     assert_eq!(
         session.start_player_attack_like_cpp(summon),
         PlayerAttackStartLikeCppResult::Accepted {
@@ -52601,7 +56954,7 @@ fn player_attack_can_always_see_unit_being_moved_like_cpp() {
 }
 
 #[test]
-fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
+fn logout_save_snapshot_uses_canonical_xp_money_and_health_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 70);
@@ -52654,7 +57007,7 @@ fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
     session.set_player_position_like_cpp(latest_session_position);
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .unwrap();
     assert_eq!(
         snapshot,
@@ -52663,9 +57016,9 @@ fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
             map_id: 571,
             instance_id: 0,
             position: latest_session_position,
-            level: 10,
-            xp: 1,
-            money: 2,
+            level: 42, // Player::SaveToDB reads canonical Unit::GetLevel.
+            xp: 1234,
+            money: 5678,
             health: 456,
             max_health: 900,
             powers: loaded_character_power_snapshot_like_cpp([321, 222, 0, 0, 0, 0, 0, 0, 0, 0,]),
@@ -52676,8 +57029,8 @@ fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
         Some(latest_session_position)
     );
     assert_eq!(session.player_level_like_cpp(), 10);
-    assert_eq!(session.player_xp_like_cpp(), 1);
-    assert_eq!(session.player_gold_like_cpp(), 2);
+    assert_eq!(session.player_xp_like_cpp(), 1234);
+    assert_eq!(session.player_gold_like_cpp(), 5678);
     assert_eq!(session.player_health_like_cpp(), 456);
 }
 
@@ -52737,7 +57090,7 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     );
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("snapshot should exist");
 
     assert_eq!(snapshot.health, damaged_health);
@@ -52785,7 +57138,7 @@ fn logout_save_snapshot_uses_canonical_health_when_session_mirror_is_stale_like_
         .unwrap();
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("snapshot should exist");
 
     assert_eq!(snapshot.health, 41);
@@ -52794,7 +57147,7 @@ fn logout_save_snapshot_uses_canonical_health_when_session_mirror_is_stale_like_
 }
 
 #[test]
-fn logout_save_snapshot_keeps_session_death_when_canonical_health_is_stale_like_cpp() {
+fn logout_save_snapshot_ignores_stale_test_fixture_death_and_reads_canonical_player_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 76);
@@ -52832,19 +57185,18 @@ fn logout_save_snapshot_keeps_session_death_when_canonical_health_is_stale_like_
         })
         .unwrap();
 
-    // Some represented death seams still live on the session side while the
-    // canonical player is being phased in. C++ has a single Player object,
-    // so SaveToDB must not resurrect the session by reading stale canonical HP.
+    // C++ has a single Player object. Deliberately poison the test-only legacy
+    // fixture and prove SaveToDB still reads the canonical owner.
     session.player_health_like_cpp = 0;
     session.player_alive_like_cpp = false;
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("snapshot should exist");
 
-    assert_eq!(snapshot.health, 0);
+    assert_eq!(snapshot.health, 100);
     assert_eq!(snapshot.max_health, 100);
-    assert_eq!(session.player_health_like_cpp(), 0);
+    assert_eq!(session.player_health_like_cpp(), 100);
 }
 
 #[test]
@@ -52885,7 +57237,7 @@ fn logout_save_snapshot_falls_back_to_session_position_without_canonical_player_
     session.set_player_position_like_cpp(moved_position);
 
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .unwrap();
     assert_eq!(snapshot.position, moved_position);
     assert_eq!(snapshot.map_id, 571);
@@ -52914,7 +57266,7 @@ fn logout_save_snapshot_uses_pending_far_teleport_destination_like_cpp() {
         80,
         0,
     ));
-    session.pending_teleport = Some((0, teleport_destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, teleport_destination))));
 
     let snapshot = session
         .current_player_save_to_db_snapshot_like_cpp()
@@ -53286,7 +57638,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
     assert_eq!(
         session
             .complete_represented_player_spell_rows_like_cpp()
-            .and_then(|rows| rows.get(&13_337))
+            .and_then(|rows| rows.get(&13_337).copied())
             .map(|spell| spell.state),
         Some(RepresentedPlayerSpellStateLikeCpp::New),
         "a failed full-save transaction must leave _SaveSpells state dirty for retry"
@@ -53314,7 +57666,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
     assert_eq!(
         session
             .complete_represented_player_spell_rows_like_cpp()
-            .and_then(|rows| rows.get(&13_337))
+            .and_then(|rows| rows.get(&13_337).copied())
             .map(|spell| spell.state),
         Some(RepresentedPlayerSpellStateLikeCpp::Unchanged),
         "successful Player::SaveToDB consumes the same dirty state as C++ _SaveSpells"
@@ -53391,20 +57743,27 @@ fn player_save_requires_complete_skill_authority_before_delete_all_like_cpp() {
 
 #[test]
 fn rested_xp_uses_configured_rest_rates_like_cpp() {
+    let policy = PlayerRestRatePolicyLikeCpp {
+        offline_wilderness: 2.0,
+        offline_tavern_or_city: 3.0,
+        ingame: 4.0,
+    };
     let (mut wilderness, _, _) = make_session();
     wilderness.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
     wilderness.set_player_next_level_xp_like_cpp(72_000);
-    wilderness.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+    wilderness.set_max_player_level_config_like_cpp(80);
     wilderness.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     let (mut tavern, _, _) = make_session();
     tavern.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
     tavern.set_player_next_level_xp_like_cpp(72_000);
-    tavern.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+    tavern.set_max_player_level_config_like_cpp(80);
     tavern.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
-    let wilderness_extra = wilderness.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, false);
-    let tavern_extra = tavern.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, true);
+    let wilderness_extra =
+        wilderness.apply_offline_xp_rest_bonus_with_policy_like_cpp(&policy, 1_000, 4_600, false);
+    let tavern_extra =
+        tavern.apply_offline_xp_rest_bonus_with_policy_like_cpp(&policy, 1_000, 4_600, true);
 
     assert!((wilderness_extra - 223.2).abs() < 0.01);
     assert!((tavern_extra - 1_350.0).abs() < 0.01);
@@ -53412,12 +57771,13 @@ fn rested_xp_uses_configured_rest_rates_like_cpp() {
     let (mut online, _, _) = make_session();
     online.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
     online.set_player_next_level_xp_like_cpp(72_000);
-    online.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+    online.set_max_player_level_config_like_cpp(80);
     online.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(online.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
     online.represented_rest_time_secs_like_cpp = 1_000;
 
-    let (online_extra, _) = online.update_represented_online_xp_rest_bonus_like_cpp(1_010);
+    let (online_extra, _) =
+        online.update_represented_online_xp_rest_bonus_with_policy_like_cpp(&policy, 1_010);
 
     assert!((online_extra - 5.0).abs() < 0.01);
 }
@@ -54080,7 +58440,7 @@ async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
     let (mut session, _, _) = make_session();
     session.state = SessionState::LoggedIn;
     session.set_player_save_interval_ms_like_cpp(100);
-    session.pending_teleport = Some((0, Position::new(10.0, 20.0, 30.0, 1.5)));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, Position::new(10.0, 20.0, 30.0, 1.5)))));
     session.update_player_save_timer_like_cpp(100);
 
     session
@@ -54118,6 +58478,11 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
     assert_ne!(session.represented_rest_time_secs_like_cpp, 0);
 
+    // C++ applies the new character row's PlayerFlags to the new Player before
+    // RestMgr::LoadRestBonus. Keep that provenance explicit: the runtime rest
+    // mask is still stale here, while the persisted flag for the new row is not.
+    session.set_loaded_player_flags_like_cpp(0);
+    assert!(session.represented_is_resting_like_cpp());
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     assert!(!session.represented_is_resting_like_cpp());
@@ -55205,8 +59570,15 @@ fn give_xp_runtime_updates_canonical_progression_and_client_fields_like_cpp() {
         10,
         0,
     );
-    session.set_player_next_level_xp_like_cpp(50);
+    let mut player_xp_table = vec![0; 82];
+    player_xp_table[10] = 50;
+    player_xp_table[11] = 75;
+    session.set_player_xp_table(Arc::new(player_xp_table));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+    assert!(session.ensure_canonical_player_owner_for_map_like_cpp(
+        wow_map::MapKey::new(1, 0),
+        Position::new(1.0, 2.0, 3.0, 0.0),
+    ));
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
@@ -55231,7 +59603,7 @@ fn give_xp_runtime_updates_canonical_progression_and_client_fields_like_cpp() {
                 .active_player_data_changes_mask()
                 .is_set(wow_entities::ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,),
         )),
-        Some((11, 0, 50, -1, true, true, true, true))
+        Some((11, 0, 75, -1, true, true, true, true))
     );
     assert!(drain_server_packet_bytes(&send_rx).iter().any(|bytes| {
         WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::UpdateObject)
@@ -55427,7 +59799,7 @@ fn represented_explored_zones_load_preserves_canonical_snapshot_like_cpp() {
         0,
     );
 
-    let player = session.canonical_player_entity_snapshot_like_cpp().unwrap();
+    let player = session.initial_player_fixture_like_cpp().unwrap();
     assert_eq!(
         player.explored_zones_block_like_cpp(0),
         Some(0x0000_0002_0000_0001)
@@ -55439,6 +59811,7 @@ fn represented_explored_zones_load_preserves_canonical_snapshot_like_cpp() {
     assert_eq!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .take(4)
             .collect::<Vec<_>>(),
@@ -55463,14 +59836,7 @@ fn sync_canonical_player_health_sets_current_and_max_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert_eq!(
         session.sync_canonical_player_health_like_cpp(42, 120),
@@ -55500,14 +59866,7 @@ fn sync_canonical_player_health_zero_sets_corpse_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert_eq!(
         session.sync_canonical_player_health_like_cpp(0, 120),
@@ -55541,14 +59900,7 @@ fn runtime_damage_zero_health_marks_canonical_player_dead_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
     let _ = session.sync_canonical_player_health_like_cpp(42, 120);
 
     session.set_player_health_after_runtime_damage_like_cpp(0);
@@ -55581,19 +59933,12 @@ fn represented_resurrection_health_syncs_canonical_before_save_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
     let _ = session.sync_canonical_player_health_like_cpp(0, 120);
 
     session.apply_represented_resurrection_health_like_cpp(42);
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("save snapshot");
 
     assert_eq!(snapshot.health, 42);
@@ -55625,14 +59970,7 @@ fn sync_canonical_player_primary_power_sets_create_mana_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert!(session.sync_canonical_player_primary_power_like_cpp(
         PowerType::Mana,
@@ -55675,14 +60013,7 @@ fn sync_canonical_player_primary_power_clears_stale_mana_index_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert!(session.sync_canonical_player_primary_power_like_cpp(PowerType::Rage, 500, 1_000, 0,));
 
@@ -55715,7 +60046,7 @@ fn update_area_records_enter_leave_area_criteria_like_cpp() {
     session.set_player_zone_area_like_cpp(10, 100);
 
     assert!(session.update_area_represented_like_cpp(101));
-    assert_eq!(session.player_zone_area_like_cpp(), (10, 101));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((10, 101)));
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[
@@ -55800,7 +60131,7 @@ fn update_zone_records_area_then_top_level_criteria_like_cpp() {
     ])));
 
     assert!(session.update_zone_represented_like_cpp(20, 101));
-    assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((20, 101)));
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[
@@ -56146,7 +60477,7 @@ fn update_zone_missing_zone_keeps_area_criteria_but_skips_top_level_like_cpp() {
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
 
     assert!(session.update_zone_represented_like_cpp(20, 101));
-    assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((20, 101)));
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[
@@ -56185,6 +60516,7 @@ async fn check_area_explore_marks_block_sends_update_and_records_criteria_like_c
     let canonical = shared_canonical_map_manager();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     assert!(
         session
@@ -56194,6 +60526,7 @@ async fn check_area_explore_marks_block_sends_update_and_records_criteria_like_c
     assert_eq!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .take(4)
             .collect::<Vec<_>>(),
@@ -56398,6 +60731,7 @@ async fn check_area_explore_rejects_missing_and_invalid_area_bits_like_cpp() {
     assert!(
         session
             .represented_explored_zones_db_string_like_cpp()
+            .expect("test Player explored-zones owner resolves")
             .split_whitespace()
             .all(|token| token == "0")
     );
@@ -56485,7 +60819,8 @@ fn set_player_skill_values_builds_represented_skill_records_for_tests_like_cpp()
         session.complete_player_skill_records_like_cpp().is_none(),
         "an active-only value map has no authority for C++ step or SkillUpdateState"
     );
-    let riding = session.player_skill_records_like_cpp().get(&762).unwrap();
+    let skill_records = session.player_skill_records_like_cpp();
+    let riding = skill_records.get(&762).unwrap();
     assert_eq!(
         *riding,
         RepresentedPlayerSkillLikeCpp {
@@ -57043,7 +61378,7 @@ fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp
 
     assert_eq!(
         session.represented_favorite_known_spells_like_cpp(),
-        &HashSet::from([100])
+        HashSet::from([100])
     );
 
     session.remove_known_spell_like_cpp(100);
@@ -57141,20 +61476,19 @@ fn test_visible_aura(slot: u8, spell_id: i32) -> AuraApplication {
     }
 }
 
-fn install_test_talent_tab_store_like_cpp(session: &mut WorldSession) {
-    session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
-        wow_data::TalentTabEntry {
-            id: 0,
-            name: String::new(),
-            background_file: String::new(),
-            order_index: 0,
-            race_mask: 0,
-            class_mask: 1,
-            pet_talent_mask: 0,
-            spell_icon_id: 0,
-        },
-    ])));
+fn install_test_talent_tab_store_like_cpp(session: &mut WorldSession) -> wow_data::TalentTabStore {
+    let talent_tabs = wow_data::TalentTabStore::from_entries([wow_data::TalentTabEntry {
+        id: 0,
+        name: String::new(),
+        background_file: String::new(),
+        order_index: 0,
+        race_mask: 0,
+        class_mask: 1,
+        pet_talent_mask: 0,
+        spell_icon_id: 0,
+    }]);
     session.set_player_class_like_cpp(1);
+    talent_tabs
 }
 
 #[test]
@@ -57168,14 +61502,14 @@ fn character_talent_load_filters_invalid_rows_like_cpp() {
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
-    assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(999, 0, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(101, 9, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(101, 2, 4));
-    assert!(!session.load_represented_talent_row_like_cpp(102, 0, 0));
-    assert!(!session.load_represented_talent_row_like_cpp(103, 0, 0));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 2, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 999, 0, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 9, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 2, 4));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 102, 0, 0));
+    assert!(!session.load_represented_talent_row_like_cpp(&talent_tabs, 103, 0, 0));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
     assert_eq!(
@@ -57209,12 +61543,13 @@ fn character_talent_load_applies_active_spell_side_effects_like_cpp() {
     );
     spell_store.insert(60_100, test_spell_info_like_cpp(60_100));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
     let mut known_spells = vec![14_914];
     let mut dependent_spells = HashSet::new();
     assert!(
         session.load_represented_talent_row_with_spell_side_effects_like_cpp(
+            &talent_tabs,
             406,
             0,
             0,
@@ -57245,13 +61580,13 @@ fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
     spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
     spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
     session.set_represented_active_talent_group_like_cpp(1);
     session.set_represented_bonus_talent_groups_like_cpp(1);
-    assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
-    assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
-    assert!(session.load_represented_glyph_row_like_cpp(1, 3, 456));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 2, 0));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 202, 1, 1));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(456), 1, 3, 456));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
 
@@ -57296,11 +61631,11 @@ fn talent_reset_persistence_plan_clears_active_preserves_inactive_and_keeps_zero
     spell_store.insert(60_101, test_spell_info_like_cpp(60_101));
     spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
     session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
+    let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
     session.set_represented_active_talent_group_like_cpp(0);
-    assert!(session.load_represented_talent_row_like_cpp(101, 0, 0));
-    assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 0, 0));
+    assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 202, 1, 1));
     session.mark_represented_talents_loaded_like_cpp();
     session.set_known_spells_like_cpp(vec![50_101, 60_101, 50_202]);
 
@@ -57343,10 +61678,12 @@ fn talent_reset_persistence_plan_clears_active_preserves_inactive_and_keeps_zero
 fn talent_reset_persistence_plan_carries_capped_fee_and_empty_retained_set() {
     let (mut session, _, _) = make_session();
     session.mark_represented_talents_loaded_like_cpp();
-    let month = TALENT_RESET_MONTH_SECS_LIKE_CPP;
+    let month = 30 * 24 * 60 * 60;
     let now = 10 * month;
     session.set_represented_talent_reset_state_like_cpp(500_000, now);
-    let cost = session.represented_next_reset_talents_cost_like_cpp(now);
+    let cost = session
+        .represented_next_reset_talents_cost_like_cpp(now)
+        .expect("fixture specialization owner");
     assert_eq!(cost, 500_000);
 
     let (_, request) = session
@@ -57364,21 +61701,20 @@ fn talent_reset_persistence_plan_carries_capped_fee_and_empty_retained_set() {
 #[test]
 fn character_glyph_load_filters_invalid_rows_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_glyph_properties_store(Arc::new(wow_data::GlyphPropertiesStore::from_entries([
-        wow_data::GlyphPropertiesEntry {
+    let glyph_properties =
+        wow_data::GlyphPropertiesStore::from_entries([wow_data::GlyphPropertiesEntry {
             id: 123,
             spell_id: 10,
             glyph_type: 1,
             glyph_exclusive_category_id: 0,
             spell_icon_file_data_id: 0,
             glyph_slot_flags: 0,
-        },
-    ])));
+        }]);
 
-    assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
-    assert!(!session.load_represented_glyph_row_like_cpp(4, 0, 123));
-    assert!(!session.load_represented_glyph_row_like_cpp(0, 6, 123));
-    assert!(!session.load_represented_glyph_row_like_cpp(0, 1, 999));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_properties, 0, 0, 123));
+    assert!(!session.load_represented_glyph_row_like_cpp(&glyph_properties, 4, 0, 123));
+    assert!(!session.load_represented_glyph_row_like_cpp(&glyph_properties, 0, 6, 123));
+    assert!(!session.load_represented_glyph_row_like_cpp(&glyph_properties, 0, 1, 999));
     session.mark_represented_glyphs_loaded_like_cpp();
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
@@ -57391,7 +61727,7 @@ fn update_talent_data_uses_bonus_talent_group_count_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_represented_active_talent_group_like_cpp(1);
     session.set_represented_bonus_talent_groups_like_cpp(1);
-    assert!(session.load_represented_glyph_row_like_cpp(1, 2, 321));
+    assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(321), 1, 2, 321));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
 
@@ -57451,6 +61787,261 @@ fn cuf_profile_for_save_test(name: &str, height: u16) -> wow_packet::packets::mi
 }
 
 #[test]
+fn canonical_player_cuf_profiles_follow_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 59_198);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CufOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(
+        session.represented_save_cuf_profiles_like_cpp(vec![cuf_profile_for_save_test(
+            "Canonical",
+            72
+        ),])
+    );
+    session.mark_represented_cuf_profiles_loaded_like_cpp();
+    assert_eq!(
+        session
+            .represented_load_cuf_profiles_packet_like_cpp()
+            .expect("active canonical Player")
+            .profiles[0]
+            .profile_name,
+        "Canonical"
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .owned_player_cuf_profiles_like_cpp()
+            .expect("detached canonical Player")
+            .0[0]
+            .as_ref()
+            .unwrap()
+            .profile_name,
+        "Canonical"
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().cuf_profiles = vec![
+        Some(player_cuf_profile_from_packet_like_cpp(
+            cuf_profile_for_save_test("Replacement", 64),
+        )),
+        None,
+        None,
+        None,
+        None,
+    ];
+    replacement.gameplay_state_mut().cuf_profiles_loaded = true;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .represented_load_cuf_profiles_packet_like_cpp()
+            .is_none()
+    );
+    assert!(
+        !session.represented_save_cuf_profiles_like_cpp(vec![cuf_profile_for_save_test(
+            "StaleWrite",
+            80
+        ),])
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .gameplay_state()
+                .cuf_profiles[0]
+                .as_ref()
+                .unwrap()
+                .profile_name
+                .clone(),),
+        Some("Replacement".to_string())
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        None
+    );
+}
+
+#[test]
+fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 59_199);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    install_stackable_test_item_template(&mut session, 19_019, 1);
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "StorageOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    session.clear_represented_equipment_sets_like_cpp();
+    assert!(session.load_represented_equipment_set_row_like_cpp(
+        700,
+        7,
+        "Tank".to_string(),
+        "INV_Shield".to_string(),
+        0,
+        1,
+        [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    ));
+    session.mark_represented_equipment_sets_loaded_like_cpp();
+    session.clear_represented_void_storage_like_cpp();
+    assert!(session.load_represented_void_storage_row_like_cpp(
+        3,
+        RepresentedVoidStorageItemLikeCpp {
+            item_id: 900,
+            item_entry: 19_019,
+            creator_guid: player_guid,
+            fixed_scaling_level: 80,
+            random_properties_id: 0,
+            random_properties_seed: 0,
+            context: 0,
+        },
+    ));
+    session.mark_represented_void_storage_loaded_like_cpp();
+    assert_eq!(
+        session
+            .represented_load_equipment_set_packet_like_cpp()
+            .expect("active canonical Player")
+            .sets[0]
+            .set_name,
+        "Tank"
+    );
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(159)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .represented_void_storage_item_by_id_like_cpp(900)
+            .map(|(slot, item)| (slot, item.item_entry)),
+        Some((3, 19_019))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().equipment_sets.insert(
+        701,
+        RepresentedEquipmentSetLikeCpp::equipment(
+            8,
+            0,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        ),
+    );
+    replacement.gameplay_state_mut().equipment_sets_loaded = true;
+    replacement.gameplay_state_mut().void_storage_items =
+        vec![None; wow_entities::PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP];
+    replacement.gameplay_state_mut().void_storage_items[4] =
+        Some(RepresentedVoidStorageItemLikeCpp {
+            item_id: 901,
+            item_entry: 19_019,
+            creator_guid: player_guid,
+            fixed_scaling_level: 70,
+            random_properties_id: 0,
+            random_properties_seed: 0,
+            context: 0,
+        });
+    replacement.gameplay_state_mut().void_storage_loaded = true;
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert!(
+        session
+            .represented_load_equipment_set_packet_like_cpp()
+            .is_none()
+    );
+    assert!(
+        session
+            .represented_void_storage_free_slots_like_cpp()
+            .is_none()
+    );
+    assert!(!session.delete_represented_equipment_set_like_cpp(701));
+    assert!(
+        session
+            .delete_represented_void_storage_item_like_cpp(4)
+            .is_none()
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.gameplay_state().equipment_sets.contains_key(&701),
+                player.gameplay_state().void_storage_items[4]
+                    .as_ref()
+                    .map(|item| item.item_id),
+            ),),
+        Some((true, Some(901)))
+    );
+}
+
+#[test]
 fn tutorial_flags_default_to_zeroes_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_tutorials_data_values_like_cpp(None);
@@ -57498,6 +62089,7 @@ fn cuf_profile_loader_rejects_cpp_oob_id_bug() {
     assert!(
         session
             .represented_load_cuf_profiles_packet_like_cpp()
+            .expect("handle-less CUF fixture")
             .profiles
             .is_empty(),
         "C++ checks id > MAX_CUF_PROFILES before indexing an array of MAX_CUF_PROFILES; Rust rejects id == MAX to avoid the legacy OOB bug"
@@ -57749,8 +62341,11 @@ fn player_attack_accepts_in_progress_duel_before_sanctuary_like_cpp() {
         assert_eq!(attacker_entity.unit().data().target, victim);
         assert!(victim_entity.unit().has_attacker_like_cpp(attacker));
     }
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -58110,6 +62705,9 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
         80,
         0,
     ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical attacking Player map");
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
     let mut pkt = WorldPacket::new_empty();
@@ -58126,8 +62724,11 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
     session.handle_attack_swing(pkt).await;
 
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -58165,8 +62766,8 @@ fn stop_player_attack_canonical_no_victim_ignores_stale_session_target_like_cpp(
     session.in_combat = true;
 
     assert_eq!(session.stop_player_attack_like_cpp(), None);
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 }
 
 #[test]
@@ -58271,7 +62872,7 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         0,
     ));
 
-    session.player_vehicle_seat_flags_like_cpp = Some(0);
+    assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0), None));
     session.start_player_attack_like_cpp(blocked_victim);
 
     {
@@ -58285,10 +62886,13 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         assert_eq!(player_entity.unit().attacking(), None);
         assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
     }
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    assert!(session.set_player_vehicle_seat_state_like_cpp(
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
+        None,
+    ));
     session.start_player_attack_like_cpp(allowed_victim);
 
     let guard = canonical.lock().unwrap();
@@ -58300,8 +62904,11 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         .unwrap();
     assert_eq!(player_entity.unit().attacking(), Some(allowed_victim));
     assert_eq!(player_entity.unit().data().target, allowed_victim);
-    assert_eq!(session.combat_target, Some(allowed_victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(allowed_victim))
+    );
 }
 
 #[test]
@@ -58362,7 +62969,7 @@ fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
             .find_map(571, 0)
             .unwrap()
             .map()
-            .get_typed_creature(victim)
+            .with_creature_like_cpp(victim, Clone::clone)
             .unwrap();
         assert!(creature.unit().has_attacker_like_cpp(player));
         assert!(
@@ -58393,7 +63000,7 @@ fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
         .find_map(571, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap();
     assert!(!creature.unit().has_attacker_like_cpp(player));
 }
@@ -58464,7 +63071,7 @@ fn player_attack_does_not_create_combat_ref_when_can_begin_combat_fails_like_cpp
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();
     let player_entity = map.get_typed_player(player).unwrap();
-    let creature = map.get_typed_creature(victim).unwrap();
+    let creature = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
     assert_eq!(player_entity.unit().attacking(), Some(victim));
     assert!(creature.unit().has_attacker_like_cpp(player));
     assert!(
@@ -58546,7 +63153,7 @@ fn combat_tick_revalidates_and_purges_invalid_combat_refs_like_cpp() {
                 .is_in_combat_with(victim)
         );
         assert!(
-            map.get_typed_creature(victim)
+            map.with_creature_like_cpp(victim, Clone::clone)
                 .unwrap()
                 .unit()
                 .subsystems()
@@ -58575,7 +63182,7 @@ fn combat_tick_revalidates_and_purges_invalid_combat_refs_like_cpp() {
             .is_in_combat_with(victim)
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .subsystems()
@@ -58653,7 +63260,7 @@ fn player_attack_dead_typed_creature_is_rejected_like_cpp() {
         None
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -58728,7 +63335,7 @@ fn player_attack_unseen_phase_creature_is_rejected_like_cpp() {
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();
     let player_entity = map.get_typed_player(player).unwrap();
-    let victim_entity = map.get_typed_creature(victim).unwrap();
+    let victim_entity = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
     assert_eq!(player_entity.unit().attacking(), None);
     assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
     assert!(!victim_entity.unit().has_attacker_like_cpp(player));
@@ -58796,6 +63403,7 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
                     faction_id: 72,
                     standing: 0,
                     flags: 0,
+                    ..Default::default()
                 });
         })
         .unwrap();
@@ -58810,7 +63418,7 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
         None
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -58879,6 +63487,7 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
                     faction_id: 72,
                     standing: 0,
                     flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                    ..Default::default()
                 });
         })
         .unwrap();
@@ -58893,13 +63502,17 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
         Some(victim)
     );
     assert!(
-        map.get_typed_creature(victim)
+        map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -58965,13 +63578,17 @@ fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
         Some(victim)
     );
     assert!(
-        map.get_typed_creature(victim)
+        map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -59036,13 +63653,17 @@ fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cp
         Some(victim)
     );
     assert!(
-        map.get_typed_creature(victim)
+        map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    drop(guard);
+    assert_eq!(
+        session.resolved_combat_target_like_cpp(),
+        Some(Some(victim))
+    );
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
 }
 
 #[test]
@@ -59110,7 +63731,7 @@ fn player_attack_evading_typed_creature_is_rejected_like_cpp() {
         None
     );
     assert!(
-        !map.get_typed_creature(victim)
+        !map.with_creature_like_cpp(victim, Clone::clone)
             .unwrap()
             .unit()
             .has_attacker_like_cpp(player)
@@ -59143,7 +63764,7 @@ fn corpse_despawn_syncs_canonical_corpse_timer() {
 #[test]
 fn player_currency_helpers_match_cpp_storage_lookup() {
     let (mut session, _, _) = make_session();
-    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(session.player_currency_quantity(395), Some(0));
     assert!(!session.has_currency(395, 1));
 
     session.player_currencies.insert(
@@ -59159,7 +63780,7 @@ fn player_currency_helpers_match_cpp_storage_lookup() {
         },
     );
 
-    assert_eq!(session.player_currency_quantity(395), 42);
+    assert_eq!(session.player_currency_quantity(395), Some(42));
     assert!(session.has_currency(395, 42));
     assert!(!session.has_currency(395, 43));
 }
@@ -59245,7 +63866,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     assert_eq!(delta.weekly_quantity, Some(120));
     assert_eq!(delta.max_quantity, Some(150));
     assert_eq!(delta.total_earned, Some(32));
-    assert_eq!(session.player_currency_quantity(395), 115);
+    assert_eq!(session.player_currency_quantity(395), Some(115));
     assert_eq!(
         session
             .player_currencies
@@ -59285,7 +63906,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
             flags: 0,
         },
     );
-    let runtime_before = session.player_currencies_like_cpp().clone();
+    let runtime_before = session.player_currencies_like_cpp().unwrap();
     let mut planned = runtime_before.clone();
 
     let gain = session
@@ -59314,7 +63935,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
     assert_eq!(request.rows.len(), 2);
     assert_eq!(
         session.player_currencies_like_cpp(),
-        &runtime_before,
+        Some(runtime_before),
         "a definite rollback or cancellation before COMMIT must leave runtime unchanged"
     );
 }
@@ -59339,7 +63960,7 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
             flags: 0,
         },
     );
-    let mut planned = session.player_currencies_like_cpp().clone();
+    let mut planned = session.player_currencies_like_cpp().unwrap();
     session
         .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
         .unwrap();
@@ -59356,11 +63977,12 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
     // durable success branch.
     session.set_player_currencies_like_cpp(planned);
 
-    assert_eq!(session.player_currency_quantity(395), 3);
-    assert_eq!(session.player_currency_quantity(396), 6);
+    assert_eq!(session.player_currency_quantity(395), Some(3));
+    assert_eq!(session.player_currency_quantity(396), Some(6));
     assert!(
         session
             .player_currencies_like_cpp()
+            .unwrap()
             .values()
             .all(|currency| currency.state == PlayerCurrencyState::Unchanged)
     );
@@ -59463,7 +64085,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     );
 
     assert!(session.remove_currency(395, 100));
-    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(session.player_currency_quantity(395), Some(0));
     assert_eq!(
         session
             .player_currencies
@@ -59473,7 +64095,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     );
     assert!(!session.remove_currency(999, 1));
 
-    let mut persisted_currencies = session.player_currencies_like_cpp().clone();
+    let mut persisted_currencies = session.player_currencies_like_cpp().unwrap();
     let request = session.plan_player_currency_save_like_cpp(1, &mut persisted_currencies);
     session.set_player_currencies_like_cpp(persisted_currencies);
     assert_eq!(request.rows.len(), 2);
@@ -60685,11 +65307,11 @@ fn account_heirloom_rows_filter_by_heirloom_store_like_cpp() {
     );
     assert_eq!(
         session.account_heirloom_save_rows_like_cpp(),
-        vec![AccountHeirloomSaveRowLikeCpp {
+        Some(vec![AccountHeirloomSaveRowLikeCpp {
             bnet_account_id: 77,
             item_id: 44_000,
             flags: 0x03,
-        }],
+        }]),
         "C++ CollectionMgr::SaveAccountHeirlooms appends the battlenet account id to the LoginDatabase transaction"
     );
     assert_eq!(
@@ -61070,7 +65692,7 @@ fn account_toy_rows_preserve_cpp_flags_like_cpp() {
     );
     assert_eq!(
         session.account_toy_save_rows_like_cpp(),
-        vec![
+        Some(vec![
             AccountToySaveRowLikeCpp {
                 bnet_account_id: 77,
                 item_id: 30_000,
@@ -61083,7 +65705,7 @@ fn account_toy_rows_preserve_cpp_flags_like_cpp() {
                 is_favorite: false,
                 has_fanfare: true,
             },
-        ],
+        ]),
         "C++ CollectionMgr::SaveAccountToys appends the battlenet account id to the LoginDatabase transaction"
     );
     assert_eq!(
@@ -61220,7 +65842,9 @@ async fn battle_pet_remove_pet_requires_lock_and_marks_removed_like_cpp() {
         ))
     );
 
-    let journal = session.represented_battle_pet_journal_like_cpp();
+    let journal = session
+        .represented_battle_pet_journal_like_cpp()
+        .expect("represented battle-pet journal");
     assert!(journal.pets.is_empty());
     assert_eq!(journal.slots[1].pet_guid, pet_guid);
 }
@@ -61684,7 +66308,7 @@ fn battle_pet_max_pet_level_ignores_removed_rows_like_cpp() {
     let high_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b1);
     let removed_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b2);
 
-    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), 0);
+    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), Some(0));
 
     session.add_represented_battle_pet_packet_info_like_cpp(
         low_guid,
@@ -61720,7 +66344,7 @@ fn battle_pet_max_pet_level_ignores_removed_rows_like_cpp() {
         },
     );
 
-    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), 19);
+    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), Some(19));
 }
 
 #[test]
@@ -61765,8 +66389,14 @@ fn battle_pet_has_max_pet_count_uses_cpp_default_species_limit() {
     );
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 3);
-    assert!(session.battle_pet_has_max_pet_count_like_cpp(11, None));
-    assert!(!session.battle_pet_has_max_pet_count_like_cpp(12, None));
+    assert_eq!(
+        session.battle_pet_has_max_pet_count_like_cpp(11, None),
+        Some(true)
+    );
+    assert_eq!(
+        session.battle_pet_has_max_pet_count_like_cpp(12, None),
+        Some(false)
+    );
 }
 
 #[test]
@@ -61791,7 +66421,10 @@ fn battle_pet_has_max_pet_count_honors_legacy_account_unique_like_cpp() {
     );
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 1);
-    assert!(session.battle_pet_has_max_pet_count_like_cpp(11, None));
+    assert_eq!(
+        session.battle_pet_has_max_pet_count_like_cpp(11, None),
+        Some(true)
+    );
 }
 
 #[test]
@@ -63247,6 +67880,7 @@ async fn spell_effect_uncage_battle_pet_adds_pet_and_updates_criteria_like_cpp()
     let spell_id = 77_292;
 
     session.set_player_guid(Some(player_guid));
+    session.set_player_position_like_cpp(Position::ZERO);
     install_represented_battle_pet_stat_stores_like_cpp(&mut session);
     install_represented_battle_pet_species_like_cpp(
         &mut session,
@@ -64261,6 +68895,57 @@ fn battle_pet_update_notify_sets_canonical_player_pet_data_like_cpp() {
 }
 
 #[test]
+fn battle_pet_query_companion_reads_canonical_map_unitdata_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let unit_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 42);
+    let owner_guid = ObjectGuid::create_player(1, 42);
+    let battle_pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 43);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        unit_guid,
+        777,
+        Position::default(),
+        571,
+        0,
+        1,
+    );
+    {
+        let mut manager = canonical.lock().unwrap();
+        let creature = manager
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_creature_mut(unit_guid)
+            .unwrap();
+        creature.set_summon_like_cpp(true);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_owner_guid(Some(owner_guid));
+        creature
+            .unit_mut()
+            .set_battle_pet_companion_guid_like_cpp(Some(battle_pet_guid));
+        creature
+            .unit_mut()
+            .set_battle_pet_companion_name_timestamp_like_cpp(1234);
+    }
+
+    assert_eq!(
+        session.represented_battle_pet_query_companion_like_cpp(unit_guid),
+        Some(RepresentedBattlePetQueryCompanionLikeCpp {
+            creature_id: 777,
+            name_timestamp: 1234,
+            is_summon: true,
+            owner_is_player: true,
+            battle_pet_companion_guid: Some(battle_pet_guid),
+        })
+    );
+}
+
+#[test]
 fn toy_set_favorite_toggles_known_toy_only_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_represented_account_toys_like_cpp([(30_000, false, true)]);
@@ -64661,15 +69346,20 @@ fn load_character_titles_sets_canonical_player_title_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 31_100);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.set_player_guid(Some(player_guid));
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    add_canonical_test_player_on_map(
-        &canonical,
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
+        "TitleOwner".to_string(),
         Position::new(10.0, 10.0, 0.0, 0.0),
         571,
+        1,
+        1,
+        80,
         0,
-    );
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical title owner");
 
     session.load_represented_character_titles_like_cpp("4", 2);
 
@@ -64770,7 +69460,9 @@ fn account_item_appearance_save_plan_matches_collection_mgr_state_transitions_li
         .represented_favorite_item_appearances_like_cpp
         .insert(97, FavoriteAppearanceStateLikeCpp::Unchanged);
 
-    let plan = session.account_item_appearance_save_plan_like_cpp();
+    let plan = session
+        .account_item_appearance_save_plan_like_cpp()
+        .expect("resolved collection owner");
 
     assert_eq!(
         plan.appearance_blocks,
@@ -64813,7 +69505,9 @@ fn account_transmog_illusion_save_plan_writes_non_empty_blocks_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_represented_account_transmog_illusions_like_cpp([(2, 1_u32 << 3)]);
 
-    let plan = session.account_transmog_illusion_save_plan_like_cpp();
+    let plan = session
+        .account_transmog_illusion_save_plan_like_cpp()
+        .expect("resolved collection owner");
 
     assert_eq!(
         plan.illusion_blocks,
@@ -65949,9 +70643,8 @@ fn represented_item_mods_apply_scaling_weapon_dps_like_cpp() {
             .damage_physical_updates,
         &[wow_constants::WeaponAttackType::BaseAttack]
     );
-    let stat_changes = session
-        .represented_item_bonus_state_like_cpp()
-        .represented_player_stat_changes_like_cpp();
+    let stat_changes =
+        represented_player_stat_changes_like_cpp(&session.represented_item_bonus_state_like_cpp());
     assert_eq!(stat_changes.min_damage, 140.0);
     assert_eq!(stat_changes.max_damage, 260.0);
     assert_eq!(
@@ -66131,9 +70824,8 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
             .stat_buff_updates,
         &[wow_constants::Stats::Strength]
     );
-    let stat_changes = session
-        .represented_item_bonus_state_like_cpp()
-        .represented_player_stat_changes_like_cpp();
+    let stat_changes =
+        represented_player_stat_changes_like_cpp(&session.represented_item_bonus_state_like_cpp());
     assert_eq!(
         stat_changes.stats[wow_constants::Stats::Strength as usize],
         100
@@ -66171,9 +70863,8 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
             .resistances_base[wow_constants::spell::SpellSchools::Normal as usize],
         0
     );
-    let removed_changes = session
-        .represented_item_bonus_state_like_cpp()
-        .represented_player_stat_changes_like_cpp();
+    let removed_changes =
+        represented_player_stat_changes_like_cpp(&session.represented_item_bonus_state_like_cpp());
     assert_eq!(
         removed_changes.stats[wow_constants::Stats::Strength as usize],
         0
@@ -66665,7 +71356,7 @@ fn initial_equipped_item_equip_auras_apply_on_equip_effects_like_cpp() {
 
     assert_eq!(
         session.apply_initial_equipped_item_equip_auras_like_cpp(),
-        2
+        Some(2)
     );
     assert!(session.visible_auras.values().any(|aura| {
         aura.spell_id == 30_100
@@ -68063,14 +72754,19 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         80,
         0,
     ));
-    session.set_player_gold_like_cpp(500);
     session.set_repair_cost_rate_like_cpp(2.0);
     session.set_faction_store(Arc::new(FactionStore::from_entries([
         FactionEntry::for_test_like_cpp(72, 5),
     ])));
     session.set_faction_template_store(Arc::new(FactionTemplateStore::from_entries([
         faction_template_entry(35, 72, 0, 0, 0),
+        faction_template_entry(1, 1, 0, 0, 0),
     ])));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical map");
+    session.set_player_faction_template_like_cpp(1);
+    session.set_player_gold_like_cpp(500);
     assert!(session.load_character_reputation_rows_like_cpp([
         crate::reputation::mgr::CharacterReputationRowLikeCpp {
             faction_id: 72,
@@ -68078,9 +72774,6 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
             flags: 0,
         },
     ]));
-    session
-        .ensure_canonical_world_map_for_current_player_like_cpp()
-        .expect("canonical map");
     add_canonical_test_creature(
         &canonical,
         repair_npc_guid,
@@ -68194,7 +72887,7 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         None,
     );
     feign_death.spell_id = 5384;
-    session.visible_auras.insert(feign_slot, feign_death);
+    assert!(session.insert_player_visible_aura_like_cpp(feign_death));
 
     session
         .handle_repair_item(wow_packet::packets::misc::RepairItem {
@@ -68219,7 +72912,12 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         })
         .await;
     assert_eq!(session.player_gold_like_cpp(), 207);
-    assert!(!session.visible_auras.contains_key(&feign_slot));
+    assert!(
+        !session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&feign_slot)
+    );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| {
@@ -70263,95 +74961,14 @@ fn inventory_item_object_uses_template_durability_and_runtime_fields() {
     assert!(!session.inventory_item_objects.contains_key(&item_guid));
 }
 
-fn run_object_accessor_sync_test(test: impl FnOnce() + Send + 'static) {
+fn run_canonical_player_owner_test(test: impl FnOnce() + Send + 'static) {
     std::thread::Builder::new()
-        .name("object-accessor-sync".into())
+        .name("canonical-player-owner".into())
         .stack_size(8 * 1024 * 1024)
         .spawn(test)
         .unwrap()
         .join()
         .unwrap();
-}
-
-#[test]
-fn object_accessor_sync_exposes_session_inventory_items_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 42);
-        let item_guid = ObjectGuid::create_item(1, 900);
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Jaina".into());
-        session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
-        session.current_map_id = 571;
-        session.inventory_items.insert(
-            23,
-            InventoryItem {
-                guid: item_guid,
-                entry_id: 700,
-                db_guid: 900,
-                inventory_type: None,
-            },
-        );
-        let item = session.make_inventory_item_object(
-            item_guid,
-            700,
-            player_guid,
-            2,
-            0,
-            ItemContext::None,
-            23,
-        );
-        session.insert_inventory_item_object(item);
-        session.sync_object_accessor_player();
-
-        {
-            let accessor = accessor.read();
-            assert!(accessor.find_connected_player_entity(player_guid).is_some());
-            assert!(accessor.find_player_entity(player_guid).is_some());
-            let player = accessor.find_connected_player(player_guid).unwrap();
-            match accessor.get_object_ref_by_type_mask(
-                player,
-                item_guid,
-                wow_constants::TypeMask::ITEM,
-            ) {
-                Some(AccessorObjectRef::Item(item)) => {
-                    assert_eq!(item.object().guid(), item_guid);
-                    assert_eq!(item.slot(), 23);
-                    assert_eq!(item.count(), 2);
-                }
-                other => panic!("expected item ref, got {other:?}"),
-            }
-        }
-
-        let moved = session.inventory_items.remove(&23).unwrap();
-        session.inventory_items.insert(24, moved);
-        session.set_inventory_item_object_slot(item_guid, 24);
-        session.sync_object_accessor_player();
-        {
-            let accessor = accessor.read();
-            let item = accessor.player_item(player_guid, item_guid).unwrap();
-            assert_eq!(item.slot(), 24);
-        }
-
-        session.inventory_items.remove(&24);
-        session.remove_inventory_item_object(item_guid);
-        session.sync_object_accessor_player();
-        assert!(
-            accessor
-                .read()
-                .player_item(player_guid, item_guid)
-                .is_none()
-        );
-
-        session.cleanup_shared_runtime_state();
-        let accessor = accessor.read();
-        assert!(accessor.find_connected_player(player_guid).is_none());
-        assert!(session.inventory_items.is_empty());
-        assert!(session.inventory_item_objects.is_empty());
-    });
 }
 
 #[test]
@@ -70368,13 +74985,6 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-    session
-        .reputation_mgr_like_cpp_mut()
-        .apply_force_reaction_like_cpp(
-            87,
-            wow_data::reputation::ReputationRankLikeCpp::Hostile,
-            true,
-        );
     session.mutate_canonical_player_like_cpp(|player| {
         player
             .gameplay_state_mut()
@@ -70383,6 +74993,7 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
                 faction_id: 72,
                 standing: 1234,
                 flags: 0,
+                ..Default::default()
             });
     });
 
@@ -70423,13 +75034,6 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-    session
-        .reputation_mgr_like_cpp_mut()
-        .apply_force_reaction_like_cpp(
-            87,
-            wow_data::reputation::ReputationRankLikeCpp::Hostile,
-            true,
-        );
     session.mutate_canonical_player_like_cpp(|player| {
         player
             .gameplay_state_mut()
@@ -70438,8 +75042,13 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
                 faction_id: 72,
                 standing: -6000,
                 flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                ..Default::default()
             });
         player.set_forced_reputation_rank_like_cpp(87, true);
+        player.gameplay_state_mut().forced_reputation_ranks = vec![(
+            87,
+            wow_data::reputation::ReputationRankLikeCpp::Hostile.as_u8(),
+        )];
         player
             .unit_mut()
             .set_unit_flags2_like_cpp(UnitFlags2::IGNORE_REPUTATION);
@@ -70505,15 +75114,42 @@ fn insert_session_player_into_canonical_map_like_cpp(
     map_id: u32,
     instance_id: u32,
 ) {
+    if let Some(handle) = session.player_handle_like_cpp {
+        let position = session
+            .player_position_like_cpp()
+            .expect("canonical Player fixture position");
+        let key = wow_map::MapKey::new(map_id, instance_id);
+        let mut manager = canonical.lock().unwrap();
+        manager.create_world_map(map_id, instance_id);
+        match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => manager
+                .attach_player_like_cpp(handle, key, position)
+                .expect("attach detached canonical Player fixture"),
+            Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => {}
+            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
+                manager
+                    .detach_player_like_cpp(handle)
+                    .expect("detach canonical Player fixture");
+                manager
+                    .attach_player_like_cpp(handle, key, position)
+                    .expect("reattach canonical Player fixture");
+            }
+            None => panic!("stale canonical Player fixture handle"),
+        }
+        return;
+    }
+
     let player = session
-        .canonical_player_entity_snapshot_for_map_like_cpp(wow_map::MapKey::new(
-            map_id,
-            instance_id,
-        ))
+        .build_initial_player_for_owner_like_cpp(wow_map::MapKey::new(map_id, instance_id), None)
         .expect("complete canonical player fixture");
+    let record =
+        wow_entities::MapObjectRecord::new_player(player).expect("canonical Player fixture record");
     let mut manager = canonical.lock().unwrap();
-    let managed = manager.create_world_map(map_id, instance_id);
-    session.sync_canonical_player_entity_like_cpp(managed, player);
+    manager
+        .create_world_map(map_id, instance_id)
+        .map_mut()
+        .insert_map_object_record(record)
+        .expect("insert canonical Player fixture");
 }
 
 fn session_with_canonical_player_for_away_like_cpp()
@@ -70616,7 +75252,7 @@ fn toggle_pvp_does_not_toggle_off_with_war_mode_local_active_like_cpp() {
         .unwrap();
     session.player_in_pvp_flag_like_cpp = true;
     session.player_pvp_enabled_like_cpp = true;
-    session.active_player_local_flags_like_cpp = PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
+    session.set_active_player_local_flags_like_cpp(PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP);
 
     session.apply_toggle_pvp_like_cpp();
 
@@ -70994,14 +75630,13 @@ fn far_sight_enable_rejects_cross_instance_target_like_cpp() {
         Some(previous_seer)
     );
     assert!(
-        canonical
+        !canonical
             .lock()
             .unwrap()
             .find_map(571, 11)
             .unwrap()
             .map()
-            .map_object_record(target_guid)
-            .is_none()
+            .contains_map_object_like_cpp(target_guid)
     );
 }
 
@@ -71111,16 +75746,14 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
 }
 
 #[test]
-fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_cpp() {
-    run_object_accessor_sync_test(|| {
+fn canonical_player_logout_cleanup_removes_player_before_session_inventory_like_cpp() {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
-        let accessor = new_shared_object_accessor();
         let player_guid = ObjectGuid::create_player(1, 46);
         let item_guid = ObjectGuid::create_item(1, 901);
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
-        session.set_object_accessor(Arc::clone(&accessor));
         session.set_player_guid(Some(player_guid));
         session.player_name = Some("LogoutMap".into());
         session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
@@ -71146,7 +75779,7 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
         session.insert_inventory_item_object(item);
 
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-        session.sync_object_accessor_player();
+        assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
         assert!(
             canonical
@@ -71156,12 +75789,6 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
                 .unwrap()
                 .map()
                 .get_typed_player(player_guid)
-                .is_some()
-        );
-        assert!(
-            accessor
-                .read()
-                .find_connected_player_entity(player_guid)
                 .is_some()
         );
 
@@ -71177,20 +75804,49 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
                 .get_typed_player(player_guid)
                 .is_none()
         );
-        assert!(
-            accessor
-                .read()
-                .find_connected_player_entity(player_guid)
-                .is_none()
-        );
         assert!(session.inventory_items.is_empty());
         assert!(session.inventory_item_objects.is_empty());
     });
 }
 
 #[test]
+fn canonical_player_logout_retires_detached_handle_like_cpp() {
+    run_canonical_player_owner_test(|| {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 56);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "LogoutDetached".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .expect("initial world map");
+        let handle = session.player_handle_like_cpp.expect("canonical handle");
+        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+
+        session.cleanup_shared_runtime_state();
+
+        assert_eq!(session.player_handle_like_cpp, None);
+        assert_eq!(
+            canonical.lock().unwrap().player_residence_like_cpp(handle),
+            None
+        );
+    });
+}
+
+#[test]
 fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, _) = make_session();
         let (mut other_session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -71210,16 +75866,8 @@ fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
         other_session.current_map_id = 571;
 
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-        let other_player = other_session
-            .canonical_player_entity_snapshot_like_cpp()
-            .unwrap();
-        {
-            let mut manager = canonical.lock().unwrap();
-            other_session.sync_canonical_player_entity_like_cpp(
-                manager.find_map_mut(571, 0).unwrap(),
-                other_player,
-            );
-        }
+        assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+        insert_session_player_into_canonical_map_like_cpp(&other_session, &canonical, 571, 0);
         add_canonical_test_creature(
             &canonical,
             creature_guid,
@@ -71234,13 +75882,16 @@ fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
         let map = manager.find_map(571, 0).unwrap().map();
         assert!(map.get_typed_player(player_guid).is_none());
         assert!(map.get_typed_player(other_player_guid).is_some());
-        assert!(map.get_typed_creature(creature_guid).is_some());
+        assert!(
+            map.with_creature_like_cpp(creature_guid, Clone::clone)
+                .is_some()
+        );
     });
 }
 
 #[test]
 fn canonical_player_logout_cleanup_missing_map_is_noop_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 49);
@@ -71259,7 +75910,7 @@ fn canonical_player_logout_cleanup_missing_map_is_noop_like_cpp() {
 
 #[test]
 fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -71267,18 +75918,16 @@ fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp()
             .block_on(async {
                 let (mut session, _, _) = make_session();
                 let canonical = shared_canonical_map_manager();
-                let accessor = new_shared_object_accessor();
                 let player_guid = ObjectGuid::create_player(1, 50);
 
                 session.set_canonical_map_manager(Arc::clone(&canonical));
-                session.set_object_accessor(Arc::clone(&accessor));
                 session.set_player_guid(Some(player_guid));
                 session.player_name = Some("DisconnectMap".into());
                 session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
                 session.current_map_id = 571;
 
                 insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-                session.sync_object_accessor_player();
+                assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
                 session
                     .cleanup_shared_runtime_state_on_disconnect_like_cpp()
@@ -71294,128 +75943,7 @@ fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp()
                         .get_typed_player(player_guid)
                         .is_none()
                 );
-                assert!(
-                    accessor
-                        .read()
-                        .find_connected_player_entity(player_guid)
-                        .is_none()
-                );
             });
-    });
-}
-
-#[test]
-fn object_accessor_sync_typed_player_preserves_session_world_shape_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 44);
-        let position = Position::new(11.0, 22.0, 33.0, 1.5);
-        let mut player_phase_shift = PhaseShift::default();
-        player_phase_shift.add_phase_like_cpp(77, wow_constants::PhaseFlags::empty(), 1);
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Valeera".into());
-        session.player_position = Some(position);
-        session.current_map_id = 530;
-        session.set_represented_player_phase_shift_like_cpp(player_phase_shift.clone());
-        session.sync_object_accessor_player();
-
-        let accessor = accessor.read();
-        let typed_player = accessor.find_connected_player_entity(player_guid).unwrap();
-        let typed_world = typed_player.unit().world();
-        assert_eq!(typed_world.name(), "Valeera");
-        assert_eq!(typed_world.map_id(), 530);
-        assert_eq!(typed_world.position(), position);
-        assert!(typed_world.phase_shift().can_see(&player_phase_shift));
-        assert!(typed_world.phase_shift().has_phase_like_cpp(77));
-
-        let legacy_view = accessor.find_connected_player(player_guid).unwrap();
-        assert_eq!(legacy_view.name(), "Valeera");
-        assert_eq!(legacy_view.map_id(), 530);
-        assert_eq!(legacy_view.position(), position);
-        assert!(legacy_view.phase_shift().can_see(&player_phase_shift));
-    });
-}
-
-#[test]
-fn object_accessor_sync_typed_player_replaces_previous_snapshot_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 45);
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Anduin".into());
-        session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
-        session.current_map_id = 0;
-        session.set_player_level_like_cpp(12);
-        session.set_player_health_like_cpp(90, 120);
-        session.sync_object_accessor_player();
-
-        let updated_position = Position::new(4.0, 5.0, 6.0, 2.0);
-        let mut updated_phase_shift = PhaseShift::default();
-        updated_phase_shift.add_phase_like_cpp(88, wow_constants::PhaseFlags::empty(), 1);
-        session.player_position = Some(updated_position);
-        session.current_map_id = 1;
-        session.set_player_level_like_cpp(13);
-        session.set_player_health_like_cpp(77, 140);
-        session.set_represented_player_phase_shift_like_cpp(updated_phase_shift.clone());
-        session.sync_object_accessor_player();
-
-        let accessor = accessor.read();
-        let typed_player = accessor.find_connected_player_entity(player_guid).unwrap();
-        assert_eq!(typed_player.unit().world().position(), updated_position);
-        assert_eq!(typed_player.unit().world().map_id(), 1);
-        assert_eq!(typed_player.unit().data().level, 13);
-        assert_eq!(typed_player.unit().data().health, 77);
-        assert_eq!(typed_player.unit().data().max_health, 140);
-        assert!(
-            typed_player
-                .unit()
-                .world()
-                .phase_shift()
-                .can_see(&updated_phase_shift)
-        );
-        assert!(
-            typed_player
-                .unit()
-                .world()
-                .phase_shift()
-                .has_phase_like_cpp(88)
-        );
-
-        let legacy_view = accessor.find_connected_player(player_guid).unwrap();
-        assert_eq!(legacy_view.position(), updated_position);
-        assert_eq!(legacy_view.map_id(), 1);
-        assert!(legacy_view.phase_shift().has_phase_like_cpp(88));
-    });
-}
-
-#[test]
-fn object_accessor_sync_preserves_represented_player_phase_shift_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 43);
-
-        let mut player_phase_shift = PhaseShift::default();
-        player_phase_shift.add_phase_like_cpp(20, wow_constants::PhaseFlags::empty(), 1);
-        session.set_represented_player_phase_shift_like_cpp(player_phase_shift.clone());
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Thrall".into());
-        session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
-        session.current_map_id = 1;
-        session.sync_object_accessor_player();
-
-        let accessor = accessor.read();
-        let player = accessor.find_connected_player(player_guid).unwrap();
-        assert!(player.phase_shift().can_see(&player_phase_shift));
-        assert!(player.phase_shift().has_phase_like_cpp(20));
     });
 }
 
@@ -77083,6 +81611,7 @@ fn quest_giver_query_creature_inactive_ender_falls_through_to_same_starter_like_
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -77161,6 +81690,7 @@ fn quest_giver_accept_creature_starter_relation_allows_source_like_cpp() {
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -77349,6 +81879,7 @@ fn quest_giver_reward_creature_ender_relation_allows_source_like_cpp() {
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -77579,6 +82110,14 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.unit_mut().set_faction(1);
+        })
+        .expect("live canonical Player fixture");
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -77592,18 +82131,22 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
     quest_store.ender_quests.insert(792, vec![9_223]);
     session.quest_store = Some(Arc::new(quest_store));
     session.set_player_gold_like_cpp(5);
-    session.player_quests.insert(
-        9_223,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_223,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.statuses.insert(
+                9_223,
+                crate::handlers::quest::PlayerQuestStatus {
+                    quest_id: 9_223,
+                    status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: Vec::new(),
+                    slot: 0,
+                },
+            );
+        })
+        .expect("canonical Player quest owner");
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -77614,8 +82157,11 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
         ))
         .await;
 
-    assert!(!session.player_quests.contains_key(&9_223));
-    assert!(session.rewarded_quests.contains(&9_223));
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest owner after reward");
+    assert!(!quests.statuses.contains_key(&9_223));
+    assert!(quests.rewarded_quest_ids.contains(&9_223));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -77638,6 +82184,14 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     let canonical = shared_canonical_map_manager();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.unit_mut().set_faction(1);
+        })
+        .expect("live canonical Player fixture");
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -77653,18 +82207,22 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     quest_store.ender_quests.insert(792, vec![quest_id]);
     session.quest_store = Some(Arc::new(quest_store));
     session.set_player_gold_like_cpp(MAX_MONEY_AMOUNT - 1);
-    session.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.statuses.insert(
+                quest_id,
+                crate::handlers::quest::PlayerQuestStatus {
+                    quest_id,
+                    status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: Vec::new(),
+                    slot: 0,
+                },
+            );
+        })
+        .expect("canonical Player quest owner");
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -77676,7 +82234,12 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
         .await;
 
     assert_eq!(session.player_gold_like_cpp(), MAX_MONEY_AMOUNT - 1);
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert_eq!(
+        session
+            .player_quest_gameplay_snapshot_like_cpp()
+            .map(|quests| quests.rewarded_quest_ids.contains(&quest_id)),
+        Some(true)
+    );
 }
 
 #[tokio::test]
@@ -77964,6 +82527,7 @@ fn quest_giver_query_creature_starter_relation_allows_matching_details_like_cpp(
     session.set_player_level_like_cpp(1);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -78001,6 +82565,7 @@ fn quest_giver_query_creature_ender_relation_allows_request_items_like_cpp() {
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -78012,17 +82577,23 @@ fn quest_giver_query_creature_ender_relation_allows_request_items_like_cpp() {
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_203)]);
     quest_store.ender_quests.insert(778, vec![9_203]);
     session.quest_store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
-        9_203,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_203,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|quests| {
+                quests.statuses.insert(
+                    9_203,
+                    crate::handlers::quest::PlayerQuestStatus {
+                        quest_id: 9_203,
+                        status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 0,
+                        end_time_secs: 0,
+                        objective_counts: Vec::new(),
+                        slot: 0,
+                    },
+                );
+            })
+            .is_some()
     );
 
     assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_203));
@@ -78054,6 +82625,7 @@ fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_li
     session.set_player_map_position_like_cpp(571, position);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -78065,19 +82637,25 @@ fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_li
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_204)]);
     quest_store.ender_quests.insert(778, vec![9_204]);
     session.quest_store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
-        9_204,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_204,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|quests| {
+                quests.statuses.insert(
+                    9_204,
+                    crate::handlers::quest::PlayerQuestStatus {
+                        quest_id: 9_204,
+                        status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 0,
+                        end_time_secs: 0,
+                        objective_counts: Vec::new(),
+                        slot: 0,
+                    },
+                );
+                quests.rewarded_quest_ids.insert(9_204);
+            })
+            .is_some()
     );
-    session.rewarded_quests.insert(9_204);
 
     assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_204));
     let bytes = send_rx.try_recv().unwrap();
@@ -80867,7 +85445,7 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, Clone::clone)
             .expect("canonical creature sync must keep typed record fresh");
         assert_eq!(
             typed.ai_state(),
@@ -84717,12 +89295,15 @@ fn creature_spell_canonical_targetability_rechecks_full_cpp_state() {
     let target_is_valid = |canonical: &SharedCanonicalMapManager| {
         let manager = canonical.lock().unwrap();
         let map = manager.find_map(0, 0).unwrap().map();
-        creature_spell_target_is_valid_attack_target_like_cpp(
-            map.get_typed_creature(creature_guid).unwrap(),
-            map.get_typed_player(victim_guid).unwrap(),
-            &attributes,
-            &config,
-        )
+        map.with_creature_like_cpp(creature_guid, |creature| {
+            creature_spell_target_is_valid_attack_target_like_cpp(
+                creature,
+                map.get_typed_player(victim_guid).unwrap(),
+                &attributes,
+                &config,
+            )
+        })
+        .unwrap()
     };
     assert!(target_is_valid(&canonical));
 
@@ -86181,7 +90762,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(creature_guid)
+        .with_creature_like_cpp(creature_guid, Clone::clone)
         .unwrap()
         .unit()
         .subsystems()
@@ -86669,7 +91250,7 @@ fn legacy_creature_spell_tick_rejects_same_guid_caster_replacement_like_cpp() {
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, Clone::clone)
             .unwrap()
             .unit()
             .subsystems()
@@ -88330,153 +92911,6 @@ fn legacy_creature_victim_sync_cas_rejects_stale_aba_health_state_like_cpp() {
 }
 
 #[test]
-fn same_map_player_snapshot_preserves_newer_canonical_health_timeline_like_cpp() {
-    let (session, _, _) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let guid = ObjectGuid::create_player(1, 91_047);
-    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
-    let stale = {
-        let mut guard = canonical.lock().unwrap();
-        let player = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_player_mut(guid)
-            .unwrap();
-        player.unit_mut().set_max_health(100);
-        player.unit_mut().set_health(100);
-        player.clone()
-    };
-    let expected = {
-        let mut guard = canonical.lock().unwrap();
-        let player = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_player_mut(guid)
-            .unwrap();
-        player.unit_mut().set_health(90);
-        (
-            player.unit().data().health,
-            player.unit().data().max_health,
-            player.unit().death_state(),
-            player.unit().health_state_revision_like_cpp(),
-            player.unit().health_state_revision_authority_like_cpp(),
-        )
-    };
-
-    {
-        let mut guard = canonical.lock().unwrap();
-        let managed = guard.find_map_mut(0, 0).unwrap();
-        session.sync_canonical_player_entity_like_cpp(managed, stale);
-    }
-
-    let guard = canonical.lock().unwrap();
-    let player = guard
-        .find_map(0, 0)
-        .unwrap()
-        .map()
-        .get_typed_player(guid)
-        .unwrap();
-    assert_eq!(
-        (
-            player.unit().data().health,
-            player.unit().data().max_health,
-            player.unit().death_state(),
-            player.unit().health_state_revision_like_cpp(),
-        ),
-        (expected.0, expected.1, expected.2, expected.3)
-    );
-    assert!(
-        player
-            .unit()
-            .shares_health_state_revision_authority_like_cpp(&expected.4)
-    );
-}
-
-#[test]
-fn player_map_transfer_preserves_revision_and_next_hit_clears_presentation_high_water_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let guid = ObjectGuid::create_player(1, 91_048);
-    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
-    let old_revision = {
-        let mut guard = canonical.lock().unwrap();
-        guard.create_world_map(1, 0);
-        let player = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_player_mut(guid)
-            .unwrap();
-        player.unit_mut().set_max_health(100);
-        player.unit_mut().set_health(90);
-        player.unit().health_state_revision_like_cpp()
-    };
-    let mut transfer_snapshot = Player::new(Some(1), false);
-    transfer_snapshot
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(guid);
-    transfer_snapshot
-        .unit_mut()
-        .world_mut()
-        .set_map(1, 0)
-        .unwrap();
-    transfer_snapshot.unit_mut().set_max_health(100);
-    transfer_snapshot.unit_mut().set_health(100);
-    {
-        let mut guard = canonical.lock().unwrap();
-        session.sync_canonical_player_entity_for_map_like_cpp(
-            &mut guard,
-            wow_map::MapKey::new(1, 0),
-            transfer_snapshot,
-        );
-    }
-
-    session.state = SessionState::LoggedIn;
-    session.set_player_guid(Some(guid));
-    session.set_player_map_position_like_cpp(1, Position::ZERO);
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.last_presented_creature_melee_health_state_revision_like_cpp = old_revision;
-    let new_revision = session
-        .mutate_canonical_player_like_cpp(|player| {
-            assert_eq!(player.unit().data().health, 90);
-            assert_eq!(player.unit().health_state_revision_like_cpp(), old_revision);
-            player.unit_mut().set_health(80);
-            player.unit().health_state_revision_like_cpp()
-        })
-        .unwrap();
-
-    assert!(new_revision > old_revision);
-    assert_eq!(
-        session.present_committed_creature_melee_health_like_cpp(new_revision),
-        Some(80)
-    );
-    let guard = canonical.lock().unwrap();
-    assert!(
-        guard
-            .find_map(0, 0)
-            .unwrap()
-            .map()
-            .get_typed_player(guid)
-            .is_none()
-    );
-    assert_eq!(
-        guard
-            .find_map(1, 0)
-            .unwrap()
-            .map()
-            .get_typed_player(guid)
-            .unwrap()
-            .unit()
-            .health_state_revision_like_cpp(),
-        new_revision
-    );
-}
-
-#[test]
 fn stale_legacy_creature_snapshot_cannot_replace_newer_canonical_health_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let guid = test_creature_guid(91_049);
@@ -88487,7 +92921,7 @@ fn stale_legacy_creature_snapshot_cannot_replace_newer_canonical_health_like_cpp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap()
         .clone();
     let expected = {
@@ -88513,7 +92947,7 @@ fn stale_legacy_creature_snapshot_cannot_replace_newer_canonical_health_like_cpp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert_eq!(
         (
@@ -88577,10 +93011,10 @@ fn stale_legacy_creature_snapshot_cannot_erase_canonical_death_lifecycle_like_cp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
     assert_eq!(
-        stored, &expected,
+        stored, expected,
         "a rejected stale snapshot must preserve every canonical kill hook"
     );
 }
@@ -89573,7 +94007,7 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap()
         .unit()
         .data()
@@ -89671,7 +94105,7 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, Clone::clone)
             .unwrap();
         let legacy_creature = legacy_guard.find_creature(0, 0, guid).unwrap();
         assert_eq!(
@@ -89794,7 +94228,7 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap()
         .unit()
         .data()
@@ -89895,7 +94329,7 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap()
         .unit()
         .data()
@@ -89969,7 +94403,7 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(victim)
+        .with_creature_like_cpp(victim, Clone::clone)
         .unwrap();
     assert_eq!(creature.unit().data().health, 0);
     assert_eq!(
@@ -90448,7 +94882,7 @@ fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refres
                 .find_map(0, 0)
                 .unwrap()
                 .map()
-                .get_typed_creature(guid)
+                .with_creature_like_cpp(guid, Clone::clone)
                 .is_none(),
             "canonical map object must be removed outside the legacy lock"
         );
@@ -90665,7 +95099,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
             .find_map(0, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, Clone::clone)
             .expect("canonical creature must be inserted outside the legacy lock");
         assert!(
             typed.unit().world().phase_shift().has_phase_like_cpp(77),
@@ -92257,4 +96691,32 @@ fn step_creature_movement_dead_ready_respawn_waits_for_lifecycle_owner_like_cpp(
         wow_entities::CreatureAiState::Dead,
         "global lifecycle remains the sole respawn owner"
     );
+}
+
+#[test]
+fn feature_status_borrows_process_policy_without_session_copy_like_cpp() {
+    let (session, _, _) = make_session();
+    let policy = SupportFeaturePolicyLikeCpp {
+        tickets_enabled: true,
+        bugs_enabled: true,
+        complaints_enabled: true,
+        suggestions_enabled: true,
+        character_undelete_enabled: true,
+        bpay_store_enabled: true,
+        max_characters_per_realm: 77,
+        ..Default::default()
+    };
+
+    let in_world = session.feature_system_status_with_policy_like_cpp(&policy);
+    assert!(in_world.config.support_tickets_enabled);
+    assert!(in_world.config.support_bugs_enabled);
+    assert!(in_world.config.support_complaints_enabled);
+    assert!(in_world.config.support_suggestions_enabled);
+    assert!(in_world.config.char_undelete_enabled);
+    assert!(in_world.config.bpay_store_enabled);
+
+    let glue = session.feature_system_status_glue_screen_with_policy_like_cpp(&policy);
+    assert_eq!(glue.max_characters_per_realm, 77);
+    assert!(glue.config.char_undelete_enabled);
+    assert!(glue.config.bpay_store_enabled);
 }

@@ -74,6 +74,12 @@ printf '%s\n' "${WOW_BOT_LOOT_RACE_SMOKE:-0}" >"${QA_FAKE_STATE:?}.bot-mode"
 # Some runs leave the fixture mutated; the fixture decides which.
 if [[ "${QA_FAKE_LEAVE_JOURNAL:-0}" == "1" ]]; then : >"${WOW_BOT_FIXTURE_JOURNAL:?}"; fi
 cat "${QA_FAKE_LIVE:?}" >"${QA_FAKE_STATE:?}.bot-saw"
+if [[ -n "${WOW_BOT_REPORT:-}" && "${QA_FAKE_NO_LOGIN_REPORT:-0}" != 1 ]]; then
+  printf '{"login_only":true,"results":[{"world_auth":true,"enum_characters":true,"player_login_verified":true,"login_stream_drained":true}]}\n' >"$WOW_BOT_REPORT"
+  printf '%s\n' "${WOW_BOT_ENSURE_TEST_ACCOUNTS:-unset}" >"${QA_FAKE_STATE:?}.bot-provisioning"
+  printf '%s\n' "${WOW_BOT_EXEC_SHA256:-unset}" >"${QA_FAKE_STATE:?}.bot-sha"
+  printf '%s\n' "${WOW_BOT_STAND_STATE+present}" >"${QA_FAKE_STATE:?}.bot-stand-state"
+fi
 # Record only whether a credential arrived, never its value.
 if [[ -n "${WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL:-}" ]]; then
   printf 'credentials-present\n' >"${QA_FAKE_STATE:?}.bot-env"
@@ -316,5 +322,44 @@ output="$(run_qa --dry-run --allow-runtime-qa --ack-disposable-overworld-loot-ra
 check "the creature dry run names the fixture" grep -q "would guard     creature 21779" <<<"$output"
 check "the creature dry run queried no database" bash -c '[[ ! -f "'"$WORK"'/state.fixture" ]]'
 check "the creature dry run stopped nothing" bash -c '[[ ! -f "'"$WORK"'/state.log" ]]'
+
+# 14. Login uses the same restore path, pins its mode, and verifies the report.
+reset_state
+output="$(run_qa --world-exec "$WORK/candidate" login 2>&1 || true)"
+check "login needs runtime authorization" grep -q -- "--allow-runtime-qa" <<<"$output"
+check "unapproved login stopped nothing" test ! -f "$WORK/state.log"
+output="$(run_qa --dry-run --allow-runtime-qa --world-exec "$WORK/candidate" login 2>&1)"
+check "login dry run promises restoration" grep -q 'would restore' <<<"$output"
+check "login dry run stopped nothing" test ! -f "$WORK/state.log"
+EXTRA_ENV=(WOW_BOT_LOOT_RACE_SMOKE=1 WOW_BOT_STAND_STATE=1)
+run_qa --allow-runtime-qa --world-exec "$WORK/candidate" --report "$WORK/report.json" login >/dev/null
+check "login bot saw candidate" bot_saw_candidate
+check "login restored the original" live_is_original
+check "login report includes successful restoration" grep -q '"outcome":"passed-restored"' "$WORK/report.json"
+check "login disabled inherited loot mode" grep -qx 0 "$WORK/state.bot-mode"
+check "login removes the numeric stand-state override entirely" grep -qx '' "$WORK/state.bot-stand-state"
+check "login disabled account provisioning" grep -qx 0 "$WORK/state.bot-provisioning"
+check "login pinned the bot binary hash" grep -Eq '^[a-f0-9]{64}$' "$WORK/state.bot-sha"
+check "login did not touch loot fixtures" test ! -f "$WORK/state.fixture"
+reset_state
+EXTRA_ENV=(QA_FAKE_BOT_STATUS=3)
+status=0
+run_qa --allow-runtime-qa --world-exec "$WORK/candidate" --report "$WORK/report.json" login >/dev/null 2>&1 || status=$?
+check "login propagates bot failure" test "$status" -eq 3
+check "failed login restores" live_is_original
+check "failed login reports restoration" grep -q '"outcome":"failed-restored"' "$WORK/report.json"
+reset_state
+EXTRA_ENV=(QA_FAKE_NO_LOGIN_REPORT=1)
+status=0
+run_qa --allow-runtime-qa --world-exec "$WORK/candidate" login >/dev/null 2>&1 || status=$?
+check "login refuses missing evidence despite zero exit" test "$status" -eq 65
+check "missing login evidence still restores" live_is_original
+reset_state
+EXTRA_ENV=(QA_FAKE_FAIL_START=1)
+touch "$WORK/state.swapped"
+status=0
+run_qa --allow-runtime-qa --world-exec "$WORK/candidate" --report "$WORK/report.json" login >/dev/null 2>&1 || status=$?
+check "login restore failure takes precedence" test "$status" -eq 70
+check "login report does not hide restore failure" grep -q '"outcome":"restore-failed"' "$WORK/report.json"
 
 printf 'qa-runtime self-test: PASS (%d checks)\n' "$PASSED"

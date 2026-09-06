@@ -27,7 +27,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlenet_request",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::battlenet::BattlenetRequest::read(&mut pkt) {
                     Ok(req) => session.handle_battlenet_request(req).await,
@@ -44,7 +44,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_change_realm_ticket",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::battlenet::ChangeRealmTicket::read(&mut pkt) {
                     Ok(ticket) => session.handle_change_realm_ticket(ticket).await,

@@ -1,10 +1,19 @@
 # Plan de refinamiento — WBS completa del port C++
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/`
 > **Rust target:** `/home/server/rustycore`
-> **Objetivo:** convertir el roadmap actual en una estructura de tareas completa y verificable antes de continuar implementando.
+> **Objetivo histórico:** convertir el entonces vigente roadmap en una WBS.
+> La congelación y las fases R0–R6 siguientes están retiradas como workflow;
+> consultar PORT_PLAN.md y la issue/checkpoint actual para ejecutar trabajo.
 > **Regla:** ninguna tarea se acepta como cerrada si no cita el C++ contra el que se contrasto.
-> **Regla de dependencias:** si una tarea descubre una dependencia C++ necesaria para cerrar el comportamiento, se sigue implementando esa dependencia dentro de la misma cadena de trabajo. No se deja como TODO/gap futuro y no se salta a otro modulo para mantener avance aparente.
+> **Dependencias actuales:** no ocultar requisitos pendientes ni afirmar cierre
+> sin ellos; resolver dentro del alcance aprobado o documentar el bloqueo, sin
+> una expansión automática de autoridad.
 
 ---
 

@@ -14,6 +14,10 @@
 //! session type in its handler thunk, and that type is defined in the crate
 //! that depends on this one.
 
+mod processing;
+
+pub use processing::{PacketUpdatePhase, PlayerPacketResidence};
+
 /// Status requirements for a packet handler.
 ///
 /// Controls when a handler is allowed to run based on the session state.
@@ -32,11 +36,12 @@ pub enum SessionStatus {
 /// How the packet should be processed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PacketProcessing {
-    /// Process immediately in the socket/network thread.
+    /// Eligible in either the world-session or map-session packet filter.
+    /// This does not request a second invocation or imply socket-thread execution.
     Inplace,
-    /// Queue for processing during the session update tick (thread-unsafe).
+    /// Eligible only in the world-session packet filter (thread-unsafe).
     ThreadUnsafe,
-    /// Safe to process from the map update path.
+    /// Eligible in the map filter while the Player is in world, otherwise world.
     ThreadSafe,
 }
 

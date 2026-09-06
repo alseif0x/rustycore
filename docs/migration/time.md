@@ -1,5 +1,10 @@
 # Migration: Time (GameTime + UpdateTime + WowTime)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Time/`
 > **Rust target crate(s):** `crates/wow-core/` (already houses a partial `GameTime`)
 > **Layer:** L0 (foundation — every module that ticks or timestamps something depends on this)

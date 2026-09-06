@@ -152,6 +152,10 @@ Spell effect or combat pipeline.
 
 ## Recording the action
 
+These are PM2 fixture-environment commands, not instructions for a systemd service
+swap. Confirm the [recording boundary](../../README.md#recording-a-capture) and
+authorized fixture/process identities before using them for new evidence.
+
 Build and review `wow-test-bot`, then pin its absolute executable path and
 SHA-256 alongside the server executable. Use a fresh bot report path inside a
 private mode-0700 directory per side. The database config must be the one used

@@ -32,7 +32,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_bidder_items",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_auction_list_bidder_items(pkt).await })
         },
     }
@@ -44,7 +44,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_items",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AuctionListItems::read(&mut pkt) {
                     Ok(packet) => session.handle_auction_list_items(packet).await,
@@ -61,7 +61,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_place_bid",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AuctionPlaceBid::read(&mut pkt) {
                     Ok(packet) => session.handle_auction_place_bid(packet).await,
@@ -78,7 +78,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_remove_item",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AuctionRemoveItem::read(&mut pkt) {
                     Ok(packet) => session.handle_auction_remove_item(packet).await,
@@ -95,7 +95,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_sell_item",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AuctionSellItem::read(&mut pkt) {
                     Ok(packet) => session.handle_auction_sell_item(packet).await,
@@ -112,7 +112,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_replicate_items",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AuctionReplicateItems::read(&mut pkt) {
                     Ok(packet) => session.handle_auction_replicate_items(packet).await,
@@ -129,7 +129,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_owner_items",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_auction_list_owner_items(pkt).await })
         },
     }
@@ -141,7 +141,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_pending_sales",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_auction_list_pending_sales(pkt).await })
         },
     }
@@ -153,7 +153,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auctionable_token_sell",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_auctionable_token_sell(pkt).await })
         },
     }
@@ -165,7 +165,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auctionable_token_sell_at_market_price",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_auctionable_token_sell_at_market_price(pkt).await })
         },
     }
@@ -177,7 +177,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_commerce_token_get_log",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_commerce_token_get_log(pkt).await })
         },
     }

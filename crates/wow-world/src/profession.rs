@@ -345,16 +345,23 @@ impl WorldSession {
         let Some(skill_lines) = self.skill_line_store() else {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingSkillLineStore);
         };
-        if !self.player_skill_records_loaded_like_cpp() {
+        let Some(skills_loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {
+            return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
+        };
+        if !skills_loaded {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
         }
-        let current_skills = self.player_skill_records_like_cpp().values().map(|skill| {
-            PlayerSkillProfessionSnapshotLikeCpp {
-                skill_id: u32::from(skill.skill_id),
-                value: skill.value,
-                profession_slot: skill.profession_slot,
-            }
-        });
+        let Some(skill_records) = self.resolved_player_skill_records_like_cpp() else {
+            return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
+        };
+        let current_skills =
+            skill_records
+                .values()
+                .map(|skill| PlayerSkillProfessionSnapshotLikeCpp {
+                    skill_id: u32::from(skill.skill_id),
+                    value: skill.value,
+                    profession_slot: skill.profession_slot,
+                });
 
         let analysis = analyze_primary_professions_like_cpp(
             self.max_primary_trade_skills_like_cpp(),

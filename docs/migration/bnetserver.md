@@ -1,5 +1,10 @@
 # Migration: bnetserver (Battle.net auth server binary)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > Operational update (issue #256): `--update-databases-only` and startup schema
 > mutation were removed. `rustycore-db` is the explicit migration boundary;
 > bnet-server validates auth read-only before runtime writes or listeners.
@@ -229,7 +234,7 @@ HTTP routes (verb + path):
 
 **What's implemented:**
 - Tokio runtime, two `tokio::spawn`'d accept loops (REST + RPC).
-- `tokio_rustls::TlsAcceptor` for both ports — separate `ServerConfig` instances; both pinned to TLS 1.2 to match the WoW client. REST has no ALPN (matches the C# port the project was forked from, and TC also doesn't set ALPN here).
+- `tokio_rustls::TlsAcceptor` for both ports — separate `ServerConfig` instances; both pinned to TLS 1.2 to match the WoW client. REST has no ALPN in the recorded Rust/TC comparison; recheck the C++ TLS configuration before relying on it.
 - Cert loading: reads `CertificatesFile` and `PrivateKeyFile` with TC defaults (`./bnetserver.cert.pem`, `./bnetserver.key.pem`). `PrivateKeyPassword` now decrypts modern encrypted PKCS#8 PEM keys (`BEGIN ENCRYPTED PRIVATE KEY`) before handing the DER to rustls.
 - `LoginDatabase` connection via `sqlx` + `wow_database::LoginDatabase`.
 - `wow_database::updater::DbUpdater` runs on startup (`Updates.AutoSetup` config) — executes pending `.sql` files in `sql/updates/` automatically. **This is a port of TC's `DBUpdater`, which lives in TC's common DB layer and is invoked by `DatabaseLoader`** — TC does this on the worldserver too (see worldserver doc), so behaviour matches.
@@ -256,7 +261,7 @@ HTTP routes (verb + path):
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - **TLS 1.2 only** is correct (WoW 3.4.3 client doesn't speak 1.3) but the cert-loading path differs from TC's `SslContext::Initialize`, which uses Boost.Asio's OpenSSL backend with explicit cipher list pinning. Some clients on uncommon OS/TLS-stack combos may negotiate different ciphers. Worth a `openssl s_client` capture vs TC.
-- **The "BNet RPC" framing** in `rpc/session.rs` claims to mirror C#/TC but the BNet protocol uses a 16-bit length prefix + protobuf with explicit `Header { service_hash, method_id, token, object_id, status, error[], timeout, size }` — verify byte-for-byte that what the client sends is actually decoded correctly (mismatched here ⇒ silent client kick).
+- **The "BNet RPC" framing** in `rpc/session.rs` claims protocol compatibility but the BNet protocol uses a 16-bit length prefix + protobuf with explicit `Header { service_hash, method_id, token, object_id, status, error[], timeout, size }` — verify byte-for-byte that what the client sends is actually decoded correctly (mismatched here ⇒ silent client kick).
 - **`session_key_bnet` storage**: audited against Trinity C++ and closed in #BNET.11. TC writes 64 raw bytes with `setBinary` (`client_secret[32] || server_secret[32]`) into `varbinary(64)`. Rust writes the same raw 64 bytes via `set_bytes`; the world-server reads the raw bytes and hex-encodes only for the internal auth helper.
 - **Legacy `sha_pass_hash` migration runs at startup** when the compatibility column is present. Invalid legacy hashes fail fast instead of writing a guessed verifier.
 - **Wrong-pass tracking persists**. Rust now mirrors TC's configurable `WrongPass.*` policy by updating `battlenet_accounts.failed_logins` and inserting account/IP autobans at the threshold.
@@ -487,7 +492,7 @@ HTTP routes (verb + path):
 
 <!-- REFINE.023:END known-divergences -->
 
-- **Two ports, two TLS contexts, one binary.** Don't accidentally share a `ServerConfig` — REST may have ALPN (the WoW launcher has been observed both with and without; TC and the C# fork stay safe by **not** advertising ALPN).
+- **Two ports, two TLS contexts, one binary.** Don't accidentally share a `ServerConfig` — REST may have ALPN (the WoW launcher has been observed both with and without; the recorded TC configuration does **not** advertise ALPN).
 - **Boost.Asio `io_context.run()` blocks the main thread.** TC achieves multi-threading by spawning N additional threads that all call `run()` on the **same** context. Tokio's analogue is just "be on the multi-thread runtime" — the worldserver's `ThreadPool` config has no exact equivalent and shouldn't be ported literally.
 - **Signal handlers register before `io_context.run()`.** TC uses `boost::asio::signal_set` with `async_wait`, which integrates with the io_context's poll loop. Tokio's `tokio::signal::ctrl_c` and `tokio::signal::unix::signal(SIGTERM)` both work but **only one** can be installed per signal — pick `ctrl_c` for SIGINT, install `signal(SIGTERM)` separately.
 - **TC also handles `SIGBREAK` on Windows**. Linux target: skip.
@@ -496,7 +501,7 @@ HTTP routes (verb + path):
 - **`MigrateLegacyPasswordHashes`** is not config-gated in TC. `LoginRESTService::StartNetwork()` calls it every startup, and the function itself returns immediately when `battlenet_accounts.sha_pass_hash` is absent or no rows need conversion.
 - **`OpenSSLCrypto::threadsSetup` / `threadsCleanup`** is OpenSSL ≤ 1.0.2 ABI compatibility (locking callbacks). OpenSSL 1.1+ doesn't need it. Rust uses `rustls`, so this whole concern is moot — but the cipher-suite negotiation has to match what TC's OpenSSL build offers.
 - **`google::protobuf::ShutdownProtobufLibrary()`** is called from a smart-pointer destructor at process exit. The `prost` ecosystem doesn't need it; safe to ignore.
-- The `bnetserver` binary in C# / Rust **does not** load creature/spell/item data. The DB pool only attaches `LoginDatabase`. Don't drag world data in.
+- The `bnetserver` binary **does not** load creature/spell/item data. The DB pool only attaches `LoginDatabase`. Don't drag world data in.
 - **`sLog->SetRealmId(0)`** is called after DB init — it tags `AppenderDB` log rows with realm 0 (= "this is the bnetserver, not a world"). Equivalent in Rust would be a `tracing` field on the global subscriber.
 
 ---
@@ -578,7 +583,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 
 | Verb + path | TC | Rust | Notes |
 |---|---|---|---|
-| `GET /bnetserver/login/` | ✅ `HandleGetForm` | ✅ `get_form` | Rust adds extra `JSESSIONID` cookie that TC does not set (carry-over from C# fork). Form schema and `srp_url` match. |
+| `GET /bnetserver/login/` | ✅ `HandleGetForm` | ✅ `get_form` | Rust adds extra `JSESSIONID` cookie that TC does not set. Form schema and `srp_url` match. |
 | `POST /bnetserver/login/` | ✅ `HandlePostLogin` | ✅ `post_login` | Both accept (a) direct password (legacy) and (b) `public_A` + `client_evidence_M1`. Rust verifies via `BnetSrp6::verify_client_evidence`; TC does the same with `BnetSRP6Base::VerifyChallengeResponse`. On bad-credential path Rust now matches TC's `WrongPass.*` policy: returns `LoginResult{ state=DONE }`, optionally logs, increments `failed_logins`, inserts BNet-account/IP autobans at the threshold, and resets failed-login count. **Remaining nuance:** TC uses the connection remote IP; Rust REST uses first `X-Forwarded-For` hop when present, otherwise `LoginREST.ExternalAddress`. |
 | `POST /bnetserver/login/srp/` | ✅ `HandlePostLoginSrpChallenge` | ✅ `post_login_srp_challenge` | Same SRP6 challenge response (modulus, generator, salt, public B, hash function name `"SHA-256"`). ✅ parity. |
 | `GET /bnetserver/gameAccounts/` | ✅ `HandleGetGameAccounts` | ✅ `get_game_accounts` | Same query (`SEL_BNET_GAME_ACCOUNT_LIST`). Rust now matches TC `ExtractAuthorization`: optional `Basic ` prefix removal, Base64 decode, then truncate at `:`. |

@@ -31,7 +31,7 @@ impl WorldSession {
         }
 
         let (Some(group_guid), Some(group_registry), Some(player_registry)) = (
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             self.group_registry(),
             self.player_registry(),
         ) else {
@@ -42,11 +42,24 @@ impl WorldSession {
             return vec![player_guid];
         };
 
-        let source_position = self.player_position_like_cpp().unwrap_or_default();
-        let source_instance_id = self
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return vec![player_guid];
+        };
+        let mut source_instance_id = self
             .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
+            .map(|key| key.instance_id);
+        // Old packet fixtures have no canonical map resident. They must still
+        // provide an explicit routing-directory placement; never invent an
+        // instance identifier for them.
+        #[cfg(test)]
+        if source_instance_id.is_none() {
+            source_instance_id = player_registry
+                .loot_presence(player_guid)
+                .map(|presence| presence.instance_id);
+        }
+        let Some(source_instance_id) = source_instance_id else {
+            return vec![player_guid];
+        };
         let mut recipients = Vec::new();
 
         for member_guid in &group.members {
@@ -132,6 +145,7 @@ impl WorldSession {
 
     pub(super) async fn apply_durable_represented_loot_money_payout_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         notified_amount: u64,
         durable_applied_amount: u64,
         sole_looter: bool,
@@ -141,7 +155,9 @@ impl WorldSession {
         if self.player_guid().is_none() {
             return ApplyLootMoneyResultLikeCpp::TargetMismatch;
         }
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return ApplyLootMoneyResultLikeCpp::TargetMismatch;
+        };
         let new_money = if apply_money {
             old_money
                 .checked_add(durable_applied_amount)
@@ -151,6 +167,9 @@ impl WorldSession {
             old_money
         };
 
+        if apply_money && !self.set_player_gold_like_cpp(new_money) {
+            return ApplyLootMoneyResultLikeCpp::TargetMismatch;
+        }
         if apply_money && durable_applied_amount != 0 {
             self.enqueue_represented_quest_objective_progress_like_cpp(
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -158,9 +177,6 @@ impl WorldSession {
                     new_money,
                 },
             );
-        }
-        if apply_money {
-            self.set_player_gold_like_cpp(new_money);
         }
         if publish {
             self.send_packet(&LootMoneyNotify {
@@ -170,8 +186,10 @@ impl WorldSession {
             });
         }
         if apply_money || publish {
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
         }
 
         ApplyLootMoneyResultLikeCpp::Applied
@@ -241,37 +259,6 @@ impl WorldSession {
         }
     }
 
-    pub(super) async fn load_gameobject_template_addon_money_loot_like_cpp(
-        &self,
-        gameobject_entry: u32,
-    ) -> (u32, u32) {
-        let Some(port) = self.gameobject_use_template_persistence_port_like_cpp() else {
-            return (0, 0);
-        };
-
-        match port
-            .load_gameobject_money_loot_like_cpp(
-                wow_persistence::GameObjectMoneyLootCatalogRequestLikeCpp {
-                    entry: gameobject_entry,
-                },
-            )
-            .await
-        {
-            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Found {
-                min_money,
-                max_money,
-            } => (min_money, max_money),
-            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Missing => (0, 0),
-            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    gameobject_entry,
-                    "failed to load gameobject_template_addon money loot: {reason}"
-                );
-                (0, 0)
-            }
-        }
-    }
-
     pub(super) async fn persist_and_consume_stored_item_money_like_cpp(
         &self,
         item_guid: ObjectGuid,
@@ -326,7 +313,7 @@ impl WorldSession {
         } else {
             Some(self.stored_item_money_persistence_port_like_cpp()?)
         };
-        let test_current_money = self.player_gold_like_cpp();
+        let test_current_money = self.resolved_player_money_like_cpp()?;
         let balance_applied = Arc::new(AtomicBool::new(false));
         let publication_applied = Arc::new(AtomicBool::new(false));
         let mut item_persistence_guard = self.begin_durable_item_loot_persistence_like_cpp();

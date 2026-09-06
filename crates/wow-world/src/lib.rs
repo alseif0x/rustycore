@@ -9,6 +9,7 @@ pub(crate) mod battle_pet_account;
 pub(crate) mod battle_pet_purchase;
 pub mod canonical_player_access;
 mod canonical_player_sync;
+mod character_administration;
 pub mod conditions;
 pub mod entity_update_bridge;
 pub mod handlers;
@@ -28,11 +29,10 @@ mod session_persistence_capabilities;
 mod session_policy;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
+mod spell_cast_adapter;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 pub(crate) mod trainer_offer;
 
-#[cfg(test)]
-mod character_administration_persistence_tests;
 #[cfg(test)]
 mod handler_contract_tests;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -44,16 +44,15 @@ mod player_lifecycle_contract;
 #[cfg(test)]
 mod player_quest_persistence_test_fixture;
 #[cfg(test)]
+mod teleport_test_fixtures;
+#[cfg(test)]
 mod vendor_trade_persistence_test_fixture;
 
 pub use map_manager::{
     ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,
     WorldMMapPathfinderWorkerLikeCpp,
 };
-pub use session::{
-    MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, SharedObjectAccessor, WorldSession,
-    new_shared_object_accessor,
-};
+pub use session::{MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, WorldSession};
 pub use session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,

@@ -9,7 +9,11 @@ use super::*;
 
 impl WorldSession {
     /// Handle CMSG_CREATE_CHARACTER — create a new character.
-    pub async fn handle_create_character(&mut self, pkt: CreateCharacter) {
+    pub async fn handle_create_character_with_generator_like_cpp(
+        &mut self,
+        generator: &wow_core::ObjectGuidGenerator,
+        pkt: CreateCharacter,
+    ) {
         let port = match self.character_administration_persistence_port_like_cpp() {
             Some(port) => port,
             None => {
@@ -64,17 +68,7 @@ impl WorldSession {
         }
 
         // Generate new GUID
-        let new_guid_counter = match self.guid_generator() {
-            Some(generator) => generator.generate(),
-            None => {
-                warn!("No GUID generator available");
-                self.send_packet(&CreateChar {
-                    code: response_codes::CHAR_CREATE_ERROR,
-                    guid: ObjectGuid::EMPTY,
-                });
-                return;
-            }
-        };
+        let new_guid_counter = generator.generate();
 
         // Get start position
         let (map_id, x, y, z, o) = start_position(pkt.race);
@@ -157,6 +151,20 @@ impl WorldSession {
                 });
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_create_character(&mut self, pkt: CreateCharacter) {
+        let generator = self.guid_generator().cloned();
+        let Some(generator) = generator else {
+            self.send_packet(&CreateChar {
+                code: response_codes::CHAR_CREATE_ERROR,
+                guid: ObjectGuid::EMPTY,
+            });
+            return;
+        };
+        self.handle_create_character_with_generator_like_cpp(generator.as_ref(), pkt)
+            .await;
     }
 
     /// Handle CMSG_CHAR_DELETE — delete a character.
@@ -272,55 +280,50 @@ impl WorldSession {
             }
         };
 
-        let candidate = match port
-            .load_rename_candidate_like_cpp(pkt.guid.counter() as u64, &pkt.new_name)
-            .await
-        {
-            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(candidate) => {
-                candidate
-            }
-            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::NotFound => {
-                self.send_character_rename_like_cpp(
-                    CHAR_CREATE_ERROR_LIKE_CPP,
-                    pkt.guid,
-                    pkt.new_name,
-                );
-                return;
-            }
-            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!("Character rename free-name query failed: {reason}");
-                self.send_character_rename_like_cpp(
-                    CHAR_CREATE_ERROR_LIKE_CPP,
-                    pkt.guid,
-                    pkt.new_name,
-                );
-                return;
-            }
+        if !self.submit_character_rename_like_cpp(port, pkt.guid, pkt.new_name.clone()) {
+            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
+        }
+    }
+
+    /// Apply only on the owning Session, never from a database worker.
+    pub(crate) fn enqueue_character_rename_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        outcome: &crate::character_administration::RenameOutcome,
+    ) -> flume::r#async::SendFut<'static, Vec<u8>> {
+        use crate::character_administration::RenameFailure;
+        let result = if outcome.result.is_ok() {
+            RESPONSE_SUCCESS_LIKE_CPP
+        } else {
+            CHAR_CREATE_ERROR_LIKE_CPP
         };
-
-        let old_name = candidate.old_name;
-        let mut at_login_flags = candidate.at_login_flags;
-        if (at_login_flags & AT_LOGIN_RENAME_LIKE_CPP) == 0 {
-            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
-            return;
-        }
-
-        at_login_flags &= !AT_LOGIN_RENAME_LIKE_CPP;
-
-        if let wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Failed { reason } =
-            port.commit_rename_like_cpp(pkt.guid.counter() as u64, &pkt.new_name, at_login_flags)
-                .await
-        {
-            warn!("Character rename transaction failed: {reason}");
-            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
-            return;
-        }
-
-        info!(
-            "Account {} renamed character {:?} from {} to {}",
-            self.account_id, pkt.guid, old_name, pkt.new_name
-        );
-        self.send_character_rename_like_cpp(RESPONSE_SUCCESS_LIKE_CPP, pkt.guid, pkt.new_name);
+        let delivery = self
+            .send_tx()
+            .clone()
+            .into_send_async(wow_packet::ServerPacket::to_bytes(&CharacterRenameResult {
+                result,
+                name: outcome.new_name.clone(),
+                guid: (result == RESPONSE_SUCCESS_LIKE_CPP).then_some(guid),
+            }));
+        // Confirmed DB outcome is logged once, not on each poll of a pending send.
+        match &outcome.result {
+            Ok(old_name) => {
+                info!(
+                    "Account {} renamed character {:?} from {} to {}",
+                    self.account_id, guid, old_name, outcome.new_name
+                );
+            }
+            Err(failure) => match failure {
+                RenameFailure::QueryFailed(reason) => {
+                    warn!("Character rename free-name query failed: {reason}");
+                }
+                RenameFailure::CommitFailed(reason) => {
+                    warn!("Character rename transaction failed: {reason}");
+                }
+                RenameFailure::NotFound | RenameFailure::NotEligible => {}
+            },
+        };
+        delivery
     }
 
     fn send_char_customize_failure_like_cpp(&self, result: u8, guid: ObjectGuid) {
@@ -561,11 +564,13 @@ impl WorldSession {
             return;
         }
 
-        if self.is_in_taxi_flight_like_cpp() {
+        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return;
         }
 
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
         let Some(area_table_store) = self.area_table_store() else {
             debug!(
                 account = self.account_id,

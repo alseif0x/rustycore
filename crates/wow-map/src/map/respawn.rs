@@ -444,7 +444,7 @@ where
     /// - `Map.cpp:1972-1983` allows dynamic escort NPC respawn only when the
     ///   matching live creature is already escorting.
     ///
-    /// Source of truth for this slice is canonical map-owned `map_objects`, with
+    /// Source of truth for this slice is canonical map-owned `entity_world`, with
     /// typed map-local by-spawn-id indexes mirroring Trinity's multimap stores.
     /// Callers must provide the `CONFIG_RESPAWN_DYNAMIC_ESCORTNPC` value and the
     /// real escort runtime predicate; this helper does not invent
@@ -477,7 +477,7 @@ where
                 };
 
                 for guid in creature_guids {
-                    let Some(record) = self.map_objects.get(guid) else {
+                    let Some(record) = self.entity_world.get(guid) else {
                         continue;
                     };
                     let Some(creature) = record.creature() else {
@@ -502,7 +502,7 @@ where
                     .get(&info.spawn_id)
                     .is_some_and(|gameobject_guids| {
                         gameobject_guids.iter().any(|guid| {
-                            self.map_objects.get(guid).is_some_and(|record| {
+                            self.entity_world.get(guid).is_some_and(|record| {
                                 record.game_object().is_some_and(|gameobject| {
                                     gameobject.spawn_id() == info.spawn_id
                                 })
@@ -532,7 +532,7 @@ where
     ///
     /// Runtime timer source of truth is this map-owned `RespawnStoreLikeCpp` via
     /// `RespawnInfoLikeCpp`; metadata stays caller-supplied `SpawnStore` until
-    /// ObjectMgr ownership moves into `Map`; live blockers come from `map_objects`;
+    /// ObjectMgr ownership moves into `Map`; live blockers come from `entity_world`;
     /// linked metadata is read-only. This helper deliberately does not execute
     /// PoolMgr, `DoRespawn`, DB save/delete, entity creation, fanout, or RNG.
     pub fn check_respawn_like_cpp<F>(

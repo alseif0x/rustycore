@@ -86,6 +86,28 @@ async fn gm_ticket_get_system_status_uses_support_enabled_like_cpp() {
 }
 
 #[tokio::test]
+async fn support_status_dispatch_borrows_process_policy_like_cpp() {
+    let (mut session, send_rx) = make_session();
+    session.set_state(crate::session::SessionState::LoggedIn);
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp {
+        support_feature_policy: Arc::new(crate::session::SupportFeaturePolicyLikeCpp {
+            support_enabled: false,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let bytes = (ClientOpcodes::GmTicketGetSystemStatus as u16).to_le_bytes();
+
+    session
+        .dispatch_packet(&catalogs, WorldPacket::from_bytes(&bytes))
+        .await;
+
+    let bytes = send_rx.try_recv().expect("GM ticket system status packet");
+    let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+    assert_eq!(pkt.read_int32().unwrap(), GmTicketSystemStatus::DISABLED);
+}
+
+#[tokio::test]
 async fn gm_ticket_acknowledge_survey_consumes_case_id_and_is_silent_like_cpp_todo_handler() {
     let (mut session, send_rx) = make_session();
     let mut pkt = WorldPacket::new_empty();

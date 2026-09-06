@@ -1,5 +1,10 @@
 # Migration: Crypto
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/common/Cryptography/`
 > **Rust target crate(s):** `crates/wow-crypto/`
 > **Layer:** L1

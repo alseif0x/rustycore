@@ -1,5 +1,10 @@
 # Estado de Migración - MapManager Global
 
+> Snapshot histórico de abril de 2026, no estado actual ni instrucciones para
+> continuar. La fecha literal y los resultados siguientes no constituyen evidencia
+> vigente. Consultar [el índice del archivo](README.md) y
+> [STATE.md](../../../docs/migration/STATE.md); no ejecutar sus comandos heredados.
+
 ## Última actualización: $(date)
 
 ### ✅ Completado

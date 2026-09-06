@@ -75,14 +75,16 @@ async fn request_cemetery_list_filters_conditions_and_caps_at_sixteen_like_cpp()
 #[tokio::test]
 async fn resurrect_response_accepts_matching_request_like_cpp() {
     let (mut session, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let resurrecter = ObjectGuid::create_player(1, 77);
     let target_position = Position::new(11.0, 22.0, 33.0, 1.5);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
     session.set_player_health_like_cpp(0, 1_000);
     session.set_represented_resurrection_request_like_cpp(
-        crate::session::RepresentedResurrectionRequestLikeCpp {
+        wow_entities::PlayerResurrectionRequestLikeCpp {
             resurrecter,
             map_id: 571,
             position: target_position,
@@ -139,7 +141,7 @@ async fn resurrect_response_decline_clears_request_like_cpp() {
     let resurrecter = ObjectGuid::create_player(1, 78);
     session.set_player_health_like_cpp(0, 1_000);
     session.set_represented_resurrection_request_like_cpp(
-        crate::session::RepresentedResurrectionRequestLikeCpp {
+        wow_entities::PlayerResurrectionRequestLikeCpp {
             resurrecter,
             map_id: 571,
             position: Position::new(11.0, 22.0, 33.0, 1.5),
@@ -168,7 +170,7 @@ async fn resurrect_response_ignores_mismatched_resurrecter_like_cpp() {
     let resurrecter = ObjectGuid::create_player(1, 79);
     session.set_player_health_like_cpp(0, 1_000);
     session.set_represented_resurrection_request_like_cpp(
-        crate::session::RepresentedResurrectionRequestLikeCpp {
+        wow_entities::PlayerResurrectionRequestLikeCpp {
             resurrecter,
             map_id: 571,
             position: Position::new(11.0, 22.0, 33.0, 1.5),
@@ -200,7 +202,7 @@ async fn resurrect_response_ignores_alive_player_like_cpp() {
     let resurrecter = ObjectGuid::create_player(1, 81);
     session.set_player_health_like_cpp(777, 1_000);
     session.set_represented_resurrection_request_like_cpp(
-        crate::session::RepresentedResurrectionRequestLikeCpp {
+        wow_entities::PlayerResurrectionRequestLikeCpp {
             resurrecter,
             map_id: 571,
             position: Position::new(11.0, 22.0, 33.0, 1.5),

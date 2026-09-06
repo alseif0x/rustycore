@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "report": "modularity-lab-v1-aarch64-20260905.json",
+  "review_status": "superseded_for_decision",
+  "decision_eligible_after_review": false,
+  "reason": [
+    "memory_growth_limit requested 65536 extra pages: Wasm32 rejects this even without the configured 3 MiB host limit",
+    "get_fuel() < FUEL did not distinguish cumulative fuel from a refill followed by additional guest instructions",
+    "native host errors could continue guest state mutation whereas the Wasm adapter trapped immediately; this negative path was not compared"
+  ],
+  "raw_report_preserved": true,
+  "timing_workload_changed": false,
+  "budgets_changed": false,
+  "replacement_report": "modularity-lab-v1-aarch64-20260905-r2.json",
+  "note": "The raw automatic success flags predate adversarial review and are not the accepted verdict. Retained to expose the named corrections rather than select favorable samples."
+}

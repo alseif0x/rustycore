@@ -1,11 +1,19 @@
 # Creature Port Completion Plan - no gaps
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 **Date:** 2026-06-21
 **Base:** `develop` at `ea586d2f`
 **Canonical source:** `/home/server/woltk-trinity-legacy`
 **Scope:** WoW Wrath of the Lich King Classic 3.4.3.54261 creature runtime and creature-facing NPC behavior.
 
-This document is the operating plan for finishing the Creature port without carrying hidden gaps. It supersedes stale status text in `docs/migration/entities-creature.md` for execution planning. That older file remains useful as broad inventory, but this plan is the checklist to close.
+This is the historical Creature planning record at the base above, not the
+current execution checklist. Its anchors and candidate gaps remain useful for
+targeted contrast; current scope/dependencies are in PORT_PLAN.md and the active
+issue/checkpoint. Neither this file nor entities-creature.md supersedes them.
 
 ## Non-negotiable rules
 
@@ -14,7 +22,7 @@ This document is the operating plan for finishing the Creature port without carr
    - `/home/server/woltk-trinity-legacy/src/server/game/Movement/`
    - `/home/server/woltk-trinity-legacy/src/server/game/Maps/`
    - direct dependencies in `Entities/Unit`, `Entities/Object`, `AI`, `Scripting`, `Conditions`, `Loot`, `Pools`, `Events`, `Phasing`, and `Grids`.
-2. C# is not authoritative for Creature. Any Rust code or docs mentioning "C# order", "C# reference", "C# format", or equivalent in a Creature path is a migration bug until proven otherwise. The fix is: contrast the behavior in detail against C++, replace the behavior if needed, and remove the C# reference.
+2. Creature behavior must be contrasted against canonical C++. An unsupported comment is a lead to investigate, not automatically a demonstrated runtime bug.
 3. No gameplay patch is accepted as "fixed" unless it has:
    - exact C++ file and line references,
    - Rust implementation references,
@@ -70,7 +78,7 @@ A Creature slice is done only when all of this is true:
 2. The Rust code maps to the same order and same state transitions, not merely similar outputs.
 3. Tests prove the normal case and at least one failure/regression case.
 4. If the slice affects packets or what the client sees, a real 3.4.3.54261 client has been tested without diagnostic flags.
-5. Existing C#-derived comments in the touched area are treated as bugs and must be removed or rewritten with exact C++ references after the behavior is re-audited.
+5. Unsupported comments in the touched area require exact C++ evidence; distinguish a misleading comment from a demonstrated behavior defect.
 6. Docs and inventory are updated in the same commit.
 7. No new TODO/gap remains in the touched C++ surface. If the surface requires a dependency, the dependency is either implemented in the same slice or becomes the next blocking slice in this plan.
 
@@ -102,19 +110,19 @@ A Creature slice is done only when all of this is true:
   - dependencies,
   - tests,
   - notes.
-- Add an explicit C#-contamination column for any Rust/doc path that was ported from C# or still cites C#. Every positive entry becomes a bug row until the C++ contrast is complete and the C# reference is removed.
+- Record missing canonical evidence when relevant; do not classify a textual reference as a proven bug or require a new inventory column to do routine work.
 
 **Done when:**
 - The matrix covers all Creature C++ files listed above.
 - `entities-creature.md` points to the matrix and this plan.
 - Nothing is marked complete without a test or manual proof reference.
 
-### CREATURE-P1 - Treat and remove C# contamination as bugs
+### CREATURE-P1 - Re-contrast unsupported behavior claims
 
-**Goal:** stop reasoning from the wrong source before touching more runtime code. A C# reference in Creature is not documentation; it is a bug marker.
+**Goal:** stop reasoning from the wrong source before touching more runtime code. An unsupported claim is not proof of either correctness or a bug.
 
 **Actions:**
-- Search Creature-adjacent code/docs for `C#`, `c#`, `CSharp`, `format`, and old diagnostic references.
+- Inspect affected Creature callers, comments, packet formats and old diagnostic assumptions.
 - For each finding, create or update a matrix bug row with:
   - exact Rust/doc path,
   - current claim,
@@ -122,15 +130,15 @@ A Creature slice is done only when all of this is true:
   - required Rust change,
   - test coverage,
   - status.
-- If the Rust behavior already matches C++, remove the C# reference and replace it with the C++ file:line refs.
-- If the Rust behavior does not match C++, reimplement it from C++ and remove the C# reference in the same slice.
+- If the Rust behavior already matches C++, record the verified C++ file:line refs.
+- If the Rust behavior does not match C++, reimplement it from C++ and record the behavior change and its approval separately from restructuring.
 - If the finding is unrelated to Creature, mark it out of scope in the Creature matrix and leave the fix to the owning module.
 - If it is a temporary diagnostic, remove it from normal runtime or keep it behind an explicitly temporary debug gate with an owner and removal condition.
 
 **Done when:**
-- No Creature production path or Creature migration plan line depends on a C# claim.
-- No touched Creature code/docs keep a C# reference after the C++ contrast is complete.
-- Every C#-contamination row in the matrix is either fixed or assigned to another non-Creature module with evidence.
+- No Creature production path or Creature migration plan line depends on an unsupported behavior claim.
+- No touched Creature code/docs claim parity without a relevant C++ anchor after contrast.
+- Every evidence-gap row in the matrix is either fixed or assigned to another non-Creature module with evidence.
 
 ### CREATURE-P2 - Exact load/create lifecycle
 
@@ -316,7 +324,7 @@ A Creature slice is done only when all of this is true:
 
 **Actions:**
 - Audit every Creature update-field mask and create-block field against C++.
-- Treat C#/diagnostic packet ordering assumptions in Creature create/update as bugs; contrast against C++ and remove the references.
+- Treat unsupported diagnostic packet ordering assumptions in Creature create/update as bugs; contrast against C++ and remove the references.
 - Implement per-session `HaveAtClient` as the final gate, not a registry approximation.
 - Ensure CREATE/DESTROY modifies the receiver session's visible set.
 - Ensure movement update packets use the same spline/movement layout as C++.
@@ -448,7 +456,7 @@ A Creature slice is done only when all of this is true:
 
 **Checks:**
 - `docs/migration/inventory/creature-port-matrix.tsv` has no `missing`, `represented-only`, or unowned `blocked` rows for WotLK Creature.
-- `rg -n "C#|c#|RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC|diagnostic" crates/wow-world crates/world-server crates/wow-entities` has no Creature production behavior dependency.
+- `rg -n "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC|diagnostic" crates/wow-world crates/world-server crates/wow-entities` has no Creature production behavior dependency.
 - No Creature packet, movement, runtime or NPC-service code relies on a diagnostic flag.
 - Tests pass:
   - `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world`
@@ -476,7 +484,7 @@ A Creature slice is done only when all of this is true:
 Start with **CREATURE-P0 + CREATURE-P1**, not more runtime guessing:
 
 1. Create the exhaustive matrix.
-2. Mark every current Creature behavior that still cites C# or diagnostics.
+2. Mark every current Creature behavior that still relies on unsupported ordering or diagnostics.
 3. Pick the first missing C++ function in the matrix that is on the world-entry crash path.
 4. Implement that function 1:1 from C++ with tests.
 

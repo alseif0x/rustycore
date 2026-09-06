@@ -384,6 +384,14 @@ strict diff fail even when opcode and body are byte-identical.
 
 ## Recording a capture
 
+The recording wrappers below still target **PM2**; the current local deployment
+uses systemd. These remain reproduction procedures for their matching PM2 fixture
+environment, not commands to run unchanged against an unrelated live service.
+Confirm the approved service identities, isolation and fixture scope before use.
+The systemd `tools/qa-runtime.sh` provides bounded runtime smoke, not equivalent
+fresh-capture provenance. `pr-preflight.sh` and its `capture`/`qa-loot-race`
+subcommands were retired; do not wait for or invoke that former gate.
+
 Capture artifacts are large/PII-bearing — keep them out of git (the scripts
 default to `target/captures/`, which is gitignored).
 
@@ -461,8 +469,9 @@ leaves the normal world stopped for manual inspection.
 
 Both guarded Rust flows also require a pinned `WOW_BOT_EXEC`/SHA-256 and a
 fresh absolute `WOW_BOT_REPORT` path before any service mutation. For
-`loot-two-session-atomic-race`, the outer preflight runs the two clients and
-writes that report while the wrapper is waiting at its prompt. Publication is
+`loot-two-session-atomic-race`, the operator runs the two clients and
+produces that report while the wrapper is waiting at its prompt (the old automated
+preflight is no longer available). Publication is
 fail-closed: only the exact TESTBOT2/TESTBOT3 success contract (same live target
 counter/list ID, one item winner, `10`/`0` money notifications, exact database
 deltas, and relog proof) can produce a completed race dump. Cleanup and normal
@@ -471,7 +480,7 @@ invocation must arrange the same pinned bot report; pressing ENTER without that
 evidence intentionally restores the runtime without publishing.
 A successful race generation retains `race.bot-report.json` inside the atomic
 Rust artifact and records its final path/SHA-256 plus non-null fixture/bot
-contracts in the manifest; the preflight may then remove its private source
+contracts in the manifest; the operator may then retire the private source
 copy without orphaning the provenance record.
 
 The bot writes a mode-0600 recovery journal before its first character/fixture
@@ -486,7 +495,7 @@ and retains recovery evidence; cleanup failure is the reported exit status even
 when the capture already failed. `SIGKILL` cannot be trapped, so an operator
 must recover a retained journal before restarting the normal world.
 
-The shared-chest preflight claims no spawn that has pool, event,
+The shared-chest capture guard claims no spawn that has pool, event,
 linked-respawn, `gameobject_addon`, `gameobject_overrides`, or `spawn_group`
 metadata. It pins every `gameobject_template_addon` field used by the fixture
 and validates the complete spawn—including `state`—before any cleanup write.

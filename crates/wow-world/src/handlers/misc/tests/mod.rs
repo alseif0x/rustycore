@@ -1306,6 +1306,9 @@ fn add_canonical_test_player_on_map_for_misc_test(
         .set_map(map_id, instance_id)
         .unwrap();
     player.unit_mut().world_mut().relocate(position);
+    player.unit_mut().set_max_health(100);
+    player.unit_mut().set_health(100);
+    player.unit_mut().set_faction(1);
     player.unit_mut().world_mut().object_mut().add_to_world();
 
     canonical

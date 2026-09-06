@@ -1,5 +1,10 @@
 # Migration: Combat
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Combat/` (+ `src/server/game/Server/Packets/CombatPackets.{h,cpp}`, plus damage helpers spread across `Entities/Unit/Unit.cpp`)
 > **Rust target crate(s):** `crates/wow-combat/` (vacío hoy), `crates/wow-packet/src/packets/combat.rs` (packets), `crates/wow-world/src/handlers/combat.rs` (handlers)
 > **Layer:** L5 (depende de Entities L4 + Spells L5 + AI L5)

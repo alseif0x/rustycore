@@ -1,11 +1,18 @@
 # Migration: <MODULE_NAME>
 
+Optional reference-document template, not a required document per helper or
+an independent workflow. Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md)
+and the active issue/checkpoint for current status and delivery. Follow
+[module design guidelines](../architecture/module-design-guidelines.md) for
+semantic and physical decomposition; C++ class layout is not a Rust module plan.
+
 > **C++ canonical path:** `<absolute path under /home/server/woltk-trinity-legacy/>`
 > **Rust target crate(s):** `crates/<crate>/`
 > **Layer:** L0 / L1 / L2 / L3 / L4 / L5 / L6 / L7 / L8
 > **Status:** ❌ not started / ⚠️ partial / ✅ done / 🔧 broken (rewrite needed)
 > **Audited vs C++:** ❌ not audited / ⚠️ partial / ✅ complete
 > **Last updated:** YYYY-MM-DD
+> **Reviewed commit / bounded scope:** <HEAD, capability and evidence limits>
 
 ---
 
@@ -96,7 +103,7 @@ Si el módulo origina/recibe packets, listar opcodes con nombre y dirección.
 ## 8. Current state in RustyCore
 
 **Files in `/home/server/rustycore`:**
-- `crates/<crate>/src/<file>.rs` — N líneas — cubre X% del C++
+- `crates/<crate>/src/<file>.rs` — responsabilidad y comportamiento demostrado
 - ...
 
 **What's implemented:**
@@ -115,11 +122,12 @@ Si el módulo origina/recibe packets, listar opcodes con nombre y dirección.
 
 ## 9. Migration sub-tasks
 
-Numera los items para poder referenciarlos desde `MIGRATION_ROADMAP.md` sección 5.
+Referenciar la issue/macro vigente y sus checkpoints cuando corresponda.
+Los cortes internos no requieren un ID, commit, issue o PR por helper. Agrupar
+por capacidades completas y mantener dependencias/boundaries con dueño explícito;
+no usar el roadmap histórico como orden obligatorio ni horas como criterio de split.
 
-Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>12h, splitear).
-
-- [ ] **#<MOD>.1** Sub-task descripción precisa (complejidad: L/M/H/XL)
+- [ ] **<issue/checkpoint>** Capacidad, aceptación y límites precisos
 - [ ] **#<MOD>.2** ...
 - [ ] **#<MOD>.3** ...
 
@@ -147,10 +155,11 @@ Tests que demuestren que el comportamiento Rust = comportamiento C++ para invari
 |---|---|---|
 | `class Foo` | `struct Foo` (en `crates/<crate>/foo.rs`) | Sin herencia; usar enum si polymorphic |
 | `Foo*` ownership | `Box<Foo>` / `Arc<Foo>` / referencia | Decidir per caso |
-| `std::map<K, Foo*>` | `HashMap<K, Foo>` o `DashMap<K, Foo>` | Dashmap si concurrencia |
+| `std::map<K, Foo*>` | Almacenamiento privado del owner aprobado | Concurrencia y lifetime según contrato, no sustitución mecánica |
 | `void Foo::Update(uint32)` | `fn update(&mut self, diff_ms: u32)` | — |
 | ... | ... | ... |
 
 ---
 
-*Template version: 1.0 (2026-05-01).* Cuando se rellene, actualizar header de status y `Last updated`.
+*Template version: 2.0 (2026-09-05).* Actualizar fecha, commit, alcance y evidencia;
+no inferir un porcentaje de paridad a partir de líneas, símbolos o archivos presentes.

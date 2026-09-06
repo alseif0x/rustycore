@@ -40,9 +40,12 @@ where
 }
 
 fn string_field_like_cpp(result: &SqlResult, column: usize, field: &'static str) -> Result<String> {
+    // C++ Field::GetString (Field.cpp:118-126) maps SQL NULL to empty text.
+    // Keep the outer Option: an absent/mistyped column is still a load error.
     result
-        .try_read::<String>(column)
+        .try_read::<Option<String>>(column)
         .with_context(|| format!("missing or non-string {field} SQL column {column}"))
+        .map(Option::unwrap_or_default)
 }
 
 fn float_field_like_cpp(result: &SqlResult, column: usize, field: &'static str) -> Result<f32> {
@@ -237,6 +240,46 @@ impl LfgDungeonsHotfixPersistencePortLikeCpp for MariaDbLfgDungeonsHotfixPersist
 mod tests {
     use super::*;
     use crate::StatementDef;
+
+    #[test]
+    fn missing_lfg_string_row_is_not_a_nullable_value_like_cpp() {
+        assert!(string_field_like_cpp(&SqlResult::empty(), 2, "LFGDungeons.Description").is_err());
+    }
+
+    #[tokio::test]
+    #[ignore = "read-only MariaDB probe; set RUSTYCORE_DB_IT_USER and optional HOST/PORT/PASS/SOCKET"]
+    async fn live_lfg_string_decode_accepts_null_but_rejects_missing_or_wrong_type() -> Result<()> {
+        let user = std::env::var("RUSTYCORE_DB_IT_USER")
+            .context("RUSTYCORE_DB_IT_USER is required for the explicit live probe")?;
+        let mut options = sqlx::mysql::MySqlConnectOptions::new()
+            .username(&user)
+            .password(&std::env::var("RUSTYCORE_DB_IT_PASS").unwrap_or_default())
+            .host(&std::env::var("RUSTYCORE_DB_IT_HOST").unwrap_or_else(|_| "127.0.0.1".into()))
+            .port(
+                std::env::var("RUSTYCORE_DB_IT_PORT")
+                    .unwrap_or_else(|_| "3306".into())
+                    .parse()?,
+            );
+        if let Ok(socket) = std::env::var("RUSTYCORE_DB_IT_SOCKET") {
+            options = options.socket(socket);
+        }
+        let pool = sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await?;
+        let rows = SqlResult::new(
+            sqlx::query("SELECT CAST(NULL AS CHAR), CAST('' AS CHAR), CAST('Dungeon' AS CHAR), 42")
+                .fetch_all(&pool)
+                .await?,
+        );
+        assert_eq!(string_field_like_cpp(&rows, 0, "Description")?, "");
+        assert_eq!(string_field_like_cpp(&rows, 1, "Description")?, "");
+        assert_eq!(string_field_like_cpp(&rows, 2, "Name")?, "Dungeon");
+        assert!(string_field_like_cpp(&rows, 3, "Name").is_err());
+        assert!(string_field_like_cpp(&rows, 4, "Description").is_err());
+        pool.close().await;
+        Ok(())
+    }
 
     #[test]
     fn statement_order_matches_cpp_lfg_dungeons_load_info() {

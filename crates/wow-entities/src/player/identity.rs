@@ -48,6 +48,18 @@ impl Player {
         });
     }
 
+    pub fn learn_title_like_cpp(&mut self, title_id: u32) {
+        self.gameplay_state.known_title_ids.insert(title_id);
+    }
+
+    pub fn replace_known_titles_like_cpp(&mut self, title_ids: BTreeSet<u32>) {
+        self.gameplay_state.known_title_ids = title_ids;
+    }
+
+    pub fn has_title_like_cpp(&self, title_id: u32) -> bool {
+        self.gameplay_state.known_title_ids.contains(&title_id)
+    }
+
     fn set_player_guid(
         &mut self,
         bit: usize,

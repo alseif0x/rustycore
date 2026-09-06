@@ -1,5 +1,10 @@
 # Migration: Scripts (content scripts directory)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/scripts/` (the content-side script library: bosses, instances, quests, NPCs, gossip, spells, area triggers, GM commands, world events, holiday events, OutdoorPvP, Battlefield WG, pet AIs, custom scripts).
 > **Rust target crate(s):** `crates/wow-scripts/` (content) + lateral crates (`wow-spell` for `spell_*` scripts, `wow-pvp`/`wow-battleground` for OutdoorPvP & Battlefield, `wow-pet` for Pet scripts, etc.). The framework that scripts plug into lives in `crates/wow-script/` and is covered by `scripting.md`.
 > **Layer:** L8 (content layer — depends on **everything** below it: scripting framework L7, instance/BG/OPvP L7, spells L5, AI L5, conditions L7, loot L6, quests L6, all entity types L4, …).

@@ -8,8 +8,53 @@
 use super::super::*;
 
 impl Player {
-    pub const fn inventory(&self) -> &PlayerInventoryStorage {
+    pub fn inventory(&self) -> &PlayerInventoryStorage {
         &self.inventory
+    }
+
+    pub fn inventory_runtime_like_cpp(&self) -> &PlayerInventoryRuntime {
+        &self.inventory_runtime
+    }
+
+    pub fn inventory_runtime_mut_like_cpp(&mut self) -> &mut PlayerInventoryRuntime {
+        &mut self.inventory_runtime
+    }
+
+    /// C++ `Player::GetItemCount`: summarize the canonical carried/bank item
+    /// topology without publishing a second mutable count cache.
+    pub fn inventory_item_counts_like_cpp(&self) -> HashMap<u32, u32> {
+        let inventory_items = self.inventory_runtime.inventory_items();
+        let item_objects = self.inventory_runtime.item_objects();
+        inventory_items
+            .values()
+            .filter_map(|inventory_item| item_objects.get(&inventory_item.guid))
+            .chain(item_objects.values().filter(|item| {
+                !item.container_guid().is_empty()
+                    && item_objects.contains_key(&item.container_guid())
+            }))
+            .filter(|item| !item.is_in_trade())
+            .fold(HashMap::new(), |mut counts, item| {
+                let entry_id = item.object().entry();
+                counts
+                    .entry(entry_id)
+                    .and_modify(|count| *count = count.saturating_add(item.count()))
+                    .or_insert(item.count());
+                counts
+            })
+    }
+
+    /// C++ `Player::GetBankBagSlotCount` (`Player.h:1334`).
+    pub const fn bank_bag_slot_count(&self) -> u8 {
+        self.data.num_bank_slots
+    }
+
+    /// C++ `Player::GetInventorySlotCount` (`Player.h:1332`).
+    pub const fn inventory_slot_count(&self) -> u8 {
+        self.active_data.num_backpack_slots
+    }
+
+    pub fn bank_bag_slot_flag_value_like_cpp(&self, index: usize) -> Option<u32> {
+        self.active_data.bank_bag_slot_flags.get(index).copied()
     }
 
     pub fn soulbound_tradeable_items(&self) -> &HashSet<ObjectGuid> {
@@ -24,6 +69,10 @@ impl Player {
         self.set_player_u8(PLAYER_DATA_NUM_BANK_SLOTS_BIT, count, |data| {
             &mut data.num_bank_slots
         });
+    }
+
+    pub fn mark_bank_bag_slot_count_changed_like_cpp(&mut self) {
+        self.mark_player_data(PLAYER_DATA_NUM_BANK_SLOTS_BIT);
     }
 
     pub fn set_bank_bag_slot_flag_value_like_cpp(&mut self, index: usize, value: u32) -> bool {

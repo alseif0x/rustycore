@@ -160,7 +160,7 @@ where
             .chain(reset_creature_guids.iter())
             .copied()
         {
-            let Some(record) = self.map_objects.get_mut(&guid) else {
+            let Some(record) = self.entity_world.get_mut(&guid) else {
                 missing_guids.push(guid);
                 continue;
             };

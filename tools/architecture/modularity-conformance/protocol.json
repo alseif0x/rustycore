@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "experiment": "modularity-conformance-v2",
+  "status": "preregistered-before-measurement",
+  "scope": "isolated selected-hecs and executor conformance; not production, durable DB or full boss parity",
+  "repetitions": 10,
+  "first_seed": 42,
+  "modes": ["native", "rust-wasm", "c-wasm", "mixed"],
+  "populations": [1000, 10000],
+  "densities": ["sparse", "dense"],
+  "sparse_fraction": { "numerator": 1, "denominator": 4 },
+  "storage": {
+    "warmup_ticks": 25,
+    "ticks": 200,
+    "churn_fraction_per_tick": 0.01,
+    "transfer_fraction_per_tick": 0.01,
+    "maximum_median_update_p99_ns_per_entity_batch_amortized": 50000,
+    "maximum_median_churn_ns_per_operation": 100000,
+    "maximum_median_transfer_ns_per_operation": 100000,
+    "unit": "update visits every base entity including those without optional state; budget divides batch p99 by fixed total entity count, not an individual entity tail; a 10000-entity batch is allowed 500ms by this lab bound, not a 10ms server tick",
+    "cost_boundary": "update, optional-state churn, active-detached-active transfer and observable materialization measured separately"
+  },
+  "dispatch": {
+    "warmup_calls": 256,
+    "calls": [10000, 100000],
+    "workloads": ["policy", "reentry"],
+    "maximum_median_root_p99_ns": 50000,
+    "sizing_hypothesis": "20 bounded root transitions per hypothetical 10ms frame may consume 1ms; workload frequency and production headroom unmeasured",
+    "unit": "one root invocation including all admitted module fanout, host calls and synchronous nested callbacks; budgets reset only at root entry"
+  },
+  "resources": {
+    "maximum_rss_kib": 262144,
+    "maximum_cold_compile_ns_per_artifact": 5000000000,
+    "maximum_instantiate_ns_per_artifact": 100000000,
+    "maximum_wasm_artifact_bytes": 4194304,
+    "max_modules": 8,
+    "max_state_bytes_per_module_entity": 256,
+    "max_host_calls_per_root": 256,
+    "max_callback_depth": 8,
+    "max_trace_entries_per_root": 4096,
+    "wasm_fuel_per_root": 1000000,
+    "wasm_memory_bytes_per_instance": 3145728,
+    "maximum_wasm_instances": 8,
+    "maximum_wasm_memories": 8,
+    "maximum_wasm_linear_memory_total_bytes": 25165824,
+    "native_boundary": "trusted native computation has no fuel/preemption or panic-isolation guarantee; admitted calls/state/depth remain bounded"
+  },
+  "controls": {
+    "fresh_process_per_sample": true,
+    "rotate_mode_order_by_seed": true,
+    "same_seed_and_workload_across_modes": true,
+    "no_concurrent_lab_builds_or_benchmarks": true,
+    "command_timeout_seconds": 240,
+    "correctness_before_timing": true,
+    "retain_failed_samples": true,
+    "retain_raw_output_for_malformed_or_failed_commands": true,
+    "functional_oracle": "exact ordered trace, callback/action results and complete state/identity/residence/revision/contributions; checksums only supplementary",
+    "architecture": "record actual host; never pool aarch64 and x86_64",
+    "statistics": "min/median/max across all independent runs; p99 of 200 ticks is a noisy batch diagnostic, not a reliable rare tail",
+    "budget_boundary": "provisional lab rejection limits only; no server SLA, no claim of victory over an unmeasured registry or dense store"
+  },
+  "freeze": {
+    "phase_one": "two independent module crates tested through native Rust, actual Rust Core Wasm, actual C Core Wasm and mixed execution",
+    "phase_two": "hash entire source/driver/adapter/bindings tree before authoring third module; check freeze.py exact file set",
+    "phase_three": "new independent crate/state/lifecycle; only own source and reviewed dependency/declarative composition edits",
+    "required_review": "inspect allowed declarative diffs; digest equality is not alone semantic conformance",
+    "on_required_host_fix": "retain failed challenge, correct and revalidate before a genuinely new independent extension challenge"
+  }
+}

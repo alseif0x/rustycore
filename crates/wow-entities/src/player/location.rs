@@ -6,10 +6,19 @@
 //! Player position, map/zone and bind points.
 
 use super::*;
+use crate::PlayerTeleportStateLikeCpp;
 
 impl Player {
     pub fn bind_session(&mut self, session_id: Option<u64>) {
         self.session_id = session_id;
+    }
+
+    pub fn teleport_state_like_cpp(&self) -> &PlayerTeleportStateLikeCpp {
+        &self.gameplay_state.teleport
+    }
+
+    pub fn teleport_state_mut_like_cpp(&mut self) -> &mut PlayerTeleportStateLikeCpp {
+        &mut self.gameplay_state.teleport
     }
 
     /// C++ `Player::AddExploredZones(pos, mask)`.
@@ -75,5 +84,45 @@ impl Player {
 
     pub fn explored_zones_db_string_like_cpp(&self) -> String {
         explored_zones_db_string_from_blocks_like_cpp(&self.active_data.explored_zones)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn player_owns_teleport_lifecycle_like_cpp() {
+        let mut player = Player::new(Some(1), false);
+        let destination = Position::new(11.0, 22.0, 33.0, 1.5);
+
+        *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
+            recovery: Default::default(),
+            far_destination: Some((1, destination)),
+            post_add: None,
+            can_delay: true,
+            has_delayed: true,
+            near_pending: true,
+            far_pending: false,
+            near_destination: Some((571, destination)),
+            delayed: Some((571, destination, 0x10)),
+            near_destination_zone_area: Some((20, 21)),
+        };
+
+        assert_eq!(
+            *player.teleport_state_like_cpp(),
+            PlayerTeleportStateLikeCpp {
+                recovery: Default::default(),
+                far_destination: Some((1, destination)),
+                post_add: None,
+                can_delay: true,
+                has_delayed: true,
+                near_pending: true,
+                far_pending: false,
+                near_destination: Some((571, destination)),
+                delayed: Some((571, destination, 0x10)),
+                near_destination_zone_area: Some((20, 21)),
+            }
+        );
     }
 }

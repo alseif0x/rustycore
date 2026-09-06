@@ -1,5 +1,10 @@
 # Migration: Conditions
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Conditions/` (`ConditionMgr`, `DisableMgr`)
 > **Rust target crate(s):** `crates/wow-data/` (load `conditions` table, store `ConditionContainer` keyed by `(SourceType, SourceGroup, SourceEntry)`), `crates/wow-world/src/conditions/` (the `Meets` evaluator with access to `Player`/`Unit`/`Map`), no dedicated crate yet.
 > **Layer:** L7 (Game systems — depends on Entities/Player+Unit L4, Quests L6, Reputation L6, Achievements L7, Map L4, World/DB2 L1; depended on by Phasing L7, Loot L6, Gossip L6, SmartScripts L7, SpellMgr L5, Vendors, Trainers, Graveyards, AreaTriggers, Conversation, GameObjects)

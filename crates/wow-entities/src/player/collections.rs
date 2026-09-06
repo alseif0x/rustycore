@@ -8,6 +8,11 @@
 use super::*;
 
 impl Player {
+    pub fn summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.active_data.summoned_battle_pet_guid.is_empty())
+            .then_some(self.active_data.summoned_battle_pet_guid)
+    }
+
     pub fn set_current_battle_pet_breed_quality_like_cpp(&mut self, quality: u8) {
         self.set_player_u8(
             PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT,

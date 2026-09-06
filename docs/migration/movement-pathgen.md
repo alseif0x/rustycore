@@ -1,5 +1,10 @@
 # Migration: Movement / PathGenerator (Detour navmesh consumer)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Movement/PathGenerator.{h,cpp}` + Detour bridge from `src/common/Collision/Management/MMapManager.{h,cpp}` + `src/common/Collision/Maps/MMapDefines.h` + 3rdparty `dep/recastnavigation/Detour/`
 > **Rust target crate(s):** `crates/wow-recastdetour/` (MMapDefines slice + future FFI bindings to Recast/Detour) + `crates/wow-movement/src/path_generator.rs`
 > **Layer:** L5 sub-module (depends on `wow-collision` / VMaps L3 for height fallback, mmap tile loading from disk)

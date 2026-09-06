@@ -1,6 +1,12 @@
 # Immutable spell-acquisition plan
 
-Issue #164 introduces a pure prerequisite for the trainer transaction slices in #157–#161.
+**Scope:** the planner and downstream contracts established by #164 and #157–#161.
+The 2026-09-05 documentation review at `7eaf8ddc` checks current ownership/registration anchors,
+not every spell, current DB contents or fresh runtime durability. #578's remaining integration
+and physical decomposition requirements still apply. Historical data counts below are bounded
+evidence from the original acquisition audit, not a current catalog census.
+
+Issue #164 supplies the pure planner prerequisite for the transaction/application paths below.
 It does not teach a spell, mutate a player, write a row, or send a packet. Given one complete
 player snapshot, effective acquisition metadata, and either `DirectLearn(spell)` or
 `TrainerWrapperCast(spell)`, it returns the whole deterministic mutation graph or one typed
@@ -103,8 +109,9 @@ catalog, the world script/condition/linked/disable tables, and the C++ hard-code
   `LearnSpell` for a faction counterpart, so a post-commit “reconcile mount” label would conceal
   a durable acquisition edge.
 
-This proves that the real wrapper closure is supported when its current player-specific effect
-mask is supplied. It does not turn arbitrary custom spells into trusted no-ops.
+That audit supports the recorded wrapper closure when its player-specific effect mask is supplied.
+It does not certify later database/custom-content changes or turn arbitrary spells into trusted
+no-ops; rerun the affected metadata and live-owner checks when those inputs change.
 
 For an acquisition-bearing passive, the plan consumes every supported acquisition handler and
 does not enqueue a second ordinary passive cast. The only remaining supported effects in the
@@ -175,8 +182,10 @@ requiring Character DB. The ordinary `Player::SaveToDB` plan now consumes those 
 statements and normalizes them only after a successful full-save commit. This avoids both the old
 shallow grant and making unrelated pending player state durable during a cast.
 
-After a confirmed/reconciled commit, one non-awaiting phase replaces the complete spell, trait,
-override, skill, profession and controller mirrors before processing the ordered action stream.
+After a confirmed/reconciled commit, one non-awaiting phase installs the complete spell, trait,
+override, skill and profession result through `replace_complete_spell_acquisition_runtime_like_cpp`
+before processing the ordered action stream. The #578 canonical Player owner replaces the former
+whole-Player controller write-back; this contract does not authorize recreating that mirror.
 Learned/superseded/unlearned packets use the C++ `LearnedSpellInfo` option-bit and payload order,
 including favorite and trait-definition values. Criteria, quest, passive and mount actions are
 retained as an ordered represented intent log until their canonical managers own those effects;
@@ -197,8 +206,9 @@ effective `EffectAura`/`EffectMechanic`/`EffectAttributes` rows and negative aur
 to the exact wrapper effect/spell, startup excludes mechanic/state shapes that need unavailable mask
 semantics, covered neutral buffs do not block, and missing metadata makes
 wrapper resolution indeterminate instead of assuming no immunity. After confirmed/reconciled
-commit, money, visual kits and the acquisition stream publish in C++ success order. Dispatcher
-activation remains #142.
+commit, money, visual kits and the acquisition stream publish in C++ success order. #142 activated
+the buy path; `handlers/trainer.rs` now registers `ClientOpcodes::TrainerBuySpell` through the sole
+`PacketHandlerEntry` mechanism. The earlier activation prerequisite is not pending work.
 
 Issue #161 owns the battle-pet branch end to end: the #163-confirmed species becomes a purchasable
 offer product only for non-castable (direct-learn) trainer spells, mirroring `Trainer.cpp:127-146`.

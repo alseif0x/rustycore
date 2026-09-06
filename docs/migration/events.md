@@ -1,5 +1,10 @@
 # Migration: GameEvents (holiday & world event scheduler)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Events/` (`GameEventMgr` scheduler + `GameEventSender` trigger pipeline). Distinct from `src/server/scripts/Events/` (the *content* scripts that hook into individual holidays — covered by `scripts.md`).
 > **Rust target crate(s):** No dedicated crate yet. Recommend a new `crates/wow-gameevents/` (or fold into `wow-world` if minimal). Cross-cutting: spawn/despawn drives `MapManager`, NPC flags drive `wow-world`, vendor swaps drive `wow-database`'s prepared-statement registry.
 > **Layer:** L7 (uses Map/Spawn/Pool L4–L6, Vendor/Quest/WorldState L6, Achievement L7; depended on by Smart-Scripts L7, Quests L6, Vendors L6, Pools L6, the holiday scripts in `scripts/Events/`).

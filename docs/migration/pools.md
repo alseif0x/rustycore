@@ -1,5 +1,10 @@
 # Migration: Pools
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Pools/` (`PoolMgr`, `QuestPoolMgr`)
 > **Rust target crate(s):** `crates/wow-data/` (load `pool_template`, `pool_members`, `quest_pool_template`, `quest_pool_members`, `pool_quest_save`), `crates/wow-world/src/pools/` (the in-memory `PoolMgr` + per-`Map` `SpawnedPoolData`), `crates/wow-database/` (CHAR_INS/DEL_POOL_QUEST_SAVE prepared statements). No dedicated `wow-pools` crate yet.
 > **Layer:** L7 (Game systems — depends on Spawn data L4, Maps L4, Creatures/GameObjects L4, Quests L6, ObjectMgr L1, GameEventMgr L7; depended on by Map spawn lifecycle and the daily/weekly/monthly reset scheduler)

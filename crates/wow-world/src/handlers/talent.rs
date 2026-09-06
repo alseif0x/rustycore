@@ -34,8 +34,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_confirm_respec_wipe",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_confirm_respec_wipe(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_confirm_respec_wipe_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        catalogs.progression.no_reset_talent_cost,
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -46,7 +54,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_learn_talent",
-        handler: |session, pkt| Box::pin(async move { session.handle_learn_talent(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_learn_talent(catalogs.player_bootstrap.talent_tabs.as_ref(), pkt).await }),
     }
 }
 
@@ -57,7 +65,11 @@ impl WorldSession {
     /// `SendTalentsInfoData()` only on success. Rust currently has the
     /// represented talent snapshot plus DB2 spell-rank and talent-tab class
     /// validation, but not the complete C++ point/prerequisite/tier runtime.
-    pub async fn handle_learn_talent(&mut self, mut packet: WorldPacket) {
+    pub async fn handle_learn_talent(
+        &mut self,
+        talent_tabs: &wow_data::TalentTabStore,
+        mut packet: WorldPacket,
+    ) {
         let request = match LearnTalent::read(&mut packet) {
             Ok(request) => request,
             Err(error) => {
@@ -70,9 +82,13 @@ impl WorldSession {
             return;
         }
 
-        if self.learn_represented_talent_like_cpp(request.talent_id as u32, request.requested_rank)
+        if self.learn_represented_talent_like_cpp(
+            talent_tabs,
+            request.talent_id as u32,
+            request.requested_rank,
+        ) && let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp()
         {
-            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            self.send_packet(&talent_data);
         }
     }
 
@@ -83,7 +99,11 @@ impl WorldSession {
     /// The inspected C++ opcode table still uses the shared `0xBADD`
     /// placeholder, so this handler is deliberately not registered for live
     /// dispatch until the real client opcode is resolved.
-    pub async fn handle_learn_talents(&mut self, mut packet: WorldPacket) {
+    pub async fn handle_learn_talents(
+        &mut self,
+        talent_tabs: &wow_data::TalentTabStore,
+        mut packet: WorldPacket,
+    ) {
         let request = match LearnTalents::read(&mut packet) {
             Ok(request) => request,
             Err(error) => {
@@ -93,8 +113,10 @@ impl WorldSession {
         };
 
         for talent_id in request.talent_ids {
-            if self.learn_represented_talent_like_cpp(u32::from(talent_id), 0) {
-                self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            if self.learn_represented_talent_like_cpp(talent_tabs, u32::from(talent_id), 0) {
+                if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
+                    self.send_packet(&talent_data);
+                }
             }
         }
     }
@@ -106,7 +128,12 @@ impl WorldSession {
     /// then runs `Player::ResetTalents`, sends talent data, and casts the
     /// visual spell. Rust keeps this as represented state until trainer-class
     /// matching, criteria/DB persistence, and visual cast runtime are canonical.
-    pub async fn handle_confirm_respec_wipe(&mut self, mut packet: WorldPacket) {
+    pub async fn handle_confirm_respec_wipe_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        no_reset_talent_cost: bool,
+        mut packet: WorldPacket,
+    ) {
         let request = match ConfirmRespecWipe::read(&mut packet) {
             Ok(request) => request,
             Err(error) => {
@@ -137,17 +164,32 @@ impl WorldSession {
         self.record_represented_talent_reset_script_hook_like_cpp(false);
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
 
-        let Some(committed) = self.commit_represented_talent_reset_like_cpp().await else {
+        let Some(committed) = self
+            .commit_represented_talent_reset_like_cpp(no_reset_talent_cost)
+            .await
+        else {
             return;
         };
 
         self.publish_committed_represented_talent_reset_like_cpp(
+            item_guid_generator,
             committed,
             RepresentedConfirmRespecWipeLikeCpp {
                 respec_master: request.respec_master,
                 respec_type: request.respec_type,
             },
             UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_confirm_respec_wipe(&mut self, packet: WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_confirm_respec_wipe_with_generator_like_cpp(
+            generators.item.as_ref(),
+            false,
+            packet,
         )
         .await;
     }
@@ -422,15 +464,18 @@ mod tests {
         }
     }
 
-    fn install_test_talent_store(session: &mut WorldSession, talents: &[(u32, u8, i32)]) {
-        install_test_talent_store_with_tab_class_mask(session, talents, 1);
+    fn install_test_talent_store(
+        session: &mut WorldSession,
+        talents: &[(u32, u8, i32)],
+    ) -> wow_data::TalentTabStore {
+        install_test_talent_store_with_tab_class_mask(session, talents, 1)
     }
 
     fn install_test_talent_store_with_tab_class_mask(
         session: &mut WorldSession,
         talents: &[(u32, u8, i32)],
         class_mask: i32,
-    ) {
+    ) -> wow_data::TalentTabStore {
         install_test_talent_entries_with_tab_class_mask(
             session,
             talents
@@ -440,32 +485,30 @@ mod tests {
                 })
                 .collect::<Vec<_>>(),
             class_mask,
-        );
+        )
     }
 
     fn install_test_talent_entries_with_tab_class_mask(
         session: &mut WorldSession,
         talents: Vec<wow_data::TalentEntry>,
         class_mask: i32,
-    ) {
+    ) -> wow_data::TalentTabStore {
         let spell_ids = talents
             .iter()
             .flat_map(|talent| talent.spell_rank)
             .filter(|spell_id| *spell_id > 0)
             .collect::<Vec<_>>();
         session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(talents)));
-        session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
-            wow_data::TalentTabEntry {
-                id: 0,
-                name: String::new(),
-                background_file: String::new(),
-                order_index: 0,
-                race_mask: 0,
-                class_mask,
-                pet_talent_mask: 0,
-                spell_icon_id: 0,
-            },
-        ])));
+        let talent_tabs = wow_data::TalentTabStore::from_entries([wow_data::TalentTabEntry {
+            id: 0,
+            name: String::new(),
+            background_file: String::new(),
+            order_index: 0,
+            race_mask: 0,
+            class_mask,
+            pet_talent_mask: 0,
+            spell_icon_id: 0,
+        }]);
         session.set_player_class_like_cpp(1);
         session.set_player_level_like_cpp(80);
         session.set_num_talents_at_level_store(Arc::new(
@@ -484,26 +527,25 @@ mod tests {
             spell_store.insert(spell_id, test_spell_info_like_cpp(spell_id));
         }
         session.set_spell_store(Arc::new(spell_store));
+        talent_tabs
     }
 
     fn install_test_talent_entries_with_spell_store_like_cpp(
         session: &mut WorldSession,
         talents: Vec<wow_data::TalentEntry>,
         spell_store: wow_data::SpellStore,
-    ) {
+    ) -> wow_data::TalentTabStore {
         session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(talents)));
-        session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
-            wow_data::TalentTabEntry {
-                id: 0,
-                name: String::new(),
-                background_file: String::new(),
-                order_index: 0,
-                race_mask: 0,
-                class_mask: 1,
-                pet_talent_mask: 0,
-                spell_icon_id: 0,
-            },
-        ])));
+        let talent_tabs = wow_data::TalentTabStore::from_entries([wow_data::TalentTabEntry {
+            id: 0,
+            name: String::new(),
+            background_file: String::new(),
+            order_index: 0,
+            race_mask: 0,
+            class_mask: 1,
+            pet_talent_mask: 0,
+            spell_icon_id: 0,
+        }]);
         session.set_player_class_like_cpp(1);
         session.set_player_level_like_cpp(80);
         session.set_num_talents_at_level_store(Arc::new(
@@ -517,12 +559,13 @@ mod tests {
             ]),
         ));
         session.set_spell_store(Arc::new(spell_store));
+        talent_tabs
     }
 
     fn install_test_talent_store_without_tab(
         session: &mut WorldSession,
         talents: &[(u32, u8, i32)],
-    ) {
+    ) -> wow_data::TalentTabStore {
         session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(
             talents.iter().map(|(talent_id, rank, spell_id)| {
                 test_talent_entry_like_cpp(*talent_id, *rank, *spell_id)
@@ -546,6 +589,7 @@ mod tests {
             spell_store.insert(*spell_id, test_spell_info_like_cpp(*spell_id));
         }
         session.set_spell_store(Arc::new(spell_store));
+        wow_data::TalentTabStore::from_entries([])
     }
 
     fn test_creature_guid(counter: u32) -> ObjectGuid {
@@ -680,6 +724,7 @@ mod tests {
         creature.unit_mut().set_level(80);
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(100);
+        creature.unit_mut().set_faction(35);
         creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
         creature.set_trainer_class_runtime_like_cpp(trainer_class);
         creature.unit_mut().world_mut().object_mut().add_to_world();
@@ -777,8 +822,14 @@ mod tests {
         );
         assert!(send_rx.try_recv().is_err());
         assert_eq!(session.player_gold_like_cpp(), 10_000);
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 10_000);
-        assert_ne!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(
+            session.represented_talent_reset_cost_like_cpp(),
+            Some(10_000)
+        );
+        assert_ne!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert_eq!(
             session.represented_talent_respec_criteria_events_like_cpp(),
             &[
@@ -824,16 +875,25 @@ mod tests {
         let trainer = test_creature_guid(78);
         register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
         session.mark_represented_talents_loaded_like_cpp();
-        session.set_no_reset_talent_cost_like_cpp(true);
         session.set_player_gold_like_cpp(0);
         session.set_represented_talent_reset_state_like_cpp(500_000, 123);
 
-        session
-            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
-                trainer,
-                SPEC_RESET_TALENTS_LIKE_CPP,
-            ))
-            .await;
+        let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        let entry =
+            crate::session::registry::get_handler(ClientOpcodes::ConfirmRespecWipe).unwrap();
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        Arc::get_mut(&mut catalogs.progression)
+            .unwrap()
+            .no_reset_talent_cost = true;
+        let references = Arc::strong_count(&catalogs.progression);
+        (entry.handler)(
+            &mut session,
+            &catalogs,
+            confirm_respec_wipe_packet(trainer, SPEC_RESET_TALENTS_LIKE_CPP),
+        )
+        .await;
+        assert_eq!(Arc::strong_count(&catalogs.progression), references);
 
         let reset_update = send_rx
             .try_recv()
@@ -852,12 +912,12 @@ mod tests {
         );
         assert_eq!(
             session.represented_talent_reset_cost_like_cpp(),
-            0,
+            Some(0),
             "C++ SetTalentResetCost receives the zero cost when NoResetTalentsCost bypasses the money gate"
         );
         assert_ne!(
             session.represented_talent_reset_time_secs_like_cpp(),
-            123,
+            Some(123),
             "C++ still updates TalentResetTime inside the final !noCost block"
         );
         assert_eq!(
@@ -880,12 +940,12 @@ mod tests {
     #[tokio::test]
     async fn login_at_login_reset_talents_resets_without_cost_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
-        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
         session.mark_represented_talents_loaded_like_cpp();
         session.set_player_gold_like_cpp(9_999);
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
         assert!(
             drain_sent_packets(&send_rx).iter().any(|packet| *packet
@@ -947,8 +1007,11 @@ mod tests {
             9_999,
             "C++ ResetTalents(true) skips ModifyMoney and criteria/accounting"
         );
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
-        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), Some(0));
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert!(
             session
                 .represented_talent_respec_criteria_events_like_cpp()
@@ -1161,13 +1224,13 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_updates_represented_active_group_and_sends_talents_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        install_test_talent_store(&mut session, &[(101, 2, 50_101)]);
+        let talent_tabs = install_test_talent_store(&mut session, &[(101, 2, 50_101)]);
         session.mark_represented_talents_loaded_like_cpp();
         session.set_represented_active_talent_group_like_cpp(1);
         session.set_represented_bonus_talent_groups_like_cpp(1);
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 2))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 2))
             .await;
 
         let sent = send_rx
@@ -1194,13 +1257,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn registered_learn_talent_borrows_the_supplied_process_catalog() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+        let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        let entry = crate::session::registry::get_handler(ClientOpcodes::LearnTalent).unwrap();
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        (entry.handler)(&mut session, &catalogs, learn_talent_packet(101, 0)).await;
+        assert!(send_rx.is_empty(), "missing tab must not publish success");
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .is_empty()
+        );
+        let tabs = Arc::new(tabs);
+        Arc::get_mut(&mut catalogs.player_bootstrap)
+            .unwrap()
+            .talent_tabs = Arc::clone(&tabs);
+        let references = Arc::strong_count(&tabs);
+        (entry.handler)(&mut session, &catalogs, learn_talent_packet(101, 0)).await;
+        assert_eq!(
+            send_rx.try_recv().unwrap(),
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .to_bytes()
+        );
+        assert_eq!(
+            Arc::strong_count(&tabs),
+            references,
+            "Session must not retain the catalog"
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
     async fn learn_talents_delegates_each_id_as_rank_zero_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(2);
-        install_test_talent_store(&mut session, &[(101, 0, 50_101), (202, 0, 50_202)]);
+        let talent_tabs =
+            install_test_talent_store(&mut session, &[(101, 0, 50_101), (202, 0, 50_202)]);
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talents(learn_talents_packet(&[101, 202]))
+            .handle_learn_talents(&talent_tabs, learn_talents_packet(&[101, 202]))
             .await;
 
         let first = send_rx
@@ -1233,12 +1335,12 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_rejects_zero_character_points_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
         session.mark_represented_talents_loaded_like_cpp();
         session.set_player_character_points_like_cpp(0);
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(send_rx.try_recv().is_err());
@@ -1260,10 +1362,10 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_rejects_unloaded_snapshot_without_sending_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(send_rx.try_recv().is_err());
@@ -1280,11 +1382,11 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_rejects_missing_talent_tab_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        install_test_talent_store_without_tab(&mut session, &[(101, 0, 50_101)]);
+        let talent_tabs = install_test_talent_store_without_tab(&mut session, &[(101, 0, 50_101)]);
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(send_rx.try_recv().is_err());
@@ -1300,11 +1402,15 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_rejects_wrong_class_talent_tab_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        install_test_talent_store_with_tab_class_mask(&mut session, &[(101, 0, 50_101)], 1 << 1);
+        let talent_tabs = install_test_talent_store_with_tab_class_mask(
+            &mut session,
+            &[(101, 0, 50_101)],
+            1 << 1,
+        );
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(send_rx.try_recv().is_err());
@@ -1320,11 +1426,11 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_rejects_rank_outside_cpp_max_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 9))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 9))
             .await;
 
         assert!(send_rx.try_recv().is_err());
@@ -1340,12 +1446,12 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_rejects_known_or_higher_rank_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
-        install_test_talent_store(&mut session, &[(101, 1, 50_101)]);
+        let talent_tabs = install_test_talent_store(&mut session, &[(101, 1, 50_101)]);
         session.mark_represented_talents_loaded_like_cpp();
-        assert!(session.load_represented_talent_row_like_cpp(101, 1, 0));
+        assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 1, 0));
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(send_rx.try_recv().is_err());
@@ -1368,17 +1474,21 @@ mod tests {
         let mut dependent = test_talent_entry_like_cpp(202, 0, 50_202);
         dependent.prereq_talent[0] = 101;
         dependent.prereq_rank[0] = 1;
-        install_test_talent_entries_with_tab_class_mask(&mut session, vec![prereq, dependent], 1);
+        let talent_tabs = install_test_talent_entries_with_tab_class_mask(
+            &mut session,
+            vec![prereq, dependent],
+            1,
+        );
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(202, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
             .await;
         assert!(send_rx.try_recv().is_err());
 
-        assert!(session.load_represented_talent_row_like_cpp(101, 1, 0));
+        assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 1, 0));
         session
-            .handle_learn_talent(learn_talent_packet(202, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
             .await;
 
         let sent = send_rx
@@ -1403,17 +1513,21 @@ mod tests {
         let filler = test_talent_entry_like_cpp(101, 4, 50_101);
         let mut tier_one = test_talent_entry_like_cpp(202, 0, 50_202);
         tier_one.tier_id = 1;
-        install_test_talent_entries_with_tab_class_mask(&mut session, vec![filler, tier_one], 1);
+        let talent_tabs = install_test_talent_entries_with_tab_class_mask(
+            &mut session,
+            vec![filler, tier_one],
+            1,
+        );
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(202, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
             .await;
         assert!(send_rx.try_recv().is_err());
 
-        assert!(session.load_represented_talent_row_like_cpp(101, 4, 0));
+        assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 4, 0));
         session
-            .handle_learn_talent(learn_talent_packet(202, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
             .await;
 
         let sent = send_rx
@@ -1438,7 +1552,7 @@ mod tests {
         let talent = test_talent_entry_like_cpp(101, 0, 50_101);
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(50_101, test_learn_spell_info_like_cpp(50_101, 60_101));
-        install_test_talent_entries_with_spell_store_like_cpp(
+        let talent_tabs = install_test_talent_entries_with_spell_store_like_cpp(
             &mut session,
             vec![talent],
             spell_store,
@@ -1446,7 +1560,7 @@ mod tests {
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(send_rx.try_recv().is_err());
@@ -1468,7 +1582,7 @@ mod tests {
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(50_101, test_learn_spell_info_like_cpp(50_101, 60_101));
         spell_store.insert(60_101, test_spell_info_like_cpp(60_101));
-        install_test_talent_entries_with_spell_store_like_cpp(
+        let talent_tabs = install_test_talent_entries_with_spell_store_like_cpp(
             &mut session,
             vec![talent],
             spell_store,
@@ -1476,7 +1590,7 @@ mod tests {
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(
@@ -1502,7 +1616,7 @@ mod tests {
         spell_store.insert(60_101, test_spell_info_like_cpp(60_101));
         spell_store.insert(50_102, test_learn_spell_info_like_cpp(50_102, 60_102));
         spell_store.insert(60_102, test_spell_info_like_cpp(60_102));
-        install_test_talent_entries_with_spell_store_like_cpp(
+        let talent_tabs = install_test_talent_entries_with_spell_store_like_cpp(
             &mut session,
             vec![talent],
             spell_store,
@@ -1510,14 +1624,14 @@ mod tests {
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
         assert!(!send_rx.try_recv().expect("rank 0 learn sends").is_empty());
         assert!(session.known_spells_like_cpp().contains(&50_101));
         assert!(session.known_spells_like_cpp().contains(&60_101));
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 1))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 1))
             .await;
 
         assert!(!send_rx.try_recv().expect("rank 1 learn sends").is_empty());
@@ -1536,7 +1650,7 @@ mod tests {
     #[tokio::test]
     async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
-        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
         session.mark_represented_talents_loaded_like_cpp();
         session.visible_auras.insert(
             1,
@@ -1545,7 +1659,7 @@ mod tests {
         session.visible_auras.insert(2, visible_aura(2, 0));
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(
@@ -1568,16 +1682,17 @@ mod tests {
         let mut talent = test_talent_entry_like_cpp(101, 0, 50_101);
         talent.spell_id = 70_101;
         talent.overrides_spell_id = 60_101;
-        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        let talent_tabs =
+            install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
 
         assert!(send_rx.try_recv().is_ok());
-        let overrides = session
-            .represented_override_spells_like_cpp()
+        let override_spells = session.represented_override_spells_like_cpp();
+        let overrides = override_spells
             .get(&60_101)
             .expect("C++ Player::AddTalent calls AddOverrideSpell when OverridesSpellID is set");
         assert!(
@@ -1594,12 +1709,13 @@ mod tests {
         talent.spell_id = 70_101;
         talent.overrides_spell_id = 60_101;
         register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
-        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        let talent_tabs =
+            install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
         session.mark_represented_talents_loaded_like_cpp();
         session.set_player_gold_like_cpp(20_000);
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
         assert!(
             drain_sent_packets(&send_rx).iter().any(|packet| *packet
@@ -1687,6 +1803,7 @@ mod tests {
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        session.set_player_faction_template_like_cpp(35);
         add_canonical_test_trainer_like_cpp(
             &canonical,
             trainer,
@@ -1751,11 +1868,12 @@ mod tests {
         talent.spell_id = 70_101;
         talent.overrides_spell_id = 60_101;
         register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
-        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        let talent_tabs =
+            install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
         let _learn_update = send_rx
             .try_recv()
@@ -1792,8 +1910,11 @@ mod tests {
         );
         assert!(send_rx.try_recv().is_err());
         assert_eq!(session.player_gold_like_cpp(), 9_999);
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
-        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), Some(0));
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert_eq!(
             session.represented_talent_reset_script_hooks_like_cpp(),
             &[RepresentedTalentResetScriptHookLikeCpp { no_cost: false }],
@@ -1862,11 +1983,12 @@ mod tests {
         talent.spell_id = 70_101;
         talent.overrides_spell_id = 60_101;
         register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
-        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        let talent_tabs =
+            install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
         session.mark_represented_talents_loaded_like_cpp();
 
         session
-            .handle_learn_talent(learn_talent_packet(101, 0))
+            .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
             .await;
         let _ = drain_sent_packets(&send_rx);
         session.set_represented_pet_mode_state_like_cpp(
@@ -1893,8 +2015,11 @@ mod tests {
             "a definite SQL rollback must not publish talent, spell, money, or visual packets"
         );
         assert_eq!(session.player_gold_like_cpp(), 20_000);
-        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
-        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), Some(0));
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            Some(0)
+        );
         assert!(session.known_spells_like_cpp().contains(&50_101));
         assert_eq!(
             session
@@ -1968,11 +2093,12 @@ mod tests {
             80,
             0,
         ));
-        session.mark_represented_talents_loaded_like_cpp();
-        session.set_player_gold_like_cpp(9_999);
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        session.set_player_faction_template_like_cpp(35);
+        session.set_player_gold_like_cpp(9_999);
+        session.mark_represented_talents_loaded_like_cpp();
         add_canonical_test_trainer_like_cpp(
             &canonical,
             trainer,
@@ -1988,7 +2114,7 @@ mod tests {
         let mut feign_death = visible_aura(feign_slot, 0);
         feign_death.spell_id = 5384;
         feign_death.represented_effect = Some(RepresentedAuraEffectLikeCpp::FeignDeath);
-        session.visible_auras.insert(feign_slot, feign_death);
+        assert!(session.insert_player_visible_aura_like_cpp(feign_death));
 
         session
             .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
@@ -2013,7 +2139,12 @@ mod tests {
             .to_bytes()
         );
         assert!(send_rx.try_recv().is_err());
-        assert!(!session.visible_auras.contains_key(&feign_slot));
+        assert!(
+            !session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&feign_slot)
+        );
         assert_eq!(
             session
                 .mutate_canonical_player_like_cpp(|player| {
@@ -2041,43 +2172,43 @@ mod tests {
         session.set_represented_talent_reset_state_like_cpp(0, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            10_000
+            Some(10_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(10_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            50_000
+            Some(50_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(50_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            100_000
+            Some(100_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(100_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            150_000
+            Some(150_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(500_000, now);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            500_000
+            Some(500_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(500_000, now - month);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            450_000
+            Some(450_000)
         );
 
         session.set_represented_talent_reset_state_like_cpp(100_000, 0);
         assert_eq!(
             session.represented_next_reset_talents_cost_like_cpp(now),
-            100_000
+            Some(100_000)
         );
     }
 

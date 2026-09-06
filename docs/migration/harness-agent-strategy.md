@@ -1,7 +1,15 @@
 # Harness Agent Strategy for the C++ to Rust Migration
 
-This document defines how to use a multi-agent harness for the RustyCore
-C++ -> Rust port until the migration is complete.
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
+This document preserves an earlier multi-agent proposal. Its role/checklist
+examples may help a bounded task, but it is not the operating strategy until
+completion. Use AGENTS.md and the available skills for current coordination,
+authority, macro delivery and validation. In particular, the historical
+microphase/commit/stop rules below do not add approval or completion gates.
 
 It complements:
 

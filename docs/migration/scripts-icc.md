@@ -1,5 +1,10 @@
 # Migration: Scripts — Icecrown Citadel (ICC)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/scripts/Northrend/IcecrownCitadel/`
 > **Rust target crate(s):** `crates/wow-scripts/` (content layer; the `wow-script` engine crate hosts the runtime)
 > **Layer:** L8 (content / boss scripts; sits on top of L7 dispatch + AI base + spell aura framework)

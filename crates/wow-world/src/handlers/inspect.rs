@@ -26,7 +26,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_inspect",
-        handler: |session, pkt| Box::pin(async move { session.handle_inspect(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_inspect(pkt).await }),
     }
 }
 
@@ -36,7 +36,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_honor_stats",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_honor_stats(pkt).await })
         },
     }
@@ -48,7 +48,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_inspect_achievements",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_query_inspect_achievements(pkt).await })
         },
     }

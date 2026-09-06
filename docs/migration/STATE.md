@@ -1,7 +1,19 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-08-09 · **Base:** `3.4.3` @ `42977e9a` including issue #26's final bounded
-creature-spell P1 wire/lifecycle acceptance and login faction hydration.
+**Delivery replan — 2026-09-06, implementation `a0916c0d`:** #578/#579 remains open
+for bounded canonical-owner foundation/hardening closeout, with regression,
+integration and applicable live/capture gates still to be fully demonstrated.
+User-approved coordination epic #584 owns remaining C0–C4 work as crate-focused
+macrodeliverables with prior analysis; no next crate has been selected. Older
+allocations of all remaining core work to #578 below are historical, not closure
+proof. #583 remains gated on completed core seams; #133/#153 acceptance is unchanged.
+
+**Historical capability-audit base:** 2026-08-09 · `3.4.3` @ `42977e9a`, including issue #26's
+bounded creature-spell P1 wire/lifecycle acceptance and login faction hydration.
+**Architecture/plan review:** 2026-09-05 · local #578 branch @ `93e4002a`.
+The latter is not a new whole-port parity audit or a deployment claim. Undated subsystem tables,
+counts and source locations below belong to the historical audit unless a later bounded note
+explicitly updates them; recheck them against current code before selecting implementation work.
 
 The guarded C++ and Rust `15691` evidence was recaptured from clean harness HEAD
 `42977e9accb24fc3921af075f4122e1f0180f4a2`; strict diff is CLEAN at 2/2 packets and
@@ -9,19 +21,175 @@ The guarded C++ and Rust `15691` evidence was recaptured from clean harness HEAD
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
-1.8 MB append-log `current-session-handoff.md`. It is **grounded in a multi-agent code
-audit of HEAD down to subsystem/subdependency level**, not in what prior docs or the
+old append-log, now referenced through `current-session-handoff.md`'s Git-history pointer.
+Its historical capability matrix is **grounded in
+the named code audit down to subsystem/subdependency level**, not in what prior docs or the
 inventory TSV claim. Architecture decisions: [adr-runtime-tick-ownership.md](adr-runtime-tick-ownership.md).
 Forward plan: [PORT_PLAN.md](PORT_PLAN.md). Bugs found in already-shipped code:
-[EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md). C#-reference contrast vs C++ (51
-findings, 25 open → tracked as GitHub issues #50–#64, index #65; feeds plan ledger L26).
-Audit docs kept local/uncommitted: `../audits/csharp-reference-audit.md` +
-`../audits/csharp-reference-contrast.md`.
+[EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md). Source-verification issues #50–#64
+and index #65 retain traceability under plan ledger L26, not authority for their original
+diagnoses or finding counts. Recheck selected residuals against current Rust and exact C++
+sources; preserve only independently supported behavior and evidence in the
+[C++ findings](../audits/cpp-parity-findings.md).
 
 Repository refactors are governed by
 [`docs/architecture/ownership-and-boundaries.md`](../architecture/ownership-and-boundaries.md):
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
+
+The approved [module design guidelines](../architecture/module-design-guidelines.md) now require
+both semantic boundaries and physical source/test navigability. Remaining monolith decomposition
+remains #578 C2/C4 implementation work; #583 applies the same policy to its own SDK/modules.
+The physical ratchet implemented above `8f5caedc` now covers repository source/tests/tooling,
+with 103 initial legacy non-growth ceilings and an independent terminal mode. The first Rust
+split above `d3f5c20c` reduces the persistence facade from 4,513 to 544 lines, preserving root
+public contracts in private operation modules and retiring its legacy ceiling (102 remain).
+The following adapter split above `1e6b7c40` reduces its 4,957-line root to 1,608 lines,
+with private statement/row modules and responsibility-specific tests (101 legacy ceilings
+remain). Its reviewed exhaustive inventory and matching policy are reconciled in the owning
+checkpoint, including stale pre-catalog records and preservation of currency caller provenance.
+These are physical decompositions, not closure of broad lifecycle capability cohesion. The existing
+logical-owner guards remain. Migration PASS is not terminal acceptance: the legacy files
+still need their stated splits or concrete bounded exceptions before #578 closes.
+
+The following local C4 guard repair above published `9cd1da41` preserves scoped callable
+reexport/import-chain provenance without exporting private aliases across packages. Unresolved
+generic outputs conservatively retain known argument provenance instead of silently losing pools;
+329 checker tests pass. Its reviewed exhaustive snapshot contains 10,084 rows: 53 explained
+false aliases removed, 21 references added (20 deliberately conservative), with no direct SQL
+operation removed and a byte-identical policy. Exact deltas and limitations live in the
+owning checkpoint. The parser root's ceiling shrinks from 21,248 to 21,030 lines, with small
+private provenance/test modules; this is not terminal physical or semantic closure.
+
+The subsequent C4 repair above `bca3885f` corrects implicit child resolution beneath
+explicit `#[path]` file mounts in both source walkers. Five compiler-backed fixtures
+and the full 334-test checker suite pass. The exhaustive inventory comparison also
+passes with the same 10,084 persistence rows and byte-identical snapshot/policy;
+no ceiling or exception is widened. This closes the bounded module-path defect,
+not C4 or production C0/C3 phase coordination; details live in the owning checkpoint.
+
+The C0 cut above `36d0ccbf` adds the exact C++ world/map packet-filter contract to
+`wow-handler`, tested across all processing classes and Player residences in dev/release.
+It corrects the misleading Inplace/socket-thread description, without changing dispatch.
+The current independent Session and map loops still lack the required phase coordination;
+the integration cut and queue/incarnation/barrier obligations are recorded in the owning
+checkpoint. A passing pure filter test is not production scheduling or C0 acceptance.
+
+The C0/C1 residence cut above `590b93f0` checks canonical index, generation, backing
+Player identity/container and world/map binding together. Existing residence queries
+now fail closed on inconsistent state; the checked API distinguishes those errors
+from missing and replaced owners. Public production-library lifecycle and Session
+login/save regressions exercise the change. This is invalid-state admission hardening,
+not a new scheduler, storage migration or complete lifecycle/durability acceptance;
+exact tests and remaining boundaries live in the Session checkpoint.
+
+The following C0 queue cut above `bdae6204` preserves unselected packets in one
+bounded Session FIFO when a handler future is cancelled, without replaying the
+selected handler's partial effects. C++ LockedQueue filters only the head and stops
+when it is ineligible; this constrains the pending world/map integration. Current
+normal dispatch order and registry remain unchanged; phase filtering and coordination
+are still not enabled. The checkpoint records focused tests and the reviewed small
+logical-owner growth, not a physical monolith waiver or C0 completion.
+
+The subsequent C0/C3 rename cut above `ab1cdab3` connects owned read/commit stages
+to the production Session driver: the handler submits and returns, Session admits ready
+reads and presents confirmed commit results, and composition drains submitted commits
+before disconnect save. Workers cannot mutate Session/Player or send packets. Cancellation
+of the drain retains its handles; worker failure or a shutdown timeout is not clean
+quiescence or rollback proof. This changes asynchronous scheduling while preserving Rust's
+commit-result-before-response fence. Global World/Map phase coordination, the first complete
+Player lifecycle/save vertical, resource/backpressure and live/durability acceptance remain
+open. Exact validation and source anchors live in the owning Session checkpoint.
+
+The following cut above `b35bba96` reproduces and removes blocking capacity waits
+from ready rename callbacks. Session now retains owned channel-send futures for the
+entire ready batch, preserving FIFO against later packets without repeating commits.
+Callback coordination/transport lifetime moves into the private Session driver; read/
+commit application stages stay transport-free. Worker loss stops read admission and
+retires Session rather than pretending completion was a normal DB rejection. General
+synchronous sends and immediate admission-error responses remain explicit C0/C3 work;
+this is bounded callback evidence, not whole-runtime backpressure or durability acceptance.
+
+## Current architecture and execution checkpoint — 2026-09-05
+
+The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal
+commits/checkpoints do not create micro-issues, micro-PRs or a new approval gate. The current
+contract-led plan, exact inventories, acceptance evidence and remaining boundaries live in
+[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md). #153 verifies the
+complete result; it is not an implementation owner for already-known cuts.
+
+The [explicit reanalysis cadence](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
+is conformance before production storage migration, then review of the first real C1/C2 vertical
+with C0 execution evidence before replicating its design. C4 checks the complete #578 balance
+before #583 production integration; #153 audits both merged macros. After architecture, review
+each selected gameplay macro just in time and perform the fresh whole-port planning pass at
+#47/M6.2. No checkpoint introduces another routine approval, issue or PR.
+
+At the reviewed local HEAD, canonical `wow_entities::Player` owns the migrated gameplay families
+and `wow_map::MapManager` coordinates its generation-checked active/detached lifetime. The former
+whole-Player Session write-back and ObjectAccessor Player-copy paths are retired. This is real
+ownership progress, not proof that Session is already a thin shell: gameplay orchestration,
+catalog/service retention, broad mutable Map access and runtime bridges remain #578 work.
+SQLx isolation under #169 is closed; terminal capability cohesion and the complete Session/runtime
+boundary still need evidence. Closing #252/#297/#378 proved their stated directory, transport and
+classification cuts, not completion of #133.
+
+The next cuts are selected by complete operation contracts and their deletion conditions, not
+field counts. Distinguish implementation, production-path integration and parity evidence. Use
+focused checks during a cut, bounded integration/failure tests at the affected owner boundary,
+and the exhaustive/final stack at terminal acceptance. Retain required live/capture evidence and
+explicit publication/deployment approvals; a green fixture suite does not replace them.
+
+After the architecture deliverable, re-audit the next port macro against current Rust and exact
+C++ anchors before implementing its residual work. For example, #26 closed a bounded wire/lifecycle
+slice, not general creature spell execution; #30's original claim of no power deduction is stale
+(`handlers/spell.rs` already checks and deducts canonical Player power and tests rejection without
+deduction). Existing #30–#35 and the full-parity ledgers retain their broader contracts. Do not
+restart completed work from an old issue diagnosis or silently narrow a milestone to one capture.
+
+The latest [modularity and ECS plan](../architecture/modularity-and-ecs-plan.md), reviewed above
+laboratory HEAD `ee9a0128`, **selects private selective `hecs` now**, retaining cohesive domain
+aggregates. This is a design choice, not an installed backend or proof it beats every alternative.
+The finite independent-state/third-module checkpoint precedes production migration,
+not another open-ended backend selection. Its two-module pre-freeze stage passes
+at `118171c1`; the post-freeze independent third module also passes all four producer/lifecycle
+tests at `c67acbfd`, without host/ABI/oracle edits. The 320-sample aarch64 campaign also passes
+all preregistered gates: [result, costs and retained evidence](../architecture/modularity-conformance-results.md).
+This completes finite pre-migration conformance, not production acceptance or a 10 ms frame
+budget; the next checkpoint is the first real C1/C2 vertical with C0 admission/phase evidence.
+The first production C1 cut now captures one coherent full-save projection and acknowledges
+only its saved incarnation/row values, retaining changes made during pending I/O. The old
+group-wide ACK is test-only. Production-linked controlled-persistence tests cover late change,
+replacement, rollback, Unknown and cancellation; they do not establish real DB/relogin or
+scheduler parity. All C0–C4 acceptance remains open to the extent recorded in the
+[checkpoint](../architecture/session-578-checkpoint.md), including far-transfer save semantics.
+An authorized live run on 2026-09-05 now adds bounded **real normal-save/relogin** evidence
+for runtime `68fb338b` with QA tooling `04d54074`: two confirmed MariaDB save transactions,
+two fresh logins, 13 skill/207 reputation rows retained, and identical 42-known-spell packets.
+Persisted spell/favorite/equipment/transmog tables were empty, so their nonempty mutation
+branches are not claimed live-proven. The original world executable was restored and verified
+serving; BNet was not restarted. No crash, injected failure, scheduler/transfer parity,
+publication or macro completion is implied. Exact hashes, scope and reports are in the checkpoint.
+The C1 lifetime cut rejects occupied-map destruction/bulk unload and preserves the old
+incarnation when replacement cannot allocate a generation. Controlled production-linked map
+tests reproduce the old failure; automatic evacuation and complete shutdown QA remain open.
+Map occupancy now comes solely from canonical Players: the manual count field/setter/fallback
+is retired, and instance-full/GM fixtures use real occupants with unchanged packet assertions.
+
+Native Rust is the default for first-party/custom extensions; Wasmtime/Core Wasm is the selected
+operator-optional executor of shared hooks/state/lifecycle contracts. **Scope expansion:** #583
+now delivers that bounded adapter and Rust/C guest evidence as well as external stateful modules,
+composition and durable operator lifecycle after #231/#578. #153 audits both macros before #133
+closes, including Wasm acceptance. The bounded delivery no longer waits for M6; the wider #99
+ecosystem retains a fresh planning gate. Current login-message modules do not prove this product.
+
+The completed [V1 laboratory](../architecture/modularity-lab-results.md) supplies 34 contract
+checks and 120 corrected-campaign samples on aarch64, all within its pre-registered budgets.
+It demonstrates the modeled contracts/costs, not arbitrary module state, a non-Rust guest, real
+save durability or production integration. Its first campaign is retained as superseded after
+three test/adapter defects were corrected. The separate V2 result above adds independent-module
+evidence; neither experiment installs a production ECS/Wasm dependency, deploys code, advances
+gameplay completion or establishes a whole-port capability-audit base.
 
 Database migration boundary (issue #256): the daemon-owned permissive `DbUpdater` has been
 retired. The `rustycore-db` composition binary is the sole schema migration authority, using a
@@ -33,8 +201,8 @@ or downloads artifacts. Exact legacy hashes or explicit schema fingerprints prov
 TDB343.24081 transition without reapplying already-materialized RustyCore DDL. Baseline artifact
 acquisition remains #255 and the terminal persistence audit remains #153.
 
-Trainer architecture note (issues #157/#158/#159): list and the intentionally undispatched buy
-adapter share one immutable offer decision. Normal trainer teaching now revalidates that decision
+Trainer architecture note (issues #157/#158/#159, later dispatched by #142): list and the buy
+adapter share one immutable offer decision. Normal trainer teaching revalidates that decision
 under the exclusive money owner, commits effective money plus the exact #164 spell/skill result in
 one Character DB transaction, attributes unknown COMMIT outcomes with a durable 128-bit operation
 token, installs runtime state, and then publishes money, visual kits 179/362 and acquisition actions
@@ -103,11 +271,13 @@ and merely plausible optimizations do not meet that bar.
 
 ---
 
-## 0. The central architectural truth: the "represented" pattern
+## 0. Historical capability audit: the "represented" pattern
 
-Most of the server is built on a **`represented_*_like_cpp` pattern**: a packet handler
-**decodes the request, validates the C++ rules, and records the *intent*** — but **defers
-the actual game-state mutation to a live runtime layer that mostly does not exist yet.**
+The historical audit found many **`represented_*_like_cpp` paths** where a handler decoded
+and validated a request but recorded intent without the required live mutation. This explained
+why represented breadth was not playable parity. It is not a current rule that every function
+with that suffix is inert: later paths directly mutate canonical owners. Trace the selected
+operation from admission through mutation, persistence and publication before diagnosing it.
 
 - Where the mutation path *was* wired, the feature genuinely **WORKS** (melee combat,
   bounded creature aggro/threat and spell-wire publication, inventory move/equip/destroy,
@@ -397,7 +567,10 @@ topology/order and correlated payload semantics.
 
 ---
 
-## 1. The honest progress picture (three axes, not one number)
+## 1. Historical progress picture (three axes, not one number)
+
+Historical capability snapshot at the audit base above, not measured percentages for #578 or
+current HEAD. The current architecture checkpoint reports acceptance boundaries separately.
 
 | Axis | Estimate | Meaning |
 |---|---:|---|
@@ -409,7 +582,10 @@ Part 1 of the plan drives **B** to complete; Part 2 drives **C** to complete.
 
 ---
 
-## 2. Grounded capability matrix (verified to subsystem level)
+## 2. Historical capability matrix and bounded additions
+
+This matrix records the historical subsystem audit and its explicitly dated additions. Its old
+paths and statuses are discovery pointers, not proof that the same gap still exists at HEAD.
 
 **WORKS** = mutates live state + persists/broadcasts like C++ · **WORKS⚠** = live + persists
 **but has correctness/integrity bugs** (see [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md)) ·
@@ -424,7 +600,7 @@ observable mutation · **ABSENT**.
 | Capability | Status | Evidence / defects |
 |---|---|---|
 | Auth/BNet SRP6 + world-enter handshake | WORKS | recent `fix(bnet)` commits; played live |
-| Player base/stat projection | **PARTIAL (live)** | issue #60 replaces the C# `player_levelstats` path with `player_racestats` + `player_classlevelstats`, `GtBaseMP`, `CreateHealth=0` and a shared create/login/equipment/level-up StatSystem projection. Login now seeds passive parry/block capability before projection and defers its saved-health clamp until persisted stat auras and represented item/enchantment modifiers are active; live total-stat aura recalculations retain those item bonuses and emit no pre-CreateObject VALUES delta. Paired accredited C++/Rust login captures match the scoped max-health/mana, five primary stats, armor, base mana, AP and damage fields exactly, including the 3% total-stat racial passive. The complete login `UpdateObject` still has unrelated field divergences, and wider unit-mod/aura/item-stat parity remains open. |
+| Player base/stat projection | **PARTIAL (live)** | issue #60 replaces the incorrect `player_levelstats` path with C++-anchored `player_racestats` + `player_classlevelstats`, `GtBaseMP`, `CreateHealth=0` and a shared create/login/equipment/level-up StatSystem projection. Login seeds passive parry/block capability before projection and defers its saved-health clamp until persisted stat auras and represented item/enchantment modifiers are active; covered total-stat aura recalculations retain those item bonuses and emit no pre-CreateObject VALUES delta. The recorded paired C++/Rust login captures match the scoped max-health/mana, five primary stats, armor, base mana, AP and damage fields, including the 3% total-stat racial passive. That evidence does not establish complete login `UpdateObject` or wider unit-mod/aura/item-stat parity, which remain open. |
 | Starting skills and skill-rewarded login spells | **WORKS (scoped issue #62)** | `SkillRaceClassInfo` now follows C++ `Availability`/`MinLevel`; default skill rank/max/step follows language, level, mono, tier, always-max and DK rules; loaded rows are normalized like `_LoadSkills`; and the live no-DB-spell login path applies `LearnSkillRewardedSpells` with real spell levels, quest fallback, Riding, masks and actual skill values. Correct WDC4 inline IDs restore Common-compressed `SkillLineAbility` fields. A live Blood Elf Hunter C++/Rust pair yields the same exact 43-spell set under the reviewed unordered-map comparator; bit/count/list/favorites integrity remains strict. Wider skill gain/update/discovery/unlearn runtime remains in L18. |
 | Player movement + broadcast to nearby | WORKS⚠ | `movement.rs:310`; trust-client position (D-H10), creature destroy deferred (D-H15), async CREATE race (D-H14) |
 | Melee combat (deals damage→death→loot) | **PARTIAL** | `session.rs:47635`; **no damage formula / hit table / armor mitigation** (D-H1, D-H2) — numbers are wrong |
@@ -512,7 +688,7 @@ refresh · Weather · Warden · Calendar · Petitions · Pet/Totem AI. Empty cra
 
 ---
 
-## 3. Known live bugs blocking "playable" (open after issues #7 and #8)
+## 3. Historical playable-blocker notes and bounded fixes
 
 Issue #7's CUF login crash is fixed on its branch: Rust now matches the exact C++
 post-add order, and a paired live capture with one non-empty profile pins the
@@ -544,15 +720,18 @@ byte-clean login capture.
 
 ## 4. Architecture reality
 
-Three world models coexist. The **legacy global creature loop is the de-facto live runtime**
-(works, default-on); the **canonical `wow_map::MapManager` is an empty `Map::Update`
-skeleton** (the intended destination, dispatches no AI/combat). The Rust legacy model is
-structurally inverted from C++ (sessions historically drove ticks; C++ has the map tick own
-creature update). Convergence is incremental (the `_attic/` big-bang died at 176 errors).
+At the 2026-09-05 reviewed local HEAD, the legacy creature runtime still supplies behavior while
+canonical Map storage owns active Players and the staged `MapRuntime` applies typed transitions.
+It is no longer accurate to call canonical Map an empty storage/runtime skeleton. Nor does that
+make it the sole production simulation driver: shared manager synchronization, legacy/canonical
+bridges and the remaining Session-driven work are explicit convergence boundaries.
 
-**Code health:** `world-server` compiles clean (22 warnings). ~19k test fns. Logic is
-concentrated in a 235k-line `wow-world` monolith; the per-domain crate split in the roadmap
-(`wow-spell`, `wow-combat`, …) is aspirational, not real.
+The target remains a modular monolith with one mutable owner per concept, explicit C++ phases and
+generation-checked Player identity. `MapRuntime` currently uses staged synchronous commands under
+the existing manager synchronization; a dedicated task per map and a production ECS are not
+claimed. See [the accepted entity-world ADR](adr-map-runtime-entity-world.md) and
+[the current checkpoint](../architecture/session-578-checkpoint.md) for actual cuts and evidence.
+Old LOC, warning and test counts elsewhere in this document must not be reused as current metrics.
 
 ---
 
@@ -565,3 +744,13 @@ only proven unordered C++ collection order, while retaining every stable value/c
 malformed input — (3) it has been **exercised on a running server/client**, and (4) C++ refs +
 the validating capture/test are cited.
 `represented-complete` is no longer a closure state — it means "logic drafted, not yet live".
+
+This gameplay-capability definition does not require a fresh capture for every behavior-preserving
+structural commit. Refactors follow the proportional gates in AGENTS.md and their explicit issue
+acceptance: preserve bytes, metadata, connection and order with focused evidence; obtain the
+required action-specific capture/live evidence when the change or acceptance calls for it.
+Report a bounded proof as bounded, and distinguish code tests, historical golden regression,
+fresh runtime evidence and full functional parity. Architecture completion requires the complete
+#133/#578/#583 contracts (including the operator-optional Wasm delivery and independent physical
+acceptance) and #153 audit, not a favorable field count or test total. Neither architecture
+closure nor playable M6 closes the full Part-2 parity ledgers.

@@ -13,6 +13,7 @@ use wow_data::reputation::{
     MAX_SPILLOVER_FACTIONS_LIKE_CPP, RepSpilloverTemplateLikeCpp, ReputationFlagsLikeCpp,
     ReputationRankLikeCpp,
 };
+use wow_entities::{PlayerGameplayState, PlayerReputationRecord};
 use wow_packet::packets::reputation::{
     FACTION_COUNT_LIKE_CPP, FactionStandingData as FactionStandingDataPacketLikeCpp,
     ForcedReaction as ForcedReactionPacketLikeCpp,
@@ -122,6 +123,78 @@ pub struct ReputationMgrLikeCpp {
 impl ReputationMgrLikeCpp {
     pub fn new_like_cpp() -> Self {
         Self::default()
+    }
+
+    /// Rebuild the C++ `ReputationMgr` working view from its canonical
+    /// `Player`-owned state. DB2 catalogs and packet types deliberately remain
+    /// outside `wow-entities`; this value is a short-lived service view, not a
+    /// second authority.
+    pub fn from_player_gameplay_state_like_cpp(state: &PlayerGameplayState) -> Self {
+        let factions = state
+            .reputations
+            .iter()
+            .map(|record| {
+                (
+                    record.reputation_list_id,
+                    FactionStateLikeCpp {
+                        id: record.faction_id,
+                        reputation_list_id: record.reputation_list_id,
+                        standing: record.standing,
+                        visual_standing_increase: record.visual_standing_increase,
+                        flags: ReputationFlagsLikeCpp::from_bits_retain(record.flags as u16),
+                        need_send: record.need_send,
+                        need_save: record.need_save,
+                    },
+                )
+            })
+            .collect();
+        let forced_reactions = state
+            .forced_reputation_ranks
+            .iter()
+            .filter_map(|(faction_id, rank)| {
+                ReputationRankLikeCpp::from_u8_like_cpp(*rank).map(|rank| (*faction_id, rank))
+            })
+            .collect();
+        Self {
+            factions,
+            forced_reactions,
+            rank_counters: ReputationRankCountersLikeCpp {
+                visible: state.reputation_rank_counters[0],
+                honored: state.reputation_rank_counters[1],
+                revered: state.reputation_rank_counters[2],
+                exalted: state.reputation_rank_counters[3],
+            },
+            send_faction_increased: state.send_faction_increased,
+        }
+    }
+
+    /// Publish one completed service mutation back to the canonical `Player`.
+    pub fn write_to_player_gameplay_state_like_cpp(self, state: &mut PlayerGameplayState) {
+        state.reputations = self
+            .factions
+            .into_values()
+            .map(|faction| PlayerReputationRecord {
+                faction_id: faction.id,
+                reputation_list_id: faction.reputation_list_id,
+                standing: faction.standing,
+                flags: u32::from(faction.flags.bits()),
+                visual_standing_increase: faction.visual_standing_increase,
+                need_send: faction.need_send,
+                need_save: faction.need_save,
+            })
+            .collect();
+        state.forced_reputation_ranks = self
+            .forced_reactions
+            .into_iter()
+            .map(|(faction_id, rank)| (faction_id, rank.as_u8()))
+            .collect();
+        state.reputation_rank_counters = [
+            self.rank_counters.visible,
+            self.rank_counters.honored,
+            self.rank_counters.revered,
+            self.rank_counters.exalted,
+        ];
+        state.send_faction_increased = self.send_faction_increased;
     }
 
     pub fn factions(&self) -> &BTreeMap<RepListIdLikeCpp, FactionStateLikeCpp> {

@@ -1,5 +1,10 @@
 # Guía de Migración Completa - Fase 2
 
+> Archivo histórico del intento fallido de abril de 2026. Los cambios y comandos
+> siguientes no son instrucciones vigentes y no deben ejecutarse como plan de
+> migración. Consultar [el índice del archivo](README.md) y
+> [STATE.md](../../../docs/migration/STATE.md) para la realidad actual.
+
 ## Resumen
 
 Esta guía describe cómo migrar completamente de `self.creatures: HashMap<>` local al `MapManager` global.
@@ -206,7 +211,7 @@ cargo test -p wow-world --lib
 
 ## Notas Importantes
 
-1. **CreatureAI vs WorldCreature**: 
+1. **CreatureAI vs WorldCreature**:
    - `CreatureAI` es la estructura legacy que estaba en `self.creatures`
    - `WorldCreature` es la nueva estructura en el MapManager global
    - Ambas son similares pero pueden tener campos ligeramente diferentes

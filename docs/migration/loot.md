@@ -1,5 +1,10 @@
 # Migration: Loot
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Loot/` (+ `src/server/game/Handlers/LootHandler.cpp`)
 > **Rust target crate(s):** `crates/wow-loot/` (foundation started: `LootStoreItem`, `LootTemplate`, `LootGroup`, `LootStore`), `crates/wow-packet/src/packets/loot.rs` (wire), `crates/wow-world/src/handlers/loot.rs` (session handlers)
 > **Layer:** L6 (Game systems — depends on Entities/Creature/GameObject L4, Group L6, Conditions L7, Items L4, Player inventory L4)

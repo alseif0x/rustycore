@@ -1,5 +1,10 @@
 # Migration: Entities / GameObject
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/`
 > **Rust target crate(s):** `crates/wow-world/`, `crates/wow-packet/`, `crates/wow-data/`, `crates/wow-database/`
 > **Layer:** L4 (sub-modules under `entities.md`)
@@ -215,7 +220,7 @@ DBC/DB2 stores read by GameObject:
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/archived/rustycore_ARCHIVED_20260312`:**
-- `crates/wow-packet/src/packets/update.rs` — `GameObjectCreateData` (lines 1271-1395). Has: `guid, entry, display_id, go_type: u8, position, rotation: [f32; 4], anim_progress, state: i8, faction_template, scale`. Implements `write_values_create` (matches client `GameObjectFieldData.WriteCreate`) and `packed_rotation()` (X:22/Y:21/Z:21 layout, validated against C# reference).
+- `crates/wow-packet/src/packets/update.rs` — `GameObjectCreateData` (lines 1271-1395). Has: `guid, entry, display_id, go_type: u8, position, rotation: [f32; 4], anim_progress, state: i8, faction_template, scale`. Implements `write_values_create` (matches client `GameObjectFieldData.WriteCreate`) and `packed_rotation()` (X:22/Y:21/Z:21 layout recorded by the old note; canonical validation not established by that comment).
 - `crates/wow-world/src/handlers/character.rs:2109,2454` — `send_nearby_gameobjects(map_id, position, zone_id)`. Loads from `SEL_GAMEOBJECTS_IN_RANGE`, sets `HighGuid::GameObject`, builds a `GameObjectCreateData`, pushes a `create_gameobject_block`. **No** `GameObject` runtime entity, no `Use`, no state machine, no template caching.
 - `crates/wow-world/src/session.rs:264,444` — `WorldSession.visible_gameobjects: HashSet<ObjectGuid>` for visibility window tracking.
 - `crates/wow-world/src/session.rs:996,1196` — `send_nearby_gameobjects` invocation; `ClientOpcodes::QueryGameObject` dispatch + decode of `QueryGameObject` request (response builder is incomplete).
@@ -226,7 +231,7 @@ DBC/DB2 stores read by GameObject:
 - `crates/wow-packet/src/packets/query.rs` — `QueryGameObject` request packet decoder.
 
 **What's implemented:**
-- Spawn broadcast: nearby `gameobject` rows are read, packed-rotation computed, a CREATE block goes out. Client renders the model, the packed rotation matches C# `GameObject.UpdatePackedRotation()` exactly per a code comment.
+- Spawn broadcast: nearby `gameobject` rows are read, packed-rotation computed, a CREATE block goes out. Client renders the model, the old packed-rotation parity claim relied on a code comment and is not accepted evidence.
 - Visibility window (`visible_gameobjects`) so the same GO doesn't get re-broadcast.
 - `QueryGameObject` opcode is wired (request decoded; response not built).
 
@@ -359,7 +364,7 @@ DBC/DB2 stores read by GameObject:
 
 <!-- REFINE.024:END tests-required -->
 
-- [ ] Test: `GameObject::packed_rotation()` matches C# byte-for-byte for the 5 most common GO entries (already validated in source comment — formalize as test)
+- [ ] Test: contrast `GameObject::packed_rotation()` against canonical C++ packing for a controlled set of rotations; do not treat the source comment as prior validation
 - [ ] Test: door `Use` sets state ACTIVE, schedules auto-close at `template.door.autoClose` ms, then resets to READY
 - [ ] Test: button with `linkedTrap` triggers the linked trap GO entry
 - [ ] Test: chest `Use` consumes a charge if `template.chest.consumable == 1`; otherwise re-loots after `chestRestockTime`
@@ -411,7 +416,7 @@ DBC/DB2 stores read by GameObject:
 <!-- REFINE.023:END known-divergences -->
 
 - The big tagged union in `GameObjectTemplate` (`door {}`, `button {}`, `chest {}`, ...) maps cleanly to a Rust `enum` but be careful: many entries share field names with different semantics across types (e.g. `linkedTrap` in `door`/`button`/`chest`, `cooldown` in `trap`/`goober`, `questID` everywhere). Keep field names exact per the C++ struct so SQL loaders stay translateable.
-- `m_packedRotation` layout is `Z:bits[0..21]`, `Y:bits[21..42]`, `X:bits[42..64]` with sign-baked-into-w (`w_sign = sgn(W)`); `Y` and `Z` use 21 bits (2^20 magnitude), `X` uses 22. The Rust `packed_rotation()` already implements this correctly per a code comment validated against the C# reference. Don't refactor it without re-running the round-trip test.
+- `m_packedRotation` layout is `Z:bits[0..21]`, `Y:bits[21..42]`, `X:bits[42..64]` with sign-baked-into-w (`w_sign = sgn(W)`); `Y` and `Z` use 21 bits (2^20 magnitude), `X` uses 22. The Rust `packed_rotation()` was claimed correct by an unverified comment. That claim is not accepted; contrast the canonical packing and test exact bytes before changing it.
 - `GO_FLAG_TRANSPORT` is set on both static (type 11) and MO (type 15) transports; check `GetGoType()` to disambiguate.
 - A door's *initial* state is `template.door.startOpen` (0=closed, 1=open). Once `UseDoorOrButton` flips it, the auto-close goes back to the *opposite* of the initial state — easy to invert.
 - `m_perPlayerState` (per-player GOState override) is critical for phased BG/quest content — a door looks open for some players, closed for others. C++ uses `unique_ptr` of a hashmap allocated lazily; in Rust prefer `Option<HashMap<...>>` to avoid the alloc when unused.
@@ -421,7 +426,6 @@ DBC/DB2 stores read by GameObject:
 - `GAMEOBJECT_TYPE_NEW_FLAG` and `GAMEOBJECT_TYPE_NEW_FLAG_DROP` only exist in 8.x+; in 3.4 BG flags are `GAMEOBJECT_TYPE_FLAGSTAND` and `GAMEOBJECT_TYPE_FLAGDROP`. Verify against the WoLK 3.4.3 client before adding.
 - GO with `unique_users` set tracks individual contributors; that's how summoning-circle "contribute" multi-player ritual UI knows when 4 players have clicked.
 - Always use `IsAtInteractDistance(player, spell)` for the range check; raw `GetDistance` ignores `template.<type>.InteractRadiusOverride`.
-- C# reference: `/home/server/woltk-server-core/Source/Game/Entities/GameObject/GameObject.cs` is the canonical fallback for ambiguous WoLK 3.4 behavior.
 
 ---
 

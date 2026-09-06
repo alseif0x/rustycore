@@ -1,5 +1,10 @@
 # Migration: Accounts (AccountMgr / RBAC / BattlenetAccountMgr)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Accounts/`
 > **Rust target crate(s):** `crates/wow-database/`, `crates/wow-network/`, `crates/bnet-server/`, `crates/wow-world/` (consumer)
 > **Layer:** L1 — Account management & authorization
@@ -223,7 +228,7 @@ None directly. `AccountMgr` is invoked indirectly through:
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - Without RBAC, every gameplay check that should call `HasPermission` is either always-true or hard-coded by gmlevel — needs an audit of `wow-world` for hidden `gmlevel` constants.
 - BNet REST registration may be silently writing rows that don't satisfy the same invariants as `Battlenet::AccountMgr::CreateBattlenetAccount` (specifically the `GetSrpUsername` = SHA256(email) hashing).
-- The Rust `world-server` reads `account.session_key_bnet` as a 64-byte varbinary. #BNET.11 closed the old C#/hex ambiguity against Trinity C++: TC writes 64 raw bytes with `setBinary`, and Rust writes the same `client_secret[32] || server_secret[32]` raw bytes.
+- The Rust `world-server` reads `account.session_key_bnet` as a 64-byte varbinary. #BNET.11 closed the old binary/hex ambiguity against Trinity C++: TC writes 64 raw bytes with `setBinary`, and Rust writes the same `client_secret[32] || server_secret[32]` raw bytes.
 - `Utf8ToUpperOnlyLatin` semantics (TC's "upper-case Latin only, leave Cyrillic etc. alone") — Rust `.to_uppercase()` is **not** equivalent. Anything that compares username/password/email against a stored value must match this exact normalization or accounts created on the C++ stack will fail to log in via Rust.
 
 **Tests existing:**

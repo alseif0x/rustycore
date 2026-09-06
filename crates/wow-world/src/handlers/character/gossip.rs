@@ -57,7 +57,7 @@ impl WorldSession {
         self.mutate_world_creature(hello.unit, |creature| {
             creature.pause_interaction_movement_like_cpp();
         });
-        self.gossip_options.clear();
+        self.clear_player_gossip_options_like_cpp();
 
         if let Some(access) = gossip_access.as_ref() {
             if let Some(msg) = self
@@ -159,10 +159,15 @@ impl WorldSession {
             return false;
         };
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let player_condition_store = self.player_condition_store().cloned();
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
+        else {
+            return false;
+        };
 
         let mut source_info = crate::conditions::ConditionSourceInfo::from_targets(
             Some(&player_object),
@@ -174,7 +179,9 @@ impl WorldSession {
         source_info.set_unit_target_snapshot(1, source_unit_snapshot);
         if let Some(store) = player_condition_store.as_ref() {
             source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(0, player_condition_context.as_context(self));
+            if let Some(context) = player_condition_context.as_context(self) {
+                source_info.set_player_condition_context(0, context);
+            }
         }
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(
@@ -425,7 +432,9 @@ impl WorldSession {
         }
 
         // Store gossip state for when the player selects an option.
-        self.gossip_options = stored_options;
+        if !self.replace_player_gossip_options_like_cpp(stored_options) {
+            return None;
+        }
         self.set_player_interaction_source_like_cpp(npc_guid);
 
         Some(GossipMessage {
@@ -462,11 +471,7 @@ impl WorldSession {
         );
 
         // Find the selected option in our stored gossip data.
-        let opt = self
-            .gossip_options
-            .iter()
-            .find(|o| o.gossip_option_id == select.gossip_option_id)
-            .cloned();
+        let opt = self.player_gossip_option_like_cpp(select.gossip_option_id);
         let opt = match opt {
             Some(o) => o,
             None => {

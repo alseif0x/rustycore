@@ -54,6 +54,10 @@ movement are the only reviewed symmetric import filters.
 
 ## Reproducibility and safety
 
+The service commands below are for the recorded PM2 capture environment. They
+are not systemd deployment instructions; see the maintained
+[recording boundary](../../README.md#recording-a-capture) before a new run.
+
 - The bot requires zero globally-online characters before setup, after logout
   verification, and after cleanup. It snapshots both disposable characters'
   position/money plus level, XP, health, powers, rest, exploration and title
@@ -352,8 +356,10 @@ After that import reports `CLEAN`, maintainers must:
    provenance and all repository/executable/PM2/config identities;
 2. set `requirement.json` to `"status": "ready"` with no stale
    `blocked_reason`;
-3. run `cargo run -p capture-diff -- verify-required
-   loot-single-item-claim` and the local `capture` preflight.
+3. run `cargo run -p capture-diff -- verify-required loot-single-item-claim`
+   and `cargo test -p capture-diff`; retain their results with the exact SHA.
+   The former local `capture` preflight was retired. The ordinary publication
+   gate is `./tools/validation-v2 final`, plus explicit issue acceptance.
 
 The pre-lineage issue-#106 import on 2026-07-18 did not produce the RAW
 manifests now required by this gate, so it does not satisfy those steps. A new

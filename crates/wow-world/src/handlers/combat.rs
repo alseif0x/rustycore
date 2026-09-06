@@ -29,7 +29,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_attack_swing",
-        handler: |session, pkt| Box::pin(async move { session.handle_attack_swing(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_attack_swing(pkt).await }),
     }
 }
 
@@ -39,7 +39,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_attack_stop",
-        handler: |session, pkt| Box::pin(async move { session.handle_attack_stop(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_attack_stop(pkt).await }),
     }
 }
 
@@ -49,7 +49,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_sheathed",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_sheathed(pkt) }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_sheathed(pkt) }),
     }
 }
 
@@ -158,7 +158,7 @@ impl WorldSession {
         }
 
         if let Some(combat_target) = command.combat_target_after {
-            self.combat_target = combat_target;
+            self.set_combat_target_like_cpp(combat_target);
         }
         if let Some(in_combat) = command.in_combat_after {
             self.set_in_combat_like_cpp(in_combat);

@@ -1,0 +1,11 @@
+[package]
+name = "conformance-encounter"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+conformance-contract.workspace = true

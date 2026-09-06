@@ -1,5 +1,10 @@
 # Migration: Server/Packets (per-domain message structs)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/`
 > **Rust target crate(s):** `crates/wow-packet/src/packets/`
 > **Layer:** L1 (cross-cutting reference; sits on top of `shared-packets.md` L0 ByteBuffer/WorldPacket)
@@ -349,7 +354,7 @@ For every domain pair where a Rust struct exists, validate byte-for-byte parity 
 - **Two-step dispatch (AGENTS.md):** adding a packet struct alone is not enough — the opcode must also have a `match` arm AND `inventory::submit!` registration in the dispatcher. Forgetting the `submit!` silently drops the opcode. Document this in each new packet module's doc-comment.
 - **`use wow_packet::ClientPacket;`** must be imported explicitly in each handler module decoding a packet. The trait does not auto-import. (Handlers, not packet modules, but the pattern arises whenever a new `ClientPacket` impl is added here.)
 - **`Position` fields are `.x .y .z .orientation`** — never `.o`. Recurring mistake when writing position into a packet.
-- **3.4.3.54261 is a backport client.** Many opcodes look like Cata/MoP IDs but with WotLK semantics. When in doubt cross-check against `/home/server/woltk-server-core/Source/` (C# canonical for this exact build).
+- **3.4.3.54261 is a backport client.** Many opcodes look like Cata/MoP IDs but with WotLK semantics. Resolve uncertainty against the exact C++ packet class/registry or an identified client capture; no other implementation is a layout authority.
 - **`*_stubs.rs` from AGENTS.md** does NOT live under `crates/wow-packet/src/packets/`. It lives in `crates/wow-world/_attic/stubs.rs.txt` (a `.txt` rename so cargo skips it) and only stubs handlers — NOT packet structs. The packet crate has zero stub files of its own; partial coverage shows up as missing-file rather than as `*_stubs.rs`.
 - **`character_packets.rs` (10 LOC) is the only smell** of stub-ness inside `wow-packet`. Treat it as #PKD.24.
 - **Bit-packing convention:** TC writes bit fields LSB-first within a byte then flushes; the Rust impl in `world_packet.rs` mirrors that. Any new packet body using bits must call `flush_bits()` before any byte-aligned write that follows, or the buffer will desync.

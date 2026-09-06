@@ -38,10 +38,21 @@ impl WorldSession {
 
     /// Bounded representation of C++ `Player::GetQuestDialogStatus(Object const*)`.
     /// Creature sources use Creature starter/ender relations; GameObject sources use
-    /// GO starter/ender relations. Full AI dialog status, ConditionMgr, event overlays
-    /// and important/covenant/journey DB2 classification remain documented migration gaps.
+    /// GO starter/ender relations. AI status, ConditionMgr, events and journey remain gaps;
+    /// important/covenant presentation uses the optional QuestInfo catalog below.
     pub(crate) fn get_represented_quest_giver_status_like_cpp(
         &self,
+        source: RepresentedQuestGiverStatusSourceLikeCpp,
+    ) -> u64 {
+        self.get_represented_quest_giver_status_with_catalog_like_cpp(
+            self.quest_info_store.as_deref(),
+            source,
+        )
+    }
+
+    pub(crate) fn get_represented_quest_giver_status_with_catalog_like_cpp(
+        &self,
+        quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
         source: RepresentedQuestGiverStatusSourceLikeCpp,
     ) -> u64 {
         let Some(store) = &self.quest_store else {
@@ -60,12 +71,19 @@ impl WorldSession {
         let mut result = quest_giver_status::NONE;
 
         for quest in turn_in_quests {
-            match self.quest_status_like_cpp(quest.id) {
+            let Some(status) = self.quest_status_like_cpp(quest.id) else {
+                return quest_giver_status::NONE;
+            };
+            match status {
                 QUEST_STATUS_COMPLETE_LIKE_CPP => {
-                    result |= self.represented_quest_reward_complete_status_like_cpp(quest);
+                    result |=
+                        Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
+                            .reward_complete();
                 }
                 QUEST_STATUS_INCOMPLETE_LIKE_CPP => {
-                    result |= self.represented_quest_reward_status_like_cpp(quest);
+                    result |=
+                        Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
+                            .reward();
                 }
                 _ => {}
             }
@@ -98,7 +116,7 @@ impl WorldSession {
                 continue;
             }
 
-            if self.quest_status_like_cpp(quest.id) != QUEST_STATUS_NONE_LIKE_CPP {
+            if self.quest_status_like_cpp(quest.id) != Some(QUEST_STATUS_NONE_LIKE_CPP) {
                 continue;
             }
 
@@ -107,12 +125,11 @@ impl WorldSession {
             }
 
             if self.satisfy_quest_level_represented_like_cpp(quest) {
-                result |= self.represented_quest_available_status_like_cpp(
-                    quest,
-                    self.represented_quest_is_trivial_like_cpp(quest),
-                );
+                result |= Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
+                    .available(self.represented_quest_is_trivial_like_cpp(quest));
             } else {
-                result |= self.represented_quest_future_status_like_cpp(quest);
+                result |= Self::represented_quest_dialog_classification_like_cpp(quest, quest_info)
+                    .future();
             }
         }
 
@@ -139,9 +156,12 @@ impl WorldSession {
         let Some(player_object) = self.build_condition_player_object_like_cpp() else {
             return false;
         };
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
-        let quest_statuses: Vec<_> = self
-            .player_quests
+        let quest_statuses: Vec<_> = recurrence
+            .statuses
             .iter()
             .map(
                 |(&quest_id, status)| crate::conditions::ConditionQuestStatusSnapshot {
@@ -154,7 +174,8 @@ impl WorldSession {
             .quest_store
             .as_ref()
             .map(|store| {
-                self.player_quests
+                recurrence
+                    .statuses
                     .iter()
                     .filter_map(|(&quest_id, status)| {
                         store.get(quest_id).map(|quest| {
@@ -178,29 +199,33 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default();
-        let rewarded_quest_ids: Vec<_> = self.rewarded_quests.iter().copied().collect();
-        let daily_quest_ids: Vec<_> = self
-            .daily_quests_completed_like_cpp
-            .iter()
-            .copied()
-            .collect();
+        let rewarded_quest_ids: Vec<_> = recurrence.rewarded_quest_ids.iter().copied().collect();
+        let daily_quest_ids: Vec<_> = recurrence.daily_quest_ids.iter().copied().collect();
         let quest_snapshot = crate::conditions::ConditionPlayerQuestSnapshot {
             statuses: &quest_statuses,
             objective_progress: &quest_objective_progress,
             rewarded_quest_ids: &rewarded_quest_ids,
             daily_quest_ids: &daily_quest_ids,
         };
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
+        else {
+            return false;
+        };
         let area_table_store = self.area_table_store().cloned();
 
         let mut source_info =
             crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
-        source_info.set_unit_target_snapshot(0, self.condition_player_unit_snapshot_like_cpp());
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
+        source_info.set_unit_target_snapshot(0, player_unit_snapshot);
         source_info.set_player_target_snapshot(0, self.condition_player_snapshot_like_cpp());
         source_info.set_player_quest_target_snapshot(0, quest_snapshot);
         if let Some(store) = self.player_condition_store() {
             source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(0, player_condition_context.as_context(self));
+            if let Some(context) = player_condition_context.as_context(self) {
+                source_info.set_player_condition_context(0, context);
+            }
         }
 
         crate::conditions::is_object_meeting_not_grouped_conditions_like_cpp(
@@ -224,15 +249,19 @@ impl WorldSession {
         )
     }
 
-    fn quest_status_like_cpp(&self, quest_id: u32) -> u8 {
-        if self.rewarded_quests.contains(&quest_id) {
-            return QUEST_STATUS_REWARDED_LIKE_CPP;
+    fn quest_status_like_cpp(&self, quest_id: u32) -> Option<u8> {
+        let state = self.player_quest_gameplay_snapshot_like_cpp()?;
+        if state.rewarded_quest_ids.contains(&quest_id) {
+            return Some(QUEST_STATUS_REWARDED_LIKE_CPP);
         }
 
-        self.player_quests
-            .get(&quest_id)
-            .map(|quest| quest.status)
-            .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
+        Some(
+            state
+                .statuses
+                .get(&quest_id)
+                .map(|quest| quest.status)
+                .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP),
+        )
     }
 
     // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
@@ -243,7 +272,8 @@ impl WorldSession {
         let Ok(skill_u16) = u16::try_from(quest.required_skill_id) else {
             return true;
         };
-        u32::from(self.player_skill_value_like_cpp(skill_u16)) >= quest.required_skill_points
+        self.resolved_player_skill_value_like_cpp(skill_u16)
+            .is_some_and(|value| u32::from(value) >= quest.required_skill_points)
     }
 
     // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
@@ -253,36 +283,48 @@ impl WorldSession {
     // for unknown faction id, Player.cpp:15265 / ReputationMgr.cpp:118-124).
     fn satisfy_quest_reputation_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
         if quest.required_min_rep_faction != 0 {
-            let rep = self
+            let rep = match self
                 .faction_store()
                 .and_then(|store| store.get(quest.required_min_rep_faction))
-                .map(|faction_entry| {
-                    self.reputation_mgr_like_cpp()
-                        .reputation_for_faction_like_cpp(
+            {
+                Some(faction_entry) => {
+                    let Some(rep) = self.with_reputation_mgr_like_cpp(|mgr| {
+                        mgr.reputation_for_faction_like_cpp(
                             faction_entry,
                             self.player_race_like_cpp(),
                             self.player_class_like_cpp(),
                         )
-                })
-                .unwrap_or(0);
+                    }) else {
+                        return false;
+                    };
+                    rep
+                }
+                None => 0,
+            };
             if rep < quest.required_min_rep_value {
                 return false;
             }
         }
 
         if quest.required_max_rep_faction != 0 {
-            let rep = self
+            let rep = match self
                 .faction_store()
                 .and_then(|store| store.get(quest.required_max_rep_faction))
-                .map(|faction_entry| {
-                    self.reputation_mgr_like_cpp()
-                        .reputation_for_faction_like_cpp(
+            {
+                Some(faction_entry) => {
+                    let Some(rep) = self.with_reputation_mgr_like_cpp(|mgr| {
+                        mgr.reputation_for_faction_like_cpp(
                             faction_entry,
                             self.player_race_like_cpp(),
                             self.player_class_like_cpp(),
                         )
-                })
-                .unwrap_or(0);
+                    }) else {
+                        return false;
+                    };
+                    rep
+                }
+                None => 0,
+            };
             if rep >= quest.required_max_rep_value {
                 return false;
             }
@@ -312,6 +354,9 @@ impl WorldSession {
         let Some(quest_store) = &self.quest_store else {
             return true;
         };
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
         for peer in quest_store
             .quests
@@ -325,24 +370,23 @@ impl WorldSession {
 
             // Player.cpp:15366 — SatisfyQuestDay: daily/DF cooldown blocks the group
             // Mirrors the daily/DF pattern from the push path (quest.rs:271-278).
-            if peer.is_df_quest_like_cpp() && self.df_quests_like_cpp.contains(&peer.id) {
+            if peer.is_df_quest_like_cpp() && recurrence.df_quest_ids.contains(&peer.id) {
                 return false;
             }
-            if peer.is_daily_like_cpp() && self.daily_quests_completed_like_cpp.contains(&peer.id) {
+            if peer.is_daily_like_cpp() && recurrence.daily_quest_ids.contains(&peer.id) {
                 return false;
             }
 
             // Player.cpp:15366 — SatisfyQuestWeek: weekly cooldown blocks the group
-            if peer.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&peer.id)
-            {
+            if peer.is_weekly_like_cpp() && recurrence.weekly_quest_ids.contains(&peer.id) {
                 return false;
             }
 
             // Player.cpp:15366 — SatisfyQuestSeasonal: seasonal cooldown blocks the group
             // Mirrors the seasonal pattern from can_take_quest (quest.rs:5948-5963).
-            if peer.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
-                if let Some(bucket) = self
-                    .seasonal_quests_like_cpp
+            if peer.is_seasonal_like_cpp() && !recurrence.seasonal_quests.is_empty() {
+                if let Some(bucket) = recurrence
+                    .seasonal_quests
                     .get(&peer.event_id_for_quest_like_cpp())
                 {
                     if !bucket.is_empty() && bucket.contains_key(&peer.id) {
@@ -360,11 +404,11 @@ impl WorldSession {
             //   Term 1: peer is currently active in player_quests (Incomplete/Complete/Failed).
             //   Term 2: peer was rewarded AND not both quests are repeatable (matching the
             //           C++ second OR operand: GetQuestRewardStatus + !IsRepeatable pair).
-            if self.player_quests.contains_key(&peer.id) {
+            if recurrence.statuses.contains_key(&peer.id) {
                 return false;
             }
             if !(quest.is_repeatable() && peer.is_repeatable())
-                && self.rewarded_quests.contains(&peer.id)
+                && recurrence.rewarded_quest_ids.contains(&peer.id)
             {
                 return false;
             }
@@ -373,120 +417,26 @@ impl WorldSession {
         true
     }
 
-    fn represented_quest_info_like_cpp(
-        &self,
+    fn represented_quest_dialog_classification_like_cpp(
         quest: &wow_data::quest::QuestTemplate,
-    ) -> Option<&QuestInfoEntry> {
-        self.quest_info_store
-            .as_ref()
-            .and_then(|store| store.get(quest.quest_info_id as u32))
+        quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
+    ) -> super::dialog_status::QuestDialogClassificationLikeCpp {
+        super::dialog_status::QuestDialogClassificationLikeCpp::new(
+            quest.flags,
+            quest.flags_ex,
+            quest_info.and_then(|store| store.get(quest.quest_info_id as u32)),
+        )
     }
 
     pub(crate) fn represented_quest_is_important_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        const QUEST_INFO_MODIFIER_IMPORTANT_LIKE_CPP: i32 = 0x400;
-        self.represented_quest_info_like_cpp(quest)
-            .is_some_and(|info| (info.modifiers & QUEST_INFO_MODIFIER_IMPORTANT_LIKE_CPP) != 0)
-    }
-
-    fn represented_quest_is_covenant_calling_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        const QUEST_TAG_TYPE_COVENANT_CALLING_LIKE_CPP: i8 = 15;
-        self.represented_quest_info_like_cpp(quest)
-            .is_some_and(|info| info.quest_type == QUEST_TAG_TYPE_COVENANT_CALLING_LIKE_CPP)
-    }
-
-    fn represented_quest_reward_complete_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-                quest_giver_status::IMPORTANT_QUEST_REWARD_COMPLETE_NO_POI
-            } else {
-                quest_giver_status::IMPORTANT_QUEST_REWARD_COMPLETE_POI
-            }
-        } else if self.represented_quest_is_covenant_calling_like_cpp(quest) {
-            if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-                quest_giver_status::COVENANT_CALLING_REWARD_COMPLETE_NO_POI
-            } else {
-                quest_giver_status::COVENANT_CALLING_REWARD_COMPLETE_POI
-            }
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-                quest_giver_status::LEGENDARY_REWARD_COMPLETE_NO_POI
-            } else {
-                quest_giver_status::LEGENDARY_REWARD_COMPLETE_POI
-            }
-        } else if (quest.flags & wow_data::quest::QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP) != 0 {
-            quest_giver_status::REWARD_COMPLETE_NO_POI
-        } else {
-            quest_giver_status::REWARD_COMPLETE_POI
-        }
-    }
-
-    fn represented_quest_reward_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            quest_giver_status::IMPORTANT_REWARD
-        } else if self.represented_quest_is_covenant_calling_like_cpp(quest) {
-            quest_giver_status::COVENANT_CALLING_REWARD
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            quest_giver_status::LEGENDARY_REWARD
-        } else {
-            quest_giver_status::REWARD
-        }
-    }
-
-    fn represented_quest_available_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-        trivial: bool,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            if trivial {
-                quest_giver_status::TRIVIAL_IMPORTANT_QUEST
-            } else {
-                quest_giver_status::IMPORTANT_QUEST
-            }
-        } else if self.represented_quest_is_covenant_calling_like_cpp(quest) {
-            quest_giver_status::COVENANT_CALLING_QUEST
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            if trivial {
-                quest_giver_status::TRIVIAL_LEGENDARY_QUEST
-            } else {
-                quest_giver_status::LEGENDARY_QUEST
-            }
-        } else if quest.is_daily_like_cpp() {
-            if trivial {
-                quest_giver_status::TRIVIAL_DAILY_QUEST
-            } else {
-                quest_giver_status::DAILY_QUEST
-            }
-        } else if trivial {
-            quest_giver_status::TRIVIAL
-        } else {
-            quest_giver_status::QUEST
-        }
-    }
-
-    fn represented_quest_future_status_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> u64 {
-        if self.represented_quest_is_important_like_cpp(quest) {
-            quest_giver_status::FUTURE_IMPORTANT_QUEST
-        } else if (quest.flags_ex & wow_data::quest::QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP) != 0 {
-            quest_giver_status::FUTURE_LEGENDARY_QUEST
-        } else {
-            quest_giver_status::FUTURE
-        }
+        Self::represented_quest_dialog_classification_like_cpp(
+            quest,
+            self.quest_info_store.as_deref(),
+        )
+        .is_important()
     }
 
     fn represented_quest_is_trivial_like_cpp(
@@ -535,13 +485,16 @@ impl WorldSession {
             return false;
         }
 
-        if self.quest_status_like_cpp(quest.id) != QUEST_STATUS_NONE_LIKE_CPP {
+        if self.quest_status_like_cpp(quest.id) != Some(QUEST_STATUS_NONE_LIKE_CPP) {
             return false;
         }
 
-        if quest.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
-            if let Some(bucket) = self
-                .seasonal_quests_like_cpp
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
+        if quest.is_seasonal_like_cpp() && !recurrence.seasonal_quests.is_empty() {
+            if let Some(bucket) = recurrence
+                .seasonal_quests
                 .get(&quest.event_id_for_quest_like_cpp())
             {
                 if !bucket.is_empty() && bucket.contains_key(&quest.id) {
@@ -553,11 +506,11 @@ impl WorldSession {
         if quest.prev_quest_id != 0 {
             let prev_id = quest.prev_quest_id.unsigned_abs();
             if quest.prev_quest_id > 0 {
-                if !self.rewarded_quests.contains(&prev_id) {
+                if !recurrence.rewarded_quest_ids.contains(&prev_id) {
                     return false;
                 }
-            } else if !self
-                .player_quests
+            } else if !recurrence
+                .statuses
                 .get(&prev_id)
                 .is_some_and(|qs| qs.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP)
             {
@@ -573,7 +526,8 @@ impl WorldSession {
 
     /// Check if the player currently has an active quest with the given ID.
     pub fn has_quest(&self, quest_id: u32) -> bool {
-        self.player_quests.contains_key(&quest_id)
+        self.player_quest_gameplay_snapshot_like_cpp()
+            .is_some_and(|state| state.statuses.contains_key(&quest_id))
     }
 
     /// Full eligibility check before accepting a quest.
@@ -587,10 +541,13 @@ impl WorldSession {
             );
             return false;
         }
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
         // SatisfyQuestStatus — C# lines 1624-1654
         // If quest is already rewarded (non-repeatable), cannot take again.
-        if self.rewarded_quests.contains(&quest.id) && !quest.is_repeatable() {
+        if recurrence.rewarded_quest_ids.contains(&quest.id) && !quest.is_repeatable() {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -599,7 +556,7 @@ impl WorldSession {
             return false;
         }
         // If quest is already active, cannot accept again.
-        if self.player_quests.contains_key(&quest.id) {
+        if recurrence.statuses.contains_key(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -654,7 +611,7 @@ impl WorldSession {
         if quest.prev_quest_id != 0 {
             let prev_id = quest.prev_quest_id.unsigned_abs();
             if quest.prev_quest_id > 0 {
-                if !self.rewarded_quests.contains(&prev_id) {
+                if !recurrence.rewarded_quest_ids.contains(&prev_id) {
                     debug!(
                         account = self.account_id,
                         quest_id = quest.id,
@@ -665,8 +622,8 @@ impl WorldSession {
                 }
             } else {
                 // negative: prev quest must be active
-                let active = self
-                    .player_quests
+                let active = recurrence
+                    .statuses
                     .get(&prev_id)
                     .is_some_and(|qs| qs.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP);
                 if !active {
@@ -689,7 +646,7 @@ impl WorldSession {
             if represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
                 quest_store,
                 quest,
-                &self.rewarded_quests,
+                &recurrence.rewarded_quest_ids.iter().copied().collect(),
             ) {
                 debug!(
                     account = self.account_id,
@@ -706,8 +663,8 @@ impl WorldSession {
         // Note: BreadcrumbQuest (recursive single breadcrumb, Player.cpp:15179-15202) remains
         // unimplemented here without falsing.
         {
-            let statuses: std::collections::HashMap<u32, u8> = self
-                .player_quests
+            let statuses: std::collections::HashMap<u32, u8> = recurrence
+                .statuses
                 .iter()
                 .map(|(&qid, qs)| (qid, qs.status))
                 .collect();
@@ -728,7 +685,7 @@ impl WorldSession {
         // DailyQuestsCompleted. Mirrors the completion-push split at quest.rs:2973-2979
         // and the exclusive-group peer pattern at quest.rs:5873-5879.
         if quest.is_df_quest_like_cpp() {
-            if self.df_quests_like_cpp.contains(&quest.id) {
+            if recurrence.df_quest_ids.contains(&quest.id) {
                 debug!(
                     account = self.account_id,
                     quest_id = quest.id,
@@ -736,9 +693,7 @@ impl WorldSession {
                 );
                 return false;
             }
-        } else if quest.is_daily_like_cpp()
-            && self.daily_quests_completed_like_cpp.contains(&quest.id)
-        {
+        } else if quest.is_daily_like_cpp() && recurrence.daily_quest_ids.contains(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -748,7 +703,7 @@ impl WorldSession {
         }
 
         // SatisfyQuestWeek — Player.cpp:15409-15418 (CanTakeQuest term Player.cpp:14093-14102).
-        if quest.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&quest.id) {
+        if quest.is_weekly_like_cpp() && recurrence.weekly_quest_ids.contains(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -758,8 +713,7 @@ impl WorldSession {
         }
 
         // SatisfyQuestMonth — Player.cpp:15445-15454 (CanTakeQuest term Player.cpp:14093-14102).
-        if quest.is_monthly_like_cpp() && self.monthly_quests_completed_like_cpp.contains(&quest.id)
-        {
+        if quest.is_monthly_like_cpp() && recurrence.monthly_quest_ids.contains(&quest.id) {
             debug!(
                 account = self.account_id,
                 quest_id = quest.id,
@@ -774,9 +728,9 @@ impl WorldSession {
         // DependentPreviousQuests, DependentBreadcrumbQuests) runs before this, as part of
         // SatisfyQuestDependentQuests. SatisfyQuestTimed remains a separate gap:
         // the session has no active-timed-quest set yet (see #QUESTS.15).
-        if quest.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
-            if let Some(bucket) = self
-                .seasonal_quests_like_cpp
+        if quest.is_seasonal_like_cpp() && !recurrence.seasonal_quests.is_empty() {
+            if let Some(bucket) = recurrence
+                .seasonal_quests
                 .get(&quest.event_id_for_quest_like_cpp())
             {
                 if !bucket.is_empty() && bucket.contains_key(&quest.id) {

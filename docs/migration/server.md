@@ -1,5 +1,10 @@
 # Migration: game/Server
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Server/`
 > **Rust target crate(s):** `crates/wow-network/`, `crates/wow-world/`
 > **Layer:** L1 — Network, Session lifecycle, Packet I/O
@@ -1676,4 +1681,3 @@ confidence** (string compare with documented C++ → Rust mapping; the
 **moderate confidence** (10-sample manual spot check, not exhaustive). The 476 missing-handler
 gap is well-supported but the practical importance of each missing opcode varies wildly and
 would need its own pass.
-

@@ -43,7 +43,7 @@ use wow_social::group::{
     ReadyCheckEventLikeCpp,
 };
 
-use crate::session::WorldSession;
+use crate::session::{GroupInvitePolicyLikeCpp, WorldSession};
 
 struct RecordingGroupPersistencePortLikeCpp {
     outcome: RepresentedGroupPersistenceOutcomeLikeCpp,
@@ -1513,7 +1513,10 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
 
     session.set_player_guid(Some(inviter));
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
-    session.set_allow_two_side_interaction_group_like_cpp(true);
+    let policy = GroupInvitePolicyLikeCpp {
+        allow_two_side_interaction: true,
+        ..GroupInvitePolicyLikeCpp::default()
+    };
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -1521,7 +1524,10 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
     );
 
     session
-        .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+        .handle_party_invite_with_policy_like_cpp(
+            party_invite_packet(target, &target_name, None, 0),
+            &policy,
+        )
         .await;
 
     assert!(pending_invites.get(&target).is_some());
@@ -1549,7 +1555,10 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
 
     session.set_player_guid(Some(inviter));
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
-    session.set_party_level_req_like_cpp(2);
+    let policy = GroupInvitePolicyLikeCpp {
+        minimum_level: 2,
+        ..GroupInvitePolicyLikeCpp::default()
+    };
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -1557,7 +1566,10 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
     );
 
     session
-        .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+        .handle_party_invite_with_policy_like_cpp(
+            party_invite_packet(target, &target_name, None, 0),
+            &policy,
+        )
         .await;
 
     assert_eq!(
@@ -3387,8 +3399,8 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     player.set_primary_specialization(260);
     let pet_guid =
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 42_000, 100);
-    player.gameplay_state_mut().in_vehicle = true;
-    player.gameplay_state_mut().vehicle_seat = 1001;
+    player.gameplay_state_mut().vehicle_seat_flags = Some(0);
+    player.gameplay_state_mut().vehicle_seat_id = Some(1001);
     player.gameplay_state_mut().pet_guid = Some(pet_guid);
     {
         let phase = player.unit_mut().world_mut().phase_shift_mut();

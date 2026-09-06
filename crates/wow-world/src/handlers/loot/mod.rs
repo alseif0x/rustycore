@@ -123,11 +123,12 @@ use crate::conditions::{
 };
 use crate::session::{
     DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
-    DurableLootItemFanoutLikeCpp, InventoryItem, LootMoneyDeliveryAddressLikeCpp,
-    LootMoneyPersistenceErrorLikeCpp, LootMoneyViewerFanoutLikeCpp,
-    RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect, RepresentedLootRollState,
-    RepresentedLootRollVote, RepresentedQuestObjectiveProgressEventLikeCpp, SessionState,
-    WorldSession, loot_money_durable_outcome_like_cpp,
+    DurableLootItemFanoutLikeCpp, InventoryItem, ItemValuationCatalogsLikeCpp,
+    LootMoneyDeliveryAddressLikeCpp, LootMoneyPersistenceErrorLikeCpp,
+    LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
+    RepresentedLootRollState, RepresentedLootRollVote,
+    RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
+    loot_money_durable_outcome_like_cpp,
 };
 
 const LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP: u8 = 0;
@@ -924,20 +925,20 @@ fn connected_roll_looters_like_cpp(
 fn represented_max_enchanting_skill_like_cpp(
     looters: &[ObjectGuid],
     current_player_guid: ObjectGuid,
-    current_player_enchanting_skill: u16,
+    current_player_enchanting_skill: Option<u16>,
     player_registry: Option<&PlayerRegistry>,
 ) -> u16 {
-    looters.iter().fold(0, |max_skill, looter| {
-        if *looter == current_player_guid {
-            max_skill.max(current_player_enchanting_skill)
-        } else {
-            max_skill.max(
-                player_registry
-                    .and_then(|registry| registry.loot_enchanting_skill(*looter))
-                    .unwrap_or(0),
-            )
-        }
-    })
+    looters
+        .iter()
+        .filter_map(|looter| {
+            if *looter == current_player_guid {
+                current_player_enchanting_skill
+            } else {
+                player_registry.and_then(|registry| registry.loot_enchanting_skill(*looter))
+            }
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 fn start_loot_roll_packet_like_cpp(

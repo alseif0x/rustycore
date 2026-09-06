@@ -22,7 +22,7 @@ hero:
 features:
   - icon: ⚔️
     title: WotLK Classic target
-    details: Protocol and gameplay work target client 3.4.3.54261. The currently tested game-build path is 51943.
+    details: Protocol and gameplay work target client 3.4.3.54261. Acceptance evidence is scoped to the tested build, scenario and server commit.
   - icon: 🦀
     title: Rust implementation
     details: Rust 1.98, edition 2024, Tokio networking, MariaDB persistence, and typed packet handling.

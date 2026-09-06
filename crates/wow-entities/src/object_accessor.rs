@@ -377,10 +377,14 @@ impl MapObjectRecord {
     }
 
     pub fn new_player(player: Player) -> Result<Self, ObjectAccessorError> {
+        Self::new_boxed_player(Box::new(player))
+    }
+
+    pub fn new_boxed_player(player: Box<Player>) -> Result<Self, ObjectAccessorError> {
         let record = Self::new(AccessorObjectKind::Player, player.unit().world().clone())?;
         Ok(Self {
             kind: record.kind,
-            body: MapObjectBody::Player(Box::new(player)),
+            body: MapObjectBody::Player(player),
         })
     }
 
@@ -531,6 +535,22 @@ impl MapObjectRecord {
         match &mut self.body {
             MapObjectBody::Player(player) => Some(player.as_mut()),
             _ => None,
+        }
+    }
+
+    /// Recover the typed Player value when Map ownership is transferred.
+    ///
+    /// C++ keeps the same `Player*` alive while `Map::RemovePlayerFromMap`
+    /// detaches it for a far teleport. Rust stores typed objects by value, so
+    /// the Map owner must be able to move that value without cloning it or
+    /// degrading it to a `WorldObject` projection.
+    pub fn into_player(self) -> Result<Box<Player>, Self> {
+        match self.body {
+            MapObjectBody::Player(player) => Ok(player),
+            body => Err(Self {
+                kind: self.kind,
+                body,
+            }),
         }
     }
 

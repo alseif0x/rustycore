@@ -894,9 +894,8 @@ impl WorldSession {
         if owner_guid.is_item() && !selected_pool_looted {
             self.clear_active_loot_guid_if(owner_guid);
             let item_has_loot_flag = self
-                .inventory_items_like_cpp()
-                .values()
-                .find(|item| item.guid == owner_guid)
+                .resolved_inventory_items_like_cpp()
+                .and_then(|items| items.values().find(|item| item.guid == owner_guid).cloned())
                 .and_then(|item| self.item_template_flags(item.entry_id))
                 .map(|flags| flags.contains(wow_constants::ItemFlags::HAS_LOOT));
             if item_has_loot_flag == Some(false) {
@@ -1067,8 +1066,32 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     pub(super) async fn store_claimed_direct_loot_item_from_owner_like_cpp(
         &mut self,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        claim: &LootClaimLease,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+            owner_guid,
+            loot_obj,
+            claim,
+        )
+        .await
+    }
+
+    pub(super) async fn store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
         owner_guid: ObjectGuid,
@@ -1078,7 +1101,8 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        self.store_direct_loot_item_with_source_like_cpp(
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            item_guid_generator,
             loot_entry,
             dungeon_encounter_id,
             owner_guid.is_item().then_some(owner_guid),
@@ -1104,10 +1128,7 @@ impl WorldSession {
             None => return,
         };
 
-        let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item_guid)
-            .cloned();
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(item_guid);
         let (bag, slot) = match runtime_item.as_ref() {
             Some(item) => (item.bag_slot(), item.slot()),
             None => return,
@@ -1146,7 +1167,6 @@ impl WorldSession {
                 item.set_count(new_count);
                 item.set_loot_generated(false);
             });
-            self.sync_object_accessor_player();
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item_guid,
                 self.player_map_id_like_cpp(),

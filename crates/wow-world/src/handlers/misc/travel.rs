@@ -5,7 +5,6 @@
 
 use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, ConditionSourceType, ConditionType};
-use wow_core::ObjectGuid;
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
@@ -15,7 +14,7 @@ use wow_packet::packets::misc::{
     TaxiNodeStatusPkt,
 };
 
-use crate::session::RepresentedActivateTaxiLikeCpp;
+use crate::session::{AreaTriggerCatalogsLikeCpp, RepresentedActivateTaxiLikeCpp};
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -23,7 +22,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_activate_taxi",
-        handler: |session, pkt| Box::pin(async move { session.handle_activate_taxi(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_activate_taxi(pkt).await }),
     }
 }
 
@@ -33,7 +32,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_area_trigger",
-        handler: |session, pkt| Box::pin(async move { session.handle_area_trigger(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_area_trigger_with_catalogs_like_cpp(
+                        catalogs.area_triggers.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -43,8 +51,17 @@ inventory::submit! {
         status: SessionStatus::Transfer,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_world_port_response",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_world_port_response(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_world_port_response_with_catalogs_like_cpp(
+                        catalogs.creature_spawns.as_ref(),
+                        catalogs.player_bootstrap.trait_node_entries.as_ref(),
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -55,7 +72,7 @@ inventory::submit! {
         status: SessionStatus::Transfer,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_suspend_token_response",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_suspend_token_response(pkt).await })
         },
     }
@@ -67,7 +84,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_taxi_node_status_query",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_taxi_node_status_query(pkt).await })
         },
     }
@@ -79,7 +96,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_taxi_benchmark_mode",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_taxi_benchmark_mode(pkt).await })
         },
     }
@@ -91,155 +108,38 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_update_area_trigger_visual",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_update_area_trigger_visual(pkt).await })
         },
     }
 }
 
 impl crate::session::WorldSession {
-    /// C++ `Map::SendInitSelf` (Map.cpp:1877), invoked by `Map::AddPlayerToMap(initPlayer=true)`
-    /// on a non-seamless far teleport (HandleMoveWorldportAck -> AddPlayerToMap, Map.cpp:470).
+    /// C++ `Map::SendInitSelf` (Map.cpp:1826), invoked by `Map::AddPlayerToMap(initPlayer=true)`
+    /// on a non-seamless far teleport (HandleMoveWorldportAck -> AddPlayerToMap, Map.cpp:427-463).
     /// Re-sends the player's OWN object (ActivePlayer create block) so the client finishes the
     /// loading screen and enters the destination map. Sourced from session state; combat stats
     /// are placeholders here (health from the live value, the rest defaulted) and corrected by
     /// the `send_stat_update` that follows. Inventory item objects are not yet re-sent on
-    /// teleport (the client retains them from login) — a #NEXT.R8.ENTITIES.1229 follow-up.
-    pub(super) async fn send_player_self_create_for_teleport_like_cpp(&mut self) {
-        use wow_core::guid::HighGuid;
-        use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
-
-        let Some(guid) = self.player_guid() else {
-            return;
+    /// teleport, unlike Player.cpp:3586-3608 — an open #NEXT.R8.ENTITIES.1229 parity gap.
+    /// None means unavailable Player projection; Some reports channel acceptance only.
+    /// A rejected send must not suppress the remaining native worldport effects.
+    pub(super) async fn send_player_self_create_for_teleport_like_cpp(
+        &mut self,
+        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
+    ) -> Option<bool> {
+        let _ = trait_node_entries; // Compatibility until the caller's catalog contract is narrowed.
+        let Some(player_pkt) = self.prepare_player_self_create_for_teleport_like_cpp() else {
+            return None;
         };
-        let Some(pos) = self.player_position_like_cpp() else {
-            return;
-        };
-        let map_id = self.player_map_id_like_cpp();
-        let (zone_id, _area_id) = self.player_zone_area_like_cpp();
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let gender = self.player_gender_like_cpp();
-        let level = self.player_level_like_cpp();
-
-        // Equipped items drive the visible model; bag slots / item objects are not re-sent here.
-        let mut visible_items = [(0i32, 0u16, 0u16); 19];
-        for (slot, item) in self.inventory_items_like_cpp() {
-            if (*slot as usize) < 19 {
-                visible_items[*slot as usize] = (item.entry_id as i32, 0, 0);
-            }
-        }
-
-        let health = self.player_health_like_cpp().max(1);
-        let combat = PlayerCombatStats {
-            health: i64::from(health),
-            max_health: i64::from(health),
-            ..PlayerCombatStats::default()
-        };
-
-        let quest_log = self.quest_log_create_entries_like_cpp();
-        let account_toys = self.account_toy_active_player_rows_like_cpp();
-        let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
-        let account_transmog = self.account_transmog_active_player_rows_like_cpp();
-        let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
-        let player_customizations = self.load_player_customizations_like_cpp(guid).await;
-        let party_type = self.party_member_party_type_like_cpp();
-        let display_id = crate::handlers::character::default_display_id(race, gender);
-
-        // Rebuild the active SkillInfo rows from the canonical login skill
-        // records. This preserves persisted/default values across far
-        // teleports instead of re-running LearnDefaultSkills with fabricated
-        // level×5 ranks.
-        let skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)> =
-            if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
-                self.skill_store(),
-                self.skill_line_store(),
-                self.skill_tiers_store(),
-            ) {
-                let mut skill_records: Vec<_> =
-                    self.player_skill_records_like_cpp().values().collect();
-                skill_records.sort_by_key(|skill| skill.skill_id);
-                skill_records
-                    .into_iter()
-                    .filter_map(|skill| {
-                        skill_store.loaded_skill_info_like_cpp(
-                            skill.skill_id,
-                            race,
-                            class,
-                            level,
-                            skill.value,
-                            skill.max,
-                            skill_line_store,
-                            skill_tiers_store,
-                        )
-                    })
-                    .map(|entry| {
-                        (
-                            entry.skill_id,
-                            entry.step,
-                            entry.rank,
-                            entry.starting_rank,
-                            entry.max_rank,
-                            entry.temp_bonus,
-                            entry.perm_bonus,
-                        )
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-
-        let mut player_pkt = UpdateObject::create_player_with_party_type(
-            guid,
-            race,
-            class,
-            gender,
-            level,
-            display_id,
-            &pos,
-            map_id,
-            zone_id,
-            true, // is_self -> ActivePlayer fields
-            visible_items,
-            [ObjectGuid::EMPTY; 141],
-            combat,
-            skill_info,
-            self.player_gold_like_cpp(),
-            quest_log,
-            party_type,
-        );
-        let (player_flags, player_flags_ex) = self.represented_player_flags_for_create_like_cpp();
-        player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
-        player_pkt.set_player_xp_like_cpp(self.player_xp_like_cpp() as i32);
-        player_pkt.set_player_next_level_xp_like_cpp(self.player_next_level_xp_like_cpp() as i32);
-        player_pkt.set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
-        player_pkt
-            .set_player_scaling_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
-        player_pkt.set_player_rest_info_like_cpp(
-            0,
-            self.represented_xp_rest_threshold_like_cpp(),
-            self.represented_xp_rest_state_like_cpp(),
-        );
-        player_pkt.set_player_account_guids_like_cpp(
-            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
-            ObjectGuid::create_global(HighGuid::BNetAccount, 0, self.battlenet_account_id() as i64),
-        );
-        player_pkt.set_player_collection_dynamic_fields_like_cpp(
-            account_toys,
-            account_heirlooms,
-            account_transmog,
-            trait_configs,
-        );
-        player_pkt.set_player_action_buttons_like_cpp(
-            self.represented_action_buttons_snapshot_like_cpp(),
-        );
-        player_pkt.set_player_customizations_like_cpp(player_customizations);
-        self.send_packet(&player_pkt);
+        let sent = self.send_packet(&player_pkt);
         info!(
             account = self.account_id,
-            map = map_id,
-            "[FAR_TELEPORT] sent SendInitSelf (player ActivePlayer create) for destination map"
+            map = player_pkt.map_id,
+            accepted = sent,
+            "[FAR_TELEPORT] prepared SendInitSelf (player ActivePlayer create) for destination map"
         );
+        Some(sent)
     }
     /// CMSG_SUSPEND_TOKEN_RESPONSE — client acknowledges SMSG_SUSPEND_TOKEN during a far
     /// teleport. C++ `WorldSession::HandleSuspendTokenResponse` (MovementHandler.cpp:239)
@@ -247,17 +147,24 @@ impl crate::session::WorldSession {
     /// the client send CMSG_WORLD_PORT_RESPONSE. Without this step the client sits on the
     /// loading screen at 0% forever. #NEXT.R8.ENTITIES.1229.
     pub async fn handle_suspend_token_response(&mut self, _pkt: wow_packet::WorldPacket) {
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return;
+        }
         if !self.represented_far_teleport_pending_like_cpp() {
             return;
         }
-        let Some((new_map, new_pos)) = self.pending_teleport else {
+        let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
             return;
         };
-        self.send_packet(&wow_packet::packets::misc::NewWorld {
+        if !self.send_packet(&wow_packet::packets::misc::NewWorld {
             map_id: new_map,
             pos: new_pos,
             reason: 0,
-        });
+        }) {
+            self.kick("worldport NewWorld could not be queued");
+            return;
+        }
+        self.recovery_new_world_sent_like_cpp();
         info!(
             account = self.account_id,
             map = new_map,
@@ -266,13 +173,24 @@ impl crate::session::WorldSession {
     }
 
     /// CMSG_WORLD_PORT_RESPONSE — client confirms it has loaded the new map.
-    /// C# ref: MovementHandler.HandleMoveWorldportAck
+    /// Admission anchor: C++ `WorldSession::HandleMoveWorldportAck` in MovementHandler.cpp.
     /// Sent after SMSG_NEW_WORLD (which is emitted from handle_suspend_token_response).
     /// We respond with SMSG_RESUME_TOKEN and replay the after-add init.
 
-    pub async fn handle_world_port_response(&mut self, _pkt: wow_packet::WorldPacket) {
+    pub async fn handle_world_port_response_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        _pkt: wow_packet::WorldPacket,
+    ) {
         use wow_packet::packets::misc::ResumeToken;
 
+        if self.state() == crate::session::SessionState::Disconnecting
+            || !self.recovery_worldport_ack_ready_like_cpp()
+        {
+            return;
+        }
         if !self.represented_far_teleport_pending_like_cpp() {
             warn!(
                 "WorldPortResponse from account {} but far teleport semaphore is not set",
@@ -280,16 +198,29 @@ impl crate::session::WorldSession {
             );
             return;
         }
-        self.set_represented_far_teleport_pending_like_cpp(false);
-
-        let Some((new_map, new_pos)) = self.pending_teleport.take() else {
+        let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
             warn!(
                 "WorldPortResponse from account {} but no pending teleport",
                 self.account_id
             );
-            self.set_state(crate::session::SessionState::LoggedIn);
             return;
         };
+        // C++ MovementHandler.cpp:90-134 does not continue successful entry
+        // after failed admission/add. Retain the pending transfer until the
+        // same Player is attached; recovery must not save destination coordinates
+        // paired with the old map or publish a false LoggedIn transition.
+        if !self.try_attach_worldport_destination_like_cpp(new_map, new_pos) {
+            warn!(
+                account = self.account_id,
+                "WorldPortResponse could not attach its Player; transfer remains pending"
+            );
+            self.recover_rejected_worldport_like_cpp().await;
+            return;
+        }
+        self.set_represented_far_teleport_pending_like_cpp(false);
+        if !self.set_pending_teleport_like_cpp(None) {
+            return;
+        }
 
         info!(
             account = self.account_id,
@@ -300,13 +231,7 @@ impl crate::session::WorldSession {
             new_pos.z
         );
 
-        // Update internal state
-        self.set_player_map_position_like_cpp(new_map as u16, new_pos);
-        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
-        let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         self.update_registry_position();
-        self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
-        self.process_represented_delayed_resurrection_after_teleport_like_cpp();
 
         // SMSG_NEW_WORLD was already sent from handle_suspend_token_response (C++ sends it in
         // HandleSuspendTokenResponse, BEFORE the client's worldport ack — MovementHandler.cpp:253);
@@ -315,7 +240,10 @@ impl crate::session::WorldSession {
         // SMSG_RESUME_TOKEN — C++ HandleMoveWorldportAck sets SequenceIndex =
         // player->m_movementCounter (read here, before SendInitialPacketsBeforeAddToMap resets
         // it) and Reason = 1 for a non-seamless far teleport (MovementHandler.cpp:108-111).
-        let resume_seq = self.movement_counter_like_cpp();
+        let Some(resume_seq) = self.movement_counter_like_cpp() else {
+            self.kick("worldport lost its Player movement state");
+            return;
+        };
         self.send_packet(&ResumeToken {
             sequence_index: resume_seq,
             reason: 1,
@@ -328,29 +256,44 @@ impl crate::session::WorldSession {
         );
 
         let Some(guid) = self.player_guid() else {
-            self.set_state(crate::session::SessionState::LoggedIn);
+            self.kick("worldport lost its Player identity");
             return;
         };
         let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
 
         // Before-add control packets the client needs for the new map: C++
-        // SendInitialPacketsBeforeAddToMap resets m_movementCounter (Player.cpp:23483) and
+        // SendInitialPacketsBeforeAddToMap resets m_movementCounter (Player.cpp:23459) and
         // ends with SetMovedUnit -> SMSG_MOVE_SET_ACTIVE_MOVER, plus a fresh time sync. The
-        // full before-add packet SET (spells/factions/action bars/etc.) is NOT re-sent on
-        // teleport: the client retains it from login and it is unchanged, and re-running the
-        // DB-backed before-add helper here is a documented #NEXT.R8.ENTITIES.1229 follow-up.
+        // full before-add packet set (spells/factions/action bars/etc.) IS replayed by
+        // C++ on non-seamless transfer. Rust still omits it: this is an open parity gap,
+        // not proven client retention. Its DB-backed login helper needs separation.
         self.reset_movement_counter_like_cpp();
         self.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
         self.send_time_sync();
 
-        // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:470): re-send the
+        // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:446): re-send the
         // player's OWN object (ActivePlayer create block) for the destination map. Without it
         // the client loads to 100% but never enters the world. #NEXT.R8.ENTITIES.1229.
-        self.send_player_self_create_for_teleport_like_cpp().await;
+        let Some(self_create_accepted) = self
+            .send_player_self_create_for_teleport_like_cpp(trait_node_entries)
+            .await
+        else {
+            self.kick("worldport self CREATE has incomplete Player state");
+            return;
+        };
+        if !self.begin_worldport_post_add_like_cpp(new_map, new_pos) {
+            self.kick("worldport post-add operation could not retain its Player");
+            return;
+        }
 
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
-        self.send_nearby_creatures(new_map as u16, &new_pos, 0)
-            .await;
+        self.send_nearby_creatures_with_catalogs_like_cpp(
+            creature_spawn_catalogs,
+            new_map as u16,
+            &new_pos,
+            0,
+        )
+        .await;
         self.send_nearby_gameobjects(new_map as u16, &new_pos, 0)
             .await;
         info!(
@@ -363,7 +306,8 @@ impl crate::session::WorldSession {
 
         // SendInitialPacketsAfterAddToMap: post-add phase shift, InitWorldStates resolved for
         // the destination map, the PhasingHandler::OnMapChange phase shift, CUF profiles, auras.
-        self.send_initial_packets_after_add_to_map(
+        self.send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+            creature_spawn_catalogs,
             guid,
             &new_pos,
             new_map as i32,
@@ -371,29 +315,79 @@ impl crate::session::WorldSession {
         )
         .await;
 
-        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        let Some((zone_id, area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
+        // MovementHandler.cpp:156-234 completes after-add initialization and
+        // zone updates before pet recovery and ProcessDelayedOperations.
+        // In particular, self CREATE must precede the delayed resurrection.
+        if !self.finish_worldport_native_before_disconnect_like_cpp() {
+            self.kick("worldport native completion unavailable");
+            return;
+        }
+
+        // Player.cpp:1494-1503: delayed resurrection precedes DELAYED_SAVE_PLAYER.
+        // Do not replay the ACK or promote an unknown COMMIT back to LoggedIn.
+        if let Some(outcome) = self
+            .resume_deferred_player_save_with_generator_like_cpp(item_guid_generator)
+            .await
+        {
+            // A known rollback preserves the existing SaveToDB failure policy:
+            // keep dirty intent for the next scheduled save, without a hot retry.
+            if !matches!(
+                outcome,
+                crate::session::PlayerSaveOutcomeLikeCpp::Applied
+                    | crate::session::PlayerSaveOutcomeLikeCpp::Failed
+            ) {
+                self.kick("worldport deferred save did not complete; retain native intent");
+                return;
+            }
+            if self.state() == crate::session::SessionState::Disconnecting {
+                return;
+            }
+        }
+
+        // Preserve server effects above even when output closes. Client readiness,
+        // however, must not be reported after a failed terminal publication.
+        let final_stat_accepted = self.send_stat_update();
+        if !self_create_accepted || !final_stat_accepted {
+            self.kick("worldport self CREATE delivery or final stat publication unavailable");
+            return;
+        }
         info!(
             account = self.account_id,
             map = new_map,
             zone = zone_id,
             area = area_id,
             resume_seq,
-            "[FAR_TELEPORT] COMPLETE — sent after-add init (InitWorldStates for this map + \
-             phase-shift x2 + CUF + auras). Client should now be live in the new map."
+            "[FAR_TELEPORT] final stat packet accepted by output channel"
         );
-
-        // Full stat VALUES update — C++ login sends this after the create; it overwrites the
-        // self-create block's placeholder combat stats with the player's real values.
-        self.send_stat_update();
 
         // Back to LoggedIn — handler dispatch resumes.
         self.set_state(crate::session::SessionState::LoggedIn);
     }
 
+    #[cfg(test)]
+    pub async fn handle_world_port_response(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_world_port_response_with_catalogs_like_cpp(
+            &catalogs,
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            generators.item.as_ref(),
+            pkt,
+        )
+        .await;
+    }
+
     /// CMSG_AREA_TRIGGER — player entered an area trigger.
     /// C++ ref: `WorldSession::HandleAreaTriggerOpcode`.
 
-    pub async fn handle_area_trigger(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_area_trigger_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &AreaTriggerCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let Ok(trigger_id) = pkt.read_uint32() else {
             warn!(
                 account = self.account_id,
@@ -421,7 +415,7 @@ impl crate::session::WorldSession {
             self.account_id, trigger_id, entered
         );
 
-        if self.is_in_taxi_flight_like_cpp() {
+        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             debug!(
                 "Area trigger {} ignored because player is in taxi flight",
                 trigger_id
@@ -429,7 +423,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(at_entry) = self.area_trigger_db2_entry_like_cpp(trigger_id).cloned() else {
+        let Some(at_entry) = catalogs.db2.get(trigger_id).cloned() else {
             debug!("Unknown area trigger ID {}", trigger_id);
             return;
         };
@@ -455,12 +449,17 @@ impl crate::session::WorldSession {
 
         // C++ continues unless `ScriptMgr::OnAreaTrigger` returns true. A DB
         // binding alone therefore cannot consume the event.
-        let bound_script_id = self
-            .area_trigger_script_store()
-            .and_then(|store| store.get_script_id_like_cpp(trigger_id))
+        let bound_script_id = catalogs
+            .scripts
+            .get_script_id_like_cpp(trigger_id)
             .filter(|script_id| *script_id != wow_data::ScriptIdLikeCpp::NONE);
         if let Some(script_id) = bound_script_id {
-            match self.dispatch_area_trigger_script_like_cpp(script_id, trigger_id, entered) {
+            match self.dispatch_area_trigger_script_like_cpp(
+                catalogs.script_dispatcher.as_ref(),
+                script_id,
+                trigger_id,
+                entered,
+            ) {
                 Some(true) => return,
                 Some(false) => {}
                 None => warn!(
@@ -472,14 +471,15 @@ impl crate::session::WorldSession {
             }
         }
 
-        if self.handle_represented_tavern_area_trigger_like_cpp(trigger_id, entered) {
+        if self.handle_represented_tavern_area_trigger_with_catalog_like_cpp(
+            catalogs.taverns.as_ref(),
+            trigger_id,
+            entered,
+        ) {
             return;
         }
 
-        let Some(trigger) = self
-            .area_trigger_store()
-            .and_then(|store| store.get_trigger(trigger_id).cloned())
-        else {
+        let Some(trigger) = catalogs.destinations.get_trigger(trigger_id).cloned() else {
             return;
         };
 
@@ -504,6 +504,13 @@ impl crate::session::WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub async fn handle_area_trigger(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        self.handle_area_trigger_with_catalogs_like_cpp(&catalogs, pkt)
+            .await;
+    }
+
     fn area_trigger_client_conditions_meet_like_cpp(&mut self, trigger_id: u32) -> bool {
         let Some(condition_store) = self.condition_store().cloned() else {
             return true;
@@ -512,7 +519,9 @@ impl crate::session::WorldSession {
             return false;
         };
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let area_table_store = self.area_table_store().cloned();
 

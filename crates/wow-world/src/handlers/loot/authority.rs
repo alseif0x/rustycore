@@ -169,7 +169,7 @@ impl WorldSession {
         &self,
         target: ObjectGuid,
     ) -> bool {
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return false;
         };
 
@@ -204,15 +204,16 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> Option<MasterLootCandidateList> {
-        let is_master_looter =
-            if let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) {
-                registry.get(&group_guid).is_some_and(|group| {
-                    group.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
-                        && group.master_looter_guid == player_guid
-                })
-            } else {
-                false
-            };
+        let is_master_looter = if let (Some(group_guid), Some(registry)) =
+            (self.resolved_group_guid_like_cpp(), self.group_registry())
+        {
+            registry.get(&group_guid).is_some_and(|group| {
+                group.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
+                    && group.master_looter_guid == player_guid
+            })
+        } else {
+            false
+        };
 
         let loot = self.loot_table.get(&owner_guid)?;
         if loot.loot_method != LOOT_METHOD_MASTER_LIKE_CPP || !is_master_looter {

@@ -1,5 +1,10 @@
 # Migration: Groups (Party / Raid)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Groups/` + `src/server/game/Handlers/GroupHandler.cpp`
 > **Rust target crate(s):** `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`
 > **Layer:** L6

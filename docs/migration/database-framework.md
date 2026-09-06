@@ -1,5 +1,10 @@
 # Migration: database-framework (MySQL connection pool, prepared statements, transactions, updater)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > Operational update (issue #256): the historical startup `DbUpdater` described
 > below has been removed. `rustycore-db` now owns explicit manifest-driven
 > migration; both servers perform read-only schema validation. The older

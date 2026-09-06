@@ -1,5 +1,10 @@
 # Migration: Warden (anti-cheat)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Warden/` — `Warden.{h,cpp}` (base class, 274+131 lines), `WardenWin.{h,cpp}` (Windows-client variant, 560+86 lines), `WardenMac.{h,cpp}` (Mac-client variant, 244+43 lines), `WardenCheckMgr.{h,cpp}` (check loader/registry, 191+140 lines), `enuminfo_WardenCheckMgr.cpp` (auto-generated SmartEnum metadata, 169 lines), `Modules/WardenModuleWin.h` (1239 lines — embedded Warden module binary), `Modules/WardenModuleMac.h` (613 lines — embedded module binary).
 > **Rust target crate(s):** **No crate exists.** The opcodes `Warden3Data` (CMSG 0x35ed, SMSG 0x2577), `Warden3Disabled` (SMSG 0x2823), `Warden3Enabled` (SMSG 0x2822) are present in `crates/wow-constants/src/opcodes.rs` (lines 671, 1619-1621); nothing else exists. No handler arm in `crates/wow-world/src/session.rs`. No `Warden` struct, no `WardenCheckMgr`, no module binary, no DB schema, no SQL loader, no SmartEnum scaffolding, no per-OS variant. **0 lines of Warden code.**
 > **Layer:** L7 (anti-cheat infrastructure — depends on Crypto L1 (RC4 + SHA1 + HMAC + MD5), WorldSession L4, World config L1, Auth Bn-Net session key L1; depended on by Account banning + Player kick + GM tooling for cheat report)

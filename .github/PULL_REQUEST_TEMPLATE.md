@@ -21,13 +21,17 @@
 
 ## Verification
 
-<!-- First-party alseif0x PRs use the local harness; external PRs retain remote checks. Add only
-focused tests/evidence required by the behavior actually changed. -->
+<!-- Only PRs authored by exactly alseif0x use the trusted local path; every other author
+retains remote validation/reviewer checks. Final publication evidence names the clean committed
+HEAD. Add focused evidence for changed behavior AND explicit issue acceptance; internal macro
+checkpoints are not separate PRs. A skipped hosted job is not a test result. -->
 
 - [ ] `./tools/validation-v2 final --base origin/3.4.3`
 - [ ] Focused tests:
 - [ ] Capture-diff (only packet/metadata/connection/order changes): not needed / result
 - [ ] Runtime QA (only lifecycle/runtime changes): not needed / result
+- Validated HEAD / manifest:
+- Explicit issue acceptance completed / remaining:
 
 ## Migration notes
 

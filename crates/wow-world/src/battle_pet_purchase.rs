@@ -232,8 +232,10 @@ impl WorldSession {
     /// the C++ `Trainer::TeachSpell` battle-pet order (money update,
     /// `SMSG_BATTLE_PET_UPDATES`, dependent `SMSG_LEARNED_SPELLS`) with the
     /// trainer visual kits suppressed (`Trainer.cpp:108,121-125`).
-    pub(crate) async fn execute_battle_pet_trainer_purchase_like_cpp(
+    pub(crate) async fn execute_battle_pet_trainer_purchase_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        battle_pet_selection_store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
         trainer_guid: ObjectGuid,
         trainer_id: u32,
@@ -274,13 +276,19 @@ impl WorldSession {
                 BattlePetPurchaseAdmissionFailureLikeCpp::JournalLocked,
             );
         }
-        let Some(selection) = self.battle_pet_trainer_selection_like_cpp(&species_entry) else {
+        let Some(selection) =
+            self.battle_pet_trainer_selection_like_cpp(battle_pet_selection_store, &species_entry)
+        else {
             return BattlePetPurchaseExecutionLikeCpp::Unavailable(
                 BattlePetPurchaseAdmissionFailureLikeCpp::SelectionUnavailable,
             );
         };
 
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return BattlePetPurchaseExecutionLikeCpp::Unavailable(
+                BattlePetPurchaseAdmissionFailureLikeCpp::StoreUnavailable,
+            );
+        };
         let price = u64::from(offer.effective_price);
         if old_money < price {
             // C++ `FailReason::NotEnoughMoney` (`Trainer.cpp:113-117`).
@@ -361,7 +369,12 @@ impl WorldSession {
 
         // Publish the durable charge under the guard (C++ `ModifyMoney`),
         // then release it before draining criteria, matching the #159 order.
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick(
+                "canonical Player money owner became unavailable after battle-pet charge COMMIT",
+            );
+            return BattlePetPurchaseExecutionLikeCpp::ChargeIndeterminate;
+        }
         if old_money != new_money {
             // The client sees the charge before the pet, and this packet goes
             // out *after* the Character transaction commits -- the charge is
@@ -383,8 +396,10 @@ impl WorldSession {
             }
         }
         drop(money_persistence);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
 
         // T2: apply once through the #160 owner; its Login DB transaction
         // revalidates fence, lease and per-species capacity and writes pet +
@@ -438,6 +453,7 @@ impl WorldSession {
             }
             Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
                 self.compensate_battle_pet_purchase_like_cpp(
+                    item_guid_generator,
                     &owner,
                     lease_id,
                     player_guid,
@@ -458,14 +474,38 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) async fn execute_battle_pet_trainer_purchase_like_cpp(
+        &mut self,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        trainer_guid: ObjectGuid,
+        trainer_id: u32,
+        offer: PreparedBattlePetTrainerOfferLikeCpp,
+    ) -> BattlePetPurchaseExecutionLikeCpp {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.execute_battle_pet_trainer_purchase_with_generator_like_cpp(
+            generators.item.as_ref(),
+            self.battle_pet_selection_store_like_cpp()
+                .cloned()
+                .unwrap_or_default()
+                .as_ref(),
+            money_persistence,
+            trainer_guid,
+            trainer_id,
+            offer,
+        )
+        .await
+    }
+
     /// Login recovery: resume every unconverged durable command of this
     /// character, oldest first, bounded by
     /// `BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP`. Runs inline
     /// during the login burst (no background task) and is cancellation-safe:
     /// every step is either a committed transition or leaves a resumable
     /// durable state for the next login.
-    pub(crate) async fn recover_battle_pet_trainer_purchases_like_cpp(
+    pub(crate) async fn recover_battle_pet_trainer_purchases_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> Option<BattlePetPurchaseRecoveryLikeCpp> {
         let (owner, lease_id) = self.battle_pet_account_owner_lease_like_cpp()?;
         let store = self.battle_pet_purchase_store_like_cpp()?;
@@ -547,6 +587,7 @@ impl WorldSession {
                 ) {
                     match self
                         .compensate_battle_pet_purchase_like_cpp(
+                            item_guid_generator,
                             &owner,
                             lease_id,
                             player_guid,
@@ -582,6 +623,7 @@ impl WorldSession {
                 BattlePetPurchaseStatusLikeCpp::CompensationPending => {
                     match self
                         .compensate_battle_pet_purchase_like_cpp(
+                            item_guid_generator,
                             &owner,
                             lease_id,
                             player_guid,
@@ -656,6 +698,7 @@ impl WorldSession {
                         Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
                             match self
                                 .compensate_battle_pet_purchase_like_cpp(
+                                    item_guid_generator,
                                     &owner,
                                     lease_id,
                                     player_guid,
@@ -776,17 +819,26 @@ impl WorldSession {
         Some(summary)
     }
 
+    #[cfg(test)]
+    pub(crate) async fn recover_battle_pet_trainer_purchases_like_cpp(
+        &mut self,
+    ) -> Option<BattlePetPurchaseRecoveryLikeCpp> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.recover_battle_pet_trainer_purchases_with_generator_like_cpp(generators.item.as_ref())
+            .await
+    }
+
     /// The C++ `AddPet` materialization inputs for one admission, frozen
     /// into the durable command so recovery never re-rolls.
     fn battle_pet_trainer_selection_like_cpp(
         &self,
+        store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
         species_entry: &wow_data::BattlePetSpeciesEntry,
     ) -> Option<BattlePetTrainerSelectionLikeCpp> {
         #[cfg(test)]
         if let Some(selection) = self.battle_pet_purchase_selection_override_like_cpp() {
             return Some(selection);
         }
-        let store = self.battle_pet_selection_store_like_cpp()?;
         let template = self
             .creature_template_lifecycle_store_like_cpp()
             .and_then(|templates| {
@@ -886,6 +938,7 @@ impl WorldSession {
     /// forbids the refund and completes the command instead.
     async fn compensate_battle_pet_purchase_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         owner: &Arc<BattlePetAccountOwnerLikeCpp>,
         lease_id: BattlePetLeaseIdLikeCpp,
         player_guid: ObjectGuid,
@@ -1064,9 +1117,15 @@ impl WorldSession {
                 // Reconcile to the absolute durable value. Attribution based
                 // on a lost COMMIT reply is racy when another driver can finish
                 // compensation before the status re-read.
-                let current = self.player_gold_like_cpp();
+                let Some(current) = self.resolved_player_money_like_cpp() else {
+                    drop(refund_guard);
+                    return BattlePetPurchaseExecutionLikeCpp::Compensated;
+                };
                 let restored = durable_money.min(wow_entities::MAX_MONEY_AMOUNT);
-                self.stage_player_money_change_like_cpp(current, restored);
+                if !self.stage_player_money_change_like_cpp(current, restored) {
+                    drop(refund_guard);
+                    return BattlePetPurchaseExecutionLikeCpp::Compensated;
+                }
                 if refund_publication
                     == BattlePetPurchaseRefundPublicationLikeCpp::ValuesUpdatePacket
                     && current != restored
@@ -1080,8 +1139,10 @@ impl WorldSession {
                     );
                 }
                 drop(refund_guard);
-                self.drain_represented_quest_objective_progress_like_cpp()
-                    .await;
+                self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
+                )
+                .await;
                 BattlePetPurchaseExecutionLikeCpp::Compensated
             }
             Ok(BattlePetPurchaseCompensationOutcomeLikeCpp::ConflictedCompleted) => {
@@ -2645,6 +2706,7 @@ mod executor_tests {
                 qualities,
                 breed_states,
                 species_states,
+                Arc::new(wow_data::BattlePetXpGameTableLikeCpp::from_rows([])),
                 REALM_ID,
                 VIRTUAL_REALM,
             ),
@@ -4347,12 +4409,16 @@ mod executor_tests {
         assert!(session.set_complete_represented_player_spell_rows_like_cpp([]));
         assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
         assert!(session.set_complete_represented_override_spells_like_cpp([]));
-        assert!(
-            session.set_complete_player_skill_records_like_cpp(std::collections::HashMap::new(), 0)
-        );
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        // Production login hydrates Player::SetFactionForRace before the
+        // trainer can be used. This synthetic fixture has no ChrRaces store,
+        // so install that canonical interaction prerequisite explicitly.
+        session.set_player_faction_template_like_cpp(1);
+        assert!(
+            session.set_complete_player_skill_records_like_cpp(std::collections::HashMap::new(), 0)
+        );
         insert_saga_trainer_creature_like_cpp(&canonical, saga_trainer_guid_like_cpp());
         session.set_player_trainer_interaction_like_cpp(saga_trainer_guid_like_cpp(), TRAINER_ID);
         session.set_battle_pet_purchase_persistence_port_like_cpp(store_handle_like_cpp(&store));

@@ -5,20 +5,25 @@
 > [migration/STATE.md](migration/STATE.md). Use this file only for the layer/dependency
 > background; its §3 status table is historical.
 
-> Plan operativo para migrar **todo** TrinityCore C++ a Rust. Este documento es la fuente de verdad para prioridad, orden y TODO list. El inventario de estado por módulo vive en `docs/migration/_INDEX.md`. Se actualiza al cierre de cada fase.
+> Archivo histórico de diseño, auditorías y fases anteriores, conservado para
+> rastrear decisiones. **Ninguna regla, ADR numerado, Fase R/A, orden de commits,
+> gate de CI o mandato de cierre de este archivo gobierna trabajo nuevo.** No
+> actualizar sus porcentajes ni reejecutar sus inventarios para avanzar. Flujo y
+> aprobaciones: [AGENTS.md](../AGENTS.md). Arquitectura vigente:
+> [plan modular](architecture/modularity-and-ecs-plan.md) y
+> [guía de módulos](architecture/module-design-guidelines.md).
 
 **Repos de referencia:**
 - C++ origen: `/home/server/woltk-trinity-legacy` (TrinityCore branch `wotlk_classic`)
 - Rust destino: `/home/server/rustycore` (este repo, GitHub `alseif0x/rustycore`)
-- C# legacy: `/home/server/woltk-server-core/Source/` (referencia secundaria, mismo modelo)
 
-**Reglas inviolables:**
+**Reglas del plan histórico (no vigentes como workflow):**
 
 1. **Antes de implementar** cualquier sistema, leer su contraparte C++ en TrinityCore. Nunca improvisar a oído. Lecciones del bridge MapManager fallido (`_attic/`) costaron 176 errores de compilación.
 2. **Antes de extender** cualquier sistema ya migrado, **auditarlo contra C++**. Lo que está marcado ✅/⚠️ en este documento puede tener bugs, divergencias o piezas que faltan respecto al C++. **Nada se da por bueno hasta auditoría**. Un sistema "implementado" sin auditar es un riesgo, no una ventaja.
 3. Los docs creados por agentes anteriores son útiles como índice, pero no son prueba de corrección. Cada task se valida contra C++ en el momento de ejecutarla.
 4. **No se dejan dependencias como TODO/gap.** Si al portar una fase aparece una dependencia C++ necesaria para que el comportamiento sea correcto, se continúa implementando esa dependencia dentro de la misma cadena de trabajo hasta cerrarla. No se salta a otra fase, no se acepta comportamiento parcial y no se documenta como "future work" para poder avanzar.
-5. Las referencias a C# o a implementaciones no-C++ son sospechosas por defecto. Si un bloque Rust se basa en orden/layout/lógica "C#" debe revalidarse contra C++; si no coincide, se corrige al C++ y se elimina la referencia.
+5. Las afirmaciones de comportamiento requieren contraste C++ o captura identificada; un comentario Rust o una auditoría antigua no son prueba.
 
 ### Revisión del plan 2026-05-07
 
@@ -322,13 +327,16 @@ Leyenda:
 
 ---
 
-## 4. Fases de migración (orden ejecutable)
+## 4. Fases de migración (orden histórico, no ejecutable actual)
 
-Cada fase es un commit (o pequeño grupo de commits) mergeable a `main` con `cargo check` + `cargo test` verdes. **No se salta a la siguiente sin la anterior cerrada.**
+El plan original agrupaba cada fase en commits hacia `main` y exigía cerrar
+secuencialmente las anteriores. Ese flujo está retirado: usar la rama/PR de la
+issue autorizada hacia `3.4.3`, las dependencias vigentes y validación proporcional.
 
-### Fase R — Refinamiento WBS completo (precondición)
+### Fase R — Refinamiento WBS completo (antigua precondición)
 
-> Antes de seguir implementando, convertir el plan en una estructura de tareas/subtareas verificable contra C++. El procedimiento completo vive en `docs/migration/refinement-plan.md`.
+> Propuesta histórica conservada en `docs/migration/refinement-plan.md`;
+> no es una nueva congelación ni un requisito previo para implementar.
 
 - **R.1** Inventariar el árbol C++ completo: archivos, handlers/opcodes, SQL, DB2/DBC, config, entidades y scripts.
 - **R.2** Actualizar cada módulo de `docs/migration/*.md` con WBS granular: task IDs, C++ refs, dependencias, aceptación y tests.

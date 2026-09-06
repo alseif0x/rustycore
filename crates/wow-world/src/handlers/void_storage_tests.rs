@@ -107,6 +107,7 @@ fn make_void_storage_session() -> (
         80,
         0,
     ));
+    session.set_player_faction_template_like_cpp(35);
     session.set_loaded_player_flags_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
     session.set_void_storage_item_id_generator_like_cpp(Arc::new(
         VoidStorageItemIdGeneratorLikeCpp::new(100),
@@ -132,6 +133,7 @@ fn insert_vault_keeper(manager: &Arc<Mutex<wow_map::MapManager>>, guid: ObjectGu
         .relocate(Position::new(5.0, 0.0, 0.0, 0.0));
     creature.unit_mut().world_mut().set_combat_reach(1.0);
     creature.unit_mut().set_level(80);
+    creature.unit_mut().set_faction(35);
     creature.unit_mut().set_max_health(100);
     creature.unit_mut().set_health(100);
     creature.set_ai_identity_runtime(1, 35, NPCFlags1::VAULT_KEEPER.bits(), 0);
@@ -377,7 +379,10 @@ fn login_load_rejects_invalid_rows_and_identity_collisions() {
         session.represented_void_storage_item_at_like_cpp(3),
         Some(item)
     );
-    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 159);
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(159)
+    );
 }
 
 #[test]
@@ -518,13 +523,25 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
 
     session.set_loaded_player_flags_like_cpp(0);
     assert!(!session.prepare_represented_void_storage_login_load_like_cpp());
-    assert!(session.represented_void_storage_loaded_like_cpp());
-    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(
+        session.represented_void_storage_loaded_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(160)
+    );
 
     session.apply_committed_void_storage_unlock_like_cpp();
     assert!(session.void_storage_is_unlocked_like_cpp());
-    assert!(session.represented_void_storage_loaded_like_cpp());
-    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(
+        session.represented_void_storage_loaded_like_cpp(),
+        Some(true)
+    );
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(160)
+    );
 }
 
 #[tokio::test]
@@ -1098,7 +1115,9 @@ fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
     let (mut session, _, _) = make_void_storage_session();
 
     session.set_player_inventory_slot_count_like_cpp(INVENTORY_DEFAULT_SIZE);
-    let default_positions = session.represented_empty_inventory_positions_like_cpp();
+    let default_positions = session
+        .represented_empty_inventory_positions_like_cpp()
+        .expect("test inventory owner resolves");
     assert_eq!(default_positions.len(), usize::from(INVENTORY_DEFAULT_SIZE));
     assert_eq!(
         default_positions.last(),
@@ -1106,7 +1125,9 @@ fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
     );
 
     session.set_player_inventory_slot_count_like_cpp(24);
-    let expanded_positions = session.represented_empty_inventory_positions_like_cpp();
+    let expanded_positions = session
+        .represented_empty_inventory_positions_like_cpp()
+        .expect("test inventory owner resolves");
     assert_eq!(expanded_positions.len(), 24);
     assert_eq!(
         expanded_positions.last(),
@@ -1321,12 +1342,14 @@ fn withdrawal_planner_excludes_slots_from_a_deposited_equipped_bag_like_cpp() {
         "the adversarial fixture must expose the orphan-container risk"
     );
 
-    let destroyed = session.plan_void_storage_destroyed_items_like_cpp(
-        INVENTORY_SLOT_BAG_0,
-        bag_slot,
-        bag_inventory,
-        Vec::new(),
-    );
+    let destroyed = session
+        .plan_void_storage_destroyed_items_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            bag_slot,
+            bag_inventory,
+            Vec::new(),
+        )
+        .expect("fixture canonical inventory owner");
     let vacated_positions = destroyed
         .iter()
         .map(|destroyed| (destroyed.bag, destroyed.slot))
@@ -1390,12 +1413,14 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
     child_item.set_container_guid_and_slot(bag_guid, bag_slot);
     session.insert_inventory_item_object(child_item);
 
-    let destroyed = session.plan_void_storage_destroyed_items_like_cpp(
-        INVENTORY_SLOT_BAG_0,
-        bag_slot,
-        bag_inventory,
-        Vec::new(),
-    );
+    let destroyed = session
+        .plan_void_storage_destroyed_items_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            bag_slot,
+            bag_inventory,
+            Vec::new(),
+        )
+        .expect("fixture canonical inventory owner");
     assert_eq!(
         destroyed
             .iter()
@@ -1412,8 +1437,9 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
         vec![502, 501]
     );
 
-    let (destroyed_guids, changed_quest_ids) =
-        session.apply_committed_void_storage_destroyed_items_like_cpp(&destroyed);
+    let (destroyed_guids, changed_quest_ids) = session
+        .apply_committed_void_storage_destroyed_items_like_cpp(&destroyed)
+        .expect("fixture canonical inventory owner");
     assert_eq!(destroyed_guids, vec![child_guid, bag_guid]);
     assert!(changed_quest_ids.is_empty());
     assert!(session.get_inventory_item_by_pos(bag_slot, 5).is_none());
@@ -1575,7 +1601,10 @@ async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchange
     assert_eq!(inventory_item.guid, item_guid);
     assert_eq!(inventory_item.entry_id, 19019);
     assert_eq!(inventory_item.db_guid, 501);
-    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(160)
+    );
     assert_eq!(
         send_rx
             .try_iter()
@@ -1671,7 +1700,10 @@ async fn deposit_indeterminate_commit_quarantines_without_runtime_publication_li
             .get_inventory_item_by_guid_like_cpp(item_guid)
             .is_some()
     );
-    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(160)
+    );
     assert_eq!(session.state(), SessionState::Disconnecting);
     assert!(
         session
@@ -1767,7 +1799,10 @@ async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
             .is_some(),
         "the release runs before planning, while definite DB rollback still preserves inventory"
     );
-    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(
+        session.represented_void_storage_free_slots_like_cpp(),
+        Some(160)
+    );
     assert_eq!(
         send_rx
             .try_iter()

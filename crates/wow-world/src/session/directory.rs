@@ -1141,15 +1141,11 @@ impl PlayerRegistry {
                 class,
                 sex,
                 level: placement.level,
-                known_spells: state
-                    .spells
-                    .iter()
-                    .filter_map(|spell| i32::try_from(spell.spell_id).ok())
-                    .collect(),
+                known_spells: state.spells.known_spells.iter().copied().collect(),
                 active_quest_statuses: state
                     .quests
                     .statuses
-                    .iter()
+                    .values()
                     .map(|status| (status.quest_id, status.status))
                     .collect(),
                 active_quest_objective_counts: state
@@ -1159,7 +1155,7 @@ impl PlayerRegistry {
                     .cloned()
                     .collect(),
                 rewarded_quests: state.quests.rewarded_quest_ids.iter().copied().collect(),
-                inventory_item_counts: state.inventory_item_counts.iter().copied().collect(),
+                inventory_item_counts: player.inventory_item_counts_like_cpp(),
             }
         })
     }
@@ -1371,8 +1367,7 @@ impl PlayerRegistry {
                 .gameplay_state()
                 .quests
                 .statuses
-                .iter()
-                .find(|status| status.quest_id == quest_id)
+                .get(&quest_id)
                 .map(|status| status.status)
         })
     }
@@ -1428,7 +1423,7 @@ impl PlayerRegistry {
             snapshot.active_quest_statuses = gameplay
                 .quests
                 .statuses
-                .into_iter()
+                .into_values()
                 .map(|status| (status.quest_id, status.status))
                 .collect();
             snapshot.df_quests = gameplay.quests.df_quest_ids.into_iter().collect();
@@ -1462,7 +1457,7 @@ impl PlayerRegistry {
         drop(entry);
         let has_vehicle_kit =
             self.canonical_at(guid, placement.map_id, placement.instance_id, |player| {
-                player.gameplay_state().has_vehicle_kit
+                player.gameplay_state().mount_vehicle_kit.is_some()
             })?;
         Some(PlayerVehicleInteractionSnapshot {
             map_id: placement.map_id,

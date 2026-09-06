@@ -933,7 +933,7 @@ async fn run_inner(
         wow_database::MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
         ));
-    let vehicle_template_store = Arc::new(
+    let _vehicle_template_store = Arc::new(
         crate::vehicle_catalog::load_vehicle_template_store_like_cpp(&vehicle_world_persistence)
             .await
             .context("Failed to load C++ vehicle_template rows")?,
@@ -2284,8 +2284,29 @@ async fn run_inner(
             |item_id| item_stats_store.sparse_template(item_id).is_some(),
         )
         .await?;
-    let _gameobject_quest_item_store = Arc::new(gameobject_quest_item_store);
+    let gameobject_quest_item_store = Arc::new(gameobject_quest_item_store);
     let _creature_quest_item_store = Arc::new(creature_quest_item_store);
+
+    let world_query_catalog_persistence =
+        wow_database::world_query_catalog_adapter::MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new(
+            Arc::clone(&world_db),
+        );
+    let (creature_query_catalog, gameobject_query_catalog, page_text_catalog) =
+        crate::world_query_catalog::load_like_cpp(&world_query_catalog_persistence)
+            .await
+            .context("Failed to load immutable C++ ObjectMgr query catalogs")?;
+    let object_mgr_catalogs = Arc::new(wow_world::session::ObjectMgrCatalogsLikeCpp {
+        creature: Arc::new(creature_query_catalog),
+        gameobject: Arc::new(gameobject_query_catalog),
+        gameobject_quest_items: gameobject_quest_item_store,
+        page_text: Arc::new(page_text_catalog),
+    });
+    info!(
+        creatures = object_mgr_catalogs.creature.len(),
+        gameobjects = object_mgr_catalogs.gameobject.len(),
+        pages = object_mgr_catalogs.page_text.len(),
+        "Loaded immutable C++ ObjectMgr query capability"
+    );
 
     // C++ global DB2 stores used by Item::CalculateDurabilityRepairCost.
     let durability_costs_store = Arc::new(
@@ -2423,7 +2444,6 @@ async fn run_inner(
         )
         .await
         .context("Failed to load C++ spell_enchant_proc_data rows")?;
-    let spell_enchant_proc_store = Arc::new(spell_enchant_proc_outcome.store);
     info!(
         "Loaded {} C++ spell_enchant_proc_data rows ({} missing enchantments)",
         spell_enchant_proc_outcome.loaded_row_count,
@@ -3717,6 +3737,7 @@ async fn run_inner(
         Arc::clone(&battle_pet_breed_quality_store),
         Arc::clone(&battle_pet_breed_state_store),
         Arc::clone(&battle_pet_species_state_store),
+        Arc::clone(&battle_pet_xp_game_table),
         realm_id,
         active_realm.id.address_like_cpp(),
     ));
@@ -3734,8 +3755,6 @@ async fn run_inner(
 
     let player_registry = Arc::new(PlayerRegistry::new());
     let active_session_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
-    let object_accessor = wow_world::new_shared_object_accessor();
-
     let mut condition_load_report = crate::condition_disable_catalog::load_conditions_like_cpp(
         &condition_disable_catalog_persistence,
         |_| 0,
@@ -4027,7 +4046,6 @@ async fn run_inner(
     )
     .await
     .context("Failed to load C++ spell_totem_model rows")?;
-    let spell_totem_model_store = Arc::new(spell_totem_model_outcome.store);
     info!(
         "Loaded {} C++ spell_totem_model rows ({} validation issues)",
         spell_totem_model_outcome.loaded_row_count,
@@ -4448,20 +4466,6 @@ async fn run_inner(
             &char_db,
         )),
     );
-    let creature_query_catalog_persistence_port: Arc<
-        dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
-            &world_db,
-        )),
-    );
-    let gameobject_query_catalog_persistence_port: Arc<
-        dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
-            &world_db,
-        )),
-    );
     let item_template_addon_catalog_persistence_port: Arc<
         dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp,
     > = Arc::new(
@@ -4491,11 +4495,6 @@ async fn run_inner(
     let gossip_catalog_persistence_port: Arc<
         dyn wow_persistence::GossipCatalogPersistencePortLikeCpp,
     > = gossip_catalog_adapter.clone();
-    let page_text_catalog_persistence_port: Arc<
-        dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db)),
-    );
     let player_name_query_persistence_port: Arc<
         dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp,
     > = Arc::new(
@@ -4561,20 +4560,6 @@ async fn run_inner(
             Arc::clone(&char_db),
         ),
     );
-    let next_mail_time_persistence_port: Arc<
-        dyn wow_persistence::NextMailTimePersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::next_mail_time_adapter::MariaDbNextMailTimePersistenceAdapterLikeCpp::new(
-            Arc::clone(&char_db),
-        ),
-    );
-    let gameobject_use_template_persistence_port: Arc<
-        dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::gameobject_use_template_adapter::MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::new(
-            Arc::clone(&world_db),
-        ),
-    );
     let spell_acquisition_port = spell_acquisition_port(Arc::clone(&char_db));
     let battle_pet_purchase_persistence_port: Arc<
         dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp,
@@ -4601,439 +4586,536 @@ async fn run_inner(
         Arc::new(
             wow_database::MariaDbVendorTradePersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
         );
-    let session_resources = Arc::new(SessionResources {
-        stored_item_persistence_port: Some(stored_item_persistence_port),
-        player_inventory_persistence_port: Some(player_inventory_persistence_port),
-        player_quest_persistence_port: Some(player_quest_persistence_port),
-        vendor_trade_persistence_port: Some(vendor_trade_persistence_port),
-        character_administration_persistence_port: Some(character_administration_persistence_port),
-        player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
-        character_enumeration_persistence_port: Some(character_enumeration_persistence_port),
-        creature_query_catalog_persistence_port: Some(creature_query_catalog_persistence_port),
-        gameobject_query_catalog_persistence_port: Some(gameobject_query_catalog_persistence_port),
-        item_template_addon_catalog_persistence_port: Some(
-            item_template_addon_catalog_persistence_port,
+    let persistence = wow_world::session::SessionPersistencePortsLikeCpp::required_like_cpp(
+        wow_world::session::SessionAdmissionPersistenceLikeCpp::required_like_cpp(
+            Arc::clone(&character_administration_persistence_port),
+            Arc::clone(&character_enumeration_persistence_port),
+            Arc::clone(&session_account_state_port),
+            Arc::clone(&packet_spoof_ban_persistence_port),
+            Arc::clone(&player_name_query_persistence_port),
+            Arc::clone(&support_bug_report_persistence_port),
         ),
-        loot_template_catalog_persistence_port: Some(loot_template_catalog_persistence_port),
-        vendor_catalog_persistence_port: Some(vendor_catalog_persistence_port),
-        visibility_spawn_catalog_persistence_port: Some(visibility_spawn_catalog_persistence_port),
-        gossip_catalog_persistence_port: Some(gossip_catalog_persistence_port),
-        page_text_catalog_persistence_port: Some(page_text_catalog_persistence_port),
-        player_name_query_persistence_port: Some(player_name_query_persistence_port),
-        session_account_state_port: Some(Arc::clone(&session_account_state_port)),
-        packet_spoof_ban_persistence_port: Some(Arc::clone(&packet_spoof_ban_persistence_port)),
-        void_storage_persistence_port: Some(Arc::clone(&void_storage_persistence_port)),
-        social_persistence_port: Some(Arc::clone(&social_persistence_port)),
-        map_corpse_persistence_port: Some(Arc::clone(&map_corpse_persistence_port)),
-        quest_poi_persistence_port: Some(Arc::clone(&quest_poi_persistence_port)),
-        stored_item_money_persistence_port: Some(Arc::clone(&stored_item_money_persistence_port)),
-        group_loot_money_persistence_port: Some(Arc::clone(&group_loot_money_persistence_port)),
-        represented_group_persistence_port: Some(Arc::clone(&represented_group_persistence_port)),
-        support_bug_report_persistence_port: Some(Arc::clone(&support_bug_report_persistence_port)),
-        next_mail_time_persistence_port: Some(Arc::clone(&next_mail_time_persistence_port)),
-        gameobject_use_template_persistence_port: Some(Arc::clone(
-            &gameobject_use_template_persistence_port,
-        )),
-        player_spell_acquisition_persistence_port: Some(spell_acquisition_port),
-        battle_pet_purchase_persistence_port: Some(battle_pet_purchase_persistence_port),
-        instance_lock_persistence_port: Some(instance_lock_persistence_port),
-        trainer_store: Some(Arc::clone(&trainer_data_store)),
-        guid_generator: Some(Arc::clone(&guid_generator)),
-        item_guid_generator: Some(Arc::clone(&item_guid_generator)),
-        equipment_set_guid_generator: Some(Arc::clone(&equipment_set_guid_generator)),
-        void_storage_item_id_generator: Some(Arc::clone(&void_storage_item_id_generator)),
-        instance_lock_mgr: Some(Arc::clone(&instance_lock_mgr)),
-        bank_bag_slot_prices_store: Some(Arc::clone(&bank_bag_slot_prices_store)),
-        currency_types_store: Some(Arc::clone(&currency_types_store)),
-        import_price_stores: Some(Arc::clone(&import_price_stores)),
-        emotes_store: Some(Arc::clone(&emotes_store)),
-        emotes_text_store: Some(Arc::clone(&emotes_text_store)),
-        item_class_store: Some(Arc::clone(&item_class_store)),
-        item_currency_cost_store: Some(Arc::clone(&item_currency_cost_store)),
-        item_extended_cost_store: Some(Arc::clone(&item_extended_cost_store)),
-        item_store: Some(Arc::clone(&item_store)),
-        item_child_equipment_store: Some(Arc::clone(&item_child_equipment_store)),
-        item_appearance_store: Some(Arc::clone(&item_appearance_store)),
-        item_modified_appearance_store: Some(Arc::clone(&item_modified_appearance_store)),
-        item_search_name_store: Some(Arc::clone(&item_search_name_store)),
-        trinity_string_store: Some(Arc::clone(&trinity_string_store)),
-        heirloom_store: Some(Arc::clone(&heirloom_store)),
-        toy_store: Some(Arc::clone(&toy_store)),
-        battle_pet_breed_quality_store: Some(Arc::clone(&battle_pet_breed_quality_store)),
-        battle_pet_breed_state_store: Some(Arc::clone(&battle_pet_breed_state_store)),
-        battle_pet_species_store: Some(Arc::clone(&battle_pet_species_entry_store)),
-        battle_pet_selection_store: Some(Arc::clone(&battle_pet_selection_store)),
-        battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
-        battle_pet_xp_game_table: Some(Arc::clone(&battle_pet_xp_game_table)),
-        combat_ratings_game_table: Some(Arc::clone(&combat_ratings_game_table)),
-        shield_block_regular_game_table: Some(Arc::clone(&shield_block_regular_game_table)),
-        transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
-        item_price_base_store: Some(Arc::clone(&item_price_base_store)),
-        item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
-        item_limit_category_condition_store: Some(Arc::clone(&item_limit_category_condition_store)),
-        player_create_info_store: Some(Arc::clone(&player_create_info_store)),
-        player_create_cast_spell_store: Some(Arc::clone(&player_create_cast_spell_store)),
-        player_create_custom_spell_store: Some(Arc::clone(&player_create_custom_spell_store)),
-        player_stats: Some(Arc::clone(&player_stats)),
-        item_bonus_db2_store: Some(Arc::clone(&item_bonus_db2_store)),
-        pvp_item_store: Some(Arc::clone(&pvp_item_store)),
-        item_set_store: Some(Arc::clone(&item_set_store)),
-        item_set_spell_store: Some(Arc::clone(&item_set_spell_store)),
-        item_stats_store: Some(Arc::clone(&item_stats_store)),
-        durability_costs_store: Some(Arc::clone(&durability_costs_store)),
-        durability_quality_store: Some(Arc::clone(&durability_quality_store)),
-        item_effect_store: Some(Arc::clone(&item_effect_store)),
-        item_random_suffix_store: Some(Arc::clone(&item_random_suffix_store)),
-        item_random_properties_store: Some(Arc::clone(&item_random_properties_store)),
-        item_spec_override_store: Some(Arc::clone(&item_spec_override_store)),
-        rand_prop_points_store: Some(Arc::clone(&rand_prop_points_store)),
-        item_random_enchantment_template_store: Some(Arc::clone(
-            &item_random_enchantment_template_store,
-        )),
-        item_disenchant_loot_store: Some(Arc::clone(&item_disenchant_loot_store)),
-        loot_stores: Some(Arc::clone(&loot_stores)),
-        condition_store: Some(Arc::clone(&condition_store)),
-        player_condition_store: Some(Arc::clone(&player_condition_store)),
-        adventure_map_poi_store: Some(Arc::clone(&adventure_map_poi_store)),
-        content_tuning_store: Some(Arc::clone(&content_tuning_store)),
-        curve_store: Some(Arc::clone(&curve_store)),
-        curve_point_store: Some(Arc::clone(&curve_point_store)),
-        scaling_stat_distribution_store: Some(Arc::clone(&scaling_stat_distribution_store)),
-        scaling_stat_values_store: Some(Arc::clone(&scaling_stat_values_store)),
-        disable_mgr: Some(Arc::clone(&disable_mgr)),
-        difficulty_store: Some(Arc::clone(&difficulty_store)),
-        lock_store: Some(Arc::clone(&lock_store)),
-        spell_item_enchantment_store: Some(Arc::clone(&spell_item_enchantment_store)),
-        spell_item_enchantment_condition_store: Some(Arc::clone(
-            &spell_item_enchantment_condition_store,
-        )),
-        gem_properties_store: Some(Arc::clone(&gem_properties_store)),
-        spell_enchant_proc_store: Some(Arc::clone(&spell_enchant_proc_store)),
-        hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
-        tact_key_store: Some(Arc::clone(&tact_key_store)),
-        skill_store: Some(Arc::clone(&skill_store)),
-        trait_definition_store: Some(Arc::clone(&trait_definition_store)),
-        trait_node_entry_store: Some(Arc::clone(&trait_node_entry_store)),
-        skill_line_store: Some(Arc::clone(&skill_line_store)),
-        skill_tiers_store: Some(Arc::clone(&skill_tiers_store)),
-        talent_store: Some(Arc::clone(&talent_store)),
-        talent_tab_store: Some(Arc::clone(&talent_tab_store)),
-        num_talents_at_level_store: Some(Arc::clone(&num_talents_at_level_store)),
-        glyph_properties_store: Some(Arc::clone(&glyph_properties_store)),
-        chr_races_store: Some(Arc::clone(&chr_races_store)),
-        chr_classes_store: Some(Arc::clone(&chr_classes_store)),
-        power_type_store: Some(Arc::clone(&power_type_store)),
-        spell_chain_store: Some(Arc::clone(&spell_chain_store)),
-        spell_store: Some(Arc::clone(&spell_store)),
-        spell_acquisition_catalog: Some(Arc::clone(&spell_acquisition_catalog)),
-        spell_acquisition_safe_cast_spell_ids: Some(Arc::clone(
-            &spell_acquisition_safe_cast_spell_ids,
-        )),
-        spell_acquisition_valid_craft_spell_ids: Some(Arc::clone(
-            &spell_acquisition_valid_craft_spell_ids,
-        )),
-        spell_script_exact_spell_ids: Some(Arc::clone(&spell_script_exact_spell_ids)),
-        spell_script_all_rank_root_spell_ids: Some(Arc::clone(
-            &spell_script_all_rank_root_spell_ids,
-        )),
-        legacy_spell_script_spell_ids: Some(Arc::clone(&legacy_spell_script_spell_ids)),
-        spell_linked_rejected_trigger_spell_ids: Some(Arc::clone(
-            &spell_linked_rejected_trigger_spell_ids,
-        )),
-        spell_levels_store: Some(Arc::clone(&spell_levels_store)),
-        spell_category_store: Some(Arc::clone(&spell_category_store)),
-        npc_spell_click_store: Some(Arc::clone(&npc_spell_click_store)),
-        spell_aura_options_store: Some(Arc::clone(&spell_aura_options_store)),
-        spell_aura_restrictions_store: Some(Arc::clone(&spell_aura_restrictions_store)),
-        spell_target_restrictions_store: Some(Arc::clone(&spell_target_restrictions_store)),
-        spell_equipped_items_store: Some(Arc::clone(&spell_equipped_items_store)),
-        spell_misc_store: Some(Arc::clone(&spell_misc_store)),
-        spell_group_store: Some(Arc::clone(&spell_group_store)),
-        spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
-        spell_linked_store: Some(Arc::clone(&spell_linked_store)),
-        spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
-        spell_area_store: Some(Arc::clone(&spell_area_store)),
-        spell_custom_attribute_store: Some(Arc::clone(&spell_custom_attribute_store)),
-        serverside_spell_store: Some(Arc::clone(&serverside_spell_store)),
-        spell_learn_skill_store: Some(Arc::clone(&spell_learn_skill_store)),
-        spell_learn_spell_store: Some(Arc::clone(&spell_learn_spell_store)),
-        pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
-        pet_default_spell_store: Some(Arc::clone(&pet_default_spell_store)),
-        pet_family_spell_store: Some(Arc::clone(&pet_family_spell_store)),
-        spell_proc_store: Some(Arc::clone(&spell_proc_store)),
-        spell_required_store: Some(Arc::clone(&spell_required_store)),
-        spell_threat_store: Some(Arc::clone(&spell_threat_store)),
-        spell_duration_store: Some(Arc::clone(&spell_duration_store)),
-        spell_radius_store: Some(Arc::clone(&spell_radius_store)),
-        spell_range_store: Some(Arc::clone(&spell_range_store)),
-        spell_target_position_store: Some(Arc::clone(&spell_target_position_store)),
-        spell_totem_model_store: Some(Arc::clone(&spell_totem_model_store)),
-        movie_store: Some(Arc::clone(&movie_store)),
-        script_name_interner: Some(Arc::clone(&script_name_interner)),
-        gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
-        area_table_store: Some(Arc::clone(&area_table_store)),
-        fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
-        area_trigger_db2_store: Some(Arc::clone(&area_trigger_db2_store)),
-        area_trigger_store: Some(Arc::clone(&area_trigger_store)),
-        area_trigger_script_store: Some(Arc::clone(&area_trigger_script_store)),
-        tavern_area_trigger_store: Some(Arc::clone(&tavern_area_trigger_store)),
-        graveyard_store: Some(Arc::clone(&graveyard_store)),
-        area_trigger_template_store: Some(Arc::clone(&area_trigger_template_store)),
-        chr_specialization_store: Some(Arc::clone(&chr_specialization_store)),
-        dungeon_encounter_store: Some(Arc::clone(&dungeon_encounter_store)),
-        map_store: Some(Arc::clone(&map_store)),
-        world_safe_loc_store: Some(Arc::clone(&world_safe_loc_store)),
-        map_difficulty_store: Some(Arc::clone(&map_difficulty_store)),
-        map_difficulty_x_condition_store: Some(Arc::clone(&map_difficulty_x_condition_store)),
-        access_requirement_store: Some(Arc::clone(&access_requirement_store)),
-        lfg_dungeons_store: Some(Arc::clone(&lfg_dungeons_store)),
-        lfg_dungeon_store_like_cpp: Some(Arc::clone(&lfg_dungeon_store_like_cpp)),
-        battlemaster_list_store: Some(Arc::clone(&battlemaster_list_typed_store)),
-        creature_template_lifecycle_store: Some(Arc::clone(&creature_template_lifecycle_store)),
-        creature_template_mount_store: Some(Arc::clone(&creature_template_mount_store)),
-        creature_equipment_store: Some(Arc::clone(&creature_equipment_store)),
-        creature_display_info_store: Some(Arc::clone(&creature_display_info_store)),
-        creature_display_info_extra_store: Some(Arc::clone(&creature_display_info_extra_store)),
-        gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
-        creature_model_info_store: Some(Arc::clone(&creature_model_info_store)),
-        creature_addon_store: Some(Arc::clone(&creature_addon_store)),
-        creature_difficulty_store: Some(Arc::clone(&creature_difficulty_store)),
-        creature_base_stats_store: Some(Arc::clone(&creature_base_stats_store)),
-        creature_health_rates,
-        creature_model_data_store: Some(Arc::clone(&creature_model_data_store)),
-        mount_store: Some(Arc::clone(&mount_store)),
-        mount_definition_store: Some(Arc::clone(&mount_definition_store)),
-        mount_capability_store: Some(Arc::clone(&mount_capability_store)),
-        mount_type_x_capability_store: Some(Arc::clone(&mount_type_x_capability_store)),
-        mount_x_display_store: Some(Arc::clone(&mount_x_display_store)),
-        spell_shapeshift_form_store: Some(Arc::clone(&spell_shapeshift_form_store)),
-        vehicle_store: Some(Arc::clone(&vehicle_store)),
-        vehicle_seat_store: Some(Arc::clone(&vehicle_seat_store)),
-        vehicle_template_store: Some(Arc::clone(&vehicle_template_store)),
-        vehicle_accessory_store: Some(Arc::clone(&vehicle_accessory_store)),
-        terrain_swap_store: Some(Arc::clone(&terrain_swap_store)),
-        phase_store: Some(Arc::clone(&phase_store)),
-        phase_group_store: Some(Arc::clone(&phase_group_store)),
-        quest_store: Some(Arc::clone(&quest_store)),
-        quest_xp_store: Some(Arc::clone(&quest_xp_store)),
-        quest_money_reward_store: Some(Arc::clone(&quest_money_reward_store)),
-        quest_v2_store: Some(Arc::clone(&quest_v2_store)),
-        quest_info_store: Some(Arc::clone(&quest_info_store)),
-        quest_package_item_store: Some(Arc::clone(&quest_package_item_store)),
-        quest_faction_reward_store: Some(Arc::clone(&quest_faction_reward_store)),
-        progression_faction_store: Some(Arc::clone(&progression_faction_store)),
-        faction_template_store: Some(Arc::clone(&faction_template_store)),
-        friendship_rep_reaction_store: Some(Arc::clone(&friendship_rep_reaction_store)),
-        paragon_reputation_store: Some(Arc::clone(&paragon_reputation_store)),
-        reputation_reward_rate_store: Some(Arc::clone(&reputation_reward_rate_store)),
-        creature_onkill_reputation_store: Some(Arc::clone(&creature_onkill_reputation_store)),
-        reputation_spillover_template_store: Some(Arc::clone(&reputation_spillover_template_store)),
-        player_xp_table: Some(Arc::clone(&player_xp_table)),
-        exploration_base_xp_store: Some(Arc::clone(&exploration_base_xp_store)),
-        exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
-        // `WorldConfigSet` resolves the external `MaxPlayerLevel` key and indexes
-        // the validated value by the matching C++ enum name.
-        max_player_level_config: world_config_u32(&world_configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
-        max_primary_trade_skills: max_primary_trade_skills_like_cpp(&world_configs),
-        is_pvp_realm: is_pvp_realm_type_like_cpp(world_config_u32(
-            &world_configs,
-            "CONFIG_GAME_TYPE",
-            u32::from(REALM_TYPE_NORMAL_LIKE_CPP),
-        )),
-        is_ffa_pvp_realm: is_ffa_pvp_realm_type_like_cpp(world_config_u32(
-            &world_configs,
-            "CONFIG_GAME_TYPE",
-            u32::from(REALM_TYPE_NORMAL_LIKE_CPP),
-        )),
-        max_recruit_a_friend_bonus_player_level: world_config_u32(
-            &world_configs,
-            "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL",
-            85,
+        wow_world::session::PlayerPersistenceCapabilitiesLikeCpp::required_like_cpp(
+            Arc::clone(&player_lifecycle_port),
+            Arc::clone(&void_storage_persistence_port),
+            Arc::clone(&social_persistence_port),
+            Arc::clone(&stored_item_money_persistence_port),
+            Arc::clone(&stored_item_persistence_port),
+            Arc::clone(&player_inventory_persistence_port),
+            Arc::clone(&player_quest_persistence_port),
+            Arc::clone(&vendor_trade_persistence_port),
+            Arc::clone(&spell_acquisition_port),
+            Arc::clone(&instance_lock_persistence_port),
+            Arc::clone(&battle_pet_purchase_persistence_port),
         ),
-        max_recruit_a_friend_bonus_player_level_difference: world_config_u32(
-            &world_configs,
-            "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE",
-            4,
+        wow_world::session::WorldPersistenceCapabilitiesLikeCpp::required_like_cpp(
+            Arc::clone(&map_corpse_persistence_port),
+            Arc::clone(&group_loot_money_persistence_port),
+            Arc::clone(&represented_group_persistence_port),
         ),
-        rest_offline_wilderness_rate: world_config_f32(
-            &world_configs,
-            "RATE_REST_OFFLINE_IN_WILDERNESS",
-            1.0,
+        wow_world::session::CatalogPersistenceCapabilitiesLikeCpp::required_like_cpp(
+            Arc::clone(&quest_poi_persistence_port),
+            Arc::clone(&item_template_addon_catalog_persistence_port),
+            Arc::clone(&loot_template_catalog_persistence_port),
+            Arc::clone(&vendor_catalog_persistence_port),
+            Arc::clone(&visibility_spawn_catalog_persistence_port),
+            Arc::clone(&gossip_catalog_persistence_port),
         ),
-        rest_offline_tavern_or_city_rate: world_config_f32(
-            &world_configs,
-            "RATE_REST_OFFLINE_IN_TAVERN_OR_CITY",
-            1.0,
-        ),
-        rest_ingame_rate: world_config_f32(&world_configs, "RATE_REST_INGAME", 1.0),
-        min_quest_scaled_xp_ratio: world_config_u32(
-            &world_configs,
-            "CONFIG_MIN_QUEST_SCALED_XP_RATIO",
-            0,
-        ),
-        min_discovered_scaled_xp_ratio: world_config_u32(
-            &world_configs,
-            "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
-            0,
-        ),
-        player_registry: Some(Arc::clone(&player_registry)),
-        module_registry: Some(Arc::clone(&modules)),
-        game_event_quest_complete_tx: Some(game_event_quest_complete_tx),
-        group_registry: Some(Arc::clone(&group_registry)),
-        pending_invites: Some(Arc::clone(&pending_invites)),
-        loot_drop_rates: loot_drop_rates_like_cpp(&world_configs),
-        reputation_rates: reputation_rates_like_cpp(&world_configs),
-        repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
-        reset_schedule: reset_schedule_like_cpp(&world_configs),
-        no_reset_talent_cost: world_config_bool(
-            &world_configs,
-            "CONFIG_NO_RESET_TALENT_COST",
-            false,
-        ),
-        offhand_check_at_spell_unlearn: world_config_bool(
-            &world_configs,
-            "CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN",
-            true,
-        ),
-        vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),
-        start_all_explored: world_config_bool(&world_configs, "CONFIG_START_ALL_EXPLORED", false),
-        start_all_reputation: world_config_bool(&world_configs, "CONFIG_START_ALL_REP", false),
-        start_all_spells: world_config_bool(&world_configs, "CONFIG_START_ALL_SPELLS", false),
-        support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
-        support_tickets_enabled: world_config_bool(
-            &world_configs,
-            "CONFIG_SUPPORT_TICKETS_ENABLED",
-            false,
-        ),
-        support_bugs_enabled: world_config_bool(
-            &world_configs,
-            "CONFIG_SUPPORT_BUGS_ENABLED",
-            false,
-        ),
-        support_complaints_enabled: world_config_bool(
-            &world_configs,
-            "CONFIG_SUPPORT_COMPLAINTS_ENABLED",
-            false,
-        ),
-        support_suggestions_enabled: world_config_bool(
-            &world_configs,
-            "CONFIG_SUPPORT_SUGGESTIONS_ENABLED",
-            false,
-        ),
-        quest_low_level_hide_diff: world_config_u32(
-            &world_configs,
-            "CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF",
-            4,
-        ),
-        quest_high_level_hide_diff: world_config_u32(
-            &world_configs,
-            "CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF",
-            7,
-        ),
-        enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
-        addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
-        server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
-        characters_per_realm: world_config_u32(&world_configs, "CONFIG_CHARACTERS_PER_REALM", 60),
-        declined_names_used: declined_names_used_like_cpp(&world_configs, &cfg_categories_store),
-        feature_system_bpay_store_enabled: world_config_bool(
-            &world_configs,
-            "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
-            false,
-        ),
-        feature_system_character_undelete_enabled: world_config_bool(
-            &world_configs,
-            "CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED",
-            false,
-        ),
-        instance_ignore_raid: world_config_bool(
-            &world_configs,
-            "CONFIG_INSTANCE_IGNORE_RAID",
-            false,
-        ),
-        instance_ignore_level: world_config_bool(
-            &world_configs,
-            "CONFIG_INSTANCE_IGNORE_LEVEL",
-            false,
-        ),
-        max_instances_per_hour: world_config_u32(
-            &world_configs,
-            "CONFIG_MAX_INSTANCES_PER_HOUR",
-            5,
-        ),
-        chat_fake_message_preventing: world_config_bool(
-            &world_configs,
-            "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
-            false,
-        ),
-        party_raid_warnings: world_config_bool(
-            &world_configs,
-            "CONFIG_CHAT_PARTY_RAID_WARNINGS",
-            false,
-        ),
-        allow_gm_group: world_config_bool(&world_configs, "CONFIG_ALLOW_GM_GROUP", false),
-        allow_two_side_interaction_group: world_config_bool(
-            &world_configs,
-            "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
-            false,
-        ),
-        party_level_req: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
-        chat_strict_link_checking_kick: world_config_u8(
-            &world_configs,
-            "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK",
-            0,
-        ) != 0,
-        chat_level_requirements: ChatLevelRequirementsLikeCpp {
-            channel: world_config_u8(&world_configs, "CONFIG_CHAT_CHANNEL_LEVEL_REQ", 1),
-            whisper: world_config_u8(&world_configs, "CONFIG_CHAT_WHISPER_LEVEL_REQ", 1),
-            emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
-            say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
-            yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
-        },
-        chat_listen_ranges: ChatListenRangesLikeCpp {
-            say: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_SAY", 25.0),
-            text_emote: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_TEXTEMOTE", 25.0),
-            yell: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
-        },
-        chat_flood_config: ChatFloodConfigLikeCpp {
-            message_count: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MESSAGE_COUNT", 10),
-            message_delay_secs: world_config_u32(
-                &world_configs,
-                "CONFIG_CHATFLOOD_MESSAGE_DELAY",
-                1,
-            ),
-            addon_message_count: world_config_u32(
-                &world_configs,
-                "CONFIG_CHATFLOOD_ADDON_MESSAGE_COUNT",
-                100,
-            ),
-            addon_message_delay_secs: world_config_u32(
-                &world_configs,
-                "CONFIG_CHATFLOOD_ADDON_MESSAGE_DELAY",
-                1,
-            ),
-            mute_time_secs: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
-        },
-        packet_spoof_config: PacketSpoofConfigLikeCpp {
-            policy: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
-            ban_mode: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),
-            ban_duration_secs: world_config_u32(
-                &world_configs,
-                "CONFIG_PACKET_SPOOF_BANDURATION",
-                86_400,
-            ),
-        },
-        player_save_interval_ms: world_config_u32(
-            &world_configs,
-            "CONFIG_INTERVAL_SAVE",
-            15 * 60 * 1000,
-        ),
-        realm_id,
-        realm_region: active_realm.id.region,
-        realm_battlegroup: active_realm.id.site,
-        realm_names,
-        realm_external_address,
-        realm_local_address,
+    );
+    let grid_canonical_map_manager = Arc::clone(&canonical_map_manager);
+    let grid_legacy_manager = Arc::clone(&shared_map);
+    let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
+    let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
+    let grid_map_store = Arc::clone(&map_store);
+    let grid_area_trigger_template_store = Arc::clone(&area_trigger_template_store);
+    let player_grid_loader = Arc::new(move |map_id, instance_id, position| {
+        ensure_login_player_grid_loaded_like_cpp(
+            &grid_canonical_map_manager,
+            &grid_legacy_manager,
+            &grid_spawn_metadata,
+            &grid_loaded_caches,
+            grid_area_trigger_template_store.as_ref(),
+            Some(grid_map_store.as_ref()),
+            map_id,
+            instance_id,
+            position,
+        )
     });
+    let session_resources = SessionResources {
+        core: SessionCoreCapabilitiesLikeCpp {
+            handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
+                object_mgr: object_mgr_catalogs,
+                player_grid_loader,
+                area_triggers: Arc::new(wow_world::session::AreaTriggerCatalogsLikeCpp {
+                    db2: Arc::clone(&area_trigger_db2_store),
+                    destinations: Arc::clone(&area_trigger_store),
+                    scripts: Arc::clone(&area_trigger_script_store),
+                    taverns: Arc::clone(&tavern_area_trigger_store),
+                    script_dispatcher: None,
+                }),
+                item_valuation: Arc::new(wow_world::session::ItemValuationCatalogsLikeCpp {
+                    import_prices: Arc::clone(&import_price_stores),
+                    price_base: Arc::clone(&item_price_base_store),
+                    item_classes: Arc::clone(&item_class_store),
+                    currency_costs: Arc::clone(&item_currency_cost_store),
+                    disenchant_loot: Arc::clone(&item_disenchant_loot_store),
+                }),
+                player_bootstrap: Arc::new(wow_world::session::PlayerBootstrapCatalogsLikeCpp {
+                    create_info: Arc::clone(&player_create_info_store),
+                    glyph_properties: Arc::clone(&glyph_properties_store),
+                    talent_tabs: Arc::clone(&talent_tab_store),
+                    trait_node_entries: Arc::clone(&trait_node_entry_store),
+                    cast_spells: Arc::clone(&player_create_cast_spell_store),
+                    custom_spells: Arc::clone(&player_create_custom_spell_store),
+                    start_all_spells: world_config_bool(
+                        &world_configs,
+                        "CONFIG_START_ALL_SPELLS",
+                        false,
+                    ),
+                    start_all_explored: world_config_bool(
+                        &world_configs,
+                        "CONFIG_START_ALL_EXPLORED",
+                        false,
+                    ),
+                    start_all_reputation: world_config_bool(
+                        &world_configs,
+                        "CONFIG_START_ALL_REP",
+                        false,
+                    ),
+                }),
+                player_rest_rates: Arc::new(wow_world::session::PlayerRestRatePolicyLikeCpp {
+                    offline_wilderness: world_config_f32(
+                        &world_configs,
+                        "RATE_REST_OFFLINE_IN_WILDERNESS",
+                        1.0,
+                    ),
+                    offline_tavern_or_city: world_config_f32(
+                        &world_configs,
+                        "RATE_REST_OFFLINE_IN_TAVERN_OR_CITY",
+                        1.0,
+                    ),
+                    ingame: world_config_f32(&world_configs, "RATE_REST_INGAME", 1.0),
+                }),
+                creature_spawns: Arc::new(wow_world::session::CreatureSpawnCatalogsLikeCpp {
+                    difficulty: Arc::clone(&creature_difficulty_store),
+                    base_stats: Arc::clone(&creature_base_stats_store),
+                    health_rates: creature_health_rates,
+                    addons: Arc::clone(&creature_addon_store),
+                    equipment: Arc::clone(&creature_equipment_store),
+                    power_types: Arc::clone(&power_type_store),
+                }),
+                progression: Arc::new(wow_world::session::ProgressionCatalogsLikeCpp {
+                    no_reset_talent_cost: world_config_bool(
+                        &world_configs,
+                        "CONFIG_NO_RESET_TALENT_COST",
+                        false,
+                    ),
+                    player_xp: Arc::clone(&player_xp_table),
+                    exploration_base_xp: Arc::clone(&exploration_base_xp_store),
+                    exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
+                    min_discovered_scaled_xp_ratio: world_config_u32(
+                        &world_configs,
+                        "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
+                        0,
+                    ),
+                }),
+                battle_pet_trainer_selection: Arc::clone(&battle_pet_selection_store),
+                quest_info: Arc::clone(&quest_info_store),
+                chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
+                    addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
+                    fake_message_preventing: world_config_bool(
+                        &world_configs,
+                        "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
+                        false,
+                    ),
+                    strict_link_checking_kick: world_config_u8(
+                        &world_configs,
+                        "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK",
+                        0,
+                    ) != 0,
+                    level_requirements: ChatLevelRequirementsLikeCpp {
+                        channel: world_config_u8(
+                            &world_configs,
+                            "CONFIG_CHAT_CHANNEL_LEVEL_REQ",
+                            1,
+                        ),
+                        whisper: world_config_u8(
+                            &world_configs,
+                            "CONFIG_CHAT_WHISPER_LEVEL_REQ",
+                            1,
+                        ),
+                        emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
+                        say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
+                        yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
+                    },
+                    listen_ranges: ChatListenRangesLikeCpp {
+                        say: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_SAY", 25.0),
+                        text_emote: world_config_f32(
+                            &world_configs,
+                            "CONFIG_LISTEN_RANGE_TEXTEMOTE",
+                            25.0,
+                        ),
+                        yell: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
+                    },
+                    flood: ChatFloodConfigLikeCpp {
+                        message_count: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_MESSAGE_COUNT",
+                            10,
+                        ),
+                        message_delay_secs: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_MESSAGE_DELAY",
+                            1,
+                        ),
+                        addon_message_count: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_ADDON_MESSAGE_COUNT",
+                            100,
+                        ),
+                        addon_message_delay_secs: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_ADDON_MESSAGE_DELAY",
+                            1,
+                        ),
+                        mute_time_secs: world_config_u32(
+                            &world_configs,
+                            "CONFIG_CHATFLOOD_MUTE_TIME",
+                            10,
+                        ),
+                    },
+                    party_raid_warnings: world_config_bool(
+                        &world_configs,
+                        "CONFIG_CHAT_PARTY_RAID_WARNINGS",
+                        false,
+                    ),
+                }),
+                group_invite_policy: Arc::new(wow_world::session::GroupInvitePolicyLikeCpp {
+                    allow_gm_group: world_config_bool(
+                        &world_configs,
+                        "CONFIG_ALLOW_GM_GROUP",
+                        false,
+                    ),
+                    allow_two_side_interaction: world_config_bool(
+                        &world_configs,
+                        "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
+                        false,
+                    ),
+                    minimum_level: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
+                }),
+                support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp {
+                    support_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_ENABLED",
+                        true,
+                    ),
+                    tickets_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_TICKETS_ENABLED",
+                        false,
+                    ),
+                    bugs_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_BUGS_ENABLED",
+                        false,
+                    ),
+                    complaints_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_COMPLAINTS_ENABLED",
+                        false,
+                    ),
+                    suggestions_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_SUPPORT_SUGGESTIONS_ENABLED",
+                        false,
+                    ),
+                    character_undelete_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED",
+                        false,
+                    ),
+                    bpay_store_enabled: world_config_bool(
+                        &world_configs,
+                        "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
+                        false,
+                    ),
+                    max_characters_per_realm: world_config_u32(
+                        &world_configs,
+                        "CONFIG_CHARACTERS_PER_REALM",
+                        60,
+                    ),
+                    declined_names_used: declined_names_used_like_cpp(
+                        &world_configs,
+                        &cfg_categories_store,
+                    ),
+                }),
+                bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
+                adventure_map_pois: Arc::clone(&adventure_map_poi_store),
+                battlemaster_lists: Arc::clone(&battlemaster_list_typed_store),
+                emotes: Arc::clone(&emotes_store),
+                emotes_text: Arc::clone(&emotes_text_store),
+                graveyards: Arc::clone(&graveyard_store),
+                lfg_dungeons: Arc::clone(&lfg_dungeon_store_like_cpp),
+                tact_keys: Arc::clone(&tact_key_store),
+                hotfixes: Arc::clone(&hotfix_blob_cache),
+                modules: Arc::clone(&modules),
+                id_generators: Arc::new(wow_world::session::SessionIdGeneratorsLikeCpp {
+                    player: Arc::clone(&guid_generator),
+                    item: Arc::clone(&item_guid_generator),
+                    equipment_set: Arc::clone(&equipment_set_guid_generator),
+                    void_storage_item: Arc::clone(&void_storage_item_id_generator),
+                }),
+            }),
+            gameobject_template_lifecycle_store: Arc::clone(&gameobject_template_lifecycle_store),
+            persistence,
+            trainer_store: Arc::clone(&trainer_data_store),
+            instance_lock_mgr: Arc::clone(&instance_lock_mgr),
+        },
+        inventory: SessionInventoryCapabilitiesLikeCpp {
+            currency_types_store: Arc::clone(&currency_types_store),
+            item_extended_cost_store: Arc::clone(&item_extended_cost_store),
+            item_store: Arc::clone(&item_store),
+            item_child_equipment_store: Arc::clone(&item_child_equipment_store),
+            item_appearance_store: Arc::clone(&item_appearance_store),
+            item_modified_appearance_store: Arc::clone(&item_modified_appearance_store),
+            item_search_name_store: Arc::clone(&item_search_name_store),
+            trinity_string_store: Arc::clone(&trinity_string_store),
+            heirloom_store: Arc::clone(&heirloom_store),
+            toy_store: Arc::clone(&toy_store),
+            combat_ratings_game_table: Arc::clone(&combat_ratings_game_table),
+            shield_block_regular_game_table: Arc::clone(&shield_block_regular_game_table),
+            transmog_set_item_store: Arc::clone(&transmog_set_item_store),
+            item_limit_category_store: Arc::clone(&item_limit_category_store),
+            item_limit_category_condition_store: Arc::clone(&item_limit_category_condition_store),
+            player_stats: Arc::clone(&player_stats),
+            item_bonus_db2_store: Arc::clone(&item_bonus_db2_store),
+            pvp_item_store: Arc::clone(&pvp_item_store),
+            item_set_store: Arc::clone(&item_set_store),
+            item_set_spell_store: Arc::clone(&item_set_spell_store),
+            item_stats_store: Arc::clone(&item_stats_store),
+            durability_costs_store: Arc::clone(&durability_costs_store),
+            durability_quality_store: Arc::clone(&durability_quality_store),
+            item_effect_store: Arc::clone(&item_effect_store),
+            item_random_suffix_store: Arc::clone(&item_random_suffix_store),
+            item_random_properties_store: Arc::clone(&item_random_properties_store),
+            item_spec_override_store: Arc::clone(&item_spec_override_store),
+            rand_prop_points_store: Arc::clone(&rand_prop_points_store),
+            item_random_enchantment_template_store: Arc::clone(
+                &item_random_enchantment_template_store,
+            ),
+            loot_stores: Arc::clone(&loot_stores),
+        },
+        player: SessionPlayerCatalogCapabilitiesLikeCpp {
+            condition_store: Arc::clone(&condition_store),
+            player_condition_store: Arc::clone(&player_condition_store),
+            content_tuning_store: Arc::clone(&content_tuning_store),
+            curve_store: Arc::clone(&curve_store),
+            curve_point_store: Arc::clone(&curve_point_store),
+            scaling_stat_distribution_store: Arc::clone(&scaling_stat_distribution_store),
+            scaling_stat_values_store: Arc::clone(&scaling_stat_values_store),
+            disable_mgr: Arc::clone(&disable_mgr),
+            difficulty_store: Arc::clone(&difficulty_store),
+            lock_store: Arc::clone(&lock_store),
+            spell_item_enchantment_store: Arc::clone(&spell_item_enchantment_store),
+            spell_item_enchantment_condition_store: Arc::clone(
+                &spell_item_enchantment_condition_store,
+            ),
+            gem_properties_store: Arc::clone(&gem_properties_store),
+            skill_store: Arc::clone(&skill_store),
+            trait_definition_store: Arc::clone(&trait_definition_store),
+            skill_line_store: Arc::clone(&skill_line_store),
+            skill_tiers_store: Arc::clone(&skill_tiers_store),
+            talent_store: Arc::clone(&talent_store),
+            num_talents_at_level_store: Arc::clone(&num_talents_at_level_store),
+            chr_races_store: Arc::clone(&chr_races_store),
+            chr_classes_store: Arc::clone(&chr_classes_store),
+        },
+        spells: SessionSpellCatalogCapabilitiesLikeCpp {
+            spell_chain_store: Arc::clone(&spell_chain_store),
+            spell_store: Arc::clone(&spell_store),
+            spell_acquisition_catalog: Arc::clone(&spell_acquisition_catalog),
+            spell_acquisition_safe_cast_spell_ids: Arc::clone(
+                &spell_acquisition_safe_cast_spell_ids,
+            ),
+            spell_acquisition_valid_craft_spell_ids: Arc::clone(
+                &spell_acquisition_valid_craft_spell_ids,
+            ),
+            spell_script_exact_spell_ids: Arc::clone(&spell_script_exact_spell_ids),
+            spell_script_all_rank_root_spell_ids: Arc::clone(&spell_script_all_rank_root_spell_ids),
+            legacy_spell_script_spell_ids: Arc::clone(&legacy_spell_script_spell_ids),
+            spell_linked_rejected_trigger_spell_ids: Arc::clone(
+                &spell_linked_rejected_trigger_spell_ids,
+            ),
+            spell_levels_store: Arc::clone(&spell_levels_store),
+            spell_category_store: Arc::clone(&spell_category_store),
+            npc_spell_click_store: Arc::clone(&npc_spell_click_store),
+            spell_aura_options_store: Arc::clone(&spell_aura_options_store),
+            spell_aura_restrictions_store: Arc::clone(&spell_aura_restrictions_store),
+            spell_target_restrictions_store: Arc::clone(&spell_target_restrictions_store),
+            spell_equipped_items_store: Arc::clone(&spell_equipped_items_store),
+            spell_misc_store: Arc::clone(&spell_misc_store),
+            spell_group_store: Arc::clone(&spell_group_store),
+            spell_group_stack_rule_store: Arc::clone(&spell_group_stack_rule_store),
+            spell_linked_store: Arc::clone(&spell_linked_store),
+            spell_pet_aura_store: Arc::clone(&spell_pet_aura_store),
+            spell_area_store: Arc::clone(&spell_area_store),
+            spell_custom_attribute_store: Arc::clone(&spell_custom_attribute_store),
+            spell_learn_skill_store: Arc::clone(&spell_learn_skill_store),
+            spell_learn_spell_store: Arc::clone(&spell_learn_spell_store),
+            spell_proc_store: Arc::clone(&spell_proc_store),
+            spell_required_store: Arc::clone(&spell_required_store),
+            spell_threat_store: Arc::clone(&spell_threat_store),
+            spell_duration_store: Arc::clone(&spell_duration_store),
+            spell_radius_store: Arc::clone(&spell_radius_store),
+            spell_range_store: Arc::clone(&spell_range_store),
+            spell_target_position_store: Arc::clone(&spell_target_position_store),
+            movie_store: Arc::clone(&movie_store),
+            script_name_interner: Arc::clone(&script_name_interner),
+        },
+        world: SessionWorldCatalogCapabilitiesLikeCpp {
+            area_table_store: Arc::clone(&area_table_store),
+            fishing_base_skill_store: Arc::clone(&fishing_base_skill_store),
+            chr_specialization_store: Arc::clone(&chr_specialization_store),
+            map_store: Arc::clone(&map_store),
+            world_safe_loc_store: Arc::clone(&world_safe_loc_store),
+            map_difficulty_store: Arc::clone(&map_difficulty_store),
+            map_difficulty_x_condition_store: Arc::clone(&map_difficulty_x_condition_store),
+            access_requirement_store: Arc::clone(&access_requirement_store),
+            lfg_dungeons_store: Arc::clone(&lfg_dungeons_store),
+            creature_template_lifecycle_store: Arc::clone(&creature_template_lifecycle_store),
+            creature_template_mount_store: Arc::clone(&creature_template_mount_store),
+            creature_display_info_store: Arc::clone(&creature_display_info_store),
+            creature_display_info_extra_store: Arc::clone(&creature_display_info_extra_store),
+            gameobject_display_info_store: Arc::clone(&gameobject_display_info_store),
+            creature_model_info_store: Arc::clone(&creature_model_info_store),
+            creature_model_data_store: Arc::clone(&creature_model_data_store),
+            mount_store: Arc::clone(&mount_store),
+            mount_definition_store: Arc::clone(&mount_definition_store),
+            mount_capability_store: Arc::clone(&mount_capability_store),
+            mount_type_x_capability_store: Arc::clone(&mount_type_x_capability_store),
+            mount_x_display_store: Arc::clone(&mount_x_display_store),
+            spell_shapeshift_form_store: Arc::clone(&spell_shapeshift_form_store),
+            vehicle_store: Arc::clone(&vehicle_store),
+            vehicle_seat_store: Arc::clone(&vehicle_seat_store),
+            vehicle_accessory_store: Arc::clone(&vehicle_accessory_store),
+            terrain_swap_store: Arc::clone(&terrain_swap_store),
+            phase_store: Arc::clone(&phase_store),
+            phase_group_store: Arc::clone(&phase_group_store),
+        },
+        progression: SessionProgressionCapabilitiesLikeCpp {
+            quest_xp_store: Arc::clone(&quest_xp_store),
+            quest_money_reward_store: Arc::clone(&quest_money_reward_store),
+            quest_store: Arc::clone(&quest_store),
+            quest_v2_store: Arc::clone(&quest_v2_store),
+            quest_info_store: Arc::clone(&quest_info_store),
+            quest_package_item_store: Arc::clone(&quest_package_item_store),
+            quest_faction_reward_store: Arc::clone(&quest_faction_reward_store),
+            progression_faction_store: Arc::clone(&progression_faction_store),
+            faction_template_store: Arc::clone(&faction_template_store),
+            friendship_rep_reaction_store: Arc::clone(&friendship_rep_reaction_store),
+            paragon_reputation_store: Arc::clone(&paragon_reputation_store),
+            reputation_reward_rate_store: Arc::clone(&reputation_reward_rate_store),
+            creature_onkill_reputation_store: Arc::clone(&creature_onkill_reputation_store),
+            reputation_spillover_template_store: Arc::clone(&reputation_spillover_template_store),
+            min_quest_scaled_xp_ratio: world_config_u32(
+                &world_configs,
+                "CONFIG_MIN_QUEST_SCALED_XP_RATIO",
+                0,
+            ),
+            max_player_level_config: world_config_u32(
+                &world_configs,
+                "CONFIG_MAX_PLAYER_LEVEL",
+                80,
+            ),
+            max_primary_trade_skills: max_primary_trade_skills_like_cpp(&world_configs),
+            is_pvp_realm: is_pvp_realm_type_like_cpp(world_config_u32(
+                &world_configs,
+                "CONFIG_GAME_TYPE",
+                u32::from(REALM_TYPE_NORMAL_LIKE_CPP),
+            )),
+            is_ffa_pvp_realm: is_ffa_pvp_realm_type_like_cpp(world_config_u32(
+                &world_configs,
+                "CONFIG_GAME_TYPE",
+                u32::from(REALM_TYPE_NORMAL_LIKE_CPP),
+            )),
+            max_recruit_a_friend_bonus_player_level: world_config_u32(
+                &world_configs,
+                "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL",
+                85,
+            ),
+            max_recruit_a_friend_bonus_player_level_difference: world_config_u32(
+                &world_configs,
+                "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE",
+                4,
+            ),
+        },
+        runtime: SessionRuntimePolicyCapabilitiesLikeCpp {
+            player_registry: Arc::clone(&player_registry),
+            game_event_quest_complete_tx: game_event_quest_complete_tx,
+            group_registry: Arc::clone(&group_registry),
+            pending_invites: Arc::clone(&pending_invites),
+            loot_drop_rates: loot_drop_rates_like_cpp(&world_configs),
+            reputation_rates: reputation_rates_like_cpp(&world_configs),
+            repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
+            reset_schedule: reset_schedule_like_cpp(&world_configs),
+            offhand_check_at_spell_unlearn: world_config_bool(
+                &world_configs,
+                "CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN",
+                true,
+            ),
+            vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),
+            quest_low_level_hide_diff: world_config_u32(
+                &world_configs,
+                "CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF",
+                4,
+            ),
+            quest_high_level_hide_diff: world_config_u32(
+                &world_configs,
+                "CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF",
+                7,
+            ),
+            enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
+            server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
+            instance_ignore_raid: world_config_bool(
+                &world_configs,
+                "CONFIG_INSTANCE_IGNORE_RAID",
+                false,
+            ),
+            instance_ignore_level: world_config_bool(
+                &world_configs,
+                "CONFIG_INSTANCE_IGNORE_LEVEL",
+                false,
+            ),
+            max_instances_per_hour: world_config_u32(
+                &world_configs,
+                "CONFIG_MAX_INSTANCES_PER_HOUR",
+                5,
+            ),
+            packet_spoof_config: PacketSpoofConfigLikeCpp {
+                policy: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
+                ban_mode: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),
+                ban_duration_secs: world_config_u32(
+                    &world_configs,
+                    "CONFIG_PACKET_SPOOF_BANDURATION",
+                    86_400,
+                ),
+            },
+            player_save_interval_ms: world_config_u32(
+                &world_configs,
+                "CONFIG_INTERVAL_SAVE",
+                15 * 60 * 1000,
+            ),
+        },
+        realm: SessionRealmCapabilitiesLikeCpp {
+            realm_id,
+            realm_region: active_realm.id.region,
+            realm_battlegroup: active_realm.id.site,
+            realm_names,
+            realm_external_address,
+            realm_local_address,
+        },
+    };
+    let session_resources = Arc::new(session_resources);
 
     // Create SessionManager for ConnectTo flow
     let session_mgr = Arc::new(SessionManager::new());
@@ -5118,8 +5200,6 @@ async fn run_inner(
         let smap = Arc::clone(&shared_map);
         let canonical_map = Arc::clone(&canonical_map_manager);
         let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
-        let loaded_grid_caches = loaded_grid_creature_respawn_caches.clone();
-        let accessor = Arc::clone(&object_accessor);
         let active_sessions = Arc::clone(&active_session_registry);
         let runtime_state = Arc::clone(&world_runtime_state);
         let battle_pet_accounts = Arc::clone(&battle_pet_account_registry);
@@ -5138,8 +5218,6 @@ async fn run_inner(
                     let smap = Arc::clone(&smap);
                     let canonical_map = Arc::clone(&canonical_map);
                     let spawn_metadata = Arc::clone(&spawn_metadata);
-                    let loaded_grid_caches = loaded_grid_caches.clone();
-                    let accessor = Arc::clone(&accessor);
                     let active_sessions = Arc::clone(&active_sessions);
                     let runtime_state = Arc::clone(&runtime_state);
                     let mmap_pathfinder = mmap_pathfinder.clone();
@@ -5156,8 +5234,6 @@ async fn run_inner(
                         smap,
                         canonical_map,
                         spawn_metadata,
-                        loaded_grid_caches,
-                        accessor,
                         port,
                         max_expansion,
                         mmap_config.clone(),

@@ -1,5 +1,10 @@
 # Migration: Battlefield (Wintergrasp — Scheduled Zonal Battle)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Battlefield/` (base) + `/home/server/woltk-trinity-legacy/src/server/scripts/Battlefield/` (Wintergrasp script)
 > **Rust target crate(s):** `crates/wow-battlefield/` (NOT YET CREATED — must be added to workspace)
 > **Layer:** L7

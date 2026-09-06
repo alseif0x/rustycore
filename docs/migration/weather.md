@@ -1,5 +1,10 @@
 # Migration: Weather
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Weather/`
 > **Rust target crate(s):** `crates/wow-world/` (no dedicated crate; would live next to `MapManager` / zone systems)
 > **Layer:** L8 (service — per-zone tick loop on top of map/zone)

@@ -1,5 +1,10 @@
 # Migration: DB Schemas (`auth` / `characters` / `world` / `hotfixes`)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > Operational update (issue #256): RustyCore daemons no longer run the
 > TrinityCore-style updater at startup. Use the immutable manifest and
 > `rustycore-db`; startup performs bounded read-only compatibility checks. Any
@@ -113,7 +118,7 @@ There is no C++ class hierarchy here — the canonical artifacts are SQL DDL gro
 | Group | Tables | Purpose |
 |---|---|---|
 | Control plane | `hotfix_data`, `hotfix_blob`, `hotfix_optional_data` | The 3 *behavioral* tables. `hotfix_data(Id, UniqueId, TableHash, RecordId, Status, VerifiedBuild)` lists every hotfix push the server announces; `hotfix_blob(TableHash, RecordId, locale, Blob, VerifiedBuild)` carries opaque DB2-row replacement bytes (one per locale); `hotfix_optional_data(TableHash, RecordId, locale, Key, Data, VerifiedBuild)` carries per-row tagged blobs (BroadcastText TACT keys). Read by `DB2Manager::LoadHotfixData/Blob/OptionalData`. |
-| Per-DB2 mirror | `achievement`, `area_table`, `creature`, `creature_display_info`, `faction`, `faction_template`, `gameobjects`, `item_sparse`, `journal_encounter`, `map`, `quest_*` (~5 tables), `skill_line`, `skill_line_ability`, `spell_*` (~30 tables), `transmog_*` (~7 tables), `ui_map`, `ui_map_assignment`, `vehicle`, `vehicle_seat`, … (~440 total) | One MySQL table per DB2 file, with the same column layout as the DB2 records, plus a `VerifiedBuild` column on each row. Used as a typed alternative to opaque `hotfix_blob` for tools that want to edit individual fields; `DB2Manager` reads these tables via per-table prepared statements (~783 statements counted in the C# `HotfixDatabase`). |
+| Per-DB2 mirror | `achievement`, `area_table`, `creature`, `creature_display_info`, `faction`, `faction_template`, `gameobjects`, `item_sparse`, `journal_encounter`, `map`, `quest_*` (~5 tables), `skill_line`, `skill_line_ability`, `spell_*` (~30 tables), `transmog_*` (~7 tables), `ui_map`, `ui_map_assignment`, `vehicle`, `vehicle_seat`, … (~440 total) | One MySQL table per DB2 file, with the same column layout as the DB2 records, plus a `VerifiedBuild` column on each row. Used as a typed alternative to opaque `hotfix_blob` for tools that want to edit individual fields; `DB2Manager` reads these tables via per-table prepared statements (the old ~783 estimate has no canonical count demonstrated here). |
 | Locale shadows | `*_locale` (~150 tables) | Localization strips for the per-DB2 tables that carry localized strings (e.g. `achievement_locale`, `faction_locale`, `quest_v2`/`quest_xp` paired with their locale tables). |
 | Other | `import_price_armor`, `import_price_weapon`, `import_price_quality` | Pricing helper tables used at content-import time, not at runtime. |
 | Updater | `updates`, `updates_include` | |
@@ -173,7 +178,7 @@ The Rust counterparts are `Database<S: StatementDef>` in `crates/wow-database/sr
 
 This module **is** the SQL queries. The exhaustive list lives in `crates/wow-database/src/statements/{login,character,world,hotfix}.rs`. Counts as of 2026-05-01:
 
-| DB | Statements wired in Rust | Statements in C# `LoginStatements` / `CharStatements` / etc. | Coverage |
+| DB | Statements wired in Rust | Unverified historical comparison count (not a C++ denominator) | Coverage |
 |---|---|---|---|
 | `auth` | 147 (`login.rs`, no Rust-only empty stubs) | 147 active prepared SQL statements + C++ enum-only sentinel names | ✅ ~99% |
 | `characters` | 28 (`character.rs`) | ~280 in TC C++ | ⚠️ ~10% (only login + character-list + minimal save) |
@@ -261,7 +266,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [x] **#DBS.3** Implement the Rust updater path: scan include directories, hash SQL files, apply pending entries, record `updates(name, hash, state, timestamp, speed)`, and honor redundancy/rehash/archive/dead-reference gates. (H)
 - [x] **#DBS.4** Wire pool URLs to append `charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00` so non-ASCII player names round-trip. `sqlx-mysql` uses `timezone` / `time-zone`; `time_zone` would be ignored by its URL parser. (L)
 - [x] **#DBS.5** Formalize `HotfixStatements` strategy: 3 live control-table SELECTs, selected typed DB2 overlays, and generated base/max-id/locale helpers tested against C++ `HotfixDatabase.cpp`. Remaining overlay consumers stay in their typed DB2-store tasks. (L)
-- [ ] **#DBS.6** Extend `CharStatements` to cover inventory save (`UPD_ITEM_INSTANCE`, `INS_CHARACTER_INVENTORY`, …), quest save (`INS_CHARACTER_QUESTSTATUS`, `INS_CHARACTER_QUESTSTATUS_OBJECTIVES`, …), social, mail, AH, guild bank — target ~120 of the ~280 C# statements. (XL — split per domain)
+- [ ] **#DBS.6** Extend `CharStatements` to cover inventory save (`UPD_ITEM_INSTANCE`, `INS_CHARACTER_INVENTORY`, …), quest save (`INS_CHARACTER_QUESTSTATUS`, `INS_CHARACTER_QUESTSTATUS_OBJECTIVES`, …), social, mail, AH, guild bank — the historical ~120/~280 target is unverified; inventory the affected C++ transaction before setting acceptance. (XL — split per domain)
 - [x] **#DBS.7** Document operator install runbook (`docs/operations/db-bootstrap.md`): create user, create 4 DBs, source the 4 base dumps, run TDB world content import, smoke-test connection from `world-server`. (M)
 - [ ] **#DBS.8** Add an integration test target: spin up MariaDB in CI, apply schemas, run pool-warmup + a SELECT on every wired statement to detect column drift before runtime. (H)
 - [x] **#DBS.9** Resolve `SEL_GAMEOBJECT_TARGET` / `SEL_BNET_ACCOUNT_SALT_BY_ID` empty-string stubs: removed Rust-only `SEL_BNET_ACCOUNT_SALT_BY_ID`; kept `SEL_GAMEOBJECT_TARGET` as an explicit C++ enum-without-`PrepareStatement` mirror instead of inventing non-canonical SQL. (L)
@@ -289,7 +294,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - **`account.session_key_auth` is `binary(40)`**, not `binary(20)`. The 40-byte K is the SRP6 session key (not a SHA1 hash) — earlier docs/agents have confused this. SHA1 is 20 bytes; SRP6 K via `SHA1(A | B)`-derived interleave is 40.
 - **`account.salt` and `account.verifier` are `binary(32)`** — not the AC/MaNGOS legacy `varchar(64)` of hex digits. Always handle as raw bytes; DBeaver displays them as hex but they are not.
 - **`characters.name` collation is `utf8mb4_bin`** while every other text column is `utf8mb4_unicode_ci`. `idx_name` is therefore case-sensitive — `Foo` and `foo` are distinct names. Do not lowercase in WHERE clauses.
-- **`creature_template.entry` is the world-DB primary key**, but at runtime the spawn rows in `creature` use a **separate** `guid` PK. The C# `CreatureCreateData` field name `entry` (used by the `MapManager` migration discussed in `AGENTS.md`) refers to the **template** entry, not the spawn `guid` — losing this distinction was one of the failures in `_attic/`.
+- **`creature_template.entry` is the world-DB primary key**, but at runtime the spawn rows in `creature` use a **separate** `guid` PK. The historical `CreatureCreateData` field name `entry` (used by the `MapManager` migration discussed in `AGENTS.md`) refers to the **template** entry, not the spawn `guid` — losing this distinction was one of the failures in `_attic/`.
 - **`smart_scripts.entryorguid` polarity**: positive value ⇒ `creature_template.entry`; negative value ⇒ `-creature.guid` (per-spawn override). Both are valid; loaders must handle both signs.
 - **Charset configuration**: `create_mysql.sql` declares `utf8mb4 / utf8mb4_unicode_ci` at DB level; the per-table dumps then *redeclare* the same. A pool that connects without `charset=utf8mb4` may silently negotiate `utf8mb3` or `latin1` and corrupt non-ASCII text. The user-spec hypothesis "TC uses `utf8mb4_general_ci`" is **incorrect for this branch** — verified `_unicode_ci` in `sql/create/create_mysql.sql` and in every `CREATE TABLE` line in the four base dumps.
 - **No `FOREIGN KEY` in `characters` schema** (verified: zero matches for `FOREIGN KEY` in `characters_database.sql`). All cross-table cleanup is application-side. `auth` does have FKs (`account.battlenet_account → battlenet_accounts.id`, all 4 `rbac_account_permissions` FKs with `ON DELETE CASCADE`).

@@ -12,4 +12,13 @@
 mod cleanup;
 mod login;
 mod logout;
+mod map_entry;
 mod persistence;
+pub use logout::DisconnectSaveAttemptLikeCpp;
+pub use persistence::PlayerSaveOutcomeLikeCpp;
+mod pet_load;
+mod transfer_completion;
+mod transfer_destination;
+mod transfer_recovery;
+
+pub(super) use pet_load::PetLoadQueryHolderRowsLikeCpp;

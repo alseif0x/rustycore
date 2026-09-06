@@ -93,6 +93,7 @@ pub mod vehicle;
 pub mod vendor;
 pub mod wdc4;
 pub mod world_id_store;
+pub mod world_query_catalog;
 pub mod world_safe_locs;
 pub mod world_spawn_id_store;
 pub mod world_state_expression;
@@ -596,6 +597,7 @@ pub use vendor::{
     NpcVendorStoreLikeCpp, VendorItemDataLikeCpp, VendorItemLikeCpp,
 };
 pub use world_id_store::WorldIdStore;
+pub use world_query_catalog::*;
 pub use world_safe_locs::{
     WorldSafeLoc, WorldSafeLocLoadReport, WorldSafeLocRow, WorldSafeLocStore,
 };

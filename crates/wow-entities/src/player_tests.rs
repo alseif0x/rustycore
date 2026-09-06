@@ -10,10 +10,23 @@
 #![cfg(test)]
 
 use super::*;
+
+#[test]
+fn inventory_authority_proof_belongs_to_one_player_runtime_like_cpp() {
+    let mut inventory = PlayerInventoryRuntime::default();
+    assert!(!inventory.equipment_inventory_authority_complete_like_cpp());
+
+    inventory.set_equipment_inventory_authority_complete_like_cpp(true);
+    assert!(inventory.equipment_inventory_authority_complete_like_cpp());
+
+    inventory.set_equipment_inventory_authority_complete_like_cpp(false);
+    assert!(!inventory.equipment_inventory_authority_complete_like_cpp());
+}
 use wow_constants::{
     BagFamilyMask, InventoryResult, InventoryType, ItemBondingType, ItemClass, ItemContext,
     ItemFieldFlags, ItemSubClassContainer, ItemSubclassProfession,
 };
+use wow_core::guid::HighGuid;
 
 fn can_store_args<'a>(
     bag: u8,
@@ -60,6 +73,24 @@ impl PlayerPowerIndexResolver for StubPowerResolver {
             _ => None,
         }
     }
+}
+
+#[test]
+fn clearing_duel_clears_player_owned_arbiter_like_cpp() {
+    let opponent = ObjectGuid::create_player(1, 42);
+    let arbiter = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 0, 0, 123, 7);
+    let mut player = Player::new(Some(1), false);
+
+    player.set_duel_info_like_cpp(Some(PlayerDuelInfoLikeCpp {
+        opponent,
+        state: PlayerDuelStateLikeCpp::Challenged,
+    }));
+    player.set_duel_arbiter_like_cpp(Some(arbiter));
+    assert_eq!(player.duel_arbiter_like_cpp(), Some(arbiter));
+
+    player.clear_duel_like_cpp();
+    assert_eq!(player.duel_info_like_cpp(), None);
+    assert_eq!(player.duel_arbiter_like_cpp(), None);
 }
 
 #[test]
@@ -277,22 +308,28 @@ fn player_lifecycle_world_insertion_state_marks_visibility_after_add() {
 fn player_gameplay_sample_state() -> PlayerGameplayState {
     PlayerGameplayState {
         quests: PlayerQuestGameplayState {
-            statuses: vec![PlayerQuestStatusRecord {
-                quest_id: 100,
-                status: 3,
-                explored: true,
-                timer_expires_at: Some(1_700_000_100),
-            }],
+            statuses: BTreeMap::from([(
+                100,
+                PlayerQuestStatusRecord {
+                    quest_id: 100,
+                    status: 3,
+                    explored: true,
+                    accept_time_secs: 1_700_000_000,
+                    end_time_secs: 1_700_000_100,
+                    objective_counts: vec![4],
+                    slot: 1,
+                },
+            )]),
             objective_progress: vec![PlayerQuestObjectiveProgress {
                 quest_id: 100,
                 objective_id: 7,
                 counter: 4,
             }],
-            rewarded_quest_ids: vec![90],
-            daily_quest_ids: vec![101],
-            weekly_quest_ids: vec![102],
-            monthly_quest_ids: vec![103],
-            seasonal_quest_ids: vec![104],
+            rewarded_quest_ids: BTreeSet::from([90]),
+            daily_quest_ids: BTreeSet::from([101]),
+            weekly_quest_ids: BTreeSet::from([102]),
+            monthly_quest_ids: BTreeSet::from([103]),
+            seasonal_quests: BTreeMap::from([(1, BTreeMap::from([(104, 0)]))]),
             ..Default::default()
         },
         skills: vec![PlayerSkillRecord {
@@ -300,21 +337,39 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             current_value: 225,
             max_value: 300,
             step: 2,
+            profession_slot: -1,
+            state: PlayerSkillLoadState::Unchanged,
         }],
-        spells: vec![PlayerKnownSpellRecord {
-            spell_id: 635,
-            state: PlayerSpellLoadState::Unchanged,
-            active: true,
-            favorite: false,
-            dependent: false,
-        }],
-        talents: vec![PlayerTalentRecord {
-            talent_id: 42,
-            spell_id: 20165,
-            rank: 1,
-            talent_group: 0,
-            specialization_id: Some(65),
-        }],
+        spells: PlayerSpellRuntimeState {
+            known_spells: vec![635],
+            rows: std::collections::BTreeMap::from([(
+                635,
+                PlayerKnownSpellRecord {
+                    spell_id: 635,
+                    state: PlayerSpellLoadState::Unchanged,
+                    active: true,
+                    disabled: false,
+                    favorite: false,
+                    dependent: false,
+                },
+            )]),
+            rows_loaded: true,
+            rows_complete: true,
+            ..Default::default()
+        },
+        talents: PlayerTalentRuntimeState {
+            talent_groups: [
+                std::collections::BTreeMap::from([(42, 1)]),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ],
+            talents_loaded: true,
+            glyph_groups: [[0; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP];
+                PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
+            glyphs_loaded: true,
+            ..Default::default()
+        },
         action_buttons: vec![PlayerActionButtonRecord {
             button: 1,
             action_id: 635,
@@ -326,6 +381,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             source_node_id: Some(1),
             destination_node_id: Some(2),
             destinations: vec![1, 2, 3],
+            ..Default::default()
         },
         social: PlayerSocialState {
             friend_guids: vec![ObjectGuid::create_player(1, 1001)],
@@ -334,12 +390,14 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
         },
         mails: vec![PlayerMailRecord {
             mail_id: 55,
-            sender: ObjectGuid::create_player(1, 1003),
-            receiver: ObjectGuid::create_player(1, 42),
+            message_type: 0,
+            sender: 1003,
+            receiver: 42,
             template_id: Some(9),
             deliver_time: 1_700_000_000,
             expire_time: 1_700_086_400,
             checked_flags: 0x2,
+            stationery_id: 0,
         }],
         group: Some(PlayerGroupState {
             group_guid: ObjectGuid::new(1, 77),
@@ -351,6 +409,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             guild_id: Some(12),
             invited_guild_id: Some(13),
             rank_id: Some(4),
+            authority_complete: true,
         },
         battleground: PlayerBattlegroundState {
             queues: vec![PlayerBattlegroundQueueRecord {
@@ -365,11 +424,13 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
                 reward_claimed_today: true,
                 last_reward_time: Some(1_700_000_060),
             },
+            ..Default::default()
         },
         reputations: vec![PlayerReputationRecord {
             faction_id: TEAM_ALLIANCE_ID,
             standing: 4_200,
             flags: 0x1,
+            ..Default::default()
         }],
         achievements: vec![PlayerAchievementRecord {
             achievement_id: 6,
@@ -380,12 +441,18 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             counter: 99,
             completed_at: None,
         }],
-        currencies: vec![PlayerCurrencyRecord {
-            currency_id: 395,
-            count: 12,
-            weekly_count: 3,
-            tracked_quantity: Some(20),
-        }],
+        currencies: HashMap::from([(
+            395,
+            crate::PlayerCurrency {
+                state: crate::PlayerCurrencyState::Unchanged,
+                quantity: 12,
+                weekly_quantity: 3,
+                tracked_quantity: 20,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        )]),
         spell_cooldowns: vec![PlayerSpellCooldownRecord {
             spell_id: 642,
             item_id: None,
@@ -407,9 +474,523 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             logout_time: Some(1_699_999_999),
             logout_was_resting: true,
             is_resting_now: true,
+            ..Default::default()
         },
         ..Default::default()
     }
+}
+
+#[test]
+fn action_buttons_are_sorted_player_owned_state_like_cpp() {
+    let mut player = Player::new(None, false);
+
+    assert!(player.set_action_button_like_cpp(7, 12_345, 0x80));
+    assert!(player.set_action_button_like_cpp(2, 635, 0));
+    assert_eq!(
+        player.action_button_like_cpp(7),
+        Some(12_345 | (0x80 << 24))
+    );
+    assert_eq!(
+        player
+            .gameplay_state()
+            .action_buttons
+            .iter()
+            .map(|button| button.button)
+            .collect::<Vec<_>>(),
+        vec![2, 7]
+    );
+
+    assert!(player.set_action_button_like_cpp(7, 0, 0));
+    assert_eq!(player.action_button_like_cpp(7), Some(0));
+    assert_eq!(player.action_buttons_snapshot_like_cpp()[2], 635);
+}
+
+#[test]
+fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() {
+    let mut player = Player::new(None, false);
+
+    assert!(!player.action_buttons_loaded_like_cpp());
+    player.mark_action_buttons_loaded_like_cpp();
+    assert!(player.action_buttons_loaded_like_cpp());
+    assert_eq!(player.action_buttons_snapshot_like_cpp(), [0; 180]);
+
+    assert!(player.set_action_button_like_cpp(1, 635, 0));
+    player.reset_action_buttons_for_load_like_cpp();
+    assert!(!player.action_buttons_loaded_like_cpp());
+    assert_eq!(player.action_button_like_cpp(1), Some(0));
+}
+
+#[test]
+fn native_known_spell_commands_preserve_order_prune_metadata_and_keep_row_state() {
+    let mut runtime = PlayerSpellRuntimeState::default();
+    runtime.dependent_known_spells = BTreeSet::from([10, 30]);
+    runtime.favorite_known_spells = BTreeSet::from([10, 30]);
+    runtime.trait_definition_ids = BTreeMap::from([(10, 100), (30, 300)]);
+    runtime.removed_known_spells.insert(99);
+    runtime.replace_known_spell_ids_like_cpp(vec![20, 10, 20, -1]);
+    assert_eq!(runtime.known_spells, vec![20, 10, 20, -1]);
+    assert_eq!(runtime.dependent_known_spells, BTreeSet::from([10]));
+    assert_eq!(runtime.favorite_known_spells, BTreeSet::from([10]));
+    assert_eq!(runtime.trait_definition_ids, BTreeMap::from([(10, 100)]));
+    assert!(runtime.removed_known_spells.is_empty());
+    runtime.learn_known_spell_id_like_cpp(20);
+    runtime.removed_known_spells.insert(0);
+    runtime.learn_known_spell_id_like_cpp(0);
+    assert_eq!(runtime.known_spells, vec![20, 10, 20, -1, 0]);
+    assert!(runtime.removed_known_spells.is_empty());
+    runtime.rows.insert(
+        10,
+        PlayerKnownSpellRecord {
+            spell_id: 10,
+            state: PlayerSpellLoadState::New,
+            active: true,
+            disabled: false,
+            favorite: true,
+            dependent: false,
+        },
+    );
+    runtime.mark_known_spell_dependent_like_cpp(10);
+    assert!(!runtime.rows[&10].dependent);
+    runtime.rows_complete = true;
+    runtime.mark_known_spell_dependent_like_cpp(10);
+    assert!(runtime.rows[&10].dependent && !runtime.rows[&10].favorite);
+    assert_eq!(runtime.rows[&10].state, PlayerSpellLoadState::New);
+}
+
+#[test]
+fn native_spell_save_finalization_preserves_temporary_rows_and_source_proofs() {
+    let mut runtime = PlayerSpellRuntimeState::default();
+    for (id, state) in [
+        (10, PlayerSpellLoadState::New),
+        (20, PlayerSpellLoadState::Removed),
+        (30, PlayerSpellLoadState::Temporary),
+    ] {
+        runtime.rows.insert(
+            id,
+            PlayerKnownSpellRecord {
+                spell_id: id,
+                state,
+                active: false,
+                disabled: id == 30,
+                favorite: true,
+                dependent: true,
+            },
+        );
+        runtime.trait_definition_ids.insert(id, id + 100);
+    }
+    runtime.rows_complete = true;
+    runtime.fallback_rows = runtime.rows.clone();
+    let fallback = runtime.fallback_rows.clone();
+    runtime.mark_spell_rows_saved_like_cpp();
+    assert_eq!(runtime.rows[&10].state, PlayerSpellLoadState::Unchanged);
+    assert!(!runtime.rows.contains_key(&20));
+    assert_eq!(runtime.rows[&30].state, PlayerSpellLoadState::Temporary);
+    assert_eq!(runtime.known_spells, vec![10]);
+    assert_eq!(runtime.favorite_known_spells, BTreeSet::from([10, 30]));
+    assert_eq!(runtime.dependent_known_spells, BTreeSet::from([10, 30]));
+    assert_eq!(
+        runtime.trait_definition_ids,
+        BTreeMap::from([(10, 110), (30, 130)])
+    );
+    assert_eq!(runtime.fallback_rows, fallback);
+    assert!(runtime.rows_complete);
+}
+
+#[test]
+fn native_loaded_spell_reconciliation_preserves_pending_grants_and_unrelated_state() {
+    let mut runtime = PlayerSpellRuntimeState::default();
+    let pending = PlayerKnownSpellRecord {
+        spell_id: 10,
+        state: PlayerSpellLoadState::New,
+        active: true,
+        disabled: false,
+        favorite: false,
+        dependent: true,
+    };
+    runtime.fallback_rows.insert(10, pending.clone());
+    runtime.known_spells = vec![99];
+    runtime.trait_definition_ids_complete = true;
+    let fallback_address = runtime.fallback_rows.get(&10).unwrap() as *const _;
+    runtime.replace_loaded_spell_rows_like_cpp(
+        BTreeMap::from([(
+            10,
+            PlayerKnownSpellRecord {
+                active: false,
+                disabled: true,
+                favorite: true,
+                dependent: false,
+                state: PlayerSpellLoadState::Unchanged,
+                ..pending.clone()
+            },
+        )]),
+        false,
+    );
+    let loaded = runtime.rows.get(&10).unwrap();
+    assert!(!loaded.active && !loaded.disabled && loaded.favorite && loaded.dependent);
+    assert_eq!(loaded.state, PlayerSpellLoadState::Changed);
+    assert!(runtime.rows_loaded && !runtime.rows_complete);
+    assert_eq!(runtime.known_spells, vec![99]);
+    assert!(runtime.trait_definition_ids_complete);
+    assert_eq!(
+        runtime.fallback_rows.get(&10).unwrap() as *const _,
+        fallback_address
+    );
+    runtime.replace_loaded_spell_rows_like_cpp(BTreeMap::new(), true);
+    assert_eq!(runtime.rows.get(&10), Some(&pending));
+    assert!(runtime.rows_loaded && runtime.rows_complete);
+}
+
+#[test]
+fn native_trait_config_lifecycle_preserves_raw_headers_and_resets_invalid_authority() {
+    let mut state = PlayerSpellRuntimeState::default();
+    state.known_spells = vec![10];
+    state.trait_definition_ids.insert(10, 20);
+    state.trait_definition_ids_complete = true;
+    state.override_spells.insert(10, BTreeSet::from([30]));
+    assert!(state.complete_trait_config_load_like_cpp(vec![(1, -1, -2, -3)], false));
+    assert_eq!(
+        state.trait_config_rows,
+        BTreeMap::from([(1, (-1, -2, -3).into())])
+    );
+    assert!(state.trait_config_rows_complete && state.trait_entry_rows_complete);
+    assert!(!state.trait_entry_rows_empty);
+    assert!(state.trait_definition_ids_complete);
+    assert!(!state.complete_trait_config_load_like_cpp(vec![(1, 1, 62, 4), (1, 2, 0, 0)], true));
+    assert!(state.trait_definition_ids.is_empty() && state.trait_config_rows.is_empty());
+    assert!(
+        !state.trait_definition_ids_complete
+            && !state.trait_config_rows_complete
+            && !state.trait_entry_rows_complete
+            && !state.trait_entry_rows_empty
+    );
+    assert_eq!(state.known_spells, vec![10]);
+    assert_eq!(
+        state.override_spells,
+        BTreeMap::from([(10, BTreeSet::from([30]))])
+    );
+    assert!(state.complete_trait_config_load_like_cpp(vec![], true));
+    assert!(state.trait_entry_rows_empty && state.trait_config_rows_complete);
+    state.begin_trait_config_load_like_cpp();
+    assert!(!state.trait_entry_rows_empty && !state.trait_config_rows_complete);
+}
+
+#[test]
+fn native_spell_metadata_keeps_cpp_override_set_and_fail_closed_trait_semantics() {
+    let mut state = PlayerSpellRuntimeState::default();
+    assert!(state.replace_complete_trait_definition_ids_like_cpp(vec![(10, 20)]));
+    assert!(!state.replace_complete_trait_definition_ids_like_cpp(vec![(30, 40), (30, 40)]));
+    assert!(state.trait_definition_ids.is_empty());
+    assert!(!state.trait_definition_ids_complete);
+    assert!(state.replace_complete_trait_definition_ids_like_cpp(vec![]));
+    assert!(state.trait_definition_ids_complete);
+    state.add_override_spell_like_cpp(50, 60);
+    state.add_override_spell_like_cpp(50, 60);
+    state.add_override_spell_like_cpp(50, 70);
+    state.add_override_spell_like_cpp(-1, 70);
+    assert_eq!(
+        state.override_spells,
+        BTreeMap::from([(50, BTreeSet::from([60, 70]))])
+    );
+    state.remove_override_spell_like_cpp(50, 60);
+    assert_eq!(
+        state.override_spells,
+        BTreeMap::from([(50, BTreeSet::from([70]))])
+    );
+    state.remove_override_spell_like_cpp(50, 70);
+    state.remove_override_spell_like_cpp(50, 70);
+    state.override_spells.insert(0, BTreeSet::new());
+    state.remove_override_spell_like_cpp(0, 99);
+    assert!(state.override_spells.is_empty());
+}
+
+#[test]
+fn prepared_acquisition_validates_then_installs_both_families_preserving_source_evidence() {
+    let spell = PlayerKnownSpellRecord {
+        spell_id: 10,
+        state: PlayerSpellLoadState::New,
+        active: true,
+        disabled: false,
+        favorite: true,
+        dependent: true,
+    };
+    let skill = PlayerSkillRecord {
+        skill_line_id: 333,
+        current_value: 0,
+        max_value: 0,
+        step: 0,
+        profession_slot: -1,
+        state: PlayerSkillLoadState::Deleted,
+    };
+    assert!(
+        PreparedPlayerSpellAcquisitionLikeCpp::try_new(
+            [spell.clone(), spell.clone()],
+            [],
+            [],
+            vec![],
+            0,
+            BTreeSet::new()
+        )
+        .is_none()
+    );
+    assert!(
+        PreparedPlayerSpellAcquisitionLikeCpp::try_new(
+            [spell.clone()],
+            [],
+            [],
+            vec![(333, skill.clone()), (333, skill.clone())],
+            2,
+            BTreeSet::new()
+        )
+        .is_none()
+    );
+    let prepared = PreparedPlayerSpellAcquisitionLikeCpp::try_new(
+        [spell.clone()],
+        [(10, 400)],
+        [(50, 10), (50, 10)],
+        vec![(333, skill.clone())],
+        1,
+        BTreeSet::from([333]),
+    )
+    .unwrap();
+    let mut player = Player::new(None, false);
+    let mut runtime = PlayerSpellRuntimeState::default();
+    runtime.fallback_rows.insert(10, spell.clone());
+    runtime.trait_config_rows.insert(777, (1, 62, 4).into());
+    runtime.trait_config_rows_complete = true;
+    player.replace_spell_runtime_like_cpp(runtime.clone());
+    player.apply_prepared_spell_acquisition_like_cpp(prepared);
+    let applied = player.spell_runtime_like_cpp();
+    assert_eq!(applied.rows, BTreeMap::from([(10, spell)]));
+    assert_eq!(applied.known_spells, vec![10]);
+    assert_eq!(applied.dependent_known_spells, BTreeSet::from([10]));
+    assert_eq!(applied.favorite_known_spells, BTreeSet::from([10]));
+    assert_eq!(applied.trait_definition_ids, BTreeMap::from([(10, 400)]));
+    assert_eq!(
+        applied.override_spells,
+        BTreeMap::from([(50, BTreeSet::from([10]))])
+    );
+    assert_eq!(applied.fallback_rows, runtime.fallback_rows);
+    assert_eq!(applied.trait_config_rows, runtime.trait_config_rows);
+    assert!(applied.trait_config_rows_complete && applied.rows_loaded && applied.rows_complete);
+    assert_eq!(player.skill_records_like_cpp(), &[skill]);
+    assert!(player.skill_records_loaded_like_cpp() && player.skill_records_complete_like_cpp());
+    assert_eq!(player.occupied_skill_slots_like_cpp(), Some(1));
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([333])
+    );
+}
+
+#[test]
+fn represented_skill_replacement_keeps_deleted_markers_without_authorizing_malformed_rows() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(vec![], true, true, Some(7), BTreeSet::from([333, 755]));
+    let row = |id, state, value| PlayerSkillRecord {
+        skill_line_id: id,
+        current_value: value,
+        max_value: value,
+        step: 0,
+        profession_slot: -1,
+        state,
+    };
+    player.replace_represented_skill_records_like_cpp(
+        vec![
+            (333, row(333, PlayerSkillLoadState::Deleted, 1)),
+            (755, row(755, PlayerSkillLoadState::Unchanged, 0)),
+        ],
+        true,
+        true,
+    );
+    assert!(!player.skill_records_complete_like_cpp());
+    assert!(player.skill_records_loaded_like_cpp());
+    assert_eq!(player.occupied_skill_slots_like_cpp(), None);
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([333, 755])
+    );
+    player.replace_represented_skill_records_like_cpp(
+        vec![
+            (333, row(333, PlayerSkillLoadState::Unchanged, 0)),
+            (755, row(755, PlayerSkillLoadState::Changed, 20)),
+        ],
+        true,
+        true,
+    );
+    assert!(player.skill_records_complete_like_cpp());
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([333])
+    );
+}
+
+#[test]
+fn skill_lifecycle_finalization_normalizes_in_place_and_preserves_last_duplicate() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(
+        [
+            (333, PlayerSkillLoadState::Deleted, 0),
+            (333, PlayerSkillLoadState::Changed, 99),
+            (999, PlayerSkillLoadState::Deleted, 0),
+            (70000, PlayerSkillLoadState::Deleted, 0),
+        ]
+        .into_iter()
+        .map(|(id, state, value)| PlayerSkillRecord {
+            skill_line_id: id,
+            current_value: value,
+            max_value: value,
+            step: 0,
+            profession_slot: -1,
+            state,
+        })
+        .collect(),
+        true,
+        true,
+        Some(2),
+        BTreeSet::from([755]),
+    );
+    let records_ptr = player.skill_records_like_cpp().as_ptr();
+    player.mark_skill_records_saved_like_cpp();
+    assert_eq!(player.skill_records_like_cpp().len(), 2);
+    assert_eq!(player.skill_records_like_cpp()[0].current_value, 99);
+    assert!(
+        player
+            .skill_records_like_cpp()
+            .iter()
+            .all(|r| r.state == PlayerSkillLoadState::Unchanged)
+    );
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([755, 999])
+    );
+    assert_eq!(player.occupied_skill_slots_like_cpp(), Some(2));
+    assert_eq!(player.skill_records_like_cpp().as_ptr(), records_ptr);
+    player.clear_skill_tombstones_for_identity_change_like_cpp();
+    assert!(player.non_durable_skill_tombstones_like_cpp().is_empty());
+    assert_eq!(player.skill_records_like_cpp().len(), 2);
+    assert_eq!(player.skill_records_like_cpp().as_ptr(), records_ptr);
+}
+
+#[test]
+fn occupied_skill_slot_authority_clears_invalid_proof_without_replacing_records() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(
+        vec![PlayerSkillRecord {
+            skill_line_id: 333,
+            current_value: 0,
+            max_value: 0,
+            step: 0,
+            profession_slot: -1,
+            state: PlayerSkillLoadState::Deleted,
+        }],
+        true,
+        true,
+        None,
+        BTreeSet::from([333]),
+    );
+    let records = player.skill_records_like_cpp().to_vec();
+    let records_ptr = player.skill_records_like_cpp().as_ptr();
+    for (slots, accepted) in [(1, true), (0, false), (257, false), (1, true)] {
+        assert_eq!(
+            player.authorize_occupied_skill_slots_like_cpp(slots),
+            accepted
+        );
+        assert_eq!(
+            player.occupied_skill_slots_like_cpp(),
+            accepted.then_some(slots)
+        );
+        assert_eq!(player.skill_records_like_cpp(), records);
+        assert_eq!(player.skill_records_like_cpp().as_ptr(), records_ptr);
+        assert_eq!(
+            player.non_durable_skill_tombstones_like_cpp(),
+            &BTreeSet::from([333])
+        );
+        assert!(player.skill_records_loaded_like_cpp());
+        assert!(player.skill_records_complete_like_cpp());
+    }
+}
+
+#[test]
+fn player_owns_exact_skill_rows_and_persistence_authority_like_cpp() {
+    let mut player = Player::new(None, false);
+    player.replace_skill_records_like_cpp(
+        vec![PlayerSkillRecord {
+            skill_line_id: 333,
+            current_value: 150,
+            max_value: 225,
+            step: 2,
+            profession_slot: 0,
+            state: PlayerSkillLoadState::Changed,
+        }],
+        true,
+        true,
+        Some(1),
+        BTreeSet::from([755]),
+    );
+
+    assert!(player.skill_records_loaded_like_cpp());
+    assert!(player.skill_records_complete_like_cpp());
+    assert_eq!(player.occupied_skill_slots_like_cpp(), Some(1));
+    assert_eq!(
+        player.non_durable_skill_tombstones_like_cpp(),
+        &BTreeSet::from([755])
+    );
+    assert_eq!(player.skill_records_like_cpp()[0].profession_slot, 0);
+    assert_eq!(
+        player.skill_records_like_cpp()[0].state,
+        PlayerSkillLoadState::Changed
+    );
+}
+
+#[test]
+fn player_owns_create_form_and_specialization_state_like_cpp() {
+    let mut player = Player::new(Some(7), false);
+
+    player.set_create_mode_like_cpp(1);
+    player.set_shapeshift_form_id_like_cpp(5);
+    player.set_loot_specialization_id_like_cpp(65);
+    player.set_primary_specialization(66);
+
+    assert_eq!(player.create_mode_like_cpp(), 1);
+    assert_eq!(player.shapeshift_form_id_like_cpp(), 5);
+    assert_eq!(player.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(player.primary_specialization_id_like_cpp(), 66);
+}
+
+#[test]
+fn player_owns_interaction_provenance_and_gossip_menu_like_cpp() {
+    let mut player = Player::new(Some(7), false);
+    let source = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
+    let other = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 101, 1);
+    let option = crate::PlayerGossipOptionLikeCpp {
+        gossip_option_id: 7,
+        menu_id: 11,
+        order_index: 2,
+        option_npc: 3,
+        action_menu_id: 13,
+    };
+
+    player.set_trainer_interaction_like_cpp(source, 77);
+    player.replace_gossip_options_like_cpp(vec![option.clone()]);
+    assert!(
+        player
+            .interaction_data_like_cpp()
+            .trainer_matches(source, 77)
+    );
+    assert_eq!(player.gossip_options_like_cpp(), &[option]);
+
+    assert!(!player.reset_interaction_if_source_like_cpp(other));
+    assert_eq!(player.interaction_data_like_cpp().source_guid, source);
+    player.set_interaction_source_like_cpp(other);
+    assert_eq!(player.interaction_data_like_cpp().trainer_id, 0);
+    assert_eq!(player.interaction_data_like_cpp().player_choice_id, 0);
+
+    player.clear_gossip_options_like_cpp();
+    player.reset_interaction_data_like_cpp();
+    assert!(player.gossip_options_like_cpp().is_empty());
+    assert_eq!(
+        player.interaction_data_like_cpp(),
+        &crate::PlayerInteractionDataLikeCpp::default()
+    );
 }
 
 #[test]
@@ -448,6 +1029,7 @@ fn player_gameplay_apply_load_record_stores_every_major_bucket() {
     assert_eq!(player.gameplay_state().group, state.group);
     assert_eq!(player.gameplay_state().guild, state.guild);
     assert_eq!(player.gameplay_state().battleground, state.battleground);
+    assert_eq!(player.gameplay_state().menu, state.menu);
     assert_eq!(player.gameplay_state().reputations, state.reputations);
     assert_eq!(player.gameplay_state().achievements, state.achievements);
     assert_eq!(
@@ -3778,6 +4360,19 @@ fn active_player_fields_and_inventory_slots_mark_cpp_bits() {
 }
 
 #[test]
+fn canonical_player_retains_the_shared_level_xp_catalog_like_cpp() {
+    let mut player = Player::new(None, false);
+    let table = std::sync::Arc::new(vec![0, 400, 900]);
+
+    player.install_player_xp_table_like_cpp(std::sync::Arc::clone(&table));
+
+    assert_eq!(player.player_xp_for_level_like_cpp(1), Some(400));
+    assert_eq!(player.player_xp_for_level_like_cpp(2), Some(900));
+    assert_eq!(player.player_xp_for_level_like_cpp(3), None);
+    assert_eq!(std::sync::Arc::strong_count(&table), 2);
+}
+
+#[test]
 fn add_honor_xp_matches_cpp_level_gate_threshold_and_max_shape() {
     let mut low_level = Player::new(None, false);
     assert!(!low_level.add_honor_xp_like_cpp(100, PLAYER_LEVEL_MIN_HONOR_LIKE_CPP - 1));
@@ -4073,6 +4668,7 @@ fn set_battle_pet_data_marks_cpp_player_active_and_unit_fields() {
 
     player.set_battle_pet_data_like_cpp(pet_guid, 3, 17);
 
+    assert_eq!(player.summoned_battle_pet_guid_like_cpp(), Some(pet_guid));
     assert_eq!(player.active_data().summoned_battle_pet_guid, pet_guid);
     assert_eq!(player.data().current_battle_pet_breed_quality, 3);
     assert_eq!(player.unit().data().wild_battle_pet_level, 17);
@@ -4102,6 +4698,19 @@ fn set_battle_pet_data_marks_cpp_player_active_and_unit_fields() {
             .unit_data_changes_mask()
             .is_set(crate::UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT)
     );
+}
+
+#[test]
+fn clear_battle_pet_data_clears_canonical_summoned_guid_like_cpp() {
+    let mut player = Player::new(None, false);
+    let pet_guid = ObjectGuid::create_global(wow_core::guid::HighGuid::BattlePet, 0, 43);
+    player.set_battle_pet_data_like_cpp(pet_guid, 3, 17);
+
+    player.clear_battle_pet_data_like_cpp();
+
+    assert_eq!(player.summoned_battle_pet_guid_like_cpp(), None);
+    assert_eq!(player.data().current_battle_pet_breed_quality, 0);
+    assert_eq!(player.unit().data().wild_battle_pet_level, 0);
 }
 
 #[test]

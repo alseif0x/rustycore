@@ -118,7 +118,7 @@ async fn vendor_currency_purchase_definite_rollback_keeps_runtime_unchanged_like
         })
         .await;
 
-    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(session.player_currency_quantity(395), Some(0));
     let opcodes = drain_server_opcodes(&send_rx);
     let requests = requests.lock().unwrap();
     assert_eq!(

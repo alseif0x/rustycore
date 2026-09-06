@@ -4,19 +4,20 @@
 > authoritative current state is [STATE.md](STATE.md); the plan is [PORT_PLAN.md](PORT_PLAN.md).
 > This index is kept only as a module map.
 
-> Índice maestro de los docs de migración por módulo. Cada doc sigue `_TEMPLATE.md`.
-> Si un módulo no aparece aquí o no tiene su `.md`, **es bug del índice** — añadirlo.
+> Mapa histórico de referencias por módulo, no una lista obligatoria de documentos
+> que haya que completar antes de programar. La plantilla es opcional.
 
 **Cómo usar:**
-- Para refinar el plan antes de implementar: seguir [refinement-plan.md](refinement-plan.md); la Fase R es precondicion para evitar gaps.
-- Inventarios base contra C++: [inventory/cpp-server-tree.md](inventory/cpp-server-tree.md), [inventory/cpp-files-by-module.md](inventory/cpp-files-by-module.md), [inventory/cpp-handlers-opcodes.md](inventory/cpp-handlers-opcodes.md), [inventory/cpp-sql-prepared.md](inventory/cpp-sql-prepared.md), [inventory/cpp-dbc-db2-stores.md](inventory/cpp-dbc-db2-stores.md), [inventory/cpp-config-keys.md](inventory/cpp-config-keys.md), [inventory/cpp-entity-types.md](inventory/cpp-entity-types.md) y [inventory/cpp-scripts-tree.md](inventory/cpp-scripts-tree.md).
-- Para entender cualquier sistema: abrir su doc → secciones 1-7 son C++; 8 es estado actual; 9-12 son plan de trabajo; 13 es la auditoría 2026-05-01.
-- Para auditar un módulo: ya lo está auditando este doc. Update sección 8 + columna "Audited" cuando termines.
-- Para empezar a implementar: leer el doc del módulo + dependencias listadas en sección 5 + sección 13 (audit).
 
-**Reglas:**
-- No modificar código del módulo X sin leer su `<modulo X>.md` § 13 primero (ADR-007 del ROADMAP).
-- Si encuentras divergencia C++ vs Rust no documentada: contrastarla contra C++, añadir la evidencia al doc en sección 8 ("Suspicious") y continuar implementando la dependencia necesaria dentro de la misma fase/módulo hasta cerrar la cadena. No dejarla como TODO/gap futuro para poder avanzar.
+- Empezar por [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) y la issue/checkpoint vigente. [refinement-plan.md](refinement-plan.md) conserva un plan anterior; su Fase R no bloquea trabajo nuevo.
+- Inventarios base contra C++: [inventory/cpp-server-tree.md](inventory/cpp-server-tree.md), [inventory/cpp-files-by-module.md](inventory/cpp-files-by-module.md), [inventory/cpp-handlers-opcodes.md](inventory/cpp-handlers-opcodes.md), [inventory/cpp-sql-prepared.md](inventory/cpp-sql-prepared.md), [inventory/cpp-dbc-db2-stores.md](inventory/cpp-dbc-db2-stores.md), [inventory/cpp-config-keys.md](inventory/cpp-config-keys.md), [inventory/cpp-entity-types.md](inventory/cpp-entity-types.md) y [inventory/cpp-scripts-tree.md](inventory/cpp-scripts-tree.md).
+- Usar los docs de módulo para localizar C++, dependencias y auditorías fechadas. Sus secciones de estado, trabajo pendiente y porcentajes describen el momento documentado, no HEAD actual.
+- Leer únicamente las referencias relevantes para la tarea y contrastar sus afirmaciones con código/C++ actuales. Este índice no realiza una auditoría nueva ni impone releer todas las auditorías históricas.
+
+**Límites:**
+
+- Flujo, aprobaciones y validación se rigen por [AGENTS.md](../../AGENTS.md), no por los antiguos ADR numerados del roadmap.
+- Registrar hallazgos y dependencias reales en la issue/checkpoint o registro vigente. Resolver lo autorizado y mantener visibles los bloqueos; no ampliar alcance ni cerrar gaps por actualizar un inventario.
 - La auditoría 2026-05-01 fue un primer barrido hecho por agentes y sirve como triage, no como prueba final. Antes de implementar o cerrar un punto, contrastar de nuevo contra C++.
 
 ---

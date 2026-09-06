@@ -1,5 +1,10 @@
 # Migration: Services (Worldserver-side BNet RPC dispatcher)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Services/`
 > **Rust target crate(s):** `crates/wow-network/`, `crates/wow-world/`, `crates/wow-proto/` — *(out of scope for the WotLK 3.4.3 path; see notes)*
 > **Layer:** L1 — Cross-realm RPC infrastructure

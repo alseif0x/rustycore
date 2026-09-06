@@ -1,26 +1,35 @@
 # ADR — Live-runtime tick ownership and convergence
 
-**Date:** 2026-05-29 · **Status:** Accepted · **Base commit:** `6671dee`
+**Original decision:** 2026-05-29, base `6671dee`. **Current documentation review:**
+2026-09-05 at `7eaf8ddc`, production code `93e4002a`. **Status:** single-writer and phase
+invariants retained; convergence acceptance remains open under #578.
 
-This ADR fixes a clean starting point for converging RustyCore onto a real live
-runtime. It supersedes stale runtime claims in `MIGRATION_ROADMAP.md` / `_INDEX.md`
-(their L3 status snapshots predate the canonical map work and have drifted).
+This ADR preserves the runtime decision and its dated implementation history. Current execution
+follows [PORT_PLAN.md](PORT_PLAN.md), the [#578 checkpoint](../architecture/session-578-checkpoint.md)
+and the [modularity/ECS plan](../architecture/modularity-and-ecs-plan.md), not the old slice list
+or percentage notes below. The [entity-world ADR](adr-map-runtime-entity-world.md) owns the private
+selective-hecs decision; it does not replace the runtime invariants here.
 
 ## Context (verified)
 
-Three world models coexist today (characterized + regression-anchored in
-`#NEXT.R8.ENTITIES.764`):
+The bounded review confirms these source paths, not full runtime parity:
 
-1. **Legacy `wow_world::MapManager`** (`Arc<RwLock<…>>`, `crates/world-server/src/main.rs`).
-   Shared across sessions. Runs creature **AI/combat** via per-session ticks
-   (`tick_creatures_sync`, `tick_combat_sync` in `crates/wow-world/src/session.rs`).
-   **No clock of its own** — advances only when a logged-in session ticks it.
-2. **Canonical `wow_map::MapManager`** (`crates/wow-map/src/manager.rs`).
-   Owns the global tick loop (`spawn_canonical_map_update_loop`, ~10ms) and a faithful
-   `Map::Update` phase structure, but its creature update uses
-   `CreatureRuntimeUpdateContext::default()` and **does not dispatch real AI/combat**
-   (no `match` executes `AiUpdateTick`/`MeleeAttackIfReady`).
-3. **Global world loop** — ticks only the canonical manager (2), never the legacy (1).
+1. **Legacy `wow_world::MapManager`** remains shared behind `Arc<RwLock<…>>`.
+   `world-server/app.rs` selects `GlobalLegacy` at stock startup and starts
+   `spawn_legacy_creature_runtime_update_loop_like_cpp` from `runtime/delivery.rs`.
+   `RustyCore.LegacyCreatureGlobalRuntime` defaults to enabled; `0` retains the Session
+   diagnostic owner. The legacy engine therefore has a sessionless production clock.
+   #28 moved the selected-owner player melee transition; #371 removed the independent
+   creature wall-clock epoch. Neither closes the remaining phase/bridge convergence.
+2. **Canonical `wow_map::MapManager`** owns active Player storage and the staged synchronous
+   `MapRuntime`; `app.rs` starts `spawn_canonical_map_update_loop` from `runtime/map.rs`.
+   Its creature visitor still does not dispatch the real legacy AI/combat effects. Existing
+   phase labels and canonical storage are not proof of the complete C++ execution order.
+3. **No third production world-update loop is launched.** `world_update_loop_step_like_cpp`
+   in `world-server/lib.rs` is only invoked by timing tests in `main_tests.rs`. The earlier
+   inventory incorrectly counted it as production. Supporting ready-check, realm-refresh
+   and keepalive tasks are separate from the two map/creature loops; see the bounded
+   [clock trace](../architecture/runtime-clock-phase-trace.md).
 
 The old `WorldSession.creatures: HashMap` field no longer exists; do not build on it.
 
@@ -37,28 +46,35 @@ The old `WorldSession.creatures: HashMap` field no longer exists; do not build o
 
 So in C++ the **global map tick owns the creature/AI/combat update**, and player
 sessions are updated as an **earlier phase of the same map tick** — not the other way
-around. The Rust legacy model (each session owns creature AI/combat) is **structurally
-inverted** from C++. The canonical `wow_map::MapManager` already mirrors the C++
-`Map::Update` phase order, so it is the correct **structural destination**.
+around. The original per-session creature model inverted that responsibility. The selected
+global legacy owner removed that particular dependence, but independent Rust loops and Session
+gameplay still need the real C++ admission/phase/barrier proof. Canonical Map is the convergence
+destination, not evidence that every required phase already runs there.
 
 ## Decision
 
 1. **Single tick-owner invariant.** A creature/combat tick is owned by exactly one of:
    the session OR the global runtime — **never both**. The deadly bug to avoid is a global
-   tick that *adds to* the per-session tick (double resolution). Introduce an explicit
-   owner (e.g. `RuntimeTickOwner::{ Session, GlobalLegacy }`).
+   tick that *adds to* the per-session tick (double resolution). Preserve the implemented
+   `RuntimeTickOwner::{ Session, GlobalLegacy }` selection until the affected writer retires.
 2. **Legacy is the transitional behavior engine; canonical is the structural destination.**
    Do not consolidate everything onto `wow_map::MapManager` at once (it has the clock and
    structure but not real AI/combat — porting that surface in one shot repeats the `_attic/`
    big-bang that died with 176 compile errors). Keep legacy running the behavior, move it
-   under a global clock, then migrate the source of truth method-by-method.
+   under its existing global clock, then migrate complete transition contracts and retire their
+   old readers/writers together.
 3. **Migrate ownership/fanout before logic.** Get "who ticks" and "who sends packets to which
    sessions" right before moving gameplay resolution.
-4. **Track separation.** `#NEXT.R8.ENTITIES.*` is the represented-logic mini-phase. The live
-   runtime convergence is **L3/L4 of `MIGRATION_ROADMAP.md`** and must use roadmap
-   phase/module IDs, not the `R8.ENTITIES` namespace.
+4. **Track separation.** Keep logic representation, production integration and parity evidence
+   distinct. Current implementation belongs to #578's C0–C4 and subsequent ordered gameplay
+   macros in PORT_PLAN.md. Historical L3/L4 and inventory IDs remain provenance, not a requirement
+   to create another slice/issue or a competing current plan.
 
 ## Refined sequence (supersedes the earlier handoff roadmap order)
+
+**Historical sequence at the original decision.** Steps already implemented are not new work;
+the current remaining order and evidence gates live in the #578 checkpoint. The old subdivision
+does not override the approved macrodeliverable size or require confirmations between steps.
 
 1. ✅ Characterize the split — `#NEXT.R8.ENTITIES.764` (tests only).
 2. **This ADR** — clean starting point; minimal reconciliation of roadmap/_INDEX drift.
@@ -94,12 +110,20 @@ inverted** from C++. The canonical `wow_map::MapManager` already mirrors the C++
 
 ## Consequences
 
-- The next production slice is **infrastructure** (`RuntimeTickOwner` + extract-to-helper, no
-  behavior change), not gameplay.
-- Progress metric note: this convergence advances the live-runtime axis (~0% today, per
-  `honest-progress-audit.md`), not the `R8.ENTITIES` inventory count.
+- The initial owner guard/global-loop infrastructure is implemented; do not rebuild it from the
+  historical plan. Converge the remaining complete lifetime, operation and phase contracts.
+- Use the [reanalysis checkpoints](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication):
+  finite conformance before production storage migration, then the first real C1/C2 integration
+  before replication; C4 reconciles all #578 obligations before #583. #153 audits both merged
+  macros, and #47/M6.2 triggers the later whole-port planning pass. These are evidence reviews,
+  not new routine approvals. A storage choice, clock count or old percentage is not completion.
 
 ## Slice 4 subdivision (validated with Codex)
+
+**Historical implementation log.** “Next”, “dormant”, “default-off”, old paths and test counts
+below describe their recorded slices, not current startup or present acceptance. Some early
+ownership proposals were superseded; apply the current contracts above and preserve only the
+bounded evidence actually established by each slice. No full-history reread is a routine preflight.
 
 Step 4 ("first behavior change") is too large for one slice and is split. **Combat stays out of
 Slice 4** — `WorldSession::run_combat_tick` is per-PLAYER (the player's auto-attack swing,
@@ -1919,10 +1943,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
 
 ## References
 
-- `crates/wow-world/src/session.rs` — `tick_creatures_sync`, `tick_combat_sync`, creature wrappers; `client_visible_guids_like_cpp` (HashSet, :2312); `process_represented_session_commands_like_cpp` (:12004).
-- `crates/wow-network/src/player_registry.rs` — `SessionCommand` enum (:19), `PlayerBroadcastInfo`/`PlayerRegistry`.
-- `crates/wow-map/src/manager.rs` — `MapManager::update` / `ManagedMap::update` (mirrors `Map::Update`).
-- `crates/world-server/src/main.rs` — both managers + `spawn_canonical_map_update_loop`.
+Current navigation anchors; the earlier log's paths/counts belong to its historical commits:
+
+- `crates/wow-world/src/session/{mod.rs,driver,mailbox,directory}` — Session orchestration,
+  typed commands, visibility admission and generation-aware delivery addresses.
+- `crates/wow-world/src/map_manager/runtime.rs` — selected legacy tick owner.
+- `crates/wow-map/src/{manager.rs,manager/player_owner.rs,map/runtime.rs}` — canonical
+  update, Player lifetime and staged synchronous operations.
+- `crates/world-server/src/app.rs` — composition/spawns; `runtime/{map,delivery}.rs` — loops
+  and delivery bridges; `bootstrap/config.rs` — production configuration default.
 - C++: `World.cpp:2748` (`sMapMgr->Update`), `Map.cpp:666` (`Map::Update` phase order).
 - `docs/migration/honest-progress-audit.md`, `crates/wow-world/_attic/README.md` (big-bang lesson).
 
@@ -1936,7 +1965,7 @@ The current default, read from code rather than from any note:
 
 - `MapManager::new` constructs `RuntimeTickOwner::Session`
   (`crates/wow-world/src/map_manager/runtime.rs`). Tests and the diagnostic path get that value.
-- Production never keeps it. `legacy_creature_global_runtime_enabled_from_config_like_cpp`
+- Stock production startup selects the global owner. `legacy_creature_global_runtime_enabled_from_config_like_cpp`
   (`crates/world-server/src/bootstrap/config.rs`) reads `RustyCore.LegacyCreatureGlobalRuntime`
   and **defaults to enabled when the key is absent** — `unwrap_or(true)` — after which startup
   calls `set_tick_owner(GlobalLegacy)`.
@@ -1949,8 +1978,10 @@ claiming the *production* default was off.
 Issue #188 records the full inventory in
 [`tools/architecture/runtime-clock-phase-trace.json`](../../tools/architecture/runtime-clock-phase-trace.json),
 described in [`runtime-clock-phase-trace.md`](../architecture/runtime-clock-phase-trace.md), and
-`check_architecture.py check` proves that inventory stays truthful. No clock, cadence, phase order
-or bridge was changed by that issue: it is a trace taken before convergence, as its scope requires.
+`check_architecture.py check` checks declarations and source/test anchors, not runtime reachability
+or semantic conformance. The 2026-09-05 review removes the incorrectly listed, test-only
+`world_update` helper from the production clock metadata. No clock, cadence, phase order or bridge
+is changed by that correction; runtime acceptance still requires affected integration evidence.
 
 ## 2026-08-26 — Issue #371: one propagated clock for every legacy creature phase
 

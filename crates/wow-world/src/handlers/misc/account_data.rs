@@ -22,7 +22,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_addon_list",
-        handler: |session, pkt| Box::pin(async move { session.handle_addon_list(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_addon_list(pkt).await }),
     }
 }
 
@@ -32,7 +32,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_account_data",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_account_data(pkt).await })
         },
     }
@@ -44,7 +44,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_update_account_data",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_update_account_data(pkt).await })
         },
     }
@@ -56,7 +56,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_save_cuf_profiles",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_save_cuf_profiles(pkt).await })
         },
     }
@@ -68,7 +68,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_tutorial",
-        handler: |session, pkt| Box::pin(async move { session.handle_tutorial(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_tutorial(pkt).await }),
     }
 }
 

@@ -1,5 +1,10 @@
 # Migration: Shared DataStores (DB2/DBC binary readers)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/DataStores/` (+ the engine-side primitives in `/home/server/woltk-trinity-legacy/src/common/DataStores/`)
 > **Rust target crate(s):** `crates/wow-data/`
 > **Layer:** L1 (infrastructure — binary file format readers + DB-driven hotfix overlay)
@@ -131,7 +136,7 @@ Only **DB2 stores** here; no per-module domain SQL. The DB-overlay layer issues 
 | `HOTFIX_<TABLE>_MAX_ID` | `SELECT MAX(ID) FROM <table>` — used to grow the index table beyond the file's max_id when a hotfix introduces a new row | hotfixes |
 | `HOTFIX_SEL_<TABLE>_LOCALE` | Fetch only the localized string columns for a given locale | hotfixes |
 
-The total prepared-statement count is **~3 × 261 ≈ 783** entries in the `HotfixDatabaseStatements` enum (the C# port's commentary in `crates/wow-database/src/statements/hotfix.rs` cites "419+", which is an undercount — every newly-added DB2 multiplies it).
+The total prepared-statement count is **~3 × 261 ≈ 783** entries in the `HotfixDatabaseStatements` enum (these are historical estimates, not a regenerated statement inventory; adding a DB2 affects multiple statements).
 
 The `hotfixes` DB schema mirrors each DB2 table 1-to-1 with a SQL table of the same name, all fields as separate columns plus a synthetic `Verified` column. There is **also** a `hotfix_data` table (rows: `Id`, `UniqueId`, `TableHash`, `RecordId`, `Status` ∈ {NotSet/Valid/RecordRemoved/Invalid/NotPublic}), a `hotfix_blob` table (rows: `TableHash`, `RecordId`, `locale`, `Blob`) for tables not loaded server-side but still pushed to the client, and a `hotfix_optional_data` table for ancillary key-blob pairs (e.g. `BroadcastText` TACT keys). Those three are read by `DB2Manager::LoadHotfix*` (covered in the `datastores.md` doc).
 
@@ -403,5 +408,3 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 ### Header status
 
 Updated to **⚠️ partial — confirmed via audit 2026-05-01**. "Audited vs C++" line clarified to call out that the audit corrected one inaccurate count (5 .db2 files parsed, not 8). No ✅ → ❌ downgrade applies because the WDC4 parser itself is a real working implementation; the Storage<T>/overlay portion is what's missing.
-
-

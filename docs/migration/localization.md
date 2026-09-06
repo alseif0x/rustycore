@@ -1,5 +1,10 @@
 # Migration: localization (cross-cutting reference)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/common/Common.h`, `src/common/Utilities/Locales.{h,cpp}`, `src/server/game/Globals/ObjectMgr.{h,cpp}`, `src/server/game/Texts/CreatureTextMgr.{h,cpp}`, `src/server/game/Texts/ChatTextBuilder.{h,cpp}`
 > **Rust target crate(s):** `crates/wow-constants/` (enum), `crates/wow-database/` (loaders TBD), `crates/wow-data/` (DB2 client texts)
 > **Layer:** L0 (foundation — every domain depends on locale)

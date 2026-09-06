@@ -1,5 +1,10 @@
 # Migration: Petitions
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Petitions/` (`PetitionMgr`, `Petition`) + `src/server/game/Handlers/PetitionsHandler.cpp`
 > **Rust target crate(s):** `crates/wow-world/src/petitions/` (the in-memory store + lifecycle), `crates/wow-database/` (CHAR_INS/UPD/DEL_PETITION* prepared statements + `petition`/`petition_sign` schema migrations), `crates/wow-packet/src/packets/petitions.rs` (currently absent — opcodes are in `wow-constants` but no struct/parsers), `crates/wow-world/src/handlers/petitions.rs` (also absent — no `WorldSession::Handle*Petition` equivalents).
 > **Layer:** L6 (Game systems — depends on Items L4 (charter item 5863), Guild L6, Player L4, ObjectMgr L1 for name validation, World config for cost & min signatures; depended on by Guild creation flow)

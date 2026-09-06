@@ -27,7 +27,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::session::{
     DirectInventoryStorageOverlayLikeCpp, InventoryItem, RepresentedVoidStorageItemLikeCpp,
-    WorldSession,
+    SessionIdGeneratorsLikeCpp, WorldSession,
 };
 
 const VOID_STORAGE_UNLOCK_COST_LIKE_CPP: u64 = 100 * 10_000;
@@ -39,8 +39,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_void_storage_unlock",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_void_storage_unlock(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_void_storage_unlock_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -51,7 +58,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_void_storage_query",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_void_storage_query(pkt).await })
         },
     }
@@ -63,8 +70,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_void_storage_transfer",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_void_storage_transfer(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_void_storage_transfer_with_generators_like_cpp(
+                        catalogs.id_generators.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -75,7 +89,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_void_storage_swap_item",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_void_storage_swap_item(pkt).await })
         },
     }
@@ -383,9 +397,9 @@ impl WorldSession {
         slot: u8,
         inventory_item: InventoryItem,
         cleared_mainhand_enchantments: Vec<wow_constants::EnchantmentSlot>,
-    ) -> Vec<PlannedVoidDestroyedInventoryItemLikeCpp> {
+    ) -> Option<Vec<PlannedVoidDestroyedInventoryItemLikeCpp>> {
         let mut destroyed_items = self
-            .represented_inventory_descendants_postorder_like_cpp(inventory_item.guid)
+            .represented_inventory_descendants_postorder_like_cpp(inventory_item.guid)?
             .into_iter()
             .map(
                 |(bag, slot, inventory_item)| PlannedVoidDestroyedInventoryItemLikeCpp {
@@ -402,7 +416,7 @@ impl WorldSession {
             inventory_item,
             cleared_mainhand_enchantments,
         });
-        destroyed_items
+        Some(destroyed_items)
     }
 
     fn void_storage_withdrawal_container_db_guid_like_cpp(
@@ -426,8 +440,7 @@ impl WorldSession {
         }
 
         planned_container_item_guids.get(&bag).copied().or_else(|| {
-            self.inventory_items_like_cpp()
-                .get(&bag)
+            self.resolved_inventory_item_like_cpp(bag)
                 .map(|item| item.guid)
         })
     }
@@ -505,7 +518,7 @@ impl WorldSession {
     fn apply_committed_void_storage_destroyed_items_like_cpp(
         &mut self,
         destroyed_items: &[PlannedVoidDestroyedInventoryItemLikeCpp],
-    ) -> (Vec<wow_core::ObjectGuid>, Vec<u32>) {
+    ) -> Option<(Vec<wow_core::ObjectGuid>, Vec<u32>)> {
         let mut destroyed_guids = Vec::with_capacity(destroyed_items.len());
         let mut changed_quest_ids = Vec::new();
         for destroyed in destroyed_items {
@@ -525,11 +538,11 @@ impl WorldSession {
             // C++ recursive DestroyItem runs ItemRemovedQuestCheck after each
             // child/parent removal, preserving intermediate objective updates.
             changed_quest_ids
-                .extend(self.apply_quest_item_removed_like_cpp(destroyed.inventory_item.entry_id));
+                .extend(self.apply_quest_item_removed_like_cpp(destroyed.inventory_item.entry_id)?);
         }
         changed_quest_ids.sort_unstable();
         changed_quest_ids.dedup();
-        (destroyed_guids, changed_quest_ids)
+        Some((destroyed_guids, changed_quest_ids))
     }
 
     fn send_void_storage_transfer_result_like_cpp(&self, result: VoidTransferErrorLikeCpp) {
@@ -588,7 +601,11 @@ impl WorldSession {
         }
     }
 
-    pub async fn handle_void_storage_unlock(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_void_storage_unlock_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: WorldPacket,
+    ) {
         let Ok(unlock) = UnlockVoidStorage::read(&mut pkt) else {
             return;
         };
@@ -619,10 +636,14 @@ impl WorldSession {
 
         // C++ ModifyMoney clamps at zero; unlocking does not have a separate
         // HasEnoughMoney gate in this audited branch.
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let new_money = old_money.saturating_sub(VOID_STORAGE_UNLOCK_COST_LIKE_CPP);
-        let new_flags = self.represented_player_flags_value_like_cpp()
-            | crate::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
+        let Some(new_flags) = self.represented_player_flags_value_like_cpp() else {
+            return;
+        };
+        let new_flags = new_flags | crate::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
         let request = wow_persistence::VoidStorageUnlockWriteRequestLikeCpp {
             player_guid: player_guid.counter() as u64,
             money_before: old_money,
@@ -642,17 +663,30 @@ impl WorldSession {
             return;
         };
 
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick(
+                "canonical Player money owner became unavailable after void-storage unlock COMMIT",
+            );
+            return;
+        }
         self.apply_committed_void_storage_unlock_like_cpp();
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_void_storage_unlock(&mut self, pkt: WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_void_storage_unlock_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 
     pub async fn handle_void_storage_query(&mut self, mut pkt: WorldPacket) {
@@ -667,16 +701,24 @@ impl WorldSession {
             )
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || !self.represented_void_storage_loaded_like_cpp()
+            || self.represented_void_storage_loaded_like_cpp() != Some(true)
         {
             self.send_packet(&VoidStorageFailed::default());
             return;
         }
 
-        self.send_packet(&self.represented_void_storage_contents_like_cpp());
+        let Some(contents) = self.represented_void_storage_contents_like_cpp() else {
+            self.send_packet(&VoidStorageFailed::default());
+            return;
+        };
+        self.send_packet(&contents);
     }
 
-    pub async fn handle_void_storage_transfer(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_void_storage_transfer_with_generators_like_cpp(
+        &mut self,
+        generators: &SessionIdGeneratorsLikeCpp,
+        mut pkt: WorldPacket,
+    ) {
         let Ok(transfer) = VoidStorageTransfer::read(&mut pkt) else {
             return;
         };
@@ -688,14 +730,17 @@ impl WorldSession {
             )
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || !self.represented_void_storage_loaded_like_cpp()
+            || self.represented_void_storage_loaded_like_cpp() != Some(true)
         {
             return;
         }
 
         // These three admission checks intentionally use the request lengths,
         // before invalid GUIDs are skipped, exactly like C++.
-        if transfer.deposits.len() > self.represented_void_storage_free_slots_like_cpp() {
+        let Some(free_void_slots) = self.represented_void_storage_free_slots_like_cpp() else {
+            return;
+        };
+        if transfer.deposits.len() > free_void_slots {
             self.send_void_storage_transfer_result_like_cpp(VoidTransferErrorLikeCpp::Full);
             return;
         }
@@ -703,7 +748,9 @@ impl WorldSession {
         // before deposits and before per-item `CanStoreNewItem`. It does not
         // admit a request merely because a later deposit may vacate a slot or
         // the withdrawn item could merge into an existing stack.
-        let empty_positions = self.represented_empty_inventory_positions_like_cpp();
+        let Some(empty_positions) = self.represented_empty_inventory_positions_like_cpp() else {
+            return;
+        };
         if transfer.withdrawals.len() > empty_positions.len() {
             self.send_void_storage_transfer_result_like_cpp(
                 VoidTransferErrorLikeCpp::InventoryFull,
@@ -712,7 +759,10 @@ impl WorldSession {
         }
         let requested_cost =
             (transfer.deposits.len() as u64).saturating_mul(VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP);
-        if self.player_gold_like_cpp() < requested_cost {
+        if !self
+            .resolved_player_money_like_cpp()
+            .is_some_and(|money| money >= requested_cost)
+        {
             self.send_void_storage_transfer_result_like_cpp(
                 VoidTransferErrorLikeCpp::NotEnoughMoney,
             );
@@ -746,19 +796,14 @@ impl WorldSession {
             // unique, quest, bag, or `ITEM_FLAG3_NO_VOID_STORAGE` metadata.
             // Preserve that server behavior here. Issue #114 explicitly keeps
             // broader inventory validation in #52.
-            let Some(runtime_item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&inventory_item.guid)
-                .cloned()
+            let Some(runtime_item) =
+                self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
             else {
                 continue;
             };
-            let Some(void_item_id) = self.next_represented_void_storage_item_id_like_cpp() else {
-                self.send_void_storage_transfer_result_like_cpp(
-                    VoidTransferErrorLikeCpp::InternalError1,
-                );
-                return;
-            };
+            let void_item_id = self.next_represented_void_storage_item_id_with_generator_like_cpp(
+                generators.void_storage_item.as_ref(),
+            );
             let Some(void_slot) = (0
                 ..wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP)
                 .find(|candidate| {
@@ -781,12 +826,17 @@ impl WorldSession {
                 continue;
             };
             let data = runtime_item.data();
-            let mut destroyed_items = self.plan_void_storage_destroyed_items_like_cpp(
+            let Some(mut destroyed_items) = self.plan_void_storage_destroyed_items_like_cpp(
                 bag,
                 slot,
                 inventory_item,
                 cleared_mainhand_enchantments,
-            );
+            ) else {
+                self.send_void_storage_transfer_result_like_cpp(
+                    VoidTransferErrorLikeCpp::InternalError1,
+                );
+                return;
+            };
             // Planning is detached from runtime publication, so emulate C++'s
             // request-order destruction when a bag and one of its children are
             // both listed: a child already claimed by an earlier deposit is no
@@ -834,28 +884,30 @@ impl WorldSession {
                 continue;
             }
             let count = self
-                .inventory_item_objects_like_cpp()
-                .get(&destroyed.inventory_item.guid)
-                .map_or(0, wow_entities::Item::count);
+                .resolved_inventory_item_object_like_cpp(destroyed.inventory_item.guid)
+                .map_or(0, |item| item.count());
             removed_non_bank_counts
                 .entry(destroyed.inventory_item.entry_id)
                 .and_modify(|removed| *removed = removed.saturating_add(count))
                 .or_insert(count);
         }
-        let mut post_removal_non_bank_counts = removed_entry_order
+        let post_removal_non_bank_counts = removed_entry_order
             .iter()
             .copied()
             .collect::<HashSet<_>>()
             .into_iter()
             .map(|entry_id| {
                 let removed = removed_non_bank_counts.get(&entry_id).copied().unwrap_or(0);
-                (
-                    entry_id,
-                    self.represented_non_bank_item_count_like_cpp(entry_id)
-                        .saturating_sub(removed),
-                )
+                self.represented_non_bank_item_count_like_cpp(entry_id)
+                    .map(|count| (entry_id, count.saturating_sub(removed)))
             })
-            .collect::<Vec<_>>();
+            .collect::<Option<Vec<_>>>();
+        let Some(mut post_removal_non_bank_counts) = post_removal_non_bank_counts else {
+            self.send_void_storage_transfer_result_like_cpp(
+                VoidTransferErrorLikeCpp::InternalError1,
+            );
+            return;
+        };
         post_removal_non_bank_counts.sort_unstable_by_key(|(entry_id, _)| *entry_id);
         let mut quest_persistence_plan = self.begin_item_transfer_quest_persistence_like_cpp(
             &removed_entry_order,
@@ -927,7 +979,7 @@ impl WorldSession {
                 continue;
             }
             let Some((db_guid, item_guid)) = self
-                .allocate_item_instance_guids_like_cpp(1)
+                .allocate_item_instance_guids_with_generator_like_cpp(generators.item.as_ref(), 1)
                 .and_then(|mut ids| ids.pop())
             else {
                 self.send_void_storage_transfer_result_like_cpp(
@@ -946,10 +998,8 @@ impl WorldSession {
             let (target, mut item_object, base_enchantments) = if let Some(state) = previous_state {
                 (state.target, state.item_object, state.enchantments)
             } else if let Some(inventory_item) = existing_inventory_item {
-                let Some(item_object) = self
-                    .inventory_item_objects_like_cpp()
-                    .get(&inventory_item.guid)
-                    .cloned()
+                let Some(item_object) =
+                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
                 else {
                     self.send_void_storage_transfer_result_like_cpp(
                         VoidTransferErrorLikeCpp::InventoryFull,
@@ -1180,7 +1230,9 @@ impl WorldSession {
         else {
             return;
         };
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let actual_cost =
             (planned_deposits.len() as u64).saturating_mul(VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP);
         let new_money = old_money.saturating_sub(actual_cost);
@@ -1307,7 +1359,10 @@ impl WorldSession {
 
         // Publish the complete durable state before reopening payout
         // admission or reaching any cancellation point.
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick("canonical Player money owner became unavailable after void-storage transfer COMMIT");
+            return;
+        }
         let mut added_items = Vec::new();
         let mut removed_items = Vec::new();
         let mut destroyed_deposit_items = Vec::new();
@@ -1334,8 +1389,14 @@ impl WorldSession {
                     player_guid,
                 );
             }
-            let (destroyed_guids, deposit_changed_quest_ids) = self
-                .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items);
+            let Some((destroyed_guids, deposit_changed_quest_ids)) = self
+                .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items)
+            else {
+                self.send_void_storage_transfer_result_like_cpp(
+                    VoidTransferErrorLikeCpp::InternalError1,
+                );
+                return;
+            };
             changed_quest_ids.extend(deposit_changed_quest_ids);
             destroyed_deposit_items.push((parent_position, destroyed_guids));
             let inserted_slot =
@@ -1472,12 +1533,13 @@ impl WorldSession {
             .map(|status| status.quest_id)
             .collect::<Vec<_>>();
         debug_assert_eq!(changed_quest_ids, planned_changed_quest_ids);
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            generators.item.as_ref(),
+        )
+        .await;
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }
@@ -1518,6 +1580,13 @@ impl WorldSession {
         self.send_void_storage_transfer_result_like_cpp(VoidTransferErrorLikeCpp::NoError);
     }
 
+    #[cfg(test)]
+    pub async fn handle_void_storage_transfer(&mut self, pkt: WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_void_storage_transfer_with_generators_like_cpp(&generators, pkt)
+            .await;
+    }
+
     pub async fn handle_void_storage_swap_item(&mut self, mut pkt: WorldPacket) {
         let Ok(swap) = SwapVoidItem::read(&mut pkt) else {
             return;
@@ -1526,7 +1595,7 @@ impl WorldSession {
             .represented_npc_can_interact_with_like_cpp(swap.npc, NPCFlags1::VAULT_KEEPER.bits(), 0)
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || !self.represented_void_storage_loaded_like_cpp()
+            || self.represented_void_storage_loaded_like_cpp() != Some(true)
         {
             return;
         }
@@ -1560,7 +1629,9 @@ impl WorldSession {
         else {
             return;
         };
-        let money = self.player_gold_like_cpp();
+        let Some(money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let request = wow_persistence::VoidStorageSwapWriteRequestLikeCpp {
             player_guid: player_guid.counter() as u64,
             money_before: money,

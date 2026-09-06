@@ -3,11 +3,12 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Gameplay policy snapshots installed into each [`crate::WorldSession`].
+//! Gameplay policy value types composed by `world-server`.
 //!
 //! These values originate in world-server configuration and affect gameplay
-//! decisions after authentication. They intentionally live in the world
-//! application instead of the TCP listener boundary.
+//! decisions after authentication. Capability bundles borrow process-owned
+//! values into the relevant handlers; mutable per-session counters remain on
+//! their canonical runtime owner.
 
 /// C++ `World::rate_values` subset used by loot generation.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -65,7 +66,7 @@ impl Default for ReputationRatesLikeCpp {
     }
 }
 
-/// C++ `ChatLevelReq.*` represented session snapshot.
+/// C++ `ChatLevelReq.*` process policy value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChatLevelRequirementsLikeCpp {
     pub channel: u8,
@@ -87,7 +88,7 @@ impl Default for ChatLevelRequirementsLikeCpp {
     }
 }
 
-/// C++ `ListenRange.*` represented session snapshot.
+/// C++ `ListenRange.*` process policy value.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ChatListenRangesLikeCpp {
     pub say: f32,
@@ -105,7 +106,7 @@ impl Default for ChatListenRangesLikeCpp {
     }
 }
 
-/// C++ `ChatFlood.*` represented session snapshot.
+/// C++ `ChatFlood.*` process policy value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChatFloodConfigLikeCpp {
     pub message_count: u32,

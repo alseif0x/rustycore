@@ -4,13 +4,23 @@ Issue #19 defines the minimum convention for converting represented handler
 work into live runtime mutations without hiding ownership or recording false
 successes.
 
+This is the bounded #19 bridge contract and its dated stand-state evidence, not
+the universal API for new modules. Current owner and extension design follows
+[the modularity plan](../architecture/modularity-and-ecs-plan.md) and
+[module design guidelines](../architecture/module-design-guidelines.md).
+The legacy bridge's existence does not authorize new Session-owned domain rules.
+
 ## Contract
 
-1. The packet handler owns decoding and the exact C++ validation order.
+1. The packet handler owns decoding and transport/session admission. Preserve
+   exact C++ validation order across the operation; domain decisions and live
+   state validation belong to their authoritative domain/runtime owner, not to
+   the handler merely because it received the packet.
 2. After validation it constructs one typed intent. An invalid packet never
    reaches the bridge.
-3. The bridge resolves the authoritative live owner and applies the mutation
-   and its immediate packet effects there.
+3. The bridge resolves the authoritative live owner. Domain/runtime code applies
+   the mutation and produces its result; application/adapters publish packet
+   effects in the required order, without I/O under map/entity guards.
 4. The bridge returns an explicit applied/rejected outcome.
 5. Structured telemetry and test evidence are emitted only after an applied
    outcome. Missing owners, failed locks, and other rejections must not look
@@ -30,12 +40,14 @@ make `WorldSession` the owner of unrelated runtime state.
 |---|---|---|
 | Session/player request with synchronous player mutation | canonical `Player`/`Unit` | `WorldSession::apply_represented_live_intent_like_cpp` |
 | Global creature/map tick | canonical or legacy map selected by the runtime ADR | map-owned bridge, not `WorldSession` |
-| Persistence | database transaction/save owner | DB writer after successful live mutation |
+| Persistence | application lifecycle/transaction owner with domain snapshot | Preserve each operation's commit/mutation/publication contract; never infer a universal mutate-before-commit rule |
 | Remote-session delivery | receiving session through `SessionCommand`/visibility gate | sender queues; receiver validates visibility |
 
 Each new variant must cite its C++ function, name the live owner, enumerate
 packet routing (realm/instance), cover positive and negative outcomes, and
-have capture-diff evidence before being called done.
+have focused evidence before being called done. Require capture-diff when bytes,
+metadata, routing or observable order change, and live QA for an affected live
+lifecycle/runtime change, retaining the active issue's explicit acceptance.
 
 ## First converted example: stand state
 

@@ -1,5 +1,10 @@
 # Migration: OutdoorPvP
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/OutdoorPvP/` + `src/server/scripts/OutdoorPvP/`
 > **Rust target crate(s):** `crates/wow-pvp/` (nuevo módulo `outdoor/`), wiring en `crates/wow-world/`
 > **Layer:** L7

@@ -24,7 +24,7 @@ where
     ///
     /// `Map::AddCorpse` retains every loaded corpse by cell, but
     /// `ObjectWorldLoader` only calls `AddToWorld` when that corpse's grid is
-    /// loaded. Rust keeps the typed record dormant in `map_objects` and
+    /// loaded. Rust keeps the typed record dormant in `entity_world` and
     /// activates it immediately only when the destination grid is already
     /// loaded (the async login bridge may finish after the player's grid load).
     pub fn register_loaded_corpse_like_cpp(
@@ -60,7 +60,7 @@ where
         }
 
         let corpses = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 if record.kind() != AccessorObjectKind::Corpse
@@ -93,7 +93,7 @@ where
             );
 
             if let Some(corpse) = self
-                .map_objects
+                .entity_world
                 .get_mut(guid)
                 .and_then(MapObjectRecord::corpse_mut)
             {
@@ -109,7 +109,7 @@ where
 
     fn deactivate_registered_corpses_for_grid_like_cpp(&mut self, grid: GridCoord) -> usize {
         let corpses = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 if record.kind() != AccessorObjectKind::Corpse
@@ -125,7 +125,7 @@ where
 
         for guid in &corpses {
             if let Some(corpse) = self
-                .map_objects
+                .entity_world
                 .get_mut(guid)
                 .and_then(MapObjectRecord::corpse_mut)
             {
@@ -405,7 +405,7 @@ where
     ) -> Result<Option<MapObjectRecord>, MapObjectStoreError> {
         self.validate_map_object(record.object())?;
         let guid = record.object().guid();
-        let mut previous = self.map_objects.remove(&guid);
+        let mut previous = self.entity_world.remove(&guid);
         if let Some(previous_record) = previous.as_mut() {
             if !typed_loot_authorities_share_storage_like_cpp(previous_record, &record) {
                 detach_typed_loot_authority_like_cpp(previous_record);
@@ -413,7 +413,8 @@ where
             self.unindex_map_object_record_by_spawn_id_like_cpp(previous_record);
         }
         self.index_map_object_record_by_spawn_id_like_cpp(&record);
-        self.map_objects.insert(guid, record);
+        let displaced = self.entity_world.insert(record);
+        debug_assert!(displaced.is_none());
         Ok(previous)
     }
 
@@ -510,7 +511,7 @@ where
 
         let mut set_true = false;
         let mut set_false = false;
-        let final_is_new_object = if let Some(record) = self.map_objects.get_mut(&guid) {
+        let final_is_new_object = if let Some(record) = self.entity_world.get_mut(&guid) {
             record.object_mut().object_mut().set_is_new_object(true);
             set_true = true;
             record.object_mut().object_mut().set_is_new_object(false);
@@ -637,7 +638,7 @@ where
                 });
 
             let creature_unit_add_to_world = self
-                .map_objects
+                .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::creature_mut)
                 .map(|creature| creature.unit_mut().add_to_world_like_cpp());
@@ -655,7 +656,7 @@ where
                 .map(Creature::aim_initialize_like_cpp);
 
             let creature_vehicle_reset = self
-                .map_objects
+                .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::creature_mut)
                 .and_then(|creature| {
@@ -674,7 +675,7 @@ where
                 });
 
             let creature_vehicle_install = self
-                .map_objects
+                .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::creature_mut)
                 .and_then(|creature| {
@@ -778,7 +779,7 @@ where
                         owner_guid: guid,
                     });
                 let gameobject_collision_enable = self
-                    .map_objects
+                    .entity_world
                     .get_mut(&guid)
                     .and_then(MapObjectRecord::game_object_mut)
                     .map(|game_object| {
@@ -809,7 +810,7 @@ where
             };
 
             if let Some(game_object) = self
-                .map_objects
+                .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::game_object_mut)
             {
@@ -1031,7 +1032,7 @@ where
         self.map_object_by_kind(guid, &[AccessorObjectKind::Creature])
     }
 
-    pub fn get_typed_creature(&self, guid: ObjectGuid) -> Option<&Creature> {
+    pub(crate) fn get_typed_creature(&self, guid: ObjectGuid) -> Option<&Creature> {
         let record = self.map_object_record(guid)?;
         if record.kind() != AccessorObjectKind::Creature {
             return None;
@@ -1039,8 +1040,40 @@ where
         record.creature()
     }
 
+    /// Return an owned transform/vitals view of an exact canonical Creature.
+    /// This is the preferred external read seam for systems that do not need the
+    /// complete entity and remains compatible with the selected private ECS
+    /// backend.
+    pub fn creature_transform_vitals_snapshot_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<CreatureTransformVitalsSnapshotLikeCpp> {
+        self.entity_world.creature_transform_vitals_snapshot(guid)
+    }
+
+    /// Run a synchronous read against one exact canonical Creature without
+    /// exposing the storage representation. `R` is owned independently of the
+    /// callback borrow, so a future ECS guard cannot escape this method.
+    pub fn with_creature_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Creature) -> R,
+    ) -> Option<R> {
+        self.entity_world.with_creature(guid, read)
+    }
+
+    /// Run one synchronous mutation inside the canonical entity owner and
+    /// return only an owned result.
+    pub fn with_creature_mut_like_cpp<R>(
+        &mut self,
+        guid: ObjectGuid,
+        write: impl FnOnce(&mut Creature) -> R,
+    ) -> Option<R> {
+        self.entity_world.with_creature_mut(guid, write)
+    }
+
     pub fn get_typed_creature_mut(&mut self, guid: ObjectGuid) -> Option<&mut Creature> {
-        let record = self.map_objects.get_mut(&guid)?;
+        let record = self.entity_world.get_mut(&guid)?;
         if record.kind() != AccessorObjectKind::Creature {
             return None;
         }
@@ -1060,11 +1093,111 @@ where
     }
 
     pub fn get_typed_pet_mut(&mut self, guid: ObjectGuid) -> Option<&mut Pet> {
-        let record = self.map_objects.get_mut(&guid)?;
+        let record = self.entity_world.get_mut(&guid)?;
         if record.kind() != AccessorObjectKind::Pet {
             return None;
         }
         record.pet_mut()
+    }
+
+    /// Run one synchronous read against an exact canonical Pet without exposing
+    /// the map's storage representation or allowing the borrowed entity to
+    /// escape. This is the migration-safe equivalent of C++'s typed object-store
+    /// lookup for adapter code that returns an owned snapshot.
+    pub fn with_pet_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Pet) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::Pet {
+            return None;
+        }
+        record.pet().map(read)
+    }
+
+    pub fn with_game_object_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&GameObject) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::GameObject {
+            return None;
+        }
+        record.game_object().map(read)
+    }
+
+    /// Read either the exact Creature or Pet body addressed by `guid` while the
+    /// callback is in scope. The optional owner is populated only for Pets.
+    pub fn with_creature_or_pet_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Creature, Option<ObjectGuid>) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        match record.kind() {
+            AccessorObjectKind::Creature => record.creature().map(|creature| read(creature, None)),
+            AccessorObjectKind::Pet => record
+                .pet()
+                .map(|pet| read(pet.creature(), Some(pet.owner_guid()))),
+            _ => None,
+        }
+    }
+
+    /// Read the common WorldObject projection for one of the explicitly
+    /// accepted canonical kinds. The callback result must be owned, so this
+    /// remains compatible with a guard-based entity backend.
+    pub fn with_world_object_by_kinds_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        allowed: &[AccessorObjectKind],
+        read: impl FnOnce(&WorldObject) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        allowed
+            .contains(&record.kind())
+            .then(|| read(record.object()))
+    }
+
+    pub fn contains_map_object_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.entity_world.get(&guid).is_some()
+    }
+
+    pub fn with_area_trigger_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&AreaTrigger) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::AreaTrigger {
+            return None;
+        }
+        record.area_trigger().map(read)
+    }
+
+    pub fn with_scene_object_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&SceneObject) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::SceneObject {
+            return None;
+        }
+        record.scene_object().map(read)
+    }
+
+    pub fn with_conversation_like_cpp<R>(
+        &self,
+        guid: ObjectGuid,
+        read: impl FnOnce(&Conversation) -> R,
+    ) -> Option<R> {
+        let record = self.entity_world.get(&guid)?;
+        if record.kind() != AccessorObjectKind::Conversation {
+            return None;
+        }
+        record.conversation().map(read)
     }
 
     pub fn get_typed_player(&self, guid: ObjectGuid) -> Option<&Player> {
@@ -1076,7 +1209,7 @@ where
     }
 
     pub fn get_typed_player_mut(&mut self, guid: ObjectGuid) -> Option<&mut Player> {
-        let record = self.map_objects.get_mut(&guid)?;
+        let record = self.entity_world.get_mut(&guid)?;
         if record.kind() != AccessorObjectKind::Player {
             return None;
         }
@@ -1092,7 +1225,7 @@ where
     }
 
     pub fn get_typed_corpse_mut(&mut self, guid: ObjectGuid) -> Option<&mut Corpse> {
-        let record = self.map_objects.get_mut(&guid)?;
+        let record = self.entity_world.get_mut(&guid)?;
         if record.kind() != AccessorObjectKind::Corpse {
             return None;
         }
@@ -1108,7 +1241,7 @@ where
     }
 
     pub fn get_typed_dynamic_object_mut(&mut self, guid: ObjectGuid) -> Option<&mut DynamicObject> {
-        let record = self.map_objects.get_mut(&guid)?;
+        let record = self.entity_world.get_mut(&guid)?;
         if record.kind() != AccessorObjectKind::DynamicObject {
             return None;
         }
@@ -1116,7 +1249,7 @@ where
     }
 
     pub fn typed_combat_unit_guids_like_cpp(&self) -> Vec<ObjectGuid> {
-        self.map_objects
+        self.entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 matches!(

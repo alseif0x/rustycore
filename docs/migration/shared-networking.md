@@ -1,5 +1,10 @@
 # Migration: shared/Networking
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Networking/`
 > **Rust target crate(s):** `crates/wow-network/`
 > **Layer:** L1
@@ -165,7 +170,7 @@ N/A — `WorldSocket` (en `game/Server`) origina opcodes; Networking solo transp
 - Graceful drain on shutdown (actual close inmediato)
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
-- `ServerCounter` quirk (líneas 65-81 world_socket.rs): Rust pre-set counters porque C# siempre incrementa incluso pre-encryption. **Verificar fidelidad vs TrinityCore**.
+- `ServerCounter` (líneas históricas 65-81 world_socket.rs): contrastar el pre-set de Rust con `WorldPacketCrypt::EncryptSend/DecryptRecv`; ver la evidencia C++ acotada de §13.
 - No tests de header encryption round-trip post-auth.
 - No monitor de nonce reuse (potencial RIP AES-GCM).
 
@@ -329,7 +334,7 @@ N/A — `WorldSocket` (en `game/Server`) origina opcodes; Networking solo transp
 
 <!-- REFINE.023:END known-divergences -->
 
-1. **ServerCounter quirk:** C# siempre incrementa, incluso para packets sin cifrar. Rust replica. Ver `world_socket.rs` L67-81.
+1. **ServerCounter:** el pre-set de Rust requiere contraste con el incremento canónico incluso antes del cifrado; ver §13 y las líneas históricas de `world_socket.rs` L67-81.
 2. **Nonce reuse = RIP AES-GCM:** Per-direction counter NUNCA puede colisionar entre direcciones. Counter overflow tras 2^64 causa IV reuse. Mitigación: session timeout << 2^64 packets (en práctica imposible alcanzar).
 3. **Boost.ASIO IOCP vs epoll:** C++ multiplexa según OS; Tokio abstrae ambos.
 4. **READ_BLOCK_SIZE = 4096:** Razonable; WoW max packet ~65KB world. Ring buffer ≥ 2× max packet.
@@ -371,7 +376,7 @@ deviation from standard GCM, and the `EnterEncryptedMode` Ed25519ctx signing
 flow matches.
 
 The previously suspicious `ServerCounter`/`ClientCounter` pre-set logic is in
-fact **correct** — it was not "C# legacy weirdness" but a faithful port of
+fact **correct in this recorded contrast** — it was a faithful port of
 TC's `WorldPacketCrypt` semantics. Counter behaviour is now fully justified
 (see §13.3).
 
@@ -444,9 +449,8 @@ The pre-set counters are necessary for protocol parity. The previous comment
 in `world_socket.rs` (L184-193) — `"The WoW client increments its receive
 counter for every header it reads, even for unencrypted packets"` — is
 literally what TC also does, just on the server side. Note that the comment
-attributes this to "C#" but it's actually canonical TC C++ behaviour. The
-Rust code is correct on this point and the doc gotcha #1 should be reworded
-to remove the implication that this is a C# legacy artifact.
+needs an exact `WorldPacketCrypt` anchor. The recorded contrast found no
+behavior defect on this point; it is not a new audit of current networking.
 
 ### 13.4 Critical findings
 
@@ -506,12 +510,10 @@ to remove the implication that this is a C# legacy artifact.
   if the hotfix payload exceeds the standard cap. Minor for current
   hotfix-stub state; a real concern once hotfix delivery is implemented.
 
-#### F5 — `unencrypted_packets_*` framing comment misattributes behaviour to C# (cosmetic)
+#### F5 — `unencrypted_packets_*` framing comment lacks its canonical anchor (cosmetic)
 - **Rust:** comments at `world_socket.rs` L184-193, L709-728, and `world_crypt.rs`
-  L67-96 attribute the always-increment-counter behaviour to "the C# server"
-  / "matches C#'s WorldCrypt.Encrypt()". This is misleading — the canonical
-  source is TC's `WorldPacketCrypt::EncryptSend/DecryptRecv` (always
-  increment). The C# server inherited it from TC.
+  L67-96 do not cite the relevant canonical behavior. The source is
+  TC's `WorldPacketCrypt::EncryptSend/DecryptRecv` (always increment).
 - **Impact:** Doc-only. Fix in the same pass as #NET.2.
 
 #### F6 — `SocketReader` vs `SocketWriter` use independent `WorldCrypt` instances (informational, not a defect)
@@ -575,7 +577,7 @@ remain valid; the relative ordering changes and three new items are added.
 - [ ] **#NET.2** Reword the counter-increment doc comments
   (`world_socket.rs` L184-193, `world_crypt.rs` L67-96) to attribute the
   behaviour to TC's `WorldPacketCrypt::EncryptSend/DecryptRecv` (always
-  increment), not to "C#". *(see F5; demoted from M to L now that the
+  increment). *(see F5; demoted from M to L now that the
   semantics are confirmed correct.)*
 - [ ] **#NET.7** Session timeout (30min idle) — unchanged.
 - [ ] **#NET.9** Per-socket metrics (latency, packet rate, crypto timing) —
@@ -621,4 +623,3 @@ The pre-audit doc claim of `✅ done (~80%)` is **partially honest**: the wire
 protocol and crypto layer are at parity for well-behaved clients; error-path
 parity (UX-affecting) is at maybe 40%. Net status downgraded to `~75%` to
 flag the missing flush.
-

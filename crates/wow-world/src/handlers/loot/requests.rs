@@ -134,8 +134,39 @@ impl WorldSession {
         );
     }
 
+    #[cfg(test)]
     pub(super) async fn store_represented_disenchant_loot_winner_like_cpp(
         &mut self,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+        entry: &LootEntry,
+        winner_guid: ObjectGuid,
+        dungeon_encounter_id: u32,
+        claim: Option<&LootClaimLease>,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.store_represented_disenchant_loot_winner_with_generator_like_cpp(
+            generator.as_ref(),
+            &item_valuation,
+            owner_guid,
+            loot_obj,
+            loot_list_id,
+            entry,
+            winner_guid,
+            dungeon_encounter_id,
+            claim,
+        )
+        .await
+    }
+
+    pub(super) async fn store_represented_disenchant_loot_winner_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         owner_guid: ObjectGuid,
         loot_obj: ObjectGuid,
         loot_list_id: u8,
@@ -150,7 +181,8 @@ impl WorldSession {
         else {
             return false;
         };
-        let Some((disenchant_id, _)) = self.item_disenchant_loot_like_cpp(
+        let Some((disenchant_id, _)) = self.item_disenchant_loot_with_catalogs_like_cpp(
+            item_valuation,
             entry.item_id,
             template.quality as u32,
             u32::from(template.item_level),
@@ -171,7 +203,8 @@ impl WorldSession {
 
         if self.player_guid() == Some(winner_guid) {
             return self
-                .store_direct_disenchant_batch_like_cpp(
+                .store_direct_disenchant_batch_with_generator_like_cpp(
+                    item_guid_generator,
                     &disenchant_entries,
                     dungeon_encounter_id,
                     claim,
@@ -262,8 +295,9 @@ impl WorldSession {
         })
     }
 
-    pub(super) fn represented_on_loot_opened_like_cpp(
+    pub(super) fn represented_on_loot_opened_with_catalogs_like_cpp(
         &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
         mut response: LootResponse,
@@ -372,6 +406,7 @@ impl WorldSession {
         match loot_method {
             LOOT_METHOD_GROUP_LIKE_CPP | LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP => {
                 self.represented_start_group_loot_rolls_on_first_open_like_cpp(
+                    item_valuation,
                     owner_guid,
                     player_guid,
                 );
@@ -385,6 +420,22 @@ impl WorldSession {
             }
             _ => {}
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn represented_on_loot_opened_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        response: LootResponse,
+    ) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            &item_valuation,
+            owner_guid,
+            player_guid,
+            response,
+        );
     }
 
     /// True only while a request still belongs to the exact object lifetime
@@ -450,7 +501,7 @@ impl WorldSession {
         &self,
         player_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return vec![player_guid];
         };
         let Some(group_registry) = self.group_registry() else {
@@ -459,12 +510,16 @@ impl WorldSession {
         let Some(group) = group_registry.get(&group_guid) else {
             return vec![player_guid];
         };
-        let source_position = self.player_position_like_cpp().unwrap_or_default();
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return vec![player_guid];
+        };
         let map_id = self.player_map_id_like_cpp();
-        let instance_id = self
+        let Some(instance_id) = self
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
-            .unwrap_or(0);
+        else {
+            return vec![player_guid];
+        };
         let registry = self.player_registry();
         let mut looters = Vec::new();
 
@@ -499,15 +554,16 @@ impl WorldSession {
         &self,
         connected_tappers: &[ObjectGuid],
     ) -> ObjectGuid {
-        let selected =
-            if let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) {
-                registry
-                    .get(&group_guid)
-                    .map(|group| group.looter_guid_like_cpp())
-                    .filter(|looter| connected_tappers.contains(looter))
-            } else {
-                None
-            };
+        let selected = if let (Some(group_guid), Some(registry)) =
+            (self.resolved_group_guid_like_cpp(), self.group_registry())
+        {
+            registry
+                .get(&group_guid)
+                .map(|group| group.looter_guid_like_cpp())
+                .filter(|looter| connected_tappers.contains(looter))
+        } else {
+            None
+        };
         selected.unwrap_or(connected_tappers[0])
     }
 
@@ -515,7 +571,9 @@ impl WorldSession {
         &self,
         connected_tappers: &[ObjectGuid],
     ) {
-        let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) else {
+        let (Some(group_guid), Some(registry)) =
+            (self.resolved_group_guid_like_cpp(), self.group_registry())
+        else {
             return;
         };
         let _ = registry
@@ -556,24 +614,25 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> Option<RepresentedLootPlayerContext> {
         if Some(player_guid) == self.player_guid() {
+            let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
             return Some(RepresentedLootPlayerContext {
                 race: self.player_race_like_cpp(),
                 class: self.player_class_like_cpp(),
                 gender: self.player_gender_like_cpp(),
                 level: self.player_level_like_cpp(),
                 known_spells: self.known_spells_like_cpp().to_vec(),
-                active_quest_statuses: self
-                    .player_quests
+                active_quest_statuses: quests
+                    .statuses
                     .iter()
                     .map(|(quest_id, status)| (*quest_id, status.status))
                     .collect(),
-                active_quest_objective_counts: self
-                    .player_quests
+                active_quest_objective_counts: quests
+                    .statuses
                     .iter()
                     .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
                     .collect(),
-                rewarded_quests: self.rewarded_quests.clone(),
-                inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
+                rewarded_quests: quests.rewarded_quest_ids.into_iter().collect(),
+                inventory_item_counts: self.represented_inventory_item_counts_like_cpp()?,
                 is_current: true,
             });
         }
@@ -606,11 +665,14 @@ impl WorldSession {
         addon_metadata: ItemTemplateAddonLootMetadataLikeCpp,
     ) -> bool {
         let start_quest_id = self.item_template_start_quest_id(item_id).unwrap_or(0);
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
         let has_non_none_start_quest_status =
             u32::try_from(start_quest_id).ok().is_some_and(|quest_id| {
                 quest_id != 0
-                    && (self.player_quests.contains_key(&quest_id)
-                        || self.rewarded_quests.contains(&quest_id))
+                    && (quests.statuses.contains_key(&quest_id)
+                        || quests.rewarded_quest_ids.contains(&quest_id))
             });
         let has_quest_for_item = self.has_incomplete_quest_objective_for_item_like_cpp(item_id)
             || (addon_metadata.quest_log_item_id != 0
@@ -635,35 +697,38 @@ impl WorldSession {
             return false;
         };
 
-        self.player_quests.values().any(|status| {
-            if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                return false;
-            }
-
-            let Some(quest) = quest_store.get(status.quest_id) else {
-                return false;
-            };
-
-            quest
-                .objectives
-                .iter()
-                .enumerate()
-                .any(|(fallback_index, objective)| {
-                    if objective.obj_type != 1 || objective.object_id != item_object_id {
+        self.player_quest_gameplay_snapshot_like_cpp()
+            .is_some_and(|state| {
+                state.statuses.into_values().any(|status| {
+                    if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                         return false;
                     }
 
-                    let storage_index = usize::try_from(objective.storage_index)
-                        .ok()
-                        .unwrap_or(fallback_index);
-                    let current = status
-                        .objective_counts
-                        .get(storage_index)
-                        .copied()
-                        .unwrap_or(0);
-                    current < objective.amount.max(1)
+                    let Some(quest) = quest_store.get(status.quest_id) else {
+                        return false;
+                    };
+
+                    quest
+                        .objectives
+                        .iter()
+                        .enumerate()
+                        .any(|(fallback_index, objective)| {
+                            if objective.obj_type != 1 || objective.object_id != item_object_id {
+                                return false;
+                            }
+
+                            let storage_index = usize::try_from(objective.storage_index)
+                                .ok()
+                                .unwrap_or(fallback_index);
+                            let current = status
+                                .objective_counts
+                                .get(storage_index)
+                                .copied()
+                                .unwrap_or(0);
+                            current < objective.amount.max(1)
+                        })
                 })
-        })
+            })
     }
 
     fn represented_has_quest_for_item_like_cpp(
@@ -734,11 +799,13 @@ impl WorldSession {
             })
     }
 
-    pub(super) fn direct_inventory_item_count_like_cpp(&self, item_id: u32) -> u32 {
-        self.represented_inventory_item_counts_like_cpp()
-            .get(&item_id)
-            .copied()
-            .unwrap_or(0)
+    pub(super) fn direct_inventory_item_count_like_cpp(&self, item_id: u32) -> Option<u32> {
+        Some(
+            self.represented_inventory_item_counts_like_cpp()?
+                .get(&item_id)
+                .copied()
+                .unwrap_or(0),
+        )
     }
 
     pub(super) fn player_quest_objective_progress_like_cpp(
@@ -747,7 +814,11 @@ impl WorldSession {
     ) -> Option<i32> {
         let quest_store = self.quest_store.as_ref()?;
 
-        for status in self.player_quests.values() {
+        for status in self
+            .player_quest_gameplay_snapshot_like_cpp()?
+            .statuses
+            .into_values()
+        {
             let Some(quest) = quest_store.get(status.quest_id) else {
                 continue;
             };
@@ -906,12 +977,31 @@ impl WorldSession {
         self.clear_active_loot_guid_if(owner_guid);
     }
 
+    #[cfg(test)]
     pub(super) async fn store_direct_loot_item_like_cpp(
         &mut self,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
     ) -> bool {
-        self.store_direct_loot_item_with_source_like_cpp(
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_loot_item_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_loot_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+    ) -> bool {
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            item_guid_generator,
             loot_entry,
             dungeon_encounter_id,
             None,
@@ -965,8 +1055,30 @@ impl WorldSession {
     /// This bounded divergence keeps C++ generation/inventory rules but plans
     /// every material before creating one SQL transaction.  The detached
     /// transaction worker owns the original roll claim through COMMIT.
+    #[cfg(test)]
     pub(super) async fn store_direct_disenchant_batch_like_cpp(
         &mut self,
+        loot_entries: &[LootEntry],
+        dungeon_encounter_id: u32,
+        claim: Option<&LootClaimLease>,
+        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_disenchant_batch_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entries,
+            dungeon_encounter_id,
+            claim,
+            claim_commit_context,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_disenchant_batch_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         loot_entries: &[LootEntry],
         dungeon_encounter_id: u32,
         claim: Option<&LootClaimLease>,
@@ -1130,14 +1242,14 @@ impl WorldSession {
                 if remaining == 0 {
                     break;
                 }
-                let Some(existing) = self.inventory_items_like_cpp().get(&slot) else {
+                let Some(existing) = self.resolved_inventory_item_like_cpp(slot) else {
                     continue;
                 };
                 if existing.entry_id != loot_entry.item_id {
                     continue;
                 }
                 let Some(existing_object) =
-                    self.inventory_item_objects_like_cpp().get(&existing.guid)
+                    self.resolved_inventory_item_object_like_cpp(existing.guid)
                 else {
                     self.send_equip_error(InventoryResult::ItemNotFound, None, None, 0, 0);
                     return false;
@@ -1145,7 +1257,7 @@ impl WorldSession {
                 if !loot_store_data_can_stack_with_item(
                     loot_entry,
                     random_properties,
-                    existing_object,
+                    &existing_object,
                 ) {
                     continue;
                 }
@@ -1169,7 +1281,7 @@ impl WorldSession {
                     let dynamic_flags = self.stored_existing_item_dynamic_flags_like_cpp(
                         loot_entry.item_id,
                         slot,
-                        existing_object,
+                        &existing_object,
                     );
                     planned_existing_stacks.push(PlannedDisenchantExistingStack {
                         slot,
@@ -1217,7 +1329,8 @@ impl WorldSession {
 
             while remaining > 0 {
                 let Some(slot) = (INVENTORY_SLOT_ITEM_START..backpack_end).find(|slot| {
-                    !self.inventory_items_like_cpp().contains_key(slot)
+                    self.resolved_inventory_items_like_cpp()
+                        .is_some_and(|items| !items.contains_key(slot))
                         && !planned_new_stacks.iter().any(|stack| stack.slot == *slot)
                 }) else {
                     self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
@@ -1254,9 +1367,10 @@ impl WorldSession {
 
         let mut created_new_stacks = Vec::with_capacity(planned_new_stacks.len());
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) =
-                self.allocate_item_instance_guids_like_cpp(planned_new_stacks.len())
-            else {
+            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                planned_new_stacks.len(),
+            ) else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "disenchant item grant has no process-wide item GUID allocator"
@@ -1394,7 +1508,6 @@ impl WorldSession {
             collection_updates.extend(self.on_item_added_to_collection_like_cpp(&item_object));
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
         if let Some(runtime_inventory_applied) = runtime_inventory_applied {
             runtime_inventory_applied.store(true, Ordering::Release);
         }
@@ -1407,7 +1520,8 @@ impl WorldSession {
                 .try_into()
                 .unwrap_or(0);
             let mut changed_quest_ids = self
-                .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+                .apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
                     grant.entry.item_id,
                     quest_log_item_id,
                     grant.entry.quantity,
@@ -1542,13 +1656,34 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     pub(super) async fn store_direct_loot_item_from_owner_like_cpp(
         &mut self,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
         owner_guid: ObjectGuid,
     ) -> bool {
-        self.store_direct_loot_item_with_source_like_cpp(
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+            owner_guid,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_loot_item_from_owner_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+    ) -> bool {
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            item_guid_generator,
             loot_entry,
             dungeon_encounter_id,
             owner_guid.is_item().then_some(owner_guid),
@@ -1558,8 +1693,32 @@ impl WorldSession {
         .await
     }
 
+    #[cfg(test)]
     pub(super) async fn store_direct_loot_item_with_source_like_cpp(
         &mut self,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+        stored_item_loot_source: Option<ObjectGuid>,
+        claim: Option<&LootClaimLease>,
+        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.store_direct_loot_item_with_source_and_generator_like_cpp(
+            generator.as_ref(),
+            loot_entry,
+            dungeon_encounter_id,
+            stored_item_loot_source,
+            claim,
+            claim_commit_context,
+        )
+        .await
+    }
+
+    pub(super) async fn store_direct_loot_item_with_source_and_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         loot_entry: &LootEntry,
         dungeon_encounter_id: u32,
         stored_item_loot_source: Option<ObjectGuid>,
@@ -1673,7 +1832,8 @@ impl WorldSession {
             }
             if let Some(plan) = bound_objective_plan.as_ref() {
                 let applied = self
-                    .apply_quest_source_item_bound_objective_preflight_like_cpp(
+                    .apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+                        item_guid_generator,
                         item_id,
                         quest_log_item_id,
                         count,
@@ -1812,21 +1972,24 @@ impl WorldSession {
             }
 
             let applied = self
-                .apply_quest_source_item_bound_objective_preflight_like_cpp(
+                .apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+                    item_guid_generator,
                     item_id,
                     quest_log_item_id,
                     count,
                 )
                 .await;
             if !applied.as_ref().is_some_and(|result| result.no_grant)
-                || !bound_objective_plan.statuses.iter().all(|planned| {
-                    self.player_quests
-                        .get(&planned.quest_id)
-                        .is_some_and(|actual| {
-                            actual.status == planned.status
-                                && actual.objective_counts == planned.objective_counts
+                || !self
+                    .player_quest_gameplay_snapshot_like_cpp()
+                    .is_some_and(|state| {
+                        bound_objective_plan.statuses.iter().all(|planned| {
+                            state.statuses.get(&planned.quest_id).is_some_and(|actual| {
+                                actual.status == planned.status
+                                    && actual.objective_counts == planned.objective_counts
+                            })
                         })
-                })
+                    })
             {
                 self.kick("durable quest-bound loot state diverged; relog required");
                 return true;
@@ -1854,16 +2017,14 @@ impl WorldSession {
             let slot = (dest.pos & 0x00FF) as u8;
             bag == u8::from(INVENTORY_SLOT_BAG_0)
                 && self
-                    .inventory_items_like_cpp()
-                    .get(&slot)
+                    .resolved_inventory_item_like_cpp(slot)
                     .is_some_and(|existing| {
-                        self.inventory_item_objects_like_cpp()
-                            .get(&existing.guid)
+                        self.resolved_inventory_item_object_like_cpp(existing.guid)
                             .is_some_and(|item| {
                                 !loot_store_data_can_stack_with_item(
                                     loot_entry,
                                     store_random_properties,
-                                    item,
+                                    &item,
                                 )
                             })
                     })
@@ -1895,9 +2056,9 @@ impl WorldSession {
                 .unwrap_or(1)
                 .max(1);
 
-            if let Some(existing) = self.inventory_items_like_cpp().get(&slot) {
+            if let Some(existing) = self.resolved_inventory_item_like_cpp(slot) {
                 let Some(existing_object) =
-                    self.inventory_item_objects_like_cpp().get(&existing.guid)
+                    self.resolved_inventory_item_object_like_cpp(existing.guid)
                 else {
                     self.send_equip_error(InventoryResult::ItemNotFound, None, None, 0, 0);
                     return false;
@@ -1913,7 +2074,7 @@ impl WorldSession {
                     || !loot_store_data_can_stack_with_item(
                         loot_entry,
                         store_random_properties,
-                        existing_object,
+                        &existing_object,
                     )
                 {
                     self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
@@ -1930,7 +2091,7 @@ impl WorldSession {
                     let dynamic_flags = self.stored_existing_item_dynamic_flags_like_cpp(
                         item_id,
                         slot,
-                        existing_object,
+                        &existing_object,
                     );
                     planned_existing_counts.push(PlannedDirectLootExistingStack {
                         slot,
@@ -1976,9 +2137,10 @@ impl WorldSession {
 
         let mut created_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) =
-                self.allocate_item_instance_guids_like_cpp(planned_new_stacks.len())
-            else {
+            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                planned_new_stacks.len(),
+            ) else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "loot item grant has no process-wide item GUID allocator"
@@ -2149,13 +2311,13 @@ impl WorldSession {
             collection_updates.extend(self.on_item_added_to_collection_like_cpp(&item_object));
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
         if let Some(runtime_inventory_applied) = runtime_inventory_applied {
             runtime_inventory_applied.store(true, Ordering::Release);
         }
 
         let mut changed_quest_ids = self
-            .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+            .apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
                 item_id,
                 quest_log_item_id,
                 count,
@@ -2292,16 +2454,20 @@ impl WorldSession {
         let mut remaining = loot_entry.quantity;
         let mut dest = Vec::new();
 
-        let mut existing_slots: Vec<u8> = self.inventory_items_like_cpp().keys().copied().collect();
+        let mut existing_slots: Vec<u8> = self
+            .resolved_inventory_items_like_cpp()?
+            .keys()
+            .copied()
+            .collect();
         existing_slots.sort_unstable();
         for slot in existing_slots {
             if remaining == 0 {
                 break;
             }
-            let Some(existing) = self.inventory_items_like_cpp().get(&slot) else {
+            let Some(existing) = self.resolved_inventory_item_like_cpp(slot) else {
                 continue;
             };
-            let Some(existing_object) = self.inventory_item_objects_like_cpp().get(&existing.guid)
+            let Some(existing_object) = self.resolved_inventory_item_object_like_cpp(existing.guid)
             else {
                 continue;
             };
@@ -2309,7 +2475,7 @@ impl WorldSession {
                 || !loot_store_data_can_stack_with_item(
                     loot_entry,
                     random_properties,
-                    existing_object,
+                    &existing_object,
                 )
                 || existing_object.count() >= max_stack
             {
@@ -2334,7 +2500,10 @@ impl WorldSession {
             if remaining == 0 {
                 break;
             }
-            if self.inventory_items_like_cpp().contains_key(&slot) {
+            if self
+                .resolved_inventory_items_like_cpp()
+                .is_none_or(|items| items.contains_key(&slot))
+            {
                 continue;
             }
             let quantity = max_stack.min(remaining);

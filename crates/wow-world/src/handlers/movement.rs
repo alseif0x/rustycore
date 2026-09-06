@@ -34,6 +34,7 @@ use wow_packet::packets::movement::{
 
 use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::session::{
+    AreaTriggerCatalogsLikeCpp, ProgressionCatalogsLikeCpp,
     SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
     WorldSession,
 };
@@ -86,7 +87,19 @@ macro_rules! register_move {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: concat!("handle_movement_", stringify!($opcode)),
-                handler: |session, pkt| Box::pin(async move { session.handle_movement(pkt).await }),
+                handler: |session, catalogs, pkt| {
+                    Box::pin(async move {
+                        session
+                            .handle_movement_with_catalogs_like_cpp(
+                                catalogs.area_triggers.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                catalogs.progression.as_ref(),
+                                &catalogs.player_grid_loader,
+                                pkt,
+                            )
+                            .await
+                    })
+                },
             }
         }
     };
@@ -128,7 +141,14 @@ impl WorldSession {
     ///
     /// Parses MovementInfo, validates it, updates player position,
     /// and queues a broadcast to nearby players.
-    pub async fn handle_movement(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_movement_with_catalogs_like_cpp(
+        &mut self,
+        area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        progression: &ProgressionCatalogsLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let opcode = pkt.client_opcode();
         let info = match ClientPlayerMovement::read(&mut pkt) {
             Ok(m) => m,
@@ -141,11 +161,23 @@ impl WorldSession {
             }
         };
 
-        self.handle_movement_info_like_cpp(opcode, info.info).await;
+        self.handle_movement_info_with_catalogs_like_cpp(
+            area_trigger_catalogs,
+            creature_spawn_catalogs,
+            progression,
+            player_grid_loader,
+            opcode,
+            info.info,
+        )
+        .await;
     }
 
-    pub(crate) async fn handle_movement_info_like_cpp(
+    pub(crate) async fn handle_movement_info_with_catalogs_like_cpp(
         &mut self,
+        area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        progression: &ProgressionCatalogsLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
         opcode: Option<ClientOpcodes>,
         mut info: MovementInfo,
     ) {
@@ -156,14 +188,13 @@ impl WorldSession {
             );
             return;
         };
-        let mover_guid = self.player_moved_unit_guid_like_cpp();
-        if mover_guid.is_empty() {
+        let Some(mover_guid) = self.player_moved_unit_guid_like_cpp() else {
             warn!(
                 account = self.account_id,
                 "Movement packet received without active mover"
             );
             return;
-        }
+        };
         let mover_is_player = mover_guid == player_guid;
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
@@ -313,22 +344,18 @@ impl WorldSession {
 
             // Update server-side player position.
             self.set_player_position_like_cpp(info.position);
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().world_mut().relocate(info.position);
-            });
             let authoritative_grid_map_key = self
                 .current_canonical_player_map_key_like_cpp()
                 .filter(|key| key.map_id == u32::from(self.player_map_id_like_cpp()));
             let grid_instance_id = authoritative_grid_map_key
                 .map(|key| key.instance_id)
                 .unwrap_or(0);
-            if load_player_active_grid_like_cpp
-                && let Some(outcome) = self.ensure_player_grid_loaded_like_cpp(
+            if load_player_active_grid_like_cpp {
+                let outcome = player_grid_loader(
                     self.player_map_id_like_cpp(),
                     authoritative_grid_map_key.map(|key| key.instance_id),
                     pos,
-                )
-            {
+                );
                 trace!(
                     account = self.account_id,
                     map_id = self.player_map_id_like_cpp(),
@@ -414,12 +441,16 @@ impl WorldSession {
                         self.update_zone_represented_like_cpp(zone_id, area_id);
                         area_id
                     } else {
-                        let (_, current_area_id) = self.player_zone_area_like_cpp();
+                        let Some((_, current_area_id)) = self.player_zone_area_like_cpp() else {
+                            return;
+                        };
                         current_area_id
                     }
                 }
                 Err(error) => {
-                    let (_, area_id) = self.player_zone_area_like_cpp();
+                    let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+                        return;
+                    };
                     warn!(
                         account = self.account_id,
                         map_id = self.player_map_id_like_cpp(),
@@ -431,8 +462,11 @@ impl WorldSession {
                     area_id
                 }
             };
-            self.check_area_explore_and_outdoor_represented_like_cpp(area_id)
-                .await;
+            self.check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
+                progression,
+                area_id,
+            )
+            .await;
             // Keep the broadcast registry in sync so chat range checks are accurate.
             self.update_registry_position();
             trace!(
@@ -445,10 +479,12 @@ impl WorldSession {
 
             // Dynamic visibility update: send new creatures/GOs that came into
             // range and remove those that left. Internally throttled to 50 yards.
-            self.update_visibility().await;
+            self.update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+                .await;
 
             // Check area triggers at the new position
-            self.check_area_triggers().await;
+            self.check_area_triggers_with_catalogs_like_cpp(area_trigger_catalogs)
+                .await;
         } else {
             let moved = self
                 .mutate_world_creature(mover_guid, |creature| {
@@ -527,6 +563,41 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub async fn handle_movement(&mut self, pkt: wow_packet::WorldPacket) {
+        let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = self.progression_catalogs_for_test_like_cpp();
+        self.handle_movement_with_catalogs_like_cpp(
+            &area_trigger_catalogs,
+            &creature_spawn_catalogs,
+            &progression,
+            &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
+            pkt,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn handle_movement_info_like_cpp(
+        &mut self,
+        opcode: Option<ClientOpcodes>,
+        info: MovementInfo,
+    ) {
+        let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = self.progression_catalogs_for_test_like_cpp();
+        self.handle_movement_info_with_catalogs_like_cpp(
+            &area_trigger_catalogs,
+            &creature_spawn_catalogs,
+            &progression,
+            &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
+            opcode,
+            info,
+        )
+        .await;
+    }
+
     fn apply_movement_side_effects_like_cpp(
         &mut self,
         opcode: Option<ClientOpcodes>,
@@ -599,8 +670,14 @@ impl WorldSession {
             "RUST_LOGIN_TRACE SetActiveMover"
         );
 
-        let expected_mover = self.player_moved_unit_guid_like_cpp();
-        if !expected_mover.is_empty() && pkt.active_mover != expected_mover {
+        let Some(expected_mover) = self.player_moved_unit_guid_like_cpp() else {
+            warn!(
+                account = self.account_id,
+                "SetActiveMover received without canonical active mover"
+            );
+            return;
+        };
+        if pkt.active_mover != expected_mover {
             warn!(
                 account = self.account_id,
                 "SetActiveMover GUID mismatch: expected {:?}, got {:?}",
@@ -697,7 +774,10 @@ impl WorldSession {
         );
         if self.apply_knock_back_ack_like_cpp(ClientOpcodes::MoveKnockBackAck, &mut pkt.ack) {
             let mut status = pkt.ack.status.clone();
-            status.time = self.player_movement_time_like_cpp();
+            let Some(adjusted_time) = self.resolved_player_movement_time_like_cpp() else {
+                return;
+            };
+            status.time = adjusted_time;
             self.broadcast_to_movement_set_like_cpp(
                 MoveUpdateKnockBack { status }.to_bytes(),
                 false,
@@ -735,13 +815,9 @@ impl WorldSession {
             "MoveApplyMovementForceAck"
         );
         if self.record_apply_movement_force_ack_like_cpp(&mut pkt.ack, &pkt.force) {
-            let mut status = pkt.ack.status.clone();
-            if let Some(adjusted_time) = self.latest_movement_ack_adjusted_time_like_cpp() {
-                status.time = adjusted_time;
-            }
             self.broadcast_to_movement_set_like_cpp(
                 MoveUpdateApplyMovementForce {
-                    status,
+                    status: pkt.ack.status,
                     force: pkt.force,
                 }
                 .to_bytes(),
@@ -761,13 +837,9 @@ impl WorldSession {
             "MoveRemoveMovementForceAck"
         );
         if self.record_remove_movement_force_ack_like_cpp(&mut pkt.ack, pkt.id) {
-            let mut status = pkt.ack.status.clone();
-            if let Some(adjusted_time) = self.latest_movement_ack_adjusted_time_like_cpp() {
-                status.time = adjusted_time;
-            }
             self.broadcast_to_movement_set_like_cpp(
                 MoveUpdateRemoveMovementForce {
-                    status,
+                    status: pkt.ack.status,
                     trigger_guid: pkt.id,
                 }
                 .to_bytes(),
@@ -1183,8 +1255,8 @@ mod tests {
         session.set_player_moved_unit_guid_like_cpp(guid);
         let calls_for_resolver = Arc::clone(&calls);
         let seen_for_resolver = Arc::clone(&seen);
-        session.set_player_grid_load_resolver_like_cpp(Arc::new(
-            move |map_id, instance_id, pos| {
+        let player_grid_loader: crate::session::PlayerGridLoadResolverLikeCpp =
+            Arc::new(move |map_id, instance_id, pos| {
                 calls_for_resolver.fetch_add(1, Ordering::SeqCst);
                 seen_for_resolver
                     .lock()
@@ -1196,8 +1268,10 @@ mod tests {
                     legacy_creature_mirrors: 7,
                     ..PlayerGridLoadOutcomeLikeCpp::default()
                 }
-            },
-        ));
+            });
+        let area_triggers = session.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = session.progression_catalogs_for_test_like_cpp();
 
         let same_grid = MovementInfo {
             guid,
@@ -1206,7 +1280,14 @@ mod tests {
             ..MovementInfo::default()
         };
         session
-            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), same_grid)
+            .handle_movement_info_with_catalogs_like_cpp(
+                &area_triggers,
+                &creature_spawns,
+                &progression,
+                &player_grid_loader,
+                Some(ClientOpcodes::MoveHeartbeat),
+                same_grid,
+            )
             .await;
         assert_eq!(
             calls.load(Ordering::SeqCst),
@@ -1221,7 +1302,14 @@ mod tests {
             ..MovementInfo::default()
         };
         session
-            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), new_grid)
+            .handle_movement_info_with_catalogs_like_cpp(
+                &area_triggers,
+                &creature_spawns,
+                &progression,
+                &player_grid_loader,
+                Some(ClientOpcodes::MoveHeartbeat),
+                new_grid,
+            )
             .await;
 
         assert_eq!(calls.load(Ordering::SeqCst), 1);
@@ -1760,7 +1848,7 @@ mod tests {
         assert!(!session.near_teleport_pending_like_cpp());
         assert_eq!(session.player_position_like_cpp(), Some(destination));
         assert_eq!(session.fall_information_like_cpp(), (0, 14.0));
-        assert_eq!(session.player_zone_area_like_cpp(), (20, 21));
+        assert_eq!(session.player_zone_area_like_cpp(), Some((20, 21)));
         assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
         assert_eq!(session.delayed_operations_processed_like_cpp(), 1);
 
@@ -2282,7 +2370,7 @@ mod tests {
         let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let guid = ObjectGuid::create_player(1, 1042);
         let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
-        let moved_position = Position::new(10.0, 20.0, 30.0, 1.0);
+        let moved_position = Position::new(90.0, 20.0, 30.0, 1.0);
 
         canonical.lock().unwrap().create_world_map(571, 0);
         session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -2330,6 +2418,19 @@ mod tests {
             .map(|player| player.unit().world().position())
             .expect("canonical player");
         assert_eq!(canonical_position, moved_position);
+        let canonical_cell = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .and_then(|player| player.unit().world().current_cell())
+            .expect("canonical player cell");
+        let expected_cell = wow_map::cell_from_world(moved_position.x, moved_position.y);
+        assert_eq!(
+            canonical_cell,
+            (expected_cell.cell_x(), expected_cell.cell_y()),
+            "C++ Map::PlayerRelocation moves the Player between derived cell indexes"
+        );
         let canonical_movement_flags = canonical
             .lock()
             .unwrap()
@@ -2356,7 +2457,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .sync_session_from_save_to_db_snapshot_like_cpp()
+                .current_player_save_to_db_snapshot_like_cpp()
                 .unwrap()
                 .position,
             moved_position
@@ -2421,6 +2522,7 @@ mod tests {
         assert_eq!(
             session
                 .represented_explored_zones_db_string_like_cpp()
+                .expect("test Player explored-zones owner resolves")
                 .split_whitespace()
                 .take(4)
                 .collect::<Vec<_>>(),
@@ -2523,13 +2625,13 @@ mod tests {
 
         assert_eq!(
             session.player_zone_area_like_cpp(),
-            (1637, 5170),
+            Some((1637, 5170)),
             "C++ Player::Update uses terrain GetZoneAndAreaId, so cemetery requests after movement must use the Orgrimmar zone, not stale DB zone"
         );
     }
 
     #[tokio::test]
-    async fn logout_save_snapshot_prefers_latest_session_position_like_cpp() {
+    async fn logout_save_snapshot_uses_canonical_position_not_stale_session_mirror_like_cpp() {
         let mut session = make_session();
         let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let guid = ObjectGuid::create_player(1, 1043);
@@ -2570,13 +2672,13 @@ mod tests {
         });
 
         let snapshot = session
-            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .current_player_save_to_db_snapshot_like_cpp()
             .expect("save snapshot");
 
-        assert_eq!(snapshot.position, latest_session_position);
+        assert_eq!(snapshot.position, stale_canonical_position);
         assert_eq!(
             session.player_position_like_cpp(),
-            Some(latest_session_position)
+            Some(stale_canonical_position)
         );
     }
 
@@ -2838,7 +2940,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_active_mover",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::SetActiveMover::read(&mut pkt) {
                     Ok(mover) => session.handle_set_active_mover(mover).await,
@@ -2857,7 +2959,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_init_active_mover_complete",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveInitActiveMoverComplete::read(&mut pkt) {
                     Ok(init) => session.handle_move_init_active_mover_complete(init).await,
@@ -2874,7 +2976,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_set_vehicle_rec_id_ack",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move { let opcode = pkt.client_opcode().unwrap_or(ClientOpcodes::MoveSetVehicleRecIdAck); match wow_packet::packets::vehicle::MoveSetVehicleRecIdAck::read(&mut pkt) { Ok(ack) => session.handle_move_set_vehicle_rec_id_ack(opcode, ack).await, Err(e) => tracing::warn!("Failed to read MoveSetVehicleRecIdAck: {e}"), } })
         },
     }
@@ -2888,7 +2990,7 @@ macro_rules! register_movement_ack_message {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: "handle_movement_ack_message",
-                handler: |session, mut pkt| {
+                handler: |session, _catalogs, mut pkt| {
                     Box::pin(async move { let opcode = pkt.client_opcode().unwrap_or(ClientOpcodes::$opcode); match wow_packet::packets::movement::MovementAckMessage::read(&mut pkt) { Ok(ack) => session.handle_movement_ack_message(opcode, ack).await, Err(e) => tracing::warn!("Failed to read MovementAckMessage: {e}"), } })
                 },
             }
@@ -2904,7 +3006,7 @@ macro_rules! register_movement_speed_ack {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: "handle_movement_speed_ack",
-                handler: |session, mut pkt| {
+                handler: |session, _catalogs, mut pkt| {
                     Box::pin(async move { let opcode = pkt.client_opcode().unwrap_or(ClientOpcodes::$opcode); match wow_packet::packets::movement::MovementSpeedAck::read(&mut pkt) { Ok(ack) => session.handle_movement_speed_ack(opcode, ack).await, Err(e) => tracing::warn!("Failed to read MovementSpeedAck: {e}"), } })
                 },
             }
@@ -2946,7 +3048,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_knock_back_ack",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveKnockBackAck::read(&mut pkt) {
                     Ok(ack) => session.handle_move_knock_back_ack(ack).await,
@@ -2963,7 +3065,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_set_collision_height_ack",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveSetCollisionHeightAck::read(&mut pkt) {
                     Ok(ack) => session.handle_move_set_collision_height_ack(ack).await,
@@ -2980,7 +3082,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_apply_movement_force_ack",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveApplyMovementForceAck::read(&mut pkt) {
                     Ok(ack) => session.handle_move_apply_movement_force_ack(ack).await,
@@ -2997,7 +3099,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_remove_movement_force_ack",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveRemoveMovementForceAck::read(&mut pkt) {
                     Ok(ack) => session.handle_move_remove_movement_force_ack(ack).await,
@@ -3014,7 +3116,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_move_time_skipped",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveTimeSkipped::read(&mut pkt) {
                     Ok(skipped) => session.handle_move_time_skipped(skipped).await,
@@ -3031,7 +3133,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_spline_done",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveSplineDone::read(&mut pkt) {
                     Ok(done) => session.handle_move_spline_done(done).await,
@@ -3048,7 +3150,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_teleport_ack",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::movement::MoveTeleportAck::read(&mut pkt) {
                     Ok(ack) => session.handle_move_teleport_ack(ack).await,

@@ -1,5 +1,10 @@
 # Migration: BattlePets
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/BattlePets/` (`BattlePetMgr.{h,cpp}`) + `src/server/game/Handlers/BattlePetHandler.cpp` + `src/server/game/Server/Packets/BattlePetPackets.{h,cpp}` + `WorldPackets::BattlePet::*` family
 > **Rust target crate(s):** `crates/wow-world` (account owner and handlers), `crates/wow-database` (Login DB persistence), `crates/world-server` (process owner/bootstrap), and `crates/wow-packet` (journal packets).
 > **Layer:** L7 game system plus Login DB account ownership.

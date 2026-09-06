@@ -1,5 +1,10 @@
 # Migration: shared/JSON
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/JSON/`
 > **Rust target crate(s):** n/a (idiom replacement: `serde` + `serde_json`)
 > **Layer:** L1

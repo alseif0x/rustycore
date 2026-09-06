@@ -26,7 +26,13 @@ impl WorldSession {
     /// Queries the world database for creatures within visibility range
     /// on the player's map, builds CreatureCreateData for each, and sends
     /// a batched UpdateObject.
-    pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, _zone_id: u32) {
+    pub async fn send_nearby_creatures_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &CreatureSpawnCatalogsLikeCpp,
+        map_id: u16,
+        position: &Position,
+        _zone_id: u32,
+    ) {
         let map_creatures = self.visible_world_creatures_from_map_like_cpp(map_id, position);
         if self.has_world_map_manager_like_cpp() {
             let mut blocks = Vec::with_capacity(map_creatures.len());
@@ -140,7 +146,8 @@ impl WorldSession {
         let mut blocks = Vec::new();
         let mut visible_guids = Vec::new();
         for row in &rows {
-            let Some(spawn) = self.materialize_creature_spawn_row_like_cpp(
+            let Some(spawn) = self.materialize_creature_spawn_row_with_catalogs_like_cpp(
+                catalogs,
                 map_id,
                 row,
                 position,
@@ -199,7 +206,10 @@ impl WorldSession {
     ///
     /// Threshold: only triggers if the player moved more than 50 yards from
     /// the last visibility update position.
-    pub async fn update_visibility(&mut self) {
+    pub async fn update_visibility_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    ) {
         use std::collections::HashSet;
 
         // ── Position & threshold check ──────────────────────────────────
@@ -634,9 +644,13 @@ impl WorldSession {
 
         if !creatures.is_empty() {
             for row in &creatures {
-                let Some(spawn) =
-                    self.materialize_creature_spawn_row_like_cpp(map_id, row, &pos, range)
-                else {
+                let Some(spawn) = self.materialize_creature_spawn_row_with_catalogs_like_cpp(
+                    creature_spawn_catalogs,
+                    map_id,
+                    row,
+                    &pos,
+                    range,
+                ) else {
                     continue;
                 };
 
@@ -1137,5 +1151,20 @@ impl WorldSession {
             "Sent {} gameobjects to account {} on map {}",
             count, self.account_id, map_id
         );
+    }
+}
+
+#[cfg(test)]
+impl WorldSession {
+    pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, zone_id: u32) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.send_nearby_creatures_with_catalogs_like_cpp(&catalogs, map_id, position, zone_id)
+            .await;
+    }
+
+    pub async fn update_visibility(&mut self) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.update_visibility_with_catalogs_like_cpp(&catalogs)
+            .await;
     }
 }

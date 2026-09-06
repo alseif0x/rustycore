@@ -141,7 +141,7 @@ impl WorldSession {
     }
 
     pub(super) fn represented_notify_loot_list_like_cpp(&self, owner_guid: ObjectGuid) {
-        if self.group_guid.is_none() {
+        if self.resolved_group_guid_like_cpp().is_none() {
             return;
         }
 

@@ -508,13 +508,12 @@ fn package_audit_scopes(
 struct SourceGraph {
     mounts: BTreeMap<PathBuf, SourceMount>,
     explicit_path_declarations: BTreeSet<(PathBuf, String, PathBuf)>,
-    visited_mounts: BTreeSet<(PathBuf, SourceMountContext)>,
+    visited_mounts: BTreeSet<(PathBuf, PathBuf, SourceMountContext)>,
     active_sources: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
 struct SourceMount {
-    module_directory: PathBuf,
     contexts: BTreeSet<SourceMountContext>,
 }
 
@@ -872,19 +871,6 @@ fn validate_source_file(
 
 fn explicit_path(attributes: &[syn::Attribute]) -> Result<Option<PathBuf>, String> {
     crate::registrations::path_override(attributes)
-}
-
-fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
-    let parent = source.parent().unwrap_or_else(|| Path::new("."));
-    if source.file_name().is_some_and(|name| name == "mod.rs") {
-        Ok(parent.to_owned())
-    } else {
-        Ok(parent.join(
-            source
-                .file_stem()
-                .ok_or_else(|| format!("module source has no file stem: {}", source.display()))?,
-        ))
-    }
 }
 
 /// Read a source file with every `#[path]` module spliced back in as an inline
@@ -1286,7 +1272,13 @@ fn resolve_module_source(
             source_path.display()
         );
         let resolved = validate_source_file(&candidate, package_root, &context)?;
-        let child_directory = child_module_directory(&resolved)?;
+        // An explicit file mount owns its containing directory, regardless of
+        // its filename. Adding the file stem here selects a different source
+        // tree from rustc for implicit descendants.
+        let child_directory = resolved
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .to_owned();
         return Ok((resolved, child_directory));
     }
 
@@ -1479,28 +1471,22 @@ fn walk_source_file(
         test_possible,
     };
     if let Some(previous_mount) = graph.mounts.get_mut(&resolved) {
-        if previous_mount.module_directory != module_directory {
-            return Err(format!(
-                "source {} is mounted with conflicting module directories {} and {}",
-                resolved.display(),
-                previous_mount.module_directory.display(),
-                module_directory.display()
-            ));
-        }
+        // One physical file can have ordinary and explicit mounts, each with
+        // its own child directory. Preserve and traverse both logical contexts.
         previous_mount.contexts.insert(context.clone());
     } else {
         graph.mounts.insert(
             resolved.clone(),
             SourceMount {
-                module_directory: module_directory.to_owned(),
                 contexts: BTreeSet::from([context.clone()]),
             },
         );
     }
-    if !graph
-        .visited_mounts
-        .insert((resolved.clone(), context.clone()))
-    {
+    if !graph.visited_mounts.insert((
+        resolved.clone(),
+        module_directory.to_owned(),
+        context.clone(),
+    )) {
         return Ok(());
     }
 

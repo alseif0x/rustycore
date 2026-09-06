@@ -661,6 +661,23 @@ def validation_commands(
     add_command(planned, ["git", "diff", "--check", base_commit])
     existing = lambda paths: [path for path in paths if (repo / path).is_file()]
     all_paths = sorted(path for paths in groups.values() for path in paths)
+    # Physical source coverage includes tools, tests, non-Rust and extensionless
+    # scripts; it cannot depend on a workspace Rust diff. This cheap scan never
+    # invokes Cargo or the exhaustive persistence inventory.
+    if profile == "final":
+        add_command(planned, ["python3", "tools/architecture/check_architecture.py", "physical-files"])
+    if any(path in {
+        "tools/architecture/physical_files.py",
+        "tools/architecture/test_physical_files.py",
+        "tools/architecture/physical-file-policy.json",
+    } for path in all_paths):
+        add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_physical_files.py"])
+    if any(path in {
+        "tools/architecture/check_architecture.py",
+        "tools/architecture/architecture_common.py",
+        "tools/architecture/hotspot_metrics.py",
+    } for path in all_paths):
+        add_command(planned, ["python3", "tools/architecture/check_architecture.py", "self-test"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
     text_files = existing(
         sorted(

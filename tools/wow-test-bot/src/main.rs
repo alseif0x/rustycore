@@ -16,6 +16,7 @@ use tracing::{debug, error, info, warn};
 
 mod bot_srp6;
 mod config;
+mod login_save;
 mod loot_race;
 mod packet_parser;
 mod protocol;
@@ -404,6 +405,8 @@ struct BotRunResult {
     world_auth: bool,
     enum_characters: bool,
     player_login_verified: bool,
+    login_stream_drained: bool,
+    login_save: Option<login_save::Evidence>,
     login_only: bool,
     stand_state_smoke: bool,
     stand_state_smoke_passed: Option<bool>,
@@ -4877,6 +4880,8 @@ async fn run_bot_with_void_storage(
         world_auth: false,
         enum_characters: false,
         player_login_verified: false,
+        login_stream_drained: false,
+        login_save: None,
         login_only,
         stand_state_smoke: stand_state_options.is_some(),
         stand_state_smoke_passed: None,
@@ -5158,6 +5163,16 @@ async fn run_bot_with_void_storage(
         quest_titles_seen: Vec::new(),
         quest_failure: None,
         seen_opcodes: Vec::new(),
+    };
+
+    let login_save_before = if login_save::enabled() {
+        if !login_only {
+            bail!("login save check requires login-only mode");
+        }
+        let selected = bot.clone();
+        Some(tokio::task::spawn_blocking(move || login_save::preflight(&selected)).await??)
+    } else {
+        None
     };
 
     // ── Step 1: Prepare the World session key ────────────────────────────────
@@ -5496,10 +5511,12 @@ async fn run_bot_with_void_storage(
         bail!("WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS requires login-only mode");
     }
     let require_known_spells = login_only
-        && (expected_known_spells.is_some()
+        && (login_save_before.is_some()
+            || expected_known_spells.is_some()
             || std::env::var("WOW_BOT_LOGIN_REQUIRE_KNOWN_SPELLS")
                 .is_ok_and(|value| is_truthy(&value)));
     let mut known_spells_seen = false;
+    let mut saved_known_spells = None;
     let mut loot_race_target_seen = false;
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut void_storage_target_seen: Option<DiscoveredCreatureGuid> = None;
@@ -5530,6 +5547,7 @@ async fn run_bot_with_void_storage(
                         }
                     }
                     known_spells_seen = true;
+                    saved_known_spells = Some(decoded.clone());
                     info!(
                         "[Bot {}] ✅ SMSG_SEND_KNOWN_SPELLS received (known={}, favorites={})",
                         bot_index,
@@ -6173,6 +6191,35 @@ async fn run_bot_with_void_storage(
     }
 
     if login_only {
+        drain_login_streams(
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &mut result,
+        )
+        .await?;
+        if let Some(before) = login_save_before {
+            let confirmed = loot_race::logout_and_wait_routed_like_cpp(
+                bot_index,
+                &mut stream,
+                &mut crypt,
+                &mut server_inflater,
+                realm_connection.as_mut(),
+                bot.character_guid,
+                &mut result,
+            )
+            .await?;
+            if !confirmed {
+                bail!("save check requires SMSG_LOGOUT_COMPLETE, not socket-loss fallback");
+            }
+            let selected = bot.clone();
+            let known = saved_known_spells.context("save check missing known-spell packet")?;
+            result.login_save = Some(
+                tokio::task::spawn_blocking(move || login_save::finish(&selected, before, known))
+                    .await??,
+            );
+        }
         info!(
             "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
             bot_index
@@ -12717,6 +12764,76 @@ async fn wait_for_bank_item_location(
     )
 }
 
+// C++ Map::AddPlayerToMap / SendInitSelf publishes UPDATE_OBJECT after
+// LOGIN_VERIFY_WORLD. Keep both sockets alive through that publication and a
+// bounded quiet period; this is a stream-drain proof, not a gameplay acceptance.
+async fn drain_login_streams(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let realm = realm_connection
+        .as_mut()
+        .context("login drain requires both sockets")?;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut object_update_seen = false;
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("login streams did not settle after object publication");
+        }
+        let mut instance_peek = [0; 1];
+        let mut realm_peek = [0; 1];
+        // Peek is cancellation-safe: never race partial encrypted frame reads.
+        let ready = tokio::time::timeout(remaining.min(Duration::from_secs(1)), async {
+            tokio::select! {
+                bytes = stream.peek(&mut instance_peek) => {
+                    if bytes? == 0 { bail!("instance closed during login drain"); }
+                    Ok::<bool, anyhow::Error>(true)
+                }
+                bytes = realm.stream.peek(&mut realm_peek) => {
+                    if bytes? == 0 { bail!("realm closed during login drain"); }
+                    Ok(false)
+                }
+            }
+        })
+        .await;
+        let instance = match ready {
+            Ok(ready) => ready?,
+            Err(_) if object_update_seen => {
+                result.login_stream_drained = true;
+                return Ok(());
+            }
+            Err(_) => continue,
+        };
+        let (opcode, payload) = tokio::time::timeout_at(deadline, async {
+            if instance {
+                read_encrypted_packet(stream, crypt, inflater).await
+            } else {
+                read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater)
+                    .await
+            }
+        })
+        .await
+        .context("login drain frame deadline exceeded")??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        object_update_seen |= instance && opcode == SMSG_UPDATE_OBJECT;
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            // MiscPackets.cpp TimeSyncRequest::Write / TimeSyncResponse::Read.
+            let sequence = parse_time_sync_request_sequence(&payload)?;
+            let response = build_time_sync_response_payload(sequence, 0);
+            tokio::time::timeout_at(
+                deadline,
+                send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response),
+            )
+            .await
+            .context("login drain time-sync write deadline exceeded")??;
+        }
+    }
+}
+
 async fn logout_and_wait(
     bot_index: usize,
     stream: &mut TcpStream,
@@ -18588,6 +18705,59 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn login_drain_requires_object_publication_and_live_sockets() {
+        async fn pair() -> (TcpStream, TcpStream) {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let client = TcpStream::connect(listener.local_addr().unwrap())
+                .await
+                .unwrap();
+            (client, listener.accept().await.unwrap().0)
+        }
+        for (publish, close_realm) in [(true, false), (true, true), (false, false)] {
+            let (mut instance, mut server) = pair().await;
+            let (realm, realm_server) = pair().await;
+            let mut connection = Some(EncryptedWorldConnection {
+                stream: realm,
+                crypt: WorldCrypt::new(&[0; 16]),
+                inflater: ServerPacketInflater::default(),
+            });
+            let mut server_crypt = WorldCrypt::new(&[0; 16]);
+            let (ciphertext, tag) = server_crypt
+                .encrypt_server(&SMSG_UPDATE_OBJECT.to_le_bytes(), &[])
+                .unwrap();
+            if publish {
+                server
+                    .write_all(&(ciphertext.len() as u32).to_le_bytes())
+                    .await
+                    .unwrap();
+                server.write_all(&tag).await.unwrap();
+                server.write_all(&ciphertext).await.unwrap();
+            }
+            let realm_server = if close_realm {
+                drop(realm_server);
+                None
+            } else {
+                Some(realm_server)
+            };
+            let mut result = BotRunResult::default();
+            let drained = tokio::time::timeout(
+                Duration::from_secs(2),
+                drain_login_streams(
+                    &mut instance,
+                    &mut WorldCrypt::new(&[0; 16]),
+                    &mut ServerPacketInflater::default(),
+                    &mut connection,
+                    &mut result,
+                ),
+            )
+            .await;
+            assert_eq!(matches!(drained, Ok(Ok(()))), publish && !close_realm);
+            assert_eq!(result.login_stream_drained, publish && !close_realm);
+            drop(realm_server);
+        }
+    }
 
     fn write_test_msb_bits(buffer: &mut [u8], bit_offset: usize, bit_count: usize, value: u32) {
         assert!(bit_count <= 32);

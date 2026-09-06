@@ -1,5 +1,10 @@
 # Migration: Texts (CreatureTextMgr + ChatTextBuilder)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Texts/`
 > **Rust target crate(s):** `crates/wow-chat/` for the senders/builders, `crates/wow-database/` for the loader, `crates/wow-world/` for the per-creature repeat-tracking glue
 > **Layer:** L0 (foundation — every boss talk, NPC yell, scripted whisper goes through this)

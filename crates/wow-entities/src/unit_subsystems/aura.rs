@@ -13,6 +13,13 @@ use super::*;
 /// packet emission, or update-field masking by itself.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct AuraSubsystem {
+    /// Both persisted Player aura row families were read successfully for
+    /// this Player lifetime. Empty runtime containers are authoritative only
+    /// while this proof is present.
+    persisted_player_aura_authority_complete_like_cpp: bool,
+    /// Permanent fail-closed marker for a Player lifetime whose login cast
+    /// closure could not be retained losslessly.
+    spell_hit_aura_authority_tombstoned_like_cpp: bool,
     /// Whether every aura source omitted from this canonical Unit has been
     /// proven inert for the bounded spell-hit resolution.
     ///
@@ -26,6 +33,12 @@ pub struct AuraSubsystem {
     /// This proof is intentionally separate from spell-hit authority: the two
     /// consumers depend on different C++ aura families.
     spell_cast_log_aura_authority_inert_like_cpp: bool,
+    /// Difficulty-selected aura metadata used by the canonical threat owner.
+    threat_snapshots_like_cpp: HashMap<u8, AuraThreatSnapshotLikeCpp>,
+    /// Full represented C++ `AuraApplication` values for this Unit. Packet
+    /// projection remains in the session adapter; lifetime and mutation live
+    /// with the canonical Unit.
+    runtime_applications_like_cpp: HashMap<u8, AuraApplicationLikeCpp>,
     pub owned_auras: Vec<OwnedAuraRef>,
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
@@ -49,6 +62,102 @@ pub struct AuraSubsystem {
     pub proc_depth: u16,
     pub proc_chain_length: i32,
     pub diminishing: [DiminishingReturnState; DIMINISHING_MAX],
+}
+
+/// Represented C++ aura effect families consumed by Player/Unit rules that
+/// have not yet been promoted to complete `AuraEffect` execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepresentedAuraEffectLikeCpp {
+    FeignDeath,
+    FeatherFall,
+    Hover,
+    SafeFall,
+    Fly,
+    Ghost,
+    Invisibility,
+    Mounted,
+    SwimSpeed,
+    Speed,
+    SpeedAlways,
+    SpeedNotStack,
+    UseNormalMovementSpeed,
+    DecreaseSpeed,
+    MinimumSpeed,
+    MinimumSpeedRate,
+    MountedSpeed,
+    MountedSpeedAlways,
+    MountedSpeedNotStack,
+    FlightSpeed,
+    VehicleFlightSpeed,
+    MountedFlightSpeed,
+    MountedFlightSpeedAlways,
+    FlightSpeedNotStack,
+    ModifyFallDamagePct,
+    ModDetectRange,
+    ModDetectedRange,
+    ModFactionReputationGain,
+    ModScale,
+    ModSpeedNoControl,
+    ModBattlePetXpPct,
+    ModReputationGain,
+    ModRestedXpConsumption,
+    ModTotalStatPercentage,
+    ProvideSpellFocus,
+    Stealth,
+    WaterWalk,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RepresentedAuraEffectAmountLikeCpp {
+    pub effect_index: u8,
+    pub amount: i32,
+}
+
+/// Full represented application record owned by C++ `Unit`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AuraApplicationLikeCpp {
+    pub spell_id: i32,
+    pub difficulty_id: u8,
+    pub caster_guid: ObjectGuid,
+    pub slot: u8,
+    pub duration_total: u32,
+    pub duration_remaining: u32,
+    pub stack_count: u8,
+    pub aura_flags: u32,
+    pub effect_mask: u32,
+    pub aura_interrupt_flags: u32,
+    pub aura_interrupt_flags2: u32,
+    pub represented_effect: Option<RepresentedAuraEffectLikeCpp>,
+    pub represented_amount: i32,
+    pub represented_effect_amounts: Vec<RepresentedAuraEffectAmountLikeCpp>,
+    pub represented_misc_value: Option<i32>,
+    pub represented_multiplier: f32,
+    pub applied_at: Instant,
+}
+
+/// Immutable, difficulty-selected C++ `AuraEffect` metadata retained beside
+/// the owning Unit aura application rather than on its WorldSession adapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuraThreatSnapshotLikeCpp {
+    interrupt_flags: [u32; 2],
+    effects: Vec<(u32, i32, i32, i32)>,
+}
+
+impl AuraThreatSnapshotLikeCpp {
+    pub fn new(interrupt_flags: [u32; 2], effects: Vec<(u32, i32, i32, i32)>) -> Self {
+        Self {
+            interrupt_flags,
+            effects,
+        }
+    }
+
+    pub const fn interrupt_flags(&self) -> [u32; 2] {
+        self.interrupt_flags
+    }
+
+    pub fn effects(&self) -> &[(u32, i32, i32, i32)] {
+        &self.effects
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,6 +277,93 @@ impl VisibleAuraApplicationLikeCpp {
 }
 
 impl AuraSubsystem {
+    pub fn runtime_applications_like_cpp(&self) -> &HashMap<u8, AuraApplicationLikeCpp> {
+        &self.runtime_applications_like_cpp
+    }
+
+    pub fn runtime_application_like_cpp(&self, slot: u8) -> Option<&AuraApplicationLikeCpp> {
+        self.runtime_applications_like_cpp.get(&slot)
+    }
+
+    pub fn runtime_application_mut_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<&mut AuraApplicationLikeCpp> {
+        if self.runtime_applications_like_cpp.contains_key(&slot) {
+            self.invalidate_spell_hit_aura_authority_like_cpp();
+        }
+        self.runtime_applications_like_cpp.get_mut(&slot)
+    }
+
+    pub fn insert_runtime_application_like_cpp(&mut self, aura: AuraApplicationLikeCpp) {
+        self.runtime_applications_like_cpp.insert(aura.slot, aura);
+        self.invalidate_spell_hit_aura_authority_like_cpp();
+    }
+
+    pub fn remove_runtime_application_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<AuraApplicationLikeCpp> {
+        let removed = self.runtime_applications_like_cpp.remove(&slot);
+        if removed.is_some() {
+            self.invalidate_spell_hit_aura_authority_like_cpp();
+        }
+        removed
+    }
+
+    pub fn clear_runtime_applications_like_cpp(&mut self) {
+        if !self.runtime_applications_like_cpp.is_empty() {
+            self.runtime_applications_like_cpp.clear();
+            self.invalidate_spell_hit_aura_authority_like_cpp();
+        }
+    }
+
+    pub const fn persisted_player_aura_authority_complete_like_cpp(&self) -> bool {
+        self.persisted_player_aura_authority_complete_like_cpp
+    }
+
+    pub fn set_persisted_player_aura_authority_complete_like_cpp(&mut self, complete: bool) {
+        self.persisted_player_aura_authority_complete_like_cpp = complete;
+        if !complete {
+            self.invalidate_spell_hit_aura_authority_like_cpp();
+        }
+    }
+
+    pub const fn spell_hit_aura_authority_tombstoned_like_cpp(&self) -> bool {
+        self.spell_hit_aura_authority_tombstoned_like_cpp
+    }
+
+    pub fn tombstone_spell_hit_aura_authority_like_cpp(&mut self) {
+        self.spell_hit_aura_authority_tombstoned_like_cpp = true;
+        self.invalidate_spell_hit_aura_authority_like_cpp();
+    }
+
+    pub fn reset_player_aura_source_authority_like_cpp(&mut self) {
+        self.persisted_player_aura_authority_complete_like_cpp = false;
+        self.spell_hit_aura_authority_tombstoned_like_cpp = false;
+        self.threat_snapshots_like_cpp.clear();
+        self.invalidate_spell_hit_aura_authority_like_cpp();
+    }
+
+    pub fn threat_snapshot_like_cpp(&self, slot: u8) -> Option<&AuraThreatSnapshotLikeCpp> {
+        self.threat_snapshots_like_cpp.get(&slot)
+    }
+
+    pub fn insert_threat_snapshot_like_cpp(
+        &mut self,
+        slot: u8,
+        snapshot: AuraThreatSnapshotLikeCpp,
+    ) {
+        self.threat_snapshots_like_cpp.insert(slot, snapshot);
+    }
+
+    pub fn remove_threat_snapshot_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<AuraThreatSnapshotLikeCpp> {
+        self.threat_snapshots_like_cpp.remove(&slot)
+    }
+
     pub fn set_spell_hit_aura_authority_inert_like_cpp(&mut self, inert: bool) {
         self.spell_hit_aura_authority_inert_like_cpp = inert;
     }

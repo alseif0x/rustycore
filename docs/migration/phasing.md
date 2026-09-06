@@ -1,5 +1,10 @@
 # Migration: Phasing
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Phasing/` (`PhaseShift`, `PhasingHandler`, `PersonalPhaseTracker`)
 > **Rust target crate(s):** `crates/wow-world/` (PhasingHandler logic, per-map MultiPersonalPhaseTracker), `crates/wow-data/` (load C++ `Phase.db2`-seeded phase info / `phase_area` / `terrain_swap_defaults` / `terrain_worldmap`), `crates/wow-packet/src/packets/misc.rs` (already has `PhaseShiftChange` stub). No dedicated `wow-phasing` crate yet.
 > **Layer:** L7 (Game systems — depends on Conditions L7, Maps L4, Entities/Unit L4, Aura/Spell L5; depended on by Visibility/Grid loading L4)

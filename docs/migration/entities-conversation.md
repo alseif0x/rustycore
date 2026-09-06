@@ -1,5 +1,10 @@
 # Migration: Entities / Conversation
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/Conversation/`
 > **Rust target crate(s):** `crates/wow-world/`, `crates/wow-data/`, `crates/wow-constants/`
 > **Layer:** L4 (sub-modules)
@@ -236,7 +241,6 @@ DBC stores (post-WoLK):
 
 - **WoLK 3.4.3 retail client cannot render conversations.** The structural code (TYPEID, HighGuid, opcode constant) is in TC's WoLK fork as dead infrastructure. Spawning a Conversation entity on a real 3.4 client will at best be ignored, at worst desync the world state.
 - This module is the strongest "n/a" candidate of the seven entity sub-types in this batch. Recommend documenting and parking, not implementing.
-- The C# legacy reference at `/home/server/woltk-server-core/Source/` likely **does not** have a Conversation class either — confirm before starting any port work.
 - Private-object owner pattern is shared with SceneObject (single-player visibility). If both end up needed, factor that filter into a shared `PrivateObjectFilter` utility.
 - `_lineStartTimes` is keyed by `(LocaleConstant, lineId)` — Rust would use `HashMap<(Locale, i32), Duration>`; locale is `enum Locale` (already exists somewhere in `wow-core` for chat).
 

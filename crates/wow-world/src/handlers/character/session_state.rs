@@ -366,8 +366,9 @@ impl WorldSession {
             .extend(other_visible_guids);
     }
 
-    pub(super) fn materialize_creature_spawn_row_like_cpp(
+    pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp(
         &mut self,
+        catalogs: &CreatureSpawnCatalogsLikeCpp,
         map_id: u16,
         row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
         viewer_position: &Position,
@@ -486,7 +487,8 @@ impl WorldSession {
             return None;
         }
 
-        let creature_stats = self.creature_create_stats_like_cpp(
+        let creature_stats = self.creature_create_stats_with_catalogs_like_cpp(
+            catalogs,
             entry,
             min_level,
             unit_class,
@@ -495,12 +497,13 @@ impl WorldSession {
             cur_health,
             cur_mana,
         );
-        let addon = self
-            .creature_addon_store_like_cpp()
-            .and_then(|store| store.get_for_creature_like_cpp(spawn_guid, entry));
+        let addon = catalogs.addons.get_for_creature_like_cpp(spawn_guid, entry);
         let addon_fields = Self::creature_addon_create_fields_like_cpp(addon.as_ref());
-        let equipment_fields =
-            self.creature_virtual_items_from_row_like_cpp(entry, row.equipment_id);
+        let equipment_fields = self.creature_virtual_items_from_row_with_catalogs_like_cpp(
+            catalogs,
+            entry,
+            row.equipment_id,
+        );
 
         let guid = if vehicle_id != 0 {
             ObjectGuid::create_vehicle_like_cpp(self.realm_id(), map_id, entry, spawn_guid as i64)
@@ -612,6 +615,24 @@ impl WorldSession {
         })
     }
 
+    #[cfg(test)]
+    pub(super) fn materialize_creature_spawn_row_like_cpp(
+        &mut self,
+        map_id: u16,
+        row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
+        viewer_position: &Position,
+        visibility_range: f32,
+    ) -> Option<MaterializedCreatureSpawnLikeCpp> {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.materialize_creature_spawn_row_with_catalogs_like_cpp(
+            &catalogs,
+            map_id,
+            row,
+            viewer_position,
+            visibility_range,
+        )
+    }
+
     pub(super) fn register_materialized_creature_spawn_like_cpp(
         &mut self,
         map_id: u16,
@@ -677,7 +698,7 @@ impl WorldSession {
             .map(|key| key.instance_id)
             .unwrap_or(0);
         let _ = player.set_map(u32::from(self.player_map_id_like_cpp()), instance_id);
-        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        let (zone_id, area_id) = self.player_zone_area_like_cpp()?;
         player.set_zone_and_area(zone_id, area_id);
         if let Some(position) = self.player_position_like_cpp() {
             player.relocate(position);
@@ -716,20 +737,21 @@ impl WorldSession {
 
     pub(crate) fn condition_player_unit_snapshot_like_cpp(
         &self,
-    ) -> crate::conditions::ConditionUnitSnapshot {
-        crate::conditions::ConditionUnitSnapshot {
+    ) -> Option<crate::conditions::ConditionUnitSnapshot> {
+        let (health, max_health, is_alive) = self.resolved_player_vitals_like_cpp()?;
+        Some(crate::conditions::ConditionUnitSnapshot {
             level: u32::from(self.player_level_like_cpp()),
-            health: u64::from(self.player_health_like_cpp()),
-            max_health: u64::from(self.player_max_health_like_cpp()),
+            health: u64::from(health),
+            max_health: u64::from(max_health),
             class_mask: player_class_mask(self.player_class_like_cpp()),
             race: self.player_race_like_cpp(),
             creature_type: None,
-            is_alive: self.player_is_alive_like_cpp(),
+            is_alive,
             is_charmed: false,
             in_water: false,
             unit_state: 0,
             stand_state: UnitStandStateType::Stand as u32,
-        }
+        })
     }
 
     pub(crate) fn condition_player_snapshot_like_cpp(
@@ -742,7 +764,9 @@ impl WorldSession {
             can_be_game_master: false,
             is_game_master: false,
             pet_type: None,
-            is_in_flight: self.is_in_taxi_flight_like_cpp(),
+            // A missing generation-checked Player cannot prove the negative;
+            // keep condition evaluation fail-closed as if travel were active.
+            is_in_flight: self.resolved_is_in_taxi_flight_like_cpp().unwrap_or(true),
         }
     }
 
@@ -803,12 +827,19 @@ impl WorldSession {
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
     /// C++ refs: `WorldSession::HandleBinderActivateOpcode` /
     /// `WorldSession::SendBindPoint` (`Handlers/NPCHandler.cpp:373-402`).
-    pub async fn handle_binder_activate(&mut self, hello: Hello) {
+    pub async fn handle_binder_activate_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        hello: Hello,
+    ) {
         info!(
             "BinderActivate {:?} account {}",
             hello.unit, self.account_id
         );
-        if !self.player_is_strictly_in_world_like_cpp() || !self.player_is_alive_like_cpp() {
+        if !self.player_is_strictly_in_world_like_cpp()
+            || self.resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return;
         }
         let Some(_innkeeper) = self.represented_npc_can_interact_with_like_cpp(
@@ -848,7 +879,9 @@ impl WorldSession {
         if let Some(player_guid) = self.player_guid() {
             let cast_id = self.next_represented_spell_cast_guid_like_cpp(BIND_SPELL_ID_LIKE_CPP);
             if let Err(error) = self
-                .execute_spell_with_visual_and_target_data_with_metadata(
+                .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
                     BIND_SPELL_ID_LIKE_CPP,
                     player_guid,
                     cast_id,
@@ -996,6 +1029,7 @@ impl WorldSession {
 
     pub(super) fn collect_quest_giver_status_multiple_like_cpp(
         &self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
         guids: impl IntoIterator<Item = ObjectGuid>,
     ) -> Vec<(ObjectGuid, u64)> {
         let mut statuses = Vec::new();
@@ -1009,7 +1043,8 @@ impl WorldSession {
                     continue;
                 }
 
-                let status = self.get_represented_quest_giver_status_like_cpp(
+                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                    Some(quest_info),
                     RepresentedQuestGiverStatusSourceLikeCpp::Creature {
                         entry: access.entry,
                     },
@@ -1029,7 +1064,8 @@ impl WorldSession {
                     continue;
                 }
 
-                let status = self.get_represented_quest_giver_status_like_cpp(
+                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                    Some(quest_info),
                     RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
                         entry: access.entry,
                     },
@@ -1056,10 +1092,10 @@ impl WorldSession {
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
         include_represented_item_bonuses: bool,
-    ) -> RepresentedPlayerGearStatsLikeCpp {
+    ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
         let mut gear = RepresentedPlayerGearStatsLikeCpp::default();
         if let Some(item_stats_store) = self.item_stats_store() {
-            for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            for (slot, inventory_item) in self.resolved_inventory_items_like_cpp()? {
                 if slot >= 19 {
                     continue;
                 }
@@ -1089,7 +1125,7 @@ impl WorldSession {
         }
 
         if include_represented_item_bonuses {
-            let bonuses = self.represented_item_bonus_state_like_cpp();
+            let bonuses = self.resolved_item_bonus_state_like_cpp()?;
             for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
                 *target = target.saturating_add(amount);
             }
@@ -1113,7 +1149,7 @@ impl WorldSession {
             gear.shield_block_value = bonuses.shield_block_value;
         }
 
-        gear
+        Some(gear)
     }
 
     pub(super) fn player_stat_system_projection_like_cpp(
@@ -1140,9 +1176,10 @@ impl WorldSession {
                 attack_power_per_strength,
                 attack_power_per_agility,
                 ranged_attack_power_per_agility,
-                stat_total_multipliers: self.represented_total_stat_multipliers_like_cpp(),
+                stat_total_multipliers: self
+                    .resolved_represented_total_stat_multipliers_like_cpp()?,
                 stat_buff_total_multipliers: self
-                    .represented_total_stat_buff_multipliers_like_cpp(),
+                    .resolved_represented_total_stat_buff_multipliers_like_cpp()?,
                 gear_stats: gear.stats,
                 gear_health: gear.health,
                 gear_mana: gear.mana,
@@ -1187,14 +1224,14 @@ impl WorldSession {
     /// Recalculate all stats from base + gear and send a VALUES update to the client.
     ///
     /// Called after equip/desequip changes to gear slots (0-18).
-    pub(crate) fn send_stat_update(&mut self) {
+    pub(crate) fn send_stat_update(&mut self) -> bool {
         let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
-            return;
+            return false;
         };
 
         let update =
             UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
-        self.send_packet(&update);
+        self.send_packet(&update)
     }
 
     /// Recalculate stats for C++ `HandleModTotalPercentStat`.
@@ -1203,14 +1240,10 @@ impl WorldSession {
     /// percentage after max health is recalculated. Other total-stat auras use
     /// ordinary `SetMaxHealth` clamping.
     pub(crate) fn send_total_stat_percentage_update_like_cpp(&mut self, preserve_health_pct: bool) {
-        let (health_before, max_health_before) = self
-            .canonical_player_health_snapshot_like_cpp()
-            .unwrap_or_else(|| {
-                (
-                    self.player_health_like_cpp(),
-                    self.player_max_health_like_cpp(),
-                )
-            });
+        let Some((health_before, max_health_before, _)) = self.resolved_player_vitals_like_cpp()
+        else {
+            return;
+        };
         let max_health_before = max_health_before.max(1);
         let zero_health = health_before == 0;
         let Some((player_guid, mut changes)) =
@@ -1256,11 +1289,6 @@ impl WorldSession {
                 changes.max_power0,
                 changes.base_mana,
             );
-            self.set_represented_player_power_slot_like_cpp(
-                0,
-                changes.power0,
-                Some(changes.max_power0),
-            );
         }
 
         let update =
@@ -1294,6 +1322,18 @@ impl WorldSession {
                 warn!("Failed to update realmcharacters: {reason}");
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_binder_activate(&mut self, hello: Hello) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_binder_activate_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            hello,
+        )
+        .await;
     }
 
     pub(crate) async fn load_character_spell_history_packets_like_cpp(
@@ -1428,6 +1468,7 @@ impl WorldSession {
     /// `CHAR_SEL_CHAR_TRAIT_ENTRIES`, serialized in ActivePlayerData::TraitConfigs.
     pub(crate) async fn load_active_player_trait_configs_like_cpp(
         &mut self,
+        node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
         self.begin_represented_trait_config_authority_load_like_cpp();
@@ -1598,41 +1639,39 @@ impl WorldSession {
             );
 
         if trait_query_authority_complete_like_cpp {
-            let exact_traits = self
-                .trait_node_entry_store()
-                .zip(self.trait_definition_store())
-                .map(|(node_entries, definitions)| {
-                    let mut exact = BTreeMap::<i32, i32>::new();
-                    for entry in configs
-                        .iter()
-                        .flat_map(|config| config.entries.iter())
-                        .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
-                    {
-                        let Some(node_entry) = u32::try_from(entry.trait_node_entry_id)
-                            .ok()
-                            .and_then(|id| node_entries.get(id))
-                        else {
-                            return None;
-                        };
-                        let trait_definition_id = node_entry.trait_definition_id;
-                        let Some(definition) = u32::try_from(trait_definition_id)
-                            .ok()
-                            .and_then(|id| definitions.get(id))
-                        else {
-                            return None;
-                        };
-                        if definition.spell_id <= 0 {
-                            continue;
-                        }
-                        if exact
-                            .insert(definition.spell_id, trait_definition_id)
-                            .is_some_and(|previous| previous != trait_definition_id)
-                        {
-                            return None;
-                        }
+            let _ = self.retain_loaded_trait_configs_like_cpp(&configs);
+            let exact_traits = self.trait_definition_store().map(|definitions| {
+                let mut exact = BTreeMap::<i32, i32>::new();
+                for entry in configs
+                    .iter()
+                    .flat_map(|config| config.entries.iter())
+                    .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
+                {
+                    let Some(node_entry) = u32::try_from(entry.trait_node_entry_id)
+                        .ok()
+                        .and_then(|id| node_entries.get(id))
+                    else {
+                        return None;
+                    };
+                    let trait_definition_id = node_entry.trait_definition_id;
+                    let Some(definition) = u32::try_from(trait_definition_id)
+                        .ok()
+                        .and_then(|id| definitions.get(id))
+                    else {
+                        return None;
+                    };
+                    if definition.spell_id <= 0 {
+                        continue;
                     }
-                    Some(exact.into_iter().collect::<Vec<_>>())
-                });
+                    if exact
+                        .insert(definition.spell_id, trait_definition_id)
+                        .is_some_and(|previous| previous != trait_definition_id)
+                    {
+                        return None;
+                    }
+                }
+                Some(exact.into_iter().collect::<Vec<_>>())
+            });
             if let Some(Some(exact_traits)) = exact_traits {
                 if !self.set_complete_represented_spell_trait_definition_ids_like_cpp(exact_traits)
                 {
@@ -1663,8 +1702,8 @@ impl WorldSession {
 
     /// C++ `Player::SendInitialPacketsBeforeAddToMap` (Player.cpp:23479-23590): the init
     /// packets sent before the player is added to the map, ending with `SetMovedUnit`
-    /// (SMSG_MOVE_SET_ACTIVE_MOVER). Shared by login and far teleport
-    /// (#NEXT.R8.ENTITIES.1229). Most data is read from self; the per-character items that
+    /// (SMSG_MOVE_SET_ACTIVE_MOVER). Currently called by login only; far-teleport
+    /// replay remains open (#NEXT.R8.ENTITIES.1229). The per-character items that
     /// the caller already has on hand (known/favorite spells, spell history/charges, action
     /// buttons, account mounts) plus the destination guid/position/map/zone are passed in.
     #[allow(clippy::too_many_arguments)]
@@ -1717,7 +1756,10 @@ impl WorldSession {
         self.send_packet(&login_bind_point_update_like_cpp(homebind));
 
         // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
-        self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+        let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
+            return false;
+        };
+        self.send_packet(&talent_data);
 
         // 10. SendKnownSpells — populated from character_spell table
         info!("Sending {} known spells for {:?}", known_spells.len(), guid);
@@ -1762,16 +1804,20 @@ impl WorldSession {
         });
 
         // 16. InitializeFactions (1000 factions, all neutral)
-        let initialize_factions = self
-            .reputation_mgr_like_cpp_mut()
-            .initialize_factions_packet_like_cpp();
+        let Some(initialize_factions) =
+            self.mutate_reputation_mgr_like_cpp(|mgr| mgr.initialize_factions_packet_like_cpp())
+        else {
+            return false;
+        };
         self.send_packet(&initialize_factions);
 
         // 17. SetupCurrency (empty)
         self.send_packet(&SetupCurrency::empty());
 
         // 18. LoadEquipmentSet
-        self.send_packet(&self.represented_load_equipment_set_packet_like_cpp());
+        if let Some(packet) = self.represented_load_equipment_set_packet_like_cpp() {
+            self.send_packet(&packet);
+        }
 
         // 19. AllAchievementData — C++ `AchievementMgr::SendAllData`.
         // `QuestObjectiveCriteriaMgr::SendAllData` does not emit
@@ -1826,8 +1872,9 @@ impl WorldSession {
     /// CUF profiles, auras and the `PhasingHandler::OnMapChange` phase shift. Shared by login
     /// and far teleport (#NEXT.R8.ENTITIES.1229). Reads all data from self; the destination
     /// guid/position/map are passed in.
-    pub(crate) async fn send_initial_packets_after_add_to_map(
+    pub(crate) async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
         &mut self,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         guid: ObjectGuid,
         position: &Position,
         map_id: i32,
@@ -1846,7 +1893,6 @@ impl WorldSession {
         // `Player::SendInitialPacketsAfterAddToMap`
         // (`CharacterHandler.cpp:1241-1262`).
         self.register_in_player_registry();
-        self.sync_object_accessor_player();
 
         // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
         // `Player::SendInitialPacketsAfterAddToMap`; that method starts with
@@ -1855,7 +1901,8 @@ impl WorldSession {
         // after logout/relogin at the same position the normal movement-distance
         // throttle can otherwise leave the client with no visible creatures.
         self.sync_current_player_session_visibility_detection_like_cpp();
-        self.force_update_visibility_like_cpp().await;
+        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+            .await;
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
@@ -1864,68 +1911,19 @@ impl WorldSession {
             );
         }
 
-        let terrain_area_authority_complete = terrain_grid_area_id_for_position_like_cpp(
-            &self.mmap_runtime_config_like_cpp().data_dir,
-            map_id as u32,
-            position.x,
-            position.y,
-        )
-        .is_ok_and(|area_id| area_id.is_some_and(|area_id| area_id != 0));
-
-        match zone_and_area_for_position_like_cpp(
-            &self.mmap_runtime_config_like_cpp().data_dir,
-            map_id as u32,
-            position.x,
-            position.y,
-            self.area_table_store().map(|store| store.as_ref()),
-            |map_id| {
-                self.map_store()
-                    .as_deref()
-                    .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
-                    .unwrap_or(0)
-            },
-        ) {
-            Ok((resolved_zone_id, resolved_area_id)) => {
-                self.update_zone_represented_without_rest_update_packet_like_cpp(
-                    resolved_zone_id,
-                    resolved_area_id,
-                );
-                self.set_player_zone_area_authority_complete_like_cpp(
-                    terrain_area_authority_complete
-                        && resolved_zone_id != 0
-                        && resolved_area_id != 0,
-                );
-                info!(
-                    map_id,
-                    x = position.x,
-                    y = position.y,
-                    zone_id = resolved_zone_id,
-                    area_id = resolved_area_id,
-                    "Resolved player zone/area like C++ terrain before InitWorldStates"
-                );
-            }
-            Err(error) => {
-                warn!(
-                    map_id,
-                    x = position.x,
-                    y = position.y,
-                    %error,
-                    "failed to resolve C++ terrain zone/area before InitWorldStates; using DB-seeded zone/area"
-                );
-                let (seeded_zone_id, seeded_area_id) = self.player_zone_area_like_cpp();
-                self.update_zone_represented_without_rest_update_packet_like_cpp(
-                    seeded_zone_id,
-                    seeded_area_id,
-                );
-                self.set_player_zone_area_authority_complete_like_cpp(false);
-            }
+        if !self.apply_post_add_zone_from_terrain_like_cpp(map_id, position) {
+            return;
         }
-        let rest_flag_update_dirty = self.take_deferred_rest_flag_update_dirty_like_cpp();
-
+        let _ = self.advance_worldport_post_add_like_cpp(
+            wow_entities::PlayerWorldportPostAddPhaseLikeCpp::ZoneApplied,
+        );
         // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
         // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
         // values filtered by AreaIDs.
-        let (represented_zone_id, represented_area_id) = self.player_zone_area_like_cpp();
+        let Some((represented_zone_id, represented_area_id)) = self.player_zone_area_like_cpp()
+        else {
+            return;
+        };
         let world_states = self
             .load_initial_world_states_for_login_like_cpp(map_id, represented_area_id)
             .await;
@@ -1939,7 +1937,9 @@ impl WorldSession {
         // 28. LoadCufProfiles — C++ sends this immediately after InitWorldStates.
         // Keeping the CUF profile application at that exact point in the login burst is
         // client-significant: the later phase refresh must not overtake it.
-        self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
+        if let Some(packet) = self.represented_load_cuf_profiles_packet_like_cpp() {
+            self.send_packet(&packet);
+        }
         // C++ `Player::SendInitialPacketsAfterAddToMap` calls
         // `SendAurasForTarget(this)` after movement aura state setup.
         self.send_initial_player_auras_like_cpp();
@@ -1948,10 +1948,27 @@ impl WorldSession {
         // This re-sends SMSG_PHASE_SHIFT_CHANGE (the second phase-shift of login,
         // byte-identical to the AddToMap one). #NEXT.R8.ENTITIES.1228.
         self.send_packet(&PhaseShiftChange::default_for(guid));
+        // C++ Player.cpp:23648-23650 applies destination item scaling after
+        // PhasingHandler::OnMapChange, shared by login and far worldport.
+        if self
+            .update_represented_item_level_area_based_scaling_with_publication_like_cpp(true)
+            .is_none()
+        {
+            return;
+        }
+        let _ = self.advance_worldport_post_add_like_cpp(
+            wow_entities::PlayerWorldportPostAddPhaseLikeCpp::ScalingApplied,
+        );
         // C++ RestMgr only dirties PLAYER_FLAGS_RESTING during UpdateZone; the
         // map object-update owner flushes that field after post-add packets.
-        if rest_flag_update_dirty {
-            self.send_represented_resting_player_flag_update_like_cpp();
+        // Keep the marker on Player across the world-state await; only channel acceptance
+        // retires it. This is not a client acknowledgement or a restart durability claim.
+        if self
+            .player_rest_state_snapshot_like_cpp()
+            .is_some_and(|rest| rest.deferred_flag_update_dirty)
+            && self.send_represented_resting_player_flag_update_like_cpp()
+        {
+            self.take_deferred_rest_flag_update_dirty_like_cpp();
         }
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");
@@ -2130,6 +2147,11 @@ impl WorldSession {
     /// tutorials, and time-zone packets during `HandlePlayerLogin`.
     pub(super) async fn send_login_sequence(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        feature_policy: &SupportFeaturePolicyLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
         guid: ObjectGuid,
         race: u8,
         class: u8,
@@ -2166,11 +2188,11 @@ impl WorldSession {
         // usable. C++ finishes all fallible `Player::LoadFromDB` map selection
         // before emitting successful-login packets, so run this bridge before
         // Phase 1 and retain its outcome for the Map::AddPlayerToMap trace.
-        let grid_load_outcome = self.ensure_player_grid_loaded_like_cpp(
+        let grid_load_outcome = Some(player_grid_loader(
             map_id as u16,
             authoritative_grid_map_key.map(|key| key.instance_id),
             *position,
-        );
+        ));
         if !self.continue_login_after_grid_load_like_cpp(
             guid,
             map_id,
@@ -2209,6 +2231,8 @@ impl WorldSession {
         let account_mount_login_partials = self.account_mount_login_partial_rows_like_cpp();
         if !self
             .send_handle_player_login_packets_like_cpp(
+                item_guid_generator,
+                feature_policy,
                 guid,
                 position,
                 map_id,
@@ -2344,8 +2368,8 @@ impl WorldSession {
         // equivalent, before C++ would build `Map::SendInitSelf`.
         self.loot_table.clear();
         self.set_active_loot_guid(ObjectGuid::EMPTY);
-        self.combat_target = None;
-        self.in_combat = false;
+        self.set_combat_target_like_cpp(None);
+        self.set_in_combat_like_cpp(false);
         info!(
             guid = ?guid,
             map_id,
@@ -2369,9 +2393,21 @@ impl WorldSession {
             let account_toys = self.account_toy_active_player_rows_like_cpp();
             let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
             let account_transmog = self.account_transmog_active_player_rows_like_cpp();
-            let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
+            let trait_configs = self
+                .load_active_player_trait_configs_like_cpp(trait_node_entries, guid)
+                .await;
             let player_customizations = self.load_player_customizations_like_cpp(guid).await;
             self.set_loaded_player_customizations_like_cpp(player_customizations.clone());
+            let (Some(player_xp), Some(player_next_level_xp), Some(scaling_level_delta)) = (
+                self.resolved_player_xp_like_cpp(),
+                self.resolved_player_next_level_xp_like_cpp(),
+                self.resolved_player_scaling_level_delta_like_cpp(),
+            ) else {
+                return false;
+            };
+            let Some(player_money) = self.resolved_player_money_like_cpp() else {
+                return false;
+            };
             info!(
                 toys = account_toys.len(),
                 heirlooms = account_heirlooms.len(),
@@ -2396,27 +2432,30 @@ impl WorldSession {
                 inv_slots,
                 combat,
                 skill_info,
-                self.player_gold_like_cpp(),
+                player_money,
                 quest_log,
                 self.party_member_party_type_like_cpp(),
             );
-            let (player_flags, player_flags_ex) =
-                self.represented_player_flags_for_create_like_cpp();
+            let Some((player_flags, player_flags_ex)) =
+                self.resolved_player_flags_for_create_like_cpp()
+            else {
+                return false;
+            };
             player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
             player_pkt.set_player_current_power0_like_cpp(current_power0);
-            player_pkt.set_player_xp_like_cpp(self.player_xp_like_cpp() as i32);
+            player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
             player_pkt
-                .set_player_next_level_xp_like_cpp(self.player_next_level_xp_like_cpp() as i32);
+                .set_player_next_level_xp_like_cpp(player_next_level_xp.min(i32::MAX as u32) as i32);
             player_pkt
                 .set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
-            player_pkt.set_player_scaling_level_delta_like_cpp(
-                self.player_scaling_level_delta_like_cpp(),
-            );
-            player_pkt.set_player_rest_info_like_cpp(
-                0,
-                self.represented_xp_rest_threshold_like_cpp(),
-                self.represented_xp_rest_state_like_cpp(),
-            );
+            player_pkt.set_player_scaling_level_delta_like_cpp(scaling_level_delta);
+            let (Some(rest_threshold), Some(rest_state)) = (
+                self.resolved_xp_rest_threshold_like_cpp(),
+                self.resolved_xp_rest_state_like_cpp(),
+            ) else {
+                return false;
+            };
+            player_pkt.set_player_rest_info_like_cpp(0, rest_threshold, rest_state);
             if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
                 info!(
                     guid = ?guid,
@@ -2440,9 +2479,10 @@ impl WorldSession {
                 account_transmog,
                 trait_configs,
             );
-            player_pkt.set_player_action_buttons_like_cpp(
-                self.represented_action_buttons_snapshot_like_cpp(),
-            );
+            let Some(action_buttons) = self.represented_action_buttons_snapshot_like_cpp() else {
+                return false;
+            };
+            player_pkt.set_player_action_buttons_like_cpp(action_buttons);
             player_pkt.set_player_customizations_like_cpp(player_customizations);
 
             if let (Some((transport_guid, _)), Some(transport_position)) = (
@@ -2545,7 +2585,8 @@ impl WorldSession {
         }
 
         // ── Phase 4: SendInitialPacketsAfterAddToMap ──
-        self.send_initial_packets_after_add_to_map(
+        self.send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+            creature_spawn_catalogs,
             guid,
             position,
             map_id,
@@ -2583,6 +2624,25 @@ impl WorldSession {
             guid
         );
         true
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn send_initial_packets_after_add_to_map(
+        &mut self,
+        guid: ObjectGuid,
+        position: &Position,
+        map_id: i32,
+        updateobject_trace_enabled: bool,
+    ) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+            &catalogs,
+            guid,
+            position,
+            map_id,
+            updateobject_trace_enabled,
+        )
+        .await;
     }
 
     /// C++ `Player::LoadFromDB` first attempts go-back/homebind relocation and

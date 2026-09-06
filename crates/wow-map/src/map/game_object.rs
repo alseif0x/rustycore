@@ -66,7 +66,7 @@ where
         new_has_model: bool,
         new_is_map_object: bool,
     ) -> GameObjectSetDisplayIdOutcomeLikeCpp {
-        let Some(record) = self.map_objects.get(&guid) else {
+        let Some(record) = self.entity_world.get(&guid) else {
             return GameObjectSetDisplayIdOutcomeLikeCpp {
                 guid,
                 status: GameObjectSetDisplayIdStatusLikeCpp::MissingGameObject,
@@ -87,7 +87,7 @@ where
         }
 
         let Some(game_object) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         else {
@@ -119,7 +119,7 @@ where
     /// Represents C++ `GameObject::SetGoState(GOState)` over canonical map-owned state.
     ///
     /// C++ anchor: `GameObject.cpp:3771-3793`. Source-of-truth is
-    /// `Map::map_objects`; this mutates only exact typed
+    /// `Map::entity_world`; this mutates only exact typed
     /// `MapObjectRecord::GameObject` records. The state write occurs before the
     /// represented `m_model && !IsTransport()` not-in-world early return, matching
     /// C++ statement order. Collision is never inferred from display/template/DB.
@@ -128,7 +128,7 @@ where
         guid: ObjectGuid,
         state: GoState,
     ) -> GameObjectSetGoStateOutcomeLikeCpp {
-        let Some(record) = self.map_objects.get(&guid) else {
+        let Some(record) = self.entity_world.get(&guid) else {
             return GameObjectSetGoStateOutcomeLikeCpp {
                 guid,
                 status: GameObjectSetGoStateStatusLikeCpp::MissingGameObject,
@@ -155,7 +155,7 @@ where
         }
 
         let Some(game_object) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         else {
@@ -213,7 +213,7 @@ where
 
     /// Represents C++ `GameObject::SetLootState(LootState, Unit*)` over canonical map-owned state.
     ///
-    /// C++ anchor: `GameObject.cpp:3683-3709`. Source-of-truth is `Map::map_objects`;
+    /// C++ anchor: `GameObject.cpp:3683-3709`. Source-of-truth is `Map::entity_world`;
     /// this mutates only exact typed `MapObjectRecord::GameObject` records. The `unit_guid`
     /// argument is only represented evidence for `unit->GetGUID()` and no real `Unit*` is
     /// resolved. Restock consumes explicit caller-supplied `Loot::IsChanged()` evidence; collision
@@ -227,7 +227,7 @@ where
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> GameObjectSetLootStateOutcomeLikeCpp {
-        let Some(record) = self.map_objects.get(&guid) else {
+        let Some(record) = self.entity_world.get(&guid) else {
             return GameObjectSetLootStateOutcomeLikeCpp {
                 guid,
                 status: GameObjectSetLootStateStatusLikeCpp::MissingGameObject,
@@ -264,7 +264,7 @@ where
         }
 
         let Some(game_object) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         else {
@@ -352,7 +352,7 @@ where
         new_is_map_object: bool,
     ) -> GameObjectUpdateModelOutcomeLikeCpp {
         let key = RepresentedGameObjectModelKeyLikeCpp { owner_guid: guid };
-        let Some(record) = self.map_objects.get(&guid) else {
+        let Some(record) = self.entity_world.get(&guid) else {
             return GameObjectUpdateModelOutcomeLikeCpp {
                 guid,
                 status: GameObjectUpdateModelStatusLikeCpp::MissingGameObject,
@@ -401,7 +401,7 @@ where
             old_model_registered.then(|| self.remove_gameobject_model_like_cpp(key));
 
         if let Some(game_object) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         {
@@ -446,7 +446,7 @@ where
     /// - `GameObject.cpp:1740-1764` `Delete()` is represented only as
     ///   `SetLootState(GO_NOT_READY)` plus `AddObjectToRemoveList()`.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. Missing,
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. Missing,
     /// non-GameObject and not-in-world outcomes do not mutate state. This helper
     /// never creates fallback records, reads session/ObjectAccessor mirrors,
     /// saves DB respawn times, runs PoolMgr, sends packets, fans out visibility,
@@ -474,7 +474,7 @@ where
     /// Bounded map-owned live visitation seam for C++ `Map::Update` consuming
     /// `Trinity::ObjectUpdater` for `GameObject` records only.
     ///
-    /// This snapshots canonical typed GameObject GUIDs from `Map::map_objects`
+    /// This snapshots canonical typed GameObject GUIDs from `Map::entity_world`
     /// and delegates each GUID to `update_game_object_like_cpp`. C++ visits by
     /// nearby cell/active object order; this slice only adds the missing
     /// map-owned GameObject family and keeps the existing Rust family order.
@@ -500,7 +500,7 @@ where
     ///   stop request evidence, client path-progress field, expected-map gated
     ///   200ms position-update due evidence, and stopped state/dynflag.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. Missing,
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. Missing,
     /// non-Transport and untyped Transport-kind outcomes do not mutate state.
     /// Unlike `ObjectUpdater::Visit<T>`, the C++ `_transports` loop does not gate
     /// canonical transports on `IsInWorld`, so typed Transport records are delegated
@@ -576,7 +576,7 @@ where
         let period_ms = transport.get_transport_period();
         let path_progress_before_ms = transport.path_progress_ms();
 
-        let Some(record) = self.map_objects.get_mut(&transport_guid) else {
+        let Some(record) = self.entity_world.get_mut(&transport_guid) else {
             return TransportUpdateOutcomeLikeCpp {
                 transport_guid,
                 diff_ms,
@@ -647,7 +647,7 @@ where
         now_ms: u64,
     ) -> TransportsUpdateSummaryLikeCpp {
         let transport_guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 (record.kind() == AccessorObjectKind::Transport && record.transport().is_some())
@@ -691,7 +691,7 @@ where
     /// - `GridNotifiers.cpp:258-264,296-301` calls `Update(i_timeDiff)` only for
     ///   in-world objects and explicitly instantiates `AreaTrigger`.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. This helper
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. This helper
     /// mutates only typed `MapObjectRecord::AreaTrigger` time/duration state and,
     /// after dropping that mutable borrow, enqueues the same GUID through the
     /// existing remove-list facade on expiry. It does not drain removal, run real
@@ -770,7 +770,7 @@ where
         }
 
         let (expired, duration_after_ms, time_since_created_after_ms) = {
-            let Some(record) = self.map_objects.get_mut(&area_trigger_guid) else {
+            let Some(record) = self.entity_world.get_mut(&area_trigger_guid) else {
                 return AreaTriggerUpdateOutcomeLikeCpp {
                     area_trigger_guid,
                     elapsed_ms,
@@ -844,7 +844,7 @@ where
     /// `Trinity::ObjectUpdater` for `AreaTrigger` records only.
     ///
     /// This follows the same partial ObjectUpdater seam as DynamicObject: it
-    /// snapshots canonical typed AreaTrigger GUIDs from `Map::map_objects`, then
+    /// snapshots canonical typed AreaTrigger GUIDs from `Map::entity_world`, then
     /// delegates every GUID to `update_area_trigger_like_cpp`. It does not visit
     /// nearby cells, players/sessions, other object families, SendObjectUpdates,
     /// scripts/AI real runtime, visibility, dynamic tree, packets, DB, or mirrors.
@@ -853,7 +853,7 @@ where
         elapsed_ms: u32,
     ) -> AreaTriggersUpdateSummaryLikeCpp {
         let area_trigger_guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 (record.kind() == AccessorObjectKind::AreaTrigger
@@ -893,7 +893,7 @@ where
     /// - `GridNotifiers.cpp:258-264,296-301` calls `Update(i_timeDiff)` only for
     ///   in-world objects and explicitly instantiates `Conversation`.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. Missing,
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. Missing,
     /// non-Conversation, and not-in-world outcomes do not mutate, enqueue, or
     /// create fallback records. This helper represents script and WorldObject
     /// update callsites as booleans only; it does not execute scripts, fanout,
@@ -957,7 +957,7 @@ where
         }
 
         let (expired, duration_after_ms) = {
-            let Some(record) = self.map_objects.get_mut(&conversation_guid) else {
+            let Some(record) = self.entity_world.get_mut(&conversation_guid) else {
                 return ConversationUpdateOutcomeLikeCpp {
                     conversation_guid,
                     elapsed_ms,
@@ -1014,7 +1014,7 @@ where
     /// Bounded map-owned live visitation seam for C++ `Map::Update` consuming
     /// `Trinity::ObjectUpdater` for `Conversation` records only.
     ///
-    /// This snapshots canonical typed Conversation GUIDs from `Map::map_objects`,
+    /// This snapshots canonical typed Conversation GUIDs from `Map::entity_world`,
     /// then delegates every GUID to `update_conversation_like_cpp`. It does not
     /// model exact `TypeContainerVisitor` order/cell traversal, players/sessions,
     /// other object families, `SendObjectUpdates`, real scripts, visibility,
@@ -1024,7 +1024,7 @@ where
         elapsed_ms: u32,
     ) -> ConversationsUpdateSummaryLikeCpp {
         let conversation_guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 (record.kind() == AccessorObjectKind::Conversation
@@ -1065,7 +1065,7 @@ where
     /// - `GridNotifiers.cpp:258-264,296-301` calls `Update(i_timeDiff)` only for
     ///   in-world objects and explicitly instantiates `SceneObjectMapType`.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. ObjectAccessor
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. ObjectAccessor
     /// Unit resolution and Aura lookup are represented by explicit caller-supplied
     /// booleans; this helper does not scan maps, create fallback records, fan out,
     /// send packets, write session/ObjectAccessor mirrors, or drain remove-list.
@@ -1173,7 +1173,7 @@ where
     /// Bounded map-owned live visitation seam for C++ `Map::Update` consuming
     /// `Trinity::ObjectUpdater` for `SceneObject` records only.
     ///
-    /// This snapshots canonical typed SceneObject GUIDs from `Map::map_objects`,
+    /// This snapshots canonical typed SceneObject GUIDs from `Map::entity_world`,
     /// resolves the explicit represented ObjectAccessor/Aura context before the
     /// per-object helper, and never visits generic/untyped SceneObject records.
     pub fn update_scene_objects_like_cpp<F>(
@@ -1185,7 +1185,7 @@ where
         F: FnMut(ObjectGuid, &SceneObject) -> SceneObjectUpdateContextLikeCpp,
     {
         let scene_object_guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 (record.kind() == AccessorObjectKind::SceneObject
@@ -1350,7 +1350,7 @@ where
         let mut creature_ai_callback_represented = false;
 
         if owner_found_as_unit_like && gameobject_owner_empty_before {
-            if let Some(record) = self.map_objects.get_mut(&owner_guid) {
+            if let Some(record) = self.entity_world.get_mut(&owner_guid) {
                 if let Some(owner) = Self::map_record_unit_mut_like_cpp(record) {
                     owner
                         .subsystems_mut()
@@ -1362,7 +1362,7 @@ where
 
             if registered_owned_gameobject {
                 if let Some(game_object) = self
-                    .map_objects
+                    .entity_world
                     .get_mut(&guid)
                     .and_then(MapObjectRecord::game_object_mut)
                 {
@@ -1371,7 +1371,7 @@ where
                 }
 
                 creature_ai_callback_represented = self
-                    .map_objects
+                    .entity_world
                     .get_mut(&owner_guid)
                     .map(|record| match record.kind() {
                         AccessorObjectKind::Creature => record
@@ -1440,7 +1440,7 @@ where
 
         if add_owner.registered_owned_gameobject {
             if let Some(owner) = self
-                .map_objects
+                .entity_world
                 .get_mut(&owner_guid)
                 .and_then(Self::map_record_unit_mut_like_cpp)
             {
@@ -1602,7 +1602,7 @@ where
             game_object.set_owner_guid_like_cpp(summoner_guid);
             let mut registered_owned_gameobject = false;
             let mut creature_ai_callback_represented = false;
-            if let Some(record) = self.map_objects.get_mut(&summoner_guid) {
+            if let Some(record) = self.entity_world.get_mut(&summoner_guid) {
                 if let Some(owner) = Self::map_record_unit_mut_like_cpp(record) {
                     owner
                         .subsystems_mut()
@@ -1737,7 +1737,7 @@ where
                     .and_then(MapObjectRecord::game_object)
                     .is_some_and(|gameobject| gameobject.owner_guid() == owner_guid);
                 if let Some(gameobject) = self
-                    .map_objects
+                    .entity_world
                     .get_mut(&slot_guid_before)
                     .and_then(MapObjectRecord::game_object_mut)
                 {
@@ -1751,7 +1751,7 @@ where
                     remove_from_owner =
                         self.gameobject_remove_from_owner_like_cpp(slot_guid_before);
                     if let Some(gameobject) = self
-                        .map_objects
+                        .entity_world
                         .get_mut(&slot_guid_before)
                         .and_then(MapObjectRecord::game_object_mut)
                     {
@@ -1763,7 +1763,7 @@ where
             }
 
             if let Some(owner) = self
-                .map_objects
+                .entity_world
                 .get_mut(&owner_guid)
                 .and_then(Self::map_record_unit_mut_like_cpp)
             {
@@ -1926,7 +1926,7 @@ where
 
         let mut registered_owned_gameobject = false;
         let mut creature_ai_callback_represented = false;
-        if let Some(record) = self.map_objects.get_mut(&owner_guid) {
+        if let Some(record) = self.entity_world.get_mut(&owner_guid) {
             if let Some(owner) = Self::map_record_unit_mut_like_cpp(record) {
                 owner
                     .subsystems_mut()
@@ -1982,7 +1982,7 @@ where
             let mut slot_previous_guid = ObjectGuid::EMPTY;
             let mut slot_set = false;
             if let Some(owner) = self
-                .map_objects
+                .entity_world
                 .get_mut(&owner_guid)
                 .and_then(Self::map_record_unit_mut_like_cpp)
             {
@@ -2057,7 +2057,7 @@ where
             .map(|game_object| game_object.data().type_id as u32)?;
 
         if let Some(game_object) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         {
@@ -2074,7 +2074,7 @@ where
         let despawn_packet_represented = true;
 
         let (go_state_ready, flags_restored) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
             .map(|game_object| {
@@ -2157,7 +2157,7 @@ where
     }
 
     pub fn get_typed_game_object_mut(&mut self, guid: ObjectGuid) -> Option<&mut GameObject> {
-        let record = self.map_objects.get_mut(&guid)?;
+        let record = self.entity_world.get_mut(&guid)?;
         if !matches!(
             record.kind(),
             AccessorObjectKind::GameObject | AccessorObjectKind::Transport
@@ -2181,7 +2181,7 @@ where
         &self,
         passenger_guid: ObjectGuid,
     ) -> Option<&wow_entities::Transport> {
-        self.map_objects.values().find_map(|record| {
+        self.entity_world.values().find_map(|record| {
             let transport = record.transport()?;
             (transport.passengers().contains(&passenger_guid)
                 || transport.static_passengers().contains(&passenger_guid))
@@ -2193,7 +2193,7 @@ where
         &self,
         guid: ObjectGuid,
     ) -> Option<&wow_entities::Transport> {
-        self.map_objects.get(&guid)?.transport()
+        self.entity_world.get(&guid)?.transport()
     }
 
     pub fn get_area_trigger(&self, guid: ObjectGuid) -> Option<&WorldObject> {

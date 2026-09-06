@@ -1,5 +1,10 @@
 # Migration: worldserver (game server binary)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > Operational update (issue #256): `--update-databases-only` and startup schema
 > mutation were removed. `rustycore-db` is the explicit migration boundary;
 > world-server validates all four schemas read-only before runtime writes or

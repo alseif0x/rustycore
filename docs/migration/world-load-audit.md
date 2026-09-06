@@ -1,5 +1,10 @@
 # World-load (login → enter world) C++/Rust parity audit
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > Status: **mixed. Phase A (1201–1211) was dispositioned by issue #9 and the cross-cutting CREATE-value slice (1212–1220) by issue #10; later phases remain candidate gaps.** Generated 2026-06-26 by a multi-agent audit of the world-entry flow against the C++ source of truth (`/home/server/woltk-trinity-legacy`) and a byte-level diff of full C++ vs Rust login packet captures. Each item cites the C++ ref and the Rust target; `#NEXT.R8.ENTITIES.12xx` ids are placeholders for when the item is picked up. Verify every claim against current C++/worktree before implementing — some may already be partially handled.
 
 Context: prompted after fixing the world-entry client crash (`#NEXT.R8.ENTITIES.1200`, MO_TRANSPORT `SpawnTrackingStateAnimID`/`Flags`). While bisecting that crash we saw a recurring pattern — packets omitted and UpdateFields shipped as `0` where C++ computes a value — so this catalogues the rest of the world-load flow. No new crash-risk items were found here; the cluster is functional/ordering parity work.

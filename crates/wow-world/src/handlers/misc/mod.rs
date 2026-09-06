@@ -26,6 +26,7 @@ mod reputation;
 mod support;
 mod trade;
 mod travel;
+mod worldport_create;
 
 use wow_constants::{ClientOpcodes, ItemExtendedCostFlags};
 use wow_handler::{PacketProcessing, SessionStatus};

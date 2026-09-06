@@ -1,5 +1,10 @@
 # Migration: Combat — ThreatManager
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Combat/ThreatManager.{h,cpp}` + `src/server/game/Combat/ThreatReference` (declared in same headers; no separate file). `HostileReference` is the legacy-name predecessor (3.3.5a) — in 3.4.3 it was replaced by `ThreatReference`.
 > **Rust target crate(s):** `crates/wow-combat/` (empty — see §13)
 > **Layer:** L5 sub-module of `combat.md`. Depends on `entities-unit.md` (L4 — Unit, Creature), `spells-effects.md` (L5 — taunt/threat-mod auras, redirect spells), `ai.md` (L5 — `CreatureAI::AttackStart`, victim selection). Sibling of `combat-dealdamage.md`, `combat-manager.md`.

@@ -1,5 +1,10 @@
 # Migration: shared/Secrets
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Secrets/`
 > **Rust target crate(s):** `crates/wow-crypto/` (TODO) + `crates/bnet-server/` (TODO)
 > **Layer:** L1
@@ -307,5 +312,4 @@ N/A — módulo enteramente offline/setup.
 ### Header status
 
 Updated to **❌ confirmed not started** (the audit confirmed the existing ❌, no upgrade or downgrade applies). The "Audited vs C++" line is now `❌ confirmed not started — audit done 2026-05-01` so future readers know it was checked rather than skipped.
-
 

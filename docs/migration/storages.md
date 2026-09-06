@@ -1,5 +1,10 @@
 # Migration: Storages (in-memory snapshot containers — currently just WhoListStorage)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Storages/`
 > **Rust target crate(s):** `crates/wow-social/` or `crates/wow-world/` (no dedicated crate needed)
 > **Layer:** L1 (infrastructure — periodically-rebuilt cache of online-player state)

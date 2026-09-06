@@ -17,51 +17,32 @@ use tracing::{debug, warn};
 use super::super::WorldSession;
 
 impl WorldSession {
-    pub(crate) fn unregister_from_object_accessor(&self) {
-        let (Some(guid), Some(accessor)) = (self.player_guid(), &self.object_accessor) else {
-            return;
-        };
-        accessor.write().remove_player(guid);
-    }
-
-    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&self) {
+    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
             return;
         };
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
-        let map_id = u32::from(self.player_map_id_like_cpp());
         let Ok(mut manager) = manager.lock() else {
             return;
         };
 
-        let mut instance_id = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if instance_id.is_none() && managed.map().get_typed_player(guid).is_some() {
-                instance_id = Some(managed.instance_id());
-            }
-        });
-
-        let Some(instance_id) = instance_id else {
+        // C++ WorldSession::LogoutPlayer retires its exact Player*, not a fresh
+        // GUID lookup (WorldSession.cpp:660-672). Without an incarnation token
+        // this Session has no authority to remove any current map resident.
+        let Some(handle) = self.player_handle_like_cpp else {
             return;
         };
-        let Some(managed) = manager.find_map_mut(map_id, instance_id) else {
-            return;
-        };
-
-        if let Err(err) = managed.map_mut().remove_from_map_like_cpp(guid, true) {
-            match err {
-                wow_map::RemoveFromMapError::ObjectNotFound { .. } => {
-                    debug!("Canonical Player {:?} already removed from map", guid);
-                }
-                wow_map::RemoveFromMapError::ResetMap(reset_err) => {
-                    warn!(
-                        "Failed to remove canonical Player {:?} from map: {reset_err:?}",
-                        guid
-                    );
-                }
-            }
+        if manager.retire_player_like_cpp(handle).is_some() {
+            self.player_handle_like_cpp = None;
+        } else {
+            // Retain the exact token on failure. Any later attempt must still
+            // target this incarnation, never adopt or search for a replacement.
+            warn!(
+                "Failed to retire canonical Player {:?}: stale handle or missing owner value",
+                guid
+            );
         }
     }
 
@@ -69,19 +50,31 @@ impl WorldSession {
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_canonical_player_from_map_like_cpp();
-        self.unregister_from_object_accessor();
         self.release_character_login_claim_like_cpp();
         self.clear_inventory_items_and_objects_like_cpp();
     }
 
-    pub async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
-        self.wait_for_active_loot_persistence_like_cpp().await;
+    pub async fn cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
+        self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
+            .await;
         if let Some(player_guid) = self.player_guid()
             && self.has_active_loot_views_like_cpp()
         {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.cleanup_shared_runtime_state();
+    }
+
+    #[cfg(test)]
+    pub async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+            generators.item.as_ref(),
+        )
+        .await;
     }
     /// Remove this session from the player registry.
     /// Called on logout or disconnect.

@@ -1,5 +1,10 @@
 # Migration: Skills
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Skills/` + `src/server/game/Handlers/SkillHandler.cpp`
 > **Rust target crate(s):** `crates/wow-data/` (DB2 readers — partial), `crates/wow-world/` (skill mgr per-session, handlers), `crates/wow-database/` (character_skills + skill_discovery_template + skill_extra_item_template + skill_perfect_item_template)
 > **Layer:** L6

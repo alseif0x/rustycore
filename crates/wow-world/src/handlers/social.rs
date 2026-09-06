@@ -52,7 +52,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_friend",
-        handler: |session, pkt| Box::pin(async move { session.handle_add_friend(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_add_friend(pkt).await }),
     }
 }
 
@@ -62,7 +62,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_ignore",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::social::AddIgnore::read(&mut pkt) {
                     Ok(ignore) => session.handle_add_ignore(ignore).await,
@@ -79,7 +79,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_del_friend",
-        handler: |session, pkt| Box::pin(async move { session.handle_del_friend(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_del_friend(pkt).await }),
     }
 }
 
@@ -89,7 +89,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_del_ignore",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::social::DelIgnore::read(&mut pkt) {
                     Ok(ignore) => session.handle_del_ignore(ignore).await,
@@ -106,7 +106,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_send_contact_list",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_send_contact_list(pkt).await })
         },
     }
@@ -118,7 +118,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_contact_notes",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::social::SetContactNotes::read(&mut pkt) {
                     Ok(contact) => session.handle_set_contact_notes(contact).await,
@@ -135,7 +135,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_social_contract_request",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::social::SocialContractRequest::read(&mut pkt) {
                     Ok(_) => session.handle_social_contract_request().await,
@@ -152,7 +152,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_social_contract",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::social::AcceptSocialContract::read(&mut pkt) {
                     Ok(accept) => session.handle_accept_social_contract(accept).await,
@@ -169,7 +169,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_account_notification_acknowledged",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::social::AccountNotificationAcknowledged::read(&mut pkt) {
                     Ok(packet) => session.handle_account_notification_acknowledged(packet).await,

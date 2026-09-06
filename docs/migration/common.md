@@ -1,5 +1,10 @@
 # Migration: Common (foundation primitives)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/common/` (excluding `Collision/`, covered separately)
 > **Rust target crate(s):** `crates/wow-core/`, `crates/wow-config/`, `crates/wow-logging/`, `crates/wow-collections/`, scattered helpers in `wow-network/`, `wow-crypto/`, `wow-database/`
 > **Layer:** L0 (foundation)
@@ -256,7 +261,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 - **`IPLocation` GM command wiring** — common store exists and BNet/world auth use it, but account lock-country GM commands are not wired yet.
 - **`Metric`** — no InfluxDB or any metrics push.
 - **`AppenderFile` / log rotation** — `tracing-subscriber` writes to stdout only; production needs at minimum rotating-file appender (`tracing-appender::rolling`).
-- **`AppenderDB`** — log records are not written to `auth.logs`; the C# legacy server did this for audit/GM-action retention. Direct compliance/audit gap.
+- **`AppenderDB`** — log records are not written to `auth.logs`; the old note inferred an audit-retention gap without a canonical anchor. Treat that inference as unverified until contrasted with C++ logging behavior.
 - **`Timezone` helper layer** — `GameTime::to_packed()` now uses real calendar math, but the standalone C++ `Timezone.{h,cpp}` helper API is not fully ported.
 - **`ConfigMgr::OverrideWithEnvVariablesIfAny`** — production deployments commonly do `WORLD_SERVER_PORT=8085`-style overrides; not supported.
 - **`ConfigMgr::Reload`** — config is parsed once at startup; SIGHUP-style reload not wired.

@@ -1,5 +1,10 @@
 # Migration: Entities / Vehicle
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/Vehicle/`
 > **Rust target crate(s):** `crates/wow-world/` (entity logic), `crates/wow-data/` (DBC), `crates/wow-constants/` (flags/opcodes)
 > **Layer:** L4 (sub-modules)
