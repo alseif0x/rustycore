@@ -105,6 +105,11 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         "unloaded traits are not an authoritative empty CREATE"
     );
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
+    let prepared = session
+        .prepare_player_self_create_for_teleport_like_cpp()
+        .unwrap()
+        .to_bytes();
+    assert!(send_rx.is_empty(), "building a CREATE must not publish it");
 
     session
         .send_player_self_create_for_teleport_like_cpp(
@@ -114,6 +119,10 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
 
     let bytes = send_rx.recv().expect("far teleport sends self CREATE");
     assert_eq!(
+        bytes, prepared,
+        "the delivery adapter must preserve every prepared byte"
+    );
+    assert_eq!(
         u16::from_le_bytes([bytes[0], bytes[1]]),
         ServerOpcodes::UpdateObject as u16
     );
@@ -122,6 +131,22 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
             .windows(4)
             .any(|window| window == 1_234_567i32.to_le_bytes()),
         "ActivePlayerData::XP must survive a far-map self CREATE"
+    );
+    drop(send_rx);
+    assert_eq!(
+        session
+            .prepare_player_self_create_for_teleport_like_cpp()
+            .unwrap()
+            .to_bytes(),
+        prepared
+    );
+    assert!(
+        !session
+            .send_player_self_create_for_teleport_like_cpp(
+                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            )
+            .await,
+        "closed delivery is separate from successful construction"
     );
 }
 

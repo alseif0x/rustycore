@@ -16972,6 +16972,20 @@
           "module": "crate::handlers::misc",
           "trait_path": null,
           "kind": "method",
+          "name": "prepare_player_self_create_for_teleport_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn prepare_player_self_create_for_teleport_like_cpp (& self) -> Option < UpdateObject >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::misc",
+          "trait_path": null,
+          "kind": "method",
           "name": "send_player_self_create_for_teleport_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,) -> bool",

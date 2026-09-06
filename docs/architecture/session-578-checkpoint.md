@@ -1543,6 +1543,51 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1/C2 self-CREATE construction/delivery boundary — above `a1610315`, 2026-09-06
+
+Behavior-preserving adapter extraction under the safe-refactor skill. The complete
+existing worldport self-CREATE construction moves from `handlers/misc/travel.rs` to
+the private 178-line `worldport_create.rs`. The constructor takes `&self` and returns
+an owned `Option<UpdateObject>` without I/O or async waiting. The old catalog-bearing
+send entrypoint immediately invokes it and preserves the same packet, connection,
+logging and success/failure result. Its currently unused trait catalog remains a
+compatibility argument until the full ACK/catalog contract is narrowed; no new trait,
+field, lock, persistence operation or opcode registration is introduced.
+
+The moved construction body matches the previous body exactly after whitespace,
+false-to-None early-return wrapping and removal of the unused catalog binding. The
+XP self-CREATE test now compares every byte of the prepared packet against the actual
+delivered packet, asserts construction sends nothing, then closes the receiver and
+proves construction still succeeds while the delivery adapter returns false. Existing
+appearance/trait/deferred-resurrection packet ordering and incomplete-CREATE tests remain.
+Library tests pass: 3,761, one ignored (`cargo test --offline --locked -p wow-world --lib`,
+local aarch64 with pinned PROTOC and the validation Cargo cache).
+
+`cargo test --offline --locked -p wow-world --test production_login_player_owner` passes
+12 controlled cases. Session syntax/exact-item policy, five preserved persistence-policy
+tests, architecture check/self-test (20 fixtures), format and diff checks pass. Bounded
+quick above `a1610315` passes; verified manifest:
+`target/validation-v2/manifests/20260906T180601.402127Z-3-quick.json`.
+The now-unused travel import is removed after that run; no serialization expression changes.
+
+C++ `Maps/Map.cpp:1826-1851` separates building UpdateData from SendDirectMessage.
+`Entities/Player/Player.cpp:3586-3608` includes inventory object CREATEs for the Player
+itself. The old Rust comment implying their omission was justified by client retention
+is corrected: item CREATEs, transports and placeholder combat stats remain parity gaps,
+not changes hidden in this refactor. Their repair still requires exact packet evidence.
+
+Physical files: travel 848 -> 679 lines; new builder 178; misc root 156 -> 157; existing
+travel tests gain 25 lines. No physical/logical ceiling changes or new exceptions.
+One exact private-parent-visible builder method is added to the ownership policy;
+the production registry, send entrypoint and current execution owner are unchanged.
+
+This is not a coherent whole-Player snapshot, a completed gameplay-owner migration or
+logout completion. The builder still uses the established multiple scoped reads and
+partial payload semantics. Do not retain its result across mutations/awaits as though it
+were an incarnation/revision-bound reservation. Production still sends immediately through
+the existing synchronous channel; backpressure, before-add order, complete initialization,
+logout/deferred-save integration and C0–C4 terminal acceptance remain open.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,
