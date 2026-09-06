@@ -1562,12 +1562,12 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
             };
             // Existing Rust boundary, not C++ transaction parity: #187 tracks
             // the separate collection transactions (see AccountCollectionSaveLikeCpp).
-            match self.login_db.commit_transaction(tx).await {
-                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows: rows as u64 },
-                Err(error) => PersistenceOutcomeLikeCpp::Failed {
-                    reason: error.to_string(),
-                },
-            }
+            collections::account_collection_commit_outcome_like_cpp(
+                self.login_db
+                    .commit_transaction_with_outcome_like_cpp(tx)
+                    .await,
+                rows as u64,
+            )
         })
     }
 

@@ -8799,7 +8799,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         || receiver
                             .targets()
                             .contains(&PersistenceTarget::SqlxTransaction)
-                        || (name == "commit_transaction" && !receiver.0.is_empty())
+                        || (matches!(
+                            name.as_str(),
+                            "commit_transaction" | "commit_transaction_with_outcome_like_cpp"
+                        ) && !receiver.0.is_empty())
                 }
                 PersistenceOperation::Begin => !receiver.pool_targets().is_empty(),
                 PersistenceOperation::Query

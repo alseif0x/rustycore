@@ -410,7 +410,18 @@ impl<S: StatementDef> Database<S> {
     }
 
     /// Commit a transaction batch atomically.
-    pub async fn commit_transaction(&self, mut trans: SqlTransaction) -> Result<(), DatabaseError> {
+    pub async fn commit_transaction(&self, trans: SqlTransaction) -> Result<(), DatabaseError> {
+        self.commit_transaction_with_outcome_like_cpp(trans)
+            .await
+            .map_err(crate::SqlTransactionCommitError::into_database_error)
+    }
+
+    /// Commit a batch without erasing an uncertain COMMIT result.
+    /// Preserve the adapter's database attribution and synchronous-query diagnostic.
+    pub async fn commit_transaction_with_outcome_like_cpp(
+        &self,
+        mut trans: SqlTransaction,
+    ) -> Result<(), crate::SqlTransactionCommitError> {
         warn_if_sync_query_like_cpp("commit_transaction");
         // A batch built entirely from raw SQL never names a database, so this
         // adapter is the only thing that can say which one it committed
@@ -418,7 +429,7 @@ impl<S: StatementDef> Database<S> {
         // flows like the bank-slot purchase left a statement with no begin,
         // commit or rollback around it.
         trans.attribute_to_like_cpp(S::database());
-        trans.commit(&self.pool).await
+        trans.commit_with_outcome_like_cpp(&self.pool).await
     }
 
     /// Close the connection pool.
@@ -711,6 +722,29 @@ mod tests {
         assert!(!Database::<CharStatements>::pooled_failure_is_definite(
             &sqlx::Error::WorkerCrashed
         ));
+    }
+
+    #[tokio::test]
+    async fn classified_commit_retains_adapter_attribution_before_connection_acquisition() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+        let pool = unreachable_pool();
+        pool.close().await; // Deterministic failure without attempting a connection.
+        let db: Database<crate::LoginStatements> = Database::from_pool(pool);
+        let mut tx = SqlTransaction::new();
+        tx.append(PreparedStatement::new("SELECT 1"));
+
+        assert!(matches!(
+            db.commit_transaction_with_outcome_like_cpp(tx).await,
+            Err(crate::SqlTransactionCommitError::DefinitelyRolledBack(_))
+        ));
+        assert!(recorder.take().events.iter().any(|event| matches!(
+            event,
+            PersistenceEvent::BatchAbandoned {
+                database: LogicalDatabase::Login
+            }
+        )));
     }
 
     #[tokio::test]

@@ -174,7 +174,9 @@ impl PersistenceOperation {
             "prepare" | "prepare_with" | "describe" => Some(Self::PrepareStatement),
             "direct_query" => Some(Self::DirectQuery),
             "direct_execute" => Some(Self::DirectExecute),
-            "commit_transaction" | "commit_with_outcome_like_cpp" => Some(Self::Commit),
+            "commit_transaction"
+            | "commit_with_outcome_like_cpp"
+            | "commit_transaction_with_outcome_like_cpp" => Some(Self::Commit),
             "append" | "append_expect_rows_affected" | "execute_or_append" => {
                 Some(Self::TransactionAppend)
             }

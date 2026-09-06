@@ -3,6 +3,92 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C1 collection COMMIT classification — above `881722ef`, 2026-09-06
+
+The collection adapter now uses `Database::commit_transaction_with_outcome_like_cpp`
+instead of the lossy `Database::commit_transaction` wrapper. The new typed wrapper
+preserves database attribution and synchronous-query diagnostics while forwarding
+`SqlTransaction::commit_with_outcome_like_cpp`; the legacy wrapper delegates to it
+and retains its original lossy return type for unchanged callers. Its private
+`collections::account_collection_commit_outcome_like_cpp` translation preserves
+`Applied` and the existing row count, maps only `DefinitelyRolledBack` to `Failed`,
+and maps `CommitOutcomeUnknown` to `Unknown`. All five collection variants use this
+same production call. Prepared Login statements retain their database attribution.
+No statement, transaction grouping, ordering, retry, dirty-state acknowledgement,
+Session owner or public port signature changes. This is an intentional correction
+of result reporting, not a behavior-preserving file move or C++ transaction parity.
+
+The three focused classifier tests cover confirmed results (including zero rows),
+known rollback and a lost COMMIT reply classification. `cargo test --offline
+--locked -p wow-database --lib` passes 358 tests, with 2 ignored, on the aarch64
+development host; log `/tmp/rustycore-collection-outcome-final-tests.log`. These exercise
+the production translator with injected classified results, not a real lost DB
+reply. An additional real Database-wrapper test closes a lazy pool before calling
+COMMIT: it proves pre-acquisition failure classification and Login attribution of
+a raw-statement abandoned batch without contacting a database. C++ operation
+anchors and the broader boundary remain in the audit below.
+The Session collection helpers already distinguish `Unknown` in their warnings
+but still discard outcomes; whole-finalization propagation, reconciliation and
+durability acceptance remain open. No runtime or database action was performed.
+
+The persistence scanner explicitly recognizes the new Database wrapper as a COMMIT
+on a typed database receiver, with an assertion in its alias/path fixture. Its
+remaining traversal root grows from 12,345 to 12,348 lines for this coverage; the
+existing C4 semantic split exit remains, not a terminal exception. The collection
+workflow annotation and generated policy now name the exact transaction/result
+contract rather than generic syntax-preservation language.
+
+The full checker suite also reproduces an older stale assertion: its repository
+check passes with 47 verified path mounts, but the test still expects 42 at
+`9cd1da41`. The five subsequent library mounts are `character_tests/post_add_rest`,
+`character_tests/post_add_scaling`, `lifecycle_persistence/deferred_transfer`,
+`session/tests/map_entry` and `session/tests/player_detach`. The exact expectation
+is reconciled to 47, not removed; integration-test mounts are outside that report.
+The initial exhaustive inventory run completed against the earlier direct
+transaction-call version and reported 27 differences; it is not validation of the
+final Database-wrapper implementation. A fresh candidate inventory from the rebuilt
+checker was therefore required before accepting the final persistence delta.
+
+That fresh `print-persistence-baseline` run has now completed. The reviewed delta
+is 16 removed / 38 added records: 20 added production records replace/migrate the
+16 prior production records, and 18 records describe the new tests. Every changed
+record belongs to `wow-database/src/database.rs`, `player_lifecycle_adapter.rs` or
+`player_lifecycle_adapter/collections.rs`. COMMIT coverage and statement provenance
+remain represented: the concrete transaction invocation moves into the typed
+Database wrapper, and the collection call names that wrapper. Removed conservative
+error/string aliases reflect the extracted result translation, not removed SQL.
+The accepted snapshot has 10,106 rows (7,777 production / 2,329 fixture), with
+1,029 exact semantic groups. It is byte-identical to the freshly generated
+`/tmp/rustycore-collection-outcome-candidate-snapshot.json`; the policy is likewise
+identical to the output generated from that candidate after reviewing its two new
+production groups, legacy-wrapper contract and fixture-source addition. This is
+fresh exhaustive generation plus explicit delta/policy reconciliation, not a claim
+that the earlier failed `check` invocation passed.
+Snapshot SHA256: `cdaa9d05a6e67b28b5f8d29222d945bf701305ec3514c69cff213ceefc3fe5af`;
+policy SHA256: `b7a4a0b265f271881a370ab5a669f395737cbfbe58f08d1c4e69ebc4250233b4`.
+All five preserved `persistence_policy` tests and ownership `check --syntax-only`
+pass with the updated reference. Final quick manifest
+`target/validation-v2/manifests/20260906T225429.785995Z-3-quick.json` verifies green.
+
+The rebuilt checker's full library suite passes 334/334, including the reconciled
+mount assertion and typed-COMMIT inventory fixture; log
+`/tmp/rustycore-collection-outcome-checker-final-tests.log`. Final quick manifest
+`target/validation-v2/manifests/20260906T223912.726753Z-18-quick.json` verifies green.
+`cargo check --offline --locked -p world-server` also passes on the aarch64 host;
+log `/tmp/rustycore-collection-outcome-world-check.log`. This is compilation of the
+production composition, not runtime or durability acceptance.
+
+Follow-on caller audit at this working base: `save_current_player_to_db_with_generator_like_cpp`
+submits only the Character request and acknowledges its receipt. Production callers
+are the periodic processor (`session/mod.rs:32961`), deferred transfer save
+(`session/lifecycle/persistence/deferred.rs:61`), trainer dirty-state pre-save
+(`handlers/trainer.rs:640`), explicit logout and disconnect. Only the last two append
+the five collection calls. Integrating the complete Login-side operation must retire
+those duplicate exit-only chains, preserve Character's existing quarantine and
+incarnation-bound acknowledgement, and explicitly handle the trainer's pre-save
+role instead of blindly widening every caller's transaction work. No caller migration
+or complete-save acceptance is claimed by this result-classification correction.
+
 ## C1 Login-save boundary audit — `8c5aa68b`, 2026-09-06
 
 The next finalization boundary cannot be accepted by moving the five collection

@@ -179,6 +179,7 @@ fn persistence_inventory_resolves_typed_database_paths_getters_and_dynamic_sql()
                         let db = self.character_db().unwrap();
                         let sql = format!("SELECT {}", 1);
                         db.direct_query(&sql).await.unwrap();
+                        db.commit_transaction_with_outcome_like_cpp(SqlTransaction::new()).await.unwrap();
                         let _tx = wow_database::SqlTransaction::new();
                         let _error = wow_database::DatabaseError::Query("x".into());
                     }
@@ -206,6 +207,11 @@ fn persistence_inventory_resolves_typed_database_paths_getters_and_dynamic_sql()
             PersistenceTarget::CharacterDatabase,
             PersistenceOperation::DirectQuery,
             "direct_query".to_owned(),
+        ),
+        (
+            PersistenceTarget::CharacterDatabase,
+            PersistenceOperation::Commit,
+            "commit_transaction_with_outcome_like_cpp".to_owned(),
         ),
         (
             PersistenceTarget::CharacterDatabase,

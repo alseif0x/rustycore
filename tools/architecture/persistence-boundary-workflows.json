@@ -3,6 +3,19 @@
   "workflows": [
     {
       "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::collections",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/collections.rs",
+      "enclosing": "fn account_collection_commit_outcome_like_cpp",
+      "logical_databases": ["login"],
+      "boundary": "Private result translation within the Login account-collection adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "No pool, connection or transaction is acquired here; the input is the already classified result of the caller's one Login collection transaction.",
+      "current_order": "Translate the result only after the caller's COMMIT future returns; preserve the supplied row count on confirmation.",
+      "failure_and_unknown_commit": "Map only DefinitelyRolledBack to Failed and preserve CommitOutcomeUnknown as Unknown. This pure adapter function adds no retry, reconciliation or publication."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::world_query_catalog_adapter",
       "source": "crates/wow-database/src/world_query_catalog_adapter.rs",
       "enclosing": "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::creature_rows",
@@ -3503,8 +3516,26 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+      "current_order": "Delegate the unchanged transaction to commit_transaction_with_outcome_like_cpp, retaining adapter attribution, diagnostic and statement order.",
+      "failure_and_unknown_commit": "Legacy compatibility API erases DefinitelyRolledBack versus CommitOutcomeUnknown into DatabaseError. A returned error is not proof of rollback; callers requiring that distinction must use the typed wrapper."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::database",
+      "source": "crates/wow-database/src/database.rs",
+      "enclosing": "impl Database < S >::commit_transaction_with_outcome_like_cpp",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter attributes the batch to its one configured logical database and uses its one pool; the supported database list does not imply a distributed transaction.",
+      "current_order": "Preserve the synchronous-query diagnostic, attribute the transaction to the adapter, then await SqlTransaction::commit_with_outcome_like_cpp with unchanged statement and deadlock-retry ordering.",
+      "failure_and_unknown_commit": "Return the original SqlTransactionCommitError distinction between DefinitelyRolledBack and CommitOutcomeUnknown. This wrapper neither reconciles nor replays an ambiguous COMMIT; cancellation does not establish rollback."
     },
     {
       "package": "wow-database",
@@ -9125,9 +9156,9 @@
       "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "connection_affinity": "Each collection request builds one transaction on the configured Login pool; this is not the complete C++ Login-side Player save transaction.",
+      "current_order": "Append the selected collection's existing statements in source order, then await its classified COMMIT before returning the persistence outcome. No batching across collection requests or automatic replay is added.",
+      "failure_and_unknown_commit": "Confirmed COMMIT maps to Applied with the existing row count; DefinitelyRolledBack maps to Failed and CommitOutcomeUnknown maps to Unknown. Session callers still log and discard these outcomes; this boundary does not establish whole-finalization recovery."
     },
     {
       "package": "wow-database",
