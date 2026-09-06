@@ -5,6 +5,38 @@ audit, a full C++ parity approval, or a live-client acceptance report.
 
 ## C4 persistence-parser test decomposition — above `0038d265`, 2026-09-06
 
+### Subsequent canonical inventory records — above `ef8cb6c3`
+
+The private 548-line `persistence_access/records.rs` owns schema version 3,
+record identity, accumulation/transaction associations, baseline comparison and JSON
+serialization. The parser retains traversal and classification and calls the accumulator
+through narrow parent-visible operations. Record identity and backing maps remain private;
+the crate-local record/baseline/compare/render paths are preserved through root reexports.
+No state mirror, grammar change, new persistence access or gameplay change is introduced.
+
+The two complete source blocks match their `ef8cb6c3` originals byte-for-byte after
+removing only the introduced `pub(super)` visibility. The schema constant is unchanged.
+Consequently identity ordering, occurrence counts, transaction/rollback handling,
+validation diagnostics and serialization retain their original bodies. Existing full-pipeline
+regressions, including snapshot/policy consistency, still exercise this implementation.
+All 334 standalone checker library tests pass, none ignored, on this working cut
+(aarch64), using `cargo test --offline --locked --release --manifest-path
+tools/architecture/handler-contract-check/Cargo.toml --lib`.
+
+The root shrinks from 12,879 to 12,345 lines and its exact physical ceiling is tightened;
+the historical observed count and C4 exit remain. The remaining AST traversal/provenance
+root is still oversized; all 101 legacy ceilings remain migration debt. This does not
+close C4, C0/C3 production scheduling or the complete Player lifecycle vertical.
+
+Architecture `check` and `self-test` pass: 975 physical files, 101 legacy ceilings,
+175 cohesion reviews and unchanged logical-owner counts. A narrow unused-import allowance
+on the record reexport preserves its existing crate-local path even in non-test builds;
+it does not suppress diagnostics on the parser or records implementation.
+Final bounded quick validation passes with verified manifest
+`target/validation-v2/manifests/20260906T133415.989370Z-3-quick.json` on the working
+cut above `ef8cb6c3`; format/diff checks and the final physical scan pass. No exhaustive
+inventory regeneration or runtime/DB acceptance is claimed for this mechanical move.
+
 ### Subsequent production SQL-text boundary — above `7bd208a5`
 
 `persistence_access/sql_text.rs` now owns pinned literal/compile-time-string interpretation,
