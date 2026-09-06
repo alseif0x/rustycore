@@ -20,7 +20,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_forced_reactions",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_forced_reactions(pkt).await })
         },
     }
@@ -32,7 +32,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_faction_at_war",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_faction_at_war(pkt).await })
         },
     }
@@ -44,7 +44,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_faction_not_at_war",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_faction_not_at_war(pkt).await })
         },
     }
@@ -56,7 +56,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_faction_inactive",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_faction_inactive(pkt).await })
         },
     }
@@ -68,7 +68,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_watched_faction",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_watched_faction(pkt).await })
         },
     }
@@ -84,9 +84,11 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let packet = self
-            .reputation_mgr_like_cpp()
-            .set_forced_reactions_packet_like_cpp();
+        let Some(packet) =
+            self.with_reputation_mgr_like_cpp(|mgr| mgr.set_forced_reactions_packet_like_cpp())
+        else {
+            return;
+        };
         self.send_packet(&packet);
     }
 
@@ -138,15 +140,16 @@ impl crate::session::WorldSession {
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
 
-        self.reputation_mgr_like_cpp_mut()
-            .set_at_war_by_replist_like_cpp(
+        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
+            mgr.set_at_war_by_replist_like_cpp(
                 u32::from(faction_index),
                 at_war,
                 faction_store.as_ref(),
                 friendship_rep_reaction_store.as_deref(),
                 race,
                 class,
-            );
+            )
+        });
     }
 
     pub async fn handle_set_faction_inactive(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -161,8 +164,9 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.reputation_mgr_like_cpp_mut()
-            .set_inactive_by_replist_like_cpp(request.index, request.state);
+        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
+            mgr.set_inactive_by_replist_like_cpp(request.index, request.state)
+        });
     }
 
     pub async fn handle_set_watched_faction(&mut self, mut pkt: wow_packet::WorldPacket) {

@@ -896,7 +896,7 @@ where
         }
 
         let entity_update = {
-            let Some(record) = self.map_objects.get_mut(&game_object_guid) else {
+            let Some(record) = self.entity_world.get_mut(&game_object_guid) else {
                 return GameObjectUpdateOutcomeLikeCpp {
                     game_object_guid,
                     diff_ms,
@@ -1092,7 +1092,7 @@ where
 
         if entity_update.status != EntityGameObjectUpdateStatusLikeCpp::DespawnRequested {
             if let Some(game_object) = self
-                .map_objects
+                .entity_world
                 .get_mut(&game_object_guid)
                 .and_then(MapObjectRecord::game_object_mut)
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
@@ -1123,7 +1123,7 @@ where
         {
             false
         } else if let Some(game_object) = self
-            .map_objects
+            .entity_world
             .get_mut(&game_object_guid)
             .and_then(MapObjectRecord::game_object_mut)
             .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
@@ -1136,7 +1136,7 @@ where
 
         if loot_cleared {
             if let Some(game_object) = self
-                .map_objects
+                .entity_world
                 .get_mut(&game_object_guid)
                 .and_then(MapObjectRecord::game_object_mut)
             {
@@ -1215,7 +1215,7 @@ where
                     (owner_guid != ObjectGuid::EMPTY || spell_id != 0) && respawn_time == 0;
                 if is_summoned_and_expired {
                     if let Some(game_object) = self
-                        .map_objects
+                        .entity_world
                         .get_mut(&game_object_guid)
                         .and_then(MapObjectRecord::game_object_mut)
                     {
@@ -1274,7 +1274,7 @@ where
 
         if loot_cleared && !non_consumed_chest_or_goober_return && !summoned_expired_delete {
             if let Some(game_object) = self
-                .map_objects
+                .entity_world
                 .get_mut(&game_object_guid)
                 .and_then(MapObjectRecord::game_object_mut)
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
@@ -1338,7 +1338,7 @@ where
                     let scheduled_respawn_time =
                         game_time_secs.saturating_add(i64::from(respawn_delay_time));
                     if let Some(game_object) = self
-                        .map_objects
+                        .entity_world
                         .get_mut(&game_object_guid)
                         .and_then(MapObjectRecord::game_object_mut)
                     {
@@ -1379,7 +1379,7 @@ where
                     }
                 } else {
                     if let Some(game_object) = self
-                        .map_objects
+                        .entity_world
                         .get_mut(&game_object_guid)
                         .and_then(MapObjectRecord::game_object_mut)
                     {
@@ -1654,7 +1654,7 @@ where
         L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
         let game_object_guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 (record.kind() == AccessorObjectKind::GameObject && record.game_object().is_some())
@@ -2291,7 +2291,7 @@ where
                 })?;
 
         if let Some(game_object) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         {
@@ -2303,7 +2303,7 @@ where
         let despawn_packet_represented = true;
 
         let (go_state_ready, flags_restored) = self
-            .map_objects
+            .entity_world
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
             .map(|game_object| {

@@ -854,7 +854,7 @@ fn canonical_creature_snapshot(session: &WorldSession, guid: ObjectGuid) -> Opti
     let manager = session.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
     let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
-    map.map().get_typed_creature(guid).cloned()
+    map.map().with_creature_like_cpp(guid, Clone::clone)
 }
 
 fn make_canonical_gameobject_for_session(
@@ -2855,6 +2855,12 @@ async fn remote_group_money_is_one_atomic_durable_fanout_like_cpp() {
         ));
     install_group_loot_group(&mut first, first_guid, second_guid);
     let player_registry = Arc::new(PlayerRegistry::default());
+    let (first_presence_tx, _first_presence_rx) = flume::bounded(1);
+    player_registry.register_or_replace(
+        first_guid,
+        broadcast_info(first_guid, first_presence_tx),
+        Default::default(),
+    );
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
@@ -2934,6 +2940,12 @@ fn vehicle_corpse_money_shares_and_pool_allowed_looters_control_membership_like_
     session.set_player_position_like_cpp(Position::ZERO);
     install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
+    let (player_tx, _player_rx) = flume::bounded(1);
+    registry.register_or_replace(
+        player_guid,
+        broadcast_info(player_guid, player_tx),
+        Default::default(),
+    );
     let (member_tx, _member_rx) = flume::bounded(1);
     registry.register_or_replace(
         member_guid,
@@ -2971,7 +2983,6 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     let owner = test_creature_guid(19_503);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
@@ -2993,6 +3004,22 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
             flags2: 0,
         },
     ])));
+    let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    session.set_canonical_map_manager(canonical);
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "LootOwner".to_string(),
+        Position::ZERO,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical loot owner map");
+    install_group_loot_group(&mut session, player_guid, member_guid);
     assert_eq!(
         session.represented_loot_money_recipients_like_cpp(owner),
         vec![player_guid]
@@ -3031,7 +3058,6 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
     let member_guid = ObjectGuid::create_player(1, 43);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
@@ -3050,6 +3076,22 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
             flags2: 0,
         },
     ])));
+    let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    session.set_canonical_map_manager(canonical);
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "LootOwner".to_string(),
+        Position::ZERO,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical loot owner map");
+    install_group_loot_group(&mut session, player_guid, member_guid);
     assert_eq!(
         session.represented_group_looters_at_reward_distance_like_cpp(player_guid),
         vec![player_guid]
@@ -3089,6 +3131,12 @@ async fn failed_remote_group_money_transaction_credits_nobody_and_retries_like_c
         ));
     install_group_loot_group(&mut first, first_guid, second_guid);
     let player_registry = Arc::new(PlayerRegistry::default());
+    let (first_presence_tx, _first_presence_rx) = flume::bounded(1);
+    player_registry.register_or_replace(
+        first_guid,
+        broadcast_info(first_guid, first_presence_tx),
+        Default::default(),
+    );
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
@@ -3135,6 +3183,12 @@ async fn group_loot_money_worker_requires_and_uses_the_typed_persistence_port_li
         ));
     install_group_loot_group(&mut first, first_guid, second_guid);
     let registry = Arc::new(PlayerRegistry::default());
+    let (first_presence_tx, _first_presence_rx) = flume::bounded(1);
+    registry.register_or_replace(
+        first_guid,
+        broadcast_info(first_guid, first_presence_tx),
+        Default::default(),
+    );
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
@@ -4553,6 +4607,10 @@ async fn local_disenchant_batch_commits_all_materials_and_original_claim_like_cp
         .unwrap();
     let materials = represented_disenchant_test_outputs_like_cpp(player_guid, 700);
     let grants = Arc::new(AtomicUsize::new(0));
+    session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(
+        HighGuid::Item,
+        70_000,
+    )));
     session.set_loot_item_store_test_seam_like_cpp(Arc::clone(&grants), true);
 
     assert!(
@@ -5438,7 +5496,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
     );
     assert_eq!(
         session.apply_quest_item_removed_like_cpp(item_id),
-        vec![quest_id]
+        Some(vec![quest_id])
     );
     let status = session.player_quests.get(&quest_id).expect("active quest");
     assert_eq!(
@@ -5631,8 +5689,9 @@ fn install_master_loot_group(
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
 }
 
 fn install_group_loot_group(
@@ -5646,8 +5705,9 @@ fn install_group_loot_group(
     group.loot_method = LOOT_METHOD_GROUP_LIKE_CPP;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
 }
 
 fn generation_guarded_group_loot_like_cpp(
@@ -5908,10 +5968,10 @@ fn install_disenchantable_test_item_template(session: &mut WorldSession, entry: 
 }
 
 fn install_active_spell_cast(session: &mut WorldSession, player_guid: ObjectGuid) {
-    session.active_spell_cast = Some(SpellCastState {
+    session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 133,
         target_guid: player_guid,
-        target_data: wow_packet::packets::spell::SpellTargetData {
+        target_data: wow_entities::SpellCastTargetsLikeCpp {
             flags: 0x2,
             unit: player_guid,
             ..Default::default()
@@ -5919,12 +5979,12 @@ fn install_active_spell_cast(session: &mut WorldSession, player_guid: ObjectGuid
         cast_id: ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7),
         cast_start_time: std::time::Instant::now(),
         cast_time_ms: 30_000,
-        spell_visual: wow_packet::packets::spell::SpellCastVisual {
+        spell_visual: wow_entities::SpellCastVisualLikeCpp {
             spell_visual_id: 1,
             script_visual_id: 0,
         },
         metadata: crate::session::SpellCastMetadata::default(),
-    });
+    }));
 }
 
 fn install_visible_aura_with_interrupt_flags(
@@ -6603,6 +6663,26 @@ async fn represented_gameobject_chest_loot_carries_cpp_source_metadata() {
     assert_eq!(loot.loot_type, LOOT_TYPE_CHEST_LIKE_CPP);
     assert_eq!(loot.dungeon_encounter_id, 733);
     assert_eq!(loot.loot_method, 0);
+}
+
+#[tokio::test]
+async fn represented_gameobject_chest_uses_resolved_template_money_like_cpp() {
+    let mut session = make_session();
+    let gameobject_guid = test_gameobject_guid(91_022);
+    attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
+
+    let loot = session
+        .generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
+            gameobject_guid,
+            ObjectGuid::create_player(1, 42),
+            GameObjectLootSource::default(),
+            &[],
+            (123, 123),
+        )
+        .await
+        .expect("canonical owner map allocates a LootObject");
+
+    assert_eq!(loot.coins, 123);
 }
 
 #[tokio::test]
@@ -8445,6 +8525,10 @@ async fn failed_existing_stack_store_publishes_neither_count_nor_binding() {
     let item_guid = ObjectGuid::create_item(1, 77);
     let item_id = 25;
     session.set_player_guid(Some(player_guid));
+    session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(
+        HighGuid::Item,
+        90_000,
+    )));
     install_limited_test_item_template_with_flags2_and_bonding(
         &mut session,
         item_id,
@@ -9103,7 +9187,7 @@ async fn loot_unit_dead_player_returns_silently_like_cpp() {
     assert!(send_rx.try_recv().is_err());
     assert!(!session.is_active_loot_guid(loot_guid));
     assert!(!session.loot_table.contains_key(&loot_guid));
-    assert!(session.active_spell_cast.is_some());
+    assert!(session.active_spell_cast_snapshot_like_cpp().is_some());
     assert!(session.visible_auras.contains_key(&3));
 }
 
@@ -9118,7 +9202,7 @@ async fn loot_unit_valid_target_interrupts_active_cast_like_cpp() {
 
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
-    assert!(session.active_spell_cast.is_none());
+    assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
 }
 
 #[tokio::test]
@@ -9395,7 +9479,10 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     );
 
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    session.handle_loot_unit(loot_unit_packet(owner_guid)).await;
+    let item_valuation = session.item_valuation_catalogs_for_test_like_cpp();
+    session
+        .handle_loot_unit_with_catalogs_like_cpp(&item_valuation, loot_unit_packet(owner_guid))
+        .await;
 
     let response = send_rx.try_recv().unwrap();
     let mut response = WorldPacket::from_bytes(&response);
@@ -9580,6 +9667,8 @@ async fn loot_unit_group_loot_disenchant_mask_uses_cpp_skill_required_gate() {
             current_value: 175,
             max_value: 225,
             step: 0,
+            profession_slot: -1,
+            state: wow_entities::PlayerSkillLoadState::Unchanged,
         });
     canonical
         .lock()
@@ -11733,6 +11822,12 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
+    let (player_presence_tx, _player_presence_rx) = flume::bounded(1);
+    player_registry.register_or_replace(
+        player_guid,
+        broadcast_info(player_guid, player_presence_tx),
+        Default::default(),
+    );
     player_registry.register_or_replace(
         other_guid,
         broadcast_info(other_guid, other_tx),
@@ -12018,22 +12113,22 @@ async fn set_loot_specialization_matches_cpp_class_validation() {
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 65 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
 
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 71 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
 
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 999 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 65);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
 
     session
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 0 })
         .await;
-    assert_eq!(session.loot_specialization_id_like_cpp(), 0);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(0));
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -12054,7 +12149,7 @@ async fn set_loot_specialization_without_loaded_player_is_ignored_like_cpp_statu
         .handle_set_loot_specialization(SetLootSpecialization { spec_id: 65 })
         .await;
 
-    assert_eq!(session.loot_specialization_id_like_cpp(), 0);
+    assert_eq!(session.loot_specialization_id_like_cpp(), Some(0));
 }
 
 #[tokio::test]

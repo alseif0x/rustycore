@@ -1,8 +1,9 @@
 # Validation V2 canonical runner
 
 Validation V2 is the clean-room validation path shared by local development and GitHub Actions.
-Legacy wrappers remain frozen only for the measured retirement gate tracked by #302; they are not
-called by this runner or by Rust CI.
+The old `pr-preflight.sh` and `local-harness.sh` wrappers were retired in #331 (PR #335). Do not use
+their former `full` or `capture` subcommands; code review and live QA have separate tools in
+[local-first-development.md](local-first-development.md).
 
 Run it through its single entry point:
 
@@ -16,7 +17,7 @@ Run it through its single entry point:
 `self-test` executes the separate hermetic contract suite in `tools/test_validation_v2.py`; fixture
 code is not embedded in the production runner.
 
-Both profiles collect committed, staged, unstaged, and untracked paths relative to the exact base
+The `quick` and `final` profiles collect committed, staged, unstaged, and untracked paths relative to the exact base
 commit. `quick` validates repository hygiene and small syntax surfaces, formats Rust once, and
 compiles test targets for directly changed workspace packages. `final` instead compiles the
 workspace reverse-dependent closure and runs library tests for the directly changed library
@@ -24,20 +25,33 @@ packages. A root Cargo, toolchain, protobuf, or build-script change explicitly e
 to `--workspace --all-targets`; it does not implicitly run every library suite.
 
 A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
-(`check_architecture.py hotspot-ratchet`, about 40 seconds). That is the one architecture ceiling
-an ordinary Rust diff can move; the rest of the scanner and the exhaustive persistence inventory
-stay in `audit`, so a change that renames or relocates a tracked persistence access is still only
-caught at merge cadence.
+(`check_architecture.py hotspot-ratchet`; timing depends on cached scanner/build state).
+Every nonempty `final` diff also runs the cheap `check_architecture.py physical-files` scan,
+including tooling-only, non-Rust, deletion, policy or generator-input changes. It enforces
+new-file budgets and reviewed per-file migration ceilings without invoking Cargo. The other
+architecture checks and exhaustive
+persistence inventory run in `audit`; `final` alone does not verify renamed or relocated
+persistence accesses. Run affected ownership/contract checks explicitly during architecture
+work and satisfy the active macro's terminal acceptance before claiming completion. Physical
+migration PASS is not closeout: run `physical-files --terminal` to reject unfinished oversized
+legacy entries, independently of the logical totals. Changes to the physical module/policy
+run its unit suite in `quick`; shared checker/scanner changes run architecture self-tests. See
+[module design guidelines](../architecture/module-design-guidelines.md).
 
-Documentation-only changes run no Cargo command. The standalone architecture checker and QA bot
-are routed to their own manifests. A final architecture-checker run skips its repository-surface
-test: exhaustive architecture, persistence inventory, capture, databases, and runtime QA belong to
-future explicit `audit` or QA profiles. Commands run sequentially and each exact command appears at
+Paths classified as `documentation` run no Cargo command. Classification is directory-first:
+even a README under `crates/`, `tools/wow-test-bot/` or
+`tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone
+checker and QA bot use their own manifests. A final architecture-checker run executes all its
+library tests, including the now syntax-only `repository_surface_can_be_collected`; it does not
+recompute the exhaustive persistence inventory. Committed capture contracts belong to `audit`,
+and live database/runtime/capture operations to explicit QA procedures. Commands run sequentially and each exact command appears at
 most once. Neither profile calls a legacy wrapper or uses the network; Cargo is forced offline.
 
 `audit` is the explicit global, read-only budget. It does not use changed-path scope: it runs the
 architecture policy checks, handler contract and exhaustive session/persistence ratchets, all
-workspace test targets, standalone QA-bot tests, and the required committed capture contracts.
+workspace test targets, standalone QA-bot tests, and explicit `verify-required` checks for
+`loot-single-item-claim` and `creature-spell-casting`. Other action-specific capture requirements
+remain the responsibility of the active issue; the profile does not discover every required flow.
 The generated `world-modules` launcher declares `test = false`: Cargo's explicit `--all-targets`
 override is therefore excluded for that package, and the real launcher is compiled separately
 with `cargo check -p world-modules`. Every
@@ -117,15 +131,17 @@ the run: `provenance.repository_root`, `provenance.kernel`, `resources.memory_li
 signal, HEAD, dirty state, both Rust versions, the entire plan, and every command's argv, section,
 status, failure kind, OOM delta and signal reports — is compared exactly.
 
-Twenty local runs, keeping every manifest:
+For an explicitly requested determinism campaign, twenty local runs, keeping every manifest
+and stopping on the first failure (not an ordinary iteration requirement):
 
 ```bash
-dir=$(mktemp -d)
+set -euo pipefail
+validation_evidence_dir=$(mktemp -d)
 for run in $(seq 1 20); do
-  VALIDATION_V2_MANIFEST="$dir/$run.json" ./tools/validation-v2 self-test > /dev/null
-  ./tools/validation-v2 normalize --manifest "$dir/$run.json" > "$dir/$run.norm"
+  VALIDATION_V2_MANIFEST="$validation_evidence_dir/$run.json" ./tools/validation-v2 self-test > /dev/null
+  ./tools/validation-v2 normalize --manifest "$validation_evidence_dir/$run.json" > "$validation_evidence_dir/$run.norm"
 done
-sha256sum "$dir"/*.norm | awk '{print $1}' | sort -u | wc -l   # must print 1
+test "$(sha256sum "$validation_evidence_dir"/*.norm | awk '{print $1}' | sort -u | wc -l)" -eq 1
 ```
 
 Twenty isolated GitHub runs are the `Validation determinism` workflow: a 20-job matrix on
@@ -135,8 +151,11 @@ form, followed by a job that fails with a diff unless all twenty hash identicall
 
 ## Fresh clone
 
-The documented path must work with no state from an older worktree, target directory or generated
-artifact. Cargo is forced offline, so the procedure is the one CI uses:
+The checkout must not rely on an older target directory or generated artifact. First install
+the toolchain from `rust-toolchain.toml`, the protoc version from `.protoc-version`, and `ripgrep`.
+CI also installs pinned actionlint and checksum-verified C++ statement references; see
+`.github/workflows/rust-ci.yml`. Cargo is forced offline during validation, so prepare dependencies
+with the same explicit fetches as CI:
 
 ```bash
 git clone https://github.com/alseif0x/rustycore.git fresh && cd fresh
@@ -148,7 +167,9 @@ cargo fetch --locked --manifest-path tools/wow-test-bot/Cargo.toml
 ```
 
 `--base HEAD~1` is deliberate: at `origin/3.4.3` a fresh clone has no changed paths, so the
-profiles would plan nothing and prove nothing.
+profiles would plan nothing. This checks the latest commit's routed scope, not a clean full-server
+build; a documentation-only last commit may still run no Cargo commands. Use an explicit build
+or the separately budgeted `audit` when that broader evidence is required.
 
 An `audit` also acquires `/tmp/rustycore-validation-v2-heavy.lock`. That lock is deliberately not
 derived from the checkout path, so audits in independent clones and worktrees cannot overlap on
@@ -190,4 +211,23 @@ uploads the manifest even on failure; signals and timeouts therefore cannot beco
 Repository-level Actions concurrency serializes audits, while superseded external-PR final runs
 are cancelled.
 
-Legacy retirement still requires the wider comparison gates tracked by #302.
+## Publication evidence without redundant builds
+
+Validate the committed publication candidate, not the cosmetic cleanliness of the directory.
+Normally run `final --base origin/3.4.3` with no tracked modifications. Unrelated untracked
+documents may remain when inspection establishes that no build script, test, generator or
+configuration consumes them. Record their paths and hashes, verify tracked files still match
+HEAD after the run, and retain the manifest's truthful `dirty: true` value. Do not delete,
+stage, hide or relocate another task's files merely to obtain `dirty: false`. An uncertain
+input or a source/configuration change needs isolation or appropriate revalidation.
+
+A successful final run may also be reused when the only subsequent committed changes are
+reviewed documentation or operating-instruction edits with no executable, schema, policy-data,
+dependency, build, fixture or test-input changes. Run `quick --base <validated-sha>` for that
+delta, check the exact diff and unchanged integration base, and record both SHAs and manifests.
+The evidence is a tested code revision plus a validated documentation delta, not a claim that
+the older run executed at the new SHA. Changes outside this exception require the normal final
+profile. Do not restart an already-running equivalent validation merely for an evidence note.
+
+Publication validation and merge acceptance are distinct: neither this exception nor a green
+profile waives explicit review, capture/live acceptance, or push/merge/runtime permissions.

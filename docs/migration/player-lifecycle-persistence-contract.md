@@ -5,6 +5,12 @@ It is not a claim that Rust already implements all of `Player::LoadFromDB` or `P
 The executable fixture is
 `crates/wow-world/tests/fixtures/player-lifecycle-contract.json`.
 
+This remains a bounded compatibility contract, not a current full-persistence
+audit. The #187/#200/#286 notes below retain their implementation history;
+current ownership and remaining work follow [STATE.md](STATE.md) and
+[#578 C0–C4](../architecture/session-578-checkpoint.md). Do not recompute the full
+persistence inventory for a metadata-only refresh of this document.
+
 ## C++ anchors
 
 - Load: `Player::LoadFromDB` and the `LoginQueryHolder` path in
@@ -45,8 +51,11 @@ SQL.
 - Rust explicitly fences an indeterminate COMMIT and forces relogin. The fixture preserves that
   current safety behavior without claiming it is a completed C++ parity implementation.
 
-These discrepancies are inputs to #200 and later parity work. Changing them in the architecture
-move requires an explicit behavior PR rather than silently changing the fixture.
+These discrepancies were inputs to #200 and remain bounded historical findings
+until re-contrasted. Intentionally changing behavior still requires explicit
+approval and separate behavior evidence; do not silently change the fixture in
+a refactor. An already approved behavior change need not acquire a second
+approval or a micro-PR solely because it is part of a larger authorized macro.
 
 ## #286 character-save port
 
@@ -62,12 +71,12 @@ The executable contracts are split deliberately:
 
 - `session::tests::save_plan_order::the_character_save_request_is_semantic_and_deterministic_like_cpp`
   pins the real Session's deterministic semantic request without exposing SQL;
-- `player_lifecycle_adapter::tests::character_save_adapter_preserves_the_frozen_statement_order_like_cpp`
+- `player_lifecycle_adapter::tests::save_order::character_save_adapter_preserves_the_frozen_statement_order_like_cpp`
   expands a semantic request and compares the exact SQL run order with
   `player-save-plan-order.json`; the fixture now covers every represented group plus equipment,
   transmog, void-storage and CUF insert/update/delete branches rather than the former twelve-group
   subset;
-- `player_lifecycle_adapter::tests::every_private_character_save_operation_maps_to_the_existing_mariadb_statement_like_cpp`
+- `player_lifecycle_adapter::tests::save_steps::every_private_character_save_operation_maps_to_the_existing_mariadb_statement_like_cpp`
   covers every private adapter operation and proves it still selects the previous MariaDB statement;
 - the lifecycle persistence tests drive production orchestration through a fake port and prove
   `Applied` clears dirty state, definite rollback preserves it, and unknown COMMIT both preserves

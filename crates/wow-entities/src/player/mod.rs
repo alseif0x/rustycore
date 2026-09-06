@@ -10,16 +10,28 @@
 //! location, writer, mirror or runtime clock changed.
 
 mod collections;
+mod damage_control;
+mod deferred_save;
 mod identity;
 mod items;
 mod location;
+mod menu;
+mod movement_control;
+mod pet_lifecycle;
 mod progression;
+pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
+mod resurrection;
+mod save_ack;
+pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
 mod social;
 mod spellbook;
+mod trait_config;
+pub use trait_config::{PlayerTraitConfigDetails, PlayerTraitConfigState, PlayerTraitEntry};
 mod visibility;
 mod vitals;
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::PlayerGameplayState;
 use bitflags::bitflags;
@@ -63,6 +75,9 @@ pub const CLASS_SHAMAN: u8 = 7;
 pub const SKILL_PLATE_MAIL: u32 = 293;
 pub const SKILL_MAIL: u32 = 413;
 pub const NULL_BAG: u8 = 0;
+/// C++ `TRADE_SLOT_COUNT`; kept with the Player-owned `TradeData` projection so
+/// the entity crate does not depend on packet serialization.
+pub const PLAYER_TRADE_SLOT_COUNT_LIKE_CPP: usize = 7;
 
 pub trait PlayerPowerIndexResolver {
     fn power_index_by_class(&self, power: PowerType, class_id: u8) -> Option<usize>;
@@ -408,14 +423,18 @@ impl Default for PlayerGameplayLoadPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerQuestGameplayState {
-    pub statuses: Vec<PlayerQuestStatusRecord>,
+    pub statuses: BTreeMap<u32, PlayerQuestStatusRecord>,
     pub objective_progress: Vec<PlayerQuestObjectiveProgress>,
-    pub rewarded_quest_ids: Vec<u32>,
-    pub daily_quest_ids: Vec<u32>,
-    pub weekly_quest_ids: Vec<u32>,
-    pub monthly_quest_ids: Vec<u32>,
-    pub seasonal_quest_ids: Vec<u32>,
-    pub df_quest_ids: Vec<u32>,
+    pub rewarded_quest_ids: BTreeSet<u32>,
+    pub daily_quest_ids: BTreeSet<u32>,
+    pub weekly_quest_ids: BTreeSet<u32>,
+    pub monthly_quest_ids: BTreeSet<u32>,
+    pub seasonal_quests: BTreeMap<u16, BTreeMap<u32, u64>>,
+    pub df_quest_ids: BTreeSet<u32>,
+    pub last_daily_quest_time_secs: i64,
+    pub seasonal_quest_changed: bool,
+    pub status_authority_complete: bool,
+    pub rewarded_quest_rows: BTreeSet<u32>,
     pub pending_share: Option<(ObjectGuid, u32)>,
     pub objective_counts_by_quest: Vec<(u32, Vec<i32>)>,
 }
@@ -425,7 +444,10 @@ pub struct PlayerQuestStatusRecord {
     pub quest_id: u32,
     pub status: u8,
     pub explored: bool,
-    pub timer_expires_at: Option<u64>,
+    pub accept_time_secs: i64,
+    pub end_time_secs: i64,
+    pub objective_counts: Vec<i32>,
+    pub slot: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -441,6 +463,17 @@ pub struct PlayerSkillRecord {
     pub current_value: u16,
     pub max_value: u16,
     pub step: u16,
+    pub profession_slot: i8,
+    pub state: PlayerSkillLoadState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlayerSkillLoadState {
+    #[default]
+    Unchanged,
+    Changed,
+    New,
+    Deleted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -460,20 +493,58 @@ impl Default for PlayerSpellLoadState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerKnownSpellRecord {
-    pub spell_id: u32,
+    pub spell_id: i32,
     pub state: PlayerSpellLoadState,
     pub active: bool,
+    pub disabled: bool,
     pub favorite: bool,
     pub dependent: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerTalentRecord {
-    pub talent_id: u32,
-    pub spell_id: u32,
-    pub rank: u8,
-    pub talent_group: u8,
-    pub specialization_id: Option<u32>,
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerSpellRuntimeState {
+    pub known_spells: Vec<i32>,
+    pub rows: BTreeMap<i32, PlayerKnownSpellRecord>,
+    pub rows_loaded: bool,
+    pub rows_complete: bool,
+    pub fallback_rows: BTreeMap<i32, PlayerKnownSpellRecord>,
+    pub dependent_known_spells: BTreeSet<i32>,
+    pub removed_known_spells: BTreeSet<i32>,
+    pub favorite_known_spells: BTreeSet<i32>,
+    pub trait_definition_ids: BTreeMap<i32, i32>,
+    pub trait_definition_ids_complete: bool,
+    /// Exact C++ `TraitConfig` headers loaded for this Player, keyed by
+    /// config ID. Completeness is explicit because an authoritative empty
+    /// entry result is materially different from an owner that was not
+    /// resolved during login.
+    pub trait_config_rows: BTreeMap<i32, PlayerTraitConfigState>,
+    pub trait_config_rows_complete: bool,
+    pub trait_entry_rows_complete: bool,
+    pub trait_entry_rows_empty: bool,
+    pub override_spells: BTreeMap<i32, BTreeSet<i32>>,
+    pub override_spells_complete: bool,
+}
+
+pub const PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
+pub const PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP: usize = 6;
+
+/// Exact mutable owner for C++ `Player::_specializationInfo.Talents` and
+/// `Player::_specializationInfo.Glyphs` (`Player.h:1039-1040`).
+///
+/// The load flags preserve the distinction between an authoritative empty DB
+/// result and state that has not been hydrated, so persistence never fabricates
+/// an empty replacement when the canonical owner is unavailable.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerTalentRuntimeState {
+    pub talent_groups: [BTreeMap<u32, u8>; PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
+    pub talents_loaded: bool,
+    pub glyph_groups: [[u16; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP]; PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
+    pub glyphs_loaded: bool,
+    /// C++ `Player::_specializationInfo.{ActiveGroup,BonusGroups,ResetTalentsCost,ResetTalentsTime}`.
+    pub active_group: u8,
+    pub bonus_groups: u8,
+    pub reset_talents_cost: u32,
+    pub reset_talents_time_secs: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -483,13 +554,29 @@ pub struct PlayerActionButtonRecord {
     pub action_type: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerTaxiFlightNodeLikeCpp {
+    pub map_id: u16,
+    pub position: Position,
+    pub teleport_flag: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerTaxiFlightStateLikeCpp {
+    pub current_node: PlayerTaxiFlightNodeLikeCpp,
+    pub node_after_teleport: Option<PlayerTaxiFlightNodeLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerTaxiState {
     pub known_node_mask: Vec<u8>,
     pub known_node_mask_text: Option<String>,
     pub source_node_id: Option<u32>,
     pub destination_node_id: Option<u32>,
     pub destinations: Vec<u32>,
+    pub flight: Option<PlayerTaxiFlightStateLikeCpp>,
+    pub unit_flags: u32,
+    pub mounted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -518,15 +605,161 @@ pub struct PlayerTransportState {
     pub vehicle_id: Option<i32>,
 }
 
+/// C++ `Player` state updated by `UpdateZone`, `UpdateArea`, `UpdatePvPState`
+/// and `UpdateContestedPvP`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerWorldLocalState {
+    pub zone_id: u32,
+    pub area_id: u32,
+    /// Rust extraction fidelity: true only when terrain produced zone/area.
+    pub zone_area_authority_complete: bool,
+    /// C++ `Player::pvpInfo.IsHostile`.
+    pub pvp_hostile: bool,
+    /// C++ `Player::pvpInfo.EndTimer`; `None` mirrors C++ zero.
+    pub pvp_end_timer: Option<i64>,
+    /// C++ `Player::m_contestedPvPTimer`.
+    pub contested_pvp_timer: u32,
+    /// C++ `WorldObject::IsOutdoors()` result; `None` means terrain/VMAP has
+    /// not established authority for the current position.
+    pub is_outdoors: Option<bool>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerMailRecord {
     pub mail_id: u32,
-    pub sender: ObjectGuid,
-    pub receiver: ObjectGuid,
+    /// C++ `Mail::messageType`; non-normal mail uses the raw sender as the
+    /// alternate sender identifier rather than a Player GUID.
+    pub message_type: u8,
+    pub sender: u64,
+    pub receiver: u64,
     pub template_id: Option<u32>,
     pub deliver_time: u64,
     pub expire_time: u64,
     pub checked_flags: u32,
+    pub stationery_id: i32,
+}
+
+/// C++ `CUFProfile`, owned by `Player::_CUFProfiles` rather than the packet
+/// session. Wire conversion remains in `wow-world`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerCufProfile {
+    pub profile_name: String,
+    pub frame_height: u16,
+    pub frame_width: u16,
+    pub sort_by: u8,
+    pub health_text: u8,
+    pub top_point: u8,
+    pub bottom_point: u8,
+    pub left_point: u8,
+    pub top_offset: u16,
+    pub bottom_offset: u16,
+    pub left_offset: u16,
+    pub bool_options: u32,
+}
+
+pub const PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
+pub const PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP: usize = 160;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerEquipmentSetTypeLikeCpp {
+    Equipment = 0,
+    Transmog = 1,
+}
+
+impl PlayerEquipmentSetTypeLikeCpp {
+    pub fn handler_branch_from_i32_like_cpp(value: i32) -> Option<Self> {
+        if value > Self::Transmog.as_i32_like_cpp() {
+            return None;
+        }
+        if value == Self::Equipment.as_i32_like_cpp() {
+            Some(Self::Equipment)
+        } else {
+            Some(Self::Transmog)
+        }
+    }
+
+    pub const fn as_i32_like_cpp(self) -> i32 {
+        self as i32
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerEquipmentSetUpdateStateLikeCpp {
+    Unchanged = 0,
+    Changed = 1,
+    New = 2,
+    Deleted = 3,
+}
+
+/// C++ `EquipmentSetInfo`, owned by `Player::_equipmentSets`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerEquipmentSetLikeCpp {
+    pub raw_set_type: i32,
+    pub set_type: PlayerEquipmentSetTypeLikeCpp,
+    pub guid: u64,
+    pub set_id: u32,
+    pub ignore_mask: u32,
+    pub pieces: [ObjectGuid; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    pub appearances: [i32; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    pub enchants: [i32; 2],
+    pub secondary_shoulder_appearance_id: i32,
+    pub secondary_shoulder_slot: i32,
+    pub secondary_weapon_appearance_id: i32,
+    pub secondary_weapon_slot: i32,
+    pub assigned_spec_index: i32,
+    pub set_name: String,
+    pub set_icon: String,
+    pub state: PlayerEquipmentSetUpdateStateLikeCpp,
+}
+
+impl PlayerEquipmentSetLikeCpp {
+    pub fn equipment(
+        set_id: u32,
+        assigned_spec_index: i32,
+        state: PlayerEquipmentSetUpdateStateLikeCpp,
+    ) -> Self {
+        Self {
+            raw_set_type: 0,
+            set_type: PlayerEquipmentSetTypeLikeCpp::Equipment,
+            guid: 0,
+            set_id,
+            ignore_mask: 0,
+            pieces: [ObjectGuid::EMPTY; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            appearances: [0; PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            enchants: [0; 2],
+            secondary_shoulder_appearance_id: 0,
+            secondary_shoulder_slot: 0,
+            secondary_weapon_appearance_id: 0,
+            secondary_weapon_slot: 0,
+            assigned_spec_index,
+            set_name: String::new(),
+            set_icon: String::new(),
+            state,
+        }
+    }
+
+    pub fn transmog(
+        set_id: u32,
+        assigned_spec_index: i32,
+        state: PlayerEquipmentSetUpdateStateLikeCpp,
+    ) -> Self {
+        let mut set = Self::equipment(set_id, assigned_spec_index, state);
+        set.raw_set_type = 1;
+        set.set_type = PlayerEquipmentSetTypeLikeCpp::Transmog;
+        set
+    }
+}
+
+/// C++ `VoidStorageItem`, owned by `Player::_voidStorageItems`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerVoidStorageItemLikeCpp {
+    pub item_id: u64,
+    pub item_entry: u32,
+    pub creator_guid: ObjectGuid,
+    pub fixed_scaling_level: u32,
+    pub random_properties_id: i32,
+    pub random_properties_seed: i32,
+    pub context: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -537,11 +770,58 @@ pub struct PlayerGroupState {
     pub subgroup: u8,
 }
 
+/// C++ `Player::GroupUpdateSequence`, owned per player and group category.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerGroupUpdateSequenceLikeCpp {
+    pub group_guid: Option<u64>,
+    pub update_sequence_number: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerGuildState {
     pub guild_id: Option<u64>,
     pub invited_guild_id: Option<u64>,
     pub rank_id: Option<u32>,
+    /// True after C++ `_LoadGuild` resolved membership, including no guild.
+    pub authority_complete: bool,
+}
+
+/// C++ `TradeData`, uniquely owned by `Player::m_trade` while a trade is open.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerTradeStateLikeCpp {
+    pub partner_guid: ObjectGuid,
+    pub accepted: bool,
+    pub partner_server_state_index: u32,
+    pub client_state_index: u32,
+    pub server_state_index: u32,
+    pub items: [Option<ObjectGuid>; PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],
+    pub money: u64,
+    pub spell_id: u32,
+    pub spell_cast_item_guid: Option<ObjectGuid>,
+}
+
+/// Persistent C++ `Player` capability fields loaded with the character row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerPersistentCapabilityStateLikeCpp {
+    pub at_login_flags: u16,
+    pub weapon_proficiency: u32,
+    pub armor_proficiency: u32,
+}
+
+impl PlayerTradeStateLikeCpp {
+    pub const fn new(partner_guid: ObjectGuid) -> Self {
+        Self {
+            partner_guid,
+            accepted: false,
+            partner_server_state_index: 0,
+            client_state_index: 1,
+            server_state_index: 1,
+            items: [None; PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],
+            money: 0,
+            spell_id: 0,
+            spell_cast_item_guid: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -550,6 +830,31 @@ pub struct PlayerBattlegroundState {
     pub current_bg_instance_id: Option<u32>,
     pub current_bg_team: Option<u32>,
     pub random: PlayerRandomBattlegroundState,
+    /// Represented C++ `Player::m_bgData.bgTypeID`.
+    pub represented_type_id: Option<u32>,
+    /// Represented current battleground map/instance map used by teleport leave gates.
+    pub represented_map_id: Option<u32>,
+    /// Represented `Battleground::GetStatus()` until live Battleground ownership exists.
+    pub represented_status: Option<u8>,
+    /// C++ `Player::m_bgData.bgBattlegroundQueueID` slots.
+    pub represented_queue_slots: Vec<PlayerBattlegroundQueueSlotLikeCpp>,
+    /// C++ `Player::m_ArenaTeamIdInvited`.
+    pub arena_team_id_invited: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerBattlegroundQueueTypeIdLikeCpp {
+    pub battlemaster_list_id: u16,
+    pub queue_type: u8,
+    pub rated: bool,
+    pub team_size: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerBattlegroundQueueSlotLikeCpp {
+    pub slot: u32,
+    pub queue_type_id: PlayerBattlegroundQueueTypeIdLikeCpp,
+    pub invited_instance_guid: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -566,11 +871,16 @@ pub struct PlayerRandomBattlegroundState {
     pub last_reward_time: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerReputationRecord {
     pub faction_id: u32,
+    /// C++ `FactionState::ReputationListID`, the stable client-array key.
+    pub reputation_list_id: u32,
     pub standing: i32,
     pub flags: u32,
+    pub visual_standing_increase: i32,
+    pub need_send: bool,
+    pub need_save: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -617,6 +927,12 @@ pub struct PlayerRestState {
     pub rest_bonus: f32,
     pub rest_honor_bonus: f32,
     pub rest_state: u8,
+    pub rest_flag_mask: u32,
+    pub location_initialized: bool,
+    pub defer_flag_sync: bool,
+    pub deferred_flag_update_dirty: bool,
+    pub inn_area_trigger_id: u32,
+    pub rest_time_secs: u64,
     pub logout_time: Option<u64>,
     pub logout_was_resting: bool,
     pub is_resting_now: bool,
@@ -3074,6 +3390,110 @@ pub enum PlayerStorageError {
     TopLevelBuybackHiddenFromGetItemByPos(u8),
 }
 
+/// Persistent identity and template metadata for one Player-owned item.
+///
+/// C++ stores the concrete `Item*` directly in `Player::m_items`
+/// (`Player.h:2935`). Rust keeps this small record alongside the concrete
+/// [`Item`] so database identity and the effective inventory type travel with
+/// the same canonical Player lifetime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInventoryItem {
+    pub guid: ObjectGuid,
+    pub entry_id: u32,
+    pub db_guid: u64,
+    pub inventory_type: Option<u8>,
+}
+
+/// Concrete item/object runtime owned by the canonical Player.
+///
+/// This is deliberately a private Player substate rather than a shared lock:
+/// MapManager's generation-checked Player handle remains the only route to a
+/// mutable owner, including while the Player is detached for a far teleport.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerInventoryRuntime {
+    /// True only after the persisted equipment query completed coherently for
+    /// this Player lifetime. An empty runtime inventory is not source proof.
+    equipment_inventory_authority_complete_like_cpp: bool,
+    inventory_items: HashMap<u8, PlayerInventoryItem>,
+    buyback_items: HashMap<u8, PlayerInventoryItem>,
+    buyback_price: [u32; BUYBACK_SLOT_COUNT],
+    buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
+    current_buyback_slot: u8,
+    item_objects: HashMap<ObjectGuid, Item>,
+}
+
+impl PlayerInventoryRuntime {
+    pub const fn equipment_inventory_authority_complete_like_cpp(&self) -> bool {
+        self.equipment_inventory_authority_complete_like_cpp
+    }
+
+    pub fn set_equipment_inventory_authority_complete_like_cpp(&mut self, complete: bool) {
+        self.equipment_inventory_authority_complete_like_cpp = complete;
+    }
+
+    pub fn inventory_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
+        &self.inventory_items
+    }
+
+    pub fn inventory_items_mut(&mut self) -> &mut HashMap<u8, PlayerInventoryItem> {
+        &mut self.inventory_items
+    }
+
+    pub fn buyback_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
+        &self.buyback_items
+    }
+
+    pub fn buyback_items_mut(&mut self) -> &mut HashMap<u8, PlayerInventoryItem> {
+        &mut self.buyback_items
+    }
+
+    pub const fn buyback_price(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
+        &self.buyback_price
+    }
+
+    pub fn buyback_price_mut(&mut self) -> &mut [u32; BUYBACK_SLOT_COUNT] {
+        &mut self.buyback_price
+    }
+
+    pub const fn buyback_timestamp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
+        &self.buyback_timestamp
+    }
+
+    pub fn buyback_timestamp_mut(&mut self) -> &mut [i64; BUYBACK_SLOT_COUNT] {
+        &mut self.buyback_timestamp
+    }
+
+    pub const fn current_buyback_slot(&self) -> u8 {
+        self.current_buyback_slot
+    }
+
+    pub fn set_current_buyback_slot(&mut self, slot: u8) {
+        self.current_buyback_slot = slot;
+    }
+
+    pub fn item_objects(&self) -> &HashMap<ObjectGuid, Item> {
+        &self.item_objects
+    }
+
+    pub fn item_objects_mut(&mut self) -> &mut HashMap<ObjectGuid, Item> {
+        &mut self.item_objects
+    }
+}
+
+impl Default for PlayerInventoryRuntime {
+    fn default() -> Self {
+        Self {
+            equipment_inventory_authority_complete_like_cpp: false,
+            inventory_items: HashMap::new(),
+            buyback_items: HashMap::new(),
+            buyback_price: [0; BUYBACK_SLOT_COUNT],
+            buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
+            current_buyback_slot: BUYBACK_SLOT_START,
+            item_objects: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerBagStorage {
     pub bag_guid: ObjectGuid,
@@ -3288,8 +3708,11 @@ pub struct Player {
     session_id: Option<u64>,
     data: PlayerDataValues,
     active_data: ActivePlayerDataValues,
-    inventory: PlayerInventoryStorage,
+    inventory: Box<PlayerInventoryStorage>,
+    inventory_runtime: Box<PlayerInventoryRuntime>,
     gameplay_state: PlayerGameplayState,
+    deferred_save: deferred_save::DeferredPlayerSave,
+    player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
     active_player_data_changes: UpdateMask,
     rest_info_change_masks: [u8; 2],
@@ -3310,7 +3733,7 @@ pub struct Player {
     enchant_durations: Vec<PlayerEnchantDuration>,
     lifecycle_metadata: PlayerLifecycleMetadata,
     duel: Option<PlayerDuelInfoLikeCpp>,
-    forced_reaction_faction_ids: HashSet<u32>,
+    duel_arbiter: Option<ObjectGuid>,
 }
 
 impl Player {
@@ -3326,8 +3749,11 @@ impl Player {
             session_id,
             data: PlayerDataValues::default(),
             active_data: ActivePlayerDataValues::default(),
-            inventory: PlayerInventoryStorage::default(),
+            inventory: Box::default(),
+            inventory_runtime: Box::default(),
             gameplay_state: PlayerGameplayState::default(),
+            deferred_save: deferred_save::DeferredPlayerSave::default(),
+            player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),
             rest_info_change_masks: [0; 2],
@@ -3348,7 +3774,7 @@ impl Player {
             enchant_durations: Vec::new(),
             lifecycle_metadata: PlayerLifecycleMetadata::default(),
             duel: None,
-            forced_reaction_faction_ids: HashSet::new(),
+            duel_arbiter: None,
         }
     }
 
@@ -3536,6 +3962,14 @@ impl Player {
         self.duel = duel;
     }
 
+    pub const fn duel_arbiter_like_cpp(&self) -> Option<ObjectGuid> {
+        self.duel_arbiter
+    }
+
+    pub fn set_duel_arbiter_like_cpp(&mut self, arbiter: Option<ObjectGuid>) {
+        self.duel_arbiter = arbiter;
+    }
+
     pub fn set_duel_opponent_in_progress_like_cpp(&mut self, opponent: ObjectGuid) {
         self.duel = Some(PlayerDuelInfoLikeCpp {
             opponent,
@@ -3545,6 +3979,7 @@ impl Player {
 
     pub fn clear_duel_like_cpp(&mut self) {
         self.duel = None;
+        self.duel_arbiter = None;
     }
 
     pub fn is_dueling_opponent_in_progress_like_cpp(&self, opponent: ObjectGuid) -> bool {
@@ -3692,6 +4127,14 @@ impl Player {
             i32::from(points),
             |data| &mut data.character_points,
         );
+    }
+
+    /// Set C++ `UF::ActivePlayerData::CharacterPoints` without narrowing the
+    /// signed update-field value used by talent initialization.
+    pub fn set_character_points_like_cpp(&mut self, points: i32) {
+        self.set_active_i32(ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT, points, |data| {
+            &mut data.character_points
+        });
     }
 
     pub fn is_valid_pos(&self, bag: u8, slot: u8, explicit_pos: bool) -> bool {

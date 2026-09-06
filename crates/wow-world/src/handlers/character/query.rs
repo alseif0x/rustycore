@@ -16,7 +16,11 @@ impl WorldSession {
     /// WDC4/DB2 record bytes, which are not the same wire format. Only typed
     /// stores implemented here may answer Valid; missing typed storage follows
     /// the C++ Invalid branch and lets the client use its local DB2 cache.
-    pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
+    pub(crate) async fn handle_db_query_bulk_with_tact_keys_like_cpp(
+        &mut self,
+        tact_keys: &wow_data::TactKeyStore,
+        query: wow_packet::packets::misc::DbQueryBulk,
+    ) {
         info!(
             "DbQueryBulk: table=0x{:08X}, {} records {:?} for account {}",
             query.table_hash,
@@ -29,7 +33,7 @@ impl WorldSession {
                 let tact_key = (*record_id)
                     .try_into()
                     .ok()
-                    .and_then(|id| self.tact_key_store().and_then(|store| store.get(id)));
+                    .and_then(|id| tact_keys.get(id));
                 if let Some(entry) = tact_key {
                     debug!(
                         "DbQueryBulk: TactKey.db2 record={} -> Valid(1), 16-byte typed WriteRecord payload",
@@ -58,61 +62,38 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
+        let tact_keys = self
+            .tact_key_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| Arc::new(wow_data::TactKeyStore::from_entries([])));
+        self.handle_db_query_bulk_with_tact_keys_like_cpp(tact_keys.as_ref(), query)
+            .await;
+    }
+
     /// Handle CMSG_QUERY_CREATURE — client requests creature template data.
     ///
     /// The client sends this automatically after receiving an UpdateObject with
     /// unknown creature entries. Without a response, NPC names don't display
     /// and interaction menus don't work.
-    pub async fn handle_query_creature(&mut self, query: QueryCreature) {
+    pub(crate) async fn handle_query_creature_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+        query: QueryCreature,
+    ) {
         // If already responded, skip — client caches locally after first response
         if self.creature_query_cache.contains(&query.creature_id) {
             return;
         }
         self.creature_query_cache.insert(query.creature_id);
 
-        let port = match self.creature_query_catalog_persistence_port_like_cpp() {
-            Some(port) => port,
-            None => {
-                self.send_packet(&QueryCreatureResponse {
-                    creature_id: query.creature_id,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-        };
-
-        let row = match port
-            .load_creature_query_catalog_like_cpp(
-                wow_persistence::CreatureQueryCatalogRequestLikeCpp {
-                    entry: query.creature_id,
-                    locale: self.locale.clone(),
-                },
-            )
-            .await
+        let row = match catalogs
+            .creature
+            .resolve_like_cpp(query.creature_id, &self.locale)
         {
-            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Found { row, locale_error } => {
-                if let Some(error) = locale_error {
-                    warn!(
-                        "Failed to query creature locale for {}: {error}",
-                        query.creature_id
-                    );
-                }
-                row
-            }
-            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Failed { reason } => {
-                debug!(
-                    "Failed to query creature template {}: {reason}",
-                    query.creature_id
-                );
-                self.send_packet(&QueryCreatureResponse {
-                    creature_id: query.creature_id,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Missing => {
+            Some(row) => row,
+            None => {
                 self.send_packet(&QueryCreatureResponse {
                     creature_id: query.creature_id,
                     allow: false,
@@ -173,66 +154,28 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
+    pub async fn handle_query_creature(&mut self, query: QueryCreature) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_query_creature_with_catalogs_like_cpp(&catalogs, query)
+            .await;
+    }
+
     /// Handle CMSG_QUERY_GAME_OBJECT — client requests gameobject template data.
-    pub async fn handle_query_game_object(
+    pub(crate) async fn handle_query_game_object_with_catalogs_like_cpp(
         &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
         query: wow_packet::packets::query::QueryGameObject,
     ) {
-        let port = match self.gameobject_query_catalog_persistence_port_like_cpp() {
-            Some(port) => port,
-            None => {
-                self.send_packet(&QueryGameObjectResponse {
-                    game_object_id: query.game_object_id,
-                    guid: query.guid,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-        };
-
-        let row = match port
-            .load_gameobject_query_catalog_like_cpp(
-                wow_persistence::GameObjectQueryCatalogRequestLikeCpp {
-                    entry: query.game_object_id,
-                    locale: self.locale.clone(),
-                },
-            )
-            .await
+        let row = match catalogs
+            .gameobject
+            .resolve_like_cpp(query.game_object_id, &self.locale)
         {
-            wow_persistence::GameObjectQueryCatalogOutcomeLikeCpp::Found {
-                row,
-                locale_error,
-                quest_items_error,
-            } => {
-                if let Some(error) = locale_error {
-                    debug!(
-                        "Failed to query gameobject locale {} {}: {error}",
-                        query.game_object_id, self.locale
-                    );
-                }
-                if let Some(error) = quest_items_error {
-                    debug!(
-                        "Failed to query gameobject quest items {}: {error}",
-                        query.game_object_id
-                    );
-                }
-                row
-            }
-            wow_persistence::GameObjectQueryCatalogOutcomeLikeCpp::Failed { reason } => {
-                debug!(
-                    "Failed to query gameobject template {}: {reason}",
-                    query.game_object_id
-                );
-                self.send_packet(&QueryGameObjectResponse {
-                    game_object_id: query.game_object_id,
-                    guid: query.guid,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-            wow_persistence::GameObjectQueryCatalogOutcomeLikeCpp::Missing => {
+            Some(row) => row,
+            None => {
                 self.send_packet(&QueryGameObjectResponse {
                     game_object_id: query.game_object_id,
                     guid: query.guid,
@@ -255,7 +198,13 @@ impl WorldSession {
             display_id: row.display_id,
             data: row.data,
             size: row.size,
-            quest_items: row.quest_items,
+            quest_items: catalogs
+                .gameobject_quest_items
+                .get_gameobject_quest_item_list_like_cpp(query.game_object_id)
+                .into_iter()
+                .flatten()
+                .filter_map(|item| i32::try_from(*item).ok())
+                .collect(),
             content_tuning_id: row.content_tuning_id,
         };
 
@@ -267,40 +216,29 @@ impl WorldSession {
         });
     }
 
-    pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
-        let port = match self.page_text_catalog_persistence_port_like_cpp() {
-            Some(port) => port,
-            None => {
-                self.send_packet(&QueryPageTextResponse {
-                    page_text_id: query.page_text_id,
-                    allow: false,
-                    pages: Vec::new(),
-                });
-                return;
-            }
-        };
-
-        let outcome = port
-            .load_page_text_catalog_like_cpp(wow_persistence::PageTextCatalogRequestLikeCpp {
-                page_text_id: query.page_text_id,
-                locale: self.locale.clone(),
-            })
+    #[cfg(test)]
+    pub async fn handle_query_game_object(
+        &mut self,
+        query: wow_packet::packets::query::QueryGameObject,
+    ) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_query_game_object_with_catalogs_like_cpp(&catalogs, query)
             .await;
-        for diagnostic in outcome.diagnostics {
-            match diagnostic {
-                wow_persistence::PageTextCatalogDiagnosticLikeCpp::PageReadFailed {
-                    page_text_id,
-                    reason,
-                } => debug!("Failed to query page text {page_text_id}: {reason}"),
-                wow_persistence::PageTextCatalogDiagnosticLikeCpp::LocaleReadFailed {
-                    page_text_id,
-                    locale,
-                    reason,
-                } => debug!("Failed to query page text locale {page_text_id} {locale}: {reason}"),
-            }
-        }
-        let pages = outcome
-            .pages
+    }
+
+    pub(crate) async fn handle_query_page_text_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+        query: QueryPageText,
+    ) {
+        let pages = catalogs
+            .page_text
+            .resolve_chain_like_cpp(query.page_text_id, &self.locale);
+
+        let pages = pages
             .into_iter()
             .map(|page| PageTextInfo {
                 id: page.id,
@@ -318,10 +256,19 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
+    pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_query_page_text_with_catalogs_like_cpp(&catalogs, query)
+            .await;
+    }
+
     pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
         let response = self
-            .inventory_item_objects_like_cpp()
-            .get(&query.id)
+            .resolved_inventory_item_object_like_cpp(query.id)
             .map(|item| QueryItemTextResponse::valid_like_cpp(query.id, item.text().to_string()))
             .unwrap_or_else(|| QueryItemTextResponse::invalid_like_cpp(query.id));
 
@@ -358,12 +305,10 @@ impl WorldSession {
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let managed = manager.find_map(key.map_id, key.instance_id)?;
-        let pet = managed.map().map_object_record(unit_guid)?.pet()?;
-        if pet.owner_guid() != player_guid {
-            return None;
-        }
-
-        let name = pet.creature().unit().world().name().to_string();
+        let name = managed.map().with_pet_like_cpp(unit_guid, |pet| {
+            (pet.owner_guid() == player_guid)
+                .then(|| pet.creature().unit().world().name().to_string())
+        })??;
         // C++ reads UnitData::PetNameTimestamp. The canonical entity model has
         // not exposed normal-pet rename/load timestamps yet, so this bounded
         // branch preserves the default timestamp until that runtime lands.
@@ -545,6 +490,25 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
+    pub async fn handle_quest_giver_status_multiple_query(&mut self) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.handle_quest_giver_status_multiple_query_with_catalog_like_cpp(
+            catalogs.quest_info.as_ref(),
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_quest_giver_status_tracked_query(&mut self, pkt: WorldPacket) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.handle_quest_giver_status_tracked_query_with_catalog_like_cpp(
+            catalogs.quest_info.as_ref(),
+            pkt,
+        )
+        .await;
+    }
+
     /// Handle CMSG_QUEST_GIVER_STATUS_MULTIPLE_QUERY — client asks quest status for visible questgivers.
     ///
     /// C++ anchors:
@@ -555,7 +519,10 @@ impl WorldSession {
     /// `QuestStore` relations -> one outbound packet only. This handler must not mutate map,
     /// QuestStore, ObjectAccessor/GameEvent, or player state. Exact Creature hostility/faction remains
     /// a documented gap; represented Creature NPC QUEST_GIVER flag is enforced when available.
-    pub async fn handle_quest_giver_status_multiple_query(&mut self) {
+    pub async fn handle_quest_giver_status_multiple_query_with_catalog_like_cpp(
+        &mut self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
+    ) {
         trace!(
             "QuestGiverStatusMultipleQuery from account {}",
             self.account_id
@@ -566,7 +533,7 @@ impl WorldSession {
             .snapshot_like_cpp()
             .into_iter()
             .collect();
-        let statuses = self.collect_quest_giver_status_multiple_like_cpp(visible_guids);
+        let statuses = self.collect_quest_giver_status_multiple_like_cpp(quest_info, visible_guids);
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 
@@ -581,7 +548,11 @@ impl WorldSession {
     /// read-only `QuestStore` status -> one outbound packet only. This must not read the visible GUID
     /// cache and must not mutate map, QuestStore, ObjectAccessor/GameEvent, player quest state, or
     /// represented visibility state.
-    pub async fn handle_quest_giver_status_tracked_query(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_quest_giver_status_tracked_query_with_catalog_like_cpp(
+        &mut self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
+        mut pkt: WorldPacket,
+    ) {
         trace!(
             "QuestGiverStatusTrackedQuery from account {}",
             self.account_id
@@ -617,7 +588,8 @@ impl WorldSession {
             }
         }
 
-        let statuses = self.collect_quest_giver_status_multiple_like_cpp(quest_giver_guids);
+        let statuses =
+            self.collect_quest_giver_status_multiple_like_cpp(quest_info, quest_giver_guids);
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 }

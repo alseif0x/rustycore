@@ -48,6 +48,8 @@ pub(crate) enum SessionDriverPhaseLikeCpp {
     PendingCreatureSpawn,
     /// Dispatch the packets ingested earlier in this pass.
     DispatchQueuedPackets,
+    /// Session-owned ready rename reads/commit results; never awaits DB work.
+    CharacterRenameCallbacks,
     /// Periodic character save.
     PeriodicPlayerSave,
 }

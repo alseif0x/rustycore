@@ -1,5 +1,10 @@
 # Honest progress audit — RustyCore port (R8-entities miniphase)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 **Date:** 2026-06-20 · **Base commit:** `develop` after `#NEXT.R8.ENTITIES.1198`
 
 This document exists to prevent the headline `98.15%` from being read as "almost a

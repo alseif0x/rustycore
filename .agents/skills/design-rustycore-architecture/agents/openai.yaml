@@ -1,4 +1,4 @@
 interface:
   display_name: "Design RustyCore Architecture"
-  short_description: "Design ownership and crate boundaries safely"
-  default_prompt: "Use $design-rustycore-architecture to audit this RustyCore subsystem and propose an incremental architecture plan."
+  short_description: "Evaluate architecture against capabilities and evidence"
+  default_prompt: "Use $design-rustycore-architecture to evaluate this RustyCore architecture decision against current evidence, compare alternatives, and recommend a capability-focused path."

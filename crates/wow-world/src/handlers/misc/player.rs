@@ -31,7 +31,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_far_sight",
-        handler: |session, pkt| Box::pin(async move { session.handle_far_sight(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_far_sight_with_catalogs_like_cpp(
+                        catalogs.creature_spawns.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -41,7 +50,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_selection",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_selection(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_selection(pkt).await }),
     }
 }
 
@@ -51,7 +60,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_stand_state_change",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_stand_state_change(pkt).await })
         },
     }
@@ -63,7 +72,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_time",
-        handler: |session, _pkt| Box::pin(async move { session.handle_query_time().await }),
+        handler: |session, _catalogs, _pkt| Box::pin(async move { session.handle_query_time().await }),
     }
 }
 
@@ -73,7 +82,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_next_mail_time",
-        handler: |session, _pkt| {
+        handler: |session, _catalogs, _pkt| {
             Box::pin(async move { session.handle_query_next_mail_time().await })
         },
     }
@@ -85,7 +94,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_action_button",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_action_button(pkt).await })
         },
     }
@@ -97,7 +106,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_difficulty_id",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_difficulty_id(pkt).await })
         },
     }
@@ -109,7 +118,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_toggle_difficulty",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_toggle_difficulty(pkt).await })
         },
     }
@@ -121,7 +130,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_dungeon_difficulty",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_dungeon_difficulty(pkt).await })
         },
     }
@@ -133,7 +142,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_raid_difficulty",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_raid_difficulty(pkt).await })
         },
     }
@@ -145,7 +154,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_title",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_title(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_title(pkt).await }),
     }
 }
 
@@ -155,7 +164,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_get_item_purchase_data",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_get_item_purchase_data(pkt).await })
         },
     }
@@ -164,7 +173,11 @@ inventory::submit! {
 impl crate::session::WorldSession {
     /// C++ `WorldSession::HandleFarSightOpcode`: does not create/remove the
     /// viewpoint; it only switches the represented seer and forces visibility.
-    pub async fn handle_far_sight(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_far_sight_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let far_sight = match FarSight::read(&mut pkt) {
             Ok(far_sight) => far_sight,
             Err(err) => {
@@ -174,7 +187,15 @@ impl crate::session::WorldSession {
         };
 
         self.apply_far_sight_like_cpp(far_sight.enable);
-        self.force_update_visibility_like_cpp().await;
+        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_far_sight(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_far_sight_with_catalogs_like_cpp(&catalogs, pkt)
+            .await;
     }
 
     /// CMSG_SET_SELECTION — client clicked/targeted an object.
@@ -240,41 +261,18 @@ impl crate::session::WorldSession {
         const MAIL_CHECK_MASK_READ_LIKE_CPP: u8 = 0x01;
         const MAIL_NORMAL_LIKE_CPP: u8 = 0;
 
-        let Some(port) = self.next_mail_time_persistence_port_like_cpp() else {
+        let Some(rows) = self.owned_player_mails_like_cpp() else {
             self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
             return;
         };
-
-        let Some(player_object_guid) = self.player_guid() else {
-            self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
-            return;
-        };
-
-        let player_guid = player_object_guid.counter() as u64;
         let now = GameTime::now().as_secs() as i64;
-        let rows = match port
-            .load_next_mail_time_rows_like_cpp(wow_persistence::NextMailTimeLoadRequestLikeCpp {
-                player_guid,
-            })
-            .await
-        {
-            wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Loaded(rows) => rows,
-            wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    error = %reason,
-                    player_guid, "Failed to query mail for CMSG_QUERY_NEXT_MAIL_TIME"
-                );
-                self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
-                return;
-            }
-        };
 
         let mut packet = MailQueryNextTimeResult::no_mail();
         let mut sent_senders = std::collections::BTreeSet::new();
 
         for row in rows {
-            if (row.checked & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
-                && now >= row.deliver_time
+            if (row.checked_flags as u8 & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
+                && now >= row.deliver_time as i64
                 && sent_senders.insert(row.sender)
             {
                 let sender_guid = if row.message_type == MAIL_NORMAL_LIKE_CPP {
@@ -286,14 +284,14 @@ impl crate::session::WorldSession {
                 packet.next_mail_time = 0.0;
                 packet.next.push(MailNextTimeEntry {
                     sender_guid,
-                    time_left: (row.deliver_time - now) as f32,
+                    time_left: (row.deliver_time as i64 - now) as f32,
                     alt_sender_id: if row.message_type == MAIL_NORMAL_LIKE_CPP {
                         0
                     } else {
                         row.sender as i32
                     },
                     alt_sender_type: row.message_type as i8,
-                    stationery_id: row.stationery,
+                    stationery_id: row.stationery_id,
                 });
 
                 if sent_senders.len() > 2 {
@@ -482,8 +480,8 @@ impl crate::session::WorldSession {
 
         let Some(packet) = (|| {
             let item = self
-                .inventory_item_objects_like_cpp()
-                .get(&request.item_guid)?;
+                .resolved_inventory_item_objects_like_cpp()
+                .and_then(|items| items.get(&request.item_guid).cloned())?;
             if !item.is_refundable() || item.refund_recipient() != player_guid {
                 return None;
             }

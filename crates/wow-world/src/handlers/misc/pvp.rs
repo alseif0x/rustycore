@@ -22,7 +22,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_battlefield_status",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_battlefield_status(pkt).await })
         },
     }
@@ -34,7 +34,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_hello",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battlemaster_hello(pkt).await })
         },
     }
@@ -46,7 +46,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_list",
-        handler: |session, pkt| Box::pin(async move { session.handle_battlefield_list(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_battlefield_list_with_catalog_like_cpp(
+                        catalogs.battlemaster_lists.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -56,8 +65,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_battlemaster_join(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_battlemaster_join_with_catalog_like_cpp(
+                        catalogs.battlemaster_lists.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -68,8 +84,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join_arena",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_battlemaster_join_arena(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_battlemaster_join_arena_with_catalog_like_cpp(
+                        catalogs.battlemaster_lists.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -80,8 +103,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join_skirmish",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_battlemaster_join_skirmish(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_battlemaster_join_skirmish_with_catalog_like_cpp(
+                        catalogs.battlemaster_lists.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -92,7 +122,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_port",
-        handler: |session, pkt| Box::pin(async move { session.handle_battlefield_port(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_battlefield_port(pkt).await }),
     }
 }
 
@@ -102,7 +132,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_rated_pvp_info",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_rated_pvp_info(pkt).await })
         },
     }
@@ -114,7 +144,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_leave",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battlefield_leave(pkt).await })
         },
     }
@@ -126,7 +156,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_wargame_invite",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_accept_wargame_invite(pkt).await })
         },
     }
@@ -138,7 +168,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_pvp_rewards",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_pvp_rewards(pkt).await })
         },
     }
@@ -150,7 +180,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_toggle_pvp",
-        handler: |session, pkt| Box::pin(async move { session.handle_toggle_pvp(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_toggle_pvp(pkt).await }),
     }
 }
 
@@ -160,7 +190,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_pvp",
-        handler: |session, pkt| Box::pin(async move { session.handle_set_pvp(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_pvp(pkt).await }),
     }
 }
 
@@ -204,7 +234,11 @@ impl crate::session::WorldSession {
     /// CMSG_BATTLEFIELD_LIST — player asks for the queue list of a battleground type.
     /// C++ ref: `WorldSession::HandleBattlefieldListOpcode`.
 
-    pub async fn handle_battlefield_list(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_battlefield_list_with_catalog_like_cpp(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match BattlefieldListRequest::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -219,13 +253,17 @@ impl crate::session::WorldSession {
         // C++ returns silently when sBattlemasterListStore has no ListID row.
         // The accepted branch records the SendBattlegroundList intent until
         // BattlegroundMgr owns live queue/list packets in Rust.
-        let _accepted = self.battlefield_list_like_cpp(request.list_id);
+        let _accepted = self.battlefield_list_like_cpp(battlemaster_lists, request.list_id);
     }
 
     /// CMSG_BATTLEMASTER_JOIN — player asks to join a battleground queue.
     /// C++ ref: `WorldSession::HandleBattlemasterJoinOpcode`.
 
-    pub async fn handle_battlemaster_join(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_battlemaster_join_with_catalog_like_cpp(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let join = match BattlemasterJoin::read(&mut pkt) {
             Ok(join) => join,
             Err(error) => {
@@ -240,14 +278,22 @@ impl crate::session::WorldSession {
         // C++ returns silently for missing/invalid queues and early queue gates.
         // The accepted branch records the queue intent until BattlegroundQueue
         // and BattlegroundMgr queue-status packets are live in Rust.
-        let _accepted =
-            self.battlemaster_join_like_cpp(&join.queue_ids, join.roles, join.blacklist_map);
+        let _accepted = self.battlemaster_join_like_cpp(
+            battlemaster_lists,
+            &join.queue_ids,
+            join.roles,
+            join.blacklist_map,
+        );
     }
 
     /// CMSG_BATTLEMASTER_JOIN_ARENA — player asks to join a rated arena queue.
     /// C++ ref: `WorldSession::HandleBattlemasterJoinArena`.
 
-    pub async fn handle_battlemaster_join_arena(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_battlemaster_join_arena_with_catalog_like_cpp(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let join = match BattlemasterJoinArena::read(&mut pkt) {
             Ok(join) => join,
             Err(error) => {
@@ -263,13 +309,21 @@ impl crate::session::WorldSession {
         // group and leader before entering ArenaTeamMgr/queue code. Rust records
         // the bounded queue intent after those representable gates until the
         // live rated-arena manager is ported.
-        let _accepted = self.battlemaster_join_arena_like_cpp(join.team_size_index, join.roles);
+        let _accepted = self.battlemaster_join_arena_like_cpp(
+            battlemaster_lists,
+            join.team_size_index,
+            join.roles,
+        );
     }
 
     /// CMSG_BATTLEMASTER_JOIN_SKIRMISH — player asks to join an arena skirmish queue.
     /// C++ ref: `WorldSession::HandleBattlemasterJoinSkirmish`.
 
-    pub async fn handle_battlemaster_join_skirmish(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_battlemaster_join_skirmish_with_catalog_like_cpp(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let join = match BattlemasterJoinSkirmish::read(&mut pkt) {
             Ok(join) => join,
             Err(error) => {
@@ -285,11 +339,51 @@ impl crate::session::WorldSession {
         // and only applies group/leader gates when AsGroup is set. Queue add and
         // status fanout remain represented until live BattlegroundQueue is ported.
         let _accepted = self.battlemaster_join_skirmish_like_cpp(
+            battlemaster_lists,
             join.bg_type_id,
             join.bracket_id,
             join.as_group,
             join.is_rated,
         );
+    }
+
+    #[cfg(test)]
+    fn battlemaster_list_catalog_for_test_like_cpp(
+        &self,
+    ) -> std::sync::Arc<wow_data::BattlemasterListStore> {
+        self.battlemaster_list_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| {
+                std::sync::Arc::new(wow_data::BattlemasterListStore::from_entries([]))
+            })
+    }
+
+    #[cfg(test)]
+    pub async fn handle_battlefield_list(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
+        self.handle_battlefield_list_with_catalog_like_cpp(catalog.as_ref(), pkt)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_battlemaster_join(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
+        self.handle_battlemaster_join_with_catalog_like_cpp(catalog.as_ref(), pkt)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_battlemaster_join_arena(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
+        self.handle_battlemaster_join_arena_with_catalog_like_cpp(catalog.as_ref(), pkt)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_battlemaster_join_skirmish(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
+        self.handle_battlemaster_join_skirmish_with_catalog_like_cpp(catalog.as_ref(), pkt)
+            .await;
     }
 
     /// CMSG_BATTLEFIELD_PORT — player accepts an invite or leaves a BG queue slot.
@@ -325,7 +419,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if self.in_combat
+        if self.resolved_in_combat_like_cpp() != Some(false)
             && self.player_in_represented_battleground_like_cpp()
             && !self.represented_battleground_status_is_wait_leave_like_cpp()
         {

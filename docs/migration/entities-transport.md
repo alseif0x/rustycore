@@ -1,5 +1,10 @@
 # Migration: Entities / Transport
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/Transport/` + `src/server/game/Maps/MapObject.h`
 > **Rust target crate(s):** `crates/wow-world/`, `crates/wow-map/`, `crates/wow-data/`, `crates/wow-constants/`
 > **Layer:** L4 (sub-modules)
@@ -256,7 +261,6 @@ DBC stores:
 - `_eventsToTrigger` is a `boost::dynamic_bitset` over path events; in Rust use a `Vec<bool>` or `BitVec`.
 - Cross-map teleport (e.g. Orgrimmar zeppelin → Borean Tundra) requires cooperative dance: server moves transport to new map, sends `SMSG_TRANSFER_PENDING` to passengers, awaits `CMSG_MOVE_WORLDPORT_ACK`. Easy to break.
 - Static passengers are loaded/unloaded based on **grid activity** of the transport's current cell — when no player nearby, drop the NPCs to save memory.
-- C# legacy reference at `/home/server/woltk-server-core/Source/` has matching `Transport.cs` if you need a non-C++ second opinion on a specific tick path.
 
 ---
 

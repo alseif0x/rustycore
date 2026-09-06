@@ -1,28 +1,31 @@
 //! One-way compatibility hydration into the canonical Player owner.
 
-use crate::session::{SKILL_ENCHANTING_LIKE_CPP, WorldSession};
+use crate::session::WorldSession;
 
 pub(crate) fn hydrate_player_presentation_like_cpp(
     session: &WorldSession,
     player: &mut wow_entities::Player,
-) {
-    let (zone_id, area_id) = session.player_zone_area_like_cpp();
-    player
-        .unit_mut()
-        .world_mut()
-        .set_zone_and_area(zone_id, area_id);
-    player.set_primary_specialization(session.represented_primary_specialization_id_like_cpp);
-    player.gameplay_state_mut().customizations = session
-        .loaded_player_customizations_like_cpp
-        .iter()
-        .map(|choice| wow_entities::PlayerCustomizationChoice {
-            option_id: choice.option_id,
-            choice_id: choice.choice_id,
-        })
-        .collect();
+) -> Option<()> {
+    #[cfg(test)]
+    {
+        player.gameplay_state_mut().customizations = session
+            .loaded_player_customizations_like_cpp
+            .iter()
+            .map(|choice| wow_entities::PlayerCustomizationChoice {
+                option_id: choice.option_id,
+                choice_id: choice.choice_id,
+            })
+            .collect();
+    }
     player.gameplay_state_mut().gray_level = session.gray_level(session.player_level_like_cpp());
+    // C++ constructs Player before LoadFromDB / _LoadInventory
+    // (CharacterHandler.cpp:1065-1070; Player.cpp:17748). Production inventory
+    // already belongs to Player: querying it here would require the very
+    // handle that this initial construction is about to install. Only old
+    // unit fixtures hydrate equipment from their Session-side input.
+    #[cfg(test)]
     for (slot, values) in session
-        .loaded_player_visible_items_for_create_like_cpp()
+        .loaded_player_visible_items_for_create_like_cpp()?
         .into_iter()
         .enumerate()
     {
@@ -30,21 +33,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
             player, slot as u8, values,
         );
     }
-}
-
-pub(crate) fn sync_player_zone_area_like_cpp(session: &WorldSession, zone_id: u32, area_id: u32) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
-        player
-            .unit_mut()
-            .world_mut()
-            .set_zone_and_area(zone_id, area_id);
-    });
-}
-
-pub(crate) fn sync_player_primary_specialization_like_cpp(session: &WorldSession, spec_id: u32) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
-        player.set_primary_specialization(spec_id);
-    });
+    Some(())
 }
 
 pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status: u32) {
@@ -60,117 +49,40 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
     });
 }
 
-pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &WorldSession) {
-    let difficulty = session.represented_dungeon_difficulty_id_like_cpp;
-    let enchanting = session.represented_enchanting_skill;
-    let known_spells = session.known_spells_like_cpp().to_vec();
-    let quest_statuses = session
-        .player_quests
-        .iter()
-        .map(
-            |(&quest_id, status)| wow_entities::PlayerQuestStatusRecord {
-                quest_id,
-                status: status.status,
-                explored: false,
-                timer_expires_at: None,
-            },
-        )
-        .collect();
-    let objective_counts = session
-        .player_quests
-        .iter()
-        .map(|(&quest_id, status)| (quest_id, status.objective_counts.clone()))
-        .collect();
-    let rewarded = session.rewarded_quests.iter().copied().collect();
-    let daily = session
-        .daily_quests_completed_like_cpp
-        .iter()
-        .copied()
-        .collect();
-    let df = session.df_quests_like_cpp.iter().copied().collect();
-    let achievements = session
-        .represented_completed_achievements_like_cpp
-        .iter()
-        .copied()
-        .map(|achievement_id| wow_entities::PlayerAchievementRecord {
-            achievement_id,
-            completed_at: None,
-        })
-        .collect();
-    let inventory_item_counts = session
-        .represented_inventory_item_counts_like_cpp()
-        .into_iter()
-        .collect();
-    let forced_reputation_ranks = session
-        .player_forced_reputation_ranks_snapshot_like_cpp()
-        .into_iter()
-        .map(|(faction, rank)| (faction, rank.as_u8()))
-        .collect();
-    let pending_share = session
-        .represented_pending_quest_sharing_like_cpp
-        .map(|pending| (pending.sender_guid, pending.quest_id));
-    let transport = session.player_transport_info_like_cpp().map(|transport| {
-        wow_entities::PlayerTransportState {
-            guid: transport.guid,
-            x: transport.x,
-            y: transport.y,
-            z: transport.z,
-            orientation: transport.o,
-            seat: transport.seat,
-            time: transport.time,
-            prev_time: transport.prev_time,
-            vehicle_id: transport.vehicle_id,
-        }
-    });
-    let in_vehicle = session.player_vehicle_seat_flags_like_cpp.is_some();
-    let has_vehicle_kit = session.player_mount_vehicle_kit_like_cpp.is_some();
-    let vehicle_seat = session
-        .player_vehicle_seat_id_like_cpp
-        .and_then(|seat| i32::try_from(seat).ok())
-        .unwrap_or(0);
+#[cfg(test)]
+pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
+    let known_spells = session.known_spells_fixture_like_cpp();
+    let quests = session.player_quest_gameplay_snapshot_like_cpp();
+    let mount_vehicle_kit = session.player_mount_vehicle_kit_like_cpp.clone();
+    let vehicle_seat_flags = session.player_vehicle_seat_flags_like_cpp;
+    let vehicle_seat_id = session.player_vehicle_seat_id_like_cpp;
     let pet_guid = session.represented_pet_guid_like_cpp;
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
-        state.dungeon_difficulty_id = difficulty;
-        state.spells = known_spells
-            .into_iter()
-            .filter_map(|spell_id| u32::try_from(spell_id).ok())
-            .map(|spell_id| wow_entities::PlayerKnownSpellRecord {
-                spell_id,
-                state: wow_entities::PlayerSpellLoadState::Unchanged,
-                active: true,
-                favorite: false,
-                dependent: false,
+        state.spells.known_spells = known_spells.clone();
+        state.spells.rows = known_spells
+            .iter()
+            .copied()
+            .map(|spell_id| {
+                (
+                    spell_id,
+                    wow_entities::PlayerKnownSpellRecord {
+                        spell_id,
+                        state: wow_entities::PlayerSpellLoadState::Unchanged,
+                        active: true,
+                        disabled: false,
+                        favorite: false,
+                        dependent: false,
+                    },
+                )
             })
             .collect();
-        state.quests.statuses = quest_statuses;
-        state.quests.objective_counts_by_quest = objective_counts;
-        state.quests.rewarded_quest_ids = rewarded;
-        state.quests.daily_quest_ids = daily;
-        state.quests.df_quest_ids = df;
-        state.quests.pending_share = pending_share;
-        state.achievements = achievements;
-        state.inventory_item_counts = inventory_item_counts;
-        state.forced_reputation_ranks = forced_reputation_ranks;
-        state.pass_on_group_loot = session.pass_on_group_loot;
-        state.transport = transport;
-        state.in_vehicle = in_vehicle;
-        state.has_vehicle_kit = has_vehicle_kit;
-        state.vehicle_seat = vehicle_seat;
-        state.pet_guid = pet_guid;
-        if let Some(skill) = state
-            .skills
-            .iter_mut()
-            .find(|skill| skill.skill_line_id == u32::from(SKILL_ENCHANTING_LIKE_CPP))
-        {
-            skill.current_value = enchanting;
-        } else if enchanting != 0 {
-            state.skills.push(wow_entities::PlayerSkillRecord {
-                skill_line_id: u32::from(SKILL_ENCHANTING_LIKE_CPP),
-                current_value: enchanting,
-                max_value: enchanting,
-                step: 0,
-            });
+        if let Some(quests) = quests.clone() {
+            state.quests = quests;
         }
+        state.mount_vehicle_kit = mount_vehicle_kit.clone();
+        state.vehicle_seat_flags = vehicle_seat_flags;
+        state.vehicle_seat_id = vehicle_seat_id;
+        state.pet_guid = pet_guid;
     });
 }

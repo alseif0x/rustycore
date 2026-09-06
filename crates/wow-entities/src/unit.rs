@@ -60,6 +60,9 @@ pub const UNIT_DATA_SHEATHE_STATE_BIT: usize = 77;
 pub const UNIT_DATA_PVP_FLAGS_BIT: usize = 78;
 pub const UNIT_DATA_PET_FLAGS_BIT: usize = 79;
 pub const UNIT_DATA_SHAPESHIFT_FORM_BIT: usize = 80;
+pub const UNIT_DATA_CRITTER_BIT: usize = 13;
+pub const UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT: usize = 20;
+pub const UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT: usize = 100;
 pub const UNIT_DATA_TARGET_BIT: usize = 19;
 pub const UNIT_DATA_RACE_BIT: usize = 24;
 pub const UNIT_DATA_CLASS_ID_BIT: usize = 25;
@@ -92,6 +95,9 @@ pub struct UnitDataValues {
     pub health: u64,
     pub max_health: u64,
     pub display_id: i32,
+    pub critter: ObjectGuid,
+    pub battle_pet_companion_guid: ObjectGuid,
+    pub battle_pet_companion_name_timestamp: u32,
     pub target: ObjectGuid,
     pub race: u8,
     pub class_id: u8,
@@ -138,6 +144,9 @@ impl Default for UnitDataValues {
             health: 0,
             max_health: 0,
             display_id: 0,
+            critter: ObjectGuid::EMPTY,
+            battle_pet_companion_guid: ObjectGuid::EMPTY,
+            battle_pet_companion_name_timestamp: 0,
             target: ObjectGuid::EMPTY,
             race: 0,
             class_id: 0,
@@ -437,6 +446,10 @@ pub struct Unit {
     movement_flags: MovementFlag,
     movement_time: u32,
     speed_rate: [f32; MAX_MOVE_TYPE],
+    /// C++ `Unit::m_movementCounter`, the sequence shared by movement-control packets.
+    movement_counter_like_cpp: u32,
+    /// C++ `Unit::_movementForces->GetModMagnitude()`. A missing force container reads 1.0.
+    movement_force_mod_magnitude_like_cpp: f32,
     ai_anim_kit_id: u16,
     movement_anim_kit_id: u16,
     melee_anim_kit_id: u16,
@@ -475,6 +488,8 @@ impl Unit {
             movement_flags: MovementFlag::NONE,
             movement_time: 0,
             speed_rate: [1.0; MAX_MOVE_TYPE],
+            movement_counter_like_cpp: 0,
+            movement_force_mod_magnitude_like_cpp: 1.0,
             ai_anim_kit_id: 0,
             movement_anim_kit_id: 0,
             melee_anim_kit_id: 0,
@@ -1653,11 +1668,45 @@ impl Unit {
         self.speed_rate
     }
 
+    pub fn speed_rate_at_like_cpp(&self, move_type_index: usize) -> Option<f32> {
+        self.speed_rate.get(move_type_index).copied()
+    }
+
+    pub fn set_speed_rate_at_like_cpp(&mut self, move_type_index: usize, rate: f32) -> bool {
+        let Some(speed_rate) = self.speed_rate.get_mut(move_type_index) else {
+            return false;
+        };
+        *speed_rate = rate.max(0.0);
+        true
+    }
+
     pub fn set_speed_rate_like_cpp(&mut self, move_type: wow_constants::UnitMoveType, rate: f32) {
         let slot = move_type as usize;
         if slot < MAX_MOVE_TYPE {
             self.speed_rate[slot] = rate.max(0.0);
         }
+    }
+
+    pub const fn movement_counter_like_cpp(&self) -> u32 {
+        self.movement_counter_like_cpp
+    }
+
+    pub fn next_movement_counter_like_cpp(&mut self) -> u32 {
+        let current = self.movement_counter_like_cpp;
+        self.movement_counter_like_cpp = self.movement_counter_like_cpp.wrapping_add(1);
+        current
+    }
+
+    pub fn reset_movement_counter_like_cpp(&mut self) {
+        self.movement_counter_like_cpp = 0;
+    }
+
+    pub const fn movement_force_mod_magnitude_like_cpp(&self) -> f32 {
+        self.movement_force_mod_magnitude_like_cpp
+    }
+
+    pub fn set_movement_force_mod_magnitude_like_cpp(&mut self, magnitude: f32) {
+        self.movement_force_mod_magnitude_like_cpp = magnitude;
     }
 
     pub fn set_mod_casting_speed_like_cpp(&mut self, casting_speed: f32) {
@@ -1791,6 +1840,43 @@ impl Unit {
 
     pub fn set_target(&mut self, target: ObjectGuid) {
         self.set_guid_field(UNIT_DATA_TARGET_BIT, target, |data| &mut data.target);
+    }
+
+    pub fn critter_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.data.critter.is_empty()).then_some(self.data.critter)
+    }
+
+    pub fn set_critter_guid_like_cpp(&mut self, critter: Option<ObjectGuid>) {
+        self.set_guid_field(
+            UNIT_DATA_CRITTER_BIT,
+            critter.unwrap_or(ObjectGuid::EMPTY),
+            |data| &mut data.critter,
+        );
+    }
+
+    pub fn battle_pet_companion_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.data.battle_pet_companion_guid.is_empty())
+            .then_some(self.data.battle_pet_companion_guid)
+    }
+
+    pub fn set_battle_pet_companion_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        self.set_guid_field(
+            UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT,
+            guid.unwrap_or(ObjectGuid::EMPTY),
+            |data| &mut data.battle_pet_companion_guid,
+        );
+    }
+
+    pub const fn battle_pet_companion_name_timestamp_like_cpp(&self) -> u32 {
+        self.data.battle_pet_companion_name_timestamp
+    }
+
+    pub fn set_battle_pet_companion_name_timestamp_like_cpp(&mut self, timestamp: u32) {
+        self.set_u32_field(
+            UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT,
+            timestamp,
+            |data| &mut data.battle_pet_companion_name_timestamp,
+        );
     }
 
     pub fn set_unit_flags_like_cpp(&mut self, flags: UnitFlags) {
@@ -2235,6 +2321,19 @@ impl Unit {
         bit: usize,
         value: i32,
         field: impl FnOnce(&mut UnitDataValues) -> &mut i32,
+    ) {
+        let target = field(&mut self.data);
+        if *target != value {
+            *target = value;
+            self.mark_unit_data(bit);
+        }
+    }
+
+    fn set_u32_field(
+        &mut self,
+        bit: usize,
+        value: u32,
+        field: impl FnOnce(&mut UnitDataValues) -> &mut u32,
     ) {
         let target = field(&mut self.data);
         if *target != value {
@@ -4044,6 +4143,37 @@ mod tests {
             unit.unit_data_changes_mask()
                 .is_set(UNIT_DATA_HOVER_HEIGHT_BIT)
         );
+    }
+
+    #[test]
+    fn critter_guid_uses_canonical_unitdata_and_change_bit_like_cpp() {
+        let mut unit = Unit::new(true);
+        let critter = ObjectGuid::new(7, 12);
+        let battle_pet = ObjectGuid::new(7, 13);
+        unit.clear_unit_data_changes();
+
+        unit.set_critter_guid_like_cpp(Some(critter));
+        unit.set_battle_pet_companion_guid_like_cpp(Some(battle_pet));
+        unit.set_battle_pet_companion_name_timestamp_like_cpp(1234);
+
+        assert_eq!(unit.critter_guid_like_cpp(), Some(critter));
+        assert_eq!(unit.battle_pet_companion_guid_like_cpp(), Some(battle_pet));
+        assert_eq!(unit.battle_pet_companion_name_timestamp_like_cpp(), 1234);
+        assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_PARENT_BIT));
+        assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_CRITTER_BIT));
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT)
+        );
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT)
+        );
+
+        unit.set_critter_guid_like_cpp(None);
+        unit.set_battle_pet_companion_guid_like_cpp(None);
+        assert_eq!(unit.critter_guid_like_cpp(), None);
+        assert_eq!(unit.battle_pet_companion_guid_like_cpp(), None);
     }
 
     #[test]

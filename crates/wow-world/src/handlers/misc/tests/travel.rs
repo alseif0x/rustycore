@@ -11,14 +11,14 @@ use wow_packet::packets::misc::ERR_TAXITOOFARAWAY_LIKE_CPP;
 async fn world_port_response_ignores_ack_without_far_teleport_semaphore_like_cpp() {
     let (mut session, send_rx) = make_session();
     let destination = Position::new(11.0, 22.0, 33.0, 1.5);
-    session.pending_teleport = Some((0, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, destination))));
     session.set_state(crate::session::SessionState::Transfer);
 
     session
         .handle_world_port_response(WorldPacket::new_empty())
         .await;
 
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.state(), crate::session::SessionState::Transfer);
     assert!(send_rx.try_recv().is_err());
 }
@@ -31,7 +31,7 @@ async fn suspend_token_response_sends_new_world_for_far_teleport_like_cpp() {
     // client sits at 0% on the loading screen forever. #NEXT.R8.ENTITIES.1229.
     let (mut session, send_rx) = make_session();
     let destination = Position::new(11.0, 22.0, 33.0, 1.5);
-    session.pending_teleport = Some((1, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((1, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -45,14 +45,14 @@ async fn suspend_token_response_sends_new_world_for_far_teleport_like_cpp() {
             .collect::<Vec<_>>(),
         vec![ServerOpcodes::NewWorld as u16]
     );
-    assert_eq!(session.pending_teleport, Some((1, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((1, destination)));
 }
 
 #[tokio::test]
 async fn suspend_token_response_no_op_without_far_teleport_like_cpp() {
     // C++ HandleSuspendTokenResponse early-returns unless IsBeingTeleportedFar().
     let (mut session, send_rx) = make_session();
-    session.pending_teleport = Some((1, Position::new(11.0, 22.0, 33.0, 1.5)));
+    assert!(session.set_pending_teleport_like_cpp(Some((1, Position::new(11.0, 22.0, 33.0, 1.5)))));
     // far-teleport semaphore deliberately not set.
 
     session
@@ -81,14 +81,51 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         10,
         0,
     ));
+    let canonical = shared_canonical_map_manager_for_misc_test();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map_for_misc_test(
+        &canonical,
+        player_guid,
+        Position::new(1.0, 2.0, 3.0, 0.0),
+        571,
+        0,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_xp_like_cpp(1_234_567);
     session.set_player_next_level_xp_like_cpp(2_345_678);
+    assert_eq!(
+        session
+            .send_player_self_create_for_teleport_like_cpp(
+                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            )
+            .await,
+        None
+    );
+    assert!(
+        send_rx.is_empty(),
+        "unloaded traits are not an authoritative empty CREATE"
+    );
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
+    let prepared = session
+        .prepare_player_self_create_for_teleport_like_cpp()
+        .unwrap()
+        .to_bytes();
+    assert!(send_rx.is_empty(), "building a CREATE must not publish it");
 
-    session
-        .send_player_self_create_for_teleport_like_cpp()
-        .await;
+    assert_eq!(
+        session
+            .send_player_self_create_for_teleport_like_cpp(
+                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            )
+            .await,
+        Some(true)
+    );
 
     let bytes = send_rx.recv().expect("far teleport sends self CREATE");
+    assert_eq!(
+        bytes, prepared,
+        "the delivery adapter must preserve every prepared byte"
+    );
     assert_eq!(
         u16::from_le_bytes([bytes[0], bytes[1]]),
         ServerOpcodes::UpdateObject as u16
@@ -98,6 +135,23 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
             .windows(4)
             .any(|window| window == 1_234_567i32.to_le_bytes()),
         "ActivePlayerData::XP must survive a far-map self CREATE"
+    );
+    drop(send_rx);
+    assert_eq!(
+        session
+            .prepare_player_self_create_for_teleport_like_cpp()
+            .unwrap()
+            .to_bytes(),
+        prepared
+    );
+    assert_eq!(
+        session
+            .send_player_self_create_for_teleport_like_cpp(
+                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            )
+            .await,
+        Some(false),
+        "closed delivery is separate from successful construction"
     );
 }
 
@@ -145,7 +199,51 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         571,
         0,
     );
-    session.pending_teleport = Some((0, destination));
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, destination))));
+    session.set_player_health_like_cpp(135_791, 2_000_000);
+    assert!(
+        session.complete_represented_trait_config_authority_load_like_cpp([(900, 1, 62, 4)], true)
+    );
+    assert!(session.retain_loaded_trait_configs_like_cpp(&[
+        wow_packet::packets::update::TraitConfigCreateData {
+            id: 900,
+            config_type: 1,
+            chr_specialization_id: 62,
+            combat_config_flags: 4,
+            local_identifier: 3,
+            skill_line_id: 0,
+            trait_system_id: 0,
+            name: "RuntimeTraitsRetained".into(),
+            entries: vec![],
+        }
+    ]));
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_player_mut(player_guid)
+        .unwrap()
+        .gameplay_state_mut()
+        .customizations = vec![wow_entities::PlayerCustomizationChoice {
+        option_id: 0x1234ABCD,
+        choice_id: 0x3456CDEF,
+    }];
+    assert!(
+        session.schedule_represented_resurrection_after_teleport_like_cpp(
+            wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: player_guid,
+                map_id: 0,
+                position: destination,
+                health: 1_234_567,
+                mana: 0,
+                aura: 0,
+            }
+        )
+    );
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -153,11 +251,12 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         .handle_world_port_response(WorldPacket::new_empty())
         .await;
 
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(!session.represented_far_teleport_pending_like_cpp());
     assert_eq!(session.player_map_id_like_cpp(), 0);
     assert_eq!(session.player_position_like_cpp(), Some(destination));
-    assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+    // This partial fixture lacks stat catalogs: attachment is not client readiness.
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
     {
         let manager = canonical.lock().unwrap();
         assert!(
@@ -189,8 +288,51 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     // UpdateObject after TimeSyncRequest is SendInitSelf (the player's own ActivePlayer
     // create for the destination map — C++ Map::AddPlayerToMap initPlayer=true). The final
     // send_stat_update emits nothing in this minimal test (no stat stores configured).
+    let packets: Vec<_> = send_rx.try_iter().collect();
+    let create = packets
+        .iter()
+        .find(|bytes| {
+            u16::from_le_bytes([bytes[0], bytes[1]]) == ServerOpcodes::UpdateObject as u16
+        })
+        .expect("destination self CREATE");
+    assert!(
+        create
+            .windows(b"RuntimeTraitsRetained".len())
+            .any(|bytes| bytes == b"RuntimeTraitsRetained")
+    );
     assert_eq!(
-        std::iter::from_fn(|| send_rx.try_recv().ok())
+        session.owned_trait_configs_for_create_like_cpp().unwrap()[0].name,
+        "RuntimeTraitsRetained"
+    );
+    let choice_bytes = [0x1234ABCDu32.to_le_bytes(), 0x3456CDEFu32.to_le_bytes()].concat();
+    assert!(
+        create.windows(8).any(|bytes| bytes == choice_bytes),
+        "worldport must serialize current canonical customizations without reloading login rows"
+    );
+    // MovementHandler.cpp:156-234: initialization precedes pet resummon and
+    // ProcessDelayedOperations (Player.cpp:1494), including delayed resurrection.
+    assert!(
+        create
+            .windows(8)
+            .any(|bytes| bytes == 135_791i64.to_le_bytes())
+    );
+    assert!(
+        !create
+            .windows(8)
+            .any(|bytes| bytes == 1_234_567i64.to_le_bytes())
+    );
+    assert_eq!(
+        session.resolved_player_vitals_like_cpp().unwrap().0,
+        1_234_567
+    );
+    assert!(
+        session
+            .represented_delayed_resurrection_after_teleport_like_cpp()
+            .is_none()
+    );
+    assert_eq!(
+        packets
+            .iter()
             .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
             .collect::<Vec<_>>(),
         vec![
@@ -247,6 +389,8 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         0,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     session.set_player_zone_area_like_cpp(10, 10);
     assert!(session.update_zone_represented_like_cpp(20, 20));
     assert!(
@@ -255,7 +399,7 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
     );
     while send_rx.try_recv().is_ok() {}
 
-    session.pending_teleport = Some((571, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((571, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -263,12 +407,13 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         .handle_world_port_response(WorldPacket::new_empty())
         .await;
 
-    assert_eq!(session.player_zone_area_like_cpp(), (200, 300));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
     assert!(
         !session.represented_is_resting_like_cpp(),
         "C++ HandleMoveWorldportAck calls UpdateZone in SendInitialPacketsAfterAddToMap before later rest-state saves observe flags"
     );
-    assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+    // Rest effects complete, but this fixture cannot construct the final stat packet.
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
     let opcodes: Vec<_> = std::iter::from_fn(|| send_rx.try_recv().ok())
         .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
         .collect();
@@ -284,6 +429,61 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         last_update_index > init_world_states_index,
         "the destination RESTING field update must follow post-add InitWorldStates"
     );
+
+    // The same canonical transition can run without publishing, including after disconnect.
+    let zone_authority_complete = || {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player_guid)
+            .unwrap()
+            .gameplay_state()
+            .world_local
+            .zone_area_authority_complete
+    };
+    let mut send_rx = Some(send_rx);
+    for disconnected in [false, true] {
+        assert!(session.update_zone_represented_without_rest_update_packet_like_cpp(20, 20));
+        assert!(session.represented_is_resting_like_cpp());
+        if disconnected {
+            drop(send_rx.take());
+        }
+        assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
+        assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
+        assert!(!session.represented_is_resting_like_cpp());
+        assert!(zone_authority_complete());
+        assert!(session.take_deferred_rest_flag_update_dirty_like_cpp());
+        if let Some(receiver) = &send_rx {
+            assert!(
+                receiver.try_recv().is_err(),
+                "zone application must not publish"
+            );
+        }
+    }
+
+    // A terrain-read failure retains the seeded location but cannot prove its authority.
+    let (gx, gy) = crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(
+        destination.x,
+        destination.y,
+    );
+    std::fs::write(
+        data_dir
+            .join("maps")
+            .join(format!("0571_{gx:02}_{gy:02}.map")),
+        b"truncated",
+    )
+    .expect("corrupt only this test's terrain fixture");
+    assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
+    assert!(!zone_authority_complete());
+
+    // Missing tiles instead use MapStore's fallback (zero here), not the I/O-error branch.
+    assert!(session.apply_post_add_zone_from_terrain_like_cpp(9999, &destination));
+    assert_eq!(session.player_zone_area_like_cpp(), Some((0, 0)));
+    assert!(!zone_authority_complete());
 }
 
 #[tokio::test]
@@ -316,7 +516,9 @@ async fn world_port_response_activates_pvp_item_levels_for_flagged_map_like_cpp(
         571,
         0,
     );
-    session.pending_teleport = Some((30, destination));
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
+    assert!(session.set_pending_teleport_like_cpp(Some((30, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -360,8 +562,10 @@ async fn world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp
         30,
         0,
     );
-    session.set_represented_using_pvp_item_levels_like_cpp(true);
-    session.pending_teleport = Some((571, destination));
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
+    let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
+    assert!(session.set_pending_teleport_like_cpp(Some((571, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 

@@ -1,5 +1,10 @@
 # Migration: Globals (ObjectMgr / ObjectAccessor / DataStores)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Globals/`
 > **Rust target crate(s):** `wow-data` (templates), `wow-database` (loaders), `wow-world` (live registries / `MapManager`), `wow-network` (`PlayerRegistry`)
 > **Layer:** L0 (foundation — touched by virtually every other module)
@@ -534,7 +539,7 @@ Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itse
 
 <!-- REFINE.024:END tests-required -->
 
-- [ ] Test: every `Load*` migrated produces the same `len()` as the C# reference (parity check on `wowchad` DB)
+- [ ] Test: compare each affected loader's validated rows and rejection branches against C++ using the same controlled DB fixture; row counts alone do not prove parity
 - [ ] Test: `find_player(guid)` on a known online char returns the same `PlayerBroadcastInfo` from any map
 - [ ] Test: `get_closest_graveyard(loc, team, conditionObj)` returns the same row as TC for a known location/team
 - [ ] Test: `generate_creature_spawn_id` after restart never collides with any existing `creature.guid`
@@ -577,7 +582,7 @@ Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itse
 
 <!-- REFINE.023:END known-divergences -->
 
-- **`ObjectMgr.cpp` is 11 444 lines.** Do not attempt a big-bang port. Migrate one loader at a time, each behind a feature flag, with the C# reference output kept available for diff. Each loader has its own validation rules; stripping them silently breaks downstream code.
+- **`ObjectMgr.cpp` is 11 444 lines.** Do not attempt a big-bang port. Validate coherent loader families against C++ inputs/outputs within the approved macro; a feature flag or separate PR per loader is not required. Each loader has its own validation rules; stripping them silently breaks downstream code.
 - **Loader ordering matters.** Many loaders read from previous loaders' stores (e.g. `LoadCreatures` references `_creatureTemplateStore`, `LoadVendors` references `_creatureTemplateStore` AND `_itemTemplateStore`). The canonical order is in `World::SetInitialWorldSettings()` in TC (`src/server/game/World/World.cpp`). Replicate that order exactly.
 - **DB2 stores must be loaded before ObjectMgr starts.** Map.db2, ChrRaces.db2, ChrClasses.db2, Faction.db2, FactionTemplate.db2, etc. ObjectMgr loaders cross-reference them and will warn-and-skip rows otherwise.
 - **`HashMapHolder<Player>` uses `std::shared_mutex`.** TC reads concurrently, writes under exclusive lock. The `PlayerRegistry = DashMap` in Rust is finer-grained but iteration semantics differ — `SaveAllPlayers` in TC takes a global read lock; with DashMap you'd need `iter()` and accept inconsistent snapshots, or replace with `RwLock<HashMap>` if you want the same iteration guarantees.

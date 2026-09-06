@@ -14,7 +14,11 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_unit",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_unit(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move {
+            session
+                .handle_loot_unit_with_catalogs_like_cpp(catalogs.item_valuation.as_ref(), pkt)
+                .await
+        }),
     }
 }
 
@@ -24,7 +28,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_item",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_item(pkt).await }),
+        handler: |session, catalogs, pkt| Box::pin(async move {
+            session
+                .handle_loot_item_with_generator_like_cpp(
+                    catalogs.id_generators.item.as_ref(),
+                    pkt,
+                )
+                .await
+        }),
     }
 }
 
@@ -34,7 +45,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_money",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_money(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_loot_money_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -44,7 +64,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_release",
-        handler: |session, pkt| Box::pin(async move { session.handle_loot_release(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_release(pkt).await }),
     }
 }
 
@@ -54,10 +74,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_roll",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::loot::LootRoll::read(&mut pkt) {
-                    Ok(roll) => session.handle_loot_roll(roll).await,
+                    Ok(roll) => {
+                        session
+                            .handle_loot_roll_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.item_valuation.as_ref(),
+                                roll,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read LootRoll: {e}"),
                 }
             })
@@ -71,10 +99,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_master_loot_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::loot::MasterLootItem::read(&mut pkt) {
-                    Ok(master_loot_item) => session.handle_master_loot_item(master_loot_item).await,
+                    Ok(master_loot_item) => {
+                        session
+                            .handle_master_loot_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                master_loot_item,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read MasterLootItem: {e}"),
                 }
             })
@@ -95,7 +130,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_loot_specialization",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 if session
                     .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())
@@ -138,8 +173,48 @@ inventory::submit! {
 }
 
 impl WorldSession {
+    #[cfg(test)]
+    pub async fn handle_loot_item(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_loot_item_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_loot_roll(&mut self, roll: LootRoll) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.handle_loot_roll_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &item_valuation,
+            roll,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_master_loot_item(&mut self, master_loot_item: MasterLootItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_master_loot_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            master_loot_item,
+        )
+        .await;
+    }
+
     /// CMSG_LOOT_UNIT — player right-clicks a dead creature to loot it.
-    pub async fn handle_loot_unit(&mut self, mut pkt: wow_packet::WorldPacket) {
+    #[cfg(test)]
+    pub async fn handle_loot_unit(&mut self, pkt: wow_packet::WorldPacket) {
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.handle_loot_unit_with_catalogs_like_cpp(&item_valuation, pkt)
+            .await;
+    }
+
+    pub async fn handle_loot_unit_with_catalogs_like_cpp(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match LootUnit::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -155,7 +230,7 @@ impl WorldSession {
 
         debug!(account = self.account_id, target = ?req.unit, "CMSG_LOOT_UNIT");
 
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
 
@@ -209,7 +284,12 @@ impl WorldSession {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.set_active_loot_guid(req.unit);
-        self.represented_on_loot_opened_like_cpp(req.unit, player_guid, response);
+        self.represented_on_loot_opened_with_catalogs_like_cpp(
+            item_valuation,
+            req.unit,
+            player_guid,
+            response,
+        );
 
         if !ae_owner_guids.is_empty() {
             self.send_packet(&AELootTargetsAck);
@@ -220,7 +300,12 @@ impl WorldSession {
                     .await
                 {
                     self.add_active_loot_view_owner_like_cpp(owner_guid);
-                    self.represented_on_loot_opened_like_cpp(owner_guid, player_guid, response);
+                    self.represented_on_loot_opened_with_catalogs_like_cpp(
+                        item_valuation,
+                        owner_guid,
+                        player_guid,
+                        response,
+                    );
                     self.send_packet(&AELootTargetsAck);
                 }
             }
@@ -291,7 +376,11 @@ impl WorldSession {
     }
 
     /// CMSG_LOOT_ITEM — player clicks to take a specific item from the loot.
-    pub async fn handle_loot_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_loot_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match LootItemPkt::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -461,7 +550,8 @@ impl WorldSession {
             };
 
             let stored = if let Some(claim) = claim.as_ref() {
-                self.store_claimed_direct_loot_item_from_owner_like_cpp(
+                self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                    item_guid_generator,
                     &entry,
                     dungeon_encounter_id,
                     owner_guid,
@@ -470,7 +560,8 @@ impl WorldSession {
                 )
                 .await
             } else {
-                self.store_direct_loot_item_from_owner_like_cpp(
+                self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                    item_guid_generator,
                     &entry,
                     dungeon_encounter_id,
                     owner_guid,
@@ -486,8 +577,10 @@ impl WorldSession {
                 // the session tracker before its JoinHandle completed. Apply
                 // it here on the normal path; logout/disconnect and the
                 // session tick drain the same completion after cancellation.
-                self.apply_pending_durable_item_loot_completions_like_cpp()
-                    .await;
+                self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+                    item_guid_generator,
+                )
+                .await;
                 debug!(
                     account = self.account_id,
                     item = entry.item_id,
@@ -559,7 +652,11 @@ impl WorldSession {
     }
 
     /// CMSG_LOOT_MONEY — player takes money from the current loot view.
-    pub async fn handle_loot_money(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_loot_money_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match LootMoney::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -826,8 +923,11 @@ impl WorldSession {
                     continue;
                 }
                 if let Some(application) = local_application {
-                    self.handle_apply_loot_money_like_cpp_command(application)
-                        .await;
+                    self.handle_apply_loot_money_with_generator_like_cpp_command(
+                        item_guid_generator,
+                        application,
+                    )
+                    .await;
                 }
                 // The detached worker has already committed the authority and
                 // queued the durable runtime applications.  Returning to the
@@ -855,13 +955,18 @@ impl WorldSession {
                     continue;
                 }
 
+                let Some(old_money) = self.resolved_player_money_like_cpp() else {
+                    continue;
+                };
+
                 if apply_balance {
-                    let old_money = self.player_gold_like_cpp();
                     let new_money = old_money
                         .checked_add(applied_delta)
                         .filter(|money| *money <= MAX_MONEY_AMOUNT)
                         .unwrap_or(old_money);
-                    self.set_player_gold_like_cpp(new_money);
+                    if !self.set_player_gold_like_cpp(new_money) {
+                        continue;
+                    }
                     if applied_delta != 0 {
                         self.enqueue_represented_quest_objective_progress_like_cpp(
                             RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -886,8 +991,10 @@ impl WorldSession {
                     }
                 }
                 if apply_balance || publish {
-                    self.drain_represented_quest_objective_progress_like_cpp()
-                        .await;
+                    self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                        item_guid_generator,
+                    )
+                    .await;
                 }
                 continue;
             }
@@ -967,8 +1074,10 @@ impl WorldSession {
                     );
                 }
             }
-            self.drain_represented_quest_objective_progress_like_cpp()
-                .await;
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
         }
 
         for loot_guid in item_release {
@@ -982,6 +1091,13 @@ impl WorldSession {
         }
 
         let _ = player_guid;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_loot_money(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_loot_money_with_generator_like_cpp(generators.item.as_ref(), pkt)
+            .await;
     }
 
     /// CMSG_LOOT_RELEASE — player closes the loot window.
@@ -1015,13 +1131,23 @@ impl WorldSession {
     /// canonical roll state. Rust does not yet port that state machine, so this
     /// represented handler preserves the current wire behavior without emitting
     /// synthetic errors.
-    pub async fn handle_loot_roll(&mut self, roll: LootRoll) {
+    pub async fn handle_loot_roll_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
+        roll: LootRoll,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
 
         if self
-            .represented_player_vote_on_loot_roll_like_cpp(&roll, player_guid)
+            .represented_player_vote_on_loot_roll_with_generator_like_cpp(
+                item_guid_generator,
+                item_valuation,
+                &roll,
+                player_guid,
+            )
             .await
         {
             return;
@@ -1046,20 +1172,25 @@ impl WorldSession {
     /// master looter with `LOOT_ERROR_DIDNT_KILL`. Current Rust group state has
     /// loot method `MASTER_LOOT` and the stored master-looter GUID matching the
     /// current player.
-    pub async fn handle_master_loot_item(&mut self, master_loot_item: MasterLootItem) {
+    pub async fn handle_master_loot_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        master_loot_item: MasterLootItem,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
 
-        let is_represented_master_looter =
-            if let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) {
-                registry.get(&group_guid).is_some_and(|group| {
-                    group.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
-                        && group.master_looter_guid == player_guid
-                })
-            } else {
-                false
-            };
+        let is_represented_master_looter = if let (Some(group_guid), Some(registry)) =
+            (self.resolved_group_guid_like_cpp(), self.group_registry())
+        {
+            registry.get(&group_guid).is_some_and(|group| {
+                group.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
+                    && group.master_looter_guid == player_guid
+            })
+        } else {
+            false
+        };
 
         if !is_represented_master_looter {
             self.send_loot_error_like_cpp(
@@ -1226,7 +1357,8 @@ impl WorldSession {
             };
             if master_loot_item.target == player_guid {
                 let stored = if let Some(claim) = claim.as_ref() {
-                    self.store_claimed_direct_loot_item_from_owner_like_cpp(
+                    self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                        item_guid_generator,
                         &entry,
                         dungeon_encounter_id,
                         owner_guid,
@@ -1235,7 +1367,8 @@ impl WorldSession {
                     )
                     .await
                 } else {
-                    self.store_direct_loot_item_from_owner_like_cpp(
+                    self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                        item_guid_generator,
                         &entry,
                         dungeon_encounter_id,
                         owner_guid,
@@ -1309,11 +1442,11 @@ impl WorldSession {
         if self.state() != SessionState::LoggedIn {
             return;
         }
-        if self.group_guid != Some(command.group_guid) {
+        if self.resolved_group_guid_like_cpp() != Some(command.group_guid) {
             return;
         }
 
-        self.group_guid = None;
+        let _ = self.set_owned_player_group_like_cpp(None);
         self.clear_represented_group_subgroup_like_cpp();
         self.send_player_party_type_update_like_cpp(command.category, command.party_type);
         self.sync_player_registry_state_like_cpp();
@@ -1362,8 +1495,12 @@ impl WorldSession {
             return;
         }
 
-        command.party_update.sequence_num =
-            self.next_group_update_sequence_number_like_cpp(command.party_update.party_index);
+        let Some(sequence_num) =
+            self.next_group_update_sequence_number_like_cpp(command.party_update.party_index)
+        else {
+            return;
+        };
+        command.party_update.sequence_num = sequence_num;
         // `SMSG_PARTY_UPDATE` and `SMSG_PARTY_MEMBER_FULL_STATE` are both
         // CONNECTION_TYPE_REALM in legacy C++ Opcodes.cpp:1829/1832.
         self.send_packet_realm(&command.party_update);
@@ -1648,13 +1785,14 @@ impl WorldSession {
         });
     }
 
-    /// Mirror one map-owned creature aggro transition into this victim session.
+    /// Deliver one committed map-owned creature aggro transition to its victim.
     ///
     /// C++ contrast: `CreatureAI::MoveInLineOfSight` calls
     /// `Creature::CanStartAttack` and then engages the target; the combat start
     /// is visible to the client through `Unit::SendMeleeAttackStart`. The map
-    /// runtime owns the aggro decision; this handler only gates the victim
-    /// session and sends one `AttackStart` packet.
+    /// runtime owns and applies the aggro decision before delivery; this
+    /// handler only gates the victim session, publishes its canonical combat
+    /// view, and sends one `AttackStart` packet.
     pub(crate) fn handle_creature_attack_start_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStartLikeCppCommand,
@@ -1665,7 +1803,7 @@ impl WorldSession {
         if self.player_guid() != Some(command.victim_guid) {
             return;
         }
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if self.player_map_id_like_cpp() != command.map_id {
@@ -1682,52 +1820,6 @@ impl WorldSession {
             .client_visible_guids_like_cpp
             .contains(&command.attacker_guid);
 
-        if let Some(manager) = self.canonical_map_manager.as_ref().cloned()
-            && let Ok(mut manager) = manager.lock()
-            && let Some(managed) =
-                manager.find_map_mut(u32::from(command.map_id), command.instance_id)
-        {
-            let map = managed.map_mut();
-            if let Some(previous_victim) = command.previous_victim_guid {
-                if let Some(player) = map.get_typed_player_mut(previous_victim) {
-                    player
-                        .unit_mut()
-                        .remove_attacker_like_cpp(command.attacker_guid);
-                } else if let Some(creature) = map.get_typed_creature_mut(previous_victim) {
-                    creature
-                        .unit_mut()
-                        .remove_attacker_like_cpp(command.attacker_guid);
-                }
-            }
-            if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
-                player
-                    .unit_mut()
-                    .subsystems_mut()
-                    .combat
-                    .set_in_combat_with(command.attacker_guid, false, false);
-                player
-                    .unit_mut()
-                    .add_attacker_like_cpp(command.attacker_guid);
-            }
-            if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
-                let combat = &mut creature.unit_mut().subsystems_mut().combat;
-                combat.set_in_combat_with(command.victim_guid, false, false);
-                if combat.threat_ref(command.victim_guid).is_none() {
-                    combat.set_threat(command.victim_guid, 0.0);
-                }
-                let threat_ref = combat.threat_ref(command.victim_guid).copied();
-                if let Some(threat_ref) = threat_ref
-                    && let Some(player) = map.get_typed_player_mut(command.victim_guid)
-                {
-                    player
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .put_threatened_by_me_ref(command.attacker_guid, threat_ref);
-                }
-            }
-        }
-
         // Incoming attackers do not become the player's own melee target.
         // C++ keeps that direction solely in `m_attackers`/combat references.
         self.set_in_combat_like_cpp(true);
@@ -1741,6 +1833,10 @@ impl WorldSession {
         }
     }
 
+    /// Deliver one Creature combat-stop already committed by `MapRuntime`.
+    ///
+    /// The session observes the resulting canonical Player state only to
+    /// publish its bounded directory view; it owns no half of the transition.
     pub(crate) fn handle_creature_attack_stop_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStopLikeCppCommand,
@@ -1763,47 +1859,9 @@ impl WorldSession {
             return;
         }
 
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(still_in_combat) = self.resolved_in_combat_like_cpp() else {
             return;
         };
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return;
-        };
-        let map = managed.map_mut();
-        let still_in_combat = if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .purge_combat_ref_like_cpp(command.attacker_guid);
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .purge_threatened_by_me_ref(command.attacker_guid);
-            player
-                .unit_mut()
-                .remove_attacker_like_cpp(command.attacker_guid);
-            player.unit().subsystems().combat.has_combat()
-        } else {
-            false
-        };
-        if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
-            creature
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .purge_combat_ref_like_cpp(command.victim_guid);
-            creature
-                .unit_mut()
-                .remove_attacker_like_cpp(command.victim_guid);
-        }
-        if self.combat_target == Some(command.attacker_guid) {
-            self.combat_target = None;
-        }
         self.set_in_combat_like_cpp(still_in_combat);
     }
 
@@ -1984,12 +2042,17 @@ impl WorldSession {
         &mut self,
         command: CancelRepresentedTradeLikeCppCommand,
     ) {
-        if self.represented_active_trade_partner_like_cpp().is_none() {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
             return;
         }
 
         self.record_represented_trade_cancel_like_cpp(command.status);
-        self.clear_represented_active_trade_partner_like_cpp();
+        if !self.clear_represented_active_trade_partner_like_cpp() {
+            return;
+        }
         self.send_raw_packet(&command.packet_bytes);
     }
 
@@ -1997,7 +2060,10 @@ impl WorldSession {
         &mut self,
         command: SendRepresentedTradeStatusLikeCppCommand,
     ) {
-        if self.represented_active_trade_partner_like_cpp().is_none() {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
             return;
         }
 
@@ -2008,11 +2074,16 @@ impl WorldSession {
         &mut self,
         command: UnacceptRepresentedTradeLikeCppCommand,
     ) {
-        if self.represented_active_trade_partner_like_cpp().is_none() {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
             return;
         }
 
-        self.set_represented_trade_accepted_like_cpp_for_command(false);
+        if !self.set_represented_trade_accepted_like_cpp_for_command(false) {
+            return;
+        }
         self.send_raw_packet(&command.packet_bytes);
     }
 
@@ -2038,8 +2109,9 @@ impl WorldSession {
     /// `Player::UpdateVisibilityOf`; this command reuses Rust's represented
     /// `update_visibility` pass instead of sending raw bytes that cannot update
     /// `client_visible_guids_like_cpp`.
-    pub(crate) async fn handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(
+    pub(crate) async fn handle_refresh_visible_world_creatures_with_catalogs_like_cpp_command_like_cpp(
         &mut self,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         command: RefreshVisibleWorldCreaturesLikeCppCommand,
     ) {
         if self.state() != crate::session::SessionState::LoggedIn {
@@ -2056,7 +2128,8 @@ impl WorldSession {
             return;
         }
         self.clear_pending_visibility_refresh_like_cpp();
-        self.force_update_visibility_like_cpp().await;
+        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+            .await;
     }
 
     pub(crate) fn handle_send_repeatable_turn_in_request_items_command_like_cpp(
@@ -2082,8 +2155,10 @@ impl WorldSession {
         );
     }
 
-    pub(crate) async fn handle_represented_loot_roll_vote_command_like_cpp(
+    pub(crate) async fn handle_represented_loot_roll_vote_command_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
         command: LootRollVoteCommand,
     ) {
         let roll_key = (command.loot_obj, command.loot_list_id);
@@ -2104,7 +2179,9 @@ impl WorldSession {
         };
 
         let _ = self
-            .represented_player_vote_on_loot_roll_with_pass_state_like_cpp(
+            .represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
+                item_guid_generator,
+                item_valuation,
                 &roll,
                 command.voter_guid,
                 command.pass_on_group_loot,
@@ -2112,8 +2189,9 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_apply_loot_money_like_cpp_command(
+    pub(crate) async fn handle_apply_loot_money_with_generator_like_cpp_command(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         command: ApplyLootMoneyLikeCppCommand,
     ) {
         if self.player_guid() != Some(command.recipient) {
@@ -2146,6 +2224,7 @@ impl WorldSession {
         let durable_applied_amount = command.durable_applied_amount.load(Ordering::Acquire);
         let _ = self
             .apply_durable_represented_loot_money_payout_like_cpp(
+                item_guid_generator,
                 command.amount,
                 durable_applied_amount,
                 command.sole_looter,
@@ -2153,6 +2232,19 @@ impl WorldSession {
                 publish,
             )
             .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn handle_apply_loot_money_like_cpp_command(
+        &mut self,
+        command: ApplyLootMoneyLikeCppCommand,
+    ) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_apply_loot_money_with_generator_like_cpp_command(
+            generators.item.as_ref(),
+            command,
+        )
+        .await;
     }
 
     pub(crate) fn handle_notify_loot_money_removed_like_cpp_command(
@@ -2179,8 +2271,9 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn handle_represented_master_loot_give_command_like_cpp(
+    pub(crate) async fn handle_represented_master_loot_give_command_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         command: MasterLootGiveCommand,
     ) {
         let Some(player_guid) = self.player_guid() else {
@@ -2209,7 +2302,8 @@ impl WorldSession {
         }
 
         let stored = if let Some(claim) = command.claim.as_ref() {
-            self.store_claimed_direct_loot_item_from_owner_like_cpp(
+            self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entry,
                 command.dungeon_encounter_id,
                 command.loot_owner,
@@ -2218,7 +2312,8 @@ impl WorldSession {
             )
             .await
         } else {
-            self.store_direct_loot_item_from_owner_like_cpp(
+            self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entry,
                 command.dungeon_encounter_id,
                 command.loot_owner,
@@ -2244,8 +2339,9 @@ impl WorldSession {
         let _ = command.result_tx.send(result);
     }
 
-    pub(crate) async fn handle_represented_loot_roll_store_winner_command_like_cpp(
+    pub(crate) async fn handle_represented_loot_roll_store_winner_command_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         command: LootRollStoreWinnerCommand,
     ) {
         let Some(player_guid) = self.player_guid() else {
@@ -2281,7 +2377,8 @@ impl WorldSession {
         }
 
         let stored = if command.is_disenchant {
-            self.store_direct_disenchant_batch_like_cpp(
+            self.store_direct_disenchant_batch_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entries,
                 command.dungeon_encounter_id,
                 command.claim.as_ref(),
@@ -2301,7 +2398,8 @@ impl WorldSession {
             )
             .await
         } else if let Some(claim) = command.claim.as_ref() {
-            self.store_claimed_direct_loot_item_from_owner_like_cpp(
+            self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entries[0],
                 command.dungeon_encounter_id,
                 command.loot_owner,
@@ -2310,7 +2408,8 @@ impl WorldSession {
             )
             .await
         } else {
-            self.store_direct_loot_item_from_owner_like_cpp(
+            self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+                item_guid_generator,
                 &command.entries[0],
                 command.dungeon_encounter_id,
                 command.loot_owner,

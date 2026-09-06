@@ -23,7 +23,10 @@ pub use movement::*;
 pub use spell::*;
 pub use threat::*;
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    time::Instant,
+};
 
 use wow_constants::{SpellState, TypeId, UnitState};
 use wow_core::{ObjectGuid, Position};

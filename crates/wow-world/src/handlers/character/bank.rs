@@ -8,6 +8,30 @@
 use super::*;
 
 impl WorldSession {
+    #[cfg(test)]
+    pub async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_autobank_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            packet,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_autostore_bank_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            packet,
+        )
+        .await;
+    }
+
     pub(super) fn send_show_bank_like_cpp(&mut self, banker_guid: ObjectGuid) {
         use wow_packet::packets::misc::NpcInteractionOpenResult;
 
@@ -47,7 +71,12 @@ impl WorldSession {
     /// CMSG_AUTOBANK_ITEM — player moves an inventory item into bank storage.
     ///
     /// C++ ref: `WorldSession::HandleAutoBankItemOpcode`.
-    pub async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
+    pub async fn handle_autobank_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        packet: AutoBankItem,
+    ) {
         if !self.represented_can_use_current_bank_like_cpp() {
             debug!(
                 bag = packet.bag,
@@ -65,6 +94,8 @@ impl WorldSession {
             slot: packet.slot,
         };
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             packet.bag,
             packet.slot,
             NULL_BAG,
@@ -79,7 +110,12 @@ impl WorldSession {
     /// CMSG_AUTOSTORE_BANK_ITEM — player moves a bank item back to inventory, or inventory to bank.
     ///
     /// C++ ref: `WorldSession::HandleAutoStoreBankItemOpcode`.
-    pub async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
+    pub async fn handle_autostore_bank_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        packet: AutoStoreBankItem,
+    ) {
         if !self.represented_can_use_current_bank_like_cpp() {
             debug!(
                 bag = packet.bag,
@@ -98,6 +134,8 @@ impl WorldSession {
             slot: packet.slot,
         };
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             packet.bag,
             packet.slot,
             NULL_BAG,
@@ -117,7 +155,12 @@ impl WorldSession {
     /// that coherent state. Rust must cross SQL here because detached group
     /// payouts use the character money row as their durable cap authority, so
     /// persist both fields atomically before publishing either runtime field.
-    pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
+    pub(crate) async fn handle_buy_bank_slot_with_prices_and_generator_like_cpp(
+        &mut self,
+        prices: &wow_data::BankBagSlotPricesStore,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        buy: BuyBankSlot,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
@@ -132,8 +175,11 @@ impl WorldSession {
             return;
         };
 
-        let next_slot = u32::from(self.player_bank_bag_slot_count_like_cpp()) + 1;
-        let Some(price) = self.bank_bag_slot_price_like_cpp(next_slot) else {
+        let Some(current_bank_slots) = self.resolved_player_bank_bag_slot_count_like_cpp() else {
+            return;
+        };
+        let next_slot = u32::from(current_bank_slots) + 1;
+        let Some(price) = prices.get(next_slot).map(|entry| entry.cost) else {
             debug!(
                 next_slot,
                 account = self.account_id,
@@ -166,7 +212,9 @@ impl WorldSession {
             return;
         };
 
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         if old_money < u64::from(price) {
             debug!(
                 next_slot,
@@ -213,20 +261,21 @@ impl WorldSession {
         // Publish both runtime fields only after the combined SQL COMMIT. Set
         // the values synchronously while admission is still closed, then drop
         // the fence before criteria processing can re-enter persistence.
-        self.set_player_gold_like_cpp(new_money);
-        // This helper builds a clean snapshot from current runtime and then
-        // marks the requested count dirty. Emit it while runtime still holds
-        // the old count, after the durable COMMIT but before storing the new
-        // count locally.
+        if !self.set_player_gold_like_cpp(new_money) {
+            self.kick("canonical Player money owner became unavailable after bank-slot COMMIT");
+            return;
+        }
+        if !self.set_player_bank_bag_slot_count_like_cpp(new_count) {
+            self.kick("canonical Player bank-slot owner became unavailable after COMMIT");
+            return;
+        }
         self.send_player_bank_bag_slots_update_like_cpp(new_count);
-        self.set_player_bank_bag_slot_count_like_cpp(new_count);
         self.enqueue_represented_quest_objective_progress_like_cpp(
             RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
                 old_money,
                 new_money,
             },
         );
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 
@@ -236,8 +285,25 @@ impl WorldSession {
             new_money,
             None,
         ));
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
+        let prices = self
+            .bank_bag_slot_prices_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| Arc::new(wow_data::BankBagSlotPricesStore::from_entries([])));
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_buy_bank_slot_with_prices_and_generator_like_cpp(
+            prices.as_ref(),
+            generators.item.as_ref(),
+            buy,
+        )
+        .await;
     }
 
     /// CMSG_CHANGE_BANK_BAG_SLOT_FLAG — player toggles an ActivePlayer bank bag flag.
@@ -272,16 +338,18 @@ impl WorldSession {
             return;
         }
 
-        let current = self
-            .represented_bank_bag_slot_flag_like_cpp(slot)
-            .unwrap_or(0);
+        let Some(current) = self.represented_bank_bag_slot_flag_like_cpp(slot) else {
+            return;
+        };
         let mask = 1u32 << packet.flag;
         let updated = if packet.enabled {
             current | mask
         } else {
             current & !mask
         };
-        self.set_represented_bank_bag_slot_flag_like_cpp(slot, updated);
+        if !self.set_represented_bank_bag_slot_flag_like_cpp(slot, updated) {
+            return;
+        }
         self.send_player_bank_bag_slot_flag_update_like_cpp(slot, updated);
     }
 }

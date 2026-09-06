@@ -33,7 +33,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_close_interaction",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_close_interaction(pkt).await })
         },
     }
@@ -45,7 +45,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_game_obj_use",
-        handler: |session, pkt| Box::pin(async move { session.handle_game_obj_use(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_game_obj_use_with_catalogs_like_cpp(
+                        catalogs.object_mgr.as_ref(),
+                        catalogs.id_generators.item.as_ref(),
+                        catalogs.item_valuation.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -55,7 +66,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_game_obj_report_use",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_game_obj_report_use(pkt).await })
         },
     }
@@ -66,7 +77,13 @@ impl crate::session::WorldSession {
 
     /// CMSG_GAME_OBJ_USE — player interacts with a world game object.
     /// C++ ref: `GameObject::Use` dispatches by `GameObjectTemplate::type`.
-    pub async fn handle_game_obj_use(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_game_obj_use_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        item_valuation: &crate::session::ItemValuationCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let gameobject_guid = match pkt.read_packed_guid() {
             Ok(guid) => guid,
             Err(e) => {
@@ -101,31 +118,15 @@ impl crate::session::WorldSession {
             }
         };
 
-        let Some(port) = self.gameobject_use_template_persistence_port_like_cpp() else {
+        let Some(row) = catalogs.gameobject.get(gameobject_access.entry).cloned() else {
             return;
         };
-        let row = match port
-            .load_gameobject_use_template_like_cpp(
-                wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp {
-                    entry: gameobject_access.entry,
-                },
-            )
-            .await
-        {
-            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Found(row) => row,
-            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Missing => return,
-            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    entry = gameobject_access.entry,
-                    error = %reason,
-                    "GameObjUse: failed to query gameobject template"
-                );
-                return;
-            }
-        };
 
-        let go_type = row.go_type;
-        let template = GameObjectTemplateData::new(go_type, row.data);
+        let Ok(go_type) = u32::try_from(row.go_type) else {
+            return;
+        };
+        let data = row.data.map(|value| u32::try_from(value).unwrap_or(0));
+        let template = GameObjectTemplateData::new(go_type, data);
         self.record_represented_gameobject_template_quest_source_like_cpp(
             gameobject_guid,
             &template,
@@ -232,7 +233,10 @@ impl crate::session::WorldSession {
             GAMEOBJECT_TYPE_FISHING_NODE => {
                 let effect_start = self.represented_gameobject_use_effects.len();
                 self.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid);
-                let area_id = self.represented_gameobject_area_id_like_cpp(gameobject_guid);
+                let Some(area_id) = self.represented_gameobject_area_id_like_cpp(gameobject_guid)
+                else {
+                    return;
+                };
                 let loot_request = self
                     .represented_gameobject_use_effects
                     .get(effect_start..)
@@ -249,7 +253,8 @@ impl crate::session::WorldSession {
                     });
                 match loot_request {
                     Some(LOOT_TYPE_FISHING_LIKE_CPP) => {
-                        self.open_represented_fishing_node_loot_like_cpp(
+                        self.open_represented_fishing_node_loot_with_catalogs_like_cpp(
+                            item_valuation,
                             gameobject_guid,
                             area_id,
                             false,
@@ -257,7 +262,8 @@ impl crate::session::WorldSession {
                         .await;
                     }
                     Some(LOOT_TYPE_FISHING_JUNK_LIKE_CPP) => {
-                        self.open_represented_fishing_node_loot_like_cpp(
+                        self.open_represented_fishing_node_loot_with_catalogs_like_cpp(
+                            item_valuation,
                             gameobject_guid,
                             area_id,
                             true,
@@ -377,7 +383,7 @@ impl crate::session::WorldSession {
             }
             GAMEOBJECT_TYPE_MEETINGSTONE => {
                 if let Some(mut source) = template.meeting_stone_use_source_like_cpp() {
-                    source.content_tuning_id = row.content_tuning_id;
+                    source.content_tuning_id = u32::try_from(row.content_tuning_id).unwrap_or(0);
                     self.use_represented_gameobject_meeting_stone_like_cpp(
                         gameobject_guid,
                         player_guid,
@@ -419,7 +425,8 @@ impl crate::session::WorldSession {
             GAMEOBJECT_TYPE_GOOBER => {
                 if let Some(source) = template.goober_use_source_like_cpp() {
                     if self
-                        .use_represented_gameobject_goober_preamble_like_cpp(
+                        .use_represented_gameobject_goober_preamble_with_generator_like_cpp(
+                            item_guid_generator,
                             gameobject_guid,
                             gameobject_access.entry,
                             gameobject_access.position,
@@ -446,15 +453,22 @@ impl crate::session::WorldSession {
                 return;
             }
 
-            self.open_represented_gameobject_chest_like_cpp(gameobject_guid, source)
-                .await;
+            self.open_represented_gameobject_chest_with_template_money_like_cpp(
+                item_guid_generator,
+                item_valuation,
+                gameobject_guid,
+                source,
+                (row.min_money, row.max_money),
+            )
+            .await;
             return;
         }
 
         let loot_id = template.get_loot_id_like_cpp();
         match go_type {
             GAMEOBJECT_TYPE_FISHING_HOLE if loot_id != 0 => {
-                self.open_represented_fishing_hole_like_cpp(
+                self.open_represented_fishing_hole_with_catalogs_like_cpp(
+                    item_valuation,
                     gameobject_guid,
                     gameobject_access.entry,
                     loot_id,
@@ -463,7 +477,8 @@ impl crate::session::WorldSession {
             }
             GAMEOBJECT_TYPE_GATHERING_NODE => {
                 if let Some(source) = template.gathering_node_use_source_like_cpp() {
-                    self.open_represented_gathering_node_like_cpp(
+                    self.open_represented_gathering_node_with_catalogs_like_cpp(
+                        item_valuation,
                         gameobject_guid,
                         gameobject_access.entry,
                         source,
@@ -480,6 +495,25 @@ impl crate::session::WorldSession {
                 );
             }
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_game_obj_use(&mut self, pkt: wow_packet::WorldPacket) {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        self.handle_game_obj_use_with_catalogs_like_cpp(
+            &catalogs,
+            generator.as_ref(),
+            &item_valuation,
+            pkt,
+        )
+        .await;
     }
 
     /// CMSG_GAME_OBJ_REPORT_USE — client reports a game object use event.
@@ -501,7 +535,7 @@ impl crate::session::WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if self.player_moved_unit_guid_like_cpp() != player_guid {
+        if self.player_moved_unit_guid_like_cpp() != Some(player_guid) {
             return;
         }
 
@@ -567,7 +601,7 @@ impl crate::session::WorldSession {
         // represented GameObject half; constructing full scripted GO gossip
         // menus remains an explicit runtime boundary.
         if !gameobject_guid.is_game_object()
-            || self.is_in_taxi_flight_like_cpp()
+            || self.resolved_is_in_taxi_flight_like_cpp() != Some(false)
             || !self.player_is_strictly_in_world_like_cpp()
         {
             return None;

@@ -31,8 +31,68 @@ pub(crate) fn item_turnin_persistence_rows_like_cpp(
 }
 
 impl WorldSession {
-    pub(super) fn creature_virtual_items_from_row_like_cpp(
+    #[cfg(test)]
+    pub async fn handle_swap_inv_item(&mut self, swap: SwapInvItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_swap_inv_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            swap,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_auto_equip_item(&mut self, equip: AutoEquipItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_auto_equip_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            equip,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_auto_equip_item_slot_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            equip,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_swap_item(&mut self, swap: wow_packet::packets::item::SwapItem) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_swap_item_with_generator_like_cpp(generators.item.as_ref(), &catalogs, swap)
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn handle_auto_store_bag_item(
         &mut self,
+        store: wow_packet::packets::item::AutoStoreBagItem,
+    ) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_auto_store_bag_item_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &catalogs,
+            store,
+        )
+        .await;
+    }
+
+    pub(super) fn creature_virtual_items_from_row_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &CreatureSpawnCatalogsLikeCpp,
         entry: u32,
         persisted_equipment_id: i16,
     ) -> CreatureEquipmentCreateFieldsLikeCpp {
@@ -46,7 +106,8 @@ impl WorldSession {
             };
         }
 
-        if let Some(store) = self.creature_equipment_store_like_cpp().cloned() {
+        {
+            let store = &catalogs.equipment;
             let equipment = if equipment_id == -1 {
                 let count = store.len_for_entry(entry);
                 if count == 0 {
@@ -87,13 +148,31 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn creature_virtual_items_from_row_like_cpp(
+        &mut self,
+        entry: u32,
+        persisted_equipment_id: i16,
+    ) -> CreatureEquipmentCreateFieldsLikeCpp {
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.creature_virtual_items_from_row_with_catalogs_like_cpp(
+            &catalogs,
+            entry,
+            persisted_equipment_id,
+        )
+    }
+
     /// Handle CMSG_SAVE_EQUIPMENT_SET.
     ///
     /// C++ validates the equipment/transmog payload, normalizes ignored slots,
     /// then calls `Player::SetEquipmentSet`. Rust mirrors the in-memory dirty
     /// state and new-set `SMSG_EQUIPMENT_SET_ID`; the next full player save
     /// appends `_SaveEquipmentSets`-shaped statements to its transaction.
-    pub async fn handle_save_equipment_set(&mut self, mut pkt: WorldPacket) {
+    pub async fn handle_save_equipment_set_with_generator_like_cpp(
+        &mut self,
+        generator: &wow_core::EquipmentSetGuidGeneratorLikeCpp,
+        mut pkt: WorldPacket,
+    ) {
         let request = match SaveEquipmentSet::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -102,7 +181,9 @@ impl WorldSession {
             }
         };
 
-        let Some(saved) = self.save_represented_equipment_set_like_cpp(request.set) else {
+        let Some(saved) =
+            self.save_represented_equipment_set_with_generator_like_cpp(generator, request.set)
+        else {
             return;
         };
 
@@ -113,6 +194,15 @@ impl WorldSession {
                 set_id: saved.set_id,
             });
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_save_equipment_set(&mut self, pkt: WorldPacket) {
+        let Some(generator) = self.equipment_set_guid_generator_for_test_like_cpp() else {
+            return;
+        };
+        self.handle_save_equipment_set_with_generator_like_cpp(generator.as_ref(), pkt)
+            .await;
     }
 
     /// Handle CMSG_ASSIGN_EQUIPMENT_SET_SPEC.
@@ -187,7 +277,7 @@ impl WorldSession {
         target: InventoryStorageTargetLikeCpp,
     ) -> Option<Result<InventoryStorageMovePlanLikeCpp, InventoryResult>> {
         let source = self.get_inventory_item_by_pos(source_bag, source_slot)?;
-        let source_object = self.inventory_item_objects_like_cpp().get(&source.guid)?;
+        let source_object = self.resolved_inventory_item_object_like_cpp(source.guid)?;
         let source_count = source_object.count();
         let moving_to_bank = target == InventoryStorageTargetLikeCpp::Bank;
         let (result, destinations) = if moving_to_bank {
@@ -246,7 +336,7 @@ impl WorldSession {
                     return Some(Err(InventoryResult::CantStack));
                 }
                 let Some(existing_object) =
-                    self.inventory_item_objects_like_cpp().get(&existing.guid)
+                    self.resolved_inventory_item_object_like_cpp(existing.guid)
                 else {
                     return Some(Err(InventoryResult::ItemNotFound));
                 };
@@ -292,14 +382,15 @@ impl WorldSession {
         if bag == INVENTORY_SLOT_BAG_0 {
             Some(0)
         } else {
-            self.inventory_items_like_cpp()
-                .get(&bag)
+            self.resolved_inventory_item_like_cpp(bag)
                 .map(|item| item.db_guid)
         }
     }
 
     pub(super) async fn execute_inventory_storage_move_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination_bag: u8,
@@ -367,8 +458,11 @@ impl WorldSession {
                         bank_store_destination_applies_obtain_spells_like_cpp(bag)
                     })
             });
-        let current_non_bank_count =
-            self.represented_non_bank_item_count_like_cpp(plan.source.entry_id);
+        let Some(current_non_bank_count) =
+            self.represented_non_bank_item_count_like_cpp(plan.source.entry_id)
+        else {
+            return;
+        };
         let post_move_non_bank_count = if quest_checks
             == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved
             && moving_to_bank
@@ -408,11 +502,7 @@ impl WorldSession {
         });
         let mut binding_updates = Vec::new();
         for update in &plan.existing_updates {
-            if let Some(mut item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&update.item.guid)
-                .cloned()
-            {
+            if let Some(mut item) = self.resolved_inventory_item_object_like_cpp(update.item.guid) {
                 let old_flags = item.item_flags_bits();
                 item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
                     update.bag,
@@ -428,10 +518,7 @@ impl WorldSession {
             }
         }
         if let Some((destination_bag, destination_slot, _)) = plan.moved_destination
-            && let Some(mut item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&plan.source.guid)
-                .cloned()
+            && let Some(mut item) = self.resolved_inventory_item_object_like_cpp(plan.source.guid)
         {
             let old_flags = item.item_flags_bits();
             item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
@@ -455,10 +542,7 @@ impl WorldSession {
         };
         let mut mutable_persistence = Vec::new();
         for update in &plan.existing_updates {
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&update.item.guid)
-            else {
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(update.item.guid) else {
                 self.send_equip_error(
                     InventoryResult::ItemNotFound,
                     Some(update.item.guid),
@@ -482,7 +566,7 @@ impl WorldSession {
             };
             mutable_persistence.push(item_storage_mutable_persistence_like_cpp(
                 update.item.db_guid,
-                item,
+                &item,
                 update.new_count,
                 planned_flags(update.item.guid, item.item_flags_bits()),
                 enchantments,
@@ -490,10 +574,7 @@ impl WorldSession {
             ));
         }
         if let Some((_, _, moved_count)) = plan.moved_destination {
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&plan.source.guid)
-            else {
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(plan.source.guid) else {
                 self.send_equip_error(
                     InventoryResult::ItemNotFound,
                     Some(plan.source.guid),
@@ -515,7 +596,7 @@ impl WorldSession {
             };
             mutable_persistence.push(item_storage_mutable_persistence_like_cpp(
                 plan.source.db_guid,
-                item,
+                &item,
                 moved_count,
                 planned_flags(plan.source.guid, item.item_flags_bits()),
                 enchantments.clone(),
@@ -608,8 +689,7 @@ impl WorldSession {
             && plan.source_bag == INVENTORY_SLOT_BAG_0
             && plan.source_slot < INVENTORY_SLOT_BAG_END
             && self
-                .inventory_item_objects_like_cpp()
-                .get(&plan.source.guid)
+                .resolved_inventory_item_object_like_cpp(plan.source.guid)
                 .is_some_and(|item| item.has_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED));
         if source_stays_in_place {
             self.remove_inventory_item_duration_refs_like_cpp(plan.source.guid);
@@ -727,22 +807,30 @@ impl WorldSession {
             }
             self.record_represented_avg_equipped_item_level_update_like_cpp();
         }
-        self.sync_object_accessor_player();
         if apply_obtain_spells {
             let _ = self
-                .apply_inventory_item_obtain_spells_like_cpp(plan.source.entry_id)
+                .apply_inventory_item_obtain_spells_with_generator_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    plan.source.entry_id,
+                )
                 .await;
         }
 
-        let mut changed_quest_ids =
-            if quest_checks == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved {
-                self.apply_quest_item_removed_like_cpp(plan.source.entry_id)
-            } else {
-                Vec::new()
+        let mut changed_quest_ids = if quest_checks
+            == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved
+        {
+            let Some(changed) = self.apply_quest_item_removed_like_cpp(plan.source.entry_id) else {
+                return;
             };
+            changed
+        } else {
+            Vec::new()
+        };
         if runs_added_quest_check {
             changed_quest_ids.extend(
-                self.apply_quest_item_added_objective_progress_like_cpp(
+                self.apply_quest_item_added_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
                     plan.source.entry_id,
                     quest_log_item_id,
                     added_quest_count,
@@ -825,10 +913,20 @@ impl WorldSession {
         queue.push_back(entry);
         let condition_store = self.condition_store().cloned();
         let player_condition_store = self.player_condition_store().cloned();
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
+        else {
+            return;
+        };
         let player_condition_object = self.build_condition_player_object_like_cpp();
         let vendor_condition_object = self.build_condition_creature_object_like_cpp(vendor_guid);
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            self.send_packet(&VendorInventory {
+                vendor_guid,
+                reason: 0,
+                items: vec![],
+            });
+            return;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
 
         'vendor_expansion: while let Some(vendor_entry) = queue.pop_front() {
@@ -894,7 +992,7 @@ impl WorldSession {
                             player_condition_failed: vendor_player_condition_failed_id_like_cpp(
                                 player_condition_id,
                                 player_condition_store.as_deref(),
-                                Some(player_condition_context.as_context(self)),
+                                player_condition_context.as_context(self),
                             ),
                             locked: false,
                             do_not_filter,
@@ -963,7 +1061,7 @@ impl WorldSession {
                             player_snapshot,
                             vendor_unit_snapshot,
                             player_condition_store.as_deref(),
-                            Some(player_condition_context.as_context(self)),
+                            player_condition_context.as_context(self),
                         ) {
                             warn!(
                                 "Vendor item condition not met for creature entry {} item {}",
@@ -993,7 +1091,7 @@ impl WorldSession {
                         player_condition_failed: vendor_player_condition_failed_id_like_cpp(
                             player_condition_id,
                             player_condition_store.as_deref(),
-                            Some(player_condition_context.as_context(self)),
+                            player_condition_context.as_context(self),
                         ),
                         locked: false,
                         do_not_filter,
@@ -1028,8 +1126,11 @@ impl WorldSession {
             return true;
         }
 
+        let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
+            return false;
+        };
         let mut current_count = 0_u32;
-        let mut slots: Vec<_> = self.inventory_items_like_cpp().iter().collect();
+        let mut slots: Vec<_> = inventory_items.iter().collect();
         slots.sort_by_key(|&(slot, _)| {
             let slot = *slot;
             if slot >= 19 {
@@ -1043,9 +1144,7 @@ impl WorldSession {
             if inventory_item.entry_id != item_entry {
                 continue;
             }
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&inventory_item.guid)
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
             else {
                 continue;
             };
@@ -1070,9 +1169,10 @@ impl WorldSession {
             return Some(Vec::new());
         }
 
+        let inventory_items = self.resolved_inventory_items_like_cpp()?;
         let mut remaining = count;
         let mut changes = Vec::new();
-        let mut slots: Vec<_> = self.inventory_items_like_cpp().iter().collect();
+        let mut slots: Vec<_> = inventory_items.iter().collect();
         slots.sort_by_key(|&(slot, _)| {
             let slot = *slot;
             if slot >= 19 {
@@ -1086,9 +1186,7 @@ impl WorldSession {
             if inventory_item.entry_id != item_entry {
                 continue;
             }
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&inventory_item.guid)
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
             else {
                 continue;
             };
@@ -1165,7 +1263,6 @@ impl WorldSession {
         }
 
         if !cleared_slots.is_empty() {
-            self.sync_object_accessor_player();
             self.send_player_values_update_from_entity_bridge(
                 &cleared_slots,
                 &visible_item_changes,
@@ -1190,8 +1287,7 @@ impl WorldSession {
     ) -> Option<(InventoryResult, InventorySwapTargetLikeCpp)> {
         let source = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let source_count = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)?
+            .resolved_inventory_item_object_like_cpp(source.guid)?
             .count();
         let destination_pos = wow_entities::make_item_pos(destination_bag, destination_slot);
 
@@ -1248,7 +1344,13 @@ impl WorldSession {
         Some((InventoryResult::Ok, InventorySwapTargetLikeCpp::None))
     }
 
-    async fn execute_inventory_swap_positions_like_cpp(&mut self, src: u16, dst: u16) {
+    async fn execute_inventory_swap_positions_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        src: u16,
+        dst: u16,
+    ) {
         let mut pending = VecDeque::from([(src, dst)]);
         let mut steps = 0usize;
         while let Some((step_src, step_dst)) = pending.pop_front() {
@@ -1258,7 +1360,12 @@ impl WorldSession {
                 return;
             }
             match self
-                .execute_inventory_swap_step_like_cpp(step_src, step_dst)
+                .execute_inventory_swap_step_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    step_src,
+                    step_dst,
+                )
                 .await
             {
                 InventorySwapStepLikeCpp::Done => {}
@@ -1301,9 +1408,8 @@ impl WorldSession {
             .get_inventory_item_by_pos(src_bag, src_slot)
             .ok_or(InventoryResult::ItemNotFound)?;
         let count = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .map(wow_entities::Item::count)
+            .resolved_inventory_item_object_like_cpp(source.guid)
+            .map(|item| item.count())
             .ok_or(InventoryResult::ItemNotFound)?;
         let Some((result, target)) = self.validate_inventory_swap_target_like_cpp(
             src_bag, src_slot, dst_bag, dst_slot, false, true,
@@ -1428,6 +1534,8 @@ impl WorldSession {
     /// equipment position as empty.
     async fn execute_inventory_auto_unequip_child_item_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         child_bag: u8,
         child_slot: u8,
         child_guid: ObjectGuid,
@@ -1438,6 +1546,8 @@ impl WorldSession {
         }
 
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             child_bag,
             child_slot,
             INVENTORY_SLOT_BAG_0,
@@ -1463,7 +1573,7 @@ impl WorldSession {
         parent_slot: u8,
         parent_guid: ObjectGuid,
     ) -> Result<Option<InventoryEquipChildPlanLikeCpp>, InventoryResult> {
-        let Some(parent) = self.inventory_item_objects_like_cpp().get(&parent_guid) else {
+        let Some(parent) = self.resolved_inventory_item_object_like_cpp(parent_guid) else {
             return Ok(None);
         };
         let Some(child_equipment) =
@@ -1475,16 +1585,15 @@ impl WorldSession {
         if !is_equipment_pos(INVENTORY_SLOT_BAG_0, destination_slot) {
             return Err(InventoryResult::NotEquippable);
         }
-        let Some(child) = self
-            .inventory_item_objects_like_cpp()
-            .values()
-            .find(|item| {
-                item.has_item_flag(ItemFieldFlags::CHILD)
-                    && item.data().creator == parent_guid
-                    && (child_equipment.child_item_id <= 0
-                        || item.object().entry() == child_equipment.child_item_id as u32)
-            })
-        else {
+        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
+            return Err(InventoryResult::ItemNotFound);
+        };
+        let Some(child) = item_objects.values().find(|item| {
+            item.has_item_flag(ItemFieldFlags::CHILD)
+                && item.data().creator == parent_guid
+                && (child_equipment.child_item_id <= 0
+                    || item.object().entry() == child_equipment.child_item_id as u32)
+        }) else {
             return Ok(None);
         };
         let child_guid = child.object().guid();
@@ -1504,7 +1613,7 @@ impl WorldSession {
                 displaced_storage: None,
             }));
         };
-        let displaced_object = self.inventory_item_objects_like_cpp().get(&displaced.guid);
+        let displaced_object = self.resolved_inventory_item_object_like_cpp(displaced.guid);
         let displaced_proto = self.item_storage_template(displaced.entry_id);
         let child_is_bag = self
             .item_storage_template(child.object().entry())
@@ -1513,7 +1622,7 @@ impl WorldSession {
             INVENTORY_SLOT_BAG_0,
             destination_slot,
             !child_is_bag,
-            displaced_object,
+            displaced_object.as_ref(),
             displaced_proto.as_ref(),
             self.direct_item_contains_items(displaced.guid),
         );
@@ -1576,6 +1685,8 @@ impl WorldSession {
     /// parent move and its preflight have succeeded.
     async fn execute_inventory_equip_child_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         plan: InventoryEquipChildPlanLikeCpp,
     ) -> bool {
         if self
@@ -1589,6 +1700,8 @@ impl WorldSession {
 
         if let Some((bag, slot, target)) = plan.displaced_storage {
             self.execute_inventory_storage_move_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
                 INVENTORY_SLOT_BAG_0,
                 plan.destination_slot,
                 bag,
@@ -1625,6 +1738,8 @@ impl WorldSession {
 
     async fn execute_inventory_swap_step_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         src: u16,
         dst: u16,
     ) -> InventorySwapStepLikeCpp {
@@ -1651,8 +1766,7 @@ impl WorldSession {
                     .filter(|item| {
                         is_equipment_pos(src_bag, src_slot)
                             && self
-                                .inventory_item_objects_like_cpp()
-                                .get(&item.guid)
+                                .resolved_inventory_item_object_like_cpp(item.guid)
                                 .is_some_and(|object| object.has_item_flag(ItemFieldFlags::CHILD))
                     })
                     .map(|item| (src_bag, src_slot, item.guid))
@@ -1662,8 +1776,7 @@ impl WorldSession {
                             .filter(|item| {
                                 is_equipment_pos(dst_bag, dst_slot)
                                     && self
-                                        .inventory_item_objects_like_cpp()
-                                        .get(&item.guid)
+                                        .resolved_inventory_item_object_like_cpp(item.guid)
                                         .is_some_and(|object| {
                                             object.has_item_flag(ItemFieldFlags::CHILD)
                                         })
@@ -1684,6 +1797,8 @@ impl WorldSession {
                 };
                 if !self
                     .execute_inventory_auto_unequip_child_item_like_cpp(
+                        item_guid_generator,
+                        creature_spawn_catalogs,
                         child_bag,
                         child_slot,
                         child_guid,
@@ -1727,6 +1842,8 @@ impl WorldSession {
             match target {
                 InventorySwapTargetLikeCpp::Inventory => {
                     self.execute_inventory_storage_move_like_cpp(
+                        item_guid_generator,
+                        creature_spawn_catalogs,
                         src_bag,
                         src_slot,
                         dst_bag,
@@ -1739,6 +1856,8 @@ impl WorldSession {
                 }
                 InventorySwapTargetLikeCpp::Bank => {
                     self.execute_inventory_storage_move_like_cpp(
+                        item_guid_generator,
+                        creature_spawn_catalogs,
                         src_bag,
                         src_slot,
                         dst_bag,
@@ -1750,8 +1869,14 @@ impl WorldSession {
                     .await;
                 }
                 InventorySwapTargetLikeCpp::Equipment { dest } => {
-                    self.execute_inventory_equip_to_empty_like_cpp(src_bag, src_slot, dest)
-                        .await;
+                    self.execute_inventory_equip_to_empty_like_cpp(
+                        item_guid_generator,
+                        creature_spawn_catalogs,
+                        src_bag,
+                        src_slot,
+                        dest,
+                    )
+                    .await;
                 }
                 InventorySwapTargetLikeCpp::None => {}
             }
@@ -1773,6 +1898,8 @@ impl WorldSession {
             if result == InventoryResult::Ok && !matches!(target, InventorySwapTargetLikeCpp::None)
             {
                 self.execute_inventory_stack_merge_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
                     src_bag,
                     src_slot,
                     dst_bag,
@@ -1822,6 +1949,8 @@ impl WorldSession {
         }
 
         self.execute_inventory_real_swap_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             src_bag,
             src_slot,
             dst_bag,
@@ -1837,6 +1966,8 @@ impl WorldSession {
 
     async fn execute_inventory_equip_to_empty_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination: u16,
@@ -1863,10 +1994,19 @@ impl WorldSession {
             return;
         }
         if let Some(plan) = child_plan {
-            let _ = self.execute_inventory_equip_child_like_cpp(plan).await;
+            let _ = self
+                .execute_inventory_equip_child_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    plan,
+                )
+                .await;
         }
-        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
-            .await;
+        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+        )
+        .await;
     }
 
     async fn execute_inventory_equip_to_empty_raw_like_cpp(
@@ -1882,11 +2022,7 @@ impl WorldSession {
         let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
             return;
         };
-        let Some(runtime_item) = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .cloned()
-        else {
+        let Some(runtime_item) = self.resolved_inventory_item_object_like_cpp(source.guid) else {
             return;
         };
         let Some((enchantments, cleared_enchantments)) = self
@@ -2003,7 +2139,6 @@ impl WorldSession {
         }
         self.record_represented_titan_grip_penalty_action_like_cpp();
         self.record_represented_avg_equipped_item_level_update_like_cpp();
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -2011,7 +2146,11 @@ impl WorldSession {
     /// normal two-hand equip path has already proved `CanStoreItem`, so use the
     /// same persisted storage executor rather than the older runtime-only
     /// represented helper.
-    async fn execute_inventory_auto_unequip_offhand_if_need_like_cpp(&mut self) {
+    async fn execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    ) {
         let Some(reason) = self.represented_auto_unequip_offhand_reason_like_cpp(false) else {
             return;
         };
@@ -2024,6 +2163,8 @@ impl WorldSession {
         let offhand_entry = offhand.entry_id;
 
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             INVENTORY_SLOT_BAG_0,
             wow_entities::EQUIPMENT_SLOT_OFFHAND,
             NULL_BAG,
@@ -2056,6 +2197,8 @@ impl WorldSession {
 
     async fn execute_inventory_stack_merge_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination_bag: u8,
@@ -2066,17 +2209,11 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(source_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .cloned()
-        else {
+        let Some(source_object) = self.resolved_inventory_item_object_like_cpp(source.guid) else {
             return;
         };
-        let Some(destination_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&destination.guid)
-            .cloned()
+        let Some(destination_object) =
+            self.resolved_inventory_item_object_like_cpp(destination.guid)
         else {
             return;
         };
@@ -2211,11 +2348,13 @@ impl WorldSession {
                 self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
         }
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         if is_equipment_pos(destination_bag, destination_slot) {
-            self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
-                .await;
+            self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+            )
+            .await;
         }
     }
 
@@ -2252,6 +2391,8 @@ impl WorldSession {
     #[allow(clippy::too_many_arguments)]
     async fn execute_inventory_real_swap_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         source_bag: u8,
         source_slot: u8,
         destination_bag: u8,
@@ -2264,17 +2405,11 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(source_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .cloned()
-        else {
+        let Some(source_object) = self.resolved_inventory_item_object_like_cpp(source.guid) else {
             return;
         };
-        let Some(destination_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&destination.guid)
-            .cloned()
+        let Some(destination_object) =
+            self.resolved_inventory_item_object_like_cpp(destination.guid)
         else {
             return;
         };
@@ -2362,14 +2497,15 @@ impl WorldSession {
         // container changes in the same transaction as the two bag positions.
         let source_template = self.item_storage_template(source.entry_id);
         let destination_template = self.item_storage_template(destination.entry_id);
-        let source_children = self
-            .inventory_item_objects_like_cpp()
+        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
+            return;
+        };
+        let source_children = item_objects
             .values()
             .filter(|item| item.container_guid() == source.guid)
             .map(|item| (item.slot(), item.object().guid(), item.object().entry()))
             .collect::<Vec<_>>();
-        let destination_children = self
-            .inventory_item_objects_like_cpp()
+        let destination_children = item_objects
             .values()
             .filter(|item| item.container_guid() == destination.guid)
             .map(|item| (item.slot(), item.object().guid(), item.object().entry()))
@@ -2606,13 +2742,21 @@ impl WorldSession {
         }
         self.record_represented_titan_grip_penalty_action_like_cpp();
         self.record_represented_avg_equipped_item_level_update_like_cpp();
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         for plan in child_plans {
-            let _ = self.execute_inventory_equip_child_like_cpp(plan).await;
+            let _ = self
+                .execute_inventory_equip_child_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    plan,
+                )
+                .await;
         }
-        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
-            .await;
+        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+        )
+        .await;
     }
 
     fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {
@@ -2667,7 +2811,12 @@ impl WorldSession {
     }
 
     /// Handle CMSG_SWAP_INV_ITEM: drag-and-drop item between two inventory slots.
-    pub async fn handle_swap_inv_item(&mut self, swap: SwapInvItem) {
+    pub async fn handle_swap_inv_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        swap: SwapInvItem,
+    ) {
         if swap.inv_update.items.len() != 2 {
             warn!(
                 "HandleSwapInvItemOpcode - Invalid itemCount ({})",
@@ -2694,6 +2843,8 @@ impl WorldSession {
             return;
         }
         self.execute_inventory_swap_positions_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, swap.src_slot),
             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, swap.dst_slot),
         )
@@ -2701,7 +2852,12 @@ impl WorldSession {
     }
 
     /// Handle CMSG_AUTO_EQUIP_ITEM: right-click to auto-equip/unequip an item.
-    pub async fn handle_auto_equip_item(&mut self, equip: AutoEquipItem) {
+    pub async fn handle_auto_equip_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        equip: AutoEquipItem,
+    ) {
         if equip.inv_update.items.len() != 1 {
             warn!(
                 "HandleAutoEquipItemOpcode - Invalid itemCount ({})",
@@ -2747,17 +2903,26 @@ impl WorldSession {
         let [destination_bag, destination_slot] = destination.to_be_bytes();
         let Some(displaced) = self.get_inventory_item_by_pos(destination_bag, destination_slot)
         else {
-            self.execute_inventory_swap_positions_like_cpp(source_pos, destination)
-                .await;
+            self.execute_inventory_swap_positions_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+                source_pos,
+                destination,
+            )
+            .await;
             return;
         };
         let displaced_is_child = self
-            .inventory_item_objects_like_cpp()
-            .get(&displaced.guid)
+            .resolved_inventory_item_object_like_cpp(displaced.guid)
             .is_some_and(|item| item.has_item_flag(ItemFieldFlags::CHILD));
         if displaced_is_child {
-            self.execute_inventory_swap_positions_like_cpp(source_pos, destination)
-                .await;
+            self.execute_inventory_swap_positions_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+                source_pos,
+                destination,
+            )
+            .await;
             return;
         }
 
@@ -2768,8 +2933,13 @@ impl WorldSession {
         match preflight.result {
             SwapItemPreflightResult::NoSource => return,
             SwapItemPreflightResult::ChildRedirect { .. } => {
-                self.execute_inventory_swap_positions_like_cpp(source_pos, destination)
-                    .await;
+                self.execute_inventory_swap_positions_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    source_pos,
+                    destination,
+                )
+                .await;
                 return;
             }
             SwapItemPreflightResult::Error(result) => {
@@ -2790,8 +2960,13 @@ impl WorldSession {
             )
             .map_or(InventoryResult::CantSwap, |(result, _)| result);
         if exact_displaced_result == InventoryResult::Ok {
-            self.execute_inventory_swap_positions_like_cpp(source_pos, destination)
-                .await;
+            self.execute_inventory_swap_positions_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+                source_pos,
+                destination,
+            )
+            .await;
             return;
         }
 
@@ -2849,6 +3024,8 @@ impl WorldSession {
         };
 
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             destination_bag,
             destination_slot,
             fallback_bag,
@@ -2864,8 +3041,14 @@ impl WorldSession {
         {
             return;
         }
-        self.execute_inventory_equip_to_empty_like_cpp(equip.pack_slot, equip.slot, destination)
-            .await;
+        self.execute_inventory_equip_to_empty_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            equip.pack_slot,
+            equip.slot,
+            destination,
+        )
+        .await;
     }
 
     /// Handle CMSG_AUTO_EQUIP_ITEM_SLOT.
@@ -2874,7 +3057,12 @@ impl WorldSession {
     /// it requires exactly one `InvUpdate` source position, verifies that the
     /// GUID still lives at that source position, rejects src==dst, then calls
     /// `Player::SwapItem` with the packed source position.
-    pub async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
+    pub async fn handle_auto_equip_item_slot_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        equip: AutoEquipItemSlot,
+    ) {
         if self.player_guid().is_none() {
             return;
         }
@@ -2901,14 +3089,24 @@ impl WorldSession {
         if source == destination {
             return;
         }
-        self.execute_inventory_swap_positions_like_cpp(source, destination)
-            .await;
+        self.execute_inventory_swap_positions_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            source,
+            destination,
+        )
+        .await;
     }
 
     /// Handle CMSG_SWAP_ITEM: C++ container-aware swap between two positions.
     /// C++ ref: `WorldSession::HandleSwapItem`
     /// (`Handlers/ItemHandler.cpp:130-173`).
-    pub async fn handle_swap_item(&mut self, swap: wow_packet::packets::item::SwapItem) {
+    pub async fn handle_swap_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        swap: wow_packet::packets::item::SwapItem,
+    ) {
         if swap.inv_update.items.len() != 2 {
             warn!(
                 "HandleSwapItem - Invalid itemCount ({})",
@@ -2939,16 +3137,23 @@ impl WorldSession {
         {
             return;
         }
-        self.execute_inventory_swap_positions_like_cpp(source, destination)
-            .await;
+        self.execute_inventory_swap_positions_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            source,
+            destination,
+        )
+        .await;
     }
 
     /// Handle CMSG_AUTO_STORE_BAG_ITEM: right-click to store item in bag/backpack.
     ///
     /// C++ ref: `WorldSession::HandleAutoStoreBagItemOpcode`
     /// (`Handlers/ItemHandler.cpp:699-743`).
-    pub async fn handle_auto_store_bag_item(
+    pub async fn handle_auto_store_bag_item_with_generator_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
         store: wow_packet::packets::item::AutoStoreBagItem,
     ) {
         let player_guid = match self.player_guid() {
@@ -2982,7 +3187,7 @@ impl WorldSession {
             return;
         }
 
-        let runtime_item = self.inventory_item_objects_like_cpp().get(&source.guid);
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(source.guid);
         let proto = self.item_storage_template(source.entry_id);
         let source_pos = wow_entities::make_item_pos(store.container_slot_a, store.slot_a);
         if is_equipment_pos(store.container_slot_a, store.slot_a)
@@ -2992,7 +3197,7 @@ impl WorldSession {
                 store.container_slot_a,
                 store.slot_a,
                 !wow_entities::is_bag_pos(source_pos),
-                runtime_item,
+                runtime_item.as_ref(),
                 proto.as_ref(),
                 self.direct_item_contains_items(source.guid),
             );
@@ -3003,6 +3208,8 @@ impl WorldSession {
         }
 
         self.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
             store.container_slot_a,
             store.slot_a,
             store.container_slot_b,
@@ -3039,10 +3246,7 @@ impl WorldSession {
             }
         };
 
-        let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item.guid)
-            .cloned();
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(item.guid);
         let item_proto = self.item_storage_template(item.entry_id);
         let unequip_result = self.can_unequip_inventory_item_at_like_cpp(
             bag,
@@ -3088,15 +3292,16 @@ impl WorldSession {
                 .as_ref()
                 .map(|item_object| item_object.count().saturating_sub(new_count))
                 .unwrap_or(0);
-            let planned_quest_statuses =
-                self.plan_destroyed_inventory_quest_persistence_like_cpp(&[
-                    DestroyQuestItemLikeCpp {
-                        bag,
-                        slot,
-                        entry_id: item.entry_id,
-                        count: removed_count,
-                    },
-                ]);
+            let Some(planned_quest_statuses) = self
+                .plan_destroyed_inventory_quest_persistence_like_cpp(&[DestroyQuestItemLikeCpp {
+                    bag,
+                    slot,
+                    entry_id: item.entry_id,
+                    count: removed_count,
+                }])
+            else {
+                return;
+            };
             let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::PartialDestroy(
                 wow_persistence::InventoryPartialDestroyPersistenceLikeCpp {
                     owner_guid: player_guid.counter() as u64,
@@ -3123,13 +3328,15 @@ impl WorldSession {
             self.update_inventory_item_object_like_cpp(item.guid, |item_object| {
                 item_object.set_count(new_count);
             });
-            let changed_quest_ids = self.apply_quest_item_removed_like_cpp(item.entry_id);
+            let Some(changed_quest_ids) = self.apply_quest_item_removed_like_cpp(item.entry_id)
+            else {
+                return;
+            };
             debug_assert_eq!(
                 changed_quest_ids.len(),
                 planned_quest_statuses.len(),
                 "partial destroy quest persistence must match committed runtime removal"
             );
-            self.sync_object_accessor_player();
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item.guid,
                 self.player_map_id_like_cpp(),
@@ -3163,7 +3370,7 @@ impl WorldSession {
     pub(super) fn plan_destroyed_inventory_quest_persistence_like_cpp(
         &self,
         destroyed_items: &[DestroyQuestItemLikeCpp],
-    ) -> Vec<crate::handlers::quest::PlayerQuestStatus> {
+    ) -> Option<Vec<crate::handlers::quest::PlayerQuestStatus>> {
         let removed_entries_in_order = destroyed_items
             .iter()
             .map(|item| item.entry_id)
@@ -3183,16 +3390,16 @@ impl WorldSession {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .map(|entry_id| {
-                let current = self.represented_non_bank_item_count_like_cpp(entry_id);
+                let current = self.represented_non_bank_item_count_like_cpp(entry_id)?;
                 let removed = removed_non_bank_counts.get(&entry_id).copied().unwrap_or(0);
-                (entry_id, current.saturating_sub(removed))
+                Some((entry_id, current.saturating_sub(removed)))
             })
-            .collect::<Vec<_>>();
-        self.plan_item_transfer_quest_persistence_like_cpp(
+            .collect::<Option<Vec<_>>>()?;
+        Some(self.plan_item_transfer_quest_persistence_like_cpp(
             &removed_entries_in_order,
             &post_removal_non_bank_counts,
             &[],
-        )
+        ))
     }
 
     /// Handle CMSG_CANCEL_TEMP_ENCHANTMENT.
@@ -3209,7 +3416,7 @@ impl WorldSession {
         let Some(item) = self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, slot) else {
             return;
         };
-        let Some(runtime_item) = self.inventory_item_objects_like_cpp().get(&item.guid) else {
+        let Some(runtime_item) = self.resolved_inventory_item_object_like_cpp(item.guid) else {
             return;
         };
         if runtime_item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id == 0
@@ -3225,7 +3432,6 @@ impl WorldSession {
         self.update_inventory_item_object_like_cpp(item.guid, |item| {
             item.clear_enchantment(EnchantmentSlot::EnhancementTemporary);
         });
-        self.sync_object_accessor_player();
     }
 
     /// C++ `Player::DestroyItem(bag, slot, update=true)` for a full-stack item.
@@ -3270,7 +3476,11 @@ impl WorldSession {
         // deleting the bag itself. Keep all corresponding character rows in a
         // single transaction so a persistence failure cannot orphan children
         // or expose a partially destroyed runtime graph.
-        let descendants = self.represented_inventory_descendants_postorder_like_cpp(item.guid);
+        let Some(descendants) =
+            self.represented_inventory_descendants_postorder_like_cpp(item.guid)
+        else {
+            return false;
+        };
         let descendant_runtime = descendants
             .iter()
             .map(|(child_bag, child_slot, child)| {
@@ -3278,9 +3488,7 @@ impl WorldSession {
                     *child_bag,
                     *child_slot,
                     child.clone(),
-                    self.inventory_item_objects_like_cpp()
-                        .get(&child.guid)
-                        .cloned(),
+                    self.resolved_inventory_item_object_like_cpp(child.guid),
                 )
             })
             .collect::<Vec<_>>();
@@ -3308,8 +3516,11 @@ impl WorldSession {
                 .map(wow_entities::Item::count)
                 .unwrap_or(1),
         });
-        let planned_quest_statuses =
-            self.plan_destroyed_inventory_quest_persistence_like_cpp(&destroyed_quest_items);
+        let Some(planned_quest_statuses) =
+            self.plan_destroyed_inventory_quest_persistence_like_cpp(&destroyed_quest_items)
+        else {
+            return false;
+        };
 
         let should_expire_refund = runtime_item
             .as_ref()
@@ -3397,7 +3608,10 @@ impl WorldSession {
                 });
             }
             destroyed_guids.push(child.guid);
-            changed_quest_ids.extend(self.apply_quest_item_removed_like_cpp(child.entry_id));
+            let Some(changed) = self.apply_quest_item_removed_like_cpp(child.entry_id) else {
+                return false;
+            };
+            changed_quest_ids.extend(changed);
         }
 
         let represented_item_mods_changed =
@@ -3406,7 +3620,10 @@ impl WorldSession {
         let removed = self.apply_committed_inventory_item_removal_like_cpp(bag, slot, item.guid);
         debug_assert!(removed);
         destroyed_guids.push(item.guid);
-        changed_quest_ids.extend(self.apply_quest_item_removed_like_cpp(item.entry_id));
+        let Some(changed) = self.apply_quest_item_removed_like_cpp(item.entry_id) else {
+            return false;
+        };
+        changed_quest_ids.extend(changed);
         changed_quest_ids.sort_unstable();
         changed_quest_ids.dedup();
         debug_assert_eq!(
@@ -3414,7 +3631,6 @@ impl WorldSession {
             planned_quest_statuses.len(),
             "recursive destroy quest persistence must match child/parent runtime removals"
         );
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
 
         self.send_packet(&UpdateObject::destroy_objects(
@@ -3478,17 +3694,12 @@ impl WorldSession {
             return None; // Not fully logged in yet
         }
 
-        let gear = self.represented_player_gear_stats_like_cpp(include_represented_item_bonuses);
+        let gear = self.represented_player_gear_stats_like_cpp(include_represented_item_bonuses)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
 
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);
-        let (health, max_health_for_update) = self
-            .sync_canonical_player_max_health_like_cpp(computed_max_health_u32)
-            .unwrap_or_else(|| {
-                let current = self.player_health_like_cpp().min(computed_max_health_u32);
-                self.set_player_health_like_cpp(current, computed_max_health_u32);
-                (current, computed_max_health_u32)
-            });
+        let (health, max_health_for_update) =
+            self.sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;
         let health = i64::from(health);
         let max_health = i64::from(max_health_for_update);
 

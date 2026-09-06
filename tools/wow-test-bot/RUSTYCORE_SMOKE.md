@@ -3,7 +3,7 @@
 This bot can be used as a headless client harness for RustyCore. Treat it as an
 E2E regression tool only: C++ TrinityCore remains the protocol/source-of-truth.
 
-## Current safe gate
+## Bounded login gate — live and mutating
 
 The first RustyCore gate is login-only:
 
@@ -14,9 +14,47 @@ BNet auth -> world auth -> CMSG_ENUM_CHARACTERS -> CMSG_PLAYER_LOGIN -> SMSG_LOG
 This intentionally does not run Dungeon Finder/LFG. LFG is a later gate, after
 the corresponding Rust server port is ready.
 
+Login is not read-only: authentication/session state and normal player login/logout
+can write the databases. The wrapper may also create missing disposable bot identities
+and an ignored password file by default. Use only authorized test identities and the
+approved runtime/DB targets; disabling bootstrap does not make gameplay read-only.
+Runtime swaps and destructive fixture modes retain their separate explicit guards.
+
+## Bounded normal save/relogin check (#578)
+
+With explicit approval to swap/restart `world-server` and use existing
+`TESTBOT1@bot.local`, run the maintained two-pass wrapper under the runtime guard:
+
+```bash
+QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_save_relog.sh \
+  ./tools/qa-runtime.sh --allow-runtime-qa \
+  --world-exec /absolute/path/to/verified/world-server \
+  --report /tmp/rustycore-save-relog-runtime.json login
+```
+
+Build the bot first. The wrapper inherits the guard's exact bot hash, loopback
+endpoints and disabled provisioning/fixture modes. `WOW_BOT_LOGIN_SAVE_CHECK=1`
+adds a pre-authentication check of the exact existing Battle.net/game-account
+ownership and sole offline character, then normal logout after login-stream
+drain. It requires the empty `SMSG_LOGOUT_COMPLETE` response, an offline row and
+a strictly newer `logout_time`; socket-loss fallback does not pass. It reads,
+but never seeds or cleans, the six spell/favorite/skill/equipment/transmog/
+reputation tables. Pre-existing rows must survive unchanged; login defaults may
+be added. Two fresh authentications must retain identical saved projections and
+known/favorite-spell packets. The private bot report has
+`login_save_relog_verified=true` only after both passes, while the outer runtime
+report separately records restoration. Ordinary auth/login/logout DB writes
+remain, by design. `bnet-server` is not restarted.
+
+This is bounded save/relogin evidence, not whole-character parity, a crash or
+unknown-COMMIT experiment, concurrency proof, or a fresh capture. The new QA
+module is private `src/login_save.rs`; `test_login_save_relog.sh` tests report
+acceptance without a server or database. Missing/mutated existing data is a
+failure to investigate, not permission to repair the fixture.
+
 ## What was adapted
 
-- `--login-only`: stops immediately after `SMSG_LOGIN_VERIFY_WORLD`.
+- `--login-only`: verifies world entry and drains the login streams.
 - `--quest-smoke`: after login, resolves one creature questgiver, sends
   `CMSG_GOSSIP_HELLO`, falls back to `CMSG_QUEST_GIVER_HELLO`, optionally sends
   `CMSG_QUEST_GIVER_QUERY_QUEST`, and reports the quest ids/titles received.
@@ -331,10 +369,11 @@ The expected report shape for a pass is:
 
 If no bot password is configured, the wrapper generates one in ignored
 `tools/wow-test-bot/.env.local` and exports it for the run. By default it also
-passes `--ensure-test-accounts`, which upserts only local `@bot.local` BNet/game
-account rows with SRP credentials matching that password, clears local test
-account lock/ban state, verifies the configured character GUID exists, and
-syncs `realmcharacters`.
+passes `--ensure-test-accounts`, which creates missing local `@bot.local`
+BNet/game identities or validates an already complete identity. It does not
+rewrite existing credentials, clear locks/bans, repair partial identities,
+reassign characters or overwrite an online/realm-count mismatch. Existing
+credentials and configured character ownership must match or the run fails.
 
 Disable these local QA helpers with:
 

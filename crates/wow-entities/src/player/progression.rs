@@ -7,25 +7,962 @@
 
 use super::*;
 
+/// Validated, single-use acquisition result, not a second Player/runtime owner.
+/// C++ Player::AddSpell/SetSkill own these fields (Player.cpp:2797-2835,5753-5766).
+/// Preparation preserves the represented fail-closed contract before invalidation
+/// or mutation; application leaves fallback grants and TraitConfig evidence alone.
+#[derive(Debug)]
+pub struct PreparedPlayerSpellAcquisitionLikeCpp {
+    spells: BTreeMap<i32, PlayerKnownSpellRecord>,
+    traits: BTreeMap<i32, i32>,
+    overrides: BTreeMap<i32, BTreeSet<i32>>,
+    skills: Vec<PlayerSkillRecord>,
+    occupied_slots: u16,
+    tombstones: BTreeSet<u16>,
+}
+
+impl PreparedPlayerSpellAcquisitionLikeCpp {
+    pub fn try_new(
+        spells: impl IntoIterator<Item = PlayerKnownSpellRecord>,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+        overrides: impl IntoIterator<Item = (i32, i32)>,
+        skills: Vec<(u16, PlayerSkillRecord)>,
+        occupied_slots: u16,
+        tombstones: BTreeSet<u16>,
+    ) -> Option<Self> {
+        let mut exact_spells = BTreeMap::new();
+        for spell in spells {
+            if spell.spell_id <= 0 || exact_spells.insert(spell.spell_id, spell).is_some() {
+                return None;
+            }
+        }
+        let mut exact_traits = BTreeMap::new();
+        for (spell_id, definition) in traits {
+            if definition <= 0
+                || !exact_spells
+                    .get(&spell_id)
+                    .is_some_and(|spell| spell.state != PlayerSpellLoadState::Removed)
+                || exact_traits.insert(spell_id, definition).is_some()
+            {
+                return None;
+            }
+        }
+        let mut exact_overrides = BTreeMap::<i32, BTreeSet<i32>>::new();
+        for (old, new) in overrides {
+            if old <= 0 || new <= 0 {
+                return None;
+            }
+            exact_overrides.entry(old).or_default().insert(new);
+        }
+        if occupied_slots > 256 || usize::from(occupied_slots) != skills.len() {
+            return None;
+        }
+        let cleared = |skill: &PlayerSkillRecord| {
+            skill.step == 0
+                && skill.current_value == 0
+                && skill.max_value == 0
+                && skill.profession_slot == -1
+        };
+        let mut exact_skills = BTreeMap::new();
+        for (key, skill) in skills {
+            if key == 0
+                || u32::from(key) != skill.skill_line_id
+                || (skill.state == PlayerSkillLoadState::Deleted && !cleared(&skill))
+                || exact_skills.insert(key, skill).is_some()
+            {
+                return None;
+            }
+        }
+        if !tombstones.iter().all(|id| {
+            exact_skills.get(id).is_some_and(|skill| {
+                cleared(skill)
+                    && matches!(
+                        skill.state,
+                        PlayerSkillLoadState::Unchanged | PlayerSkillLoadState::Deleted
+                    )
+            })
+        }) {
+            return None;
+        }
+        Some(Self {
+            spells: exact_spells,
+            traits: exact_traits,
+            overrides: exact_overrides,
+            skills: exact_skills.into_values().collect(),
+            occupied_slots,
+            tombstones,
+        })
+    }
+}
+
+impl PlayerRestState {
+    /// C++ RestMgr::SetRestFlag (RestMgr.cpp:95-109). Read the clock only
+    /// when the first rest flag becomes active, preserving represented timing.
+    pub fn set_flag_like_cpp(
+        &mut self,
+        rest_flag: u32,
+        trigger_id: u32,
+        now: impl FnOnce() -> u64,
+    ) -> bool {
+        let old_mask = self.rest_flag_mask;
+        self.location_initialized = true;
+        self.rest_flag_mask |= rest_flag;
+        let crossed_zero = old_mask == 0 && self.rest_flag_mask != 0;
+        if crossed_zero {
+            self.rest_time_secs = now();
+        }
+        if trigger_id != 0 {
+            self.inn_area_trigger_id = trigger_id;
+        }
+        if crossed_zero && self.defer_flag_sync {
+            self.deferred_flag_update_dirty = true;
+        }
+        crossed_zero
+    }
+
+    /// C++ RestMgr::RemoveRestFlag (RestMgr.cpp:112-122), retaining Rust's
+    /// existing tavern-trigger cleanup and deferred publication bookkeeping.
+    pub fn remove_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
+        let old_mask = self.rest_flag_mask;
+        self.rest_flag_mask &= !rest_flag;
+        if old_mask != self.rest_flag_mask {
+            self.location_initialized = true;
+        }
+        let tavern = 0x1; // C++ RestMgr.h:53 REST_FLAG_IN_TAVERN.
+        if (rest_flag & tavern) != 0 && (self.rest_flag_mask & tavern) == 0 {
+            self.inn_area_trigger_id = 0;
+        }
+        let crossed_zero = old_mask != 0 && self.rest_flag_mask == 0;
+        if crossed_zero {
+            self.rest_time_secs = 0;
+            if self.defer_flag_sync {
+                self.deferred_flag_update_dirty = true;
+            }
+        }
+        crossed_zero
+    }
+}
+
+impl PlayerTalentRuntimeState {
+    /// C++ Player::GetNextResetTalentsCost (Player.cpp:3472-3503).
+    /// Keep the represented saturating arithmetic for anomalous timestamps/costs;
+    /// this is a read of this Player's reset history, not a Session policy.
+    pub fn next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
+        let gold = 10_000;
+        let reset_cost = self.reset_talents_cost;
+        if reset_cost < gold {
+            return gold;
+        }
+        if reset_cost < 5 * gold {
+            return 5 * gold;
+        }
+        if reset_cost < 10 * gold {
+            return 10 * gold;
+        }
+
+        let months = now_secs.saturating_sub(self.reset_talents_time_secs) / (30 * 24 * 60 * 60);
+        if months > 0 {
+            let reduced = i64::from(reset_cost)
+                - i64::try_from(5 * u64::from(gold) * months).unwrap_or(i64::MAX);
+            return reduced.max(i64::from(10 * gold)) as u32;
+        }
+
+        reset_cost.saturating_add(5 * gold).min(50 * gold)
+    }
+}
+
+#[cfg(test)]
+mod rest_flag_tests {
+    use super::*;
+
+    #[test]
+    fn rest_accrual_preserves_guards_timer_boundary_and_computed_extra_return() {
+        let mut player = Player::new(None, false);
+        player.set_next_level_xp(72_000);
+        player.load_xp_rest_bonus_like_cpp(6, 0.5);
+        let before = player.rest_state_like_cpp().clone();
+        for (logout, now) in [(0, 100), (100, 99), (100, 100)] {
+            assert_eq!(
+                player.apply_offline_xp_rest_bonus_like_cpp(logout, now, 0.125, false, false),
+                0.0
+            );
+            assert_eq!(player.rest_state_like_cpp(), &before);
+        }
+        player.gameplay_state_mut().rest.rest_time_secs = 100;
+        for now in [99, 100, 109] {
+            assert_eq!(
+                player.update_online_xp_rest_bonus_like_cpp(now, 0.125, false, false),
+                (0.0, 0)
+            );
+            assert_eq!(player.rest_state_like_cpp().rest_time_secs, 100);
+        }
+        assert_eq!(
+            player.update_online_xp_rest_bonus_like_cpp(110, 0.125, false, false),
+            (1.25, 7)
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_time_secs, 110);
+        assert_eq!(
+            player.update_online_xp_rest_bonus_like_cpp(110, 0.125, false, false),
+            (0.0, 0)
+        );
+        assert_eq!(
+            player.apply_offline_xp_rest_bonus_like_cpp(1, 1_000_001, 0.125, false, false),
+            125_000.0
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 54_000.0);
+        assert_eq!(
+            player.update_online_xp_rest_bonus_like_cpp(120, 0.125, true, false),
+            (0.0, 7)
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_time_secs, 120);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.0);
+    }
+
+    #[test]
+    fn rest_consumption_preserves_integer_percentage_bounds_and_zero_award_normalization() {
+        for (xp, pct, remaining) in [
+            (40, 50, 10.0),
+            (40, 0, 30.0),
+            (40, -50, 50.0),
+            (40, -200, 70.0),
+            (3, -50, 68.0),
+            (40, i32::MAX, 0.0),
+            (40, i32::MIN, 70.0),
+            (100, 0, 0.0),
+        ] {
+            let mut player = Player::new(None, false);
+            player.set_next_level_xp(1000);
+            player.load_xp_rest_bonus_like_cpp(1, 70.0);
+            let (award, mask) = player.take_xp_rest_bonus_like_cpp(xp, pct, false, false);
+            assert_eq!(award, xp.min(70));
+            assert_eq!(player.rest_state_like_cpp().rest_bonus, remaining);
+            assert_eq!(mask, if remaining == 70.0 { 0 } else { 7 });
+        }
+        let mut player = Player::new(None, false);
+        player.set_next_level_xp(1000);
+        player.load_xp_rest_bonus_like_cpp(6, 0.5);
+        assert_eq!(
+            player.take_xp_rest_bonus_like_cpp(10, 50, false, false),
+            (0, 7)
+        );
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.5);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 2);
+    }
+
+    #[test]
+    fn rest_bonus_preserves_max_level_raf_priority_and_fractional_no_change_mask() {
+        let mut player = Player::new(None, false);
+        player.set_next_level_xp(100);
+        player.load_xp_rest_bonus_like_cpp(2, 0.5);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(0.9, false, false), 0);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.9);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(200.0, false, false), 7);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 75.0);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 1);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(200.0, true, true), 7);
+        assert_eq!(player.rest_state_like_cpp().rest_bonus, 0.0);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 6);
+        assert_eq!(player.set_xp_rest_bonus_like_cpp(200.0, true, false), 7);
+        assert_eq!(player.rest_state_like_cpp().rest_state, 2);
+    }
+
+    #[test]
+    fn rest_flags_only_start_and_stop_time_at_zero_crossings() {
+        for deferred in [false, true] {
+            let mut state = PlayerRestState {
+                defer_flag_sync: deferred,
+                ..Default::default()
+            };
+            assert!(!state.set_flag_like_cpp(0, 0, || panic!("empty mask reads no clock")));
+            assert!(state.location_initialized);
+            let calls = std::cell::Cell::new(0);
+            assert!(state.set_flag_like_cpp(1, 77, || {
+                calls.set(calls.get() + 1);
+                100
+            }));
+            assert_eq!(calls.get(), 1);
+            assert_eq!(state.rest_time_secs, 100);
+            assert_eq!(state.inn_area_trigger_id, 77);
+            assert_eq!(state.deferred_flag_update_dirty, deferred);
+            state.deferred_flag_update_dirty = false;
+            assert!(!state.set_flag_like_cpp(1, 88, || panic!("repeat reads no clock")));
+            assert!(!state.set_flag_like_cpp(2, 0, || panic!("second flag reads no clock")));
+            assert_eq!(state.inn_area_trigger_id, 88);
+            assert!(!state.deferred_flag_update_dirty);
+            assert!(!state.remove_flag_like_cpp(1));
+            assert_eq!(state.inn_area_trigger_id, 0);
+            assert_eq!(state.rest_time_secs, 100);
+            assert_eq!(state.rest_flag_mask, 2);
+            assert!(!state.deferred_flag_update_dirty);
+            assert!(state.remove_flag_like_cpp(2));
+            assert_eq!(state.rest_time_secs, 0);
+            assert_eq!(state.rest_flag_mask, 0);
+            assert_eq!(state.deferred_flag_update_dirty, deferred);
+            state.deferred_flag_update_dirty = false;
+            assert!(!state.remove_flag_like_cpp(2));
+            assert!(!state.deferred_flag_update_dirty);
+        }
+    }
+
+    #[test]
+    fn absent_tavern_removal_preserves_uninitialized_location_and_other_rest_fields() {
+        let mut state = PlayerRestState {
+            inn_area_trigger_id: 77,
+            rest_bonus: 123.5,
+            rest_honor_bonus: 55.0,
+            rest_time_secs: 100,
+            deferred_flag_update_dirty: true,
+            ..Default::default()
+        };
+        let mut expected = state.clone();
+        expected.inn_area_trigger_id = 0;
+        assert!(!state.remove_flag_like_cpp(1));
+        assert_eq!(state, expected);
+    }
+}
+
+#[cfg(test)]
+mod talent_point_tests {
+    use super::*;
+
+    #[test]
+    fn reset_fee_preserves_steps_monthly_decay_and_represented_arithmetic_bounds() {
+        let month = 30 * 24 * 60 * 60;
+        let now = 10 * month;
+        for (cost, stamp, expected) in [
+            (0, now, 10_000),
+            (9_999, now, 10_000),
+            (10_000, now, 50_000),
+            (49_999, now, 50_000),
+            (50_000, now, 100_000),
+            (99_999, now, 100_000),
+            (100_000, now, 150_000),
+            (500_000, now, 500_000),
+            (500_000, now - month + 1, 500_000),
+            (500_000, now - month, 450_000),
+            (100_000, now - month, 100_000),
+            (500_000, 0, 100_000),
+            (100_000, now + 1, 150_000),
+            (u32::MAX, now, 500_000),
+        ] {
+            let state = PlayerTalentRuntimeState {
+                reset_talents_cost: cost,
+                reset_talents_time_secs: stamp,
+                ..Default::default()
+            };
+            let before = state.clone();
+            assert_eq!(
+                state.next_reset_talents_cost_like_cpp(now),
+                expected,
+                "cost={cost}, timestamp={stamp}"
+            );
+            assert_eq!(state, before, "a price query cannot mutate talent state");
+        }
+    }
+
+    #[test]
+    fn refresh_counts_only_valid_active_talents_and_marks_the_same_update_field() {
+        let mut player = Player::new(None, false);
+        player.gameplay_state_mut().talents.active_group = 1;
+        player.gameplay_state_mut().talents.talent_groups[0].insert(10, 8);
+        player.gameplay_state_mut().talents.talent_groups[1].insert(20, 2);
+        player.gameplay_state_mut().talents.talent_groups[1].insert(30, 1);
+        player.gameplay_state_mut().quest_rewarded_talent_points = 5;
+        let before = player.talent_runtime_like_cpp().clone();
+        player.clear_data_changes();
+        let mut visited = Vec::new();
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(71, |id, rank| {
+                visited.push((id, rank));
+                id == 20
+            }),
+            73
+        );
+        assert_eq!(visited, vec![(20, 2), (30, 1)]);
+        assert_eq!(player.talent_runtime_like_cpp(), &before);
+        assert_eq!(player.gameplay_state().quest_rewarded_talent_points, 5);
+        assert_eq!(player.active_data().character_points, 73);
+        let mut direct = Player::new(None, false);
+        direct.clear_data_changes();
+        direct.set_character_points_like_cpp(73);
+        assert_eq!(
+            player.active_player_data_changes_mask().blocks(),
+            direct.active_player_data_changes_mask().blocks()
+        );
+        player.clear_data_changes();
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(71, |id, _| id == 20),
+            73
+        );
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+    }
+
+    #[test]
+    fn refresh_preserves_empty_group_saturation_and_signed_field_bounds() {
+        let mut player = Player::new(None, false);
+        player.gameplay_state_mut().talents.talent_groups[0].insert(20, 2);
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(2, |_, _| true),
+            0
+        );
+        player.gameplay_state_mut().talents.active_group = u8::MAX;
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(7, |_, _| {
+                panic!("invalid group has no talents to validate")
+            }),
+            7
+        );
+        player.gameplay_state_mut().quest_rewarded_talent_points = u32::MAX;
+        assert_eq!(
+            player.refresh_represented_talent_points_like_cpp(0, |_, _| true),
+            i32::MAX
+        );
+    }
+}
+
 impl Player {
+    /// Install the immutable process-owned `player_xp_for_level` view used by
+    /// C++ `Player::GiveLevel`. The canonical Player retains only the shared
+    /// read handle, so active and far-teleport-detached residence use the same
+    /// table without a Session mirror.
+    pub fn install_player_xp_table_like_cpp(&mut self, table: Arc<Vec<u32>>) {
+        self.player_xp_table_like_cpp = Some(table);
+    }
+
+    pub fn player_xp_for_level_like_cpp(&self, level: u8) -> Option<u32> {
+        self.player_xp_table_like_cpp
+            .as_ref()?
+            .get(usize::from(level))
+            .copied()
+    }
+
+    pub fn spell_runtime_like_cpp(&self) -> &PlayerSpellRuntimeState {
+        &self.gameplay_state().spells
+    }
+
+    pub fn replace_spell_runtime_like_cpp(&mut self, state: PlayerSpellRuntimeState) {
+        self.gameplay_state_mut().spells = state;
+    }
+
+    /// Apply one prepared acquisition under the caller's exclusive Player access.
+    /// No SQL or publication occurs here; preserve the established commit boundary.
+    pub fn apply_prepared_spell_acquisition_like_cpp(
+        &mut self,
+        prepared: PreparedPlayerSpellAcquisitionLikeCpp,
+    ) {
+        let runtime = &mut self.gameplay_state.spells;
+        runtime.known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state != PlayerSpellLoadState::Removed && !spell.disabled)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.dependent_known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state != PlayerSpellLoadState::Removed && spell.dependent)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.favorite_known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state != PlayerSpellLoadState::Removed && spell.favorite)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.removed_known_spells = prepared
+            .spells
+            .values()
+            .filter(|spell| spell.state == PlayerSpellLoadState::Removed)
+            .map(|spell| spell.spell_id)
+            .collect();
+        runtime.rows = prepared.spells;
+        runtime.rows_loaded = true;
+        runtime.rows_complete = true;
+        runtime.trait_definition_ids = prepared.traits;
+        runtime.trait_definition_ids_complete = true;
+        runtime.override_spells = prepared.overrides;
+        runtime.override_spells_complete = true;
+        self.replace_skill_records_like_cpp(
+            prepared.skills,
+            true,
+            true,
+            Some(prepared.occupied_slots),
+            prepared.tombstones,
+        );
+    }
+
+    pub fn talent_runtime_like_cpp(&self) -> &PlayerTalentRuntimeState {
+        &self.gameplay_state().talents
+    }
+
+    pub fn replace_talent_runtime_like_cpp(&mut self, state: PlayerTalentRuntimeState) {
+        self.gameplay_state_mut().talents = state;
+    }
+
+    /// Refresh the represented CharacterPoints projection on its canonical owner.
+    /// C++ Player.cpp:26356,28670 reads the active talent group and quest rewards
+    /// from Player. The caller supplies level/catalog policy without retaining it
+    /// here; the predicate must only read immutable data, never re-enter the owner.
+    /// This preserves the port's validity filter and bounds, not full InitTalentForLevel.
+    pub fn refresh_represented_talent_points_like_cpp(
+        &mut self,
+        base_points: u32,
+        mut valid_talent: impl FnMut(u32, u8) -> bool,
+    ) -> i32 {
+        let runtime = self.talent_runtime_like_cpp();
+        let spent: u32 = runtime
+            .talent_groups
+            .get(usize::from(runtime.active_group))
+            .into_iter()
+            .flat_map(|talents| talents.iter())
+            .filter(|(talent_id, rank)| valid_talent(**talent_id, **rank))
+            .map(|(_, rank)| u32::from(*rank) + 1)
+            .sum();
+        let total = base_points + self.gameplay_state().quest_rewarded_talent_points;
+        let points = total.saturating_sub(spent).min(i32::MAX as u32) as i32;
+        self.set_character_points_like_cpp(points);
+        points
+    }
+
+    pub fn taxi_state_like_cpp(&self) -> &PlayerTaxiState {
+        &self.gameplay_state().taxi
+    }
+
+    pub fn replace_taxi_state_like_cpp(&mut self, state: PlayerTaxiState) {
+        self.gameplay_state_mut().taxi = state;
+    }
+
+    pub fn rest_state_like_cpp(&self) -> &PlayerRestState {
+        &self.gameplay_state().rest
+    }
+
+    pub fn replace_rest_state_like_cpp(&mut self, state: PlayerRestState) {
+        self.gameplay_state_mut().rest = state;
+    }
+
+    /// C++ RestMgr constructor (RestMgr.cpp:26-30) and LoadRestBonus
+    /// (Player.cpp:17693). The caller supplies its validated persisted state.
+    /// Reset transient location state without replacing loaded Player flags or
+    /// unrelated XP/honor/logout state; offline accumulation happens afterward.
+    pub fn load_xp_rest_bonus_like_cpp(&mut self, state_id: u8, bonus: f32) {
+        self.mutate_rest_state_like_cpp(|state| {
+            state.rest_flag_mask = 0;
+            state.location_initialized = false;
+            state.defer_flag_sync = false;
+            state.deferred_flag_update_dirty = false;
+            state.inn_area_trigger_id = 0;
+            state.rest_time_secs = 0;
+            state.rest_state = state_id;
+            state.rest_bonus = bonus;
+        });
+    }
+
+    /// C++ RestMgr::SetRestBonus (RestMgr.cpp:33-80), with the existing
+    /// represented non-finite input and unavailable-next-level-XP guards.
+    /// Policy is borrowed; previous/new rest values and NextLevelXP are local.
+    pub fn set_xp_rest_bonus_like_cpp(
+        &mut self,
+        bonus: f32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> u8 {
+        let next_level_xp = self.active_data().next_level_xp.max(0) as u32;
+        let old = self.rest_state_like_cpp();
+        let old_threshold = old.rest_bonus.clamp(0.0, u32::MAX as f32) as u32;
+        let old_state = old.rest_state;
+        let mut bonus = if bonus.is_finite() { bonus } else { 0.0 };
+        if at_configured_max_level || next_level_xp == 0 || next_level_xp == u32::MAX {
+            bonus = 0.0;
+        }
+        bonus = bonus.clamp(0.0, next_level_xp as f32 * (1.5 / 2.0));
+        let state_id = if raf_linked {
+            6
+        } else if bonus >= 1.0 {
+            1
+        } else {
+            2
+        };
+        self.mutate_rest_state_like_cpp(|state| {
+            state.rest_bonus = bonus;
+            state.rest_state = state_id;
+        });
+        let new_threshold = bonus.clamp(0.0, u32::MAX as f32) as u32;
+        // Both nested fields are published whenever either value changes.
+        if old_threshold != new_threshold || old_state != state_id {
+            0x07
+        } else {
+            0
+        }
+    }
+
+    pub fn add_xp_rest_bonus_like_cpp(
+        &mut self,
+        bonus: f32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> u8 {
+        let total = self.rest_state_like_cpp().rest_bonus + bonus;
+        self.set_xp_rest_bonus_like_cpp(total, at_configured_max_level, raf_linked)
+    }
+
+    /// C++ RestMgr::GetRestBonusFor (RestMgr.cpp:125-138). Preserve Rust's
+    /// represented signed-integer percentage and saturation, not C++ Util.h's
+    /// float CalculatePct conversion for extreme/negative modifiers.
+    pub fn take_xp_rest_bonus_like_cpp(
+        &mut self,
+        xp: u32,
+        consumption_pct: i32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> (u32, u8) {
+        let current = self.rest_state_like_cpp().rest_bonus;
+        let award = (current as u32).min(xp);
+        let adjusted = i64::from(award) + (i64::from(award) * i64::from(consumption_pct)) / 100;
+        let loss = adjusted.clamp(0, i64::from(u32::MAX)) as u32;
+        // Normalize even when the integer award is zero, like SetRestBonus.
+        let mask = self.set_xp_rest_bonus_like_cpp(
+            current - loss as f32,
+            at_configured_max_level,
+            raf_linked,
+        );
+        (award, mask)
+    }
+
+    /// C++ RestMgr::CalcExtraPerSec (RestMgr.cpp:162-174), retaining the
+    /// represented unavailable-next-level and configured-maximum guards.
+    fn xp_rest_extra_per_sec_like_cpp(&self, bubble: f32, at_max: bool) -> f32 {
+        let next = self.active_data().next_level_xp.max(0) as u32;
+        if at_max || next == 0 || next == u32::MAX {
+            return 0.0;
+        }
+        next as f32 / 72_000.0 * bubble
+    }
+
+    /// C++ Player.cpp:17892-17901. Preserve #81's rejection of zero/future
+    /// logout timestamps and return the computed extra, not the capped balance.
+    pub fn apply_offline_xp_rest_bonus_like_cpp(
+        &mut self,
+        logout: u64,
+        now: u64,
+        bubble: f32,
+        at_max: bool,
+        raf: bool,
+    ) -> f32 {
+        if logout == 0 {
+            return 0.0;
+        }
+        let Some(diff) = now.checked_sub(logout) else {
+            return 0.0;
+        };
+        if diff == 0 {
+            return 0.0;
+        }
+        let extra = diff as f32 * self.xp_rest_extra_per_sec_like_cpp(bubble, at_max);
+        self.add_xp_rest_bonus_like_cpp(extra, at_max, raf);
+        extra
+    }
+
+    /// C++ RestMgr::Update (RestMgr.cpp:141-153), after the caller's existing
+    /// random gate. Timer and bonus belong to this same Player mutation.
+    pub fn update_online_xp_rest_bonus_like_cpp(
+        &mut self,
+        now: u64,
+        bubble: f32,
+        at_max: bool,
+        raf: bool,
+    ) -> (f32, u8) {
+        let rest_time = self.rest_state_like_cpp().rest_time_secs;
+        if rest_time == 0 {
+            return (0.0, 0);
+        }
+        let Some(diff) = now.checked_sub(rest_time) else {
+            return (0.0, 0);
+        };
+        if diff < 10 {
+            return (0.0, 0);
+        }
+        self.mutate_rest_state_like_cpp(|state| state.rest_time_secs = now);
+        let extra = diff as f32 * self.xp_rest_extra_per_sec_like_cpp(bubble, at_max);
+        let mask = self.add_xp_rest_bonus_like_cpp(extra, at_max, raf);
+        (extra, mask)
+    }
+
+    /// Mutate this Player's RestMgr state and refresh its represented fields.
+    /// C++ RestMgr.cpp:65-80,95-122 keeps rest values and flags on one Player.
+    /// Preserve the Rust load boundary: do not normalize flags until location
+    /// initialization, and keep the existing threshold clamp/update-mask rules.
+    pub fn mutate_rest_state_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut PlayerRestState) -> R,
+    ) -> R {
+        let state = &mut self.gameplay_state_mut().rest;
+        let result = f(state);
+        let threshold = state.rest_bonus.clamp(0.0, u32::MAX as f32) as u32;
+        let state_id = state.rest_state;
+        let resting = state
+            .location_initialized
+            .then_some(state.rest_flag_mask != 0);
+        self.set_xp_rest_info_like_cpp(threshold, state_id);
+        if let Some(resting) = resting {
+            let resting_flag = 0x0000_0020; // C++ PLAYER_FLAGS_RESTING.
+            if resting {
+                self.set_player_flag(resting_flag);
+            } else {
+                self.remove_player_flag(resting_flag);
+            }
+        }
+        result
+    }
+
+    pub fn difficulty_preferences_like_cpp(&self) -> (u32, u32, u32) {
+        let state = self.gameplay_state();
+        (
+            state.dungeon_difficulty_id,
+            state.raid_difficulty_id,
+            state.legacy_raid_difficulty_id,
+        )
+    }
+
+    pub fn replace_difficulty_preferences_like_cpp(
+        &mut self,
+        dungeon: u32,
+        raid: u32,
+        legacy_raid: u32,
+    ) {
+        let state = self.gameplay_state_mut();
+        state.dungeon_difficulty_id = dungeon;
+        state.raid_difficulty_id = raid;
+        state.legacy_raid_difficulty_id = legacy_raid;
+    }
+
+    pub fn pass_on_group_loot_like_cpp(&self) -> bool {
+        self.gameplay_state().pass_on_group_loot
+    }
+
+    pub fn set_pass_on_group_loot_like_cpp(&mut self, pass_on_group_loot: bool) {
+        self.gameplay_state_mut().pass_on_group_loot = pass_on_group_loot;
+    }
+
+    pub fn create_mode_like_cpp(&self) -> u8 {
+        self.gameplay_state().create_mode
+    }
+
+    pub fn set_create_mode_like_cpp(&mut self, create_mode: u8) {
+        self.gameplay_state_mut().create_mode = create_mode;
+    }
+
+    pub fn shapeshift_form_id_like_cpp(&self) -> u32 {
+        self.gameplay_state().shapeshift_form_id
+    }
+
+    pub fn set_shapeshift_form_id_like_cpp(&mut self, form_id: u32) {
+        self.gameplay_state_mut().shapeshift_form_id = form_id;
+    }
+
+    pub fn loot_specialization_id_like_cpp(&self) -> u32 {
+        self.gameplay_state().loot_specialization_id
+    }
+
+    pub fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) {
+        self.gameplay_state_mut().loot_specialization_id = spec_id;
+    }
+
+    pub fn primary_specialization_id_like_cpp(&self) -> u32 {
+        self.data().current_spec_id
+    }
+
+    pub fn replace_skill_records_like_cpp(
+        &mut self,
+        mut records: Vec<PlayerSkillRecord>,
+        loaded: bool,
+        complete: bool,
+        occupied_slots: Option<u16>,
+        non_durable_tombstones: BTreeSet<u16>,
+    ) {
+        records.sort_unstable_by_key(|record| record.skill_line_id);
+        self.gameplay_state.skills = records;
+        self.gameplay_state.skills_loaded = loaded;
+        self.gameplay_state.skills_complete = loaded && complete;
+        self.gameplay_state.occupied_skill_slots = occupied_slots;
+        self.gameplay_state.non_durable_skill_tombstones = non_durable_tombstones;
+    }
+
+    pub fn skill_records_like_cpp(&self) -> &[PlayerSkillRecord] {
+        &self.gameplay_state.skills
+    }
+
+    /// Replace represented keyed rows on their Player owner. C++ SetSkill
+    /// (Player.cpp:5753-5766) distinguishes deleted durable rows from cleared
+    /// non-durable slots. Preserve Rust's existing malformed-row/completeness
+    /// rules and input iteration order until the keyed Session DTO is retired.
+    pub fn replace_represented_skill_records_like_cpp(
+        &mut self,
+        records: Vec<(u16, PlayerSkillRecord)>,
+        loaded: bool,
+        complete: bool,
+    ) {
+        let cleared = |skill: &PlayerSkillRecord| {
+            skill.step == 0
+                && skill.current_value == 0
+                && skill.max_value == 0
+                && skill.profession_slot == -1
+        };
+        let structurally_complete = records.iter().all(|(key, skill)| {
+            u32::from(*key) == skill.skill_line_id
+                && (skill.state != PlayerSkillLoadState::Deleted || cleared(skill))
+        });
+        let lookup: BTreeMap<_, _> = records.iter().map(|(key, skill)| (*key, skill)).collect();
+        self.gameplay_state
+            .non_durable_skill_tombstones
+            .retain(|key| {
+                lookup.get(key).is_some_and(|skill| {
+                    cleared(skill)
+                        && matches!(
+                            skill.state,
+                            PlayerSkillLoadState::Unchanged | PlayerSkillLoadState::Deleted
+                        )
+                })
+            });
+        self.gameplay_state.non_durable_skill_tombstones.extend(
+            records
+                .iter()
+                .filter(|(_, skill)| skill.state == PlayerSkillLoadState::Deleted)
+                .filter_map(|(_, skill)| u16::try_from(skill.skill_line_id).ok()),
+        );
+        let tombstones = std::mem::take(&mut self.gameplay_state.non_durable_skill_tombstones);
+        self.replace_skill_records_like_cpp(
+            records.into_iter().map(|(_, skill)| skill).collect(),
+            loaded,
+            complete && structurally_complete,
+            None,
+            tombstones,
+        );
+    }
+
+    pub fn skill_records_loaded_like_cpp(&self) -> bool {
+        self.gameplay_state.skills_loaded
+    }
+
+    pub fn skill_records_complete_like_cpp(&self) -> bool {
+        self.gameplay_state.skills_complete
+    }
+
+    pub fn occupied_skill_slots_like_cpp(&self) -> Option<u16> {
+        self.gameplay_state.occupied_skill_slots
+    }
+
+    /// Authorize the represented occupied-slot proof on its Player owner.
+    /// C++ Player::SetSkill retains SkillLineID when deactivating a slot
+    /// (Player.cpp:5753-5766); deleted rows still count toward PLAYER_MAX_SKILLS.
+    /// Preserve the adapter's existing distinct-u16-ID projection, including
+    /// duplicate collapse and exclusion of wider IDs; do not rewrite skill rows.
+    pub fn authorize_occupied_skill_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
+        let exact = self
+            .gameplay_state
+            .skills
+            .iter()
+            .filter_map(|skill| u16::try_from(skill.skill_line_id).ok())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let valid = self.gameplay_state.skills_complete
+            && usize::from(occupied_slots) == exact
+            && occupied_slots <= 256;
+        self.gameplay_state.occupied_skill_slots = valid.then_some(occupied_slots);
+        valid
+    }
+
+    pub fn non_durable_skill_tombstones_like_cpp(&self) -> &BTreeSet<u16> {
+        &self.gameplay_state.non_durable_skill_tombstones
+    }
+
+    // Preserve the old Session u16-keyed projection at lifecycle boundaries:
+    // exclude wider IDs and keep the last duplicate. The sole record writer
+    // sorts by ID, so reverse/dedup/reverse preserves that exact winner/order.
+    fn normalize_represented_skill_records_like_cpp(&mut self) {
+        let skills = &mut self.gameplay_state.skills;
+        skills.retain(|skill| u16::try_from(skill.skill_line_id).is_ok());
+        skills.reverse();
+        skills.dedup_by_key(|skill| skill.skill_line_id);
+        skills.reverse();
+    }
+
+    /// C++ Player::_SaveSkills (Player.cpp:20348-20399) consumes dirty states.
+    /// Rust invokes this only after a confirmed commit; keep that retry contract
+    /// and the represented deleted-slot tombstones without copying this Player.
+    pub fn mark_skill_records_saved_like_cpp(&mut self) {
+        self.normalize_represented_skill_records_like_cpp();
+        let state = &mut self.gameplay_state;
+        for skill in &mut state.skills {
+            if skill.state == PlayerSkillLoadState::Deleted {
+                state
+                    .non_durable_skill_tombstones
+                    .insert(skill.skill_line_id as u16);
+            }
+            skill.state = PlayerSkillLoadState::Unchanged;
+        }
+        state.occupied_skill_slots = state
+            .skills_complete
+            .then_some(state.occupied_skill_slots)
+            .flatten();
+        state.skills_loaded = true;
+        state.skills_complete = state.occupied_skill_slots.is_some();
+    }
+
+    /// Skill tombstones cannot cross the C++ Player lifetime. Preserve the
+    /// represented identity-boundary normalization and incomplete-slot clearing.
+    pub fn clear_skill_tombstones_for_identity_change_like_cpp(&mut self) {
+        self.normalize_represented_skill_records_like_cpp();
+        self.gameplay_state.non_durable_skill_tombstones.clear();
+        if !self.gameplay_state.skills_complete {
+            self.gameplay_state.occupied_skill_slots = None;
+        }
+    }
+
+    pub fn enchanting_skill_value_like_cpp(&self, enchanting_skill_id: u16) -> u16 {
+        self.gameplay_state
+            .skills
+            .iter()
+            .find(|record| record.skill_line_id == u32::from(enchanting_skill_id))
+            .map(|record| record.current_value)
+            .unwrap_or(0)
+    }
+
     pub fn set_forced_reputation_rank_like_cpp(&mut self, faction_id: u32, forced: bool) {
         if forced {
-            self.forced_reaction_faction_ids.insert(faction_id);
+            if !self
+                .gameplay_state
+                .forced_reputation_ranks
+                .iter()
+                .any(|(id, _)| *id == faction_id)
+            {
+                self.gameplay_state
+                    .forced_reputation_ranks
+                    .push((faction_id, 0));
+            }
         } else {
-            self.forced_reaction_faction_ids.remove(&faction_id);
+            self.gameplay_state
+                .forced_reputation_ranks
+                .retain(|(id, _)| *id != faction_id);
         }
     }
 
     pub fn has_forced_reputation_rank_like_cpp(&self, faction_id: u32) -> bool {
-        self.forced_reaction_faction_ids.contains(&faction_id)
+        self.gameplay_state
+            .forced_reputation_ranks
+            .iter()
+            .any(|(id, _)| *id == faction_id)
     }
 
-    pub fn forced_reputation_faction_ids_like_cpp(&self) -> &HashSet<u32> {
-        &self.forced_reaction_faction_ids
+    pub fn forced_reputation_faction_ids_like_cpp(&self) -> impl Iterator<Item = u32> + '_ {
+        self.gameplay_state
+            .forced_reputation_ranks
+            .iter()
+            .map(|(id, _)| *id)
     }
 
     pub fn replace_forced_reputation_faction_ids_like_cpp(&mut self, faction_ids: HashSet<u32>) {
-        self.forced_reaction_faction_ids = faction_ids;
+        self.gameplay_state.forced_reputation_ranks =
+            faction_ids.into_iter().map(|id| (id, 0)).collect();
     }
 
     pub fn is_at_war_with_faction_like_cpp(&self, faction_id: u32) -> bool {
@@ -51,6 +988,11 @@ impl Player {
         self.set_player_i32(PLAYER_DATA_HONOR_LEVEL_BIT, level, |data| {
             &mut data.honor_level
         });
+    }
+
+    /// C++ `Player::GetMoney` (`Player.h:1690`).
+    pub const fn money(&self) -> u64 {
+        self.active_data.coinage
     }
 
     pub fn set_money(&mut self, value: u64) {
@@ -224,6 +1166,10 @@ impl Player {
             index,
             |data| &mut data.watched_faction_index,
         );
+    }
+
+    pub fn watched_faction_index_like_cpp(&self) -> i32 {
+        self.active_data().watched_faction_index
     }
 
     pub fn set_quest_completed_bit_like_cpp(&mut self, quest_bit: u32, completed: bool) -> bool {

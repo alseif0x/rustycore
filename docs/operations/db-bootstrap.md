@@ -9,6 +9,12 @@ that RustyCore can boot against. It is intentionally conservative: C++ SQL
 layout is the source of truth, and RustyCore must point at the same schemas,
 ports, and realm metadata that a TrinityCore worldserver would use.
 
+This is an operator runbook, not an instruction to execute every step during a
+code/documentation task. Service stops, SQL imports/migrations and live smoke require
+authorization for the named environment and data. Reuse an existing scoped approval;
+do not infer destructive authority merely from "test environment". Take a recoverable
+backup before mutation, and keep credentials/configuration out of Git and reports.
+
 ## Preconditions
 
 - MariaDB 10.6+ or MySQL 8.x.
@@ -45,7 +51,10 @@ stop the C++ services, then verify listeners are gone before starting Rust.
 ## 2. Create User and Databases
 
 The canonical C++ SQL creates user `trinity` and four databases using
-`utf8mb4 / utf8mb4_unicode_ci`:
+`utf8mb4 / utf8mb4_unicode_ci`. Its stock password is also `trinity` and its
+grants include schema administration; these are bootstrap examples, not safe
+credentials or least-privilege runtime grants. Review a private copy for the
+intended host and separate migration/runtime identities before using it:
 
 ```bash
 mysql -uroot -p < /home/server/woltk-trinity-legacy/sql/create/create_mysql.sql
@@ -60,10 +69,10 @@ bootstrap or an in-place update.
 For a fresh install, import the base dumps into the matching databases:
 
 ```bash
-mysql -utrinity -ptrinity auth < /home/server/woltk-trinity-legacy/sql/base/auth_database.sql
-mysql -utrinity -ptrinity characters < /home/server/woltk-trinity-legacy/sql/base/characters_database.sql
-mysql -utrinity -ptrinity world < /home/server/woltk-trinity-legacy/sql/base/dev/world_database.sql
-mysql -utrinity -ptrinity hotfixes < /home/server/woltk-trinity-legacy/sql/base/dev/hotfixes_database.sql
+mysql -utrinity -p auth < /home/server/woltk-trinity-legacy/sql/base/auth_database.sql
+mysql -utrinity -p characters < /home/server/woltk-trinity-legacy/sql/base/characters_database.sql
+mysql -utrinity -p world < /home/server/woltk-trinity-legacy/sql/base/dev/world_database.sql
+mysql -utrinity -p hotfixes < /home/server/woltk-trinity-legacy/sql/base/dev/hotfixes_database.sql
 ```
 
 Important: `world_database.sql` only creates the schema. Import the matching TDB
@@ -76,6 +85,7 @@ Normal server startup has no schema-write authority. Use the explicit
 administrative tool from the repository root after taking a backup:
 
 ```bash
+export PROTOC=/home/ubuntu/.local/protoc/bin/protoc
 cargo run -p rustycore-db -- status --config worldserver.conf
 cargo run -p rustycore-db -- migrate --dry-run --config worldserver.conf
 cargo run -p rustycore-db -- migrate --config worldserver.conf
@@ -87,7 +97,8 @@ or successful, `2` for invalid arguments, `3` for an incompatible/pending
 schema, and `4` for an operational, lock, or migration failure. The command
 contacts only the four configured MariaDB databases. It reads the local
 `database/migrations/manifest.toml`; it neither scans `sql/old` nor downloads
-artifacts.
+artifacts. `status`, `validate` and `migrate --dry-run` still connect to the
+configured databases; only the explicit non-dry-run `migrate` applies migrations.
 
 The first `migrate` on an installation previously maintained by TrinityCore's
 `updates` table imports exact filename plus normalized SHA-1 matches into the
@@ -118,10 +129,10 @@ RustyCore aborts world startup if this sentinel does not match.
 RustyCore reads TrinityCore-style semicolon DB strings:
 
 ```ini
-LoginDatabaseInfo     = "127.0.0.1;3306;trinity;trinity;auth"
-WorldDatabaseInfo     = "127.0.0.1;3306;trinity;trinity;world"
-CharacterDatabaseInfo = "127.0.0.1;3306;trinity;trinity;characters"
-HotfixDatabaseInfo    = "127.0.0.1;3306;trinity;trinity;hotfixes"
+LoginDatabaseInfo     = "127.0.0.1;3306;runtime_user;REPLACE_WITH_LOCAL_SECRET;auth"
+WorldDatabaseInfo     = "127.0.0.1;3306;runtime_user;REPLACE_WITH_LOCAL_SECRET;world"
+CharacterDatabaseInfo = "127.0.0.1;3306;runtime_user;REPLACE_WITH_LOCAL_SECRET;characters"
+HotfixDatabaseInfo    = "127.0.0.1;3306;runtime_user;REPLACE_WITH_LOCAL_SECRET;hotfixes"
 
 RealmID = 1
 WorldServerPort = 8085
@@ -161,18 +172,25 @@ FROM auth.build_info
 WHERE build = 51943;
 ```
 
-For the tested WotLK Classic client path, `gamebuild` is `51943`, and
-`win64AuthSeed` must be present for that build. Do not dump or commit session
+`51943` is the historical client fixture used in this example, not an instruction
+to overwrite a realm's current build. Match the actual approved client and realm;
+the maintained bot wrapper currently defaults to `54261` unless overridden.
+`win64AuthSeed` must be present for the selected build. Do not dump or commit session
 keys or live secrets.
 
 ## 7. Start RustyCore
 
-Recommended order:
+Build from the repository root with the pinned compiler/protoc. Start BNet first
+and world second in separate terminals, or use the deployment's existing process
+manager with explicitly selected configs; the first foreground server does not
+return while serving. These commands do not install or restart managed services:
 
 ```bash
-cargo build -p bnet-server -p world-server --release
-./target/release/bnet-server
-./target/release/world-server
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo build --locked -p bnet-server -p world-server --release
+# Terminal A:
+./target/release/bnet-server --config /absolute/path/to/bnetserver.conf
+# Terminal B:
+./target/release/world-server --config /absolute/path/to/worldserver.conf
 ```
 
 Startup evidence to expect:
@@ -189,10 +207,12 @@ Login/realm/initial enter-world has already been proven against Rust in this
 project, but every fresh DB/bootstrap should re-run a smoke before claiming it
 is ready for manual client testing.
 
-Preferred smoke harness:
+Preferred smoke harness (with valid credentials and existing disposable identities;
+these overrides disable automatic password/account bootstrap, not normal login writes):
 
 ```bash
-tools/wow-test-bot/run_rustycore_login_smoke.sh
+WOW_BOT_GENERATE_LOCAL_PASSWORD=0 WOW_BOT_ENSURE_TEST_ACCOUNTS=0 \
+  tools/wow-test-bot/run_rustycore_login_smoke.sh
 ```
 
 Minimum expected gate:

@@ -10,10 +10,12 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
+#[cfg(test)]
+use wow_packet::packets::misc::CageBattlePet;
 use wow_packet::packets::misc::{
     BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
     BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
-    CageBattlePet, QueryBattlePetName, QueryBattlePetNameResponse,
+    QueryBattlePetName, QueryBattlePetNameResponse,
 };
 use wow_packet::packets::pet::DismissCritter;
 
@@ -23,7 +25,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_request_journal",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_request_journal(pkt).await })
         },
     }
@@ -35,7 +37,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_request_journal_lock",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_request_journal_lock(pkt).await })
         },
     }
@@ -47,7 +49,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_clear_fanfare",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_clear_fanfare(pkt).await })
         },
     }
@@ -59,7 +61,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_set_flags",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_set_flags(pkt).await })
         },
     }
@@ -71,7 +73,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_set_battle_slot",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_set_battle_slot(pkt).await })
         },
     }
@@ -83,7 +85,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_battle_pet_summon",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_summon(pkt).await })
         },
     }
@@ -95,7 +97,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_update_notify",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_update_notify(pkt).await })
         },
     }
@@ -107,7 +109,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_update_display_notify",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_battle_pet_update_display_notify(pkt).await })
         },
     }
@@ -119,7 +121,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_dismiss_critter",
-        handler: |session, pkt| Box::pin(async move { session.handle_dismiss_critter(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_dismiss_critter(pkt).await }),
     }
 }
 
@@ -129,7 +131,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_battle_pet_name",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_query_battle_pet_name(pkt).await })
         },
     }
@@ -153,7 +155,9 @@ impl crate::session::WorldSession {
             self.send_battle_pet_journal_lock_status_like_cpp().await;
         }
 
-        self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
+        if let Some(journal) = self.represented_battle_pet_journal_like_cpp() {
+            self.send_packet_realm(&journal);
+        }
     }
 
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
@@ -164,7 +168,9 @@ impl crate::session::WorldSession {
     pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_battle_pet_journal_lock_status_like_cpp().await;
         if self.has_represented_battle_pet_journal_lock_like_cpp() {
-            self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
+            if let Some(journal) = self.represented_battle_pet_journal_like_cpp() {
+                self.send_packet_realm(&journal);
+            }
         }
     }
 
@@ -227,6 +233,7 @@ impl crate::session::WorldSession {
     /// unregistered for production dispatch. Until the real inventory path is
     /// wired, this represented body exercises the successful inventory seam.
 
+    #[cfg(test)]
     pub async fn handle_cage_battle_pet_represented_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,

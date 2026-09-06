@@ -4,7 +4,13 @@ These notes are for validating the current Rust runtime against the local WotLK
 Classic client and Trinity-compatible databases. They are operational notes, not
 port completion claims.
 
-## Current local findings
+## Historical local fixture observations
+
+The following undated account/character observations are retained as debugging
+context, not verified current database state. Re-read only the selected authorized
+fixture before using it; do not choose or modify a character merely because it is
+named here. The current implementation/acceptance checkpoint is
+[STATE.md](../migration/STATE.md). No live DB inspection accompanies this documentation update.
 
 - The real runtime config points RustyCore at the same MariaDB schemas used by
   the Trinity install: `auth`, `characters`, `world`, and `hotfixes`.
@@ -28,13 +34,20 @@ port completion claims.
    commits. A stale release binary can make source-level fixes invisible.
 2. Watch the world log for:
    - `Saving player on disconnect`
-   - `Player::SaveToDB represented position saved`
+   - `Player::SaveToDB represented save committed in one CharacterDatabase transaction`
    - `Finished disconnect save`
-3. If `Player::SaveToDB represented position save affected zero rows` appears,
-   inspect the character GUID being saved.
+3. A `Finished disconnect save` message marks completion of the disconnect
+   routine, not successful commit. Check for `Failed to commit Player::SaveToDB
+   represented transaction` or `Player::SaveToDB represented transaction COMMIT
+   outcome is unknown`, keyed by character GUID. Preserve the unknown-outcome
+   fence; do not retry SQL or reset dirty state blindly.
 4. If `Skipping Player::SaveToDB represented save because no coherent player
    snapshot is available` appears, inspect the movement/login path before
    adding duplicate save code.
+
+These log anchors are in `crates/wow-world/src/session/lifecycle/{logout,persistence}.rs`.
+Record the installed binary identity and action-specific evidence; source inspection
+and logs alone do not prove position persisted through a fresh login.
 
 ## What to check when mounts cannot be used
 
@@ -57,5 +70,7 @@ port completion claims.
   filters them through `sDB2Manager.GetMount`.
 - `CollectionMgr::AddMount` learns the mount source spell before evaluating
   player conditions.
-- `Player::SaveToDB` saves position through `Player::SavePositionInDB` during
-  logout before the player is removed from the world.
+- `Player::SaveToDB` writes the full character save, including position
+  (`Entities/Player/Player.cpp:19312`); `Server/WorldSession.cpp:633,670` saves
+  before removing the Player from Map. `SavePositionInDB` is a separate helper,
+  not the full logout-save call chain.

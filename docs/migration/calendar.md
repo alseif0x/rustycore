@@ -1,5 +1,10 @@
 # Migration: Calendar
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Calendar/` + `src/server/game/Handlers/CalendarHandler.cpp`
 > **Rust target crate(s):** `crates/wow-world/` (handlers, CalendarMgr global), `crates/wow-database/` (calendar prepared statements), `crates/wow-packet/` (CalendarPackets), `crates/wow-core/` (calendar enums)
 > **Layer:** L7

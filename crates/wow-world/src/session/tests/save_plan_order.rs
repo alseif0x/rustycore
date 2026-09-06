@@ -28,7 +28,7 @@ fn populate(session: &mut WorldSession, counter: i64) {
 
 fn request(session: &mut WorldSession) -> wow_persistence::PlayerCharacterSaveRequestLikeCpp {
     let snapshot = session
-        .sync_session_from_save_to_db_snapshot_like_cpp()
+        .current_player_save_to_db_snapshot_like_cpp()
         .expect("a selected character yields a save snapshot");
     session
         .current_player_character_save_request_like_cpp(&snapshot, 1_700_000_000)

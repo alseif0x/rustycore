@@ -5,7 +5,11 @@ use super::{ClientOpcodes, SessionState, SessionStatus, WorldPacket, debug, info
 
 impl super::WorldSession {
     /// Dispatch a single packet to its registered handler.
-    pub(crate) async fn dispatch_packet(&mut self, mut pkt: WorldPacket) {
+    pub(crate) async fn dispatch_packet(
+        &mut self,
+        catalogs: &super::SessionHandlerCatalogsLikeCpp,
+        mut pkt: WorldPacket,
+    ) {
         let opcode_raw = pkt.opcode_raw();
         let opcode: ClientOpcodes = match num_traits::FromPrimitive::from_u32(u32::from(opcode_raw))
         {
@@ -82,7 +86,7 @@ impl super::WorldSession {
 
         // One mechanism: the registration carries the call, so the dispatcher
         // never names a handler method (#359).
-        (entry.handler)(self, pkt).await;
+        (entry.handler)(self, catalogs, pkt).await;
 
         if cemetery_trace {
             info!(

@@ -21,7 +21,7 @@ use wow_data::{
     BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP,
     BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP, BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP,
     BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
-    BattlePetSpeciesStore, calculate_battle_pet_stats_like_cpp,
+    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, calculate_battle_pet_stats_like_cpp,
 };
 use wow_packet::packets::misc::{
     BattlePetJournal, BattlePetJournalPet, BattlePetJournalPetOwnerInfo, BattlePetJournalSlot,
@@ -224,6 +224,7 @@ pub(crate) struct BattlePetAccountOwnerLikeCpp {
     breed_quality_store: Arc<BattlePetBreedQualityStore>,
     breed_state_store: Arc<BattlePetBreedStateStore>,
     species_state_store: Arc<BattlePetSpeciesStateStore>,
+    xp_game_table: Arc<BattlePetXpGameTableLikeCpp>,
     state: Mutex<BattlePetAccountStateLikeCpp>,
     process_lease: Mutex<BattlePetProcessLeaseStateLikeCpp>,
     process_lease_changed: Notify,
@@ -242,6 +243,51 @@ pub(crate) enum BattlePetFencedReceiptProbeLikeCpp {
 }
 
 impl BattlePetAccountOwnerLikeCpp {
+    /// Process-owned DB2 species row used by account-journal operations.
+    ///
+    /// C++ battle-pet flows resolve this through the global DB2 manager while
+    /// mutating one account journal. Keeping the lookup on the account owner
+    /// avoids making `WorldSession` a second catalog owner.
+    pub(crate) fn species_entry_like_cpp(
+        &self,
+        species: u32,
+    ) -> Option<wow_data::BattlePetSpeciesEntry> {
+        self.species_store.get(species).cloned()
+    }
+
+    pub(crate) fn species_has_flag_like_cpp(&self, species: u32, flag: i32) -> bool {
+        self.species_store
+            .get(species)
+            .is_some_and(|entry| entry.has_flag_like_cpp(flag))
+    }
+
+    pub(crate) fn xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
+        self.xp_game_table.xp_per_level_like_cpp(level)
+    }
+
+    pub(crate) fn calculate_stats_like_cpp(
+        &self,
+        breed: u16,
+        species: u32,
+        quality: u8,
+        level: u16,
+    ) -> Option<crate::session::RepresentedBattlePetCalculatedStatsLikeCpp> {
+        let stats = calculate_battle_pet_stats_like_cpp(
+            breed,
+            species,
+            quality,
+            level,
+            &self.breed_state_store,
+            &self.species_state_store,
+            &self.breed_quality_store,
+        )?;
+        Some(crate::session::RepresentedBattlePetCalculatedStatsLikeCpp {
+            max_health: stats.max_health,
+            power: stats.power,
+            speed: stats.speed,
+        })
+    }
+
     fn from_loaded_like_cpp(
         account_id: u32,
         realm_id: u16,
@@ -251,6 +297,7 @@ impl BattlePetAccountOwnerLikeCpp {
         breed_quality_store: Arc<BattlePetBreedQualityStore>,
         breed_state_store: Arc<BattlePetBreedStateStore>,
         species_state_store: Arc<BattlePetSpeciesStateStore>,
+        xp_game_table: Arc<BattlePetXpGameTableLikeCpp>,
         loaded: LoadedBattlePetAccountLikeCpp,
     ) -> Self {
         // C++ `BattlePetMgr::LoadFromDB` validates each row before it enters
@@ -314,6 +361,7 @@ impl BattlePetAccountOwnerLikeCpp {
             breed_quality_store,
             breed_state_store,
             species_state_store,
+            xp_game_table,
             state: Mutex::new(BattlePetAccountStateLikeCpp {
                 pets,
                 slots,
@@ -461,6 +509,7 @@ impl BattlePetAccountOwnerLikeCpp {
                         Arc::clone(&self.breed_quality_store),
                         Arc::clone(&self.breed_state_store),
                         Arc::clone(&self.species_state_store),
+                        Arc::clone(&self.xp_game_table),
                         loaded,
                     );
                     let refreshed = refreshed
@@ -1582,6 +1631,7 @@ pub struct BattlePetAccountRegistryLikeCpp {
     breed_quality_store: Arc<BattlePetBreedQualityStore>,
     breed_state_store: Arc<BattlePetBreedStateStore>,
     species_state_store: Arc<BattlePetSpeciesStateStore>,
+    xp_game_table: Arc<BattlePetXpGameTableLikeCpp>,
     realm_id: u16,
     virtual_realm_address: u32,
     next_lease_id: AtomicU64,
@@ -1596,6 +1646,7 @@ impl BattlePetAccountRegistryLikeCpp {
         breed_quality_store: Arc<BattlePetBreedQualityStore>,
         breed_state_store: Arc<BattlePetBreedStateStore>,
         species_state_store: Arc<BattlePetSpeciesStateStore>,
+        xp_game_table: Arc<BattlePetXpGameTableLikeCpp>,
         realm_id: u16,
         virtual_realm_address: u32,
     ) -> Self {
@@ -1605,6 +1656,7 @@ impl BattlePetAccountRegistryLikeCpp {
             breed_quality_store,
             breed_state_store,
             species_state_store,
+            xp_game_table,
             realm_id,
             virtual_realm_address,
         )
@@ -1617,6 +1669,7 @@ impl BattlePetAccountRegistryLikeCpp {
         breed_quality_store: Arc<BattlePetBreedQualityStore>,
         breed_state_store: Arc<BattlePetBreedStateStore>,
         species_state_store: Arc<BattlePetSpeciesStateStore>,
+        xp_game_table: Arc<BattlePetXpGameTableLikeCpp>,
         realm_id: u16,
         virtual_realm_address: u32,
     ) -> Self {
@@ -1626,6 +1679,7 @@ impl BattlePetAccountRegistryLikeCpp {
             breed_quality_store,
             breed_state_store,
             species_state_store,
+            xp_game_table,
             realm_id,
             virtual_realm_address,
             next_lease_id: AtomicU64::new(1),
@@ -1663,6 +1717,7 @@ impl BattlePetAccountRegistryLikeCpp {
                             Arc::clone(&self.breed_quality_store),
                             Arc::clone(&self.breed_state_store),
                             Arc::clone(&self.species_state_store),
+                            Arc::clone(&self.xp_game_table),
                             loaded,
                         ),
                     ))

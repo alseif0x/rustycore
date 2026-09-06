@@ -1,5 +1,10 @@
 # Migration: Combat — CombatManager
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Combat/CombatManager.{h,cpp}` + `src/server/game/Server/Packets/CombatPackets.cpp` (CombatReference / PvPCombatReference broadcast packets).
 > **Rust target crate(s):** `crates/wow-combat/` (empty — see §13)
 > **Layer:** L5 sub-module of `combat.md`. Depends on `entities-unit.md` (L4 — Unit, IsValidAttackTarget), `combat-threat.md` (L5 sibling — every AddThreat auto-creates CombatRef), `combat-dealdamage.md` (L5 sibling — every DealDamage triggers SetInCombatWith), `ai.md` (L5 — JustEnteredCombat / JustExitedCombat hooks). Sibling of `combat-dealdamage.md`, `combat-threat.md`.

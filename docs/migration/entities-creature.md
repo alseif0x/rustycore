@@ -1,5 +1,10 @@
 # Migration: Entities / Creature
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/`
 > **Rust target crate(s):** `crates/wow-world/` (`map_manager.rs::WorldCreature`, `handlers/`), `crates/wow-ai/`, `crates/wow-data/`, `crates/wow-database/` (`world_ext`)
 > **Layer:** L4 (sub-modules under `entities.md`)
@@ -466,7 +471,6 @@ DBC/DB2 stores read by Creature/Gossip/Trainer code:
 - Static flag 8 (`CreatureStaticFlags8`) didn't exist in 3.3.5 vanilla TC but does in WoLK 3.4 Classic build — confirm against the SQL dump.
 - `RegenerateHealth` in combat is gated by `CREATURE_STATIC_FLAG_5_NO_HEALTH_REGEN` AND `_regenerateHealth` AND `IsRegeneratingHealth`. Three gates — easy to short-circuit incorrectly.
 - C++ "tap list" cap is `CREATURE_TAPPERS_SOFT_CAP = 5` — soft, not hard.
-- C# references in Creature paths are migration bugs, not fallback documentation. Re-audit each one against `/home/server/woltk-trinity-legacy`, fix the Rust behavior if it differs, and remove the C# reference.
 
 ---
 

@@ -74,6 +74,7 @@ use super::{
     queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
     realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
     reset_schedule_like_cpp, respawn_db_retry_delay,
+    retain_committed_creature_combat_events_like_cpp,
     run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
     run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
     run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
@@ -154,6 +155,19 @@ use wow_world::session::directory::{
     PlayerSessionRegistrationLikeCpp,
 };
 use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
+
+#[test]
+fn dungeon_encounter_catalog_is_loaded_without_per_session_retention() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let app = fs::read_to_string(root.join("src/app.rs")).unwrap();
+    let resources = fs::read_to_string(root.join("src/session_resources.rs")).unwrap();
+    let session = fs::read_to_string(root.join("../wow-world/src/session/mod.rs")).unwrap();
+    assert!(app.contains("wow_data::DungeonEncounterStore::load(&data_dir, &locale)"));
+    assert!(app.contains("Failed to load DungeonEncounter.db2"));
+    assert!(!app.contains("dungeon_encounter_store: Arc::clone"));
+    assert!(!resources.contains("dungeon_encounter_store"));
+    assert!(!session.contains("dungeon_encounter_store"));
+}
 
 #[test]
 fn signed_tinyint_quest_required_preserves_cpp_boolean_semantics() {
@@ -691,6 +705,7 @@ async fn world_session_shutdown_finalize_success_keeps_clean_exit_like_cpp() {
             async {},
         )
         .await
+        .is_some()
     );
     assert_eq!(world.get_exit_code_like_cpp(), SHUTDOWN_EXIT_CODE_LIKE_CPP);
 }
@@ -700,12 +715,13 @@ async fn world_session_shutdown_finalize_timeout_sets_terminal_error_like_cpp() 
     let world = WorldRuntimeStateLikeCpp::new();
 
     assert!(
-        !run_world_session_shutdown_finalize_step_like_cpp(
+        run_world_session_shutdown_finalize_step_like_cpp(
             &world,
             Duration::from_millis(1),
             std::future::pending::<()>(),
         )
         .await
+        .is_none()
     );
     assert!(world.is_stopped_like_cpp());
     assert_eq!(world.get_exit_code_like_cpp(), ERROR_EXIT_CODE_LIKE_CPP);
@@ -3453,10 +3469,10 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     let composition_source =
         fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
             .expect("world-server composition source should be readable");
-    let session_factory_source = fs::read_to_string(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_factory.rs"),
+    let resources_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
-    .expect("world-server session factory source should be readable");
+    .expect("world-server session resources source should be readable");
     let materialization_needle = [
         "max_primary_trade_skills:",
         " max_primary_trade_skills_like_cpp(&world_configs),",
@@ -3464,7 +3480,7 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     .concat();
     let propagation_needle = [
         "session.set_max_primary_trade_skills_like_cpp(",
-        "resources.max_primary_trade_skills);",
+        "self.max_primary_trade_skills);",
     ]
     .concat();
     assert!(
@@ -3472,9 +3488,317 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
         "SessionResources must materialize the validated configuration"
     );
     assert!(
-        session_factory_source.contains(&propagation_needle),
-        "create_session must propagate SessionResources into WorldSession"
+        resources_source.contains(&propagation_needle),
+        "the progression capability must propagate its validated policy atomically"
     );
+}
+
+#[test]
+fn production_persistence_capabilities_are_required_and_installed_atomically() {
+    let composition_source =
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
+            .expect("world-server composition source should be readable");
+    let resources_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
+    )
+    .expect("SessionResources source should be readable");
+    let session_factory_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_factory.rs"),
+    )
+    .expect("world-server session factory source should be readable");
+
+    for constructor in [
+        "SessionAdmissionPersistenceLikeCpp::required_like_cpp(",
+        "PlayerPersistenceCapabilitiesLikeCpp::required_like_cpp(",
+        "WorldPersistenceCapabilitiesLikeCpp::required_like_cpp(",
+        "CatalogPersistenceCapabilitiesLikeCpp::required_like_cpp(",
+    ] {
+        assert!(
+            composition_source.contains(constructor),
+            "the composition root must construct required capability {constructor}"
+        );
+    }
+    assert!(
+        resources_source.contains("core: SessionCoreCapabilitiesLikeCpp"),
+        "SessionResources must require the core capability bundle"
+    );
+    assert!(
+        resources_source
+            .contains("persistence: wow_world::session::SessionPersistencePortsLikeCpp"),
+        "the core capability bundle must carry one complete persistence graph"
+    );
+    assert!(
+        session_factory_source
+            .contains("resources.core.install_into_session_like_cpp(&mut session)"),
+        "create_session must install the complete core graph atomically"
+    );
+    assert!(
+        resources_source.contains(
+            "session.set_required_persistence_capabilities_like_cpp(self.persistence.clone())"
+        ),
+        "the atomic core installer must publish the complete persistence graph"
+    );
+    assert!(
+        !session_factory_source.contains("if let Some(ref port) = resources."),
+        "production session construction must not silently omit persistence capabilities"
+    );
+}
+
+#[test]
+fn session_resources_requires_named_capability_bundles() {
+    let composition_source =
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
+            .expect("world-server composition source should be readable");
+    let resources_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
+    )
+    .expect("SessionResources source should be readable");
+    let session_factory_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_factory.rs"),
+    )
+    .expect("session factory source should be readable");
+    let session_resources = resources_source
+        .split("pub(super) struct SessionResources {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionResources declaration should be present");
+
+    for required_bundle in [
+        "core: SessionCoreCapabilitiesLikeCpp",
+        "inventory: SessionInventoryCapabilitiesLikeCpp",
+        "player: SessionPlayerCatalogCapabilitiesLikeCpp",
+        "spells: SessionSpellCatalogCapabilitiesLikeCpp",
+        "world: SessionWorldCatalogCapabilitiesLikeCpp",
+        "progression: SessionProgressionCapabilitiesLikeCpp",
+        "runtime: SessionRuntimePolicyCapabilitiesLikeCpp",
+        "realm: SessionRealmCapabilitiesLikeCpp",
+    ] {
+        assert!(
+            session_resources.contains(required_bundle),
+            "missing required capability bundle {required_bundle}"
+        );
+    }
+    assert_eq!(
+        session_resources.matches("pub(super)").count(),
+        8,
+        "the outer construction contract must not regress into a field-by-field service locator"
+    );
+    assert!(
+        !session_resources.contains("Option<"),
+        "named capability bundles must be mandatory at production construction"
+    );
+    assert!(
+        !resources_source.contains("Option<"),
+        "every inner production capability must also be required by its Rust type"
+    );
+    for retired_test_only_catalog in [
+        "adventure_map_poi_store",
+        "addon_channel",
+        "allow_gm_group",
+        "allow_two_side_interaction_group",
+        "area_trigger_db2_store",
+        "area_trigger_script_store",
+        "area_trigger_store",
+        "bank_bag_slot_prices_store",
+        "battlemaster_list_store",
+        "characters_per_realm",
+        "chat_fake_message_preventing",
+        "chat_flood_config",
+        "chat_level_requirements",
+        "chat_listen_ranges",
+        "chat_strict_link_checking_kick",
+        "emotes_store",
+        "emotes_text_store",
+        "feature_system_bpay_store_enabled",
+        "feature_system_character_undelete_enabled",
+        "graveyard_store",
+        "import_price_stores",
+        "item_class_store",
+        "item_currency_cost_store",
+        "item_disenchant_loot_store",
+        "item_price_base_store",
+        "lfg_dungeon_store_like_cpp",
+        "module_registry",
+        "pet_default_spell_store",
+        "pet_family_spell_store",
+        "pet_levelup_spell_store",
+        "player_create_cast_spell_store",
+        "player_create_custom_spell_store",
+        "player_create_info_store",
+        "party_level_req",
+        "party_raid_warnings",
+        "serverside_spell_store",
+        "spell_enchant_proc_store",
+        "spell_totem_model_store",
+        "tact_key_store",
+        "tavern_area_trigger_store",
+        "support_bugs_enabled",
+        "support_complaints_enabled",
+        "support_enabled",
+        "support_suggestions_enabled",
+        "support_tickets_enabled",
+        "vehicle_template_store",
+    ] {
+        assert!(
+            !resources_source.contains(retired_test_only_catalog),
+            "test-only catalog {retired_test_only_catalog} must not be projected into production sessions"
+        );
+    }
+    for retired_session_generator in [
+        "pub(super) guid_generator:",
+        "pub(super) item_guid_generator:",
+        "pub(super) equipment_set_guid_generator:",
+        "pub(super) void_storage_item_id_generator:",
+    ] {
+        assert!(
+            !resources_source.contains(retired_session_generator),
+            "process-owned generator {retired_session_generator} must be borrowed by the handler instead of installed into WorldSession"
+        );
+    }
+    assert!(
+        composition_source
+            .contains("id_generators: Arc::new(wow_world::session::SessionIdGeneratorsLikeCpp"),
+        "the composition root must group process-owned generators in the borrowed handler capabilities"
+    );
+    assert!(
+        composition_source
+            .contains("item_valuation: Arc::new(wow_world::session::ItemValuationCatalogsLikeCpp"),
+        "the composition root must group process-owned item valuation stores in borrowed handler capabilities"
+    );
+    assert!(
+        !resources_source.contains("session.set_item_disenchant_loot_store("),
+        "item valuation catalogs must be borrowed by loot handlers instead of installed into WorldSession"
+    );
+    assert!(
+        composition_source.contains(
+            "player_bootstrap: Arc::new(wow_world::session::PlayerBootstrapCatalogsLikeCpp"
+        ),
+        "the composition root must group ObjectMgr PlayerInfo data in borrowed login capabilities"
+    );
+    assert!(
+        !resources_source.contains("session.set_player_create_info_store_like_cpp("),
+        "PlayerInfo creation data must be borrowed during login instead of installed into WorldSession"
+    );
+    for retired_player_start_copy in [
+        "session.set_start_all_explored_like_cpp(",
+        "session.set_start_all_reputation_like_cpp(",
+        "session.set_start_all_spells_like_cpp(",
+    ] {
+        assert!(
+            !resources_source.contains(retired_player_start_copy),
+            "C++ World player-start policy {retired_player_start_copy} must be borrowed during Player bootstrap"
+        );
+    }
+    assert!(
+        composition_source.contains(
+            "player_rest_rates: Arc::new(wow_world::session::PlayerRestRatePolicyLikeCpp"
+        ),
+        "the composition root must group C++ World rest rates in one borrowed Player policy"
+    );
+    assert!(
+        !resources_source.contains("rest_offline_wilderness_rate: f32")
+            && !resources_source.contains("rest_offline_tavern_or_city_rate: f32")
+            && !resources_source.contains("rest_ingame_rate: f32"),
+        "C++ World rest rates must not remain in the SessionResources installation graph"
+    );
+    assert!(
+        composition_source
+            .contains("creature_spawns: Arc::new(wow_world::session::CreatureSpawnCatalogsLikeCpp"),
+        "the composition root must group ObjectMgr/World creature materialization catalogs"
+    );
+    for retired_creature_catalog_copy in [
+        "session.set_creature_difficulty_store_like_cpp(",
+        "session.set_creature_base_stats_store_like_cpp(",
+        "session.set_creature_health_rates_like_cpp(",
+        "session.set_creature_addon_store_like_cpp(",
+        "session.set_creature_equipment_store_like_cpp(",
+    ] {
+        assert!(
+            !resources_source.contains(retired_creature_catalog_copy),
+            "process-owned creature catalog {retired_creature_catalog_copy} must be borrowed during materialization"
+        );
+    }
+    assert!(
+        composition_source
+            .contains("chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp"),
+        "the composition root must group process-owned C++ World chat policy for dispatch"
+    );
+    assert!(
+        !resources_source.contains("session.set_chat_flood_config_like_cpp("),
+        "C++ World chat policy must be borrowed by handlers instead of copied into WorldSession"
+    );
+    assert!(
+        composition_source
+            .contains("group_invite_policy: Arc::new(wow_world::session::GroupInvitePolicyLikeCpp"),
+        "the composition root must group process-owned C++ World party-invite policy"
+    );
+    assert!(
+        !resources_source.contains("session.set_party_level_req_like_cpp("),
+        "C++ World party policy must be borrowed by handlers instead of copied into WorldSession"
+    );
+    assert!(
+        composition_source.contains(
+            "support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp"
+        ),
+        "the composition root must group C++ SupportMgr and feature-system process policy"
+    );
+    assert!(
+        !resources_source.contains("session.set_represented_support_enabled_like_cpp("),
+        "C++ support policy must be borrowed by handlers instead of copied into WorldSession"
+    );
+    assert!(
+        resources_source
+            .contains("handler_catalogs: Arc<wow_world::session::SessionHandlerCatalogsLikeCpp>"),
+        "the composition owner must retain the required immutable dispatch catalogs"
+    );
+    assert!(
+        !resources_source.contains("session.set_object_mgr_catalogs_like_cpp("),
+        "ObjectMgr query catalogs must not be projected into production WorldSession state"
+    );
+    assert!(
+        session_factory_source.contains("resources.core.handler_catalogs.as_ref()"),
+        "the outer driver must borrow the process-owned catalogs for dispatch"
+    );
+    assert!(
+        session_factory_source.contains("process_pending_with_catalogs_like_cpp"),
+        "the driver must pass immutable catalogs explicitly instead of installing a session locator"
+    );
+    assert!(
+        session_factory_source.contains("update_with_catalogs_like_cpp"),
+        "the session pass must borrow runtime catalogs instead of retaining them"
+    );
+    assert_eq!(
+        session_factory_source
+            .matches("install_into_session_like_cpp(&mut session")
+            .count(),
+        8,
+        "the factory must install exactly the eight named capability bundles"
+    );
+    for forbidden_projection in [
+        "resources.core.persistence",
+        "resources.inventory.item_store",
+        "resources.player.condition_store",
+        "resources.spells.spell_store",
+        "resources.progression.quest_store",
+        "resources.runtime.module_registry",
+        "resources.realm.realm_names",
+    ] {
+        assert!(
+            !session_factory_source.contains(forbidden_projection),
+            "the factory must not project bundle member {forbidden_projection} into WorldSession"
+        );
+    }
+
+    let construction = composition_source
+        .find("let session_resources = SessionResources {")
+        .expect("SessionResources construction should exist");
+    let publication = composition_source
+        .find("let session_resources = Arc::new(session_resources);")
+        .expect("fully constructed resources should be published through Arc");
+    let listener = composition_source
+        .find("wow_network::start_world_listener(")
+        .expect("world listener should exist");
+    assert!(construction < publication && publication < listener);
 }
 
 #[test]
@@ -10270,9 +10594,8 @@ fn mirror_canonical_melee_test_creature_like_cpp(
         .find_map(map_id, instance_id)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
-        .expect("canonical test creature")
-        .clone();
+        .with_creature_like_cpp(guid, Clone::clone)
+        .expect("canonical test creature");
     creature.set_ai_home_position(creature.position());
     creature.set_ai_identity_runtime(100, 14, 0, 0);
     creature
@@ -11044,6 +11367,7 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
                 faction_id: 72,
                 standing: -6000,
                 flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                ..Default::default()
             });
         player.set_forced_reputation_rank_like_cpp(87, true);
     }
@@ -11128,6 +11452,98 @@ fn creature_attack_start_delivery_routes_only_to_victim_like_cpp() {
 }
 
 #[test]
+fn creature_attack_start_commits_player_victim_without_a_session_recipient_like_cpp() {
+    let canonical: wow_world::SharedCanonicalMapManager =
+        Arc::new(Mutex::new(wow_map::MapManager::default()));
+    let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_068);
+    let victim = ObjectGuid::create_player(1, 90_069);
+    add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, Position::ZERO, 571, 4, 100);
+    add_canonical_test_player_on_map_like_cpp(&canonical, victim, Position::ZERO, 571, 4, 100);
+    let commands = [
+        wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            previous_victim_guid: None,
+            map_id: 571,
+            instance_id: 4,
+            packet_already_broadcast: false,
+        },
+    ];
+
+    let outcomes = apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical));
+    assert_eq!(outcomes.len(), 1);
+    assert!(outcomes[0].is_applied());
+
+    let guard = canonical.lock().unwrap();
+    let map = guard.find_map(571, 4).unwrap().map();
+    let attacker_has_combat = map
+        .with_creature_like_cpp(attacker, |attacker| {
+            attacker
+                .unit()
+                .subsystems()
+                .combat
+                .is_in_combat_with(victim)
+        })
+        .unwrap();
+    let victim = map.get_typed_player(victim).unwrap();
+    assert!(attacker_has_combat);
+    assert!(victim.unit().subsystems().combat.has_combat());
+    assert!(victim.unit().has_attacker_like_cpp(attacker));
+}
+
+#[test]
+fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
+    let canonical: wow_world::SharedCanonicalMapManager =
+        Arc::new(Mutex::new(wow_map::MapManager::default()));
+    let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_070);
+    let victim = ObjectGuid::create_player(1, 90_071);
+    let commands = [
+        wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            previous_victim_guid: None,
+            map_id: 571,
+            instance_id: 4,
+            packet_already_broadcast: true,
+        },
+    ];
+    let outcomes = apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical));
+    assert_eq!(
+        outcomes[0].status,
+        wow_map::MapCommandStatusLikeCpp::MissingMap
+    );
+
+    let attack_bytes = wow_packet::packets::combat::AttackStart { attacker, victim }.to_bytes();
+    let recipients = wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+        source_guid: attacker,
+        map_id: 571,
+        instance_id: 4,
+        source_position: Position::ZERO,
+        range: 100.0,
+        required_3d: false,
+    };
+    let mut plan = wow_world::map_manager::RuntimePlan {
+        events: vec![
+            wow_world::map_manager::RuntimeEvent {
+                source_guid: attacker,
+                recipients: recipients.clone(),
+                packet_bytes: attack_bytes,
+            },
+            wow_world::map_manager::RuntimeEvent {
+                source_guid: attacker,
+                recipients,
+                packet_bytes: vec![0xAA, 0x55],
+            },
+        ],
+    };
+
+    retain_committed_creature_combat_events_like_cpp(&mut plan, &commands, &outcomes, &[], &[]);
+
+    assert_eq!(plan.events.len(), 1);
+    assert_eq!(plan.events[0].packet_bytes, vec![0xAA, 0x55]);
+}
+
+#[test]
 fn creature_assistance_start_establishes_canonical_combat_for_both_creatures_like_cpp() {
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
@@ -11146,14 +11562,15 @@ fn creature_assistance_start_establishes_canonical_combat_for_both_creatures_lik
         },
     ];
 
-    assert_eq!(
-        apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical)),
-        1
-    );
+    let outcomes = apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical));
+    assert_eq!(outcomes.len(), 1);
+    assert!(outcomes[0].is_applied());
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 4).unwrap().map();
-    let attacker_unit = map.get_typed_creature(attacker).unwrap().unit();
-    let victim_unit = map.get_typed_creature(victim).unwrap().unit();
+    let attacker_creature = map.with_creature_like_cpp(attacker, Clone::clone).unwrap();
+    let victim_creature = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
+    let attacker_unit = attacker_creature.unit();
+    let victim_unit = victim_creature.unit();
     assert!(attacker_unit.subsystems().combat.is_in_combat_with(victim));
     assert!(victim_unit.subsystems().combat.is_in_combat_with(attacker));
     assert_eq!(
@@ -11198,18 +11615,18 @@ fn creature_assistance_stop_purges_canonical_combat_for_both_creatures_like_cpp(
         },
     ];
 
-    assert_eq!(
-        apply_canonical_creature_attack_starts_like_cpp(&starts, Some(&canonical)),
-        1
-    );
-    assert_eq!(
-        apply_canonical_creature_attack_stops_like_cpp(&stops, Some(&canonical)),
-        1
-    );
+    let start_outcomes = apply_canonical_creature_attack_starts_like_cpp(&starts, Some(&canonical));
+    let stop_outcomes = apply_canonical_creature_attack_stops_like_cpp(&stops, Some(&canonical));
+    assert_eq!(start_outcomes.len(), 1);
+    assert!(start_outcomes[0].is_applied());
+    assert_eq!(stop_outcomes.len(), 1);
+    assert!(stop_outcomes[0].is_applied());
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 4).unwrap().map();
-    let attacker_unit = map.get_typed_creature(attacker).unwrap().unit();
-    let victim_unit = map.get_typed_creature(victim).unwrap().unit();
+    let attacker_creature = map.with_creature_like_cpp(attacker, Clone::clone).unwrap();
+    let victim_creature = map.with_creature_like_cpp(victim, Clone::clone).unwrap();
+    let attacker_unit = attacker_creature.unit();
+    let victim_unit = victim_creature.unit();
     assert!(!attacker_unit.subsystems().combat.is_in_combat_with(victim));
     assert!(!victim_unit.subsystems().combat.is_in_combat_with(attacker));
     assert!(
@@ -11330,6 +11747,7 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
 
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 93_002);
     let attacker_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, attacker_position, 0, 0, 100);
     let mut creature = wow_world::map_manager::WorldCreature::new(
         attacker,
         9001,
@@ -11902,7 +12320,7 @@ fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cp
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(creature_guid)
+        .with_creature_like_cpp(creature_guid, Clone::clone)
         .expect("lifecycle bridge must sync canonical respawn");
     assert!(typed.unit().world().phase_shift().has_phase_like_cpp(77));
 }
@@ -12040,7 +12458,7 @@ async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(guid)
+        .with_creature_like_cpp(guid, Clone::clone)
         .expect("canonical creature record stays synced by the single-shot driver");
     assert_eq!(
         typed.ai_state(),
@@ -12390,7 +12808,7 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(moving_guid)
+        .with_creature_like_cpp(moving_guid, Clone::clone)
         .expect("movement phase must keep canonical moving creature synced");
     assert_eq!(
         typed.ai_state(),
@@ -12529,7 +12947,7 @@ async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
         .find_map(0, 0)
         .unwrap()
         .map()
-        .get_typed_creature(creature_guid)
+        .with_creature_like_cpp(creature_guid, Clone::clone)
         .expect("production loop must keep canonical creature synced");
     assert_eq!(
         typed.ai_state(),

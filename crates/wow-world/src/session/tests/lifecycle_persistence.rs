@@ -21,12 +21,15 @@ use wow_persistence::{
     PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
     PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
     PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerSpellCooldownSaveLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
     PlayerUncageItemStateLikeCpp, PlayerUncageItemStateLoadOutcomeLikeCpp,
     PlayerUncageItemStateRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
+    during_save: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    save_pending: std::sync::atomic::AtomicBool,
     seen: Mutex<Vec<PlayerOfflineMarkLikeCpp>>,
     collection_loads: Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
@@ -47,6 +50,8 @@ struct RecordingPortLikeCpp {
 impl RecordingPortLikeCpp {
     fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
         Arc::new(Self {
+            during_save: Mutex::new(None),
+            save_pending: std::sync::atomic::AtomicBool::new(false),
             seen: Mutex::new(Vec::new()),
             collection_loads: Mutex::new(Vec::new()),
             collections: Mutex::new(Vec::new()),
@@ -364,9 +369,23 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         let committed = request.committed_groups_like_cpp();
         self.character_saves.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
-        Box::pin(async move { PlayerCharacterSaveResultLikeCpp { outcome, committed } })
+        Box::pin(async move {
+            let during_save = self.during_save.lock().unwrap().take();
+            if let Some(during_save) = during_save {
+                during_save();
+            }
+            if self.save_pending.load(std::sync::atomic::Ordering::SeqCst) {
+                std::future::pending::<()>().await;
+            }
+            PlayerCharacterSaveResultLikeCpp { outcome, committed }
+        })
     }
 }
+
+#[path = "lifecycle_persistence/deferred_transfer.rs"]
+mod deferred_transfer;
+#[path = "lifecycle_persistence/save_interleaving.rs"]
+mod save_interleaving;
 
 fn session_with_port(
     outcome: PersistenceOutcomeLikeCpp,
@@ -587,7 +606,7 @@ async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_
         currency_entry(395),
     ])));
 
-    let snapshot = session.player_currencies_like_cpp().clone();
+    let snapshot = session.player_currencies_like_cpp().unwrap();
     assert!(
         session
             .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
@@ -599,7 +618,7 @@ async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_
             .await
             .is_ok()
     );
-    assert_eq!(session.player_currency_quantity(395), 7);
+    assert_eq!(session.player_currency_quantity(395), Some(7));
     let requests = port.currency_saves();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].player_guid, 0x7400_0201);
@@ -613,6 +632,7 @@ async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_
     assert_eq!(
         session
             .player_currencies_like_cpp()
+            .unwrap()
             .get(&395)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::Unchanged)
@@ -628,7 +648,7 @@ async fn missing_currency_persistence_port_keeps_the_existing_unsaved_state_like
         currency_entry(395),
     ])));
 
-    let snapshot = session.player_currencies_like_cpp().clone();
+    let snapshot = session.player_currencies_like_cpp().unwrap();
     assert!(
         session
             .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
@@ -640,10 +660,11 @@ async fn missing_currency_persistence_port_keeps_the_existing_unsaved_state_like
             .await
             .is_ok()
     );
-    assert_eq!(session.player_currency_quantity(395), 7);
+    assert_eq!(session.player_currency_quantity(395), Some(7));
     assert_eq!(
         session
             .player_currencies_like_cpp()
+            .unwrap()
             .get(&395)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::New)
@@ -661,7 +682,7 @@ async fn unknown_quest_currency_commit_restores_the_pre_save_snapshot_like_cpp()
         currency_entry(395),
     ])));
 
-    let snapshot = session.player_currencies_like_cpp().clone();
+    let snapshot = session.player_currencies_like_cpp().unwrap();
     assert!(
         session
             .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
@@ -673,7 +694,7 @@ async fn unknown_quest_currency_commit_restores_the_pre_save_snapshot_like_cpp()
             .await
             .is_err()
     );
-    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(session.player_currency_quantity(395), Some(0));
     assert_eq!(port.currency_saves().len(), 1);
 }
 
@@ -683,7 +704,7 @@ async fn talent_reset_reaches_the_sqlx_free_port_before_runtime_publication_like
         talent_reset_session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 3 }, 0x7500_0201);
 
     let committed = session
-        .commit_represented_talent_reset_at_like_cpp(123)
+        .commit_represented_talent_reset_at_like_cpp(123, false)
         .await
         .expect("an applied adapter outcome should return the unpublished runtime plan");
 
@@ -713,7 +734,7 @@ async fn definite_talent_reset_rollback_does_not_publish_runtime_state_like_cpp(
 
     assert!(
         session
-            .commit_represented_talent_reset_at_like_cpp(123)
+            .commit_represented_talent_reset_at_like_cpp(123, false)
             .await
             .is_none()
     );
@@ -727,6 +748,31 @@ async fn definite_talent_reset_rollback_does_not_publish_runtime_state_like_cpp(
 }
 
 #[tokio::test]
+async fn talent_reset_uses_each_supplied_cost_policy_without_caching_it() {
+    let (mut session, port) =
+        talent_reset_session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 3 }, 0x7500_0204);
+    for (free, expected_money, expected_cost) in [(true, 100_000, 0), (false, 90_000, 10_000)] {
+        let committed = session
+            .commit_represented_talent_reset_at_like_cpp(123, free)
+            .await
+            .expect("supplied policy must reach the persistence plan");
+        let requests = port.talent_resets();
+        let request = requests.last().unwrap();
+        assert_eq!(request.money_before, 100_000);
+        assert_eq!(request.money_after, expected_money);
+        assert_eq!(request.reset_cost, expected_cost);
+        assert_eq!(request.reset_time_secs, 123);
+        assert_eq!(
+            session.player_gold_like_cpp(),
+            100_000,
+            "publication stays separate"
+        );
+        drop(committed);
+    }
+    assert_eq!(port.talent_resets().len(), 2);
+}
+
+#[tokio::test]
 async fn unknown_talent_reset_commit_quarantines_without_publication_like_cpp() {
     let (mut session, port) = talent_reset_session_with_port(
         PersistenceOutcomeLikeCpp::Unknown {
@@ -737,7 +783,7 @@ async fn unknown_talent_reset_commit_quarantines_without_publication_like_cpp() 
 
     assert!(
         session
-            .commit_represented_talent_reset_at_like_cpp(123)
+            .commit_represented_talent_reset_at_like_cpp(123, false)
             .await
             .is_none()
     );
@@ -814,6 +860,10 @@ async fn character_save_reaches_the_sqlx_free_port_and_cleans_only_after_apply_l
         PersistenceOutcomeLikeCpp::Applied { rows: 12 },
         0x7500_0001,
     );
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session.record_loaded_character_spell_cooldown_like_cpp(635, 6948, 9_000, 12, 8_000);
+    session.mark_represented_character_spell_charges_loaded_like_cpp();
+    session.record_loaded_character_spell_charge_like_cpp(42, 7_000, 8_000);
 
     session.save_current_player_to_db_like_cpp().await;
 
@@ -821,6 +871,24 @@ async fn character_save_reaches_the_sqlx_free_port_and_cleans_only_after_apply_l
     assert_eq!(saves.len(), 1);
     assert!(saves[0].tutorials.is_some());
     assert_eq!(saves[0].player_guid, 0x7500_0001);
+    assert_eq!(
+        saves[0].spell_cooldowns,
+        Some(vec![PlayerSpellCooldownSaveLikeCpp {
+            spell_id: 635,
+            item_id: 6948,
+            cooldown_end_unix_secs: 9_000,
+            category_id: 12,
+            category_end_unix_secs: 8_000,
+        }])
+    );
+    assert_eq!(
+        saves[0].spell_charges,
+        Some(vec![PlayerSpellChargeSaveLikeCpp {
+            category_id: 42,
+            recharge_start_unix_secs: 7_000,
+            recharge_end_unix_secs: 8_000,
+        }])
+    );
     assert!(!session.tutorials_changed_like_cpp);
     assert!(session.tutorials_loaded_from_db_like_cpp);
 }
@@ -865,6 +933,83 @@ async fn unknown_character_save_commit_fences_and_preserves_dirty_state_like_cpp
             .durable_loot_money_persistence_tracker_like_cpp()
             .is_indeterminate_like_cpp()
     );
+}
+
+#[tokio::test]
+async fn character_save_does_not_reapply_save_destination_or_progression_to_runtime() {
+    for (outcome, remains_dirty) in [
+        (PersistenceOutcomeLikeCpp::Applied { rows: 12 }, false),
+        (
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "definite rollback".to_owned(),
+            },
+            true,
+        ),
+        (
+            PersistenceOutcomeLikeCpp::Unknown {
+                reason: "lost COMMIT reply".to_owned(),
+            },
+            true,
+        ),
+    ] {
+        let (mut session, port) = character_save_session_with_port(outcome, 0x7500_0004);
+        install_canonical_player_owner_for_test(&mut session, 571, 0);
+        session.current_map_id = 571;
+        session.player_level = 17;
+        let original = Position::new(1.0, 2.0, 3.0, 0.5);
+        let destination = Position::new(11.0, 22.0, 33.0, 1.5);
+        session
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().world_mut().relocate(original);
+                player.unit_mut().set_level(60);
+                player.set_xp(1234);
+                player.set_money(5678);
+                player.set_character_points_like_cpp(23);
+                let teleport = &mut player.gameplay_state_mut().teleport;
+                teleport.near_pending = true;
+                teleport.near_destination = Some((571, destination));
+            })
+            .unwrap();
+
+        session.save_current_player_to_db_like_cpp().await;
+
+        let saves = port.character_saves();
+        assert_eq!(
+            saves.len(),
+            1,
+            "regression must exercise the actual save port"
+        );
+        assert_eq!(saves[0].character.position.x, destination.x);
+        assert_eq!(saves[0].character.position.y, destination.y);
+        assert_eq!(saves[0].character.position.z, destination.z);
+        assert_eq!(saves[0].character.level, 60);
+        assert_eq!(saves[0].character.xp, 1234);
+        assert_eq!(saves[0].character.money, 5678);
+        session
+            .with_owned_player_like_cpp(|player| {
+                assert_eq!(
+                    player.unit().world().position(),
+                    original,
+                    "save-only teleport destination must not relocate the live Player"
+                );
+                assert_eq!(
+                    player.unit().data().level,
+                    60,
+                    "saving must not replay staged identity"
+                );
+                assert_eq!(
+                    player.active_data().character_points,
+                    23,
+                    "saving must not run talent initialization"
+                );
+                assert!(player.gameplay_state().teleport.near_pending);
+            })
+            .unwrap();
+        assert_eq!(
+            session.tutorials_changed_like_cpp, remains_dirty,
+            "only confirmed commit cleans dirty groups"
+        );
+    }
 }
 
 fn represented_buyback_item_like_cpp(db_guid: u64) -> InventoryItem {

@@ -6,7 +6,7 @@ correctness findings over style suggestions.
 
 For gameplay, protocol, database, map/runtime, persistence, and packet behavior, contrast the
 change with the exact C++ implementation under `/home/server/woltk-trinity-legacy`. Existing
-Rust code, Rust comments, C# notes, migration percentages, and passing tests are not correctness
+Rust code, Rust comments, historical notes, migration percentages, and passing tests are not correctness
 proof. If the legacy source is incomplete or ambiguous, require packet-capture or client-build
 evidence rather than guessing.
 
@@ -31,7 +31,7 @@ Check every relevant change for:
 For build and workflow changes, also verify exact command equivalence between local and GitHub
 execution, the `rust-toolchain.toml` compiler and locked dependency use, protoc 28.3 handling, shell quoting and exit-code
 propagation, shallow-checkout behavior, and that safe default modes never start services or mutate
-databases. For trusted `alseif0x` PRs this review is optional local evidence; external PRs retain
+databases. For PRs authored by exactly `alseif0x` this review is optional local evidence; external PRs retain
 the configured GitHub reviewer verdict.
 
 Report each real defect with the narrowest useful file and line range and a P0-P3 priority. Do not

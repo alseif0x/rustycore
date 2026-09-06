@@ -29,7 +29,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_set_favorite",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_mount_set_favorite(pkt).await })
         },
     }
@@ -41,7 +41,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_special_anim",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_mount_special_anim(pkt).await })
         },
     }
@@ -53,7 +53,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_collection_item_set_favorite",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_collection_item_set_favorite(pkt).await })
         },
     }
@@ -65,7 +65,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_clear_fanfare",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_mount_clear_fanfare(pkt).await })
         },
     }
@@ -77,7 +77,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_toy",
-        handler: |session, pkt| Box::pin(async move { session.handle_add_toy(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_add_toy(pkt).await }),
     }
 }
 
@@ -87,7 +87,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_toy_clear_fanfare",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_toy_clear_fanfare(pkt).await })
         },
     }
@@ -99,7 +99,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_use_toy",
-        handler: |session, pkt| Box::pin(async move { session.handle_use_toy(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_use_toy_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -288,7 +298,12 @@ impl crate::session::WorldSession {
     /// the represented spell executor, but preserves the C++ toy metadata that
     /// must reach `SpellCastData`.
 
-    pub async fn handle_use_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_use_toy_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match UseToy::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -333,10 +348,13 @@ impl crate::session::WorldSession {
 
         let toy_cooldown_ms =
             self.toy_item_spell_cooldown_ms_like_cpp(item_id, request.cast.spell_id, &spell_info);
-        if let Some(remaining_ms) = self.represented_spell_cooldown_remaining_ms_like_cpp(
+        let Some(remaining_ms) = self.represented_spell_cooldown_remaining_ms_like_cpp(
             request.cast.spell_id,
             toy_cooldown_ms,
-        ) {
+        ) else {
+            return;
+        };
+        if remaining_ms > 0 {
             debug!(
                 account = self.account_id,
                 item_id,
@@ -404,18 +422,20 @@ impl crate::session::WorldSession {
             };
             self.send_packet(&start_pkt);
 
-            self.active_spell_cast = Some(crate::session::SpellCastState {
+            self.set_active_spell_cast_like_cpp(Some(crate::session::SpellCastState {
                 spell_id: request.cast.spell_id,
                 target_guid,
-                target_data: spell_target,
+                target_data: crate::spell_cast_adapter::retain_targets(spell_target),
                 cast_id: server_cast_id,
                 cast_start_time: std::time::Instant::now(),
                 cast_time_ms: spell_info.cast_time_ms,
-                spell_visual,
+                spell_visual: crate::spell_cast_adapter::retain_visual(spell_visual),
                 metadata,
-            });
+            }));
         } else if let Err(error) = self
-            .execute_spell_with_visual_and_target_data_with_metadata(
+            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
                 request.cast.spell_id,
                 target_guid,
                 server_cast_id,
@@ -475,9 +495,8 @@ impl crate::session::WorldSession {
         }
 
         let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item.guid)
-            .cloned();
+            .resolved_inventory_item_objects_like_cpp()
+            .and_then(|items| items.get(&item.guid).cloned());
         let can_use_result =
             self.can_use_inventory_item_represented_like_cpp(&item, runtime_item.as_ref());
         if can_use_result != InventoryResult::Ok {
@@ -510,8 +529,19 @@ impl crate::session::WorldSession {
                 destroyed_entry_id, bag, slot, self.account_id
             );
         } else {
-            self.represented_account_toys_like_cpp
-                .remove(&destroyed_entry_id);
+            self.remove_account_toy_like_cpp(destroyed_entry_id);
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_use_toy(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_use_toy_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            pkt,
+        )
+        .await;
     }
 }

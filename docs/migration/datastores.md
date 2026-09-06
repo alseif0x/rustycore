@@ -1,5 +1,10 @@
 # Migration: Game DataStores (DB2Manager singleton + auto-generated DB2 records + GameTables)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/DataStores/`
 > **Rust target crate(s):** `crates/wow-data/` (also touches `crates/wow-database/` for hotfix statements)
 > **Layer:** L1 (infrastructure — typed game-data tables consumed by every gameplay system)

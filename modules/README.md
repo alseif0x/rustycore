@@ -15,3 +15,9 @@ composed.
 **These are in-process trusted modules, not sandboxed plugins.** They are compiled into
 the server binary, run with its full privileges, and require a rebuild and restart to
 change. There is no isolation boundary, no stable ABI and no hot reload.
+
+This describes the delivered native source/build workflow, not the planned Wasm executor.
+See [the current module guide](../docs/architecture/modules.md) for operator commands and
+[the modularity plan](../docs/architecture/modularity-and-ecs-plan.md) for #583's pending
+native/Wasm stateful contracts. Apply the shared
+[module design guidelines](../docs/architecture/module-design-guidelines.md) to module code/tests.

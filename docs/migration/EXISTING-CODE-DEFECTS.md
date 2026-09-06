@@ -15,6 +15,151 @@ identical bytes otherwise. Severity reflects my judgment after that filter.
 Headline: the scoped **D-C1…D-C9 CRIT integrity track is closed**. The HIGH/MED defects below
 remain real; "sends the packet and mutates DB" still does not imply full gameplay parity.
 
+## Later verified open findings
+
+- **2026-09-05, #578 quest dialog — repeatable turn-in markers reversed.**
+  Source-verified on `e478ac5d`: in `handlers/quest/eligibility.rs`,
+  `get_represented_quest_giver_status_like_cpp` selects TRIVIAL_REPEATABLE_TURNIN
+  when `represented_quest_is_trivial_like_cpp` is true and REPEATABLE_TURNIN
+  otherwise. C++ `Player.cpp:15742-15748` selects RepeatableTurnin above the
+  quest-level-plus-hide-difference threshold and TrivialRepeatableTurnin otherwise.
+  This is a static branch discrepancy, not a live-client reproduction. The pure
+  dialog-classification extraction leaves this eligibility branch unchanged;
+  correcting it needs a separate behavior change and packet-status evidence.
+
+- **2026-09-05, #578 cinematic catalog — production wiring absent.**
+  Source-audited on `a3b03e65`: `WorldSession::cinematic_sequences_store` starts
+  as None; `set_cinematic_sequences_store` is called only by tests. No
+  CinematicSequences load or installation exists in `world-server` startup.
+  `send_represented_cinematic_start_like_cpp` sends TriggerCinematic before
+  optionally initializing native Player camera IDs; consequently production
+  emits the trigger without this camera-state initialization. C++ loads
+  `sCinematicSequencesStore` in `DB2Stores.cpp:106,681`, and
+  `Player.cpp:6178-6185` starts CinematicMgr after sending the packet.
+  `session/tests/cinematic_catalog.rs` characterizes absent/present catalog
+  against a canonical Player. This is not a live-client reproduction or a
+  claim that all cinematic behavior is missing. Startup wiring would change
+  behavior and must be a distinct correction from the #578 catalog ownership
+  move; both opening cinematics and GameObject cameras must consume the same
+  process-owned catalog. Full fly-by camera/runtime parity remains unproven.
+
+- **2026-09-05, #578 rest consumption — percentage arithmetic differs.**
+  Verified on `b98903e8`: Session's rested-consumption helper uses signed `i64`
+  multiplication/division (truncation toward zero) then clamps the final loss
+  into `u32`. C++ `RestMgr.cpp:125-138` calls `AddPct(uint32&, ...)`;
+  `src/common/Utilities/Util.h:71-87` computes the percentage through `float`
+  and converts the term to `T` before addition. Negative/out-of-range conversion
+  and float precision boundaries are not equivalent to the represented Rust
+  arithmetic. The subsequent Player-owner refactor preserves the Rust formula;
+  it is not a parity correction. Focused tests pin positive, negative, extreme
+  and fractional truncation behavior, including 3 XP with -50% consuming 2.
+  Any arithmetic correction requires separate behavioral evidence and validation;
+  no client-capture or full RestMgr parity is claimed here.
+
+- **2026-09-05, #578 save-owner read — save projection and writeback debt.**
+  Verified on `b813d262`: `current_player_save_to_db_snapshot_like_cpp` uses
+  Session's staged level/map, although C++ `Player.cpp:19480-19514` reads Player
+  directly and substitutes only the persisted teleport destination. Rust also
+  projects dead health differently by residence: active reads force zero when
+  `is_alive()` is false, while detached reads clamp health to max without that
+  gate; C++ writes `GetHealth()` (`19557`). The existing
+  `sync_session_from_save_to_db_snapshot_like_cpp` then reapplies position, level,
+  XP, money and health, including derived side effects, before the save request.
+  The single-owner read refactor preserves these rules and does not retire this
+  writeback bridge. Identity migration and separation of save-only destination
+  from runtime mutation remain explicit #578 work, not approved parity or a
+  deferred #153 exception. No reproduced live-client failure is asserted.
+  **Local correction after `720b2519`:** the full-save recording-port regression
+  reproduced relocation to the pending near destination even on definite
+  rollback. The writeback method is now deleted; the request uses the captured
+  header without replaying setters. Applied/Failed/Unknown outcomes are covered
+  by the new regression. The staged level/map and residence-specific health
+  projection findings remain open, as does live save/teleport acceptance.
+
+- **2026-09-05, #578 talent-reset cost ownership — arithmetic boundary discrepancy.**
+  Verified on `95cb0a34`: Rust's `next_reset_talents_cost_like_cpp` uses
+  saturating time subtraction and fee addition, and a widened signed monthly
+  reduction. C++ `Player.cpp:3472-3503` uses unsigned subtraction followed by
+  signed narrowing. Normal reset history follows the same schedule, but future
+  reset timestamps and extreme stored costs are not proven equivalent. The
+  ownership move preserves Rust arithmetic; reconciling abnormal persisted
+  values requires a separate behavior analysis, not an unannounced refactor
+  change. No live-client failure is asserted.
+
+- **2026-09-05, #578 talent-tab extraction — login applies extra tab/class gates.**
+  On pre-slice `194f9d1b`, `load_represented_talent_row_like_cpp` validates a
+  TalentTab row and class mask for both login and learning. C++
+  `Player.cpp:26036-26058` applies these gates in `LearnTalent`, whereas
+  `_LoadTalents` (`26623-26633`) delegates directly to `AddTalent`
+  (`2644-2692`), which does not perform a tab/class lookup. The Rust login
+  filtering is preserved by the catalog refactor, not claimed as C++ parity.
+  Any behavior change needs separate analysis of persisted invalid rows and
+  client/runtime effects; no observed client failure is asserted here.
+
+- **2026-09-05, #578 glyph catalog extraction — represented glyph loading differs from C++.**
+  Verified on pre-slice `b4d407b9`: `load_represented_glyph_row_like_cpp` in
+  `crates/wow-world/src/session/mod.rs` skips catalog validation for glyph ID zero
+  and writes `glyph_groups[talent_group][glyph_slot]`. C++ `Player.cpp:26573-26598`
+  checks `sGlyphPropertiesStore.LookupEntry(glyphId)` even for zero and calls
+  `SetGlyph`; `Player.cpp:25477-25481` writes to `GetActiveTalentGroup()`.
+  The represented zero-row clearing and row-selected group remain unchanged in
+  this ownership refactor. The active/detached borrowed-catalog regression retains
+  zero clearing explicitly. Whether the legacy group selection is itself a defect
+  needs separate client/persistence evidence before changing either policy. This
+  is a verified source discrepancy, not a claim of a reproduced client failure.
+
+- **2026-09-05, #578 catalog extraction — HotfixConnect uses the primary socket.**
+  Confirmed against pre-slice `13c984a6`: `handle_hotfix_request` in
+  `crates/wow-world/src/handlers/character/account.rs` calls generic `send_packet`, which
+  writes to the primary channel (`session/mod.rs`). `wow-session/src/lib.rs`
+  `poll_instance_link` replaces that channel with the instance writer after ConnectTo.
+  C++ `Opcodes.cpp:1566` routes `SMSG_HOTFIX_CONNECT` exclusively over Realm.
+  Before ConnectTo the primary is Realm and delivery agrees. The new shared-catalog
+  dispatch test reproduces primary delivery with a parked Realm channel, including an
+  empty response. This behavior is deliberately preserved by the structural extraction;
+  a separate response-routing correction needs byte/routing regression and capture
+  evidence. No live client failure or affected-client frequency is claimed.
+
+## Later verified Rust-port repairs
+
+- **2026-09-05, #578 optimized runtime QA — Map insertion vanished in release.**
+  `Map::insert_map_object_record` performed `entity_world.insert(record)` inside `debug_assert!`.
+  With debug assertions disabled, the record was never inserted; the derived indexes could still
+  be updated and a Player lifetime could claim Active residence without a stored Player. This
+  affects all map-record kinds, not only login. The insertion now executes unconditionally and
+  only the displaced-record invariant is debug-only. C++ `Map::AddPlayerToMap`
+  (`Map.cpp:427-445`) performs insertion independently of `ASSERT`. The production-linked login
+  test now also reaches EquipmentInventory after map selection and interleaved map ticks.
+  On the old code it passes in dev and fails in release; the missing-manager rejection and
+  pre-map hydration tests pass in both. No ownership duplication, SQL, opcode or new clock is
+  introduced. Post-fix validation and installed QA are recorded in the Session checkpoint.
+
+- **2026-09-04, #578 runtime QA — initial Player construction depended on its own inventory.**
+  Production login reached the instance socket, then kicked with `canonical Player mail owner
+  disappeared`. `build_initial_player_for_owner_like_cpp` called presentation hydration, which
+  queried canonical inventory before the new Player handle existed. Unit fixtures supplied a
+  Session-side inventory and masked the cycle. Initial equipment hydration is now fixture-only;
+  production keeps Player's initial empty equipment until the existing inventory load. C++
+  constructs Player in `CharacterHandler.cpp:1065-1070`, establishes the session Player at
+  `Player.cpp:17378`, and loads inventory/mail at `17748/17759`. No SQL or packet layout changes.
+  The production-linked `production_login_player_owner` regression fails on the old code and
+  passes with the fix; its missing-manager case rejects continuation. It stops at the PetStable
+  read after mail/scalar hydration and does not claim a complete login. Live QA is recorded in
+  the Session checkpoint separately.
+
+- **2026-09-04, #578 runtime QA — nullable LFG hotfix text aborted startup.** The checked
+  candidate rejected `LFGDungeons.Description` SQL NULL; the local positive-build batch has
+  99 rows, two with NULL descriptions. C++ `Field::GetString` (`Field.cpp:118-126`) returns
+  empty text for NULL. `DB2DatabaseLoader.cpp:121-132,275-287` preserves an existing localized
+  string for an empty hotfix; `DB2LoadInfo.h:3365-3372` classifies both Name and Description
+  as `FT_STRING`. The MariaDB adapter now distinguishes a valid nullable text value from a
+  missing/mistyped column, and `wow-data::LfgDungeonsStore` preserves previous text while
+  applying numeric fields. Focused tests cover missing rows, null/empty/nonempty SQL text,
+  wrong types and missing columns, previous/new IDs and successive overlays; the explicit
+  read-only MariaDB regression passed. This is a behavior correction separate from the
+  Session capability extraction. Custom-row batching and other locale coverage remain outside
+  this bounded fix; full startup/login acceptance is recorded separately.
+
 ## Bounded legacy repairs accepted during the port
 
 - [x] **Issue #161 — battle-pet trainer purchases no longer strand the charge across the
@@ -226,7 +371,7 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
     each concrete mutation committed before runtime publication. Paired installed C++/Rust QA
     proved the invalid container-aware source error on the C++ realm route plus forward/reverse
     occupied swaps and fresh-auth metadata; strict capture-diff matched request and response with
-    zero value/routing/count differences. This closes the bounded C#-ITEM.2 behavior, not broader
+    zero value/routing/count differences. This closes the bounded #LegacyAudit.ITEM.2 behavior, not broader
     item/gem/durability parity, and remains pending PR CI/current-HEAD review/merge. GitHub review
     additionally applied current upstream TrinityCore's missing legacy `AutoUnequipChildItem`
     pre-step before child redirects and stopped internal inventory relocations from re-crediting

@@ -392,9 +392,10 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
 
 /// Payload for a map-owned creature aggro transition against one player.
 ///
-/// The global creature runtime computes the `MoveInLineOfSight`/aggro result
-/// once from map state, then sends this command to the victim session so the
-/// client receives one `SMSG_ATTACKSTART` and the session mirrors combat state.
+/// The global creature runtime computes and commits the
+/// `MoveInLineOfSight`/aggro result once through `wow_map::MapRuntime`, then
+/// sends this delivery command so the client receives one `SMSG_ATTACKSTART`.
+/// Session does not reconstruct or mirror the gameplay transition.
 #[derive(Clone, Debug)]
 pub struct CreatureAttackStartLikeCppCommand {
     pub attacker_guid: ObjectGuid,
@@ -410,7 +411,8 @@ pub struct CreatureAttackStartLikeCppCommand {
     pub packet_already_broadcast: bool,
 }
 
-/// Payload for a map-owned creature evade/combat-stop transition.
+/// Delivery payload for a creature evade/combat-stop transition already
+/// committed by `wow_map::MapRuntime`.
 #[derive(Clone, Debug)]
 pub struct CreatureAttackStopLikeCppCommand {
     pub attacker_guid: ObjectGuid,

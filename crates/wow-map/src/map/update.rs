@@ -105,7 +105,7 @@ where
     ///   object/grid sets, and removes empty owner trackers.
     ///
     /// Rust ownership: `personal_phase_tracker.update(diff_ms)` is the sole source
-    /// of expired GUIDs; `map_objects` remains canonical for real records/removal.
+    /// of expired GUIDs; `entity_world` remains canonical for real records/removal.
     /// This seam does not drain `objects_to_remove`, rebuild objects from external
     /// caches, or claim session/ObjectAccessor/visibility/DB/script behavior.
     pub fn update_personal_phase_tracker_like_cpp(
@@ -149,7 +149,7 @@ where
     /// - `Map.cpp:2547-2555` owns `AddObjectToRemoveList` cleanup and deferred
     ///   remove-list insertion, represented by `add_object_to_remove_list_like_cpp`.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`; this helper
+    /// Ownership: source-of-truth is canonical `Map::entity_world`; this helper
     /// mutates only the typed `MapObjectRecord::DynamicObject` duration and, after
     /// dropping that mutable borrow, enqueues the same GUID through the existing
     /// remove-list facade. Aura-bound DynamicObjects only record represented
@@ -222,7 +222,7 @@ where
         let aura_bound_before = dynamic_object.has_aura();
 
         let (expired, duration_after_ms, aura_update_owner_calls_after) = {
-            let Some(record) = self.map_objects.get_mut(&dynamic_object_guid) else {
+            let Some(record) = self.entity_world.get_mut(&dynamic_object_guid) else {
                 return DynamicObjectUpdateOutcomeLikeCpp {
                     dynamic_object_guid,
                     elapsed_ms,
@@ -302,7 +302,7 @@ where
     ///   `update_dynamic_object_like_cpp`, including duration/aura-bound evidence
     ///   and expiry enqueue through `AddObjectToRemoveList()`.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. This method
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. This method
     /// snapshots typed DynamicObject GUIDs only, then delegates each GUID to the
     /// existing per-object helper. It does not drain the remove-list, visit nearby
     /// cells, update players/sessions or other object families, send object
@@ -313,7 +313,7 @@ where
         elapsed_ms: u32,
     ) -> DynamicObjectsUpdateSummaryLikeCpp {
         let dynamic_object_guids = self
-            .map_objects
+            .entity_world
             .iter()
             .filter_map(|(guid, record)| {
                 (record.kind() == AccessorObjectKind::DynamicObject
@@ -354,7 +354,7 @@ where
     ///   `Creature::runtime_update_plan(diff, GameTime::GetGameTime(), context)`
     ///   helper; real AI/scripts/Unit::Update/fanout remain outside this slice.
     ///
-    /// Ownership: source-of-truth is canonical `Map::map_objects`. Missing,
+    /// Ownership: source-of-truth is canonical `Map::entity_world`. Missing,
     /// non-Creature, and not-in-world outcomes do not mutate state. This helper
     /// never creates fallback records, reads session/ObjectAccessor mirrors,
     /// sends packets, runs DB writes, or drains map queues.
@@ -365,7 +365,7 @@ where
         now_secs: i64,
         context: CreatureRuntimeUpdateContext,
     ) -> CreatureUpdateOutcomeLikeCpp {
-        let Some(record) = self.map_object_record(creature_guid) else {
+        let Some(kind) = self.entity_world.kind(creature_guid) else {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -376,7 +376,7 @@ where
             };
         };
 
-        if record.kind() != AccessorObjectKind::Creature {
+        if kind != AccessorObjectKind::Creature {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -387,7 +387,10 @@ where
             };
         }
 
-        let Some(creature) = record.creature() else {
+        let Some(snapshot) = self
+            .entity_world
+            .creature_transform_vitals_snapshot(creature_guid)
+        else {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -398,7 +401,7 @@ where
             };
         };
 
-        if !creature.unit().world().object().is_in_world() {
+        if !snapshot.is_in_world {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -409,17 +412,12 @@ where
             };
         }
 
-        let Some(record) = self.map_objects.get_mut(&creature_guid) else {
-            return CreatureUpdateOutcomeLikeCpp {
-                creature_guid,
-                diff_ms,
-                now_secs,
-                status: CreatureUpdateStatusLikeCpp::MissingCreature,
-                plan: None,
-                actions_recorded: 0,
-            };
-        };
-        let Some(creature) = record.creature_mut() else {
+        let Some(plan) = self
+            .entity_world
+            .with_creature_mut(creature_guid, |creature| {
+                creature.runtime_update_plan(diff_ms, now_secs, context)
+            })
+        else {
             return CreatureUpdateOutcomeLikeCpp {
                 creature_guid,
                 diff_ms,
@@ -430,7 +428,6 @@ where
             };
         };
 
-        let plan = creature.runtime_update_plan(diff_ms, now_secs, context);
         let actions_recorded = plan.actions().len();
         CreatureUpdateOutcomeLikeCpp {
             creature_guid,
@@ -445,7 +442,7 @@ where
     /// Bounded map-owned live visitation seam for C++ `Map::Update` consuming
     /// `Trinity::ObjectUpdater` for `CreatureMapType` records only.
     ///
-    /// This snapshots canonical typed Creature GUIDs from `Map::map_objects`,
+    /// This snapshots canonical typed Creature GUIDs from `Map::entity_world`,
     /// resolves a represented runtime context from the caller before mutable
     /// access, then delegates to `update_creature_like_cpp`. It intentionally
     /// excludes Pet and every non-Creature family unless already stored as a typed
@@ -457,35 +454,22 @@ where
         mut context_resolver: F,
     ) -> CreatureUpdateSummaryLikeCpp
     where
-        F: FnMut(ObjectGuid, &Creature) -> CreatureRuntimeUpdateContext,
+        F: FnMut(
+            ObjectGuid,
+            CreatureTransformVitalsSnapshotLikeCpp,
+        ) -> CreatureRuntimeUpdateContext,
     {
         let creature_guids = self.object_updater_creature_guids_like_cpp();
+        let creature_lookups = self
+            .entity_world
+            .creature_transform_vitals_lookups(creature_guids);
 
         let mut summary = CreatureUpdateSummaryLikeCpp::default();
-        for guid in creature_guids {
+        for (guid, snapshot) in creature_lookups {
             summary.visited += 1;
-            let Some(context) = self
-                .map_object_record(guid)
-                .and_then(MapObjectRecord::creature)
-                .map(|creature| context_resolver(guid, creature))
-            else {
-                let outcome = self.update_creature_like_cpp(
-                    guid,
-                    diff_ms,
-                    now_secs,
-                    CreatureRuntimeUpdateContext::default(),
-                );
-                match outcome.status {
-                    CreatureUpdateStatusLikeCpp::MissingCreature => summary.skipped_missing += 1,
-                    CreatureUpdateStatusLikeCpp::NotCreature => summary.skipped_non_creature += 1,
-                    CreatureUpdateStatusLikeCpp::NotInWorld => summary.skipped_not_in_world += 1,
-                    CreatureUpdateStatusLikeCpp::Updated => {
-                        summary.updated += 1;
-                        summary.actions_recorded += outcome.actions_recorded;
-                    }
-                }
-                continue;
-            };
+            let context = snapshot.map_or_else(CreatureRuntimeUpdateContext::default, |snapshot| {
+                context_resolver(guid, snapshot)
+            });
 
             let outcome = self.update_creature_like_cpp(guid, diff_ms, now_secs, context);
             match outcome.status {
@@ -523,7 +507,7 @@ where
         let npc_flags2 = (npcflag_mask_with_template >> 32) as u32;
 
         for guid in guids {
-            let Some(record) = self.map_objects.get_mut(&guid) else {
+            let Some(record) = self.entity_world.get_mut(&guid) else {
                 outcome.stale_index_or_wrong_kind += 1;
                 continue;
             };

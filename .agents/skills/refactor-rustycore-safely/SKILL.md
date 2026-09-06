@@ -1,172 +1,104 @@
 ---
 name: refactor-rustycore-safely
-description: Implement or review behavior-preserving RustyCore restructuring with C++ fidelity and capture-clean validation. Use for module or file splits, moving methods or types, extracting application services, catalogs, repositories, runtime handles, or private substates, shrinking session/handlers/map/player/world-server/data/packet/QA hotspots, changing dependency edges, or promoting a stable module into a crate without intending gameplay or protocol changes. Do not use to hide a behavior change or legacy bug fix inside a refactor; design unclear ownership first with design-rustycore-architecture.
+description: "Implement or review behavior-preserving RustyCore restructuring: module/file splits, application or persistence boundaries, canonical ownership, dependency edges and earned crates. Use for restructuring Session, handlers, Map, Player, composition, data, packets or QA tooling. Design unclear boundaries with design-rustycore-architecture first; do not hide gameplay/protocol repairs inside a refactor."
 ---
 
 # Refactor RustyCore Safely
 
-Execute one small structural slice while preserving runtime ownership, database atomicity, packet
-bytes/routing, C++ phase order, and public behavior.
+Preserve base-server behavior while improving an approved responsibility boundary.
+Use coherent internal slices; follow the authorized macro through acceptance rather than
+stopping after each helper. AGENTS.md owns scope, approvals, publication and completion rules.
 
-## Select review or execution mode
+## Mode and relevant context
 
-Choose the mode from the user's requested outcome before any mutation:
+- Review-only: inspect and report prioritized findings; no edits, commits or external changes.
+  Separate regressions from pre-existing debt, with exact Rust/C++ or capture anchors.
+- Execution: implement the requested restructuring inside its approved issue and dirty-tree scope.
+  A request to audit/update instructions does not itself authorize production refactoring.
+- If inspection versus mutation is materially ambiguous, stay read-only while clarifying.
 
-- **Review mode:** inspect and report only. Do not edit, stage, commit, push, publish, reply to
-  reviews, or resolve threads. Report prioritized findings with a narrow file/line range, the
-  frozen contract that would be violated, supporting Rust/C++ or capture evidence, and the smallest
-  safe correction. Separate patch-caused defects from pre-existing debt. Stop after the findings
-  unless the user explicitly asks to implement them.
-- **Execution mode:** the user asked to change or refactor code. Follow the implementation workflow
-  below and remain within the authorized issue and worktree scope.
+Read AGENTS.md completely and follow its kickoff. Read the current STATE.md checkpoint,
+the active issue and task-relevant decisions/risks in owning ADRs, not their entire historical
+logs. Read [references/refactor-playbook.md](references/refactor-playbook.md). For source/module
+decomposition, also read docs/architecture/module-design-guidelines.md completely; that document
+owns current budgets, bounded exceptions and independent semantic/physical acceptance.
 
-If the request is ambiguous between inspection and mutation, use review mode.
+Inspect current callers, tests and exact C++ behavior before moving the responsibility.
+If ownership or dependency direction is unresolved, use the architecture skill to investigate
+that boundary; keep safe inspection moving. An approved design and implementation request
+do not require the same approval again.
 
-## Load the required context
+## Classify and freeze the change
 
-1. Read the repository `AGENTS.md` completely and run its session kickoff.
-2. Read `docs/migration/STATE.md` and the decision, risks, and task-relevant sections of any owning
-   ADR. For `docs/migration/adr-runtime-tick-ownership.md`, do not load the entire historical
-   progress log for a bounded refactor.
-3. Read [references/refactor-playbook.md](references/refactor-playbook.md).
-4. Inspect the exact C++ source for the moved responsibility and the complete current Rust call
-   path before editing.
-5. Inspect the issue, branch, worktree, related review history, and existing tests.
+Choose the dominant structural class for each coherent internal commit:
 
-If the canonical owner or desired dependency direction is not explicit, stop implementation and
-use `$design-rustycore-architecture`.
+1. Mechanical relocation: preserve owner, signatures, order, visibility and registrations.
+2. Boundary extraction: redirect a real module/application/port dependency without duplicating state.
+3. Ownership migration: redirect all relevant readers/writers to one authority and retire the old path.
 
-## Classify the change before editing
+An intentional behavior repair is a separate change, not a fourth kind of behavior-preserving
+refactor. Fix regressions introduced by the authorized slice; do not silently absorb unrelated
+legacy defects. Distinguish moves, boundary changes and ownership through reviewable commits,
+not automatic new PRs or issues that fragment the approved macro.
 
-Choose exactly one dominant class:
+Freeze the affected contract: packet bytes/metadata/connection/recipients/order; admission and
+C++ phases; SQL/transaction/commit classification and recovery; state incarnation, mutation
+count, lock order and clock; public paths and feature/test registrations. Identify regression
+evidence before moving fragile code. Pure relocation needs the relevant contract, not an
+unrelated new opcode, database or live-client test.
 
-1. **Mechanical relocation:** move code/tests, preserve owner, signatures, ordering, visibility,
-   registration, and behavior.
-2. **Boundary extraction:** introduce a module/service/port and redirect dependencies without
-   changing the canonical state.
-3. **Ownership migration:** redirect all writers/readers to one target owner and delete or ledger
-   the old mirror.
-4. **Behavior correction:** change observable or persistence behavior because C++ parity or a
-   proven legacy defect requires it.
+## Map the surface and make a coherent edit
 
-Do not combine class 4 with classes 1–3. Prefer separate PRs for relocation, boundary change, and
-ownership migration when the diff would otherwise obscure review.
+Search definitions, impl blocks, re-exports, all callers, registration macros, feature gates,
+tests/fixtures, locks, queues, SQL and dependent docs. Source filenames alone do not identify
+the complete logical owner.
 
-## Refactor workflow (execution mode)
+Move one complete feature family, use case or adapter seam at a time. Keep private implementation
+and narrow inputs/results; compatibility bridges/re-exports require explicit removal conditions.
+Do not introduce traits merely for organization, broaden public fields for tests, or add locks,
+clones, mutable mirrors, global state or untyped resource bags to silence borrow errors.
+Do not alter serialization, transaction order, dispatch uniqueness or queue bounds during a move.
 
-### 1. Freeze the contract
+Preserve each operation's actual durability sequence. For commit-before-application operations,
+an example is validate/plan -> transaction -> classify commit -> canonical application -> publication.
+Deferred saves instead persist a projection of existing canonical state and acknowledge only
+the saved incarnation/revisions. Do not force either contract into the other's ordering.
+Do not invent persistence for a purely in-memory operation, claim durable success before commit,
+or reconcile the same runtime mutation twice. Preserve required async operation fences; do not
+carry synchronous map/entity guards across await or perform I/O/delivery under a map lock.
 
-List the behavior that must not change:
+Physical splitting may keep impl WorldSession temporarily, but it does not transfer gameplay
+ownership. A valid Player/Map aggregate may span many private files without copied state.
+Apply the module-design policy to production, tests and fixtures as well as the logical owner.
 
-- opcode, `SessionStatus`, and `PacketProcessing`;
-- packet bytes, connection, recipient gates, ordering, and timing boundary;
-- C++ validation and phase order;
-- SQL statements, transaction boundary, rollback/commit classification, and retry behavior;
-- canonical owner, mutation count, lock order, and tick owner;
-- public paths and downstream callers;
-- positive, negative, concurrency, and failure-path tests.
+## Validate and audit the finished boundary
 
-Add or identify regression tests before moving fragile code.
+Use AGENTS.md and the validation-v2 operation guide for the actual commands/profiles:
+focused positive/negative tests and affected-crate checks during iteration; explicit production
+integration/failure cases for affected owners; clean-HEAD final and exact issue acceptance at
+publication. Set PROTOC for protobuf builds and select the real lib/bin/integration target.
+Do not rerun exhaustive inventories per helper or treat a library suite as production wiring proof.
+The playbook provides change-specific evidence; it does not override proportional validation.
 
-### 2. Map the complete dependency surface
+Before accepting a responsibility, verify:
 
-Use `rg` to find definitions, impl blocks, re-exports, call sites, registrations, tests, feature
-gates, SQL statements, locks, channels, and docs. Inspect macros and `inventory::submit!` rather
-than assuming a handler is registered because a match arm exists.
+- No logic, cfg branch, test or registration disappeared; moved tests still execute.
+- Affected handlers preserve the exact opcode/metadata/call set, not just counts.
+- No unjustified public API/upward dependency, state mirror, new writer/clock or lock order appeared.
+- All related consumers use the intended owner; superseded access is deleted or explicitly temporary.
+- Both semantic boundaries and physical source/test policy are satisfied; no replacement monolith
+  in a fixture file or distributed gameplay god object.
+- Paths, C++ references, before/after measurements and remaining exceptions match the actual diff.
+- Unrelated user/agent work remains untouched and uncommitted.
 
-### 3. Make the smallest coherent edit
+Capture-diff/live QA follow their actual change triggers and explicit issue acceptance.
+Fresh scenario captures are distinct from regression goldens; mocked persistence is not proof of
+durable crash recovery. Report the tested SHA, command, result and unproven boundaries.
 
-Move one feature family, state group, use case, or adapter seam at a time. Keep implementation
-private. Use temporary re-exports only when they reduce unrelated churn, and record their removal
-condition.
+## Investigate without forcing changes
 
-Do not:
-
-- invent traits merely to split files;
-- add `Arc<Mutex<_>>`, `RefCell`, global state, clones, or mirrors to satisfy the borrow checker;
-- broaden `pub` visibility for convenience;
-- alter serialization or SQL order during a move;
-- leave two opcode registration sources;
-- introduce unbounded channels or wait while holding a runtime lock.
-
-### 4. Preserve application and persistence ordering
-
-For atomic operations, preserve the established shape:
-
-```text
-validate and plan
-    → execute transaction
-    → classify commit outcome
-    → apply canonical runtime state once
-    → publish packets/events outside incompatible locks
-```
-
-Do not publish success before a durable commit or mutate runtime twice during reconciliation.
-
-### 5. Validate continuously
-
-Run format, diff checks, focused tests, and targeted checks during the edit. Use `PROTOC`
-explicitly for protobuf-dependent crates. Run:
-
-```bash
-cargo fmt --all -- --check
-git diff --check
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p <affected-crate>
-./tools/validation-v2 quick --base origin/3.4.3
-```
-
-Choose the focused test target from `cargo metadata` instead of assuming every package has a
-library:
-
-```bash
-# Library target:
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --lib
-# Binary target such as world-server or bnet-server:
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --bin <binary>
-# Integration-test target:
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --test <target>
-```
-
-After committing to a clean HEAD and before an authorized push, run:
-
-```bash
-./tools/validation-v2 final --base origin/3.4.3
-```
-
-Treat the capture-diff harness inside `full` preflight as mandatory for every PR. Run a fresh
-action-specific capture or live bot QA when the owning issue requires it. A file move is not
-evidence that observable behavior stayed equal.
-
-### 6. Audit the finished diff
-
-Verify:
-
-- no code, test, registration, cfg branch, or documentation was accidentally dropped;
-- opcode registration tests assert the exact expected set and metadata, not only counts or
-  duplicate absence;
-- moved tests still exercise the same private behavior or a deliberately narrower contract;
-- no new upward crate dependency or public API leak appeared;
-- no new state mirror, clone-sync path, task owner, or lock order appeared;
-- no unrelated user/worktree changes entered the diff;
-- source paths and C++ anchors in docs remain accurate;
-- every compatibility re-export or bridge has a deletion condition.
-
-### 7. Publish only through the repository workflow
-
-Use one issue, one linked branch, and one PR into `3.4.3`. Do not push unless the user asks. After
-push, open the PR immediately with `Closes #<issue>` and wait for CI plus a clean Codex reviewer
-verdict on the current HEAD. Address or explicitly defer every actionable review and resolve its
-thread before merge.
-
-## Stop conditions
-
-Stop and separate the work when:
-
-- the move reveals an undocumented behavior difference;
-- C++ and Rust ownership disagree and the target is not already decided;
-- preserving behavior requires a new mirror or cross-layer dependency;
-- a test fails for a reason that has not been contrasted with C++;
-- the diff combines structural movement with a gameplay/protocol change;
-- the target overlaps unrelated dirty work that cannot be isolated safely.
-
-Report the evidence and propose the smallest next slice instead of forcing the refactor through.
+Pause only the affected mutation when evidence reveals a behavior difference, unresolved owner,
+new coupling/mirror requirement, unexplained test failure or inseparable unrelated dirty work.
+Continue inspection, reproduction and C++/capture comparison. Resume within existing authority
+once resolved; ask only for a material decision/new scope/authority evidence cannot supply.
+Reuse the issue branch/PR and follow AGENTS.md for commits, authorized push and merge boundaries.

@@ -27,7 +27,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_raid_info",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_raid_info(pkt).await })
         },
     }
@@ -39,7 +39,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_reset_instances",
-        handler: |session, pkt| Box::pin(async move { session.handle_reset_instances(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_reset_instances(pkt).await }),
     }
 }
 
@@ -49,7 +49,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_instance_lock_response",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_instance_lock_response(pkt).await })
         },
     }
@@ -130,7 +130,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let reset_owner_guid = if let Some(group_guid) = self.group_guid {
+        let reset_owner_guid = if let Some(group_guid) = self.resolved_group_guid_like_cpp() {
             let Some(group_registry) = self.group_registry() else {
                 return;
             };
@@ -263,8 +263,11 @@ impl crate::session::WorldSession {
                     .push(pending_bind.instance_id);
             }
         } else {
-            self.represented_repop_at_graveyard_count =
-                self.represented_repop_at_graveyard_count.saturating_add(1);
+            #[cfg(test)]
+            {
+                self.represented_repop_at_graveyard_count =
+                    self.represented_repop_at_graveyard_count.saturating_add(1);
+            }
         }
     }
 
@@ -296,7 +299,10 @@ impl crate::session::WorldSession {
             map.difficulty()
         };
 
-        if self.player_is_game_master_like_cpp() {
+        let Some(is_game_master) = self.player_is_game_master_like_cpp() else {
+            return false;
+        };
+        if is_game_master {
             return true;
         }
 
@@ -362,9 +368,7 @@ impl crate::session::WorldSession {
         }
 
         if is_new_lock {
-            self.send_packet(&InstanceSaveCreated {
-                gm: self.player_is_game_master_like_cpp(),
-            });
+            self.send_packet(&InstanceSaveCreated { gm: is_game_master });
             self.send_calendar_raid_lockout_added_like_cpp(&new_lock, &entries, now);
         }
 

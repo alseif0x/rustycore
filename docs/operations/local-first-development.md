@@ -3,9 +3,10 @@
 RustyCore uses a trusted-author split so first-party development is not serialized by hosted CI.
 The policy is intentionally narrow:
 
-- a pull request authored by exactly `alseif0x` allocates no GitHub-hosted validation runner;
+- the required validation and reviewer jobs for a pull request authored by exactly `alseif0x`
+  skip before allocating a runner;
 - every other author, including bots and collaborators, keeps the existing remote checks;
-- scheduled and manually dispatched workflows remain available for broad audits;
+- pushes to `3.4.3`, schedules and manual dispatches retain their configured hosted validation;
 - first-party validation is local and proportional to the changed paths.
 
 The runner is agent-agnostic. Kimi, Codex, Grok, Claude, any other AI agent, and a human
@@ -31,18 +32,31 @@ this document is only the trust policy around it.
 
 `quick` and `final` are path-scoped: they plan from the committed, staged, unstaged and untracked
 diff and run only what it touches. `final` additionally enforces the curated hotspot LOC ceilings
-when workspace Rust changed. Neither runs the exhaustive persistence inventory, capture QA, a live
-database, or a review; those belong to `audit` and to the explicit procedures below.
+when workspace Rust changed, plus the cheap repository-wide physical source/test/tooling
+ratchet for every nonempty diff. Its normal mode permits only reviewed legacy non-growth;
+macro closeout additionally requires `check_architecture.py physical-files --terminal`.
+Neither profile runs the exhaustive persistence inventory, capture QA, a live
+database, or a review. `audit` covers committed capture contracts; live databases, fresh captures,
+runtime QA and code review remain separate procedures. Directory-first routing can compile
+documentation under crate/tool directories; see [the runner contract](validation-v2.md).
 
 Run focused tests explicitly when behavior changes, for example:
 
 ```bash
-cargo test --locked -p wow-world exact_test_name --lib
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test --locked -p wow-world exact_test_name --lib
 ```
 
 Validation commands must expose their real exit status. Do not append `| head`, `| grep`,
 `; echo EXIT=$?`, or another pipeline that can turn a failed checker into a reported success. If
 output must be retained, redirect it to a log and check the validator's own exit code.
+
+Use focused checks within the approved issue or macro; an internal cut does not require a new
+PR, exhaustive run or repeated approval. Before publication, commit the completed local work,
+validate the publication candidate and retain the issue-specific acceptance evidence. Follow
+the publication-evidence rules in `validation-v2.md` for unrelated untracked documents and
+reuse across a validated documentation-only delta; do not duplicate those rules here.
+Push, merge, deployment and destructive fixture authority remain distinct; reuse each existing
+approval within its stated scope, and do not infer it from a passing validator or a test host.
 
 ## Review and runtime QA are separate tools
 
@@ -55,9 +69,31 @@ Validation does not review code and does not start servers.
   runtime and MariaDB, and is never part of CI.
 - `tools/qa-runtime.sh` orchestrates QA that needs a *different* build than the one deployed. It
   snapshots the live build, installs a candidate through `systemctl`, runs the scenario, and
-  restores the original on every exit path; `self-test` exercises that restore against fake
+  attempts restoration on normal and trapped exit paths; `self-test` exercises that restore against fake
   services and `snapshot` prints the live identity without touching anything. Destructive
   scenarios stay behind two explicit flags.
+
+These guards are not crash-proof rollback. `SIGKILL`, host failure or failed restoration requires
+operator recovery from retained evidence. `loot-race` currently requires the chest fixture to
+exist already; the systemd wrapper does not install/remove the PM2 capture wrapper's chest.
+It also does not inherit that capture wrapper's journal-gated restart guarantee. Do not use
+the systemd smoke as proof of complete fixture recovery or as a fresh capture replacement.
+
+For a guarded login/world-entry check of a clean committed candidate:
+
+```bash
+./tools/qa-runtime.sh --allow-runtime-qa \
+  --world-exec /home/server/rustycore/target/release/world-server \
+  --report /tmp/rustycore-login-runtime-report.json login
+```
+
+`login` uses the maintained login wrapper with a hash-pinned bot binary. It disables account
+provisioning, password generation and inherited fixture modes, verifies the bot's authentication,
+character enumeration and world-entry JSON, and reports `passed-restored` only after the original
+build is restored and serving. The private temporary evidence directory is printed; it retains
+the original executable and bot logs/report for diagnosis. This is not a movement, combat or
+packet-capture acceptance test. It still requires explicit permission to interrupt the service
+and valid local bot credentials; it never runs as part of ordinary validation.
 
 ## What runs remotely
 
@@ -66,8 +102,9 @@ Validation does not review code and does not start servers.
 - the scheduled audit;
 - an explicit `workflow_dispatch` run.
 
-The merge-cadence case exists because the first three bullets alone left first-party work with no
-remote enforcement at all. A skipped required check satisfies branch protection, so a first-party
+The merge-cadence case exists because skipping trusted PR jobs without push validation left
+first-party work with no routine hosted enforcement before the next scheduled audit.
+A skipped required check satisfies branch protection, so a first-party
 pull request merged with every check reporting *skipped* — which reads as green. Regressions
 reached `3.4.3` that way: #275 left both ownership ratchets red on HEAD, #277 hid roughly 985
 production persistence accesses from the inventory, and #329 recorded two more from audit-only

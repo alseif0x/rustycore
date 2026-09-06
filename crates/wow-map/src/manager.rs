@@ -16,17 +16,22 @@ use crate::map::{
     CreatureUpdateSummaryLikeCpp, DynamicMapTreeUpdateSummaryLikeCpp,
     DynamicObjectsUpdateSummaryLikeCpp, FarSpellCallbackDrainSummaryLikeCpp,
     GameObjectsUpdateSummaryLikeCpp, GridStatesUpdateSummaryLikeCpp,
-    LoadedGridRespawnRecordsLikeCpp, Map, MapUpdateMetricsSummaryLikeCpp,
-    MoveListDrainSummaryLikeCpp, NoopGridLifecycle, NoopTerrainGridLoader,
-    PersonalPhaseTrackerUpdateSummaryLikeCpp, ProcessRelocationNotifiesOutcome,
-    SceneObjectUpdateContextLikeCpp, SceneObjectsUpdateSummaryLikeCpp,
-    ScriptScheduleProcessSummaryLikeCpp, SendObjectUpdatesSummaryLikeCpp,
-    TransportsUpdateSummaryLikeCpp, WeatherUpdateSummaryLikeCpp,
+    LoadedGridRespawnRecordsLikeCpp, Map, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapRuntime,
+    MapUpdateMetricsSummaryLikeCpp, MoveListDrainSummaryLikeCpp, NoopGridLifecycle,
+    NoopTerrainGridLoader, PersonalPhaseTrackerUpdateSummaryLikeCpp,
+    ProcessRelocationNotifiesOutcome, SceneObjectUpdateContextLikeCpp,
+    SceneObjectsUpdateSummaryLikeCpp, ScriptScheduleProcessSummaryLikeCpp,
+    SendObjectUpdatesSummaryLikeCpp, TransportsUpdateSummaryLikeCpp, WeatherUpdateSummaryLikeCpp,
 };
 use crate::pool::PoolMgrLikeCpp;
 use crate::spawn::{Difficulty, SpawnId, SpawnObjectType, SpawnStore};
 use wow_core::{GameTime, ObjectGuid};
 use wow_entities::CreatureRuntimeUpdateContext;
+
+mod map_lifetime;
+mod player_owner;
+pub use map_lifetime::MapUnloadBlockedLikeCpp;
+pub use player_owner::{PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp};
 
 pub const MIN_GRID_DELAY_MS: u32 = 60_000;
 pub const MIN_MAP_UPDATE_DELAY_MS: u32 = 1;
@@ -193,10 +198,9 @@ pub type ManagedMapInnerLikeCpp = Map<NoopTerrainGridLoader, NoopGridLifecycle>;
 
 #[derive(Debug)]
 pub struct ManagedMap {
-    map: Map<NoopTerrainGridLoader, NoopGridLifecycle>,
+    runtime: MapRuntime,
     kind: ManagedMapKind,
     can_unload: bool,
-    player_count: u32,
     instance_encounter_in_progress: bool,
     instance_lock_token: Option<u64>,
     instance_lock_context: Option<CreateMapInstanceLockContext>,
@@ -247,10 +251,9 @@ impl ManagedMap {
         kind: ManagedMapKind,
     ) -> Self {
         Self {
-            map: Map::new(map_id, instance_id, difficulty, grid_expiry_ms),
+            runtime: MapRuntime::new(Map::new(map_id, instance_id, difficulty, grid_expiry_ms)),
             kind,
             can_unload: false,
-            player_count: 0,
             instance_encounter_in_progress: false,
             instance_lock_token: None,
             instance_lock_context: None,
@@ -284,15 +287,15 @@ impl ManagedMap {
     }
 
     pub const fn map_id(&self) -> u32 {
-        self.map.map_id()
+        self.runtime.map.map_id()
     }
 
     pub const fn instance_id(&self) -> u32 {
-        self.map.instance_id()
+        self.runtime.map.instance_id()
     }
 
     pub const fn difficulty(&self) -> Difficulty {
-        self.map.spawn_mode()
+        self.runtime.map.spawn_mode()
     }
 
     pub const fn kind(&self) -> ManagedMapKind {
@@ -300,32 +303,23 @@ impl ManagedMap {
     }
 
     pub fn map(&self) -> &Map<NoopTerrainGridLoader, NoopGridLifecycle> {
-        &self.map
+        &self.runtime.map
     }
 
     pub fn map_mut(&mut self) -> &mut Map<NoopTerrainGridLoader, NoopGridLifecycle> {
-        &mut self.map
+        &mut self.runtime.map
     }
 
     pub fn set_can_unload(&mut self, can_unload: bool) {
         self.can_unload = can_unload;
     }
 
-    pub fn set_player_count(&mut self, player_count: u32) {
-        self.player_count = player_count;
-    }
-
-    pub const fn player_count(&self) -> u32 {
-        self.player_count
+    pub fn player_count(&self) -> u32 {
+        self.runtime.map.typed_player_counts_like_cpp().0
     }
 
     pub fn players_count_except_gms_like_cpp(&self) -> u32 {
-        let (typed_players, non_game_masters) = self.map.typed_player_counts_like_cpp();
-        if typed_players > 0 {
-            non_game_masters
-        } else {
-            self.player_count
-        }
+        self.runtime.map.typed_player_counts_like_cpp().1
     }
 
     pub fn set_instance_encounter_in_progress_like_cpp(&mut self, in_progress: bool) {
@@ -455,12 +449,8 @@ impl ManagedMap {
         self.can_unload
     }
 
-    fn remove_all_players(&mut self) {
-        self.player_count = 0;
-    }
-
     fn have_players(&self) -> bool {
-        self.player_count > 0
+        self.player_count() > 0
     }
 
     fn update(&mut self, diff_ms: u32) {
@@ -521,30 +511,34 @@ impl ManagedMap {
         // represented map-owned timer/unbalanced seam here; `update_calls` below
         // remains manager instrumentation, not a C++ phase.
         self.last_dynamic_tree_update_summary_like_cpp =
-            self.map.update_dynamic_tree_like_cpp(diff_ms);
+            self.runtime.map.update_dynamic_tree_like_cpp(diff_ms);
         self.update_calls.push(diff_ms);
         self.last_dynamic_objects_update_summary =
-            self.map.update_dynamic_objects_like_cpp(diff_ms);
+            self.runtime.map.update_dynamic_objects_like_cpp(diff_ms);
         let now_secs = game_time_now_secs_i64();
         // Partial C++ ObjectUpdater seam: after DynamicObject, visit only the
         // represented map-owned Creature family in this slice. Default context is
         // honest represented runtime only: no real AI/combat/threat/fanout.
         self.last_creatures_update_summary =
-            self.map
+            self.runtime
+                .map
                 .update_creatures_like_cpp(diff_ms, now_secs, |_guid, _creature| {
                     CreatureRuntimeUpdateContext::default()
                 });
         // C++ Unit::Update advances timed PvP combat references for both
         // players and creatures. The canonical map owns both sides here, so
         // expire them once per map tick and purge the reciprocal relation.
-        self.last_expired_pvp_combat_refs_like_cpp =
-            self.map.update_all_pvp_combat_refs_like_cpp(diff_ms);
+        self.last_expired_pvp_combat_refs_like_cpp = self
+            .runtime
+            .map
+            .update_all_pvp_combat_refs_like_cpp(diff_ms);
         // Partial C++ ObjectUpdater seam: after Creature, visit represented
         // map-owned GameObject records. C++ real order is TypeContainerVisitor
         // nearby-cell/active-object traversal; this Rust insertion only adds the
         // missing family and leaves AI/go-type/per-player/packet/DB gaps open.
         self.last_game_objects_update_summary = match (pool_update, load_record) {
             (Some((spawn_store, pool_mgr)), Some(load_record)) => self
+                .runtime
                 .map
                 .update_game_objects_with_pool_update_loaded_grid_records_like_cpp(
                     diff_ms,
@@ -553,39 +547,47 @@ impl ManagedMap {
                     pool_mgr,
                     load_record,
                 ),
-            (Some((spawn_store, pool_mgr)), None) => {
-                self.map.update_game_objects_with_pool_update_like_cpp(
+            (Some((spawn_store, pool_mgr)), None) => self
+                .runtime
+                .map
+                .update_game_objects_with_pool_update_like_cpp(
                     diff_ms,
                     now_secs,
                     spawn_store,
                     pool_mgr,
-                )
-            }
-            (None, _) => self.map.update_game_objects_like_cpp(diff_ms, now_secs),
+                ),
+            (None, _) => self
+                .runtime
+                .map
+                .update_game_objects_like_cpp(diff_ms, now_secs),
         };
         // Partial C++ transport seam: after the represented GameObject/ObjectUpdater
         // family and before later represented families, visit typed canonical
         // Transports. This does not reproduce exact C++ cell visitor ordering nor
         // full `_transports` runtime (AI/scripts/spline/teleport/fanout/passengers).
         let now_ms = game_time_now_ms_u64();
-        self.last_transports_update_summary = self.map.update_transports_like_cpp(diff_ms, now_ms);
+        self.last_transports_update_summary =
+            self.runtime.map.update_transports_like_cpp(diff_ms, now_ms);
         // Partial C++ ObjectUpdater seam: after Transport, visit only the
         // represented map-owned AreaTrigger family in this slice. Other families,
         // nearby-cell traversal, player/session updates, fanout and scripts stay
         // explicit remaining gaps.
-        self.last_area_triggers_update_summary = self.map.update_area_triggers_like_cpp(diff_ms);
+        self.last_area_triggers_update_summary =
+            self.runtime.map.update_area_triggers_like_cpp(diff_ms);
         // Partial C++ ObjectUpdater seam: visit represented map-owned
         // Conversation records after AreaTrigger for this Rust slice. Exact
         // TypeContainerVisitor ordering/cell traversal, real scripts,
         // SendObjectUpdates and fanout remain explicit gaps.
-        self.last_conversations_update_summary = self.map.update_conversations_like_cpp(diff_ms);
+        self.last_conversations_update_summary =
+            self.runtime.map.update_conversations_like_cpp(diff_ms);
         // Partial C++ ObjectUpdater seam: visit represented map-owned
         // SceneObject records after Conversation for this Rust slice. Real
         // ObjectAccessor::GetUnit and Aura lookup by spell/cast id are not present
         // yet, so the live manager default is conservative and does not remove
         // SceneObjects merely because that runtime is absent.
         self.last_scene_objects_update_summary =
-            self.map
+            self.runtime
+                .map
                 .update_scene_objects_like_cpp(diff_ms, |_guid, scene_object| {
                     SceneObjectUpdateContextLikeCpp::represented_default_for(scene_object)
                 });
@@ -594,12 +596,14 @@ impl ManagedMap {
         // (`Map.cpp:777-798`). Rust consumes only represented map-owned
         // `m_objectUpdated`/changed-mask state here; no `UpdateDataMapType`,
         // session packets, visible-player iteration, or direct fanout is built.
-        self.last_send_object_updates_summary_like_cpp = self.map.send_object_updates_like_cpp();
+        self.last_send_object_updates_summary_like_cpp =
+            self.runtime.map.send_object_updates_like_cpp();
         // C++ then drains `m_scriptSchedule` under `i_scriptLock` before weather
         // and personal phase (`Map.cpp:777-798`, `MapScripts.cpp:311-321`).
         // Rust records due represented actions only; no script commands,
         // ObjectAccessor/session/fanout/DB/weather side effects are executed.
         self.last_script_schedule_process_summary_like_cpp = self
+            .runtime
             .map
             .process_script_schedule_update_order_like_cpp(now_secs);
         // C++ updates `_weatherUpdateTimer` immediately after script schedule and
@@ -607,14 +611,17 @@ impl ManagedMap {
         // (`Map.cpp:777-798`). Rust represents only the map-owned timer and
         // `_zoneDynamicInfo.DefaultWeather` update/reset seam; WeatherMgr, RNG,
         // script hooks, player fanout, packets, DB and zone messages remain gaps.
-        self.last_weather_update_summary_like_cpp = self.map.update_weather_like_cpp(diff_ms);
+        self.last_weather_update_summary_like_cpp =
+            self.runtime.map.update_weather_like_cpp(diff_ms);
         // C++ calls `GetMultiPersonalPhaseTracker().Update(this, t_diff)` after
         // SendObjectUpdates/scripts/weather and before later move/remove drains.
         // Rust consumes the existing map-owned tracker here as a represented seam
         // only: GUID expiry -> AddObjectToRemoveList, without claiming exact full
         // update ordering, visibility fanout, DB, scripts, or dynamic-tree parity.
-        self.last_personal_phase_tracker_update_summary =
-            self.map.update_personal_phase_tracker_like_cpp(diff_ms);
+        self.last_personal_phase_tracker_update_summary = self
+            .runtime
+            .map
+            .update_personal_phase_tracker_like_cpp(diff_ms);
         // C++ `Map::Update` immediately drains Creature, GameObject, and
         // AreaTrigger move-lists after personal-phase tracker update and before
         // `ProcessRelocationNotifies(t_diff)` (`Map.cpp:797-805`). Rust keeps
@@ -623,9 +630,15 @@ impl ManagedMap {
         // is intentionally not drained by this live path because C++ `Map::Update`
         // does not call a DynamicObject move-list drain.
         self.last_live_move_list_drain_summary = LiveMoveListDrainSummaryLikeCpp {
-            creature: self.map.move_all_creatures_in_move_list_like_cpp(),
-            game_object: self.map.move_all_game_objects_in_move_list_like_cpp(),
-            area_trigger: self.map.move_all_area_triggers_in_move_list_like_cpp(),
+            creature: self.runtime.map.move_all_creatures_in_move_list_like_cpp(),
+            game_object: self
+                .runtime
+                .map
+                .move_all_game_objects_in_move_list_like_cpp(),
+            area_trigger: self
+                .runtime
+                .map
+                .move_all_area_triggers_in_move_list_like_cpp(),
         };
         // C++ `Map::Update` calls `ProcessRelocationNotifies(t_diff)`
         // immediately after the live Creature/GameObject/AreaTrigger move-list
@@ -637,24 +650,25 @@ impl ManagedMap {
         // effects, packets, ObjectAccessor/session fanout, AI, dynamic tree, or
         // exact full visitor parity.
         self.last_process_relocation_notifies_outcome_like_cpp = self
+            .runtime
             .map
             .process_live_relocation_notifies_like_cpp(diff_ms, DEFAULT_VISIBILITY_NOTIFY_PERIOD);
         // C++ `Map::Update` tail immediately follows ProcessRelocationNotifies:
         // `sScriptMgr->OnMapUpdate(this, t_diff)` then the `map_creatures` and
         // `map_gameobjects` metrics (`Map.cpp:804-815`). Rust records only the
-        // boundary invocation and typed canonical counts from `Map::map_objects`;
+        // boundary invocation and typed canonical counts from `Map::entity_world`;
         // no real ScriptMgr dispatch, script callbacks, Prometheus/telemetry,
         // ObjectAccessor, DB, or fanout side effects are claimed.
         self.last_map_update_tail_summary_like_cpp = MapUpdateTailSummaryLikeCpp {
             script_hook: MapUpdateScriptHookSummaryLikeCpp {
                 invoked: true,
                 diff_ms,
-                map_id: self.map.map_id(),
-                instance_id: self.map.instance_id(),
+                map_id: self.runtime.map.map_id(),
+                instance_id: self.runtime.map.instance_id(),
                 kind: self.kind,
                 script_dispatch_represented: false,
             },
-            metrics: self.map.map_update_metrics_like_cpp(),
+            metrics: self.runtime.map.map_update_metrics_like_cpp(),
         };
     }
 
@@ -665,8 +679,10 @@ impl ManagedMap {
         // (`Map.cpp:2519-2544`). Rust keeps callback ownership inside `Map`; the
         // manager only orchestrates the live order and records the drain summary.
         self.last_far_spell_callback_drain_summary_like_cpp =
-            self.map.drain_far_spell_callbacks_like_cpp();
-        self.map.remove_all_objects_in_remove_list_like_cpp();
+            self.runtime.map.drain_far_spell_callbacks_like_cpp();
+        self.runtime
+            .map
+            .remove_all_objects_in_remove_list_like_cpp();
         self.last_grid_states_update_summary_like_cpp = if self.kind.is_battleground_or_arena() {
             GridStatesUpdateSummaryLikeCpp {
                 diff_ms,
@@ -674,7 +690,7 @@ impl ManagedMap {
                 ..GridStatesUpdateSummaryLikeCpp::default()
             }
         } else {
-            self.map.update_loaded_grid_states_like_cpp(diff_ms)
+            self.runtime.map.update_loaded_grid_states_like_cpp(diff_ms)
         };
     }
 
@@ -810,6 +826,9 @@ pub struct MapManager {
     updater: MapUpdater,
     scheduled_scripts: usize,
     spawn_group_initializer_like_cpp: Option<SpawnGroupInitializerLikeCpp>,
+    player_owners_like_cpp: BTreeMap<ObjectGuid, player_owner::PlayerOwnershipLikeCpp>,
+    detached_players_like_cpp: BTreeMap<ObjectGuid, Box<wow_entities::Player>>,
+    next_player_generation_like_cpp: u64,
 }
 
 impl fmt::Debug for MapManager {
@@ -848,6 +867,9 @@ impl MapManager {
             updater: MapUpdater::default(),
             scheduled_scripts: 0,
             spawn_group_initializer_like_cpp: None,
+            player_owners_like_cpp: BTreeMap::new(),
+            detached_players_like_cpp: BTreeMap::new(),
+            next_player_generation_like_cpp: 1,
         };
         manager.set_grid_cleanup_delay(grid_cleanup_delay_ms);
         manager.set_map_update_interval(map_update_interval_ms);
@@ -1162,6 +1184,25 @@ impl MapManager {
         self.maps.get_mut(&MapKey::new(map_id, instance_id))
     }
 
+    /// Execute one synchronous gameplay command inside the single writer for
+    /// this exact map instance and return only owned evidence.
+    ///
+    /// External synchronization remains the caller's responsibility during
+    /// the staged migration. No map/entity borrow crosses this boundary, so a
+    /// later actor-backed driver can preserve the same command contract.
+    pub fn execute_map_command_like_cpp(
+        &mut self,
+        map_id: u32,
+        instance_id: u32,
+        command: MapCommandLikeCpp,
+    ) -> MapCommandOutcomeLikeCpp {
+        let key = MapKey::new(map_id, instance_id);
+        let Some(managed) = self.maps.get_mut(&key) else {
+            return MapCommandOutcomeLikeCpp::missing_map(key, command);
+        };
+        managed.runtime.execute(command)
+    }
+
     pub fn do_for_all_maps<F>(&self, mut worker: F)
     where
         F: FnMut(&ManagedMap),
@@ -1321,42 +1362,6 @@ impl MapManager {
 
         self.timer.set_current(0);
         Some(current)
-    }
-
-    pub fn destroy_map(&mut self, map_id: u32, instance_id: u32) -> bool {
-        let key = MapKey::new(map_id, instance_id);
-        let Some(map) = self.maps.get_mut(&key) else {
-            return false;
-        };
-
-        if Self::destroy_map_inner(map, &mut self.instance_ids) {
-            self.maps.remove(&key);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn destroy_map_inner(map: &mut ManagedMap, instance_ids: &mut InstanceIdAllocator) -> bool {
-        map.remove_all_players();
-        if map.have_players() {
-            return false;
-        }
-
-        map.unload_all();
-
-        if map.kind().frees_instance_id_on_destroy() {
-            instance_ids.free_instance_id(map.instance_id());
-        }
-
-        true
-    }
-
-    pub fn unload_all(&mut self) {
-        for map in self.maps.values_mut() {
-            map.unload_all();
-        }
-        self.maps.clear();
     }
 
     pub fn num_instances(&self) -> u32 {
@@ -1616,7 +1621,7 @@ mod tests {
         let hook_calls = Arc::clone(&calls);
         manager.set_spawn_group_initializer_like_cpp(move |map| {
             hook_calls.fetch_add(1, Ordering::SeqCst);
-            map.set_player_count(7);
+            map.set_instance_encounter_in_progress_like_cpp(true);
         });
 
         manager.create_world_map(571, 0);
@@ -1624,7 +1629,12 @@ mod tests {
         manager.create_map_entry(571, 0, 0, ManagedMapKind::World);
 
         assert_eq!(calls.load(Ordering::SeqCst), 1);
-        assert_eq!(manager.find_map(571, 0).unwrap().player_count(), 7);
+        assert!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
 
         manager.create_map_entry(
             571,
@@ -1708,13 +1718,30 @@ mod tests {
         let mut keys = Vec::new();
         manager.do_for_all_maps_mut(|map| {
             keys.push((map.map_id(), map.instance_id()));
-            map.set_player_count(map.map_id() + map.instance_id());
+            map.set_instance_encounter_in_progress_like_cpp(
+                (map.map_id() + map.instance_id()) % 2 == 0,
+            );
         });
 
         assert_eq!(keys, vec![(1, 0), (1, 3), (2, 0)]);
-        assert_eq!(manager.find_map(1, 0).unwrap().player_count(), 1);
-        assert_eq!(manager.find_map(1, 3).unwrap().player_count(), 4);
-        assert_eq!(manager.find_map(2, 0).unwrap().player_count(), 2);
+        assert!(
+            !manager
+                .find_map(1, 0)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
+        assert!(
+            manager
+                .find_map(1, 3)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
+        assert!(
+            manager
+                .find_map(2, 0)
+                .unwrap()
+                .instance_encounter_in_progress_like_cpp()
+        );
     }
 
     #[test]
@@ -3214,34 +3241,6 @@ mod tests {
         manager.create_map_entry(489, 2, 0, ManagedMapKind::Battleground);
 
         assert_eq!(manager.generate_instance_id(), Some(3));
-    }
-
-    #[test]
-    fn destroy_map_removes_players_then_unloads_and_removes_entry() {
-        let mut manager = MapManager::default();
-        manager.create_world_map(1, 0).set_player_count(2);
-
-        assert!(manager.destroy_map(1, 0));
-        assert!(manager.find_map(1, 0).is_none());
-    }
-
-    #[test]
-    fn num_instances_and_players_match_dungeon_filter() {
-        let mut manager = MapManager::default();
-        manager.create_world_map(1, 0).set_player_count(10);
-        manager
-            .create_map_entry(
-                33,
-                7,
-                1,
-                ManagedMapKind::Dungeon {
-                    has_reset_schedule: true,
-                },
-            )
-            .set_player_count(3);
-
-        assert_eq!(manager.num_instances(), 1);
-        assert_eq!(manager.num_players_in_instances(), 3);
     }
 
     #[test]

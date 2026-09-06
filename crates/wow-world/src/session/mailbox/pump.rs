@@ -22,7 +22,7 @@
 //! the command rails now do, which is loot's own work and not this issue's.
 
 use super::protocol::*;
-use crate::session::{SessionState, WorldSession};
+use crate::session::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
 impl WorldSession {
     /// Clone the C++-style cross-session command channel for this active
@@ -75,9 +75,14 @@ impl WorldSession {
             .unwrap_or(true)
     }
 
-    pub(crate) async fn process_represented_session_commands_like_cpp(&mut self) {
-        self.apply_pending_durable_item_loot_completions_like_cpp()
-            .await;
+    pub(crate) async fn process_represented_session_commands_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) {
+        self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+            catalogs.id_generators.item.as_ref(),
+        )
+        .await;
         let creature_runtime_overflowed = self.take_durable_creature_runtime_overflow_like_cpp();
         if creature_runtime_overflowed {
             self.kick(
@@ -87,8 +92,19 @@ impl WorldSession {
         }
         let commands = self.drain_session_commands();
         for command in commands {
-            self.apply_session_command_like_cpp(command).await;
+            self.apply_session_command_with_catalogs_like_cpp(catalogs, command)
+                .await;
         }
-        self.flush_pending_visibility_refresh_like_cpp().await;
+        self.flush_pending_visibility_refresh_with_catalogs_like_cpp(
+            catalogs.creature_spawns.as_ref(),
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn process_represented_session_commands_like_cpp(&mut self) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.process_represented_session_commands_with_catalogs_like_cpp(&catalogs)
+            .await;
     }
 }

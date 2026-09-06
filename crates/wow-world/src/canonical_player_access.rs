@@ -42,6 +42,10 @@ pub(crate) fn install_canonical_player_owner_for_test(
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
         .unwrap();
     session.set_canonical_map_manager(canonical);
+    assert!(
+        session.adopt_registered_canonical_player_fixture_like_cpp(),
+        "canonical Player fixture must register its production ownership handle"
+    );
     guid
 }
 
@@ -371,11 +375,7 @@ pub fn canonical_player_reputation_state_flags_like_cpp(player: &Player) -> Vec<
 /// Sorted, because the aggro scan compares this against an ordered expectation.
 #[must_use]
 pub fn canonical_player_forced_reputation_faction_ids_like_cpp(player: &Player) -> Vec<u32> {
-    let mut faction_ids: Vec<u32> = player
-        .forced_reputation_faction_ids_like_cpp()
-        .iter()
-        .copied()
-        .collect();
+    let mut faction_ids: Vec<u32> = player.forced_reputation_faction_ids_like_cpp().collect();
     faction_ids.sort_unstable();
     faction_ids
 }

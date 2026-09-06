@@ -33,7 +33,8 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("one dispatch mechanism"), "{report}");
-    assert!(report.contains("25 #[path] modules verified"), "{report}");
+    // Five added library mounts since 9cd1da41; see the #578 checkpoint.
+    assert!(report.contains("47 #[path] modules verified"), "{report}");
 }
 
 #[test]

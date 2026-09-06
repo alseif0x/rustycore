@@ -1,5 +1,10 @@
 # Migration: game/World
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/World/`
 > **Rust target crate(s):** `crates/world-server/`, `crates/wow-network/`
 > **Layer:** L0 — Global state, update loop, server lifecycle
@@ -343,7 +348,7 @@ World module doesn't directly send packets; instead, it calls methods on session
    - Tick MapManager (all maps, grids, creatures, objects)
    - Tick managers (Auction, Battlefield, Battleground, etc.)
    - Update world timers (check if WUPDATE_* timers expired, dispatch cleanup)
-   
+
    If Rust does this out of order (e.g., maps before sessions), players might move into loaded maps before sessions are ticked, causing race conditions.
 
 3. **Timer precision matters**. Auctions expire in milliseconds. If a timer drifts by seconds, auctions could last too long or expire too soon. Use `Instant::now()` consistently, not system time.

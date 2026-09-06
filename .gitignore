@@ -1,5 +1,6 @@
 # Rust build artifacts
 /target/
+/tools/architecture/modularity-conformance/target/
 **/*.rs.bk
 
 # Binaries at root (release builds copied here)

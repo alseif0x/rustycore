@@ -222,7 +222,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_trainer_list",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
                     Ok(hello) => session.handle_trainer_list(hello).await,
@@ -239,8 +239,16 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_trainer_buy_spell",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_trainer_buy_spell(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_trainer_buy_spell_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        catalogs.battle_pet_trainer_selection.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -260,8 +268,13 @@ impl WorldSession {
             return TrainerAdmissionProofLikeCpp::Indeterminate;
         };
         let player_condition_store = self.player_condition_store();
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
+        else {
+            return TrainerAdmissionProofLikeCpp::Indeterminate;
+        };
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return TrainerAdmissionProofLikeCpp::Indeterminate;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let mut unsupported = false;
         let meets = conditions::is_object_meeting_trainer_spell_conditions_like_cpp(
@@ -274,8 +287,9 @@ impl WorldSession {
                 source_info.set_player_target_snapshot(0, player_snapshot);
                 if let Some(store) = player_condition_store {
                     source_info.set_player_condition_store(store.as_ref());
-                    source_info
-                        .set_player_condition_context(0, player_condition_context.as_context(self));
+                    if let Some(context) = player_condition_context.as_context(self) {
+                        source_info.set_player_condition_context(0, context);
+                    }
                 }
                 match conditions::condition_meets_basic_like_cpp(
                     condition,
@@ -528,7 +542,12 @@ impl WorldSession {
     /// Revalidates the immutable offer under the exclusive character-money
     /// boundary, commits its fee and prepared acquisition once, then publishes
     /// the C++ money/visual/learning order from the committed result.
-    pub async fn handle_trainer_buy_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_trainer_buy_spell_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        battle_pet_selection_store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let req = match TrainerBuySpellRequest::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -574,7 +593,7 @@ impl WorldSession {
                 trainer_guid = ?trainer_guid,
                 trainer_id = trainer_id,
                 active_source = ?self.player_interaction_source_guid_like_cpp(),
-                active_trainer_id = self.player_interaction_trainer_id_like_cpp(),
+                active_trainer_id = ?self.resolved_player_interaction_trainer_id_like_cpp(),
                 "Trainer buy rejected: active trainer interaction mismatch"
             );
             return;
@@ -618,7 +637,8 @@ impl WorldSession {
             std::collections::BTreeMap::new(),
         ) && crate::spell_acquisition::snapshot_has_pending_durable_save_like_cpp(&snapshot)
         {
-            self.save_current_player_to_db_like_cpp().await;
+            self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+                .await;
         }
         // Close detached money admission and reconcile every previously
         // admitted payout before deriving the price, balance or acquisition
@@ -667,7 +687,9 @@ impl WorldSession {
                 // Issue #161: the recoverable saga owns the battle-pet
                 // branch end to end (admission, charge, durable command,
                 // one pet, completion, compensation and publication).
-                self.execute_battle_pet_trainer_purchase_like_cpp(
+                self.execute_battle_pet_trainer_purchase_with_generator_like_cpp(
+                    item_guid_generator,
+                    battle_pet_selection_store,
                     money_persistence,
                     trainer_guid,
                     trainer_id as u32,
@@ -697,7 +719,9 @@ impl WorldSession {
                 return;
             }
         }
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let price = u64::from(offer.effective_price);
         if old_money < price {
             self.send_packet_realm(&TrainerBuyFailed {
@@ -837,7 +861,10 @@ impl WorldSession {
                 return;
             }
         };
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick("canonical Player money owner became unavailable after trainer COMMIT");
+            return;
+        }
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }
@@ -898,8 +925,10 @@ impl WorldSession {
             return;
         }
         drop(money_persistence);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+            item_guid_generator,
+        )
+        .await;
 
         info!(
             account = self.account_id,
@@ -909,6 +938,23 @@ impl WorldSession {
             remaining_money = new_money,
             "Trainer purchase committed and published"
         );
+    }
+
+    #[cfg(test)]
+    pub async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let selection = self
+            .battle_pet_selection_store_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| {
+                Arc::new(wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp::default())
+            });
+        self.handle_trainer_buy_spell_with_generator_like_cpp(
+            generators.item.as_ref(),
+            selection.as_ref(),
+            pkt,
+        )
+        .await;
     }
 }
 
@@ -1249,7 +1295,6 @@ mod tests {
             80,
             0,
         ));
-        session.set_player_aura_authority_complete_like_cpp(true);
         session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
         session.set_skill_store(Arc::new(
             SkillStore::from_skill_line_abilities_and_race_class_like_cpp([], []),
@@ -1309,10 +1354,15 @@ mod tests {
         );
         assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
         assert!(session.set_complete_represented_override_spells_like_cpp([]));
-        assert!(session.set_complete_player_skill_records_like_cpp(HashMap::new(), 0));
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
+        assert!(session.set_player_aura_authority_complete_like_cpp(true));
+        // The production login path hydrates `Player::SetFactionForRace`
+        // before publishing the Player. This synthetic fixture has no
+        // ChrRaces store, so install the exact canonical prerequisite here.
+        session.set_player_faction_template_like_cpp(1);
+        assert!(session.set_complete_player_skill_records_like_cpp(HashMap::new(), 0));
         insert_canonical_creature(&canonical, trainer, 1.0, TRAINER_BUY_NPC_FLAGS_LIKE_CPP);
         insert_canonical_creature(
             &canonical,
@@ -1407,9 +1457,8 @@ mod tests {
                 player.unit_mut().add_unit_state(UnitState::DIED.bits());
             })
             .expect("canonical player");
-        session.visible_auras.insert(
-            slot,
-            AuraApplication {
+        assert!(
+            session.insert_player_visible_aura_like_cpp(AuraApplication {
                 spell_id: 5384,
                 difficulty_id: 0,
                 caster_guid: player_guid,
@@ -1427,15 +1476,15 @@ mod tests {
                 represented_misc_value: None,
                 represented_multiplier: 1.0,
                 applied_at: Instant::now(),
-            },
+            })
         );
+        assert!(session.set_player_aura_authority_complete_like_cpp(true));
     }
 
     fn seed_unclassified_active_aura(session: &mut WorldSession, slot: u8) {
         let player_guid = session.player_guid().expect("active player");
-        session.visible_auras.insert(
-            slot,
-            AuraApplication {
+        assert!(
+            session.insert_player_visible_aura_like_cpp(AuraApplication {
                 spell_id: 999,
                 difficulty_id: 0,
                 caster_guid: player_guid,
@@ -1453,8 +1502,9 @@ mod tests {
                 represented_misc_value: None,
                 represented_multiplier: 1.0,
                 applied_at: Instant::now(),
-            },
+            })
         );
+        assert!(session.set_player_aura_authority_complete_like_cpp(true));
     }
 
     fn install_wrapper_and_aura_catalog(
@@ -1696,7 +1746,13 @@ mod tests {
                 .player_trainer_interaction_matches_like_cpp(fixture.other_trainer, 17),
             "a missing ObjectMgr mapping must not replace a prior published window"
         );
-        assert!(fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.send_rx.try_recv().is_err());
     }
@@ -1763,7 +1819,13 @@ mod tests {
             fixture.trainer,
             DEFAULT_TRAINER_ID as i32
         ));
-        assert!(!fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            !fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(!canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.send_rx.try_recv().is_err());
     }
@@ -1798,9 +1860,12 @@ mod tests {
                 .learn_known_spell_like_cpp(KNOWN_TRAINER_SPELL);
             match case {
                 "unbound" => {}
-                "wrong-guid" | "wrong-id" => fixture
-                    .session
-                    .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID),
+                "wrong-guid" | "wrong-id" => {
+                    fixture.session.set_player_trainer_interaction_like_cpp(
+                        fixture.trainer,
+                        DEFAULT_TRAINER_ID,
+                    );
+                }
                 _ => unreachable!(),
             }
             let (request_guid, request_id) = match case {
@@ -1939,7 +2004,6 @@ mod tests {
         fixture
             .session
             .set_loot_money_persistence_test_result_like_cpp(true);
-
         fixture
             .session
             .handle_trainer_buy_spell(trainer_buy_packet(
@@ -2625,6 +2689,20 @@ mod tests {
                 },
             ]),
         ));
+        assert_eq!(
+            fixture
+                .session
+                .resolved_player_aura_authority_complete_like_cpp(),
+            Some(true),
+            "trainer fixture must accredit the canonical Player aura load"
+        );
+        assert!(
+            fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .is_some(),
+            "trainer fixture must resolve the canonical Player aura owner"
+        );
         fixture
             .session
             .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
@@ -3508,11 +3586,14 @@ mod tests {
             .set_player_trainer_interaction_like_cpp(logged_in.trainer, DEFAULT_TRAINER_ID);
         logged_in
             .session
-            .dispatch_packet(trainer_buy_wire_packet(
-                logged_in.trainer,
-                DEFAULT_TRAINER_ID as i32,
-                MISSING_SPELL,
-            ))
+            .dispatch_packet(
+                &crate::session::SessionHandlerCatalogsLikeCpp::default(),
+                trainer_buy_wire_packet(
+                    logged_in.trainer,
+                    DEFAULT_TRAINER_ID as i32,
+                    MISSING_SPELL,
+                ),
+            )
             .await;
         assert_eq!(
             logged_in.send_rx.try_recv().expect("TrainerBuyFailed"),
@@ -3531,11 +3612,10 @@ mod tests {
             .set_player_trainer_interaction_like_cpp(authed.trainer, DEFAULT_TRAINER_ID);
         authed
             .session
-            .dispatch_packet(trainer_buy_wire_packet(
-                authed.trainer,
-                DEFAULT_TRAINER_ID as i32,
-                MISSING_SPELL,
-            ))
+            .dispatch_packet(
+                &crate::session::SessionHandlerCatalogsLikeCpp::default(),
+                trainer_buy_wire_packet(authed.trainer, DEFAULT_TRAINER_ID as i32, MISSING_SPELL),
+            )
             .await;
         assert!(
             authed.send_rx.try_recv().is_err(),
@@ -3565,7 +3645,13 @@ mod tests {
             "removing feign death publishes its aura update"
         );
         assert!(fixture.send_rx.try_recv().is_err());
-        assert!(!fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            !fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(!canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.session.player_trainer_interaction_matches_like_cpp(
             fixture.trainer,
@@ -3591,7 +3677,13 @@ mod tests {
             .await;
 
         assert!(fixture.send_rx.try_recv().is_err());
-        assert!(fixture.session.visible_auras.contains_key(&6));
+        assert!(
+            fixture
+                .session
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player aura owner")
+                .contains_key(&6)
+        );
         assert!(canonical_player_has_died_state(&mut fixture.session));
         assert!(fixture.session.player_trainer_interaction_matches_like_cpp(
             fixture.trainer,

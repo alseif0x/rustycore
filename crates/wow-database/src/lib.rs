@@ -44,7 +44,6 @@ pub mod character_enumeration_adapter;
 pub mod chr_specialization_hotfix_adapter;
 pub mod condition_disable_catalog_adapter;
 pub mod creature_display_hotfix_adapter;
-pub mod creature_query_catalog_adapter;
 pub mod database;
 pub mod difficulty_hotfix_adapter;
 pub mod error;
@@ -52,8 +51,6 @@ pub mod exploration_base_xp_catalog_adapter;
 pub mod game_event_persistence_adapter;
 pub mod game_event_world_catalog_adapter;
 pub mod game_tele_catalog_adapter;
-pub mod gameobject_query_catalog_adapter;
-pub mod gameobject_use_template_adapter;
 pub mod gameplay_rule_catalog_adapter;
 pub mod gossip_catalog_adapter;
 pub mod group_loot_money_adapter;
@@ -69,9 +66,7 @@ pub mod loot_template_catalog_adapter;
 pub mod map_corpse_adapter;
 pub mod migration;
 pub mod mount_catalog_adapter;
-pub mod next_mail_time_adapter;
 pub mod packet_spoof_ban_adapter;
-pub mod page_text_catalog_adapter;
 pub mod params;
 pub mod persistence_trace;
 pub mod phase_hotfix_catalog_adapter;
@@ -116,6 +111,7 @@ pub mod visibility_spawn_catalog_adapter;
 pub mod void_storage_adapter;
 pub mod world_auxiliary_catalog_adapter;
 pub mod world_object_catalog_adapter;
+pub mod world_query_catalog_adapter;
 pub mod world_reference_catalog_adapter;
 pub mod world_state_startup_adapter;
 
@@ -131,7 +127,6 @@ pub use character_enumeration_adapter::MariaDbCharacterEnumerationPersistenceAda
 pub use chr_specialization_hotfix_adapter::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp;
 pub use condition_disable_catalog_adapter::MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp;
 pub use creature_display_hotfix_adapter::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp;
-pub use creature_query_catalog_adapter::MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp;
 pub use database::{
     Database, build_connection_string, build_connection_string_with_ssl_like_cpp,
     escape_string_like_cpp, warn_about_sync_queries_enabled_like_cpp,
@@ -143,7 +138,6 @@ pub use exploration_base_xp_catalog_adapter::MariaDbExplorationBaseXpCatalogPers
 pub use game_event_persistence_adapter::MariaDbGameEventPersistenceAdapterLikeCpp;
 pub use game_event_world_catalog_adapter::MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp;
 pub use game_tele_catalog_adapter::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp;
-pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp;
 pub use gameplay_rule_catalog_adapter::MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp;
 pub use gossip_catalog_adapter::MariaDbGossipCatalogPersistenceAdapterLikeCpp;
 pub use hotfix_delivery_metadata_adapter::MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp;
@@ -160,7 +154,6 @@ pub use loader::{
 };
 pub use loot_template_catalog_adapter::MariaDbLootTemplateCatalogPersistenceAdapterLikeCpp;
 pub use mount_catalog_adapter::MariaDbMountCatalogPersistenceAdapterLikeCpp;
-pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeCpp;
 pub use params::{PreparedStatement, SqlParam};
 pub use phase_hotfix_catalog_adapter::MariaDbPhaseHotfixPersistenceAdapterLikeCpp;
 pub use phase_world_catalog_adapter::MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp;

@@ -80,12 +80,17 @@ impl WorldSession {
 
     /// Handle CMSG_LOGOUT_REQUEST — player wants to log out.
     ///
-    /// C# logic: if player is in combat or in a duel, deny logout.
-    /// Otherwise, if in a resting zone or GM, instant logout.
-    /// Else, 20-second countdown.
-    ///
-    /// For now we always allow instant logout (simplified).
-    pub async fn handle_logout_request(&mut self, req: LogoutRequest) {
+    /// C++ MiscHandler.cpp:238 validates combat/falling/duel and selects instant
+    /// or timed logout. Rust's existing instant-only admission remains incomplete;
+    /// the persistence completion below does not implement those missing rules.
+    pub async fn handle_logout_request_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        req: LogoutRequest,
+    ) {
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return;
+        }
         info!(
             "LogoutRequest (idle={}) from account {}",
             req.idle_logout, self.account_id
@@ -95,22 +100,49 @@ impl WorldSession {
             self.send_packet(&LootReleaseAll);
         }
 
-        self.set_player_logout_like_cpp(true);
-
         // Always allow instant logout for now (no combat/duel checks)
         self.send_packet(&LogoutResponse::instant_ok());
+
+        // C++ LogoutPlayer completes pending far entry before setting its logout
+        // flag and saving (WorldSession.cpp:544-551), independently of socket output.
+        if !self.finish_worldport_native_before_disconnect_like_cpp() {
+            self.kick("explicit logout refused incomplete worldport native work");
+            return;
+        }
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return; // Terminal recovery leaves its source save to disconnect finalization.
+        }
+        self.set_player_logout_like_cpp(true);
 
         // Complete logout immediately
         self.logout_time = None;
 
         if let Some(player_guid) = self.player_guid() {
-            self.wait_for_active_loot_persistence_like_cpp().await;
+            self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
+                .await;
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
 
         // Trinity clears buyback slots before SaveToDB; persisted buyback items must not survive logout.
         self.clear_buyback_on_logout().await;
-        self.save_current_player_to_db_like_cpp().await;
+        let save_outcome = self
+            .save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+            .await;
+        // A submitted save can quarantine the session. Do not discard its owner,
+        // release its login claim or overwrite Disconnecting with Authed below.
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return;
+        }
+        if !matches!(
+            save_outcome,
+            crate::session::PlayerSaveOutcomeLikeCpp::Applied
+                | crate::session::PlayerSaveOutcomeLikeCpp::Failed
+        ) {
+            self.kick("explicit logout save was not admitted; retain owner for disconnect");
+            return;
+        }
+        // Known rollback keeps the existing C++/Rust logout behavior. Reaching
+        // character selection is not proof the attempted transaction committed.
         self.save_account_mounts_like_cpp().await;
         self.save_account_toys_like_cpp().await;
         self.save_account_heirlooms_like_cpp().await;
@@ -126,8 +158,6 @@ impl WorldSession {
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_canonical_player_from_map_like_cpp();
-        self.unregister_from_object_accessor();
-
         // Send LogoutComplete → client returns to character select
         self.set_state(crate::session::SessionState::Authed);
         self.send_packet(&LogoutComplete);
@@ -141,7 +171,7 @@ impl WorldSession {
 
         // Clear inventory state
         self.clear_all_inventory_runtime_like_cpp();
-        self.clear_player_currencies_like_cpp();
+        let _ = self.clear_player_currencies_like_cpp();
         self.set_active_loot_guid(ObjectGuid::EMPTY);
 
         // ── Restore realm socket as primary ──────────────────────────
@@ -155,6 +185,13 @@ impl WorldSession {
         info!("Player logged out for account {}", self.account_id);
     }
 
+    #[cfg(test)]
+    pub async fn handle_logout_request(&mut self, req: LogoutRequest) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_logout_request_with_generator_like_cpp(generators.item.as_ref(), req)
+            .await;
+    }
+
     /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.
     pub async fn handle_logout_cancel(&mut self) {
         info!("LogoutCancel from account {}", self.account_id);
@@ -166,7 +203,17 @@ impl WorldSession {
     ///
     /// Called when the `instance_link_rx` oneshot delivers the new channels.
     /// Sends ResumeComms and the full login sequence after the instance socket is connected.
-    pub async fn handle_continue_player_login(&mut self) {
+    pub async fn handle_continue_player_login_with_module_registry_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        modules: &wow_module_api::ModuleRegistry,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+        player_rest_rates: &crate::session::PlayerRestRatePolicyLikeCpp,
+        progression: &crate::session::ProgressionCatalogsLikeCpp,
+        feature_policy: &SupportFeaturePolicyLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
+    ) {
         let guid: ObjectGuid = match self.player_loading() {
             Some(g) => g,
             None => {
@@ -378,10 +425,7 @@ impl WorldSession {
             )
         });
         let first_login = at_login_flags & 0x020 != 0;
-        let Some(player_create_info) = self
-            .player_create_info_store_like_cpp()
-            .and_then(|store| store.get(race, class))
-            .copied()
+        let Some(player_create_info) = player_bootstrap.create_info.get(race, class).copied()
         else {
             warn!(
                 player_guid = guid.counter(),
@@ -423,29 +467,99 @@ impl WorldSession {
             return;
         };
 
+        // C++ constructs the selected `Player` before hydrating its character
+        // rows. Establish the generation-checked owner now so every following
+        // load step writes directly into that one value instead of requiring a
+        // Session-side bootstrap mirror.
+        let attached_controller = self.ensure_login_player_controller_like_cpp(
+            guid,
+            name.clone(),
+            position,
+            map_id as u16,
+            race,
+            class,
+            level,
+            gender,
+        );
+
+        let mail_rows = match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Mail(rows),
+            ) => rows,
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(player_guid = guid.counter(), %reason, "failed to load canonical Player mail owner");
+                self.kick("WorldSession::HandlePlayerLogin Player mail hydration failed");
+                return;
+            }
+            _ => {
+                self.kick("WorldSession::HandlePlayerLogin invalid Player mail hydration outcome");
+                return;
+            }
+        };
+        let mails = mail_rows
+            .into_iter()
+            .map(|row| wow_entities::PlayerMailRecord {
+                mail_id: row.mail_id,
+                message_type: row.message_type,
+                sender: row.sender,
+                receiver: row.receiver,
+                template_id: (row.template_id != 0).then_some(row.template_id),
+                deliver_time: row.deliver_time,
+                expire_time: row.expire_time,
+                checked_flags: row.checked_flags,
+                stationery_id: row.stationery_id,
+            })
+            .collect();
+        if !self.replace_owned_player_mails_like_cpp(mails) {
+            self.kick("WorldSession::HandlePlayerLogin canonical Player mail owner disappeared");
+            return;
+        }
+
         // Load played time + money/xp from DB using C++ CHAR_SEL_CHARACTER order.
         self.total_played_time = base_row.total_played_time.unwrap_or(0);
         self.level_played_time = base_row.level_played_time.unwrap_or(0);
-        self.set_player_gold_like_cpp(base_row.money.unwrap_or(0));
-        self.set_player_inventory_slot_count_like_cpp(
+        if !self.set_player_gold_like_cpp(base_row.money.unwrap_or(0)) {
+            self.kick("WorldSession::HandlePlayerLogin canonical Player money hydration failed");
+            return;
+        }
+        if !self.set_player_inventory_slot_count_like_cpp(
             loaded_inventory_slot_count_with_legacy_rust_compat(
                 base_row.inventory_slots.unwrap_or(INVENTORY_DEFAULT_SIZE),
             ),
-        );
-        self.set_player_bank_bag_slot_count_like_cpp(base_row.bank_slots.unwrap_or(0));
+        ) || !self.set_player_bank_bag_slot_count_like_cpp(base_row.bank_slots.unwrap_or(0))
+        {
+            self.kick("WorldSession::HandlePlayerLogin canonical Player inventory capacity hydration failed");
+            return;
+        }
         self.set_player_xp_like_cpp(base_row.xp.unwrap_or(0));
-        self.set_represented_talent_reset_state_like_cpp(
+        if !self.set_represented_talent_reset_state_like_cpp(
             base_row.talent_reset_cost.unwrap_or(0),
             base_row.talent_reset_time_secs.unwrap_or(0),
-        );
-        self.set_represented_active_talent_group_like_cpp(
-            base_row.active_talent_group.unwrap_or(0),
-        );
-        self.set_represented_bonus_talent_groups_like_cpp(
-            base_row.bonus_talent_groups.unwrap_or(0),
-        );
+        ) || !self
+            .set_represented_active_talent_group_like_cpp(base_row.active_talent_group.unwrap_or(0))
+            || !self.set_represented_bonus_talent_groups_like_cpp(
+                base_row.bonus_talent_groups.unwrap_or(0),
+            )
+        {
+            self.kick(
+                "WorldSession::HandlePlayerLogin canonical Player specialization hydration failed",
+            );
+            return;
+        }
         self.set_player_create_mode_like_cpp(create_mode);
-        self.set_represented_at_login_flags_like_cpp(at_login_flags);
+        if !self.set_represented_at_login_flags_like_cpp(at_login_flags) {
+            self.kick(
+                "canonical Player persistent-capability owner unavailable during login hydration",
+            );
+            return;
+        }
         let saved_rest_state = base_row.rest_state.unwrap_or(REST_STATE_NORMAL_LIKE_CPP);
         let saved_rest_bonus = base_row.rest_bonus.unwrap_or(0.0);
         let saved_logout_time_secs = base_row.logout_time_secs.unwrap_or(0);
@@ -459,15 +573,21 @@ impl WorldSession {
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
         // that post-add terrain pass runs.
         self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
-        self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+        if !self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
             map_id: login_homebind.map_id,
             area_id: login_homebind
                 .bind_area_id
                 .expect("validated character homebind must have an area ID"),
             position: login_homebind.position,
-        });
+        }) {
+            self.kick("canonical Player homebind owner unavailable during login hydration");
+            return;
+        }
         if let Some(guild_id) = loaded_guild_id_like_cpp {
-            self.set_represented_guild_id_like_cpp(guild_id);
+            if !self.set_represented_guild_id_like_cpp(guild_id) {
+                self.kick("canonical Player guild owner unavailable during login hydration");
+                return;
+            }
         }
         self.load_represented_player_difficulties_like_cpp(
             base_row.dungeon_difficulty.unwrap_or(0),
@@ -476,7 +596,10 @@ impl WorldSession {
         );
         let summoned_pet_number = base_row.summoned_pet_number.unwrap_or(0);
         const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
-        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+        if self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0)
+        {
             let outcome = player_lifecycle_port
                 .reset_login_pet_talents_like_cpp(guid.counter() as u64)
                 .await;
@@ -749,10 +872,13 @@ impl WorldSession {
                 _ => unreachable!("pet declined-name request returned a different row family"),
             }
         }
-        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+        if self
+            .resolved_represented_at_login_flags_like_cpp()
+            .is_some_and(|flags| (flags & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0)
+        {
             self.apply_represented_login_pet_talent_reset_like_cpp();
         }
-        self.group_guid = None;
+        let _ = self.set_owned_player_group_like_cpp(None);
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership {
@@ -776,18 +902,8 @@ impl WorldSession {
             ),
             _ => unreachable!("group-membership request returned a different row family"),
         }
-        self.refresh_next_level_xp();
+        self.refresh_next_level_xp_with_catalogs_like_cpp(progression);
         self.clamp_loaded_player_xp_to_next_level_like_cpp();
-        let attached_controller = self.ensure_login_player_controller_like_cpp(
-            guid,
-            name.clone(),
-            position,
-            map_id as u16,
-            race,
-            class,
-            level,
-            gender,
-        );
         if saved_character_map_is_battleground {
             // Rust does not yet have a live BattlegroundMgr roster/status
             // authority, so it cannot prove C++'s `currentBg &&
@@ -835,11 +951,13 @@ impl WorldSession {
             );
         }
         if attached_controller {
+            #[cfg(test)]
             self.apply_loaded_player_flags_to_canonical_like_cpp();
             let _ = self.apply_represented_group_leader_flag_like_cpp();
         }
         self.load_represented_xp_rest_bonus_like_cpp(saved_rest_state, saved_rest_bonus);
-        let applied_rest_bonus = self.apply_offline_xp_rest_bonus_like_cpp(
+        let applied_rest_bonus = self.apply_offline_xp_rest_bonus_with_policy_like_cpp(
+            player_rest_rates,
             saved_logout_time_secs,
             Self::current_game_time_secs_like_cpp(),
             saved_logout_was_resting,
@@ -852,8 +970,8 @@ impl WorldSession {
                 saved_logout_time_secs,
                 saved_logout_was_resting,
                 applied_rest_bonus,
-                rest_bonus = self.represented_xp_rest_bonus_like_cpp(),
-                rest_state = self.represented_xp_rest_state_like_cpp(),
+                rest_bonus = self.resolved_xp_rest_bonus_like_cpp(),
+                rest_state = self.resolved_xp_rest_state_like_cpp(),
                 "RUST_PLAYER_REST_LOAD"
             );
         }
@@ -877,7 +995,10 @@ impl WorldSession {
         let mut loaded_equipped_item_guids: Vec<ObjectGuid> = Vec::new();
         let realm_id = self.realm_id();
         self.clear_inventory_items_and_objects_like_cpp();
-        self.clear_player_currencies_like_cpp();
+        if !self.clear_player_currencies_like_cpp() {
+            warn!("canonical Player currency owner unavailable during login");
+            return;
+        }
         {
             self.begin_player_equipment_inventory_authority_load_like_cpp();
             let mut refund_cleanup_actions = Vec::new();
@@ -1167,8 +1288,7 @@ impl WorldSession {
                                 );
                             if item_entry > 0 && is_represented_bag_slot(bag_slot) {
                                 if let Some(bag_item_guid) = self
-                                    .inventory_items_like_cpp()
-                                    .get(&bag_slot)
+                                    .resolved_inventory_item_like_cpp(bag_slot)
                                     .map(|bag_item| bag_item.guid)
                                 {
                                     let item_guid =
@@ -1292,7 +1412,6 @@ impl WorldSession {
             // inventory_type is now loaded from the canonical ItemTemplate bridge.
             // No SQL cache needed.
         }
-        self.sync_player_inventory_like_cpp();
         let (loaded_item_time_updates, loaded_non_equipped_enchantment_updates) = self
             .register_loaded_inventory_item_duration_refs_like_cpp(
                 &loaded_inventory_item_guids,
@@ -1504,13 +1623,16 @@ impl WorldSession {
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
                 wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(rows),
             ) => {
+                let Some(mut currencies) = self.player_currencies_like_cpp() else {
+                    warn!("canonical Player currency owner unavailable after currency load");
+                    return;
+                };
                 for row in rows {
                     let currency_id = u32::from(row.currency_id);
                     let known_currency = self
                         .currency_types_store()
                         .is_some_and(|store| store.has_record(currency_id));
                     if known_currency {
-                        let mut currencies = self.player_currencies_like_cpp().clone();
                         currencies.entry(currency_id).or_insert_with(|| {
                             crate::session::PlayerCurrency {
                                 state: crate::session::PlayerCurrencyState::Unchanged,
@@ -1522,15 +1644,14 @@ impl WorldSession {
                                 flags: row.flags,
                             }
                         });
-                        self.set_player_currencies_like_cpp(currencies);
                     }
                 }
-                info!(
-                    "Loaded {} currencies for {:?}",
-                    self.player_currencies_like_cpp().len(),
-                    guid
-                );
-                self.sync_player_currencies_like_cpp();
+                let currency_count = currencies.len();
+                if !self.set_player_currencies_like_cpp(currencies) {
+                    warn!("canonical Player currency owner unavailable after currency load");
+                    return;
+                }
+                info!("Loaded {} currencies for {:?}", currency_count, guid);
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!("Failed to load currencies for {:?}: {}", guid, reason);
@@ -1718,8 +1839,11 @@ impl WorldSession {
             );
         }
 
-        if loaded_skill_records_like_cpp {
-            self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
+        if loaded_skill_records_like_cpp
+            && !self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false)
+        {
+            self.kick("canonical Player skill owner unavailable while loading skills");
+            return;
         }
         for entry in skill_info_by_id.values() {
             let mut changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
@@ -1765,6 +1889,7 @@ impl WorldSession {
                 let mut skipped = 0usize;
                 for row in rows {
                     if self.load_represented_talent_row_with_spell_side_effects_like_cpp(
+                        player_bootstrap.talent_tabs.as_ref(),
                         row.talent_id,
                         row.rank,
                         row.talent_group,
@@ -1794,8 +1919,10 @@ impl WorldSession {
             _ => unreachable!("talent request returned a different row family"),
         }
 
-        let custom_spell_count =
-            self.apply_represented_start_all_spells_like_cpp(&mut known_spells);
+        let custom_spell_count = self.apply_represented_start_all_spells_with_catalogs_like_cpp(
+            player_bootstrap,
+            &mut known_spells,
+        );
         if custom_spell_count > 0 {
             info!(
                 player_guid = guid.counter(),
@@ -1901,6 +2028,7 @@ impl WorldSession {
                 let mut skipped = 0usize;
                 for row in rows {
                     if self.load_represented_glyph_row_like_cpp(
+                        player_bootstrap.glyph_properties.as_ref(),
                         row.talent_group,
                         row.glyph_slot,
                         row.glyph_id,
@@ -1930,7 +2058,14 @@ impl WorldSession {
         let mut action_count = 0u32;
         self.reset_represented_action_buttons_like_cpp();
         // C++ loads the action-button map for GetActiveTalentGroup(), not always spec 0.
-        let (active_spec, trait_config_id) = self.represented_action_button_db_context_like_cpp();
+        let Some((active_spec, trait_config_id)) =
+            self.represented_action_button_db_context_like_cpp()
+        else {
+            self.kick(
+                "canonical Player specialization owner unavailable while loading action buttons",
+            );
+            return;
+        };
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::ActionButtons {
@@ -2026,7 +2161,7 @@ impl WorldSession {
             self.set_player_transport_position_like_cpp(None);
             None
         };
-        self.refresh_next_level_xp();
+        self.refresh_next_level_xp_with_catalogs_like_cpp(progression);
         // NOTE: known_spells is stored below after DBC merge (see "Merge DBC auto-learned spells")
 
         // C++ login query set includes CHAR_SEL_CHARACTER_REPUTATION and
@@ -2140,7 +2275,10 @@ impl WorldSession {
                 skill_info_by_id.insert(entry.skill_id, entry);
                 default_skill_entries.push(entry);
             }
-            self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
+            if !self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false) {
+                self.kick("canonical Player skill owner unavailable while applying default skills");
+                return;
+            }
         }
 
         for entry in &default_skill_entries {
@@ -2170,7 +2308,12 @@ impl WorldSession {
                 &mut loaded_spell_side_effect_spells,
             );
         if loaded_skill_records_like_cpp && loaded_spell_skills_complete_like_cpp {
-            skill_records = self.player_skill_records_like_cpp().clone();
+            let Some(canonical_skill_records) = self.resolved_player_skill_records_like_cpp()
+            else {
+                self.kick("canonical Player skill owner unavailable during login finalization");
+                return;
+            };
+            skill_records = canonical_skill_records;
             let occupied_slots = u16::try_from(skill_records.len()).unwrap_or(u16::MAX);
             if !self
                 .set_complete_player_skill_records_like_cpp(skill_records.clone(), occupied_slots)
@@ -2456,6 +2599,11 @@ impl WorldSession {
 
         if !self
             .send_login_sequence(
+                item_guid_generator,
+                player_bootstrap.trait_node_entries.as_ref(),
+                creature_spawn_catalogs,
+                feature_policy,
+                player_grid_loader,
                 guid,
                 race,
                 class,
@@ -2494,10 +2642,16 @@ impl WorldSession {
         let applied_first_login_like_cpp =
             self.apply_represented_first_login_flag_if_needed_like_cpp();
         if applied_first_login_like_cpp {
-            self.apply_represented_first_login_cast_spells_like_cpp()
-                .await;
-            self.apply_represented_first_login_explored_zones_like_cpp();
-            self.apply_represented_first_login_reputation_like_cpp();
+            self.apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+                player_bootstrap,
+            )
+            .await;
+            self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
+                player_bootstrap,
+            );
+            self.apply_represented_first_login_reputation_with_catalogs_like_cpp(player_bootstrap);
         }
 
         // C++ processes reset-at-login and first-login casts after the initial
@@ -2521,7 +2675,7 @@ impl WorldSession {
         // C++ `sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin)`
         // (`CharacterHandler.cpp:1452`), after the completed login and after
         // the login criteria update. Trusted linked modules observe here.
-        self.dispatch_module_player_login_like_cpp(first_login);
+        self.dispatch_module_player_login_like_cpp(modules, first_login);
     }
 
     /// Build the self CreateObject combat snapshot after C++ login has loaded
@@ -2534,7 +2688,7 @@ impl WorldSession {
         saved_health: Option<u32>,
         saved_power0: i32,
     ) -> Option<(PlayerCombatStats, i32, i32)> {
-        let gear = self.represented_player_gear_stats_like_cpp(true);
+        let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
         let ap_f = projection.total_attack_power as f32;
         let base_dmg = ap_f / 14.0 * 2.0;
@@ -2589,6 +2743,8 @@ impl WorldSession {
     /// `BattlePetMgr::SendJournalLockStatus`.
     pub(super) async fn send_handle_player_login_packets_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        feature_policy: &SupportFeaturePolicyLikeCpp,
         guid: ObjectGuid,
         position: &Position,
         map_id: i32,
@@ -2619,7 +2775,10 @@ impl WorldSession {
         );
         self.send_packet_realm(&self.tutorial_flags_packet_like_cpp());
 
-        self.send_packet_realm(&self.represented_dungeon_difficulty_packet_like_cpp());
+        let Some(dungeon_difficulty) = self.represented_dungeon_difficulty_packet_like_cpp() else {
+            return false;
+        };
+        self.send_packet_realm(&dungeon_difficulty);
         if !self
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
@@ -2640,7 +2799,7 @@ impl WorldSession {
         self.send_packet_realm(
             &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
         );
-        self.send_packet_realm(&self.feature_system_status_like_cpp());
+        self.send_packet_realm(&self.feature_system_status_with_policy_like_cpp(feature_policy));
 
         for motd_line in motd_lines_like_cpp(motd) {
             self.send_packet_realm(&ChatServerMessage {
@@ -2663,7 +2822,8 @@ impl WorldSession {
         {
             return false;
         }
-        self.recover_battle_pet_trainer_purchases_like_cpp().await;
+        self.recover_battle_pet_trainer_purchases_with_generator_like_cpp(item_guid_generator)
+            .await;
         if !self
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await

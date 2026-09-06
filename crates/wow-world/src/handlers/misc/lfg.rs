@@ -30,8 +30,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_df_get_system_info",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_df_get_system_info(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_df_get_system_info_with_catalog_like_cpp(
+                        catalogs.lfg_dungeons.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -42,7 +49,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_df_get_join_status",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_df_get_join_status(pkt).await })
         },
     }
@@ -54,7 +61,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_conquest_formula_constants",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_conquest_formula_constants(pkt).await })
         },
     }
@@ -66,7 +73,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_lfg_list_blacklist",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_lfg_list_blacklist(pkt).await })
         },
     }
@@ -78,14 +85,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_lfg_list_get_status",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_lfg_list_get_status(pkt).await })
         },
     }
 }
 
 impl crate::session::WorldSession {
-    pub async fn handle_df_get_system_info(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_df_get_system_info_with_catalog_like_cpp(
+        &mut self,
+        lfg_dungeons: &wow_data::LfgDungeonStoreLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match DfGetSystemInfo::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -98,7 +109,9 @@ impl crate::session::WorldSession {
         };
 
         if request.player {
-            self.send_packet(&self.lfg_player_lock_info_like_cpp());
+            if let Some(info) = self.lfg_player_lock_info_like_cpp(lfg_dungeons) {
+                self.send_packet(&info);
+            }
         } else {
             // C++ `SendLfgPartyLockInfo` returns before sending when the player
             // is not in a group. Rust does not expose a live LFG group manager
@@ -106,14 +119,13 @@ impl crate::session::WorldSession {
         }
     }
 
-    fn lfg_player_lock_info_like_cpp(&self) -> LfgPlayerInfo {
-        let Some(store) = self.lfg_dungeon_store_like_cpp() else {
-            return LfgPlayerInfo::empty();
-        };
-
+    fn lfg_player_lock_info_like_cpp(
+        &self,
+        store: &wow_data::LfgDungeonStoreLikeCpp,
+    ) -> Option<LfgPlayerInfo> {
         let level = self.player_level_like_cpp();
         let expansion = self.expansion;
-        let current_item_level = self.represented_average_item_level_like_cpp().max(0.0) as i32;
+        let current_item_level = self.represented_average_item_level_like_cpp()?.max(0.0) as i32;
 
         let mut info = LfgPlayerInfo {
             blacklist: LfgBlackList::default(),
@@ -158,7 +170,17 @@ impl crate::session::WorldSession {
             info.dungeons.push(dungeon_info);
         }
 
-        info
+        Some(info)
+    }
+
+    #[cfg(test)]
+    pub async fn handle_df_get_system_info(&mut self, pkt: wow_packet::WorldPacket) {
+        let store = self
+            .lfg_dungeon_store_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        self.handle_df_get_system_info_with_catalog_like_cpp(store.as_ref(), pkt)
+            .await;
     }
 
     fn lfg_season_is_active_like_cpp(&self, _dungeon_id: u32) -> bool {
@@ -203,7 +225,10 @@ impl crate::session::WorldSession {
         if dungeon.seasonal && !self.lfg_season_is_active_like_cpp(dungeon.id) {
             return Some(LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP);
         }
-        if f32::from(dungeon.required_item_level) > self.represented_average_item_level_like_cpp() {
+        let Some(current_item_level) = self.represented_average_item_level_like_cpp() else {
+            return Some(LFG_LOCKSTATUS_TOO_LOW_GEAR_SCORE_LIKE_CPP);
+        };
+        if f32::from(dungeon.required_item_level) > current_item_level {
             return Some(LFG_LOCKSTATUS_TOO_LOW_GEAR_SCORE_LIKE_CPP);
         }
         if let Some(requirement) = self
@@ -221,13 +246,17 @@ impl crate::session::WorldSession {
             match crate::session::player_team_for_race_cpp(self.player_race_like_cpp()) {
                 Team::Alliance
                     if requirement.quest_done_a != 0
-                        && !self.rewarded_quests.contains(&requirement.quest_done_a) =>
+                        && !self.player_quest_gameplay_snapshot_like_cpp().is_some_and(
+                            |state| state.rewarded_quest_ids.contains(&requirement.quest_done_a),
+                        ) =>
                 {
                     return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
                 }
                 Team::Horde
                     if requirement.quest_done_h != 0
-                        && !self.rewarded_quests.contains(&requirement.quest_done_h) =>
+                        && !self.player_quest_gameplay_snapshot_like_cpp().is_some_and(
+                            |state| state.rewarded_quest_ids.contains(&requirement.quest_done_h),
+                        ) =>
                 {
                     return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
                 }
@@ -264,7 +293,9 @@ impl crate::session::WorldSession {
         };
 
         let current_map_id = u32::from(self.player_map_id_like_cpp());
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+            return true;
+        };
         let current_map_instance_type = map_store
             .get(current_map_id)
             .map(|entry| entry.instance_type);
@@ -307,7 +338,9 @@ impl crate::session::WorldSession {
                 other_quest_id = reward.other_quest_id,
                 special_flags = quest.special_flags,
                 is_df = quest.is_df_quest_like_cpp(),
-                df_done = self.df_quests_like_cpp.contains(&quest.id),
+                df_done = self
+                    .player_quest_gameplay_snapshot_like_cpp()
+                    .is_some_and(|state| state.df_quest_ids.contains(&quest.id)),
                 first_reward = dungeon_info.first_reward,
                 "RUST_LFG_TRACE reward decision"
             );
@@ -354,37 +387,39 @@ impl crate::session::WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         _msg: bool,
     ) -> bool {
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
         if !quest.is_df_quest_like_cpp()
             && !quest.is_turn_in_like_cpp()
-            && self.player_quests.get(&quest.id).is_none_or(|status| {
+            && recurrence.statuses.get(&quest.id).is_none_or(|status| {
                 status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
             })
         {
             return false;
         }
         if quest.is_df_quest_like_cpp() {
-            return !self.df_quests_like_cpp.contains(&quest.id);
+            return !recurrence.df_quest_ids.contains(&quest.id);
         }
-        if quest.is_daily_like_cpp() && self.daily_quests_completed_like_cpp.contains(&quest.id) {
+        if quest.is_daily_like_cpp() && recurrence.daily_quest_ids.contains(&quest.id) {
             return false;
         }
-        if quest.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&quest.id) {
+        if quest.is_weekly_like_cpp() && recurrence.weekly_quest_ids.contains(&quest.id) {
             return false;
         }
-        if quest.is_monthly_like_cpp() && self.monthly_quests_completed_like_cpp.contains(&quest.id)
-        {
+        if quest.is_monthly_like_cpp() && recurrence.monthly_quest_ids.contains(&quest.id) {
             return false;
         }
         if quest.is_seasonal_like_cpp()
-            && self
-                .seasonal_quests_like_cpp
+            && recurrence
+                .seasonal_quests
                 .get(&quest.event_id_for_quest_like_cpp())
                 .is_some_and(|quests| quests.contains_key(&quest.id))
         {
             return false;
         }
 
-        !self.rewarded_quests.contains(&quest.id)
+        !recurrence.rewarded_quest_ids.contains(&quest.id)
     }
 
     pub async fn handle_df_get_join_status(&mut self, mut pkt: wow_packet::WorldPacket) {

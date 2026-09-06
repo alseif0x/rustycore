@@ -8,8 +8,26 @@
 use super::*;
 
 impl WorldSession {
+    #[cfg(test)]
     pub(super) async fn store_quest_source_item_like_cpp(
         &mut self,
+        entry_id: u32,
+        quantity: u32,
+        dest: &[ItemPosCount],
+    ) -> Option<QuestSourceItemStoreOutcomeLikeCpp> {
+        let generator = self.item_guid_generator_like_cpp_for_bridge()?;
+        self.store_quest_source_item_with_generator_like_cpp(
+            generator.as_ref(),
+            entry_id,
+            quantity,
+            dest,
+        )
+        .await
+    }
+
+    pub(super) async fn store_quest_source_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quantity: u32,
         dest: &[ItemPosCount],
@@ -27,7 +45,8 @@ impl WorldSession {
             .represented_quest_complete_status_updates_like_cpp()
             .len();
         if let Some(bound_preflight) = self
-            .apply_quest_source_item_bound_objective_preflight_like_cpp(
+            .apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+                item_guid_generator,
                 entry_id,
                 quest_log_item_id,
                 quantity,
@@ -85,8 +104,11 @@ impl WorldSession {
                 self.get_inventory_item_by_pos(bag, slot).is_none()
             })
             .count();
-        let Some(allocated_new_item_guids) =
-            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        let Some(allocated_new_item_guids) = self
+            .allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                new_item_count,
+            )
         else {
             warn!(
                 account = self.account_id,
@@ -105,7 +127,7 @@ impl WorldSession {
 
             if let Some(inv_item) = self.get_inventory_item_by_pos(bag, slot) {
                 let Some(existing_item) =
-                    self.inventory_item_objects_like_cpp().get(&inv_item.guid)
+                    self.resolved_inventory_item_object_like_cpp(inv_item.guid)
                 else {
                     warn!(
                         account = self.account_id,
@@ -145,7 +167,8 @@ impl WorldSession {
                     == u8::from(wow_entities::INVENTORY_SLOT_BAG_0)
                 {
                     (0, player_guid)
-                } else if let Some(bag_inventory_item) = self.inventory_items_like_cpp().get(&bag) {
+                } else if let Some(bag_inventory_item) = self.resolved_inventory_item_like_cpp(bag)
+                {
                     (bag_inventory_item.db_guid, bag_inventory_item.guid)
                 } else {
                     warn!(
@@ -280,7 +303,6 @@ impl WorldSession {
             }
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
 
         let map_id = self.player_map_id_like_cpp();
         if !new_stacks.is_empty() {
@@ -333,12 +355,13 @@ impl WorldSession {
         }
 
         let quantity_in_inventory = self
-            .represented_inventory_item_counts_like_cpp()
+            .represented_inventory_item_counts_like_cpp()?
             .get(&entry_id)
             .copied()
             .unwrap_or(0);
         let changed_non_bound_quest_ids = self
-            .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+            .apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
                 entry_id,
                 quest_log_item_id,
                 quantity,
@@ -385,6 +408,7 @@ impl WorldSession {
 
     async fn store_quest_reward_item_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quantity: u32,
         dest: &[ItemPosCount],
@@ -435,8 +459,11 @@ impl WorldSession {
                 self.get_inventory_item_by_pos(bag, slot).is_none()
             })
             .count();
-        let Some(allocated_new_item_guids) =
-            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        let Some(allocated_new_item_guids) = self
+            .allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                new_item_count,
+            )
         else {
             warn!(
                 account = self.account_id,
@@ -455,7 +482,7 @@ impl WorldSession {
 
             if let Some(inv_item) = self.get_inventory_item_by_pos(bag, slot) {
                 let Some(existing_item) =
-                    self.inventory_item_objects_like_cpp().get(&inv_item.guid)
+                    self.resolved_inventory_item_object_like_cpp(inv_item.guid)
                 else {
                     warn!(
                         account = self.account_id,
@@ -495,7 +522,8 @@ impl WorldSession {
                     == u8::from(wow_entities::INVENTORY_SLOT_BAG_0)
                 {
                     (0, player_guid)
-                } else if let Some(bag_inventory_item) = self.inventory_items_like_cpp().get(&bag) {
+                } else if let Some(bag_inventory_item) = self.resolved_inventory_item_like_cpp(bag)
+                {
                     (bag_inventory_item.db_guid, bag_inventory_item.guid)
                 } else {
                     warn!(
@@ -630,7 +658,6 @@ impl WorldSession {
             }
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
 
         let map_id = self.player_map_id_like_cpp();
         if !new_stacks.is_empty() {
@@ -682,11 +709,10 @@ impl WorldSession {
             }
         }
 
-        let quantity_in_inventory = self
-            .represented_inventory_item_counts_like_cpp()
-            .get(&entry_id)
-            .copied()
-            .unwrap_or(0);
+        let Some(inventory_item_counts) = self.represented_inventory_item_counts_like_cpp() else {
+            return false;
+        };
+        let quantity_in_inventory = inventory_item_counts.get(&entry_id).copied().unwrap_or(0);
         self.send_new_item_plan(&SendNewItemPlan {
             player_guid,
             item_guid: last_item_guid,
@@ -722,6 +748,7 @@ impl WorldSession {
 
     async fn store_fixed_quest_reward_items_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         for (item_id, count) in quest.reward_items.iter().zip(quest.reward_amounts.iter()) {
@@ -737,7 +764,7 @@ impl WorldSession {
                 return false;
             }
             if !self
-                .store_quest_reward_item_like_cpp(*item_id, *count, &dest)
+                .store_quest_reward_item_like_cpp(item_guid_generator, *item_id, *count, &dest)
                 .await
             {
                 return false;
@@ -749,6 +776,7 @@ impl WorldSession {
 
     async fn store_chosen_quest_reward_item_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
@@ -784,7 +812,7 @@ impl WorldSession {
                 return false;
             }
             if !self
-                .store_quest_reward_item_like_cpp(*item_id, *count, &dest)
+                .store_quest_reward_item_like_cpp(item_guid_generator, *item_id, *count, &dest)
                 .await
             {
                 return false;
@@ -796,6 +824,7 @@ impl WorldSession {
 
     async fn store_quest_package_reward_entry_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry: &QuestPackageItemEntry,
     ) -> bool {
         let Ok(item_id) = u32::try_from(entry.item_id) else {
@@ -814,12 +843,18 @@ impl WorldSession {
             return false;
         }
 
-        self.store_quest_reward_item_like_cpp(item_id, entry.item_quantity, &dest)
-            .await
+        self.store_quest_reward_item_like_cpp(
+            item_guid_generator,
+            item_id,
+            entry.item_quantity,
+            &dest,
+        )
+        .await
     }
 
     async fn store_quest_package_reward_items_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
@@ -863,14 +898,20 @@ impl WorldSession {
             }
 
             has_filtered_quest_package_reward = true;
-            if !self.store_quest_package_reward_entry_like_cpp(&entry).await {
+            if !self
+                .store_quest_package_reward_entry_like_cpp(item_guid_generator, &entry)
+                .await
+            {
                 return false;
             }
         }
 
         if !has_filtered_quest_package_reward {
             for entry in fallback_entries {
-                if !self.store_quest_package_reward_entry_like_cpp(&entry).await {
+                if !self
+                    .store_quest_package_reward_entry_like_cpp(item_guid_generator, &entry)
+                    .await
+                {
                     return false;
                 }
             }
@@ -907,7 +948,9 @@ impl WorldSession {
         amount: u32,
         gain_source: CurrencyGainSourceLikeCpp,
     ) -> bool {
-        let currency_snapshot = self.player_currencies_like_cpp().clone();
+        let Some(currency_snapshot) = self.player_currencies_like_cpp() else {
+            return false;
+        };
         let delta = match self.add_currency_quest_reward_like_cpp(currency_id, amount, gain_source)
         {
             Ok(delta) => delta,
@@ -1026,17 +1069,18 @@ impl WorldSession {
         true
     }
 
-    fn represented_direct_inventory_count_like_cpp(&self, item_entry: u32) -> u32 {
-        self.inventory_items_like_cpp()
-            .values()
-            .filter(|item| item.entry_id == item_entry)
-            .filter_map(|inventory_item| {
-                self.inventory_item_objects_like_cpp()
-                    .get(&inventory_item.guid)
-                    .filter(|item| !item.is_in_trade())
-                    .map(|item| item.count())
-            })
-            .fold(0u32, u32::saturating_add)
+    fn represented_direct_inventory_count_like_cpp(&self, item_entry: u32) -> Option<u32> {
+        Some(
+            self.resolved_inventory_items_like_cpp()?
+                .values()
+                .filter(|item| item.entry_id == item_entry)
+                .filter_map(|inventory_item| {
+                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
+                        .filter(|item| !item.is_in_trade())
+                        .map(|item| item.count())
+                })
+                .fold(0u32, u32::saturating_add),
+        )
     }
 
     fn plan_quest_destroy_item_count_direct_like_cpp(
@@ -1045,7 +1089,7 @@ impl WorldSession {
         count: u32,
     ) -> Option<Vec<ExtendedCostItemTurninChange>> {
         let effective_count = if count == u32::MAX {
-            self.represented_direct_inventory_count_like_cpp(item_entry)
+            self.represented_direct_inventory_count_like_cpp(item_entry)?
         } else {
             count
         };
@@ -1066,7 +1110,9 @@ impl WorldSession {
         };
         let map_id = self.player_map_id_like_cpp();
         let mut item_changes = Vec::new();
-        let currency_snapshot = self.player_currencies_like_cpp().clone();
+        let Some(currency_snapshot) = self.player_currencies_like_cpp() else {
+            return false;
+        };
         let mut currency_losses = Vec::new();
 
         for objective in &quest.objectives {
@@ -1094,12 +1140,18 @@ impl WorldSession {
                     ) else {
                         return false;
                     };
-                    let before = self.player_currency_quantity(currency_id);
+                    let Some(before) = self.player_currency_quantity(currency_id) else {
+                        self.set_player_currencies_like_cpp(currency_snapshot);
+                        return false;
+                    };
                     if !self.remove_currency(currency_id, amount) {
                         self.set_player_currencies_like_cpp(currency_snapshot);
                         return false;
                     }
-                    let after = self.player_currency_quantity(currency_id);
+                    let Some(after) = self.player_currency_quantity(currency_id) else {
+                        self.set_player_currencies_like_cpp(currency_snapshot);
+                        return false;
+                    };
                     let removed = before.saturating_sub(after);
                     if removed > 0 {
                         currency_losses.push((currency_id, after, removed));
@@ -1126,10 +1178,15 @@ impl WorldSession {
         }
 
         if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
-            let mut currencies = self.player_currencies_like_cpp().clone();
+            let Some(mut currencies) = self.player_currencies_like_cpp() else {
+                self.set_player_currencies_like_cpp(currency_snapshot);
+                return false;
+            };
             let currency_save = self
                 .plan_player_currency_save_like_cpp(player_guid.counter() as u64, &mut currencies);
-            self.set_player_currencies_like_cpp(currencies);
+            if !self.set_player_currencies_like_cpp(currencies) {
+                return false;
+            }
             let items = item_changes
                 .iter()
                 .map(|change| match *change {
@@ -1211,10 +1268,12 @@ impl WorldSession {
         true
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     fn apply_represented_quest_reward_skill_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
+        #[cfg(test)]
         if quest.reward_skill_line_id != 0 {
             self.represented_quest_reward_skill_updates_like_cpp
                 .push((quest.reward_skill_line_id, quest.reward_skill_points));
@@ -1225,48 +1284,54 @@ impl WorldSession {
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
-        let caster_selection_unrepresented =
-            (quest.flags & QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP) == 0;
-        if quest.reward_spell > 0 {
-            self.represented_quest_reward_spell_casts_like_cpp.push(
-                RepresentedQuestRewardSpellCastLikeCpp {
-                    quest_id: quest.id,
-                    spell_id: quest.reward_spell,
-                    kind: RepresentedQuestRewardSpellKindLikeCpp::RewardSpell,
-                    can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
-                    spell_info_lookup_unrepresented: true,
-                    caster_selection_unrepresented,
-                    cast_spell_runtime_unrepresented: true,
-                },
-            );
-            return;
-        }
-
-        let display_spells = quest.reward_display_spell;
-        for (index, spell_id) in display_spells.into_iter().enumerate() {
-            if spell_id == 0 {
-                continue;
-            }
-            self.represented_quest_reward_spell_casts_like_cpp.push(
-                RepresentedQuestRewardSpellCastLikeCpp {
-                    quest_id: quest.id,
-                    spell_id,
-                    kind: RepresentedQuestRewardSpellKindLikeCpp::RewardDisplaySpell {
-                        index: index as u8,
+        #[cfg(test)]
+        {
+            let caster_selection_unrepresented =
+                (quest.flags & QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP) == 0;
+            if quest.reward_spell > 0 {
+                self.represented_quest_reward_spell_casts_like_cpp.push(
+                    RepresentedQuestRewardSpellCastLikeCpp {
+                        quest_id: quest.id,
+                        spell_id: quest.reward_spell,
+                        kind: RepresentedQuestRewardSpellKindLikeCpp::RewardSpell,
+                        can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
+                        spell_info_lookup_unrepresented: true,
+                        caster_selection_unrepresented,
+                        cast_spell_runtime_unrepresented: true,
                     },
-                    can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
-                    spell_info_lookup_unrepresented: true,
-                    caster_selection_unrepresented,
-                    cast_spell_runtime_unrepresented: true,
-                },
-            );
+                );
+                return;
+            }
+
+            let display_spells = quest.reward_display_spell;
+            for (index, spell_id) in display_spells.into_iter().enumerate() {
+                if spell_id == 0 {
+                    continue;
+                }
+                self.represented_quest_reward_spell_casts_like_cpp.push(
+                    RepresentedQuestRewardSpellCastLikeCpp {
+                        quest_id: quest.id,
+                        spell_id,
+                        kind: RepresentedQuestRewardSpellKindLikeCpp::RewardDisplaySpell {
+                            index: index as u8,
+                        },
+                        can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
+                        spell_info_lookup_unrepresented: true,
+                        caster_selection_unrepresented,
+                        cast_spell_runtime_unrepresented: true,
+                    },
+                );
+            }
         }
+        #[cfg(not(test))]
+        let _ = quest;
     }
 
     fn apply_represented_quest_title_and_talent_rewards_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
+        #[cfg(test)]
         if quest.reward_title_id != 0 {
             self.represented_quest_reward_titles_like_cpp.push(
                 RepresentedQuestRewardTitleLikeCpp {
@@ -1277,14 +1342,10 @@ impl WorldSession {
                 },
             );
         }
-
         if quest.reward_skill_points != 0 {
-            self.represented_quest_reward_talent_points_like_cpp.push(
-                RepresentedQuestRewardTalentPointsLikeCpp {
-                    quest_id: quest.id,
-                    points: quest.reward_skill_points,
-                    init_talent_for_level_unrepresented: true,
-                },
+            let _ = self.add_represented_quest_reward_talent_points_like_cpp(
+                quest.id,
+                quest.reward_skill_points,
             );
         }
     }
@@ -1294,24 +1355,31 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         quest_giver_guid: ObjectGuid,
     ) {
-        if quest.reward_mail_template_id == 0 {
-            return;
-        }
+        #[cfg(test)]
+        {
+            if quest.reward_mail_template_id == 0 {
+                return;
+            }
 
-        self.represented_quest_reward_mails_like_cpp
-            .push(RepresentedQuestRewardMailLikeCpp {
-                quest_id: quest.id,
-                mail_template_id: quest.reward_mail_template_id,
-                delay_secs: quest.reward_mail_delay_secs,
-                sender_entry: (quest.reward_mail_sender_entry != 0)
-                    .then_some(quest.reward_mail_sender_entry),
-                quest_giver_guid: (quest.reward_mail_sender_entry == 0).then_some(quest_giver_guid),
-                mail_template_lookup_unrepresented: true,
-                mail_draft_runtime_unrepresented: true,
-                character_db_transaction_unrepresented: true,
-            });
+            self.represented_quest_reward_mails_like_cpp
+                .push(RepresentedQuestRewardMailLikeCpp {
+                    quest_id: quest.id,
+                    mail_template_id: quest.reward_mail_template_id,
+                    delay_secs: quest.reward_mail_delay_secs,
+                    sender_entry: (quest.reward_mail_sender_entry != 0)
+                        .then_some(quest.reward_mail_sender_entry),
+                    quest_giver_guid: (quest.reward_mail_sender_entry == 0)
+                        .then_some(quest_giver_guid),
+                    mail_template_lookup_unrepresented: true,
+                    mail_draft_runtime_unrepresented: true,
+                    character_db_transaction_unrepresented: true,
+                });
+        }
+        #[cfg(not(test))]
+        let _ = (quest, quest_giver_guid);
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     fn record_represented_quest_reward_reputation_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
@@ -1490,52 +1558,61 @@ impl WorldSession {
                     let db_spillover_template = reputation_spillover_template_store
                         .as_deref()
                         .and_then(|store| store.get(faction_id));
-                    let outcome = self.reputation_mgr_like_cpp_mut().set_reputation_like_cpp(
-                        faction_entry,
-                        reputation_after_recruit_a_friend_bonus_like_cpp,
-                        options,
-                        faction_store,
-                        db_spillover_template,
-                        friendship_rep_reaction_store.as_deref(),
-                        paragon_reputation_store.as_deref(),
-                        currency_types_store.as_deref(),
-                    );
-                    if let Some(rep_list_id) = outcome.send_state_rep_list_id {
-                        let packet = self
-                            .reputation_mgr_like_cpp_mut()
-                            .set_faction_standing_packet_like_cpp(Some(rep_list_id));
+                    let mutation = self.mutate_reputation_mgr_like_cpp(|mgr| {
+                        let outcome = mgr.set_reputation_like_cpp(
+                            faction_entry,
+                            reputation_after_recruit_a_friend_bonus_like_cpp,
+                            options,
+                            faction_store,
+                            db_spillover_template,
+                            friendship_rep_reaction_store.as_deref(),
+                            paragon_reputation_store.as_deref(),
+                            currency_types_store.as_deref(),
+                        );
+                        let packet = outcome.send_state_rep_list_id.map(|rep_list_id| {
+                            mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id))
+                        });
+                        (outcome, packet)
+                    });
+                    let owner_unavailable = mutation.is_none();
+                    if let Some((_outcome, Some(packet))) = mutation {
                         self.send_packet(&packet);
                     }
-                    false
+                    owner_unavailable
                 } else {
                     true
                 };
 
-            self.represented_quest_reward_reputations_like_cpp.push(
-                RepresentedQuestRewardReputationLikeCpp {
-                    quest_id: quest.id,
-                    slot: slot as u8,
-                    faction_id,
-                    reward_faction_value: quest.reward_faction_values[slot],
-                    reward_faction_override,
-                    reward_faction_cap_in: quest.reward_faction_cap_in[slot],
-                    base_reputation_before_gain,
-                    reputation_after_low_level_rate_like_cpp,
-                    reputation_after_reward_rate_like_cpp,
-                    no_quest_bonus,
-                    no_spillover,
-                    source,
-                    faction_store_lookup_unrepresented: faction_lookup_missing,
-                    quest_faction_reward_store_lookup_unrepresented: quest_faction_reward_lookup,
-                    reputation_reward_rate_lookup_unrepresented: reputation_reward_rate_lookup,
-                    gray_level_script_hook_unrepresented: true,
-                    reputation_rank_cap_check_unrepresented: quest.reward_faction_cap_in[slot] != 0
-                        && reputation_after_recruit_a_friend_bonus_like_cpp > 0
-                        && current_rank_for_cap.is_none(),
-                    calculate_reputation_gain_unrepresented: true,
-                    modify_reputation_runtime_unrepresented,
-                },
-            );
+            #[cfg(test)]
+            {
+                self.represented_quest_reward_reputations_like_cpp.push(
+                    RepresentedQuestRewardReputationLikeCpp {
+                        quest_id: quest.id,
+                        slot: slot as u8,
+                        faction_id,
+                        reward_faction_value: quest.reward_faction_values[slot],
+                        reward_faction_override,
+                        reward_faction_cap_in: quest.reward_faction_cap_in[slot],
+                        base_reputation_before_gain,
+                        reputation_after_low_level_rate_like_cpp,
+                        reputation_after_reward_rate_like_cpp,
+                        no_quest_bonus,
+                        no_spillover,
+                        source,
+                        faction_store_lookup_unrepresented: faction_lookup_missing,
+                        quest_faction_reward_store_lookup_unrepresented:
+                            quest_faction_reward_lookup,
+                        reputation_reward_rate_lookup_unrepresented: reputation_reward_rate_lookup,
+                        gray_level_script_hook_unrepresented: true,
+                        reputation_rank_cap_check_unrepresented: quest.reward_faction_cap_in[slot]
+                            != 0
+                            && reputation_after_recruit_a_friend_bonus_like_cpp > 0
+                            && current_rank_for_cap.is_none(),
+                        calculate_reputation_gain_unrepresented: true,
+                        modify_reputation_runtime_unrepresented,
+                    },
+                );
+            }
         }
     }
 
@@ -1554,26 +1631,40 @@ impl WorldSession {
         let mut save_seasonal = false;
 
         if quest.is_daily_like_cpp() || quest.is_df_quest_like_cpp() {
-            self.last_daily_quest_time_like_cpp = now;
-            if quest.is_df_quest_like_cpp() {
-                self.df_quests_like_cpp.insert(quest.id);
-            } else {
-                self.daily_quests_completed_like_cpp.insert(quest.id);
-            }
             save_daily = true;
         } else if quest.is_weekly_like_cpp() {
-            self.weekly_quests_completed_like_cpp.insert(quest.id);
             save_weekly = true;
         } else if quest.is_monthly_like_cpp() {
-            self.monthly_quests_completed_like_cpp.insert(quest.id);
             save_monthly = true;
         } else if quest.is_seasonal_like_cpp() {
-            self.seasonal_quests_like_cpp
-                .entry(quest.event_id_for_quest_like_cpp())
-                .or_default()
-                .insert(quest.id, now.max(0) as u64);
-            self.seasonal_quest_changed_like_cpp = true;
             save_seasonal = true;
+        }
+
+        if self
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                if save_daily {
+                    state.last_daily_quest_time_secs = now;
+                    if quest.is_df_quest_like_cpp() {
+                        state.df_quest_ids.insert(quest.id);
+                    } else {
+                        state.daily_quest_ids.insert(quest.id);
+                    }
+                } else if save_weekly {
+                    state.weekly_quest_ids.insert(quest.id);
+                } else if save_monthly {
+                    state.monthly_quest_ids.insert(quest.id);
+                } else if save_seasonal {
+                    state
+                        .seasonal_quests
+                        .entry(quest.event_id_for_quest_like_cpp())
+                        .or_default()
+                        .insert(quest.id, now.max(0) as u64);
+                    state.seasonal_quest_changed = true;
+                }
+            })
+            .is_none()
+        {
+            return;
         }
 
         let Some(port) = self.player_quest_persistence_port_like_cpp() else {
@@ -1581,39 +1672,34 @@ impl WorldSession {
         };
 
         let owner_guid = player_guid.counter() as u64;
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return;
+        };
         let request = if save_daily {
-            let mut quest_ids = self
-                .daily_quests_completed_like_cpp
+            let mut quest_ids = recurrence
+                .daily_quest_ids
                 .iter()
                 .copied()
                 .collect::<Vec<_>>();
-            quest_ids.extend(self.df_quests_like_cpp.iter().copied());
+            quest_ids.extend(recurrence.df_quest_ids.iter().copied());
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Daily {
                 owner_guid,
-                completed_time: self.last_daily_quest_time_like_cpp,
+                completed_time: recurrence.last_daily_quest_time_secs,
                 quest_ids,
             }
         } else if save_weekly {
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Weekly {
                 owner_guid,
-                quest_ids: self
-                    .weekly_quests_completed_like_cpp
-                    .iter()
-                    .copied()
-                    .collect(),
+                quest_ids: recurrence.weekly_quest_ids.iter().copied().collect(),
             }
         } else if save_monthly {
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Monthly {
                 owner_guid,
-                quest_ids: self
-                    .monthly_quests_completed_like_cpp
-                    .iter()
-                    .copied()
-                    .collect(),
+                quest_ids: recurrence.monthly_quest_ids.iter().copied().collect(),
             }
         } else if save_seasonal {
-            let completions = self
-                .seasonal_quests_like_cpp
+            let completions = recurrence
+                .seasonal_quests
                 .iter()
                 .flat_map(|(event_id, quests)| {
                     quests.iter().filter_map(|(quest_id, completed_time)| {
@@ -1928,8 +2014,28 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
     pub(super) async fn reward_represented_quest_like_cpp(
         &mut self,
+        quest: &wow_data::quest::QuestTemplate,
+        quest_giver_guid: ObjectGuid,
+        choice: QuestChoiceItemLikeCpp,
+    ) -> bool {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return false;
+        };
+        self.reward_represented_quest_with_generator_like_cpp(
+            generator.as_ref(),
+            quest,
+            quest_giver_guid,
+            choice,
+        )
+        .await
+    }
+
+    pub(super) async fn reward_represented_quest_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         quest_giver_guid: ObjectGuid,
         choice: QuestChoiceItemLikeCpp,
@@ -1959,7 +2065,10 @@ impl WorldSession {
 
         self.remove_represented_timed_quest_like_cpp(quest_id);
 
-        if !self.store_fixed_quest_reward_items_like_cpp(quest).await {
+        if !self
+            .store_fixed_quest_reward_items_like_cpp(item_guid_generator, quest)
+            .await
+        {
             debug!(
                 account = self.account_id,
                 quest_id,
@@ -1969,7 +2078,7 @@ impl WorldSession {
         }
 
         if !self
-            .store_chosen_quest_reward_item_like_cpp(quest, choice)
+            .store_chosen_quest_reward_item_like_cpp(item_guid_generator, quest, choice)
             .await
         {
             debug!(
@@ -1982,7 +2091,7 @@ impl WorldSession {
         }
 
         if !self
-            .store_quest_package_reward_items_like_cpp(quest, choice)
+            .store_quest_package_reward_items_like_cpp(item_guid_generator, quest, choice)
             .await
         {
             debug!(
@@ -2054,9 +2163,18 @@ impl WorldSession {
         let rewarded_slot = self.find_quest_slot_like_cpp(quest_id);
 
         self.invalidate_player_quest_status_authority_like_cpp();
-        self.player_quests.remove(&quest_id);
+        if self
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.statuses.remove(&quest_id);
+                if !quest.is_repeatable() {
+                    state.rewarded_quest_ids.insert(quest_id);
+                }
+            })
+            .is_none()
+        {
+            return false;
+        }
         if !quest.is_repeatable() {
-            self.rewarded_quests.insert(quest_id);
             self.save_quest_to_db(quest_id, QUEST_STATUS_REWARDED_LIKE_CPP)
                 .await;
         } else {

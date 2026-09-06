@@ -1,5 +1,10 @@
 # Migration: Achievements
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Achievements/` + `src/server/game/Handlers/AchievementHandler.cpp` + `src/server/game/Server/Packets/AchievementPackets.{h,cpp}`
 > **Rust target crate(s):** `crates/wow-achievement/` (currently empty), with handler/wire-up in `crates/wow-world/src/handlers/` (and existing SMSG stubs in `crates/wow-packet/src/packets/misc.rs`).
 > **Layer:** L6 (game systems; depends on L5 entities, L4 DB2, L3 database)

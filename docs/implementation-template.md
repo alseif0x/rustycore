@@ -1,8 +1,17 @@
 # [Nombre del Handler/Sistema]
 
-**Fecha de implementación:** YYYY-MM-DD  
-**Estado:** ✅ Completado / 🔄 Parcial / ❌ Pendiente  
-**Versión:** 1.0  
+Plantilla opcional para documentar evidencia, no un gate por helper. El flujo y
+las aprobaciones viven en [AGENTS.md](../AGENTS.md); el estado y alcance vigente
+en [STATE.md](migration/STATE.md), [PORT_PLAN.md](migration/PORT_PLAN.md) y la issue
+activa. Distinguir implementación, integración y paridad probada.
+
+**Fecha de implementación:** YYYY-MM-DD
+
+**HEAD / alcance realmente contrastado:** [commit, operación y límites]
+
+**Estado:** ✅ Completado / 🔄 Parcial / ❌ Pendiente
+
+**Versión:** 1.0
 
 ---
 
@@ -12,22 +21,24 @@
 
 ---
 
-## C# Reference
+## Referencia C++ canónica
 
 ### Archivos relevantes:
-- `Source/Game/Handlers/[Handler].cs`: `Handle[Funcion]()`
-- `Source/Game/Networking/Packets/[Packet].cs`: Estructuras de paquete
-- `Source/Game/Entities/[Entity].cs`: Lógica relacionada
+- `/home/server/woltk-trinity-legacy/src/server/game/Handlers/[Handler].cpp`: función/rama
+- `src/server/game/Server/Packets/[Packet].cpp`: lectura/escritura y orden
+- `src/server/game/Entities/[Entity]/[Entity].cpp`: reglas y efectos relacionados
 
-### Comportamiento en C#:
-[Descripción de cómo funciona en C#, opcodes, flujo de datos]
+### Comportamiento C++ y evidencia:
+[Describir gates, estado, ownership, persistencia, orden de efectos y opcodes.
+Si C++ es incompleto/ambiguo, identificar captura real y build; no inventar
+paridad ni una autoridad alternativa.]
 
 ---
 
 ## Implementación Rust
 
 ### Solución adoptada:
-[Explicar cómo lo hemos implementado en Rust, diferencias con C#]
+[Explicar implementación Rust, owner y diferencias autorizadas respecto a C++]
 
 ### Archivos modificados/creados:
 
@@ -67,6 +78,10 @@
 
 ## Testing Notes
 
+[Comandos exactos, resultado, fecha y host si afecta la medida. Seleccionar
+validación proporcional y gates explícitos; no convertir esta plantilla en una
+auditoría exhaustiva por helper. Cliente/runtime solo como probado si se ejerció.]
+
 ✅ **Funcional:**
 - [Lo que funciona correctamente]
 
@@ -88,12 +103,14 @@
 
 ## Referencias
 
-- `[Path en C#]`: [Nombre de función/clase]
+- `[Path en C++]`: [Función/clase, rama y revisión]
 - `[Path en Rust]`: [Nombre de función/clase]
 - Issue/Ticket: #[número] (si existe)
 
 ---
 
-**Última revisión:** YYYY-MM-DD  
-**Responsable:** @WoWServer  
+**Última revisión:** YYYY-MM-DD
+
+**Responsable:** @WoWServer
+
 **Issue relacionada:** #[número o descripción]

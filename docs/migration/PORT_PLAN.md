@@ -1,14 +1,106 @@
 # RustyCore — Port Plan (two-part: Playable → Full 1:1)
 
-**Date:** 2026-06-27 · Supersedes the ordering role of `MIGRATION_ROADMAP.md` and the
+**Plan established:** 2026-06-27 · **Execution review:** 2026-09-05 at local HEAD `93e4002a`.
+Supersedes the ordering role of `MIGRATION_ROADMAP.md` and the
 planning role of `current-session-handoff.md`. Current state: [STATE.md](STATE.md);
 architecture: [adr-runtime-tick-ownership.md](adr-runtime-tick-ownership.md); bugs in
 already-shipped code: [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md) (the **D-track** —
 fixing what exists, distinct from Part 1/2 which build what's missing).
 
-**How to use the checklists:** every actionable line is a `- [ ]` checkbox. Mark `- [x]`
-only when the item meets the §"Definition of done" in STATE.md §5 (live + capture-clean +
-exercised + C++-cited). Each milestone/ledger also has a header checkbox = "all its items done".
+**How to use the checklists:** mark gameplay capability items `- [x]` only when their stated
+scope meets the definition of done in STATE.md §5 (live + capture-clean + exercised + C++-cited).
+A bounded completed slice is not the broader milestone exit. Historical diagnoses and unchecked
+rows are not current code audits; reconcile the next selected macro with its live issues and HEAD
+before implementation. Architecture/tooling work uses its explicit, proportional acceptance.
+
+## Current execution agreement — #133 / #578
+
+**Superseding delivery agreement, 2026-09-06:** the user replaced the single
+all-core implementation PR with crate-focused macrodeliverables, each preceded by
+current-source/dependency/behavior analysis. #578/#579 closes only its delivered
+canonical-owner foundation and represented lifecycle hardening once its scoped
+regression/integration/live/publication gates pass. **#584** retains all unfinished
+C0–C4 obligations under #133 and coordinates finite implementation children; it is
+not another all-core PR. No next crate or crate order is selected (`wow-map` was only
+an example). Each child includes necessary cross-crate consumers and tests; crate
+completion means its agreed architecture outcome, not every future port feature.
+#583 production integration waits for the completed required core work in #584;
+#153 audits it and #583. Full #133 acceptance is unchanged. The closeout matrix in
+`session-578-checkpoint.md` owns the exact #578 remaining gates. Older one-PR/C0–C4
+allocation paragraphs in this section are the superseded plan, not active scope.
+
+The current ownership delivery remains one **macro-issue #578 / draft PR #579**. The subsequent
+functional modularity proof is **#583 under #99**, then #153 independently audits both before
+#133 closes. Keep coherent internal commits and checkpoints; do not turn
+field families into micro-issues/PRs or require permission to continue between routine steps.
+The contract-led plan and exact remaining boundaries are maintained in
+[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md), not inferred from the
+number of closed historical children, fields moved, or passing tests.
+
+Each internal block must name its complete operation, input/admission contract, canonical owner,
+mutation/commit/publication order, narrow dependencies, retired access/bridge and acceptance
+evidence. Move every related reader/writer before claiming that boundary complete. A shared
+resource bag with fewer outer fields, or gameplay spread over more Session impls, does not meet
+the terminal contract. Already-known cuts stay in #578; #153 verifies them rather than absorbing
+their implementation. Preserve the full #133 outcome.
+
+The [module design guidelines](../architecture/module-design-guidelines.md) add independent
+physical source/test acceptance to each semantic family: manageable files, bounded file-specific
+exceptions and legacy retirement inside #578 C2/C4. They include a Rust submodule skeleton and
+cover SDK/modules in #583. Safe mechanical splits need not wait for the hecs conformance gate,
+which remains mandatory before production storage migration. The existing checker now enforces
+physical migration ceilings and a separate terminal mode. Remaining legacy-file retirement and
+semantic acceptance belong to #578 C2/C4, not #153 or a new micro-issue; a migration PASS is not
+terminal acceptance. The owning checkpoint records the exact remaining ceilings and evidence.
+
+During development, run affected-crate checks, focused positive/negative tests, formatting and
+the inexpensive ownership/architecture checks. At an affected owner boundary, exercise bounded
+production-path integration and failure cases, including stale generation, detached transfer,
+save/logout and publication/backpressure as applicable. The complete exhaustive/final stack
+belongs at macro acceptance, not every internal commit. Required capture/runtime evidence remains
+an explicit gate, and this cadence grants no new deployment, push or merge authority.
+
+The [reanalysis checkpoints](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
+make the order explicit: conformance before production storage migration; review the first real
+C1/C2 vertical with C0 admission/phase evidence before replicating it; reconcile all C0–C4 at #578
+closeout before #583 production integration; audit both merged macros in #153. Review the next
+gameplay macro just in time, then the entire port at #47/M6.2 before Part 2 planning. These are
+evidence reviews inside the approved macros, not new issues or routine confirmation gates.
+
+After #133, re-audit the next port macro just in time against current Rust, C++ and existing
+evidence. Preserve links and hard dependencies from the ordered index while regrouping internal
+work around coherent responsibilities, not outdated table/field diagnoses. Report implemented,
+integrated and parity-proven separately; retain the full Part-1/Part-2 goal. Do not pre-granulate
+#48 or manufacture a new issue tree for every internal cut.
+
+The latest approved [complete modularity/ECS plan](../architecture/modularity-and-ecs-plan.md)
+selects private, selective `hecs`, retaining cohesive domain aggregates. Before production storage
+migration, #578 runs the finite independent-module conformance proof: a frozen host accepts a
+third module/new state type, with equivalent native Rust/Rust Core Wasm/C Core Wasm and mixed
+execution cases. The gate can falsify the selection through a concrete backend limitation; it is
+not another indefinite candidate comparison. As reconciled on 2026-09-06 at `36d0ccbf`,
+the finite gate has passed: see the [V2 evidence](../architecture/modularity-conformance-results.md)
+and [owning checkpoint](../architecture/session-578-checkpoint.md). The next work is real-owner
+integration and all C0–C4 lifetime/save/phase/operation obligations. No production hecs dependency
+has been installed, and no SDK-wide prerequisite or new issue is added.
+
+The following #583 macro delivers shared semantic hooks for native first-party/custom modules
+and a bounded Wasm executor with Rust/C bindings, alongside policies, scoped/reentrant encounter
+behavior, independent state composition, durable progress/reward and install/update/disable/recovery.
+**This explicitly expands #133's closure:** Wasm is optional for the operator to enable, not
+optional for #583/#153 acceptance. The bounded delivery no longer waits for M6; broader language
+ecosystem expansion retains the fresh #99 planning gate. #583 depends on #231/#578; #578 does not
+depend on #583 or a production SDK/Wasm executor. #153 audits both completed macros, not the entire
+#99 epic. Native-only and Wasm-enabled builds must preserve the same supported hook contracts;
+the plan does not promise every language, a stable native ABI or hot reload.
+
+The [V1 laboratory is complete](../architecture/modularity-lab-results.md) at `ee9a0128`: its
+corrected campaign passes the recorded functional/resource gates, but does not prove the new
+independent-module/multilanguage gate or production integration. Native remains the default;
+the next checkpoint is the specified conformance proof, not repeated V1 timings. This is one
+expanded complete capability, not a PR per hook. Part 1, Part 2 and the D-track retain their goals
+and hard dependencies; the architecture update is not a fresh audit of every historical gameplay
+issue and does not change their completion states or publication/deployment approvals.
 
 ## Why two parts
 
@@ -20,24 +112,26 @@ C++ row and hit 98% breadth on a server where bags don't open. So the plan has t
 - **Part 2 — Full 1:1 parity** (exhaustive backlog, nothing dropped). Metric: per-domain
   coverage ledgers. Tracked from day one; sequenced after/alongside the Part 1 spine.
 
-Both required. Part 1 makes it a game; Part 2 makes it TrinityCore. **Validation gate for
-both = C++ capture diff** (a C++ TrinityCore 3.4.3 server runs on the same DBs — see
-`[[cpp-legacy-server-swap]]`).
+Both required. Part 1 makes it a game; Part 2 makes it TrinityCore. Functional parity requires
+the C++ comparison and live evidence defined in STATE.md §5. A retained capture proves only its
+recorded action/build/window. Fresh runtime availability must be checked, not inferred from the
+historical server-swap notes. Structural commits use the proportional gates above.
 
-**Core conversion principle:** most handlers are `represented_*_like_cpp` (validate + record
-intent, no mutation — see STATE.md §0). Almost every item below is "convert represented→live
-+ capture-validate", not "write from scratch".
+**Core conversion principle:** audit the actual path from request to canonical mutation and
+publication. The historical `represented_*_like_cpp` label does not prove that a current function
+only records intent, nor that a feature is live. Reuse completed behavior and implement the
+remaining contract, rather than rebuilding from old diagnosis text.
 
 ---
 
-## Part 0 — Governance fixes (do first, cheap)
+## Part 0 — Governance contracts and retained implementation debt
 
-- [ ] **P0.1** Adopt [STATE.md](STATE.md) as the single status source; mark `_INDEX.md` /
-  `MIGRATION_ROADMAP.md` §3 status columns historical.
-- [ ] **P0.2** Freeze `current-session-handoff.md` (1.8 MB append-log); replace with a short
-  rolling note pointing at STATE.md + PORT_PLAN.md.
-- [ ] **P0.3** Fix the stale `AGENTS.md` "Current Checkpoint" (cites `1af9223`, 1402 commits
-  behind); re-anchor to audited HEAD; stop citing 96.97% / 98.15%.
+- **P0.1 — Active policy:** [STATE.md](STATE.md) owns dated current-state evidence;
+  historical migration tables are not current status authorities. Enter through [docs/README.md](../README.md).
+- **P0.2 — Active policy:** retain the old handoff through its Git-history pointer;
+  update the owning current checkpoint, STATE.md and PORT_PLAN.md instead of another append-log.
+- **P0.3 — Active policy:** AGENTS.md points to those authorities and the current workflow;
+  documentation changes do not create a new parity-audit base or revive old percentage headlines.
 - [ ] **P0.4** Retire `represented-complete` as a closure state in the inventory TSVs.
 - [x] **P0.5** (issue #66) Repeatable **capture-diff harness** stood up.
   - `crates/capture-diff/` — parses the C++ PKT 3.1 log + the Rust
@@ -152,7 +246,8 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   liquid-aware `NormalizePath`, transports/formation/off-mesh links, and per-instance pathfinder
   concurrency.
 - [x] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.
-- [x] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
+- [x] **M2.6 bounded wire/lifecycle slice (#26)** — Creature template-spell scheduling and
+  publication; not completion of general creature spell execution.
   The bounded CombatAI/TurretAI slice reads template spell slots, schedules supported instant
   casts with C++ cooldown/range/target/visual rules, and publishes an atomic START/GO pair before
   the same-frame melee phase. The final issue-#26 P1 hardening removes GO's unconditional-hit
@@ -187,9 +282,13 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   selected pair is an observed **HIT**, strict-CLEAN at 2/2 packets with an empty baseline, and
   `verify-required creature-spell-casting` is CLEAN. It is not proof of deterministic hit. This
   closes only the M2.6 wire/lifecycle slice: spell effects, damage/health mutation, the full Spell
-  pipeline, and the other AI families remain later work.
+  pipeline, and the other AI families remain later work. The residual functional contract is
+  carried by the existing spell pipeline work (#30–#35) and full AI/spell ledgers, not erased by
+  closing #26 or by this two-packet proof. Revalidate Creature callers as those capabilities land.
 - [ ] **M2.7** Creature reactions: on-aggro/death/evade `creature_text` emotes/yells/sounds.
-- [ ] **M2.8** Formalize runtime owner per ADR (single-owner, no double resolution; respect `Map::Update` phase order).
+- [ ] **M2.8 terminal runtime ownership** — #28 closed its bounded writer cut and #371 removed
+  the independent creature-local clock. Those closures do not prove full Map/runtime convergence;
+  the remaining #578 ownership/phase contract must be demonstrated before this broader item closes.
 - [ ] **M2 exit:** creatures patrol, path around walls, fight back with abilities, speak, respawn; two clients see identical state.
 
 ### M3 — Combat & spells (leveling-grade)
@@ -197,7 +296,11 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 > no hit table, no armor mitigation (D-H1/D-H2/D-H3); "melee works" only means it deals
 > *some* number and broadcasts.
 - [ ] **M3.0 (D-track)** Real melee math: weapon-damage + AP scaling, `CalcArmorReducedDamage`, level reduction, hit table (miss/dodge/parry/block/glancing/crit), dual-wield penalty, haste cap (D-H1/D-H2/D-M3/D-M4).
-- [ ] **M3.1** Spell cast prerequisites: power/mana cost deduction, cast time (DB2), GCD + category cooldowns, range/LOS/facing, reagents.
+- [ ] **M3.1 / #30** Complete spell cast prerequisites: power/mana cost deduction, cast time
+  (DB2), GCD + category cooldowns, range/LOS/facing, reagents. Re-audit the residual: the original
+  issue's "no power deduction" and wholly missing-store premises are stale. Current
+  `handlers/spell.rs` already checks/deducts canonical Player power, with accepted-cast and
+  rejected-cast tests; that does not establish the complete `Spell::CheckCast` contract.
 - [ ] **M3.2** Damage/heal calc pipeline: coefficients (SP/AP), crit, school resist, miss/dodge/parry/block, absorb shields (D-H3).
 - [ ] **M3.3** Aura **periodic tick** (DoT/HoT) + the gameplay-critical SPELL_AURA_* types (stat mods, %mods, immunities).
 - [ ] **M3.4** Proc system (proc flags/chance/charges/ppm → trigger spell).
@@ -224,6 +327,11 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [ ] **M5 exit:** all common transitions seamless and persistent.
 
 ### M6 — Stability soak
+
+Multi-hour soak is the terminal stability test, not the first time concurrency is exercised.
+Ownership-changing macros must already carry bounded integration/failure coverage for the
+transitions they change; M6 then tests sustained composition and load.
+
 - [ ] **M6.1** Multi-client multi-hour soak; fix runtime races, channel backpressure, lock-held-sends (ADR risks).
 - [ ] **M6.2** Warning cleanup; periodic-save under load verified.
 - [ ] **M6 exit:** stable session declared → "playable end-to-end".
@@ -239,8 +347,8 @@ Sequenced after/alongside the M0–M6 spine; listed now so the long tail can't f
 > (GitHub #48) on purpose. **When Part 1 (M0–M6) is essentially done** — "playable end-to-end"
 > declared at M6.2 — **run a fresh planning pass**: re-audit HEAD (the live state will have moved
 > a lot), then break each L-ledger into PR-sized child issues *at that point* (not now — premature
-> granularity would create hundreds of issues that rot before they're touched). The C#-purge (L26)
-> rides along: re-anchor remaining C# comments as each domain is contrasted. Trigger owner: whoever
+> granularity would create hundreds of issues that rot before they're touched). Source-reference
+> verification (L26) rides along: anchor affected comments to C++ as each domain is contrasted. Trigger owner: whoever
 > closes #47 (M6.2) opens the Part-2 planning pass.
 
 - [ ] **L1 CMSG handlers** — 385 / 631 implemented (61%) → 631/631. (`cpp-server-opcodes.tsv`)
@@ -269,7 +377,16 @@ Sequenced after/alongside the M0–M6 spine; listed now so the long tail can't f
 - [ ] **L23 Config keys** — partial → full. (`cpp-world-config-registry.tsv`)
 - [ ] **L24 DB prepared statements / loaders** — partial → full. (`cpp-sql-prepared.tsv`)
 - [ ] **L25 Runtime convergence** — legacy global loop → canonical `Map::Update` owns the tick (incl. `SendObjectUpdates`, per-map visibility range, grid-unload despawn); retire legacy. (ADR steps 5–8)
-- [ ] **L26 C#-reference purge** — re-anchor code + docs to C++. Source: `docs/audits/csharp-reference-audit.md` + `csharp-reference-contrast.md` (51 `#CSharpAudit.*`; tracked as issues #50–#64, index #65). Code still cites C# as authority (wow-packet/wow-network/wow-crypto/bnet-server/wow-data); contaminated docs include world-entry/phase4/vendor/template material. Per AGENTS.md "Reference Priority": contrast vs C++, re-anchor comment or file a behavior bug. **Remaining behavioral findings include:** CHARACTER.1, CHARACTER.2 (→ M5.5), AREATRIGGER.1 (→ M4.7), `guid.rs` HasEntry, QUESTPKT.1/2/3 + QUESTREWARD.1, and the wider ITEMSTATS/MOVEMENT/QUEST findings. ITEM.2/#52 and DATASTATS.1/#60 are merged. SKILL.1/2/3/#62 is implemented on its local branch with C++ `LearnDefaultSkills`/`LearnSkillRewardedSpells`, real WDC4 IDs, live login QA and exact 43-spell semantic capture parity. These bounded slices do not close L26 or their wider gameplay ledgers.
+- [ ] **L26 C++ source-reference verification** — retain issues #50–#64 and index #65 for
+  traceability, not as proof that their original analysis was correct. Reproduce each selected
+  residual against current Rust and exact C++ call paths; discard unsupported diagnoses without
+  reviving completed work. Relevant families include character lifecycle (M5.5), area triggers
+  (M4.7), GUID entry semantics, quest packets/rewards, item stats and movement. Preserve the
+  independently C++-anchored evidence for #52/#60 and the bounded #62 skill work
+  (`Player::LearnDefaultSkills` / `LearnSkillRewardedSpells`); verify actual issue/code state
+  before relying on a historical completion label. Those slices do not close L26 or the broader
+  gameplay ledgers. The [C++ findings](../audits/cpp-parity-findings.md) retain evidence and limits;
+  no inherited analysis or finding count is itself a correctness source.
 
 **Process:** drive each ledger to 100% under STATE.md §5. The R8 inventory TSVs feed these
 ledgers but are **re-anchored** — a row counts only when live + capture-clean.

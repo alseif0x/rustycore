@@ -1,5 +1,10 @@
 # Migration: Movement
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Movement/` (+ `src/server/game/Server/Packets/MovementPackets.{h,cpp}`)
 > **Rust target crate(s):** `crates/wow-packet/` (packets), `crates/wow-world/` (handlers + per-session state), `crates/wow-recastdetour/` (Detour FFI scaffold), `crates/wow-movement/`
 > **Layer:** L5 (depende de Maps L3 + Entities L4 + DataStores L1)
@@ -339,7 +344,7 @@ DBC/DB2 stores consumed:
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - El `MovementInfo::write()` en Rust solo pone `has_spline=false`, lo que hará que clientes ignoren info de spline si añadimos creatures con spline simultáneo (probable mismatch al implementar spline).
-- El parser asume `flush_bits` después del bloque inicial de bits; verificar contra `PacketHandlerExtensions.Read` de TC C# port.
+- El parser asume `flush_bits` después del bloque inicial de bits; contrastar el flush con `MovementPackets.cpp` y `ByteBuffer.h` canónicos; este registro no demuestra esa rama.
 - `MoveUpdate` reusa `MovementInfo` write directamente — falta el extra player GUID prefix que el cliente espera para broadcasts de otros (revisar contra MovementPackets.cpp `MoveUpdate::Write`).
 - Falta detección de `MovementFlag::DISABLE_GRAVITY`, `WATERWALKING`, `HOVER` en server-side state — asumimos cliente honesto.
 - La validación de posición sólo filtra NaN/Inf. C++ TrinityCore corre `MovementAnticheat` con tolerancias de speed/distance/jump-arc.

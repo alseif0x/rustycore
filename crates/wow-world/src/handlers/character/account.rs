@@ -23,7 +23,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_enum_characters",
-        handler: |session, _pkt| Box::pin(async move { session.handle_enum_characters().await }),
+        handler: |session, catalogs, _pkt| {
+            Box::pin(async move {
+                session
+                    .handle_enum_characters_with_policy_like_cpp(
+                        catalogs.support_feature_policy.as_ref(),
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -33,10 +41,17 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_create_character",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::character::CreateCharacter::read(&mut pkt) {
-                    Ok(create) => session.handle_create_character(create).await,
+                    Ok(create) => {
+                        session
+                            .handle_create_character_with_generator_like_cpp(
+                                catalogs.id_generators.player.as_ref(),
+                                create,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read CreateCharacter: {e}"),
                 }
             })
@@ -50,7 +65,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_char_delete",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::character::CharDelete::read(&mut pkt) {
                     Ok(del) => session.handle_char_delete(del).await,
@@ -67,7 +82,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_character_rename_request",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::character::CharacterRenameRequest::read(&mut pkt) {
                     Ok(rename) => session.handle_character_rename_request(rename).await,
@@ -84,7 +99,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_char_customize",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::character::CharCustomize::read(&mut pkt) {
                     Ok(customize) => session.handle_char_customize(customize).await,
@@ -101,7 +116,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_player_login",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::character::PlayerLogin::read(&mut pkt) {
                     Ok(login) => session.handle_player_login(login).await,
@@ -118,7 +133,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_opening_cinematic",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_opening_cinematic(pkt).await })
         },
     }
@@ -130,7 +145,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_connect_to_failed",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::auth::ConnectToFailed::read(&mut pkt) {
                     Ok(failed) => session.handle_connect_to_failed(failed).await,
@@ -147,7 +162,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_get_undelete_cooldown_status",
-        handler: |session, _pkt| {
+        handler: |session, _catalogs, _pkt| {
             Box::pin(async move { session.handle_get_undelete_cooldown_status().await })
         },
     }
@@ -159,7 +174,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_alter_appearance",
-        handler: |session, pkt| Box::pin(async move { session.handle_alter_appearance(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_alter_appearance(pkt).await }),
     }
 }
 
@@ -169,7 +184,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_confirm_barbers_choice",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_confirm_barbers_choice(pkt).await })
         },
     }
@@ -181,7 +196,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_player_declined_names",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_player_declined_names(pkt).await })
         },
     }
@@ -193,8 +208,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_save_equipment_set",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_save_equipment_set(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_save_equipment_set_with_generator_like_cpp(
+                        catalogs.id_generators.equipment_set.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -205,7 +227,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_assign_equipment_set_spec",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_assign_equipment_set_spec(pkt).await })
         },
     }
@@ -217,7 +239,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_delete_equipment_set",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_delete_equipment_set(pkt).await })
         },
     }
@@ -229,7 +251,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_use_equipment_set",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_use_equipment_set(pkt).await })
         },
     }
@@ -243,7 +265,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_server_time_offset_request",
-        handler: |session, _pkt| {
+        handler: |session, _catalogs, _pkt| {
             Box::pin(async move { session.handle_server_time_offset_request().await })
         },
     }
@@ -255,7 +277,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_played_time",
- handler: |session, mut pkt| {
+ handler: |session, _catalogs, mut pkt| {
      Box::pin(async move { let trigger = pkt.read_uint8().unwrap_or(0) != 0; session.handle_request_played_time(trigger).await })
  },
     }
@@ -267,7 +289,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pay_stub",
-        handler: |_session, _pkt| {
+        handler: |_session, _catalogs, _pkt| {
             Box::pin(async move { tracing::trace!("Stub handler for {:?} (0x{:04X}) — no response needed", ClientOpcodes::BattlePayGetProductList, ClientOpcodes::BattlePayGetProductList as u32) })
         },
     }
@@ -279,7 +301,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pay_stub",
-        handler: |_session, _pkt| {
+        handler: |_session, _catalogs, _pkt| {
             Box::pin(async move { tracing::trace!("Stub handler for {:?} (0x{:04X}) — no response needed", ClientOpcodes::BattlePayGetPurchaseList, ClientOpcodes::BattlePayGetPurchaseList as u32) })
         },
     }
@@ -291,7 +313,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_vas_stub",
-        handler: |_session, _pkt| {
+        handler: |_session, _catalogs, _pkt| {
             Box::pin(async move { tracing::trace!("Stub handler for {:?} (0x{:04X}) — no response needed", ClientOpcodes::UpdateVasPurchaseStates, ClientOpcodes::UpdateVasPurchaseStates as u32) })
         },
     }
@@ -303,10 +325,17 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_db_query_bulk",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::DbQueryBulk::read(&mut pkt) {
-                    Ok(query) => session.handle_db_query_bulk(query).await,
+                    Ok(query) => {
+                        session
+                            .handle_db_query_bulk_with_tact_keys_like_cpp(
+                                catalogs.tact_keys.as_ref(),
+                                query,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read DbQueryBulk: {e}"),
                 }
             })
@@ -320,10 +349,10 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_hotfix_request",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::HotfixRequest::read(&mut pkt) {
-                    Ok(req) => session.handle_hotfix_request(req).await,
+                    Ok(req) => session.handle_hotfix_request(catalogs.hotfixes.as_ref(), req).await,
                     Err(e) => tracing::warn!("Failed to read HotfixRequest: {e}"),
                 }
             })
@@ -337,7 +366,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_time_sync_response",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::TimeSyncResponse::read(&mut pkt) {
                     Ok(resp) => session.handle_time_sync_response(resp).await,
@@ -354,7 +383,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_time_sync_response",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::TimeSyncResponse::read(&mut pkt) {
                     Ok(resp) => session.handle_time_sync_response(resp).await,
@@ -371,7 +400,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_time_sync_response",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::TimeSyncResponse::read(&mut pkt) {
                     Ok(resp) => session.handle_time_sync_response(resp).await,
@@ -388,10 +417,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_logout_request",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::LogoutRequest::read(&mut pkt) {
-                    Ok(req) => session.handle_logout_request(req).await,
+                    Ok(req) => {
+                        session
+                            .handle_logout_request_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                req,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read LogoutRequest: {e}"),
                 }
             })
@@ -405,7 +441,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_logout_cancel",
-        handler: |session, _pkt| Box::pin(async move { session.handle_logout_cancel().await }),
+        handler: |session, _catalogs, _pkt| Box::pin(async move { session.handle_logout_cancel().await }),
     }
 }
 
@@ -415,10 +451,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_creature",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryCreature::read(&mut pkt) {
-                    Ok(query) => session.handle_query_creature(query).await,
+                    Ok(query) => {
+                        session
+                            .handle_query_creature_with_catalogs_like_cpp(
+                                catalogs.object_mgr.as_ref(),
+                                query,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read QueryCreature: {e}"),
                 }
             })
@@ -432,10 +475,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_game_object",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryGameObject::read(&mut pkt) {
-                    Ok(query) => session.handle_query_game_object(query).await,
+                    Ok(query) => {
+                        session
+                            .handle_query_game_object_with_catalogs_like_cpp(
+                                catalogs.object_mgr.as_ref(),
+                                query,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read QueryGameObject: {e}"),
                 }
             })
@@ -449,7 +499,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_corpse_location",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryCorpseLocationFromClient::read(&mut pkt) {
                     Ok(query) => session.handle_query_corpse_location(query).await,
@@ -466,7 +516,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_corpse_transport",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryCorpseTransport::read(&mut pkt) {
                     Ok(query) => session.handle_query_corpse_transport(query).await,
@@ -483,10 +533,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_page_text",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryPageText::read(&mut pkt) {
-                    Ok(query) => session.handle_query_page_text(query).await,
+                    Ok(query) => {
+                        session
+                            .handle_query_page_text_with_catalogs_like_cpp(
+                                catalogs.object_mgr.as_ref(),
+                                query,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read QueryPageText: {e}"),
                 }
             })
@@ -500,7 +557,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_item_text_query",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::ItemTextQuery::read(&mut pkt) {
                     Ok(query) => session.handle_item_text_query(query).await,
@@ -517,7 +574,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_pet_name",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryPetName::read(&mut pkt) {
                     Ok(query) => session.handle_query_pet_name(query).await,
@@ -534,7 +591,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_player_names",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryPlayerNames::read(&mut pkt) {
                     Ok(query) => session.handle_query_player_names(query).await,
@@ -551,7 +608,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_realm_name",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::query::QueryRealmName::read(&mut pkt) {
                     Ok(query) => session.handle_query_realm_name(query),
@@ -568,7 +625,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_ping",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::auth::Ping::read(&mut pkt) {
                     Ok(ping) => session.handle_ping(ping).await,
@@ -585,7 +642,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gossip_hello",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
                     Ok(hello) => session.handle_gossip_hello(hello).await,
@@ -602,7 +659,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_gossip_select_option",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::GossipSelectOption::read(&mut pkt) {
                     Ok(select) => session.handle_gossip_select_option(select).await,
@@ -619,7 +676,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_npc_text",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::QueryNpcText::read(&mut pkt) {
                     Ok(query) => session.handle_query_npc_text(query).await,
@@ -636,7 +693,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_list_inventory",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
                     Ok(hello) => session.handle_list_inventory(hello).await,
@@ -653,10 +710,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_buy_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::BuyItem::read(&mut pkt) {
-                    Ok(buy) => session.handle_buy_item(buy).await,
+                    Ok(buy) => {
+                        session
+                            .handle_buy_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                buy,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BuyItem: {e}"),
                 }
             })
@@ -670,10 +734,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_buy_back_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::BuyBackItem::read(&mut pkt) {
-                    Ok(buyback) => session.handle_buy_back_item(buyback).await,
+                    Ok(buyback) => {
+                        session
+                            .handle_buy_back_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                buyback,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BuyBackItem: {e}"),
                 }
             })
@@ -687,10 +758,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_sell_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::SellItem::read(&mut pkt) {
-                    Ok(sell) => session.handle_sell_item(sell).await,
+                    Ok(sell) => {
+                        session
+                            .handle_sell_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                sell,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read SellItem: {e}"),
                 }
             })
@@ -704,10 +782,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_item_purchase_refund",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::ItemPurchaseRefund::read(&mut pkt) {
-                    Ok(refund) => session.handle_item_purchase_refund(refund).await,
+                    Ok(refund) => {
+                        session
+                            .handle_item_purchase_refund_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                refund,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read ItemPurchaseRefund: {e}"),
                 }
             })
@@ -721,7 +806,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_hello_request",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_auction_hello_request(pkt).await })
         },
     }
@@ -733,7 +818,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_banker_activate",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
                     Ok(hello) => session.handle_banker_activate(hello).await,
@@ -750,10 +835,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_autobank_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AutoBankItem::read(&mut pkt) {
-                    Ok(packet) => session.handle_autobank_item(packet).await,
+                    Ok(packet) => {
+                        session
+                            .handle_autobank_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                packet,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutobankItem: {e}"),
                 }
             })
@@ -767,10 +860,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_autostore_bank_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::AutoStoreBankItem::read(&mut pkt) {
-                    Ok(packet) => session.handle_autostore_bank_item(packet).await,
+                    Ok(packet) => {
+                        session
+                            .handle_autostore_bank_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                packet,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutostoreBankItem: {e}"),
                 }
             })
@@ -784,10 +885,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_buy_bank_slot",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::BuyBankSlot::read(&mut pkt) {
-                    Ok(buy) => session.handle_buy_bank_slot(buy).await,
+                    Ok(buy) => {
+                        session
+                            .handle_buy_bank_slot_with_prices_and_generator_like_cpp(
+                                catalogs.bank_bag_slot_prices.as_ref(),
+                                catalogs.id_generators.item.as_ref(),
+                                buy,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BuyBankSlot: {e}"),
                 }
             })
@@ -801,7 +910,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_change_bank_bag_slot_flag",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::ChangeBankBagSlotFlag::read(&mut pkt) {
                     Ok(change) => session.handle_change_bank_bag_slot_flag(change).await,
@@ -818,10 +927,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_binder_activate",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
-                    Ok(hello) => session.handle_binder_activate(hello).await,
+                    Ok(hello) => {
+                        session
+                            .handle_binder_activate_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                hello,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read BinderActivate: {e}"),
                 }
             })
@@ -835,7 +952,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_tabard_vendor_activate",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_tabard_vendor_activate(pkt).await })
         },
     }
@@ -847,7 +964,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_area_spirit_healer_query",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_area_spirit_healer_query(pkt).await })
         },
     }
@@ -859,7 +976,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_area_spirit_healer_queue",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_area_spirit_healer_queue(pkt).await })
         },
     }
@@ -871,7 +988,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_hearth_and_resurrect",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_hearth_and_resurrect(pkt).await })
         },
     }
@@ -883,7 +1000,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_spirit_healer_activate",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_spirit_healer_activate(pkt).await })
         },
     }
@@ -895,10 +1012,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_repair_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::RepairItem::read(&mut pkt) {
-                    Ok(repair) => session.handle_repair_item(repair).await,
+                    Ok(repair) => {
+                        session
+                            .handle_repair_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                repair,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read RepairItem: {e}"),
                 }
             })
@@ -912,7 +1036,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_stabled_pets",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_request_stabled_pets(pkt).await })
         },
     }
@@ -924,8 +1048,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_quest_giver_status_multiple_query",
-        handler: |session, _pkt| {
-            Box::pin(async move { session.handle_quest_giver_status_multiple_query().await })
+        handler: |session, catalogs, _pkt| {
+            Box::pin(async move { session.handle_quest_giver_status_multiple_query_with_catalog_like_cpp(catalogs.quest_info.as_ref()).await })
         },
     }
 }
@@ -936,8 +1060,8 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_status_tracked_query",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_quest_giver_status_tracked_query(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move { session.handle_quest_giver_status_tracked_query_with_catalog_like_cpp(catalogs.quest_info.as_ref(), pkt).await })
         },
     }
 }
@@ -948,10 +1072,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_swap_inv_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::SwapInvItem::read(&mut pkt) {
-                    Ok(swap) => session.handle_swap_inv_item(swap).await,
+                    Ok(swap) => {
+                        session
+                            .handle_swap_inv_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                swap,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read SwapInvItem: {e}"),
                 }
             })
@@ -965,10 +1097,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_auto_equip_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::AutoEquipItem::read(&mut pkt) {
-                    Ok(equip) => session.handle_auto_equip_item(equip).await,
+                    Ok(equip) => {
+                        session
+                            .handle_auto_equip_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                equip,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutoEquipItem: {e}"),
                 }
             })
@@ -982,10 +1122,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_auto_equip_item_slot",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::AutoEquipItemSlot::read(&mut pkt) {
-                    Ok(equip) => session.handle_auto_equip_item_slot(equip).await,
+                    Ok(equip) => {
+                        session
+                            .handle_auto_equip_item_slot_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                equip,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutoEquipItemSlot: {e}"),
                 }
             })
@@ -999,10 +1147,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_swap_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::SwapItem::read(&mut pkt) {
-                    Ok(swap) => session.handle_swap_item(swap).await,
+                    Ok(swap) => {
+                        session
+                            .handle_swap_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                swap,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read SwapItem: {e}"),
                 }
             })
@@ -1016,10 +1172,18 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_auto_store_bag_item",
-        handler: |session, mut pkt| {
+        handler: |session, catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::AutoStoreBagItem::read(&mut pkt) {
-                    Ok(store) => session.handle_auto_store_bag_item(store).await,
+                    Ok(store) => {
+                        session
+                            .handle_auto_store_bag_item_with_generator_like_cpp(
+                                catalogs.id_generators.item.as_ref(),
+                                catalogs.creature_spawns.as_ref(),
+                                store,
+                            )
+                            .await
+                    }
                     Err(e) => tracing::warn!("Failed to read AutoStoreBagItem: {e}"),
                 }
             })
@@ -1033,7 +1197,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_destroy_item",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::DestroyItemPkt::read(&mut pkt) {
                     Ok(destroy) => session.handle_destroy_item(destroy).await,
@@ -1050,7 +1214,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_temp_enchantment",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::item::CancelTempEnchantment::read(&mut pkt) {
                     Ok(cancel) => session.handle_cancel_temp_enchantment(cancel).await,
@@ -1067,7 +1231,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_show_trade_skill",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::ShowTradeSkill::read(&mut pkt) {
                     Ok(_) => session.handle_show_trade_skill().await,
@@ -1080,7 +1244,10 @@ inventory::submit! {
 
 impl WorldSession {
     /// Handle CMSG_ENUM_CHARACTERS — list characters for this account.
-    pub async fn handle_enum_characters(&mut self) {
+    pub async fn handle_enum_characters_with_policy_like_cpp(
+        &mut self,
+        policy: &crate::session::SupportFeaturePolicyLikeCpp,
+    ) {
         let port = match self.character_enumeration_persistence_port_like_cpp() {
             Some(port) => port,
             None => {
@@ -1099,7 +1266,7 @@ impl WorldSession {
 
         let request = CharacterEnumerationRequestLikeCpp {
             account_id: self.account_id,
-            declined_names_used: self.declined_names_used_like_cpp(),
+            declined_names_used: policy.declined_names_used,
         };
         let (rows, cleanup_error) = match port.load_character_enumeration_like_cpp(request).await {
             CharacterEnumerationLoadOutcomeLikeCpp::Loaded {
@@ -1147,7 +1314,7 @@ impl WorldSession {
                 row.at_login_flags,
                 row.banned_guid,
                 (!row.declined_genitive.is_empty()).then_some(row.declined_genitive.as_str()),
-                self.declined_names_used_like_cpp(),
+                policy.declined_names_used,
             );
             let (pet_display_id, pet_level, pet_family) = enum_character_pet_data_like_cpp(
                 row.player_flags,
@@ -1246,6 +1413,13 @@ impl WorldSession {
         });
     }
 
+    #[cfg(test)]
+    pub async fn handle_enum_characters(&mut self) {
+        let policy = self.support_feature_policy_for_test_like_cpp();
+        self.handle_enum_characters_with_policy_like_cpp(&policy)
+            .await;
+    }
+
     /// Build and send SMSG_CONNECT_TO to the client.
     pub(super) fn send_connect_to(&mut self, serial: ConnectToSerial) {
         let session_mgr = match self.session_mgr() {
@@ -1331,7 +1505,13 @@ impl WorldSession {
     }
 
     /// Handle CMSG_HOTFIX_REQUEST — client requests hotfix data.
-    pub async fn handle_hotfix_request(&mut self, req: wow_packet::packets::misc::HotfixRequest) {
+    /// Borrows C++ `sDB2Manager.GetHotfixData()`; Session owns no catalog.
+    /// C++ `Handlers/HotfixHandler.cpp:77-135`.
+    pub async fn handle_hotfix_request(
+        &mut self,
+        cache: &wow_data::HotfixBlobCache,
+        req: wow_packet::packets::misc::HotfixRequest,
+    ) {
         info!(
             "HotfixRequest: client_build={}, data_build={}, {} hotfixes for account {}, first={:?}, last={:?}",
             req.client_build,
@@ -1341,11 +1521,6 @@ impl WorldSession {
             req.hotfixes.first(),
             req.hotfixes.last()
         );
-
-        let Some(cache) = self.hotfix_blob_cache().map(Arc::clone) else {
-            self.send_packet(&HotfixConnect::empty());
-            return;
-        };
 
         let mut response = HotfixConnect::empty();
         let locale_mask = hotfix_locale_mask(&self.locale);
@@ -1511,9 +1686,18 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account mount save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(rows) = self.account_mount_save_rows_like_cpp() else {
+            return;
+        };
         let save = AccountCollectionSaveLikeCpp::Mounts(
-            self.account_mount_save_rows_like_cpp()
-                .into_iter()
+            rows.into_iter()
                 .map(|row| AccountMountRowLikeCpp {
                     bnet_account_id: row.bnet_account_id,
                     mount_spell_id: row.mount_spell_id,
@@ -1544,9 +1728,18 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account toy save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(rows) = self.account_toy_save_rows_like_cpp() else {
+            return;
+        };
         let save = AccountCollectionSaveLikeCpp::Toys(
-            self.account_toy_save_rows_like_cpp()
-                .into_iter()
+            rows.into_iter()
                 .map(|row| AccountToyRowLikeCpp {
                     bnet_account_id: row.bnet_account_id,
                     item_id: row.item_id,
@@ -1578,9 +1771,18 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account heirloom save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(rows) = self.account_heirloom_save_rows_like_cpp() else {
+            return;
+        };
         let save = AccountCollectionSaveLikeCpp::Heirlooms(
-            self.account_heirloom_save_rows_like_cpp()
-                .into_iter()
+            rows.into_iter()
                 .map(|row| AccountHeirloomRowLikeCpp {
                     bnet_account_id: row.bnet_account_id,
                     item_id: row.item_id,
@@ -1611,7 +1813,16 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
-        let plan = self.account_item_appearance_save_plan_like_cpp();
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account appearance save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(plan) = self.account_item_appearance_save_plan_like_cpp() else {
+            return;
+        };
         if plan.is_empty() {
             return;
         }
@@ -1647,7 +1858,16 @@ impl WorldSession {
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
-        let plan = self.account_transmog_illusion_save_plan_like_cpp();
+        if self.player_collection_state_snapshot_like_cpp().is_none() {
+            warn!(
+                account = self.account_id,
+                "Skipping account illusion save because canonical Player collection ownership is unresolved"
+            );
+            return;
+        }
+        let Some(plan) = self.account_transmog_illusion_save_plan_like_cpp() else {
+            return;
+        };
         if plan.is_empty() {
             return;
         }

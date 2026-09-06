@@ -19,7 +19,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_resurrect_response",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_resurrect_response(pkt).await })
         },
     }
@@ -31,7 +31,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_repop_request",
-        handler: |session, pkt| Box::pin(async move { session.handle_repop_request(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_repop_request(pkt).await }),
     }
 }
 
@@ -41,7 +41,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_reclaim_corpse",
-        handler: |session, pkt| Box::pin(async move { session.handle_reclaim_corpse(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_reclaim_corpse(pkt).await }),
     }
 }
 
@@ -51,8 +51,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_cemetery_list",
-        handler: |session, pkt| {
-            Box::pin(async move { session.handle_request_cemetery_list(pkt).await })
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_request_cemetery_list_with_catalog_like_cpp(
+                        catalogs.graveyards.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
         },
     }
 }
@@ -60,7 +67,11 @@ inventory::submit! {
 impl crate::session::WorldSession {
     /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
     /// C++ ref: `WorldSession::HandleRequestCemeteryList`.
-    pub async fn handle_request_cemetery_list(&mut self, _pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_request_cemetery_list_with_catalog_like_cpp(
+        &mut self,
+        graveyard_store: &wow_data::GraveyardStore,
+        _pkt: wow_packet::WorldPacket,
+    ) {
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
             info!(
                 account = self.account_id,
@@ -68,7 +79,9 @@ impl crate::session::WorldSession {
                 "RUST_CEMETERY_TRACE handler entry"
             );
         }
-        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        let Some((zone_id, area_id)) = self.player_zone_area_like_cpp() else {
+            return;
+        };
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
             info!(
                 account = self.account_id,
@@ -80,16 +93,6 @@ impl crate::session::WorldSession {
                 "RUST_CEMETERY_TRACE handler resolved zone_area"
             );
         }
-        let Some(graveyard_store) = self.graveyard_store().cloned() else {
-            info!(
-                zone = zone_id,
-                area = area_id,
-                map_id = self.player_map_id_like_cpp(),
-                player = ?self.player_guid(),
-                "No graveyard store available for CMSG_REQUEST_CEMETERY_LIST"
-            );
-            return;
-        };
         let Some(graveyards) = graveyard_store.graveyards_for_zone(zone_id) else {
             info!(
                 zone = zone_id,
@@ -139,6 +142,16 @@ impl crate::session::WorldSession {
         });
     }
 
+    #[cfg(test)]
+    pub async fn handle_request_cemetery_list(&mut self, pkt: wow_packet::WorldPacket) {
+        let store = self
+            .graveyard_store()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(wow_data::GraveyardStore::default()));
+        self.handle_request_cemetery_list_with_catalog_like_cpp(store.as_ref(), pkt)
+            .await;
+    }
+
     fn graveyard_conditions_meet_like_cpp(
         &mut self,
         conditions_ref: &wow_data::ConditionsReference,
@@ -159,7 +172,9 @@ impl crate::session::WorldSession {
             return false;
         };
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let needs_player_condition_context = conditions.iter().any(|condition| {
             condition.reference_id != 0
@@ -169,7 +184,8 @@ impl crate::session::WorldSession {
             .then(|| self.player_condition_store().cloned())
             .flatten();
         let player_condition_context = needs_player_condition_context
-            .then(|| self.represented_player_condition_context_like_cpp());
+            .then(|| self.represented_player_condition_context_like_cpp())
+            .flatten();
 
         let mut source_info =
             crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
@@ -180,7 +196,9 @@ impl crate::session::WorldSession {
             player_condition_context.as_ref(),
         ) {
             source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(0, context.as_context(self));
+            if let Some(context) = context.as_context(self) {
+                source_info.set_player_condition_context(0, context);
+            }
         }
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(
@@ -219,7 +237,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false) {
             return;
         }
 
@@ -238,7 +256,7 @@ impl crate::session::WorldSession {
         // resurrected state. InstanceScript combat-res charges, aura original
         // caster, and SpawnCorpseBones remain represented gaps.
         self.teleport_to(request.map_id, request.position).await;
-        if self.pending_teleport.is_some() || self.near_teleport_pending_like_cpp() {
+        if self.pending_teleport_like_cpp().is_some() || self.near_teleport_pending_like_cpp() {
             self.schedule_represented_resurrection_after_teleport_like_cpp(request);
         } else {
             self.apply_represented_resurrection_health_like_cpp(request.health);
@@ -260,7 +278,9 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.player_is_alive_like_cpp() || self.player_has_ghost_flag_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false)
+            || self.player_has_ghost_flag_like_cpp()
+        {
             return;
         }
 
@@ -270,8 +290,11 @@ impl crate::session::WorldSession {
         // seam here; full corpse/graveyard runtime remains open.
         self.set_player_alive_like_cpp(false);
         self.set_player_ghost_flag_like_cpp(true);
-        self.represented_repop_at_graveyard_count =
-            self.represented_repop_at_graveyard_count.saturating_add(1);
+        #[cfg(test)]
+        {
+            self.represented_repop_at_graveyard_count =
+                self.represented_repop_at_graveyard_count.saturating_add(1);
+        }
     }
 
     /// CMSG_CLIENT_PORT_GRAVEYARD — manually teleport ghost to graveyard.
@@ -284,15 +307,20 @@ impl crate::session::WorldSession {
             return false;
         }
 
-        if self.player_is_alive_like_cpp() || !self.player_has_ghost_flag_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false)
+            || !self.player_has_ghost_flag_like_cpp()
+        {
             return true;
         }
 
         // C++ calls `Player::RepopAtGraveyard()`. Rust still represents the
         // graveyard selection/teleport runtime as a counter seam shared with
         // release and instance-lock decline paths.
-        self.represented_repop_at_graveyard_count =
-            self.represented_repop_at_graveyard_count.saturating_add(1);
+        #[cfg(test)]
+        {
+            self.represented_repop_at_graveyard_count =
+                self.represented_repop_at_graveyard_count.saturating_add(1);
+        }
         true
     }
 
@@ -311,7 +339,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false) {
             return;
         }
 

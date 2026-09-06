@@ -1,31 +1,15 @@
 {
   "schema_version": 1,
-  "purpose": "Reviewed inventory of every runtime clock and its phase ownership, recorded by issue #188 before any convergence changes scheduling. It is a description of the code as it stands, not a target.",
+  "purpose": "Bounded world-server trace introduced by #188 and source-reviewed on 2026-09-05 at 7eaf8ddc (production code 93e4002a): map/creature loops, supporting periodic tasks and the diagnostic Session creature path. Not an exhaustive inventory of all process timers or proof of production phase conformance. The unspawned world_update timing helper is documented separately, not counted as a clock.",
   "validation_contract": [
-    "every clock names a real source file and function that exist in the workspace",
+    "every clock names an existing source file; identifier-shaped entries must name a function defined there, while descriptive entries are not resolved",
     "every clock states its cadence source, its diff source and whether it is production or diagnostic",
-    "no clock claims to deliver packets or await while holding a map guard",
-    "each clock's resolution guard names the mechanism that stops a second owner resolving the same transition",
-    "each regression anchor names a test function that exists"
+    "delivers_under_map_guard must be false; this checks the declaration, not function-body lock, await or delivery behavior",
+    "each clock declares a nonempty resolution guard; the checker does not prove that mechanism executes or prevents duplicate transitions",
+    "each supplied regression anchor names an existing test function; empty lists are accepted and this check does not execute tests",
+    "spawn reachability, exact cadence/phase semantics, invariant coverage and current runtime acceptance require source review and affected integration evidence"
   ],
   "clocks": [
-    {
-      "id": "world_update",
-      "source": "crates/world-server/src/lib.rs",
-      "entry": "world_update_loop_step_like_cpp",
-      "cpp_anchor": "World::Update",
-      "availability": "production",
-      "cadence": "configured world update interval",
-      "diff_source": "measured elapsed wall clock",
-      "owns": [
-        "world-level timers and the configured periodic work C++ drives from World::Update"
-      ],
-      "delivers_under_map_guard": false,
-      "resolution_guard": "single spawned task; no second owner drives world-level timers",
-      "regression_anchors": [
-        "world_update_loop_step_matches_cpp_timing_contract"
-      ]
-    },
     {
       "id": "canonical_map_update",
       "source": "crates/world-server/src/runtime/map.rs",
@@ -42,7 +26,7 @@
       ],
       "delivers_under_map_guard": false,
       "delivery_note": "recipients and packets are collected inside the guarded block and delivered after the map lock is released",
-      "resolution_guard": "canonical Map::Update dispatches no AI/combat side effects, so it cannot double-resolve a legacy creature transition",
+      "resolution_guard": "canonical Map::Update dispatches no legacy AI/combat side effects; spawn/respawn and synchronization bridges retain their separate ownership contracts",
       "regression_anchors": [
         "canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp"
       ]
@@ -60,7 +44,7 @@
         "movement and spline launch",
         "aggro and threat",
         "spell",
-        "melee",
+        "creature melee and the selected-owner player melee transition from #28",
         "respawn"
       ],
       "delivers_under_map_guard": false,
@@ -142,6 +126,6 @@
     "production_default": "GlobalLegacy",
     "production_default_source": "crates/world-server/src/bootstrap/config.rs::legacy_creature_global_runtime_enabled_from_config_like_cpp",
     "production_default_mechanism": "RustyCore.LegacyCreatureGlobalRuntime is read as u8 and defaults to enabled when absent (unwrap_or(true)); app startup then calls set_tick_owner(GlobalLegacy)",
-    "note": "The constructed default and the production default deliberately differ: MapManager::new is used by tests and by the diagnostic path, while production always overrides it at startup. Setting the config key to 0 restores the session-owned diagnostic path."
+    "note": "The constructed default and the stock production default deliberately differ: enabled startup selects GlobalLegacy; setting the config key to 0 retains the Session diagnostic owner. This is source configuration evidence, not a runtime acceptance result."
   }
 }

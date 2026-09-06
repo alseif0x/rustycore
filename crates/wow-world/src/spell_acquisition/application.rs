@@ -1719,8 +1719,8 @@ where
         .collect::<std::collections::HashMap<_, _>>();
 
     let mut non_durable_skill_tombstone_ids = session
-        .player_skill_non_durable_tombstones_like_cpp()
-        .clone();
+        .resolved_player_skill_non_durable_tombstones_like_cpp()
+        .ok_or(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime)?;
     // C++ `Player::SetSkill` reactivates a `SKILL_DELETED` entry as
     // `SKILL_CHANGED`. A saved, non-durable tombstone therefore survives only
     // while the resulting row is still the zero-valued deleted shape.
@@ -2552,7 +2552,7 @@ mod tests {
         assert_eq!(
             pre_save_session
                 .complete_represented_player_spell_rows_like_cpp()
-                .and_then(|rows| rows.get(&100))
+                .and_then(|rows| rows.get(&100).copied())
                 .map(|row| row.state),
             Some(crate::session::RepresentedPlayerSpellStateLikeCpp::New),
             "EffectLearnSpell must publish immediately while leaving _SaveSpells dirty"
@@ -2570,8 +2570,8 @@ mod tests {
         assert_eq!(
             session
                 .complete_represented_spell_trait_definition_ids_like_cpp()
-                .and_then(|traits| traits.get(&100)),
-            Some(&7)
+                .and_then(|traits| traits.get(&100).copied()),
+            Some(7)
         );
         assert_eq!(
             session.represented_spell_acquisition_post_commit_actions_like_cpp(),

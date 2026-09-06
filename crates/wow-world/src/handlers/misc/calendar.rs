@@ -18,7 +18,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_get_num_pending",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_calendar_get_num_pending(pkt).await })
         },
     }
@@ -30,7 +30,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_complain",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarComplain::read(&mut pkt) {
                     Ok(complain) => session.handle_calendar_complain(complain).await,
@@ -47,7 +47,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_community_invite",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarCommunityInvite::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_community_invite(query).await,
@@ -64,7 +64,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_add_event",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarAddEvent::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_add_event(query).await,
@@ -81,7 +81,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_get",
-        handler: |session, pkt| Box::pin(async move { session.handle_calendar_get(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_calendar_get(pkt).await }),
     }
 }
 
@@ -91,7 +91,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_get_event",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarGetEvent::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_get_event(query).await,
@@ -108,7 +108,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_copy_event",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarCopyEvent::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_copy_event(query).await,
@@ -125,7 +125,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_event_sign_up",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarEventSignUp::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_event_sign_up(query).await,
@@ -142,7 +142,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_invite",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarInvite::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_invite(query).await,
@@ -159,7 +159,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_update_event",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarUpdateEvent::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_update_event(query).await,
@@ -176,7 +176,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_remove_event",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarRemoveEvent::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_remove_event(query).await,
@@ -193,7 +193,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_remove_invite",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarRemoveInvite::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_remove_invite(query).await,
@@ -210,7 +210,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_rsvp",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarRsvp::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_rsvp(query).await,
@@ -227,7 +227,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_moderator_status",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarModeratorStatusQuery::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_moderator_status(query).await,
@@ -244,7 +244,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_status",
-        handler: |session, mut pkt| {
+        handler: |session, _catalogs, mut pkt| {
             Box::pin(async move {
                 match wow_packet::packets::misc::CalendarStatus::read(&mut pkt) {
                     Ok(query) => session.handle_calendar_status(query).await,

@@ -1015,14 +1015,10 @@ fn resolve_external_module(
             .unwrap_or_else(|| Path::new("."))
             .join(path);
         let parent = resolved.parent().unwrap_or_else(|| Path::new("."));
-        let child_dir =
-            if resolved.file_name().is_some_and(|name| name == "mod.rs") {
-                parent.to_owned()
-            } else {
-                parent.join(resolved.file_stem().ok_or_else(|| {
-                    format!("module path {} has no file stem", resolved.display())
-                })?)
-            };
+        // Unlike an ordinary foo.rs mount, #[path] uses the containing
+        // directory for implicit child modules. Keep this aligned with the
+        // ownership walker and the compiler-oracle cases below.
+        let child_dir = parent.to_owned();
         return Ok((resolved, child_dir));
     }
 
@@ -1041,6 +1037,9 @@ fn resolve_external_module(
     };
     Ok((source_file, module_dir.join(module_name)))
 }
+
+#[cfg(test)]
+mod path_tests;
 
 fn collect_items(
     items: &[Item],

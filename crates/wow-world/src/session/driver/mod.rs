@@ -20,28 +20,40 @@
 //! ingestion phases share.
 
 mod budget;
+mod callbacks;
 pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
+pub(super) use callbacks::RenameCallbacks;
 use phases::SessionDriverPhaseLikeCpp;
 
+#[cfg(test)]
+use std::sync::Arc;
 use std::time::Instant;
 
 use tracing::{debug, info};
 use wow_packet::WorldPacket;
 
-use super::{ClientOpcodes, RuntimeTickOwner, SessionState, WorldSession};
+use super::{
+    ClientOpcodes, RuntimeTickOwner, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession,
+};
 
 impl WorldSession {
     /// Process queued packets (up to [`MAX_PACKETS_PER_UPDATE`] per call).
     ///
     /// Returns the number of packets processed.
-    pub fn update(&mut self, diff_ms: u32) -> usize {
+    pub fn update_with_catalogs_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) -> usize {
         let mut processed = 0;
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainPrimaryPackets);
 
         // Drain the primary (instance) packet channel
-        while processed < MAX_PACKETS_PER_UPDATE {
+        while processed < MAX_PACKETS_PER_UPDATE
+            && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+        {
             let pkt = match self.packet_rx().try_recv() {
                 Ok(p) => p,
                 Err(flume::TryRecvError::Empty) => break,
@@ -70,7 +82,7 @@ impl WorldSession {
                     "RUST_CEMETERY_TRACE queued primary packet"
                 );
             }
-            self.pending_packets.push(pkt);
+            self.pending_packets.push_back(pkt);
             processed += 1;
         }
 
@@ -78,7 +90,9 @@ impl WorldSession {
         // packets like BattlenetRequest, Ping, etc. arrive here)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
         if let Some(realm_rx) = self.realm_packet_rx() {
-            while processed < MAX_PACKETS_PER_UPDATE {
+            while processed < MAX_PACKETS_PER_UPDATE
+                && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+            {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
                         self.last_packet_time = Instant::now();
@@ -96,7 +110,7 @@ impl WorldSession {
                                 "RUST_CEMETERY_TRACE queued realm packet"
                             );
                         }
-                        self.pending_packets.push(pkt);
+                        self.pending_packets.push_back(pkt);
                         processed += 1;
                     }
                     Err(flume::TryRecvError::Empty) => break,
@@ -130,7 +144,7 @@ impl WorldSession {
         if self.state == SessionState::LoggedIn {
             self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
             self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
-            self.represented_can_delay_teleport_like_cpp = true;
+            let _ = self.set_represented_can_delay_teleport_like_cpp(true);
             // Read the tick owner once; the lock is taken and released inside
             // runtime_tick_owner_like_cpp before any tick work begins.
             let owner = self.runtime_tick_owner_like_cpp();
@@ -154,11 +168,14 @@ impl WorldSession {
                 self.tick_auras();
             }
             self.update_player_save_timer_like_cpp(diff_ms);
-            self.revalidate_represented_tavern_resting_like_cpp();
-            self.tick_represented_online_xp_rest_bonus_like_cpp(
+            self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
+                catalogs.area_triggers.db2.as_ref(),
+            );
+            self.tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
+                catalogs.player_rest_rates.as_ref(),
                 Self::current_game_time_secs_like_cpp(),
             );
-            self.represented_can_delay_teleport_like_cpp = false;
+            let _ = self.set_represented_can_delay_teleport_like_cpp(false);
             self.process_represented_delayed_teleport_after_update_like_cpp();
         }
 
@@ -188,14 +205,27 @@ impl WorldSession {
         processed
     }
 
+    #[cfg(test)]
+    pub fn update(&mut self, diff_ms: u32) -> usize {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.update_with_catalogs_like_cpp(diff_ms, &catalogs)
+    }
+
     /// Process pending packets asynchronously. Call after `update()`.
-    pub async fn process_pending(&mut self) {
+    pub async fn process_pending_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
         self.flush_packet_spoof_ban_like_cpp().await;
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
-        self.process_represented_session_commands_like_cpp().await;
+        self.process_represented_session_commands_with_catalogs_like_cpp(catalogs)
+            .await;
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
-        self.process_pending_creature_kills_like_cpp().await;
+        self.process_pending_creature_kills_with_generator_like_cpp(
+            catalogs.id_generators.item.as_ref(),
+        )
+        .await;
 
         // ── Spell casting tick ─────────────────────────────────────────
         // Check if an active spell cast has completed and execute it.
@@ -204,33 +234,63 @@ impl WorldSession {
             if let Some(player_guid) = self.player_guid() {
                 self.close_retired_active_loot_windows_like_cpp(player_guid);
             }
-            self.tick_represented_loot_rolls_like_cpp().await;
+            self.tick_represented_loot_rolls_with_generator_like_cpp(
+                catalogs.id_generators.item.as_ref(),
+                catalogs.item_valuation.as_ref(),
+            )
+            .await;
             self.tick_represented_gameobject_update_like_cpp();
             self.send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp();
             self.send_represented_capture_point_removed_from_last_update_like_cpp();
             self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
-            self.tick_active_spell_cast().await;
-            self.tick_pending_spell_cast_request_like_cpp().await;
+            self.tick_active_spell_cast_with_generator_like_cpp(
+                catalogs.id_generators.item.as_ref(),
+                catalogs.creature_spawns.as_ref(),
+            )
+            .await;
+            self.tick_pending_spell_cast_request_with_generator_like_cpp(
+                catalogs.id_generators.item.as_ref(),
+                catalogs.creature_spawns.as_ref(),
+            )
+            .await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
             self.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp();
         }
 
         // Check for instance link delivery (ConnectTo flow)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
-        self.poll_instance_link().await;
+        self.poll_instance_link_with_module_registry_like_cpp(
+            catalogs.id_generators.item.as_ref(),
+            catalogs.modules.as_ref(),
+            catalogs.creature_spawns.as_ref(),
+            catalogs.player_bootstrap.as_ref(),
+            catalogs.player_rest_rates.as_ref(),
+            catalogs.progression.as_ref(),
+            catalogs.support_feature_policy.as_ref(),
+            &catalogs.player_grid_loader,
+        )
+        .await;
 
         // Process pending creature/gameobject spawn (async DB query)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
         if let Some(spawn) = self.pending_creature_spawn.take() {
-            self.send_nearby_creatures(spawn.map_id, &spawn.position, spawn.zone_id)
-                .await;
+            self.send_nearby_creatures_with_catalogs_like_cpp(
+                catalogs.creature_spawns.as_ref(),
+                spawn.map_id,
+                &spawn.position,
+                spawn.zone_id,
+            )
+            .await;
             self.send_nearby_gameobjects(spawn.map_id, &spawn.position, spawn.zone_id)
                 .await;
         }
 
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DispatchQueuedPackets);
-        let packets: Vec<WorldPacket> = self.pending_packets.drain(..).collect();
-        for pkt in packets {
+        // C++ LockedQueue::next selects only the head. Keep unselected packets
+        // on Session if this future is cancelled; never replay the in-flight
+        // handler, which may already have produced effects. Phase filtering is
+        // still pending and must stop, not skip ahead, at an ineligible head.
+        while let Some(pkt) = self.pending_packets.pop_front() {
             if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
                 && pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList)
             {
@@ -240,10 +300,90 @@ impl WorldSession {
                     "RUST_CEMETERY_TRACE dispatching queued packet"
                 );
             }
-            self.dispatch_packet(pkt).await;
+            self.dispatch_packet(catalogs, pkt).await;
         }
 
+        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
+        self.process_ready_character_rename_callbacks_like_cpp();
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
-        self.process_pending_periodic_player_save_like_cpp().await;
+        self.process_pending_periodic_player_save_with_generator_like_cpp(
+            catalogs.id_generators.item.as_ref(),
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn process_pending(&mut self) {
+        let catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        self.process_pending_with_catalogs_like_cpp(&catalogs).await;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn session_handler_catalogs_for_test_like_cpp(
+        &self,
+    ) -> SessionHandlerCatalogsLikeCpp {
+        let empty_catalogs = SessionHandlerCatalogsLikeCpp::default();
+        let catalogs = self
+            .object_mgr_catalogs_like_cpp
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        let catalogs = SessionHandlerCatalogsLikeCpp {
+            object_mgr: catalogs,
+            area_triggers: Arc::new(self.area_trigger_catalogs_for_test_like_cpp()),
+            player_grid_loader: empty_catalogs.player_grid_loader,
+            item_valuation: Arc::new(self.item_valuation_catalogs_for_test_like_cpp()),
+            player_bootstrap: Arc::new(self.player_bootstrap_catalogs_for_test_like_cpp()),
+            player_rest_rates: Arc::new(self.player_rest_rate_policy_for_test_like_cpp()),
+            creature_spawns: Arc::new(self.creature_spawn_catalogs_for_test_like_cpp()),
+            progression: Arc::new(self.progression_catalogs_for_test_like_cpp()),
+            battle_pet_trainer_selection: self
+                .battle_pet_selection_store_like_cpp()
+                .cloned()
+                .unwrap_or(empty_catalogs.battle_pet_trainer_selection),
+            chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
+            group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
+            support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),
+            bank_bag_slot_prices: self
+                .bank_bag_slot_prices_store
+                .clone()
+                .unwrap_or(empty_catalogs.bank_bag_slot_prices),
+            adventure_map_pois: self
+                .adventure_map_poi_store
+                .clone()
+                .unwrap_or(empty_catalogs.adventure_map_pois),
+            quest_info: self
+                .quest_info_store
+                .clone()
+                .unwrap_or(empty_catalogs.quest_info),
+            battlemaster_lists: self
+                .battlemaster_list_store
+                .clone()
+                .unwrap_or(empty_catalogs.battlemaster_lists),
+            emotes: self.emotes_store.clone().unwrap_or(empty_catalogs.emotes),
+            emotes_text: self
+                .emotes_text_store
+                .clone()
+                .unwrap_or(empty_catalogs.emotes_text),
+            graveyards: self
+                .graveyard_store
+                .clone()
+                .unwrap_or(empty_catalogs.graveyards),
+            lfg_dungeons: self
+                .lfg_dungeon_store_like_cpp
+                .clone()
+                .unwrap_or(empty_catalogs.lfg_dungeons),
+            tact_keys: self
+                .tact_key_store
+                .clone()
+                .unwrap_or(empty_catalogs.tact_keys),
+            hotfixes: empty_catalogs.hotfixes,
+            modules: self
+                .module_registry_like_cpp
+                .clone()
+                .unwrap_or(empty_catalogs.modules),
+            id_generators: Arc::new(self.id_generators_for_test_like_cpp()),
+        };
+        catalogs
     }
 }

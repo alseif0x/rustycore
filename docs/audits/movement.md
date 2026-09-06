@@ -2,6 +2,12 @@
 
 Fecha: 2026-05-11
 
+Registro histórico de contraste acotado, no una auditoría de HEAD actual ni
+prueba de cierre de todo Movement. Se conservan sus anclas y veredictos; los
+pendientes requieren recontraste. Estado y ejecución vigentes:
+[STATE.md](../migration/STATE.md), [PORT_PLAN.md](../migration/PORT_PLAN.md) y la
+issue/checkpoint activa. Esta edición documental no ejecutó tests ni capturas.
+
 ## C++ canónico
 
 - `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/MovementInfo.h`

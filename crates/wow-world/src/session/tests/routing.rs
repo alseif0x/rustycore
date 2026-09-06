@@ -3,6 +3,143 @@
 
 use super::*;
 
+fn borrowed_hotfix_catalog_fixture() -> Arc<wow_data::HotfixBlobCache> {
+    let mut cache = wow_data::HotfixBlobCache::new();
+    for (push_id, locale, payload) in [(78, "esES", 1), (79, "enUS", 2)] {
+        cache.insert_hotfix_blob(0xAABB_CCDD, push_id, vec![payload]);
+        cache.insert_hotfix_record_like_cpp(wow_data::HotfixRecord {
+            table_hash: 0xAABB_CCDD,
+            record_id: push_id,
+            id: wow_data::HotfixId {
+                push_id,
+                unique_id: push_id as u32,
+            },
+            status: wow_data::HotfixRecordStatus::Valid,
+            available_locales_mask: wow_data::hotfix_locale_mask(locale),
+        });
+    }
+    Arc::new(cache)
+}
+
+#[test]
+fn borrowed_hotfix_catalog_preserves_init_order_locale_and_realm_delivery() {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::misc::{AvailableHotfixes, HotfixId};
+    let cache = borrowed_hotfix_catalog_fixture();
+    for (locale, push_id) in [("esES", Some(78)), ("enUS", Some(79)), ("deDE", None)] {
+        // Initialization runs before ConnectTo: the primary socket is Realm.
+        let (mut session, _, realm_rx) = make_session();
+        session.locale = locale.to_owned();
+        session.send_session_init_packets_with_policy_like_cpp(
+            &SupportFeaturePolicyLikeCpp::default(),
+            &cache,
+        );
+        let packets: Vec<_> = realm_rx.try_iter().collect();
+        assert_eq!(
+            packets
+                .iter()
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+            [
+                ServerOpcodes::AuthResponse,
+                ServerOpcodes::SetTimeZoneInformation,
+                ServerOpcodes::FeatureSystemStatusGlueScreen,
+                ServerOpcodes::CacheVersion,
+                ServerOpcodes::AvailableHotfixes,
+                ServerOpcodes::AccountDataTimes,
+                ServerOpcodes::TutorialFlags,
+                ServerOpcodes::BattleNetConnectionStatus
+            ]
+            .map(|opcode| opcode as u16)
+        );
+        assert_eq!(
+            packets[4],
+            AvailableHotfixes {
+                virtual_realm_address: session.virtual_realm_address(),
+                hotfixes: push_id
+                    .into_iter()
+                    .map(|id| HotfixId {
+                        push_id: id,
+                        unique_id: id as u32
+                    })
+                    .collect(),
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            Arc::strong_count(&cache),
+            1,
+            "live Session must not retain the catalog"
+        );
+    }
+    assert_eq!(
+        Arc::strong_count(&cache),
+        1,
+        "sessions must not retain the catalog"
+    );
+}
+
+#[tokio::test]
+async fn borrowed_hotfix_catalog_dispatch_preserves_locale_unknown_push_and_current_primary_delivery()
+ {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::misc::{HotfixConnect, HotfixConnectData, HotfixId};
+    let catalogs = SessionHandlerCatalogsLikeCpp {
+        hotfixes: borrowed_hotfix_catalog_fixture(),
+        ..Default::default()
+    };
+    for (locale, expected) in [
+        ("esES", Some((78, 1))),
+        ("enUS", Some((79, 2))),
+        ("deDE", None),
+    ] {
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::unbounded();
+        session.install_realm_send_channel_for_test(realm_tx);
+        session.locale = locale.to_owned();
+        let entry = session
+            .dispatch_table
+            .get(&ClientOpcodes::HotfixRequest)
+            .unwrap();
+        assert_eq!(entry.status, SessionStatus::Authed);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_hotfix_request");
+        let mut request = WorldPacket::new_empty();
+        request.write_uint16(ClientOpcodes::HotfixRequest as u16);
+        request.write_uint32(54261);
+        request.write_uint32(54261);
+        request.write_uint32(3);
+        for push in [999, 79, 78] {
+            request.write_int32(push);
+        }
+        session
+            .dispatch_packet(&catalogs, WorldPacket::from_bytes(request.data()))
+            .await;
+        let mut response = HotfixConnect::empty();
+        if let Some((push_id, payload)) = expected {
+            response.hotfixes.push(HotfixConnectData {
+                id: HotfixId {
+                    push_id,
+                    unique_id: push_id as u32,
+                },
+                table_hash: 0xAABB_CCDD,
+                record_id: push_id,
+                size: 1,
+                status: wow_data::HotfixRecordStatus::Valid as u8,
+            });
+            response.content.push(payload);
+        }
+        // Preserve the pre-existing routing defect, not a C++ parity claim:
+        // generic send_packet uses the primary (instance after ConnectTo).
+        // C++ HotfixConnect is Realm-only; repair needs a separate wire slice.
+        assert_eq!(instance_rx.try_recv().unwrap(), response.to_bytes());
+        assert!(realm_rx.try_recv().is_err());
+        assert!(instance_rx.try_recv().is_err());
+        assert_eq!(Arc::strong_count(&catalogs.hotfixes), 1);
+    }
+    assert_eq!(Arc::strong_count(&catalogs.hotfixes), 1);
+}
+
 #[tokio::test]
 async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp() {
     let (mut session, _, instance_rx) = make_session();
@@ -214,7 +351,9 @@ async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_ga
     logged_in.set_state(SessionState::LoggedIn);
     logged_in.set_player_guid(Some(player));
 
-    logged_in.dispatch_packet(packet(target)).await;
+    logged_in
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(target))
+        .await;
 
     let result = send_rx.try_recv().expect("PartyCommandResult");
     assert_eq!(
@@ -225,7 +364,9 @@ async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_ga
 
     let (mut authed, _pkt_tx, send_rx) = make_session();
     authed.set_player_guid(Some(player));
-    authed.dispatch_packet(packet(target)).await;
+    authed
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(target))
+        .await;
     assert!(
         send_rx.try_recv().is_err(),
         "LoggedIn metadata must reject PartyUninvite while the session is Authed"
@@ -258,7 +399,9 @@ async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_log
     let (mut logged_in, _pkt_tx, send_rx) = make_session();
     logged_in.set_state(SessionState::LoggedIn);
     logged_in.set_player_guid(Some(mover));
-    logged_in.dispatch_packet(packet(mover)).await;
+    logged_in
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(mover))
+        .await;
 
     assert_eq!(take_move_set_vehicle_rec_id_ack_handler_calls_for_test(), 1);
     assert!(
@@ -268,7 +411,9 @@ async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_log
 
     let (mut authed, _pkt_tx, send_rx) = make_session();
     authed.set_player_guid(Some(mover));
-    authed.dispatch_packet(packet(mover)).await;
+    authed
+        .dispatch_packet(&SessionHandlerCatalogsLikeCpp::default(), packet(mover))
+        .await;
 
     assert_eq!(
         take_move_set_vehicle_rec_id_ack_handler_calls_for_test(),
@@ -285,13 +430,16 @@ async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
     session.set_state(SessionState::LoggedIn);
     session.set_player_guid(Some(player_guid));
     session.player_name = Some("Emoter".to_string());
-    session.set_emotes_text_store_like_cpp(Arc::new(wow_data::EmotesTextStore::from_entries([
-        wow_data::EmotesTextEntry {
-            id: 101,
-            name: "wave".to_string(),
-            emote_id: 3,
-        },
-    ])));
+    let catalogs = SessionHandlerCatalogsLikeCpp {
+        emotes_text: Arc::new(wow_data::EmotesTextStore::from_entries([
+            wow_data::EmotesTextEntry {
+                id: 101,
+                name: "wave".to_string(),
+                emote_id: 3,
+            },
+        ])),
+        ..SessionHandlerCatalogsLikeCpp::default()
+    };
 
     let mut packet = WorldPacket::new_empty();
     packet.write_uint16(ClientOpcodes::SendTextEmote as u16);
@@ -303,7 +451,7 @@ async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
     let bytes = packet.data().to_vec();
 
     session
-        .dispatch_packet(WorldPacket::from_bytes(&bytes))
+        .dispatch_packet(&catalogs, WorldPacket::from_bytes(&bytes))
         .await;
 
     let mut anim = WorldPacket::from_bytes(&send_rx.try_recv().expect("anim emote"));

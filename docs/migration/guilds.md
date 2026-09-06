@@ -1,5 +1,10 @@
 # Migration: Guilds
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Guilds/` + `src/server/game/Handlers/GuildHandler.cpp` + `src/server/game/GuildFinder/GuildFinderMgr.{h,cpp}`
 > **Rust target crate(s):** **NONE — entire system missing.** Should be `crates/wow-guild/` (not yet created), `crates/wow-world/src/handlers/guild.rs` (not yet created), `crates/wow-packet/src/packets/guild.rs` (not yet created).
 > **Layer:** L6

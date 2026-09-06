@@ -1,5 +1,10 @@
 # Migration: Logging
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/common/Logging/` + `/home/server/woltk-trinity-legacy/src/server/database/Logging/AppenderDB.{h,cpp}`
 > **Rust target crate(s):** `crates/wow-logging/`
 > **Layer:** L0 (foundation; depended on by every other layer)
@@ -311,7 +316,6 @@ Numbered for cross-reference. Complexity: **L** (<1h), **M** (1-4h), **H** (4-12
 6. **`auth.logs` can grow without bound.** TC ships `LOGIN_DEL_OLD_LOGS` for periodic prune. The Rust port must either (a) wire that prepared statement and run it on a tokio interval, or (b) document that ops must run a cron job. `#LOG.3` should land with one of those.
 7. **Production domain `wowchad.work.gd`** (AGENTS.md "Runtime") will eventually want centralised log shipping (Loki, Vector, Fluent Bit). `tracing-loki` and `tracing-opentelemetry` are the standard Rust integrations; out of scope for `#LOG.*` but worth noting.
 8. **`wow-logging` is depended on by every crate.** Changes to its public API ripple through the workspace. Prefer additive changes (new macros, new fields) over breaking ones.
-9. **The C# legacy at `/home/server/woltk-server-core/Source/`** has its own `Logger` class (.NET `ILogger`-shaped); ignore it for protocol purposes — TC C++ is the canonical reference per AGENTS.md.
 10. **`PROTOC=...`** is required to build `wow-proto` but `wow-logging` does not depend on `wow-proto`; logging changes alone don't need protoc.
 
 ---

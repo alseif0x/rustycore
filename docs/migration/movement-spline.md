@@ -1,5 +1,10 @@
 # Migration: Movement / Spline (MoveSpline + Spline + MoveSplineFlag + MoveSplineInit)
 
+> Historical reference / dated audit, not current instructions or status.
+> Use [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) and the active issue/checkpoint.
+> Technical anchors and findings below need re-contrast before use; old workflow,
+> task order, percentages and validation gates do not govern new work.
+
 > **C++ canonical path:** `src/server/game/Movement/Spline/MoveSpline.{h,cpp}` + `Spline.{h,cpp}` + `SplineImpl.h` + `MoveSplineFlag.h` + `MoveSplineInit.{h,cpp}` + `MoveSplineInitArgs.h` + `MovementUtil.cpp` + `SplineChain.h` + `MovementTypedefs.h`
 > **Rust target crate(s):** `crates/wow-movement/src/spline.rs` now active; eventual split may mirror C++ files (`move_spline.rs`, `move_spline_flag.rs`, `move_spline_init.rs`, `movement_util.rs`)
 > **Layer:** L5 sub-module (depends on `wow-math` / glam, `wow-packet` for `SMSG_ON_MONSTER_MOVE`, [`movement-pathgen.md`](movement-pathgen.md) for `PointsArray` source)

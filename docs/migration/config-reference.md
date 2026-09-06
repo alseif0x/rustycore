@@ -1,5 +1,11 @@
 # Migration: Config Reference (`worldserver.conf` / `bnetserver.conf`)
 
+> Configuration reference with a historical 2026-05-01 Rust coverage snapshot.
+> Retain the C++ key/consumer contracts as reference; the ~24/~612 count, status
+> and proposed task order are not current coverage or acceptance. Use current
+> configuration/code, [STATE.md](STATE.md) and the active issue; verify affected
+> defaults and consumers against C++ before changing behavior.
+
 > **C++ canonical path:** `src/server/worldserver/worldserver.conf.dist`, `src/server/bnetserver/bnetserver.conf.dist`
 > **Rust target crate(s):** `crates/wow-config/`, consumers in `crates/world-server/`, `crates/bnet-server/`
 > **Layer:** L0 — Foundation (parsed before anything else; values feed every other layer)

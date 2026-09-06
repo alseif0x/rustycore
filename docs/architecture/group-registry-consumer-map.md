@@ -2,7 +2,8 @@
 
 Issue #151 replaces the two public `DashMap` aliases with opaque owner types. Immutable access now
 returns owned `GroupInfo` / `PendingInviteLikeCpp` snapshots, and whole-registry searches consume
-owned snapshot collections. The backing maps are private to `wow_network::group_registry`.
+owned snapshot collections. Following #137, the backing maps are private to `wow_social::group`
+(`crates/wow-social/src/group/{model,invites}.rs`), not the transport crate.
 
 The mutable compatibility cutover is complete; the now-empty
 [`group-registry-consumer-map.tsv`](group-registry-consumer-map.tsv) remains as the executable
@@ -29,7 +30,8 @@ for member/leader/marker/subgroup/difficulty/ready/role mutations,
 transition preserves represented Rust packet and persistence order while serializing the C++
 state decisions inside the owner.
 
-The syntax-aware `session-ownership-policy.json` is the executable non-growth inventory. #151
+The syntax-aware `session-ownership-policy.json` is the executable non-growth inventory. The
+following counts record those historical cutovers, not a fresh current-workspace inventory. #151
 dropped it from 621 to 613 exact direct-registry rows, #197 to 607, #198 to 600, and #199 to 598.
 Bounded owned `get`, `contains_key`, `snapshots` and `matching_guids` queries plus the explicit
 materialization boundaries are stable facade operations, not permission to expose a map iterator

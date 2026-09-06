@@ -1,9 +1,15 @@
 # C++ to Rust Porting Methodology
 
-This document is the operating method for the RustyCore C++ -> Rust port.
-It is intentionally strict. The goal is not to make Rust compile with similar
-names; the goal is observable parity with the legacy C++ implementation, with
-no hidden gaps.
+This is a technical contrast checklist for the RustyCore C++ -> Rust port, not
+a second operating guide. [AGENTS.md](../AGENTS.md) owns workflow, authority and
+validation; [STATE.md](migration/STATE.md), [PORT_PLAN.md](migration/PORT_PLAN.md)
+and the active issue/checkpoint own current status and delivery scope. The goal
+is observable parity, not merely compiling similarly named Rust types.
+
+For approved restructuring, also use the [module design guidelines](architecture/module-design-guidelines.md)
+and [modularity plan](architecture/modularity-and-ecs-plan.md). Examples below
+are contrast techniques, not a current code/ownership inventory or a required
+mechanical migration order. Internal slices need not become micro-issues or PRs.
 
 Primary C++ source of truth:
 
@@ -22,50 +28,63 @@ Secondary logic reference, only when legacy is incomplete or suspicious:
    against C++ before it is accepted.
 
 2. Do not trust previous AI work.
-   A commit, test, roadmap checkbox, or comment is not proof. C++ is proof.
+   A commit message, roadmap checkbox or comment is not proof. C++ defines required
+   base-server behavior; Rust implementation, integration and relevant tests/captures
+   establish whether the port satisfies it.
 
 3. Do not mark roadmap tasks as done for scaffolding.
    Adding fields, enums, snapshots, queues, or placeholder hooks is not a
    complete port unless the runtime behavior is actually wired and tested.
 
-4. Every closed item needs a C++ anchor.
-   A task is only closeable when the exact C++ file/function/line range has
-   been reviewed and the Rust behavior is either equivalent or the divergence
-   is explicitly documented.
+4. Base-server parity closeout needs exact C++ anchors, or real captures where
+   that source is incomplete or ambiguous, plus evidence of equivalent Rust
+   behavior or an explicitly accepted divergence. Documentation and
+   behavior-preserving refactors close against their own accepted scope;
+   they do not require a new whole-port audit or prove new gameplay parity.
 
 5. Do not port suspected C++ bugs blindly.
    The legacy C++ implementation is the behavioral baseline, but it is not
    assumed infallible. If contrast reveals a likely C++ bug, undefined edge,
-   or internally inconsistent behavior, stop and record it as a legacy
+   or internally inconsistent behavior, pause the affected mutation and record it as a legacy
    divergence candidate with exact anchors, observed impact, proposed Rust/C++
    correction, and tests. Do not silently "fix" it in Rust, and do not silently
-   copy it into Rust as if it were validated behavior.
+   copy it into Rust as if it were validated behavior. Continue safe investigation;
+   resume when evidence resolves the question within scope. Ask only if resolution
+   needs new authority, a material scope change, or an unresolved user choice.
 
-6. Prefer small, mergeable, behavior-complete slices.
+6. Prefer coherent, independently validated internal slices.
    A good slice is: C++ branch -> Rust implementation -> positive and negative
-   tests -> roadmap update -> checks.
+   tests -> relevant checkpoint update -> checks. The approved capability/macro
+   determines delivery size; a slice is not automatically a separate commit,
+   issue, PR, or stopping point.
 
 7. Runtime source of truth must move toward canonical entities.
    If a canonical `Unit`, `Player`, `Creature`, `Map`, or subsystem exists,
    prefer it over legacy `WorldSession` mirrors. Legacy mirrors can be used only
-   as a documented fallback while migration is incomplete.
+   as an existing, explicitly bounded bridge with one authoritative writer,
+   synchronization direction and retirement owner. This is not permission to add
+   another fallback merely because migration is incomplete.
 
 8. A fallback must never override a known canonical empty state.
    If the canonical player exists and `Player.unit().attacking()` is `None`,
-   do not resurrect combat from `WorldSession::combat_target`. Fallbacks are
-   only for "canonical entity does not exist yet", not "canonical says none".
+   do not resurrect combat from a Session mirror. A failed Map lookup does not
+   authorize fallback: Player may be detached, the generation stale or admission
+   rejected. Use only an existing bounded bridge whose explicit lifecycle and
+   provenance contract permits it; canonical empty state remains authoritative.
 
 9. Tests must cover C++ early returns.
    Porting only success paths creates false confidence. Every C++ guard that
    returns early needs a negative test whenever it is representable.
 
-10. Keep the roadmap honest.
-   The roadmap is the source of truth for what is done, partial, blocked, and
-   still missing. It must not be used as a progress scoreboard.
+10. Keep current status honest.
+   Update STATE.md and the active issue/checkpoint for the demonstrated scope;
+   PORT_PLAN.md governs execution. Historical MIGRATION_ROADMAP.md tables and
+   represented-item counts are not current status or a progress scoreboard.
 
 11. Do not start the server unless explicitly requested.
     Development verification normally means unit/integration checks. Manual
-    client/server testing is a separate step.
+    client/server testing is a separate step. Reuse an existing approval for its
+    stated target and conditions; this document does not require a second approval.
 
 ## Required Work Order For Each Task
 
@@ -150,14 +169,13 @@ Implementation rules:
 - Use typed flags and structured parsers where available.
 - Use `apply_patch` for manual edits.
 
-When a C++ dependency does not exist yet in Rust, use one of these patterns:
-
-- Add a clearly named represented field with `_like_cpp`.
-- Gate behavior behind `*_represented` booleans if the runtime does not always
-  know the value.
-- Keep default behavior conservative so existing flows are not changed by fake
-  data.
-- Add a roadmap note saying what real runtime still needs to feed the snapshot.
+When a C++ dependency does not exist yet in Rust, first determine whether it is
+required by the approved capability. Implement in-scope prerequisites or report
+the affected blocker; do not silently expand the task. When maintaining an
+existing partial bridge, distinguish unknown/not-loaded values from authoritative
+absence. Do not add represented flags or permissive defaults as a substitute for
+required dependencies. Record the actual owner, missing integration and bounded
+retirement condition without presenting the bridge as completed runtime behavior.
 
 Do not fake full behavior by setting defaults that make tests pass.
 
@@ -243,7 +261,7 @@ git log --reverse --format='%h %an <%ae> %ad %s' --date=iso <trusted-base>..HEAD
 Roadmap changes reveal what the agent believes is done.
 
 ```bash
-git diff <trusted-base>..HEAD -- docs/MIGRATION_ROADMAP.md
+git diff <trusted-base>..HEAD -- docs/migration/STATE.md docs/migration/PORT_PLAN.md docs/architecture/session-578-checkpoint.md
 ```
 
 Treat every new `[x]` as a claim that must be proven against C++.
@@ -293,13 +311,17 @@ Run tests closest to the modified behavior:
 
 ```bash
 cargo test -p wow-entities <filter>
-cargo test -p wow-world <filter>
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world <filter>
 cargo fmt --check
 git diff --check
-cargo check -p world-server
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p world-server
 ```
 
-Do not rely on a broad `cargo check` alone. It only proves compilation.
+Select the affected commands; a world-server build is not mandatory for an
+unrelated documentation/helper change. Use the current path-routed and final
+gates in [validation-v2.md](operations/validation-v2.md), plus explicit issue
+acceptance. Do not rely on a broad `cargo check` alone: it proves compilation,
+not parity. Read-only audits do not authorize implementing the fixes they find.
 
 ## C++ Contrast Checklist
 
@@ -358,13 +380,10 @@ Use this checklist before closing any behavior.
 RustyCore currently contains both canonical entity state and older session/map
 mirrors. The migration must continuously reduce legacy dependency.
 
-Preferred order:
-
-1. Canonical `wow_entities` model.
-2. Canonical `wow_map` map-owned entity.
-3. Map manager bridge if still required.
-4. `WorldSession` represented mirror.
-5. Legacy fields only as explicit fallback.
+Locate the authoritative owner of each complete transition using the current
+ownership contract, rather than ranking crate names. Domain aggregates, map
+lifetime/scheduling, detached transfer and application persistence have different
+responsibilities. Storage choice does not by itself establish authority.
 
 Rules:
 
@@ -409,9 +428,10 @@ and side effects for the target flow.
 All C++ branches for the declared scope are covered, including negative cases,
 side effects, and cleanup. The roadmap may mark this exact scope `[x]`.
 
-Do not call a task "done" unless it has reached L5 for its stated scope.
-Partial scopes can be marked done only if the remaining scope is explicitly
-split out.
+For a parity implementation claim, L5 applies to its stated scope. An audit,
+plan, or behavior-preserving refactor has its own accepted deliverable and must
+not pretend to complete gameplay. Do not reduce an approved macro to an internal
+partial slice merely to mark it done; record remaining work under its owner.
 
 ## Example: Correcting Combat Tick Work
 
@@ -501,8 +521,9 @@ Split into explicit subscopes:
 11. Final PvP:
     target PvP, FFA PvP, `UNIT_BYTE2_FLAG_UNK1`.
 
-Each subscope can be marked done only when either runtime is wired or the
-roadmap clearly says it is represented-only.
+Each subscope closes only against its accepted evidence and integration criteria.
+A represented-only result is explicitly partial; labelling it does not satisfy
+a runtime-parity deliverable.
 
 ## Commit Hygiene
 
@@ -515,7 +536,8 @@ A good commit contains:
 - no unrelated warning cleanup
 - no server process changes unless requested
 
-Commit message should name the behavior, not the internal refactor.
+Name the actual change. Identify behavior-preserving refactors explicitly;
+do not imply gameplay implementation when only structure moved.
 
 Good:
 
@@ -529,21 +551,23 @@ Bad:
 Update session combat stuff
 ```
 
-Before commit:
+Before commit, select checks for the affected surface and risk. A world-server
+build or full crate suite is not mandatory for every helper or documentation
+change; retain required responsibility/macro and publication acceptance. Examples:
 
 ```bash
-cargo fmt --check
+cargo fmt --all -- --check
 git diff --check
 cargo test -p <crate> <focused-filter>
-cargo check -p world-server
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p world-server
 git status --short
 ```
 
-## When To Ask For Manual Client Testing
+## When To Include Manual Client Testing
 
 Manual client testing is useful only after a server-visible slice is coherent.
 
-Ask for testing when:
+Assess action-specific capture/live QA requirements when:
 
 - login/realm/character flow changed
 - packet layout changed
@@ -553,6 +577,11 @@ Ask for testing when:
 - client-visible state changed
 
 Do not ask for manual testing just because unit tests passed.
+Follow AGENTS.md and the issue's explicit gates. Capture-diff is required when
+bytes, metadata, connection choice or observable ordering changes; runtime QA
+applies to live lifecycle/runtime changes. With existing authority, perform the
+authorized QA instead of asking for the same permission again. Otherwise report
+the remaining test and required authority, without claiming manual-test-ready.
 
 When reporting a testable point, include:
 
@@ -619,9 +648,9 @@ Progress estimate:
 - <percent> and reason
 ```
 
-## Immediate Known Lessons From Recent Audit
+## Historical Lessons From a Prior Audit
 
-Recent audit after work by another agent found these concrete lessons:
+A prior audit found these concrete lessons; its examples are not a new HEAD audit:
 
 1. Tests can pass while validating non-C++ behavior.
    Example: setting `Unit.attacking()` manually without `MELEE_ATTACKING` and
@@ -629,7 +658,9 @@ Recent audit after work by another agent found these concrete lessons:
 
 2. `Option<T>` can hide state source ambiguity.
    `None` can mean "canonical player not found" or "canonical player found with
-   no victim". Those cases must be represented differently.
+   no victim". Preserve that distinction and explicit lifecycle/generation
+   outcomes: a detached Player or rejected stale lookup is not permission to
+   resurrect a Session mirror.
 
 3. Roadmap checkboxes can overstate scaffolding.
    `IsValidAttackTarget` snapshots are useful, but the full runtime remains open
@@ -642,6 +673,7 @@ Recent audit after work by another agent found these concrete lessons:
 
 ## Final Principle
 
-The port is complete only when the Rust server no longer needs the C++ server as
-a behavioral reference for the covered scope. Until then, every change must make
-the gap smaller, visible, and tested.
+Parity is complete only for the scope actually evidenced against the canonical
+C++ behavior/captures and accepted integration criteria. C++ remains a reference
+after closure; not needing to consult it is not an acceptance test. Keep remaining
+gaps visible and distinguish local completion from publication.

@@ -55,7 +55,9 @@ use wow_packet::packets::spell::{
 use wow_packet::packets::totem::TotemDestroyed;
 
 use crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
-use crate::session::{RepresentedPendingSpellCastRequestLikeCpp, WorldSession};
+use crate::session::{
+    AreaTriggerCatalogsLikeCpp, RepresentedPendingSpellCastRequestLikeCpp, WorldSession,
+};
 
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 1;
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
@@ -98,7 +100,20 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_cast_spell",
-        handler: |session, pkt| Box::pin(async move { session.handle_cast_spell(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_cast_spell_with_catalogs_like_cpp(
+                        catalogs.area_triggers.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
+                        catalogs.progression.as_ref(),
+                        &catalogs.player_grid_loader,
+                        catalogs.id_generators.item.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -108,7 +123,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_cancel_cast",
-        handler: |session, pkt| Box::pin(async move { session.handle_cancel_cast(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_cancel_cast(pkt).await }),
     }
 }
 
@@ -118,7 +133,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_aura",
-        handler: |session, pkt| Box::pin(async move { session.handle_cancel_aura(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_cancel_aura(pkt).await }),
     }
 }
 
@@ -128,7 +143,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_auto_repeat_spell",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_cancel_auto_repeat_spell(pkt).await })
         },
     }
@@ -140,7 +155,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_channelling",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_cancel_channelling(pkt).await })
         },
     }
@@ -152,7 +167,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_growth_aura",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_cancel_growth_aura(pkt).await })
         },
     }
@@ -164,7 +179,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_mount_aura",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_cancel_mount_aura(pkt).await })
         },
     }
@@ -176,7 +191,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_queued_spell",
-        handler: |session, pkt| {
+        handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_cancel_queued_spell(pkt).await })
         },
     }
@@ -188,7 +203,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_open_item",
-        handler: |session, pkt| Box::pin(async move { session.handle_open_item(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_open_item(pkt).await }),
     }
 }
 
@@ -198,7 +213,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_self_res",
-        handler: |session, pkt| Box::pin(async move { session.handle_self_res(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_self_res_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -208,7 +233,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_pet_cancel_aura",
-        handler: |session, pkt| Box::pin(async move { session.handle_pet_cancel_aura(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_pet_cancel_aura(pkt).await }),
     }
 }
 
@@ -218,7 +243,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_totem_destroyed",
-        handler: |session, pkt| Box::pin(async move { session.handle_totem_destroyed(pkt).await }),
+        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_totem_destroyed(pkt).await }),
     }
 }
 
@@ -228,7 +253,17 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_spell_click",
-        handler: |session, pkt| Box::pin(async move { session.handle_spell_click(pkt).await }),
+        handler: |session, catalogs, pkt| {
+            Box::pin(async move {
+                session
+                    .handle_spell_click_with_generator_like_cpp(
+                        catalogs.id_generators.item.as_ref(),
+                        catalogs.creature_spawns.as_ref(),
+                        pkt,
+                    )
+                    .await
+            })
+        },
     }
 }
 
@@ -444,6 +479,7 @@ impl WorldSession {
             (player.values_update(true), after_power)
         });
         if let Some((update, after_power)) = update {
+            #[cfg(test)]
             for (_, slot, current, max) in &after_power {
                 if let Some(slot) = slot {
                     self.set_represented_player_power_slot_like_cpp(*slot, *current, Some(*max));
@@ -477,7 +513,15 @@ impl WorldSession {
     /// 2. Validate cooldown.
     /// 3. If cast_time > 0: initiate cast (SMSG_SPELL_START), wait for tick_active_spell_cast().
     /// 4. If instant: execute immediately.
-    pub async fn handle_cast_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_cast_spell_with_catalogs_like_cpp(
+        &mut self,
+        area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        progression: &crate::session::ProgressionCatalogsLikeCpp,
+        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let player_guid = match self.player_guid() {
             Some(g) => g,
             None => {
@@ -548,8 +592,15 @@ impl WorldSession {
         // after validating the `SpellInfo` and before the spell cast request
         // continues.
         if let Some(move_update) = req.move_update.clone() {
-            self.handle_movement_info_like_cpp(Some(ClientOpcodes::MoveStop), move_update)
-                .await;
+            self.handle_movement_info_with_catalogs_like_cpp(
+                area_trigger_catalogs,
+                creature_spawn_catalogs,
+                progression,
+                player_grid_loader,
+                Some(ClientOpcodes::MoveStop),
+                move_update,
+            )
+            .await;
         }
 
         // ── Validation: Known spell ─────────────────────────────────────
@@ -564,7 +615,7 @@ impl WorldSession {
                     .iter()
                     .any(|mount| mount.spell_id == original_spell_id),
                 riding_skill =
-                    self.player_skill_value_like_cpp(crate::session::SKILL_RIDING_LIKE_CPP),
+                    ?self.resolved_player_skill_value_like_cpp(crate::session::SKILL_RIDING_LIKE_CPP),
                 "Cast attempt for unknown spell"
             );
             self.send_packet(&CastFailed {
@@ -615,8 +666,12 @@ impl WorldSession {
         // C++ `Player::CanRequestSpellCast` allows client spell queueing only
         // inside the final 400 ms of global cooldown/cast completion. Outside
         // that window, `HandleCastSpellOpcode` sends SPELL_FAILED_SPELL_IN_PROGRESS.
-        let remaining_gcd_ms = self.remaining_global_cooldown_ms_like_cpp(&spell_info);
-        let remaining_active_cast_ms = self.remaining_active_spell_cast_ms_like_cpp();
+        let Some((remaining_gcd_ms, remaining_active_cast_ms)) = self
+            .remaining_global_cooldown_ms_like_cpp(&spell_info)
+            .zip(self.remaining_active_spell_cast_ms_like_cpp())
+        else {
+            return;
+        };
         if remaining_gcd_ms > 0 || remaining_active_cast_ms > 0 {
             if !self.can_request_represented_spell_cast_like_cpp(&spell_info) {
                 debug!(
@@ -643,8 +698,8 @@ impl WorldSession {
                     spell_id,
                     casting_unit_guid: player_guid,
                     target_guid,
-                    target_data: spell_target,
-                    spell_visual: SpellCastVisual {
+                    target_data: crate::spell_cast_adapter::retain_targets(spell_target),
+                    spell_visual: wow_entities::SpellCastVisualLikeCpp {
                         spell_visual_id: req.visual.spell_visual_id,
                         script_visual_id: 0,
                     },
@@ -663,7 +718,10 @@ impl WorldSession {
         // cooldown/current cast; represented per-spell cooldowns still fail
         // closed until full SpellHistory parity is ported.
         if spell_info.recovery_time_ms > 0 {
-            if let Some(last_spell_cast) = self.last_spell_cast_time_per_spell.get(&spell_id) {
+            let Some(last_spell_cast) = self.spell_last_cast_time_like_cpp(spell_id) else {
+                return;
+            };
+            if let Some(last_spell_cast) = last_spell_cast {
                 let elapsed_ms = last_spell_cast.elapsed().as_millis() as u32;
                 let cooldown_ms = spell_info.recovery_time_ms;
 
@@ -721,14 +779,14 @@ impl WorldSession {
             self.send_packet(&start_pkt);
 
             // Store active cast state
-            self.active_spell_cast = Some(crate::session::SpellCastState {
+            self.set_active_spell_cast_like_cpp(Some(crate::session::SpellCastState {
                 spell_id,
                 target_guid,
-                target_data: spell_target.clone(),
+                target_data: crate::spell_cast_adapter::retain_targets(spell_target.clone()),
                 cast_id,
                 cast_start_time: std::time::Instant::now(),
                 cast_time_ms: spell_info.cast_time_ms,
-                spell_visual: SpellCastVisual {
+                spell_visual: wow_entities::SpellCastVisualLikeCpp {
                     spell_visual_id: req.visual.spell_visual_id,
                     script_visual_id: 0,
                 },
@@ -738,7 +796,7 @@ impl WorldSession {
                     original_cast_id: cast_id,
                     ..crate::session::SpellCastMetadata::default()
                 },
-            });
+            }));
 
             info!(
                 account = self.account_id,
@@ -754,7 +812,9 @@ impl WorldSession {
                 "Instant cast, executing immediately"
             );
             if let Err(e) = self
-                .execute_spell_with_visual_and_target_data_with_metadata(
+                .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     target_guid,
                     cast_id,
@@ -785,6 +845,23 @@ impl WorldSession {
                 "Instant spell executed"
             );
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_cast_spell(&mut self, pkt: wow_packet::WorldPacket) {
+        let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let progression = self.progression_catalogs_for_test_like_cpp();
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_cast_spell_with_catalogs_like_cpp(
+            &area_trigger_catalogs,
+            &creature_spawn_catalogs,
+            &progression,
+            &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
+            generators.item.as_ref(),
+            pkt,
+        )
+        .await;
     }
 
     /// Handle `CMSG_OPEN_ITEM`.
@@ -821,8 +898,7 @@ impl WorldSession {
         };
 
         let is_wrapped = self
-            .inventory_item_objects_like_cpp()
-            .get(&item.guid)
+            .resolved_inventory_item_object_like_cpp(item.guid)
             .is_some_and(|runtime_item| runtime_item.is_wrapped());
 
         if !flags.contains(ItemFlags::HAS_LOOT) && !is_wrapped {
@@ -844,8 +920,7 @@ impl WorldSession {
             }
 
             let item_is_locked = self
-                .inventory_item_objects_like_cpp()
-                .get(&item.guid)
+                .resolved_inventory_item_object_like_cpp(item.guid)
                 .map_or(true, |item_object| item_object.is_locked());
             if item_is_locked {
                 self.send_equip_error(InventoryResult::ItemLocked, Some(item.guid), None, 0, 0);
@@ -999,7 +1074,6 @@ impl WorldSession {
 
         self.persist_wrapped_gift_open_like_cpp(item_guid, gift.entry, gift.flags, durability)
             .await;
-        self.sync_object_accessor_player();
     }
 
     pub(crate) fn apply_wrapped_gift_row_to_runtime_item_like_cpp(
@@ -1081,10 +1155,7 @@ impl WorldSession {
             return;
         };
 
-        let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item_guid)
-            .cloned();
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(item_guid);
         let should_expire_refund = runtime_item
             .as_ref()
             .is_some_and(|item_object| item_object.is_refundable());
@@ -1647,12 +1718,15 @@ impl WorldSession {
             return false;
         }
 
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
         let start_quest_id = self.item_template_start_quest_id(item_id).unwrap_or(0);
         let has_non_none_start_quest_status =
             u32::try_from(start_quest_id).ok().is_some_and(|quest_id| {
                 quest_id != 0
-                    && (self.player_quests.contains_key(&quest_id)
-                        || self.rewarded_quests.contains(&quest_id))
+                    && (quests.statuses.contains_key(&quest_id)
+                        || quests.rewarded_quest_ids.contains(&quest_id))
             });
 
         let has_quest_for_item = self
@@ -1701,8 +1775,11 @@ impl WorldSession {
         let Some(quest_store) = &self.quest_store else {
             return false;
         };
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
-        self.player_quests.values().any(|status| {
+        quests.statuses.values().any(|status| {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
@@ -1737,8 +1814,11 @@ impl WorldSession {
         let Some(quest_store) = &self.quest_store else {
             return false;
         };
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
 
-        self.player_quests.values().any(|status| {
+        quests.statuses.values().any(|status| {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
@@ -1771,21 +1851,22 @@ impl WorldSession {
                     }
 
                     self.direct_inventory_item_count_like_cpp_representable(item_id)
-                        < max_allowed_count
+                        .is_some_and(|count| count < max_allowed_count)
                 })
         })
     }
 
-    fn direct_inventory_item_count_like_cpp_representable(&self, item_id: u32) -> u32 {
-        self.inventory_items_like_cpp()
-            .values()
-            .filter(|inventory_item| inventory_item.entry_id == item_id)
-            .filter_map(|inventory_item| {
-                self.inventory_item_objects_like_cpp()
-                    .get(&inventory_item.guid)
-            })
-            .filter(|item| !item.is_in_trade())
-            .fold(0_u32, |total, item| total.saturating_add(item.count()))
+    fn direct_inventory_item_count_like_cpp_representable(&self, item_id: u32) -> Option<u32> {
+        Some(
+            self.resolved_inventory_items_like_cpp()?
+                .values()
+                .filter(|inventory_item| inventory_item.entry_id == item_id)
+                .filter_map(|inventory_item| {
+                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
+                })
+                .filter(|item| !item.is_in_trade())
+                .fold(0_u32, |total, item| total.saturating_add(item.count())),
+        )
     }
 
     fn loot_conditions_allow_player_with_references_like_cpp_representable(
@@ -1804,6 +1885,7 @@ impl WorldSession {
         &self,
         condition: &LootConditionRowLikeCpp,
     ) -> Option<bool> {
+        let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
         match condition.condition_type_or_reference {
             0 => Some(true),
             2 => {
@@ -1811,7 +1893,7 @@ impl WorldSession {
                     return None;
                 }
                 Some(
-                    self.direct_inventory_item_count_like_cpp_representable(condition.value1)
+                    self.direct_inventory_item_count_like_cpp_representable(condition.value1)?
                         >= condition.value2,
                 )
             }
@@ -1819,15 +1901,16 @@ impl WorldSession {
                 player_team_for_race_cpp_representable(self.player_race_like_cpp())
                     == condition.value1,
             ),
-            8 => Some(self.rewarded_quests.contains(&condition.value1)),
+            8 => Some(quests.rewarded_quest_ids.contains(&condition.value1)),
             9 => Some(
-                self.player_quests
+                quests
+                    .statuses
                     .get(&condition.value1)
                     .is_some_and(|status| status.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP),
             ),
             14 => Some(
-                !self.player_quests.contains_key(&condition.value1)
-                    && !self.rewarded_quests.contains(&condition.value1),
+                !quests.statuses.contains_key(&condition.value1)
+                    && !quests.rewarded_quest_ids.contains(&condition.value1),
             ),
             15 => Some(
                 player_class_mask_like_cpp(self.player_class_like_cpp())
@@ -1847,17 +1930,19 @@ impl WorldSession {
                 condition.value1,
             ),
             28 => Some(
-                self.player_quests
+                quests
+                    .statuses
                     .get(&condition.value1)
                     .is_some_and(|status| status.status == 2)
-                    && !self.rewarded_quests.contains(&condition.value1),
+                    && !quests.rewarded_quest_ids.contains(&condition.value1),
             ),
             47 => Some(
                 player_quest_status_mask_like_cpp(
-                    self.player_quests
+                    quests
+                        .statuses
                         .get(&condition.value1)
                         .map(|status| status.status),
-                    self.rewarded_quests.contains(&condition.value1),
+                    quests.rewarded_quest_ids.contains(&condition.value1),
                 ) & condition.value2
                     != 0,
             ),
@@ -1878,8 +1963,9 @@ impl WorldSession {
         objective_id: u32,
     ) -> Option<i32> {
         let quest_store = self.quest_store.as_ref()?;
+        let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
 
-        for status in self.player_quests.values() {
+        for status in quests.statuses.values() {
             let Some(quest) = quest_store.get(status.quest_id) else {
                 continue;
             };
@@ -2048,7 +2134,12 @@ impl WorldSession {
     /// represents the packet shape plus spellclick stores/conditions/visibility;
     /// executing spellclick casts, vehicle seat handling, and AI callbacks stays
     /// in the next bounded runtime slice.
-    pub async fn handle_spell_click(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_spell_click_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let spell_click = match SpellClick::read(&mut pkt) {
             Ok(spell_click) => spell_click,
             Err(e) => {
@@ -2077,7 +2168,12 @@ impl WorldSession {
             "CMSG_SPELL_CLICK represented execution plan"
         );
         let outcome = self
-            .execute_represented_spell_click_plan_like_cpp(spell_click.unit_guid, &plan)
+            .execute_represented_spell_click_plan_with_generator_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+                spell_click.unit_guid,
+                &plan,
+            )
             .await;
         debug!(
             account = self.account_id,
@@ -2090,6 +2186,18 @@ impl WorldSession {
             failed_casts = outcome.failed_casts,
             "CMSG_SPELL_CLICK represented execution outcome"
         );
+    }
+
+    #[cfg(test)]
+    pub async fn handle_spell_click(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_spell_click_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            pkt,
+        )
+        .await;
     }
 
     /// Handle `CMSG_CANCEL_CAST` — player cancels an in-progress cast.
@@ -2105,15 +2213,16 @@ impl WorldSession {
             }
         };
 
-        let Some(active_cast) = self.active_spell_cast.as_ref() else {
-            return;
-        };
-
-        if request.spell_id != 0 && active_cast.spell_id != request.spell_id as i32 {
+        let cancelled = self
+            .mutate_cast_execution_like_cpp(|state| {
+                state.interrupt_active_cast(
+                    (request.spell_id != 0).then_some(request.spell_id as i32),
+                )
+            })
+            .unwrap_or(false);
+        if !cancelled {
             return;
         }
-
-        self.active_spell_cast = None;
         self.cancel_pending_spell_cast_request_like_cpp();
     }
 
@@ -2232,7 +2341,7 @@ impl WorldSession {
             Ok(request) if pkt.is_empty() => request,
             _ => return false,
         };
-        if self.player_moved_unit_guid_like_cpp() != request.target_guid {
+        if self.player_moved_unit_guid_like_cpp() != Some(request.target_guid) {
             return false;
         }
 
@@ -2267,7 +2376,12 @@ impl WorldSession {
     }
 
     /// Handle `CMSG_SELF_RES`.
-    pub async fn handle_self_res(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_self_res_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
         let request = match SelfRes::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -2288,12 +2402,29 @@ impl WorldSession {
             return;
         };
         if self
-            .execute_spell(request.spell_id, player_guid)
+            .execute_spell_with_generator_like_cpp(
+                item_guid_generator,
+                creature_spawn_catalogs,
+                request.spell_id,
+                player_guid,
+            )
             .await
             .is_ok()
         {
             self.remove_represented_self_res_spell_like_cpp(request.spell_id);
         }
+    }
+
+    #[cfg(test)]
+    pub async fn handle_self_res(&mut self, pkt: wow_packet::WorldPacket) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.handle_self_res_with_generator_like_cpp(
+            generators.item.as_ref(),
+            &creature_spawn_catalogs,
+            pkt,
+        )
+        .await;
     }
 
     /// Handle `CMSG_PET_CANCEL_AURA`.
@@ -2346,7 +2477,9 @@ impl WorldSession {
         };
 
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let (_, area_id) = self.player_zone_area_like_cpp();
+        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+            return true;
+        };
         let map_instance_type = self
             .map_store()
             .and_then(|store| store.get(map_id))
@@ -3058,12 +3191,10 @@ mod tests {
             .find_map(571, 0)
             .unwrap()
             .map()
-            .get_typed_creature(creature_guid)
+            .with_creature_like_cpp(creature_guid, |creature| {
+                creature.unit().subsystems().auras.has_applied(aura)
+            })
             .unwrap()
-            .unit()
-            .subsystems()
-            .auras
-            .has_applied(aura)
     }
 
     fn set_canonical_player_summon_slot(
@@ -3112,7 +3243,7 @@ mod tests {
             .find_map(571, 0)
             .unwrap()
             .map()
-            .get_typed_creature(guid)
+            .with_creature_like_cpp(guid, |_| ())
             .is_some()
     }
 
@@ -3122,10 +3253,10 @@ mod tests {
         cast_id: ObjectGuid,
     ) {
         let player_guid = ObjectGuid::create_player(1, 42);
-        session.active_spell_cast = Some(SpellCastState {
+        session.set_active_spell_cast_like_cpp(Some(SpellCastState {
             spell_id,
             target_guid: player_guid,
-            target_data: SpellTargetData {
+            target_data: wow_entities::SpellCastTargetsLikeCpp {
                 flags: 0x2, // SpellCastTargetFlags::Unit
                 unit: player_guid,
                 ..Default::default()
@@ -3133,12 +3264,12 @@ mod tests {
             cast_id,
             cast_start_time: std::time::Instant::now(),
             cast_time_ms: 30_000,
-            spell_visual: super::SpellCastVisual {
+            spell_visual: wow_entities::SpellCastVisualLikeCpp {
                 spell_visual_id: 1,
                 script_visual_id: 0,
             },
             metadata: SpellCastMetadata::default(),
-        });
+        }));
     }
 
     fn install_pending_spell_cast_request(
@@ -3152,12 +3283,12 @@ mod tests {
                 spell_id,
                 casting_unit_guid: ObjectGuid::create_player(1, 42),
                 target_guid: ObjectGuid::create_player(1, 42),
-                target_data: SpellTargetData {
+                target_data: wow_entities::SpellCastTargetsLikeCpp {
                     flags: 0x2,
                     unit: ObjectGuid::create_player(1, 42),
-                    ..SpellTargetData::default()
+                    ..Default::default()
                 },
-                spell_visual: SpellCastVisual {
+                spell_visual: wow_entities::SpellCastVisualLikeCpp {
                     spell_visual_id: 0,
                     script_visual_id: 0,
                 },
@@ -4097,7 +4228,7 @@ mod tests {
             .handle_cancel_cast(cancel_cast_packet(cast_id, 12_345))
             .await;
 
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
     }
 
     #[tokio::test]
@@ -4112,7 +4243,7 @@ mod tests {
             .handle_cancel_cast(cancel_cast_packet(active_cast_id, 12_345))
             .await;
 
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(
             session
                 .represented_pending_spell_cast_request_like_cpp
@@ -4139,7 +4270,7 @@ mod tests {
 
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4160,7 +4291,7 @@ mod tests {
 
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4190,7 +4321,7 @@ mod tests {
             .await;
 
         assert_eq!(canonical_channeled_spell_id(&mut session), None);
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(send_rx.is_empty());
     }
 
@@ -4215,7 +4346,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4244,7 +4375,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4273,7 +4404,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4302,7 +4433,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4324,7 +4455,7 @@ mod tests {
 
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4383,7 +4514,7 @@ mod tests {
             .await;
 
         assert_eq!(canonical_channeled_spell_id(&mut session), None);
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert!(send_rx.is_empty());
     }
 
@@ -4408,7 +4539,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4437,7 +4568,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .active_spell_cast
+                .active_spell_cast_snapshot_like_cpp()
                 .as_ref()
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
@@ -4922,6 +5053,10 @@ mod tests {
         ])));
         session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
         session.set_loaded_player_powers_like_cpp([500, 222, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(
+            session.represented_player_power_values_like_cpp().unwrap()[1],
+            222
+        );
         assert!(session.sync_canonical_player_primary_power_like_cpp(
             PowerType::Mana,
             500,
@@ -4943,11 +5078,19 @@ mod tests {
             350,
             "represented session power must mirror Spell::TakePower before later AddToMap-style resync"
         );
+        assert_eq!(
+            session.represented_player_power_values_like_cpp().unwrap()[1],
+            222
+        );
         let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
         assert_eq!(
             canonical_player_mana_like_cpp(&mut session),
             350,
             "resync from the session snapshot must not resurrect pre-cast mana"
+        );
+        assert_eq!(
+            session.represented_player_power_values_like_cpp().unwrap()[1],
+            222
         );
         let snapshot = session
             .current_player_save_to_db_snapshot_like_cpp()
@@ -5036,24 +5179,29 @@ mod tests {
         ));
         let previous_last_spell_cast_time =
             Some(std::time::Instant::now() - std::time::Duration::from_millis(5_000));
-        session.last_spell_cast_time = previous_last_spell_cast_time;
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time = previous_last_spell_cast_time
+        });
         install_active_spell_cast(&mut session, spell_id, cast_id);
-        if let Some(active) = session.active_spell_cast.as_mut() {
-            active.cast_start_time =
-                std::time::Instant::now() - std::time::Duration::from_millis(30_000);
-            active.metadata = SpellCastMetadata {
-                from_client: true,
-                original_cast_id: cast_id,
-                ..SpellCastMetadata::default()
-            };
-        }
+        session.mutate_cast_execution_like_cpp(|state| {
+            if let Some(active) = state.active.as_mut() {
+                active.cast_start_time =
+                    std::time::Instant::now() - std::time::Duration::from_millis(30_000);
+                active.metadata = SpellCastMetadata {
+                    from_client: true,
+                    original_cast_id: cast_id,
+                    ..SpellCastMetadata::default()
+                };
+            }
+        });
 
         session.tick_active_spell_cast().await;
 
-        assert!(session.active_spell_cast.is_none());
+        assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert_eq!(canonical_player_mana_like_cpp(&mut session), 149);
         assert_eq!(
-            session.last_spell_cast_time, previous_last_spell_cast_time,
+            session.last_spell_cast_time_like_cpp().flatten(),
+            previous_last_spell_cast_time,
             "C++ failed casts do not leave a fresh successful global cooldown"
         );
         let packets = drain_server_packet_bytes(&send_rx);
@@ -5078,8 +5226,10 @@ mod tests {
                 spell_id, 1_500, 50, 10.0,
             ),
         );
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200))
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
@@ -5097,8 +5247,10 @@ mod tests {
         );
         assert_eq!(canonical_player_mana_like_cpp(&mut session), 500);
 
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500))
+        });
         session.tick_pending_spell_cast_request_like_cpp().await;
 
         assert!(
@@ -5158,7 +5310,9 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_known_spells_like_cpp(vec![spell_id]);
         session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
-        session.last_spell_cast_time = Some(std::time::Instant::now());
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time = Some(std::time::Instant::now())
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
@@ -5186,8 +5340,10 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_known_spells_like_cpp(vec![spell_id]);
         session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200))
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
@@ -5204,8 +5360,10 @@ mod tests {
             "C++ RequestSpellCast only queues while GCD is still active"
         );
 
-        session.last_spell_cast_time =
-            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.mutate_cast_execution_like_cpp(|state| {
+            state.last_cast_time =
+                Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500))
+        });
         session.tick_pending_spell_cast_request_like_cpp().await;
 
         assert!(
@@ -5256,10 +5414,12 @@ mod tests {
         session.set_known_spells_like_cpp(vec![12_345, queued_spell_id]);
         session.set_spell_store(basic_spell_store([12_345, queued_spell_id]));
         install_active_spell_cast(&mut session, 12_345, active_cast_id);
-        if let Some(active) = session.active_spell_cast.as_mut() {
-            active.cast_start_time =
-                std::time::Instant::now() - std::time::Duration::from_millis(29_700);
-        }
+        session.mutate_cast_execution_like_cpp(|state| {
+            if let Some(active) = state.active.as_mut() {
+                active.cast_start_time =
+                    std::time::Instant::now() - std::time::Duration::from_millis(29_700);
+            }
+        });
 
         session
             .handle_cast_spell(cast_spell_packet(queued_spell_id, player_guid))
@@ -5273,10 +5433,12 @@ mod tests {
         );
         assert!(send_rx.is_empty());
 
-        if let Some(active) = session.active_spell_cast.as_mut() {
-            active.cast_start_time =
-                std::time::Instant::now() - std::time::Duration::from_millis(30_000);
-        }
+        session.mutate_cast_execution_like_cpp(|state| {
+            if let Some(active) = state.active.as_mut() {
+                active.cast_start_time =
+                    std::time::Instant::now() - std::time::Duration::from_millis(30_000);
+            }
+        });
         session.tick_active_spell_cast().await;
         session.tick_pending_spell_cast_request_like_cpp().await;
 
