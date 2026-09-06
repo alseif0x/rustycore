@@ -963,6 +963,52 @@ passes. No source, policy or inventory baseline changes, runtime tests, publicat
 deployment are part of this review. The earlier physical-checker status wording in
 PORT_PLAN and this checkpoint is reconciled with the already implemented ratchet.
 
+#### Production-linked rename continuation boundary — above `5dcc118e`
+
+The next C0/C3 investigation follows the callback through its transaction, not just
+the initial query. C++ `CharacterHandler.cpp:1563-1610` calls `CommitTransaction`
+then publishes rename success/cache changes; `server/database/Database/DatabaseWorkerPool.cpp:302-326`
+posts the transaction to the DB executor without waiting for its result. Rust
+`wow-world/src/handlers/character/lifecycle.rs:317-331` awaits the mutation outcome
+before publishing; `wow-database/src/character_administration_adapter.rs:234-260`
+awaits the concrete transaction. Therefore moving only the initial query into a ready
+callback would leave a second blocking boundary in that callback. Removing the await
+would also remove an existing result-before-publication fence, not be a structural move.
+The current two-way administration outcome is not proof of unknown-COMMIT recovery.
+
+`wow-world/tests/production_character_rename.rs` moves the existing typed-port success
+test out of a `cfg(test)` library module and adds controlled pending-query, query
+cancellation and pending-commit success/failure cases. All use the real public Session
+constructor and handler, without widening production visibility or installing gameplay
+fixture state. The only removed library mount belongs to that moved test. The 322-line
+integration file retains its original ordered request/flag/response assertions; no
+monolith ceiling or logical-owner baseline changes. Controlled futures are manually
+polled, with no sleeps or live DB. They establish the current Rust continuation fence,
+not parity of C++ scheduling, actual dispatcher phase integration or DB cancellation.
+In particular, cancelling the mocked read cannot prove that an already-submitted real
+transaction rolls back. No production behavior changes in this test cut.
+
+Keep both boundaries explicit in the pending integration: Session-owned ready query
+continuations and commit-result/publication handling, with real cancellation/recovery
+classification. Do not replace the C1/C2 Player vertical with this character-list test,
+and do not label its current awaiting handler a completed asynchronous callback path.
+
+Validation of this working cut above `5dcc118e` (aarch64):
+
+- `cargo test --offline --locked -p wow-world --test production_character_rename`:
+  four tests PASS, none ignored; the pending-commit test executes both outcomes.
+- The same production integration target with `--release`: four tests PASS, none
+  ignored. Both profiles compile the real library without its `cfg(test)` fixture paths.
+- `session-ownership-check check --syntax-only`: PASS, unchanged 282 production/
+  432 fixture fields, 50 impl owners/3,673 associated items and 590 registry rows.
+- `python3 tools/architecture/check_architecture.py check`: PASS, 954 source files,
+  101 legacy ceilings and unchanged logical-owner totals.
+- Standalone checker `cargo test --offline --locked --release --lib persistence_policy`:
+  all five policy/snapshot consistency tests PASS; no inventory regeneration.
+- `validation-v2 quick --base HEAD`: PASS, verified manifest
+  `target/validation-v2/manifests/20260906T123047.312680Z-3-quick.json`.
+  This is a bounded dirty-tree iteration, not a clean-HEAD publication final.
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)

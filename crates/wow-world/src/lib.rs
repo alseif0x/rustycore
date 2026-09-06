@@ -33,8 +33,6 @@ mod spell_cast_adapter;
 pub(crate) mod trainer_offer;
 
 #[cfg(test)]
-mod character_administration_persistence_tests;
-#[cfg(test)]
 mod handler_contract_tests;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod player_directory_test_fixtures;
