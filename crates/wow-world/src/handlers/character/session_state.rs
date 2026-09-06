@@ -1701,8 +1701,8 @@ impl WorldSession {
 
     /// C++ `Player::SendInitialPacketsBeforeAddToMap` (Player.cpp:23479-23590): the init
     /// packets sent before the player is added to the map, ending with `SetMovedUnit`
-    /// (SMSG_MOVE_SET_ACTIVE_MOVER). Shared by login and far teleport
-    /// (#NEXT.R8.ENTITIES.1229). Most data is read from self; the per-character items that
+    /// (SMSG_MOVE_SET_ACTIVE_MOVER). Currently called by login only; far-teleport
+    /// replay remains open (#NEXT.R8.ENTITIES.1229). The per-character items that
     /// the caller already has on hand (known/favorite spells, spell history/charges, action
     /// buttons, account mounts) plus the destination guid/position/map/zone are passed in.
     #[allow(clippy::too_many_arguments)]

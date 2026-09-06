@@ -384,8 +384,6 @@ impl crate::session::WorldSession {
         // transition cannot be written into a discarded Session fallback.
         let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         self.update_registry_position();
-        self.resummon_pet_temporary_unsummoned_like_cpp();
-        self.process_represented_delayed_resurrection_after_teleport_like_cpp();
 
         // SMSG_NEW_WORLD was already sent from handle_suspend_token_response (C++ sends it in
         // HandleSuspendTokenResponse, BEFORE the client's worldport ack — MovementHandler.cpp:253);
@@ -418,9 +416,9 @@ impl crate::session::WorldSession {
         // Before-add control packets the client needs for the new map: C++
         // SendInitialPacketsBeforeAddToMap resets m_movementCounter (Player.cpp:23483) and
         // ends with SetMovedUnit -> SMSG_MOVE_SET_ACTIVE_MOVER, plus a fresh time sync. The
-        // full before-add packet SET (spells/factions/action bars/etc.) is NOT re-sent on
-        // teleport: the client retains it from login and it is unchanged, and re-running the
-        // DB-backed before-add helper here is a documented #NEXT.R8.ENTITIES.1229 follow-up.
+        // full before-add packet set (spells/factions/action bars/etc.) IS replayed by
+        // C++ on non-seamless transfer. Rust still omits it: this is an open parity gap,
+        // not proven client retention. Its DB-backed login helper needs separation.
         self.reset_movement_counter_like_cpp();
         self.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
         self.send_time_sync();
@@ -463,6 +461,11 @@ impl crate::session::WorldSession {
         let Some((zone_id, area_id)) = self.player_zone_area_like_cpp() else {
             return;
         };
+        // MovementHandler.cpp:156-234 completes after-add initialization and
+        // zone updates before pet recovery and ProcessDelayedOperations.
+        // In particular, self CREATE must precede the delayed resurrection.
+        self.resummon_pet_temporary_unsummoned_like_cpp();
+        self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         info!(
             account = self.account_id,
             map = new_map,

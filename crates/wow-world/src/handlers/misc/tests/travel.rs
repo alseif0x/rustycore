@@ -149,6 +149,19 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.pending_teleport = Some((0, destination));
+    session.set_player_health_like_cpp(135_791, 2_000_000);
+    assert!(
+        session.schedule_represented_resurrection_after_teleport_like_cpp(
+            wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: player_guid,
+                map_id: 0,
+                position: destination,
+                health: 1_234_567,
+                mana: 0,
+                aura: 0,
+            }
+        )
+    );
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -192,8 +205,37 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     // UpdateObject after TimeSyncRequest is SendInitSelf (the player's own ActivePlayer
     // create for the destination map — C++ Map::AddPlayerToMap initPlayer=true). The final
     // send_stat_update emits nothing in this minimal test (no stat stores configured).
+    let packets: Vec<_> = send_rx.try_iter().collect();
+    let create = packets
+        .iter()
+        .find(|bytes| {
+            u16::from_le_bytes([bytes[0], bytes[1]]) == ServerOpcodes::UpdateObject as u16
+        })
+        .expect("destination self CREATE");
+    // MovementHandler.cpp:156-234: initialization precedes pet resummon and
+    // ProcessDelayedOperations (Player.cpp:1494), including delayed resurrection.
+    assert!(
+        create
+            .windows(8)
+            .any(|bytes| bytes == 135_791i64.to_le_bytes())
+    );
+    assert!(
+        !create
+            .windows(8)
+            .any(|bytes| bytes == 1_234_567i64.to_le_bytes())
+    );
     assert_eq!(
-        std::iter::from_fn(|| send_rx.try_recv().ok())
+        session.resolved_player_vitals_like_cpp().unwrap().0,
+        1_234_567
+    );
+    assert!(
+        session
+            .represented_delayed_resurrection_after_teleport_like_cpp()
+            .is_none()
+    );
+    assert_eq!(
+        packets
+            .iter()
             .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
             .collect::<Vec<_>>(),
         vec![

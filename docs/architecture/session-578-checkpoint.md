@@ -1398,6 +1398,51 @@ Calling the network ACK handler during logout is not a substitute: it can publis
 or await auxiliary reads. This slice does not close C1 or C0–C4 and does not authorize
 runtime installation, DB mutations, capture sessions, push or merge.
 
+### C1 worldport delayed-operation order — above `0e2fdb85`, 2026-09-06
+
+The next deferred-save/logout review found an already integrated ordering defect:
+`handlers/misc/travel.rs` resummoned pets and applied delayed resurrection immediately
+after attachment, before destination self CREATE and after-add initialization. C++
+`Handlers/MovementHandler.cpp:156-234` completes initialization/zone handling first,
+then resummons the pet and calls `Player::ProcessDelayedOperations`; the latter applies
+resurrection before deferred save (`Entities/Player/Player.cpp:1494-1503`). These anchors
+are under `/home/server/woltk-trinity-legacy/src/server/game/`.
+
+The existing canonical worldport regression now starts with distinct health values and
+a pending resurrection. Against `0e2fdb85` plus the test, it fails because self CREATE
+already reflects the resurrected health (`transfer-tail-before` log, one failed test).
+The handler now runs those two existing operations after destination initialization and
+zone resolution. The test checks pre-resurrection health bytes in self CREATE, their
+replacement in the final canonical Player, consumed delayed work, unchanged exact opcode
+sequence and source/destination ownership. Full library tests pass: 3,759, one ignored.
+Commands (local aarch64, pinned PROTOC and the validation Cargo cache):
+`cargo test --offline --locked -p wow-world --lib` and
+`cargo test --offline --locked -p wow-world --test production_login_player_owner`
+(11 integration tests pass). Session syntax/exact-item check, architecture check and
+self-test (20 fixtures), formatting and diff checks pass without policy regeneration.
+`validation-v2 quick --base HEAD` above `0e2fdb85` passes; verified manifest:
+`target/validation-v2/manifests/20260906T172906.289367Z-3-quick.json`.
+This is a controlled packet-construction regression, not a fresh client capture or a claim
+that the partial health-only resurrection implementation equals full C++ resurrection.
+
+Also corrected unsupported comments in travel and character initialization: Rust's full
+before-add helper is currently login-only; C++ replays it on non-seamless worldport.
+Client retention is not evidence to omit it. No new field, public API, lock, persistence
+transaction, registry row, logical-owner ceiling or physical exception is introduced.
+The changed travel production/test files are 827/537 lines; remaining legacy ceilings
+and C0–C4 acceptance are unchanged.
+
+Next integration boundary remains the complete transfer operation, not an early-return
+save patch. Preserve pending work until its acknowledged phase and carry no map decision
+across awaits as a reservation: current `prepare_canonical_map_entry_like_cpp` explicitly
+does not reserve admission. Separate before-add preparation/publication from canonical
+attachment, make disconnect completion independent of live packet delivery, then wire
+ordinary far-save deferral and its resurrection-before-save resumption together. Merely
+calling the current ACK during logout can block on delivery or perform auxiliary reads;
+merely deferring save would skip existing disconnect persistence without a completion path.
+Before-add parity, cancellation/recovery across initialization, full logout completion,
+real durability and action-specific captures remain open.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,
