@@ -1,8 +1,7 @@
 //! Production-linked character-administration contract, without cfg(test) in wow-world.
-//! C++ CharacterHandler.cpp:1550-1610 submits the query, then its ready callback
-//! enqueues the transaction. The current Rust handler awaits both operations.
-//! Pending-future cases characterize that existing fence, NOT C++ scheduling parity
-//! or real database durability. Keep them explicit when introducing phase callbacks.
+//! C++ CharacterHandler.cpp:1550-1610 submits a read and admits a commit only in
+//! its ready callback. Rust retains its result-before-publication fence.
+//! Controlled futures test production Session continuations, not real DB durability.
 
 use std::future::Future;
 use std::sync::{Arc, Mutex};
@@ -168,109 +167,147 @@ impl CharacterAdministrationPersistencePortLikeCpp for RenamePortFixtureLikeCpp 
     }
 }
 
+async fn wait_for_trace(port: &RenamePortFixtureLikeCpp, count: usize) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while port.trace.lock().unwrap().len() < count {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("worker made the expected port call");
+}
+
+async fn response(session: &mut WorldSession, receive: &flume::Receiver<Vec<u8>>) -> Vec<u8> {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            session.process_ready_character_rename_callbacks_like_cpp();
+            if let Ok(packet) = receive.try_recv() {
+                return packet;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("ready callback response")
+}
+
+fn assert_response(bytes: &[u8], code: u8) {
+    let mut packet = WorldPacket::from_bytes(bytes);
+    assert_eq!(
+        packet.server_opcode(),
+        Some(ServerOpcodes::CharacterRenameResult)
+    );
+    packet.skip_opcode();
+    assert_eq!(packet.read_uint8().unwrap(), code);
+    assert_eq!(packet.read_bit().unwrap(), code == 0);
+}
+
+async fn wait_for_commit(session: &mut WorldSession, port: &RenamePortFixtureLikeCpp) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while port.trace.lock().unwrap().len() < 2 {
+            session.process_ready_character_rename_callbacks_like_cpp();
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("ready query admitted a commit");
+}
+
 #[tokio::test]
 async fn character_rename_uses_production_port_in_load_commit_publication_order() {
     let (mut session, send_rx) = make_session_with_send_capacity(2);
-    let guid = ObjectGuid::create_player(1, 42);
-    session.set_legit_characters(vec![guid]);
+    session.set_legit_characters(vec![request().guid]);
     let port = Arc::new(RenamePortFixtureLikeCpp::default());
     session.set_character_administration_persistence_port_like_cpp(port.clone());
-
-    session
-        .handle_character_rename_request(CharacterRenameRequest {
-            guid,
-            new_name: "Newname".into(),
-        })
-        .await;
-
+    session.handle_character_rename_request(request()).await;
+    assert!(send_rx.try_recv().is_err(), "handler does not publish");
+    let bytes = response(&mut session, &send_rx).await;
+    assert_response(&bytes, 0);
     assert_eq!(
         *port.trace.lock().unwrap(),
         vec![
             RenameTraceLikeCpp::Load {
                 guid: 42,
-                name: "Newname".into(),
+                name: "Newname".into()
             },
             RenameTraceLikeCpp::Commit {
                 guid: 42,
                 name: "Newname".into(),
-                flags: AT_LOGIN_CUSTOMIZE_LIKE_CPP,
+                flags: AT_LOGIN_CUSTOMIZE_LIKE_CPP
             },
         ]
     );
-    let sent = send_rx.try_recv().expect("rename success");
-    let mut packet = WorldPacket::from_bytes(&sent);
-    assert_eq!(
-        packet.server_opcode(),
-        Some(ServerOpcodes::CharacterRenameResult)
-    );
-    packet.skip_opcode();
-    assert_eq!(packet.read_uint8().unwrap(), 0);
-    assert!(packet.read_bit().unwrap());
+    assert!(session.finish_character_rename_callbacks_like_cpp().await);
+    assert!(send_rx.try_recv().is_err());
 }
 
-#[test]
-fn pending_query_keeps_current_handler_pending_without_committing_or_publishing() {
-    let (mut session, send_rx) = make_session_with_send_capacity(2);
-    session.set_legit_characters(vec![request().guid]);
+#[tokio::test]
+async fn pending_query_does_not_hold_session_or_block_another_session() {
+    let (mut slow, slow_rx) = make_session_with_send_capacity(2);
+    slow.set_legit_characters(vec![request().guid]);
     let (complete, completion) = oneshot::channel();
     let port = Arc::new(RenamePortFixtureLikeCpp {
         load_completion: Mutex::new(Some(completion)),
         ..Default::default()
     });
-    session.set_character_administration_persistence_port_like_cpp(port.clone());
-    let mut handler = Box::pin(session.handle_character_rename_request(request()));
-
-    assert!(poll_once(handler.as_mut()).is_pending());
-    assert_eq!(
-        port.trace.lock().unwrap().as_slice(),
-        &[RenameTraceLikeCpp::Load {
-            guid: 42,
-            name: "Newname".into(),
-        }]
-    );
-    assert!(send_rx.try_recv().is_err());
-    // A second poll does not resubmit the query or advance to the commit.
-    assert!(poll_once(handler.as_mut()).is_pending());
+    slow.set_character_administration_persistence_port_like_cpp(port.clone());
+    slow.handle_character_rename_request(request()).await;
+    wait_for_trace(&port, 1).await;
+    slow.process_ready_character_rename_callbacks_like_cpp();
     assert_eq!(port.trace.lock().unwrap().len(), 1);
+    assert!(slow_rx.try_recv().is_err());
+
+    let (mut fast, fast_rx) = make_session_with_send_capacity(2);
+    fast.set_legit_characters(vec![request().guid]);
+    fast.set_character_administration_persistence_port_like_cpp(Arc::new(
+        RenamePortFixtureLikeCpp::default(),
+    ));
+    fast.handle_character_rename_request(request()).await;
+    assert_response(&response(&mut fast, &fast_rx).await, 0);
+    assert!(
+        slow_rx.try_recv().is_err(),
+        "unrelated progress cannot complete the pending query"
+    );
 
     complete.send(candidate()).unwrap();
-    assert!(poll_once(handler.as_mut()).is_ready());
-    assert_eq!(port.trace.lock().unwrap().len(), 2);
-    let sent = send_rx.try_recv().expect("response only after completion");
-    let mut packet = WorldPacket::from_bytes(&sent);
-    assert_eq!(
-        packet.server_opcode(),
-        Some(ServerOpcodes::CharacterRenameResult)
-    );
-    packet.skip_opcode();
-    assert_eq!(packet.read_uint8().unwrap(), 0);
-    assert!(send_rx.try_recv().is_err());
+    assert_response(&response(&mut slow, &slow_rx).await, 0);
+    assert!(slow.finish_character_rename_callbacks_like_cpp().await);
+    assert!(fast.finish_character_rename_callbacks_like_cpp().await);
 }
 
-#[test]
-fn cancelled_pending_query_cannot_start_a_transaction_or_publish_late() {
-    let (mut session, send_rx) = make_session_with_send_capacity(2);
-    session.set_legit_characters(vec![request().guid]);
-    let (complete, completion) = oneshot::channel();
-    let port = Arc::new(RenamePortFixtureLikeCpp {
-        load_completion: Mutex::new(Some(completion)),
-        ..Default::default()
-    });
-    session.set_character_administration_persistence_port_like_cpp(port.clone());
-    let mut handler = Box::pin(session.handle_character_rename_request(request()));
-    assert!(poll_once(handler.as_mut()).is_pending());
-    drop(handler);
-
-    assert!(
-        complete.send(candidate()).is_err(),
-        "cancelled query result is not retained"
-    );
-    assert_eq!(port.trace.lock().unwrap().len(), 1);
-    assert!(send_rx.try_recv().is_err());
+#[tokio::test]
+async fn retired_reads_cannot_start_a_transaction_even_if_the_result_is_available() {
+    for ready in [false, true] {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        session.set_legit_characters(vec![request().guid]);
+        let (complete, completion) = oneshot::channel();
+        let port = Arc::new(RenamePortFixtureLikeCpp {
+            load_completion: Mutex::new(Some(completion)),
+            ..Default::default()
+        });
+        session.set_character_administration_persistence_port_like_cpp(port.clone());
+        session.handle_character_rename_request(request()).await;
+        wait_for_trace(&port, 1).await;
+        if ready {
+            complete.send(candidate()).unwrap();
+            tokio::task::yield_now().await;
+        } else {
+            drop(complete);
+        }
+        assert!(session.finish_character_rename_callbacks_like_cpp().await);
+        session.process_ready_character_rename_callbacks_like_cpp();
+        tokio::task::yield_now().await;
+        assert_eq!(
+            port.trace.lock().unwrap().len(),
+            1,
+            "no callback may admit a commit"
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
 }
 
-#[test]
-fn pending_commit_preserves_existing_result_before_response_fence() {
+#[tokio::test]
+async fn pending_commit_preserves_existing_result_before_response_fence() {
     for applied in [false, true] {
         let (mut session, send_rx) = make_session_with_send_capacity(2);
         session.set_legit_characters(vec![request().guid]);
@@ -280,20 +317,15 @@ fn pending_commit_preserves_existing_result_before_response_fence() {
             ..Default::default()
         });
         session.set_character_administration_persistence_port_like_cpp(port.clone());
-        let mut handler = Box::pin(session.handle_character_rename_request(request()));
-        assert!(poll_once(handler.as_mut()).is_pending());
-        assert_eq!(port.trace.lock().unwrap().len(), 2);
-        assert!(
-            send_rx.try_recv().is_err(),
-            "no response before commit result"
-        );
-        assert!(poll_once(handler.as_mut()).is_pending());
+        session.handle_character_rename_request(request()).await;
+        wait_for_commit(&mut session, &port).await;
+        session.process_ready_character_rename_callbacks_like_cpp();
+        assert!(send_rx.try_recv().is_err());
         assert_eq!(
             port.trace.lock().unwrap().len(),
             2,
             "no repeated transaction"
         );
-
         complete
             .send(if applied {
                 CommitResult::Applied
@@ -303,22 +335,46 @@ fn pending_commit_preserves_existing_result_before_response_fence() {
                 }
             })
             .unwrap();
-        assert!(poll_once(handler.as_mut()).is_ready());
-        let sent = send_rx.try_recv().expect("exactly one classified response");
-        let mut packet = WorldPacket::from_bytes(&sent);
-        assert_eq!(
-            packet.server_opcode(),
-            Some(ServerOpcodes::CharacterRenameResult)
+        assert_response(
+            &response(&mut session, &send_rx).await,
+            if applied { 0 } else { 25 },
         );
-        packet.skip_opcode();
-        let result = packet.read_uint8().unwrap();
-        assert_eq!(result, if applied { 0 } else { 25 });
+        assert!(session.finish_character_rename_callbacks_like_cpp().await);
         assert!(send_rx.try_recv().is_err());
     }
 }
 
-#[test]
-fn rejected_query_outcomes_never_start_rename_commit() {
+#[tokio::test]
+async fn cancelled_drain_retains_submitted_commit_and_resumes_without_publication() {
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    session.set_legit_characters(vec![request().guid]);
+    let (complete, completion) = oneshot::channel();
+    let port = Arc::new(RenamePortFixtureLikeCpp {
+        commit_completion: Mutex::new(Some(completion)),
+        ..Default::default()
+    });
+    session.set_character_administration_persistence_port_like_cpp(port.clone());
+    session.handle_character_rename_request(request()).await;
+    wait_for_commit(&mut session, &port).await;
+
+    let mut drain = Box::pin(session.finish_character_rename_callbacks_like_cpp());
+    assert!(
+        poll_once(drain.as_mut()).is_pending(),
+        "submission is not completion"
+    );
+    drop(drain);
+    complete.send(CommitResult::Applied).unwrap();
+    assert!(session.finish_character_rename_callbacks_like_cpp().await);
+    session.process_ready_character_rename_callbacks_like_cpp();
+    assert_eq!(port.trace.lock().unwrap().len(), 2);
+    assert!(
+        send_rx.try_recv().is_err(),
+        "retirement never publishes a late success"
+    );
+}
+
+#[tokio::test]
+async fn rejected_query_outcomes_never_start_rename_commit() {
     for result in [
         LoadResult::NotFound,
         LoadResult::Failed {
@@ -338,21 +394,31 @@ fn rejected_query_outcomes_never_start_rename_commit() {
         });
         session.set_character_administration_persistence_port_like_cpp(port.clone());
         complete.send(result).unwrap();
-        let mut handler = Box::pin(session.handle_character_rename_request(request()));
-        assert!(poll_once(handler.as_mut()).is_ready());
-        assert_eq!(port.trace.lock().unwrap().len(), 1, "no transaction");
-        let sent = send_rx.try_recv().expect("query rejection");
-        let mut packet = WorldPacket::from_bytes(&sent);
-        assert_eq!(
-            packet.server_opcode(),
-            Some(ServerOpcodes::CharacterRenameResult)
-        );
-        packet.skip_opcode();
-        assert_eq!(packet.read_uint8().unwrap(), 25); // C++ CHAR_CREATE_ERROR
-        assert!(
-            !packet.read_bit().unwrap(),
-            "failure omits the character GUID"
-        );
+        session.handle_character_rename_request(request()).await;
+        assert_response(&response(&mut session, &send_rx).await, 25);
+        assert_eq!(port.trace.lock().unwrap().len(), 1);
+        assert!(session.finish_character_rename_callbacks_like_cpp().await);
         assert!(send_rx.try_recv().is_err());
     }
+}
+
+#[tokio::test]
+async fn lost_commit_worker_is_not_a_clean_retirement() {
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    session.set_legit_characters(vec![request().guid]);
+    let (complete, completion) = oneshot::channel();
+    let port = Arc::new(RenamePortFixtureLikeCpp {
+        commit_completion: Mutex::new(Some(completion)),
+        ..Default::default()
+    });
+    session.set_character_administration_persistence_port_like_cpp(port.clone());
+    session.handle_character_rename_request(request()).await;
+    wait_for_commit(&mut session, &port).await;
+    // The fixture panics if its submitted commit loses its completion source.
+    // The supervisor must classify that JoinError, never invent Applied/rollback.
+    drop(complete);
+    assert!(!session.finish_character_rename_callbacks_like_cpp().await);
+    assert!(!session.finish_character_rename_callbacks_like_cpp().await);
+    assert_eq!(port.trace.lock().unwrap().len(), 2);
+    assert!(send_rx.try_recv().is_err());
 }

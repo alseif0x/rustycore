@@ -3,11 +3,14 @@
 //! C++ CharacterHandler.cpp:1550-1610 separates query submission from its ready
 //! callback. This owned operation preserves the existing Rust result-before-response
 //! fence. Query preparation cannot submit a transaction: the Session must consume
-//! its ready continuation to do so. The caller still awaits both stages until the
-//! production callback/phase and shutdown integration is installed.
+//! its ready continuation to do so. Session owns callback admission/publication;
+//! composition drains submitted commits before retiring the Session.
 
 use std::future::Future;
 use std::sync::Arc;
+
+mod callbacks;
+pub(crate) use callbacks::RenameCallbacks;
 
 use wow_persistence::{
     CharacterAdministrationLoadOutcomeLikeCpp as LoadOutcome,
@@ -70,23 +73,6 @@ impl PreparedRename {
                 new_name: self.request.new_name,
                 result,
             }
-        }
-    }
-}
-
-/// Admission (account ownership and name validation) belongs to the caller.
-/// No Session/entity borrow, guard, transport handle or catalog crosses either await.
-/// Cancellation before the query completes must not start the transaction. Once a
-/// commit is submitted, dropping this future is NOT proof of database rollback.
-/// The caller still awaits this operation; no background worker is created here.
-pub(crate) fn rename(
-    port: Arc<dyn CharacterAdministrationPersistencePortLikeCpp>,
-    request: RenameRequest,
-) -> impl Future<Output = RenameOutcome> + Send + 'static {
-    async move {
-        match prepare_rename(port, request).await {
-            RenamePreparation::Rejected(outcome) => outcome,
-            RenamePreparation::Ready(prepared) => prepared.commit().await,
         }
     }
 }

@@ -20,6 +20,7 @@
 //! ingestion phases share.
 
 mod budget;
+mod callbacks;
 pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
@@ -301,6 +302,8 @@ impl WorldSession {
             self.dispatch_packet(catalogs, pkt).await;
         }
 
+        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
+        self.process_ready_character_rename_callbacks_like_cpp();
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
         self.process_pending_periodic_player_save_with_generator_like_cpp(
             catalogs.id_generators.item.as_ref(),

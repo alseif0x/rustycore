@@ -280,20 +280,23 @@ impl WorldSession {
             }
         };
 
-        use crate::character_administration::{RenameFailure, RenameRequest, rename};
-        let outcome = rename(
-            port,
-            RenameRequest {
-                guid: pkt.guid.counter() as u64,
-                new_name: pkt.new_name,
-            },
-        )
-        .await;
+        if !self.submit_character_rename_like_cpp(port, pkt.guid, pkt.new_name.clone()) {
+            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
+        }
+    }
+
+    /// Apply only on the owning Session, never from a database worker.
+    pub(crate) fn complete_character_rename_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        outcome: crate::character_administration::RenameOutcome,
+    ) {
+        use crate::character_administration::RenameFailure;
         let result = match outcome.result {
             Ok(old_name) => {
                 info!(
                     "Account {} renamed character {:?} from {} to {}",
-                    self.account_id, pkt.guid, old_name, outcome.new_name
+                    self.account_id, guid, old_name, outcome.new_name
                 );
                 RESPONSE_SUCCESS_LIKE_CPP
             }
@@ -310,7 +313,7 @@ impl WorldSession {
                 CHAR_CREATE_ERROR_LIKE_CPP
             }
         };
-        self.send_character_rename_like_cpp(result, pkt.guid, outcome.new_name);
+        self.send_character_rename_like_cpp(result, guid, outcome.new_name);
     }
 
     fn send_char_customize_failure_like_cpp(&self, result: u8, guid: ObjectGuid) {

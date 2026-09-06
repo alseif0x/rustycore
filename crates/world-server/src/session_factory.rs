@@ -358,6 +358,30 @@ pub(super) async fn create_session(
             "Force-cancelled world session after shutdown grace period"
         );
     }
+    // Retired reads cannot start writes. Join writes already submitted by ready
+    // callbacks before saving/discarding this Session. A timeout is fatal, not an
+    // acknowledgement that a transaction rolled back or a worker stopped.
+    let rename_drain = async {
+        if !session.finish_character_rename_callbacks_like_cpp().await {
+            world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        }
+    };
+    if active_session_registry.is_shutting_down_like_cpp() {
+        if !run_world_session_shutdown_finalize_step_like_cpp(
+            world_runtime_state.as_ref(),
+            WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
+            rename_drain,
+        )
+        .await
+        {
+            tracing::error!(
+                account_id,
+                "Timed out draining character rename commits; completion unproven"
+            );
+        }
+    } else {
+        rename_drain.await;
+    }
     // Cancellation only discards initialization/gameplay work. During server
     // shutdown, disconnect persistence and cleanup each get an independent
     // bounded attempt. Normal disconnects preserve the prior unbounded save

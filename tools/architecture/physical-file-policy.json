@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76745,
-      "ceiling_lines": 76745,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules.",
+      "observed_lines": 76747,
+      "ceiling_lines": 76747,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. The C0 rename callback owner adds only its private field and initializer (reviewed 76,745 -> 76,747); callback implementation remains in small private modules. This does not renew or close the C4 retirement gate.",
       "review_checkpoint": "578:C4"
     },
     {

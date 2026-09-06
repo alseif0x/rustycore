@@ -83,6 +83,16 @@ normal dispatch order and registry remain unchanged; phase filtering and coordin
 are still not enabled. The checkpoint records focused tests and the reviewed small
 logical-owner growth, not a physical monolith waiver or C0 completion.
 
+The subsequent C0/C3 rename cut above `ab1cdab3` connects owned read/commit stages
+to the production Session driver: the handler submits and returns, Session admits ready
+reads and presents confirmed commit results, and composition drains submitted commits
+before disconnect save. Workers cannot mutate Session/Player or send packets. Cancellation
+of the drain retains its handles; worker failure or a shutdown timeout is not clean
+quiescence or rollback proof. This changes asynchronous scheduling while preserving Rust's
+commit-result-before-response fence. Global World/Map phase coordination, the first complete
+Player lifecycle/save vertical, resource/backpressure and live/durability acceptance remain
+open. Exact validation and source anchors live in the owning Session checkpoint.
+
 ## Current architecture and execution checkpoint — 2026-09-05
 
 The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal

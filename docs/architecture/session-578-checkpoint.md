@@ -3,6 +3,77 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C0/C3 production rename callbacks — above `ab1cdab3`, 2026-09-06
+
+Intentional execution correction, not a behavior-preserving file move: the production
+rename handler now submits the owned read and returns. A private Session callback owner
+retains read/commit handles. The production driver invokes its recorded ready-only pass
+after packet dispatch and before periodic save. Only that Session pass consumes prepared
+reads to submit commits and presents confirmed outcomes; workers hold only owned inputs
+and SQLx-free ports, never Session, Player, a map guard or packet transport.
+
+C++ anchors re-read for this cut: `CharacterHandler.cpp:1550-1610`,
+`AsyncCallbackProcessor.h:40-51`, `QueryCallback.cpp:205-224`,
+`DatabaseWorkerPool.cpp:302-326` and `WorldSession.cpp:488-510`, under the legacy source
+tree. Reads are inspected in registration order while pending reads are skipped. Commit
+results already submitted are inspected before admitting new reads; new commits cannot
+publish in their admission pass merely because a worker runs quickly. The previous Rust
+result-before-response fence remains, unlike C++'s fire-and-forget commit publication.
+No transaction statement, error byte, opcode registration or name/account gate changes.
+
+Production `session_factory::create_session` closes read admission and drains submitted
+commits before disconnect save and unregistering. Read workers cannot submit a commit,
+even if cancellation races a ready candidate. The drain awaits handles by mutable reference
+and retains them if its waiter is cancelled, so a resumed drain cannot lose/replay the write.
+Retirement publishes no response. Normal disconnect awaits completion; shutdown uses the
+existing bounded finalizer and marks the process unsuccessful on timeout or worker failure.
+A fatal timeout is **not quiescence or proof of rollback**: a submitted worker/DB operation
+may still run. No claim of crash recovery or real unknown-COMMIT classification is made.
+
+This is the first production rename callback connection, not complete phase coordination.
+Independent Session/map clocks, World/Map phase tails, first real Player lifecycle/save
+integration, callback resource/backpressure acceptance, saturated sinks, blocking-tick
+cancellation and full shutdown/capture/durability acceptance remain C0–C4 work. This queue
+follows C++'s dynamic callback collection; it introduces no invented protocol rejection
+threshold. Its eventual resource bounds must preserve admission/FIFO semantics before
+global phase acceptance. Runtime installation, live tests and fresh captures are not run.
+
+Reviewed ownership delta: one private `character_rename_callbacks` field belongs to the
+existing persistence/lifecycle family (283 production + 432 fixture fields). Four narrow
+Session methods are added; registry metadata remains the exact same 590 rows. The factory
+and WorldSession surface fingerprints change, while their bridge evidence is unchanged.
+Only those semantic syntax deltas are applied; an unrelated baseline sorting difference is
+left alone. Physical Session root grows by its field/initializer, 76,745 → 76,747, with that
+explicitly reviewed observation/ceiling and the same C4 exit. Logical changes are Session
++36 production/+1 test, Character +3 production, composition +24 production. The callback
+implementation lives in small private modules; no blanket monolith exception is introduced.
+
+Validation on the working cut above `ab1cdab3`, aarch64, with the pinned PROTOC and
+existing local validation Cargo cache:
+
+- `cargo check --offline --locked -p world-server`: PASS, real production composition.
+- `cargo test --offline --locked -p wow-world --test production_character_rename`:
+  seven production-library cases PASS. They cover two-session progress, pending read/commit,
+  read retirement before/after readiness, retained handles after drain cancellation,
+  query rejection, confirmed failure/success publication and failed-worker retirement.
+- `cargo test --offline --locked -p wow-world --lib session::tests::driver`: ten PASS;
+  `--lib character_rename`: three admission cases PASS.
+- `cargo test --offline --locked -p wow-world --lib character_administration::tests`:
+  four PASS, including the later wiring regression that drives actual
+  `process_pending_with_catalogs_like_cpp`, not the standalone callback adapter. Removing
+  callback execution from the driver would leave that test without its expected response.
+- `session-ownership-check check --syntax-only`: PASS, 283 production/432 fixture fields,
+  50 impl owners/3,677 items, 590 exact registry rows. Architecture `check` and `self-test`
+  PASS: 978 physical files, 101 legacy ceilings and the reviewed logical deltas above.
+- Standalone checker `cargo test --offline --locked --release --lib persistence_policy`
+  (its own manifest): five snapshot/policy consistency tests PASS. No exhaustive snapshot
+  or semantic persistence-policy regeneration is performed.
+- Bounded quick PASS, verified manifest
+  `target/validation-v2/manifests/20260906T135732.595086Z-3-quick.json`. This ran before
+  the final cfg(test)-only driver-wiring regression; that later addition is compiled and
+  exercised by the four-test command above. Final format/diff checks pass. This is not
+  clean-HEAD publication validation, live-client evidence or full C0/C3 acceptance.
+
 ## C4 persistence-parser test decomposition — above `0038d265`, 2026-09-06
 
 ### Subsequent canonical inventory records — above `ef8cb6c3`

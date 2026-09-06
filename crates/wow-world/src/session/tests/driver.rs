@@ -162,6 +162,7 @@ async fn empty_pass_records_the_frozen_session_phase_order_like_cpp() {
             Phase::PollInstanceLink,
             Phase::PendingCreatureSpawn,
             Phase::DispatchQueuedPackets,
+            Phase::CharacterRenameCallbacks,
             Phase::PeriodicPlayerSave,
         ]
     );
