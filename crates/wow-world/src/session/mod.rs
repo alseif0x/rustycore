@@ -10725,6 +10725,7 @@ impl WorldSession {
             *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
                 far_destination: self.pending_teleport,
+                post_add: None,
                 can_delay: self.represented_can_delay_teleport_like_cpp,
                 has_delayed: self.represented_has_delayed_teleport_like_cpp,
                 near_pending: self.near_teleport_pending_like_cpp,
@@ -21440,6 +21441,14 @@ impl WorldSession {
     }
 
     pub(crate) fn update_represented_item_level_area_based_scaling_like_cpp(&mut self) -> bool {
+        self.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true)
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn update_represented_item_level_area_based_scaling_with_publication_like_cpp(
+        &mut self,
+        publish: bool,
+    ) -> Option<bool> {
         let map_pvp_activity = self
             .map_store()
             .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
@@ -21448,32 +21457,32 @@ impl WorldSession {
             });
         let pvp_activity = map_pvp_activity || self.represented_has_pvp_rules_enabled_like_cpp();
         let Some(using_pvp_item_levels) = self.resolved_using_pvp_item_levels_like_cpp() else {
-            return false;
+            return None;
         };
         if using_pvp_item_levels == pvp_activity {
-            return false;
+            return Some(false);
         }
 
         let Some((health_before, max_health_before, _)) = self.resolved_player_vitals_like_cpp()
         else {
-            return false;
+            return None;
         };
         let Some(item_mod_targets) = self.represented_top_level_item_mod_targets_like_cpp() else {
-            return false;
+            return None;
         };
         self.record_represented_all_item_mods_like_cpp(&item_mod_targets, false);
         if !self.set_represented_using_pvp_item_levels_like_cpp(pvp_activity) {
-            return false;
+            return None;
         }
         self.record_represented_all_item_mods_like_cpp(&item_mod_targets, true);
         self.restore_represented_health_pct_after_item_mod_scaling_like_cpp(
             health_before,
             max_health_before,
         );
-        if !item_mod_targets.is_empty() {
+        if publish && !item_mod_targets.is_empty() {
             self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
-        true
+        Some(true)
     }
 
     fn represented_top_level_item_mod_targets_like_cpp(&self) -> Option<Vec<(u8, ObjectGuid)>> {
@@ -59881,6 +59890,7 @@ impl WorldSession {
             return Some(PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
                 far_destination: self.pending_teleport,
+                post_add: None,
                 can_delay: self.represented_can_delay_teleport_like_cpp,
                 has_delayed: self.represented_has_delayed_teleport_like_cpp,
                 near_pending: self.near_teleport_pending_like_cpp,

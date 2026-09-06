@@ -49,6 +49,9 @@ impl WorldSession {
         let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
         let residence = manager.player_residence_like_cpp(handle)?;
         manager.with_player_like_cpp(handle, |player| {
+            if player.teleport_state_like_cpp().post_add.is_some() {
+                return None;
+            }
             let header = self.player_save_header_from_owner_like_cpp(player, residence);
             if player.teleport_state_like_cpp().recovery
                 == wow_entities::PlayerTransferRecovery::Terminal

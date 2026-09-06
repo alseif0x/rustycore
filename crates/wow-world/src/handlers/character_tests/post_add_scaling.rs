@@ -20,11 +20,23 @@ async fn worldport_finishes_native_effects_when_self_create_delivery_is_closed()
     assert_post_add_scaling(true, OutputClosure::BeforeAck).await;
 }
 
+#[tokio::test]
+async fn cancelled_worldport_finishes_native_effects_before_disconnect_save() {
+    assert_post_add_scaling(true, OutputClosure::CancelDuringWorldStateRead).await;
+}
+
+#[tokio::test]
+async fn retained_worldport_before_zone_finishes_native_effects_before_disconnect_save() {
+    assert_post_add_scaling(true, OutputClosure::RetainedBeforeZone).await;
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum OutputClosure {
     Never,
     BeforeAck,
     DuringWorldStateRead,
+    CancelDuringWorldStateRead,
+    RetainedBeforeZone,
 }
 
 async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
@@ -66,19 +78,24 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
         .lock()
         .unwrap()
         .push_back(Box::pin(async move {
-            let manager = canonical.lock().unwrap();
-            let player = manager
-                .find_map(571, 0)
-                .unwrap()
-                .map()
-                .get_typed_player(guid)
-                .unwrap();
-            assert!(
-                !player.gameplay_state().using_pvp_item_levels,
-                "scaling must not precede post-add InitWorldStates/auras/phase"
-            );
+            {
+                let manager = canonical.lock().unwrap();
+                let player = manager
+                    .find_map(571, 0)
+                    .unwrap()
+                    .map()
+                    .get_typed_player(guid)
+                    .unwrap();
+                assert!(
+                    !player.gameplay_state().using_pvp_item_levels,
+                    "scaling must not precede post-add InitWorldStates/auras/phase"
+                );
+            }
             observation.store(true, std::sync::atomic::Ordering::SeqCst);
             drop(close_during_read);
+            if closure == OutputClosure::CancelDuringWorldStateRead {
+                std::future::pending::<()>().await;
+            }
             PlayerInitialWorldStatesLoadOutcomeLikeCpp {
                 templates: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
                 saved_values: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
@@ -101,9 +118,43 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
         assert!(session.set_pending_teleport_like_cpp(Some((571, position))));
         assert!(session.set_represented_far_teleport_pending_like_cpp(true));
         session.set_state(crate::session::SessionState::Transfer);
-        session
-            .handle_world_port_response(WorldPacket::new_empty())
-            .await;
+        if closure == OutputClosure::RetainedBeforeZone {
+            assert!(session.set_represented_far_teleport_pending_like_cpp(false));
+            assert!(session.set_pending_teleport_like_cpp(None));
+            assert!(session.begin_worldport_post_add_like_cpp(571, position));
+            assert!(!session.begin_worldport_post_add_like_cpp(571, position));
+            session.set_player_position_like_cpp(Position::new(4.0, 5.0, 6.0, 0.0));
+            assert!(!session.finish_worldport_native_before_disconnect_like_cpp());
+            assert!(!session.represented_using_pvp_item_levels_like_cpp());
+            assert!(
+                session
+                    .represented_delayed_resurrection_after_teleport_like_cpp()
+                    .is_some()
+            );
+            session.set_player_position_like_cpp(position);
+            drop(send_rx.take());
+            session.kick("controlled retained post-add before zone");
+            session.save_disconnect_player_to_db_like_cpp().await;
+        } else if closure == OutputClosure::CancelDuringWorldStateRead {
+            assert!(
+                tokio::time::timeout(
+                    std::time::Duration::from_millis(50),
+                    session.handle_world_port_response(WorldPacket::new_empty()),
+                )
+                .await
+                .is_err()
+            );
+            assert!(observed.load(std::sync::atomic::Ordering::SeqCst));
+            assert!(!session.represented_far_teleport_pending_like_cpp());
+            assert!(session.pending_teleport_like_cpp().is_none());
+            drop(send_rx.take());
+            session.kick("controlled worldport cancellation before disconnect save");
+            session.save_disconnect_player_to_db_like_cpp().await;
+        } else {
+            session
+                .handle_world_port_response(WorldPacket::new_empty())
+                .await;
+        }
         assert_eq!(
             session.state(),
             if closure != OutputClosure::Never {
@@ -117,12 +168,22 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
                 .represented_delayed_resurrection_after_teleport_like_cpp()
                 .is_none()
         );
+        let pet_resummons = session.temporary_pet_resummon_requests_like_cpp();
+        assert_eq!(pet_resummons, 1);
+        assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+        assert_eq!(
+            session.temporary_pet_resummon_requests_like_cpp(),
+            pet_resummons
+        );
     } else {
         session
             .send_initial_packets_after_add_to_map(guid, &position, 571, false)
             .await;
     }
-    assert!(observed.load(std::sync::atomic::Ordering::SeqCst));
+    assert_eq!(
+        observed.load(std::sync::atomic::Ordering::SeqCst),
+        closure != OutputClosure::RetainedBeforeZone
+    );
     assert!(
         session.represented_using_pvp_item_levels_like_cpp(),
         "the shared post-add phase must apply destination scaling for login and worldport"

@@ -1914,6 +1914,9 @@ impl WorldSession {
         if !self.apply_post_add_zone_from_terrain_like_cpp(map_id, position) {
             return;
         }
+        let _ = self.advance_worldport_post_add_like_cpp(
+            wow_entities::PlayerWorldportPostAddPhaseLikeCpp::ZoneApplied,
+        );
         // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
         // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
         // values filtered by AreaIDs.
@@ -1947,7 +1950,15 @@ impl WorldSession {
         self.send_packet(&PhaseShiftChange::default_for(guid));
         // C++ Player.cpp:23648-23650 applies destination item scaling after
         // PhasingHandler::OnMapChange, shared by login and far worldport.
-        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
+        if self
+            .update_represented_item_level_area_based_scaling_with_publication_like_cpp(true)
+            .is_none()
+        {
+            return;
+        }
+        let _ = self.advance_worldport_post_add_like_cpp(
+            wow_entities::PlayerWorldportPostAddPhaseLikeCpp::ScalingApplied,
+        );
         // C++ RestMgr only dirties PLAYER_FLAGS_RESTING during UpdateZone; the
         // map object-update owner flushes that field after post-add packets.
         // Keep the marker on Player across the world-state await; only channel acceptance

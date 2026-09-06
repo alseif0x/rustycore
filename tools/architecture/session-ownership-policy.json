@@ -21374,6 +21374,58 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "advance_worldport_post_add_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn advance_worldport_post_add_like_cpp (& mut self , phase : Phase) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "begin_worldport_post_add_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn begin_worldport_post_add_like_cpp (& mut self , map_id : u32 , position : Position ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "finish_worldport_native_before_disconnect_like_cpp",
+          "visibility": "pub",
+          "signature": "fn finish_worldport_native_before_disconnect_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_represented_item_level_area_based_scaling_with_publication_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn update_represented_item_level_area_based_scaling_with_publication_like_cpp (& mut self , publish : bool ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "advance_buyback_slot_cpp",
           "visibility": "pub (crate)",
           "signature": "fn advance_buyback_slot_cpp (& mut self)",
@@ -55515,7 +55567,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:4c2adc79bc7fcd99e141d1e2307b4e3e:len=5677",
+      "body_fingerprint": "fnv1a64x2:1d3aaf5e9c0a4ccf251f0b9fb1c01aba:len=5940",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -68121,7 +68173,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:4c2adc79bc7fcd99e141d1e2307b4e3e:len=5677|evidence=fnv1a64x2:72f642b85f1867c40b712a59020b9e87:len=367",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:1d3aaf5e9c0a4ccf251f0b9fb1c01aba:len=5940|evidence=fnv1a64x2:72f642b85f1867c40b712a59020b9e87:len=367",
           "cfg": [],
           "multiplicity": 1
         },

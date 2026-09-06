@@ -475,9 +475,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2785,
-      "ceiling_lines": 2785,
-      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above d70c88c3 +3 lines apply destination item scaling in the shared post-add phase after PhasingHandler, rather than early worldport only. Complete login/worldport separation and C4 retirement remain.",
+      "observed_lines": 2796,
+      "ceiling_lines": 2796,
+      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above e8a3fb1f +11 lines checkpoint native zone/scaling phases and distinguish unavailable scaling from unchanged state. Resumption lives in a private lifecycle module. Complete login/worldport separation and C4 retirement remain.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -636,16 +636,16 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76548,
-      "ceiling_lines": 76548,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above 160d1ce5 +8 physical lines make the far destination fixture-only, add its existing fixture-state conversions and guard canonical destination writes. New accessors live in the 19-line transfer_destination module; C4 retirement remains open.",
+      "observed_lines": 76558,
+      "ceiling_lines": 76558,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above e8a3fb1f +10 lines add two fixture default fields and separate scaling availability/publication without changing existing callers' boolean behavior. Transfer completion lives in a private lifecycle module. C4 retirement remains open.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 96712,
-      "ceiling_lines": 96712,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above 160d1ce5 +27 lines migrate far-destination reads/writes to checked accessors, extend existing exact state literals and assert stale-handle rejection. Most growth is rustfmt wrapping; no new scenario bodies in this monolith. C4 split exit remains.",
+      "observed_lines": 96719,
+      "ceiling_lines": 96719,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above e8a3fb1f +7 lines extend existing exact teleport state through active/detached/replaced ownership and reject stale completion without changing the replacement. New scenarios stay in bounded files. C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },
     {

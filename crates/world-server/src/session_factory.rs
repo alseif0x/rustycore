@@ -382,7 +382,17 @@ pub(super) async fn create_session(
     } else {
         rename_drain.await;
     }
-    // Cancellation only discards initialization/gameplay work. During server
+    // Complete retained native transfer work before save/cleanup; never treat
+    // an unavailable incarnation or unfinished operation as a clean disconnect.
+    if !session.finish_worldport_native_before_disconnect_like_cpp() {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        tracing::error!(
+            account_id,
+            "Worldport native completion unavailable; refusing normal save and cleanup"
+        );
+        return;
+    }
+    // During server
     // shutdown, disconnect persistence and cleanup each get an independent
     // bounded attempt. Normal disconnects preserve the prior unbounded save
     // contract and are never truncated by shutdown policy.

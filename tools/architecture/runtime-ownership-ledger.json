@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82483,
-          "test_lines": 107096,
-          "total_lines": 189579,
+          "production_lines": 82599,
+          "test_lines": 107144,
+          "total_lines": 189743,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 far destination ownership above 160d1ce5: +29 production/+30 test lines in logical Session. A private 19-line adapter reads/writes the existing canonical teleport owner; writers check availability, and the save header reads the captured Player directly. The former Session destination is private cfg(test) only; test accessors, exhaustive literals and stale-handle checks account for growth. No new lock/clock or concurrent owner. Whole-transfer completion and C4 retirement remain; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +116 production/+48 tests. A 139-line private lifecycle module (98 production/41 tests) retains native phases on Player, checks the immutable target, completes remaining work without output and gates disconnect cleanup. A focused test pins save rejection until native completion; existing exact-state tests cover retained progress and stale completion. Scaling distinguishes availability/publication. No new Session field or clock. Whole-transfer admission, phase coordination and C4 remain; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1470,11 +1470,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20648,
-          "test_lines": 13069,
-          "total_lines": 33717,
+          "production_lines": 20659,
+          "test_lines": 13130,
+          "total_lines": 33789,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 early worldport output repair above 71383a93: +0 production/+36 test lines in logical Character. The existing 133-line post-add module distinguishes output closure before ACK from closure during the world-state read, and checks delayed resurrection consumption as well as native scaling. Projection-unavailable still rejects entry; delivery-unavailable no longer skips native effects. No new owner, lock, clock or query. Whole-transfer cancellation/save and C0-C4 remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +11 production/+61 tests. Shared after-add records zone/scaling phases on canonical Player. The 194-line test module covers real cancellation at the world-state read, retained work before zone, wrong target rejection and repeated completion without repeating pet/resurrection effects. Production-linked save coverage is separate. No Session mirror or new clock; whole-transfer and C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1495,11 +1495,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28908,
+          "production_lines": 28918,
           "test_lines": 27021,
-          "total_lines": 55929,
+          "total_lines": 55939,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "2026-09-06 rename callback integration above ab1cdab3: +24 production/+0 tests. Session factory drains submitted commits before disconnect save. Normal disconnect waits; shutdown uses the existing fatal timeout contract. Failure/timeout cannot acknowledge clean completion. No new simulation clock. session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +10 production/+0 tests. After existing rename-commit draining, factory completes retained native transfer work before ordinary save/cleanup. Unavailable completion selects the existing fatal exit and refuses normal cleanup; no new clock or timeout. This is not a durable-save receipt or full shutdown acceptance. session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1520,10 +1520,10 @@
         {
           "path": "crates/wow-entities/src/player/mod.rs",
           "production_lines": 11328,
-          "test_lines": 10137,
-          "total_lines": 21465,
+          "test_lines": 10139,
+          "total_lines": 21467,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-06 far destination ownership above 160d1ce5: +0 production/+2 tests in this logical Player tree. The sibling player_gameplay_state.rs adds one native field to the existing teleport state; exact location tests include it. This replaces the production Session destination without changing near/far phases, payloads or clocks. Complete transfer lifecycle and C4 retirement remain; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +0 production/+2 tests in logical Player. The sibling player_gameplay_state.rs adds 17 lines for native post-add progress and its immutable target, independent of the far semaphore. Existing location literals remain exact; active/detached/replacement coverage lives in Session tests. Whole-transfer and C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

@@ -208,6 +208,88 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
 async fn production_save_retains_later_spell_and_allows_two_maps_with_full_output() {
     exercise(false, false, PersistenceOutcomeLikeCpp::Applied { rows: 1 }).await;
 }
+
+#[tokio::test]
+async fn production_disconnect_finishes_retained_worldport_before_save_with_full_output() {
+    let (mut session, port, output, receiver) = hydrate(true, true, true).await;
+    let guid = ObjectGuid::create_player(1, 42);
+    {
+        let mut manager = port.manager.lock().unwrap();
+        let player = manager
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(guid)
+            .unwrap();
+        let position = player.unit().world().position();
+        player.teleport_state_mut_like_cpp().post_add =
+            Some(wow_entities::PlayerWorldportPostAddLikeCpp {
+                map_id: 0,
+                position,
+                phase: wow_entities::PlayerWorldportPostAddPhaseLikeCpp::ZoneApplied,
+            });
+        player.gameplay_state_mut().using_pvp_item_levels = true;
+        player.unit_mut().set_max_health(1000);
+        player.unit_mut().set_health(500);
+        player
+            .resurrection_state_mut_like_cpp()
+            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionRequestLikeCpp {
+            resurrecter: guid,
+            map_id: 0,
+            position,
+            health: 123,
+            mana: 0,
+            aura: 0,
+        });
+        // A represented equipped item makes the normal scaling path publish stats.
+        // Finalization must complete native work even when that output is saturated.
+        let item_guid = ObjectGuid::create_item(1, 99);
+        let mut item = wow_entities::Item::new(0);
+        item.object_mut().create(item_guid);
+        item.object_mut().set_entry(6948);
+        player
+            .inventory_runtime_mut_like_cpp()
+            .item_objects_mut()
+            .insert(item_guid, item);
+    }
+    let probe = Arc::new(SaveProbe {
+        requests: Mutex::new(vec![]),
+        released: AtomicBool::new(true),
+        outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    });
+    *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    for _ in 0..8 {
+        output.try_send(vec![0]).unwrap();
+    }
+    assert!(output.is_full());
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    session
+        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .await;
+    assert_eq!(
+        receiver.len(),
+        8,
+        "native finalization does not publish packets"
+    );
+    let requests = probe.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].character.health, 123);
+    let manager = port.manager.lock().unwrap();
+    let player = manager
+        .find_map(0, 0)
+        .unwrap()
+        .map()
+        .get_typed_player(guid)
+        .unwrap();
+    assert!(player.teleport_state_like_cpp().post_add.is_none());
+    assert!(
+        player
+            .resurrection_state_like_cpp()
+            .delayed_after_teleport
+            .is_none()
+    );
+    assert!(!player.gameplay_state().using_pvp_item_levels);
+}
 #[tokio::test]
 async fn production_save_old_completion_does_not_clean_replacement_incarnation() {
     exercise(true, false, PersistenceOutcomeLikeCpp::Applied { rows: 1 }).await;

@@ -279,6 +279,10 @@ impl crate::session::WorldSession {
             self.kick("worldport self CREATE has incomplete Player state");
             return;
         };
+        if !self.begin_worldport_post_add_like_cpp(new_map, new_pos) {
+            self.kick("worldport post-add operation could not retain its Player");
+            return;
+        }
 
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
         self.send_nearby_creatures_with_catalogs_like_cpp(
@@ -315,8 +319,10 @@ impl crate::session::WorldSession {
         // MovementHandler.cpp:156-234 completes after-add initialization and
         // zone updates before pet recovery and ProcessDelayedOperations.
         // In particular, self CREATE must precede the delayed resurrection.
-        self.resummon_pet_temporary_unsummoned_like_cpp();
-        self.process_represented_delayed_resurrection_after_teleport_like_cpp();
+        if !self.finish_worldport_native_before_disconnect_like_cpp() {
+            self.kick("worldport native completion unavailable");
+            return;
+        }
 
         // Preserve server effects above even when output closes. Client readiness,
         // however, must not be reported after a failed terminal publication.

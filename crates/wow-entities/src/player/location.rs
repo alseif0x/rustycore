@@ -99,6 +99,7 @@ mod tests {
         *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
             recovery: Default::default(),
             far_destination: Some((1, destination)),
+            post_add: None,
             can_delay: true,
             has_delayed: true,
             near_pending: true,
@@ -113,6 +114,7 @@ mod tests {
             PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
                 far_destination: Some((1, destination)),
+                post_add: None,
                 can_delay: true,
                 has_delayed: true,
                 near_pending: true,

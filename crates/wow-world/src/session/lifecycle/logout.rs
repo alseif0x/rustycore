@@ -25,6 +25,10 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
+        if !self.finish_worldport_native_before_disconnect_like_cpp() {
+            self.kick("disconnect save refused incomplete worldport native work");
+            return;
+        }
         let Some(player_guid) = self.player_guid() else {
             self.mark_login_account_offline_on_disconnect_like_cpp()
                 .await;

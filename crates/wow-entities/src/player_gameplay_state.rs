@@ -370,6 +370,7 @@ pub struct PlayerResurrectionStateLikeCpp {
 pub struct PlayerTeleportStateLikeCpp {
     pub recovery: PlayerTransferRecovery,
     pub far_destination: Option<(u32, wow_core::Position)>,
+    pub post_add: Option<PlayerWorldportPostAddLikeCpp>,
     pub can_delay: bool,
     pub has_delayed: bool,
     pub near_pending: bool,
@@ -377,6 +378,22 @@ pub struct PlayerTeleportStateLikeCpp {
     pub near_destination: Option<(u16, wow_core::Position)>,
     pub delayed: Option<(u32, wow_core::Position, u32)>,
     pub near_destination_zone_area: Option<(u32, u32)>,
+}
+
+/// Remaining native work after self CREATE construction, independent of socket delivery.
+/// The immutable target belongs to this Player incarnation, not a replacement Session.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerWorldportPostAddLikeCpp {
+    pub map_id: u32,
+    pub position: wow_core::Position,
+    pub phase: PlayerWorldportPostAddPhaseLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PlayerWorldportPostAddPhaseLikeCpp {
+    BeforeZone,
+    ZoneApplied,
+    ScalingApplied,
 }
 
 /// Approved bounded recovery extension; owned by the same Player incarnation.

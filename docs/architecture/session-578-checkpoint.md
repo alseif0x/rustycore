@@ -1543,6 +1543,91 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1 retained native post-add completion — working tree above `e8a3fb1f`, 2026-09-06
+
+The `cancelled_worldport_finishes_native_effects_before_disconnect_save` regression
+first failed against `e8a3fb1f`. It polls the
+real worldport handler until its typed initial-world-state read remains pending, drops
+that future with a bounded timeout, closes output and invokes the real disconnect-save
+entry point. An observation inside the read proves cancellation reached that phase;
+no map guard crosses the pending await. Before save, both the far semaphore and pending
+destination are already clear. After disconnect-save returns, canonical delayed
+resurrection is still present. Command: `cargo test --offline --locked -p wow-world --lib
+cancelled_worldport_finishes_native_effects_before_disconnect_save`, local aarch64,
+0 passed / 1 failed; `/tmp/rustycore-worldport-cancel-save-before.log`. This proves missing
+native completion before finalization returns, **not** that a real database committed an
+incomplete snapshot. No runtime/database/capture operation was performed.
+
+Current production cancellation is in `session_factory.rs::run_world_session_until_disconnect_like_cpp`:
+the cancellation arm drops the entire update future. `process_pending_with_catalogs_like_cpp`
+contains asynchronous phase work and drains multiple selected handlers, followed by rename
+callbacks and periodic save. Keeping that entire future alive without an admission barrier
+would permit additional work after shutdown. Conversely, merely refusing SaveToDB on a
+new pending bit is insufficient: the factory currently proceeds from unit-returning save
+to cleanup. Both alternatives must preserve owner retention, submitted-commit drains and
+the bounded fatal-shutdown contract, not silently extend force cancellation indefinitely.
+
+The implementation retains `post_add` in the canonical Player teleport state, independently
+of the far semaphore. Its immutable map/position and three monotonic native phases cover
+before zone, zone applied and scaling applied. Worldport starts this record after successful
+self CREATE construction (the async wrapper itself does not suspend), before the nearby
+creature/gameobject and shared visibility awaits. Shared after-add advances it around zone
+and scaling. A private 139-line lifecycle module (98 production/41 test lines) completes only remaining represented native
+effects and the pet/resurrection tail; it never replays the ACK or reads world states for
+publication. Both normal completion and disconnect use it. Completion removes the record;
+repeated completion cannot repeat the pet/resurrection tail.
+
+Scaling now has an availability-aware, publication-selectable internal path. Existing callers
+keep their boolean wrapper; recovery performs the same native scaling without sending its
+stat packet into a possibly full channel. Wrong target, missing incarnation and unavailable
+scaling fail closed with the record retained. The existing active/detached/replacement test
+includes the progress field and rejects stale completion without changing the replacement.
+
+Before ordinary save/cleanup, the factory completes retained native work after the existing
+rename-commit drain. Failure requests the existing fatal exit and returns without ordinary
+save/cleanup; this is not a successful logout or a durable recovery claim. The disconnect-save
+entry also gates itself, and prepared save refuses an owner with outstanding post-add work.
+No Session state mirror, scheduler, lock, asynchronous gate or database request is introduced.
+
+C++ `WorldSession.cpp:544-551` finishes pending transfers
+before setting logout state; `Player.cpp:1494-1503` orders delayed resurrection before save,
+and `Player.cpp:19324-19333` defers saves while far transfer is pending. The Rust async
+representation must preserve that operation ordering even after its early far-flag clear.
+The cancellation regression now passes in the initial full library run (3,768 passed,
+one ignored), with a retained-before-zone case, wrong-target rejection and no repeated pet
+tail. A new production-linked save scenario fills the output queue, retains a real native
+equipped item and checks that the controlled save receives post-resurrection health after
+nonpublishing scaling. A co-located test also proves prepared save is available before
+the operation, rejected while native work remains, and available after completion.
+
+Reviewed logical deltas: Session +116 production/+48 tests, Character +11/+61, server
+composition +10/+0, and logical Player +0/+2; the sibling native gameplay-state file grows
+17 lines. Necessary physical changes are +10 Session-root lines, +7 existing exact-state
+test lines and +11 shared-entry lines. The completion module is 139 lines; focused post-add
+tests are 194 lines and the production save test module is 316. The three legacy ceilings
+retain their C4 split exits; none is a terminal exception. Syntax policy reviews only four
+new methods and the factory's changed body/bridge fingerprint; no registry row or field is
+added, and the bridge evidence itself is unchanged.
+
+Remaining boundary: this is the **represented post-add native tail**, not all C1. Transfers
+cancelled before ACK/admission, rejection/self-CREATE-unavailable recovery, unimplemented C++
+before/after-add gameplay and payloads, delayed autosave scheduling, submitted-save receipts
+and full visibility/Map effects still need their operation contracts. Independent map/session
+clocks still require C0 admission and mutation barriers; these sequential checked accesses
+do not prove a cross-clock atomic operation. Terrain reads remain synchronous outside locks;
+bounded asynchronous shutdown/transport and live durability/capture QA remain C0/C3 work.
+No whole-transfer, macro, live database or restart acceptance follows from the local tests.
+
+Local aarch64 working-tree validation above `e8a3fb1f`: `cargo test --offline --locked
+-p wow-world --lib` passes 3,769 tests (one ignored); `-p wow-entities --lib` passes 721;
+`-p wow-world --test production_login_player_owner` passes 13, including the saturated-output
+save scenario. `cargo check --offline --locked -p world-server` passes. Syntax-only ownership
+passes with unchanged 282 production/433 fixture fields, 3,694 associated items and 590
+registry rows; architecture check/self-test, five persistence-policy checks and format/diff
+checks pass. The quick run compiles all three changed packages' test targets and its manifest
+`target/validation-v2/manifests/20260906T195108.956424Z-3-quick.json` verifies green.
+These are local dev/test results, not release-mode or live acceptance. No publication occurs.
+
 ### C1/C3 early self CREATE delivery does not abort native effects — above `71383a93`, 2026-09-06
 
 The actual worldport handler still returned before post-add processing when its self

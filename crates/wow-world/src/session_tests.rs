@@ -32878,6 +32878,11 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
     let owned = wow_entities::PlayerTeleportStateLikeCpp {
         recovery: Default::default(),
         far_destination: Some((1, destination)),
+        post_add: Some(wow_entities::PlayerWorldportPostAddLikeCpp {
+            map_id: 1,
+            position: destination,
+            phase: wow_entities::PlayerWorldportPostAddPhaseLikeCpp::BeforeZone,
+        }),
         can_delay: true,
         has_delayed: true,
         near_pending: true,
@@ -32927,6 +32932,7 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
     let replacement_state = wow_entities::PlayerTeleportStateLikeCpp {
         recovery: Default::default(),
         far_destination: None,
+        post_add: None,
         can_delay: false,
         has_delayed: false,
         near_pending: false,
@@ -32950,6 +32956,7 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
 
     assert_eq!(session.player_teleport_state_snapshot_like_cpp(), None);
     assert_eq!(session.pending_teleport_like_cpp(), None);
+    assert!(!session.finish_worldport_native_before_disconnect_like_cpp());
     assert!(!session.set_pending_teleport_like_cpp(Some((1, destination))));
     assert!(!session.set_represented_can_delay_teleport_like_cpp(true));
     assert!(!session.set_represented_far_teleport_pending_like_cpp(false));
