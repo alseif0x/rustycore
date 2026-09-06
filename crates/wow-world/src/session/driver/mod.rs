@@ -24,6 +24,7 @@ mod callbacks;
 pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
+pub(super) use callbacks::RenameCallbacks;
 use phases::SessionDriverPhaseLikeCpp;
 
 #[cfg(test)]

@@ -377,7 +377,7 @@
         },
         {
           "name": "character_rename_callbacks",
-          "type": "crate :: character_administration :: RenameCallbacks",
+          "type": "driver :: RenameCallbacks",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -7501,9 +7501,9 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "complete_character_rename_like_cpp",
+          "name": "enqueue_character_rename_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn complete_character_rename_like_cpp (& self , guid : ObjectGuid , outcome : crate :: character_administration :: RenameOutcome ,)",
+          "signature": "fn enqueue_character_rename_like_cpp (& self , guid : ObjectGuid , outcome : & crate :: character_administration :: RenameOutcome ,) -> flume :: r#async :: SendFut < 'static , Vec < u8 > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -55389,6 +55389,16 @@
           "count": 1
         },
         {
+          "module": "crate::character_administration::tests",
+          "callee": "WorldSession::new",
+          "argument_count": 10,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
           "module": "crate::handlers::battlenet::tests",
           "callee": "WorldSession::new",
           "argument_count": 10,
@@ -76214,7 +76224,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e40eb0f6f67eb4517f9015019cc11dfc:len=96470|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c7405b6b48995df2291c549157153439:len=96443|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

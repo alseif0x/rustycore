@@ -9,9 +9,6 @@
 use std::future::Future;
 use std::sync::Arc;
 
-mod callbacks;
-pub(crate) use callbacks::RenameCallbacks;
-
 use wow_persistence::{
     CharacterAdministrationLoadOutcomeLikeCpp as LoadOutcome,
     CharacterAdministrationMutationOutcomeLikeCpp as MutationOutcome,

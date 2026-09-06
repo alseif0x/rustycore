@@ -286,34 +286,44 @@ impl WorldSession {
     }
 
     /// Apply only on the owning Session, never from a database worker.
-    pub(crate) fn complete_character_rename_like_cpp(
+    pub(crate) fn enqueue_character_rename_like_cpp(
         &self,
         guid: ObjectGuid,
-        outcome: crate::character_administration::RenameOutcome,
-    ) {
+        outcome: &crate::character_administration::RenameOutcome,
+    ) -> flume::r#async::SendFut<'static, Vec<u8>> {
         use crate::character_administration::RenameFailure;
-        let result = match outcome.result {
+        let result = if outcome.result.is_ok() {
+            RESPONSE_SUCCESS_LIKE_CPP
+        } else {
+            CHAR_CREATE_ERROR_LIKE_CPP
+        };
+        let delivery = self
+            .send_tx()
+            .clone()
+            .into_send_async(wow_packet::ServerPacket::to_bytes(&CharacterRenameResult {
+                result,
+                name: outcome.new_name.clone(),
+                guid: (result == RESPONSE_SUCCESS_LIKE_CPP).then_some(guid),
+            }));
+        // Confirmed DB outcome is logged once, not on each poll of a pending send.
+        match &outcome.result {
             Ok(old_name) => {
                 info!(
                     "Account {} renamed character {:?} from {} to {}",
                     self.account_id, guid, old_name, outcome.new_name
                 );
-                RESPONSE_SUCCESS_LIKE_CPP
             }
-            Err(failure) => {
-                match failure {
-                    RenameFailure::QueryFailed(reason) => {
-                        warn!("Character rename free-name query failed: {reason}");
-                    }
-                    RenameFailure::CommitFailed(reason) => {
-                        warn!("Character rename transaction failed: {reason}");
-                    }
-                    RenameFailure::NotFound | RenameFailure::NotEligible => {}
+            Err(failure) => match failure {
+                RenameFailure::QueryFailed(reason) => {
+                    warn!("Character rename free-name query failed: {reason}");
                 }
-                CHAR_CREATE_ERROR_LIKE_CPP
-            }
+                RenameFailure::CommitFailed(reason) => {
+                    warn!("Character rename transaction failed: {reason}");
+                }
+                RenameFailure::NotFound | RenameFailure::NotEligible => {}
+            },
         };
-        self.send_character_rename_like_cpp(result, guid, outcome.new_name);
+        delivery
     }
 
     fn send_char_customize_failure_like_cpp(&self, result: u8, guid: ObjectGuid) {

@@ -73,6 +73,8 @@ struct RenamePortFixtureLikeCpp {
     trace: Mutex<Vec<RenameTraceLikeCpp>>,
     load_completion: Mutex<Option<oneshot::Receiver<LoadResult>>>,
     commit_completion: Mutex<Option<oneshot::Receiver<CommitResult>>>,
+    commit_returned: Arc<std::sync::atomic::AtomicBool>,
+    commits_returned: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl CharacterAdministrationPersistencePortLikeCpp for RenamePortFixtureLikeCpp {
@@ -138,11 +140,16 @@ impl CharacterAdministrationPersistencePortLikeCpp for RenamePortFixtureLikeCpp 
             flags: at_login_flags,
         });
         let completion = self.commit_completion.lock().unwrap().take();
+        let returned = self.commit_returned.clone();
+        let returned_count = self.commits_returned.clone();
         Box::pin(async move {
-            match completion {
+            let result = match completion {
                 Some(receiver) => receiver.await.expect("controlled commit result"),
                 None => CharacterAdministrationMutationOutcomeLikeCpp::Applied,
-            }
+            };
+            returned.store(true, std::sync::atomic::Ordering::SeqCst);
+            returned_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            result
         })
     }
 
@@ -421,4 +428,241 @@ async fn lost_commit_worker_is_not_a_clean_retirement() {
     assert!(!session.finish_character_rename_callbacks_like_cpp().await);
     assert_eq!(port.trace.lock().unwrap().len(), 2);
     assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn saturated_callback_delivery_returns_and_retries_without_repeating_commit() {
+    let (mut session, send_rx) = make_session_with_send_capacity(0);
+    session.set_legit_characters(vec![request().guid]);
+    let (complete, completion) = oneshot::channel();
+    let port = Arc::new(RenamePortFixtureLikeCpp {
+        commit_completion: Mutex::new(Some(completion)),
+        ..Default::default()
+    });
+    session.set_character_administration_persistence_port_like_cpp(port.clone());
+    session.handle_character_rename_request(request()).await;
+    wait_for_commit(&mut session, &port).await;
+    complete.send(CommitResult::Applied).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !port
+            .commit_returned
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+
+    // Isolate any accidental synchronous send. The timeout branch releases the
+    // rendezvous and joins the actual worker before failing, so old code cannot
+    // strand a blocking thread or deadlock this test runtime.
+    let mut pass = tokio::task::spawn_blocking(move || {
+        session.process_ready_character_rename_callbacks_like_cpp();
+        session
+    });
+    let mut session =
+        match tokio::time::timeout(std::time::Duration::from_millis(250), &mut pass).await {
+            Ok(result) => result.unwrap(),
+            Err(_) => {
+                let _ = send_rx.recv_async().await.unwrap();
+                drop(pass.await.unwrap());
+                panic!("ready callback blocked on saturated socket capacity");
+            }
+        };
+    assert_eq!(port.trace.lock().unwrap().len(), 2);
+    let bytes = send_rx
+        .try_recv()
+        .expect("reserved channel send is retained, not lost");
+    session.process_ready_character_rename_callbacks_like_cpp();
+    assert_response(&bytes, 0);
+    session.process_ready_character_rename_callbacks_like_cpp();
+    assert!(send_rx.try_recv().is_err(), "no repeated response");
+    assert_eq!(port.trace.lock().unwrap().len(), 2, "no repeated commit");
+    assert!(session.finish_character_rename_callbacks_like_cpp().await);
+}
+
+#[tokio::test]
+async fn closed_callback_sink_retires_session_without_replaying_the_commit() {
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    session.set_legit_characters(vec![request().guid]);
+    let port = Arc::new(RenamePortFixtureLikeCpp::default());
+    session.set_character_administration_persistence_port_like_cpp(port.clone());
+    drop(send_rx);
+    session.handle_character_rename_request(request()).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !session.is_disconnecting() {
+            session.process_ready_character_rename_callbacks_like_cpp();
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("closed callback sink retires the Session");
+    assert!(session.finish_character_rename_callbacks_like_cpp().await);
+    assert_eq!(port.trace.lock().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn failed_active_worker_stops_read_admission_and_cannot_publish_success() {
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    session.set_legit_characters(vec![request().guid]);
+    let (complete, completion) = oneshot::channel();
+    let port = Arc::new(RenamePortFixtureLikeCpp {
+        commit_completion: Mutex::new(Some(completion)),
+        ..Default::default()
+    });
+    session.set_character_administration_persistence_port_like_cpp(port.clone());
+    session.handle_character_rename_request(request()).await;
+    wait_for_commit(&mut session, &port).await;
+    let (read_complete, read_completion) = oneshot::channel();
+    *port.load_completion.lock().unwrap() = Some(read_completion);
+    session.handle_character_rename_request(request()).await;
+    wait_for_trace(&port, 3).await;
+    drop(complete); // the first commit worker fails, not a classified DB rejection
+    let retired = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !session.is_disconnecting() {
+            session.process_ready_character_rename_callbacks_like_cpp();
+            tokio::task::yield_now().await;
+        }
+    })
+    .await;
+    // Always drain before asserting a timeout, including on the previous code.
+    assert!(!session.finish_character_rename_callbacks_like_cpp().await);
+    retired.expect("worker loss must retire the active Session");
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !read_complete.is_closed() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("read worker cancellation completes");
+    assert!(
+        read_complete.send(candidate()).is_err(),
+        "unadmitted read is cancelled"
+    );
+    assert_eq!(port.trace.lock().unwrap().len(), 3, "no second transaction");
+    assert!(
+        send_rx.try_recv().is_err(),
+        "unknown worker failure is not a response success"
+    );
+}
+
+#[tokio::test]
+async fn reserved_rename_response_precedes_a_later_packet_from_the_same_session() {
+    use wow_packet::packets::character::DeleteChar;
+    let (mut session, receive) = make_session_with_send_capacity(1);
+    session.set_legit_characters(vec![request().guid]);
+    let (complete, completion) = oneshot::channel();
+    let port = Arc::new(RenamePortFixtureLikeCpp {
+        commit_completion: Mutex::new(Some(completion)),
+        ..Default::default()
+    });
+    session.set_character_administration_persistence_port_like_cpp(port.clone());
+    session.handle_character_rename_request(request()).await;
+    wait_for_commit(&mut session, &port).await;
+    assert!(session.send_packet(&DeleteChar { code: 0 })); // occupy channel capacity
+    complete.send(CommitResult::Applied).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !port
+            .commit_returned
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    session.process_ready_character_rename_callbacks_like_cpp();
+    receive.try_recv().expect("remove the earlier sentinel");
+
+    // A later ordinary send shares the same channel. Isolate its legitimate
+    // blocking behavior so the test can drain it and join the producer.
+    let later = tokio::task::spawn_blocking(move || {
+        assert!(session.send_packet(&DeleteChar { code: 1 }));
+        session
+    });
+    let first = receive.recv_async().await.unwrap();
+    let mut session = later.await.unwrap();
+    session.process_ready_character_rename_callbacks_like_cpp();
+    assert!(session.finish_character_rename_callbacks_like_cpp().await);
+    assert_response(&first, 0);
+    let last = receive.try_recv().expect("later packet follows rename");
+    let mut last = WorldPacket::from_bytes(&last);
+    last.skip_opcode();
+    assert_eq!(last.read_uint8().unwrap(), 1);
+    assert!(receive.try_recv().is_err());
+    assert_eq!(port.trace.lock().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn entire_ready_batch_reserves_fifo_positions_before_a_later_packet() {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::character::{CharacterRenameResult, DeleteChar};
+    let (mut session, receive) = make_session_with_send_capacity(1);
+    let second_guid = ObjectGuid::create_player(1, 43);
+    session.set_legit_characters(vec![request().guid, second_guid]);
+    let (complete, completion) = oneshot::channel();
+    let port = Arc::new(RenamePortFixtureLikeCpp {
+        commit_completion: Mutex::new(Some(completion)),
+        ..Default::default()
+    });
+    session.set_character_administration_persistence_port_like_cpp(port.clone());
+    session.handle_character_rename_request(request()).await;
+    session
+        .handle_character_rename_request(CharacterRenameRequest {
+            guid: second_guid,
+            new_name: "Another".into(),
+        })
+        .await;
+    wait_for_trace(&port, 2).await; // both current-thread read tasks completed
+    session.process_ready_character_rename_callbacks_like_cpp();
+    wait_for_trace(&port, 4).await;
+    assert!(session.send_packet(&DeleteChar { code: 0 }));
+    complete.send(CommitResult::Applied).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while port
+            .commits_returned
+            .load(std::sync::atomic::Ordering::SeqCst)
+            < 2
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    session.process_ready_character_rename_callbacks_like_cpp();
+    receive.try_recv().expect("earlier sentinel");
+    let later = tokio::task::spawn_blocking(move || {
+        assert!(session.send_packet(&DeleteChar { code: 1 }));
+        session
+    });
+    let first = receive.recv_async().await.unwrap();
+    let second = receive.recv_async().await.unwrap();
+    let mut session = later.await.unwrap();
+    session.process_ready_character_rename_callbacks_like_cpp();
+    assert!(session.finish_character_rename_callbacks_like_cpp().await);
+    assert_eq!(
+        first,
+        CharacterRenameResult {
+            result: 0,
+            name: "Newname".into(),
+            guid: Some(request().guid),
+        }
+        .to_bytes()
+    );
+    assert_eq!(
+        second,
+        CharacterRenameResult {
+            result: 0,
+            name: "Another".into(),
+            guid: Some(second_guid),
+        }
+        .to_bytes()
+    );
+    assert_eq!(
+        receive.try_recv().unwrap(),
+        DeleteChar { code: 1 }.to_bytes()
+    );
+    assert!(receive.try_recv().is_err());
+    assert_eq!(port.trace.lock().unwrap().len(), 4);
 }

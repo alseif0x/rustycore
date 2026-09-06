@@ -6000,7 +6000,7 @@ pub struct WorldSession {
 
     // Pending async packets to process
     pending_packets: VecDeque<WorldPacket>,
-    character_rename_callbacks: crate::character_administration::RenameCallbacks,
+    character_rename_callbacks: driver::RenameCallbacks,
 
     // ── ConnectTo flow ──────────────────────────────────────────
     /// GUID of the character being logged in (set during PlayerLogin).

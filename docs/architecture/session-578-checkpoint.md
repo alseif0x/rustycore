@@ -3,6 +3,81 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C0/C3 callback backpressure and worker failure — above `b35bba96`, 2026-09-06
+
+The first callback integration still reached blocking `WorldSession::send_packet`.
+A production-linked saturated-channel regression reproduces this on `b35bba96`:
+the ready callback blocks, then the test explicitly drains the rendezvous and joins
+the blocking worker before failing (`rename-saturation-before` log, 0 passed/1 failed).
+It does not leave an abandoned thread or rely on an async timeout interrupting a
+synchronous send. C++ `WorldSocket.cpp:526-535` enqueues into `_bufferQueue`;
+`WorldSession.cpp:215-270` routes to that socket, rather than waiting for capacity
+in the Rust bounded channel. Actual Rust session channels are bounded to 256 at
+`wow-network/src/world_socket.rs::create_session_channels` and the instance accept path.
+
+The corrected callback path owns `SendFut<'static, Vec<u8>>` values from the existing
+channel and polls them once to reserve their FIFO positions. It retains pending futures,
+not just an application outbox that later packets could overtake. The **entire ready
+batch** is registered in order, including its tail when the head is pending. Accepted
+futures are never repolled, only the accepted prefix is retired, and a blocked result
+does not resubmit a query/commit. No unbounded replacement socket channel, transport task,
+new lock or additional simulation clock is introduced. Ready DB results and read admission
+wait behind retained delivery work; this is not a complete callback-resource bound.
+
+This relies on the locked flume 0.11.1 implementation, inspected at `async.rs:94-104,
+165-175,207-237` (owned send construction, cancellation and waiter registration) and
+`lib.rs:444-459,535-543,590-603` (FIFO sender hooks and receiver promotion). Regression
+tests preserve the required observable order across dependency updates. Dropping a pending
+send at Session retirement cancels its remaining waiter; it cannot retract bytes already
+accepted by the channel/socket or prove they were never delivered.
+
+The 255-line callback coordinator now lives wholly in private `session/driver/callbacks.rs`,
+absorbing the former 150-line application callback file. The application module retains
+only owned read/commit stages, without transport. The same private Session field remains;
+its type path is narrowed to `driver::RenameCallbacks`. The presenter constructs the owned
+future once, retaining identical opcode/GUID/name/result serialization. A disconnected
+sink retires Session. A lost/panicked DB worker closes read admission and retires Session
+without treating its unknown completion as an ordinary DB rejection; submitted commits
+remain supervised and finalization reports failure. Ordinary typed DB failures retain
+their existing error response and are not conflated with worker loss.
+
+Reviewed syntax delta: that field type path, the one crate-local presenter signature and
+the matching struct bridge fingerprint change. The previous cut's final driver-wiring
+test also adds one cfg(test) constructor trace, now explicitly reconciled; it was added
+after that cut's syntax check. No unrelated sorting, field membership, factory body or
+persistence snapshot is regenerated. Logical Session growth is +227 production lines
+(driver module +226, reexport +1, including the relocated coordinator), Character +10;
+there is no physical-root growth, new legacy ceiling or terminal exception. Tests remain
+in the 668-line production integration target; 101 legacy ceilings still remain.
+
+This closes the demonstrated **ready-callback** blocking/order defect, not all Session
+output or C0/C3. Immediate rename admission-error responses and general send paths still
+use the existing synchronous API. Global phase/barrier integration must address them,
+callback resource bounds, control/shutdown progress, blocking ticks and the first complete
+Player lifetime/save vertical. No real DB, client, capture, deployment or crash-recovery
+acceptance is claimed by these controlled tests.
+
+Validation on this working cut above `b35bba96` (aarch64, pinned PROTOC and existing
+validation Cargo cache):
+
+- `cargo test --offline --locked -p wow-world --test production_character_rename`:
+  twelve PASS, none ignored. New cases cover the reproduced saturated callback,
+  closed sink, active-worker loss/read cancellation, a later ordinary packet and
+  an entire two-response batch ahead of that packet. Batch assertions compare exact
+  serialized bytes, not only opcode counts. Controlled blocking producers are joined.
+- `cargo test --offline --locked -p wow-world --lib character_administration::tests`:
+  four PASS on the final batch implementation, including the real driver-wiring test.
+- `session-ownership-check check --syntax-only`: PASS with unchanged 283 production/
+  432 fixture fields, 3,677 items and 590 exact registry rows, including the reconciled
+  fixture constructor. Architecture `check` and `self-test` PASS: 977 physical files,
+  101 legacy ceilings and the reviewed logical counts above.
+- Standalone checker `cargo test --offline --locked --release --lib persistence_policy`
+  with its own manifest: five PASS; snapshot and reviewed persistence-policy semantics
+  remain consistent without regeneration.
+- Bounded quick PASS, verified manifest
+  `target/validation-v2/manifests/20260906T143145.050078Z-3-quick.json`; final format/diff
+  checks PASS. This is local dirty-tree evidence, not publication or runtime acceptance.
+
 ## C0/C3 production rename callbacks — above `ab1cdab3`, 2026-09-06
 
 Intentional execution correction, not a behavior-preserving file move: the production

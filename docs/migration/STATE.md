@@ -93,6 +93,15 @@ commit-result-before-response fence. Global World/Map phase coordination, the fi
 Player lifecycle/save vertical, resource/backpressure and live/durability acceptance remain
 open. Exact validation and source anchors live in the owning Session checkpoint.
 
+The following cut above `b35bba96` reproduces and removes blocking capacity waits
+from ready rename callbacks. Session now retains owned channel-send futures for the
+entire ready batch, preserving FIFO against later packets without repeating commits.
+Callback coordination/transport lifetime moves into the private Session driver; read/
+commit application stages stay transport-free. Worker loss stops read admission and
+retires Session rather than pretending completion was a normal DB rejection. General
+synchronous sends and immediate admission-error responses remain explicit C0/C3 work;
+this is bounded callback evidence, not whole-runtime backpressure or durability acceptance.
+
 ## Current architecture and execution checkpoint — 2026-09-05
 
 The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal
