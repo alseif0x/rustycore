@@ -66,6 +66,8 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
         spells.rows_loaded = true;
         spells.rows_complete = true;
         spells.rows.insert(10, spell(10));
+        // Change only the canonical owner after login hydrated Session's level.
+        p.unit_mut().set_level(73);
         owner.create_world_map(1, 0);
     }
     let probe = Arc::new(SaveProbe {
@@ -87,6 +89,7 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
     );
     let request = probe.requests.lock().unwrap()[0].clone();
     assert_eq!(request.player_guid, 42);
+    assert_eq!(request.character.level, 73);
     assert!(matches!(
         request.spells,
         Some(PlayerSpellSaveGroupLikeCpp::Complete { .. })

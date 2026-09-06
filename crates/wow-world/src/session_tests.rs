@@ -56924,7 +56924,7 @@ fn logout_save_snapshot_uses_canonical_xp_money_and_health_like_cpp() {
             map_id: 571,
             instance_id: 0,
             position: latest_session_position,
-            level: 10,
+            level: 42, // Player::SaveToDB reads canonical Unit::GetLevel.
             xp: 1234,
             money: 5678,
             health: 456,

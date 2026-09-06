@@ -1005,11 +1005,64 @@ Expanded aarch64 validation on this worktree above `abb072a9`:
 
 Still open: actual scheduler/phase admission C0, private-hecs integration, full login/relogin,
 real MariaDB durability and restart QA, and general ordering against other durable writers.
-The header intentionally retains its previous Session map/level staging and detached-health
-projection; far teleport postponement (`Player.cpp:19327`) needs its own faithful transition
+At that cut the header retained Session map/level staging and a zero detached instance;
+the owner-header correction below supersedes those three reads. Detached-health
+projection and far teleport postponement (`Player.cpp:19327`) need their own faithful transition
 cut rather than being silently folded into this extraction. Equipment type/identity changes
 across the existing two-table adapter are not generalized by this receipt. No new concurrent
 writer is enabled. These boundaries prevent full C1/C2 or macro acceptance from this result.
+
+### C1 save-header authority correction — 2026-09-06, above `0ad78a77`
+
+`session/lifecycle/persistence/prepared.rs` now reads map, instance and level from
+the same generation-checked Player as the rest of the header. C++ `Player.cpp:19480-19514`
+uses `GetLevel`, `GetMapId` and `GetInstanceId`; `Unit.h:733` casts the native level
+to uint8. `Object.cpp:1814-1824` preserves map/instance when `ResetMap` clears the
+binding, matching Rust `WorldObject::reset_map`. Detached ownership is not instance zero.
+This is an intentional correction of old-Rust parity debt, not a structural-only move.
+
+The new active/detached regression forces Session map/level to 1/11 while Player
+holds 571/73, then checks both the prepared DTO and the actual controlled save port.
+Before the fix it failed with `(1, 11)` instead of `(571, 73)`; the extended case
+also retains instance 43 after detach. Production-linked disconnect-save tests change
+only the canonical level after login hydration and inspect the actual submitted request.
+Old snapshot equivalence assertions are narrowed where their fixture intentionally
+still uses legacy staging; explicit C++ expectations replace that obsolete oracle.
+
+Local aarch64 validation above `0ad78a77` (working cut, not a deployed build):
+
+- `cargo test --offline --locked -p wow-world --lib`: 3,750 passed, zero failed,
+  one ignored, after correcting the additional legacy logout-level expectation.
+- `cargo test --offline --locked -p wow-world --test production_login_player_owner`:
+  six passed, including actual production save submission, pending I/O, replacement,
+  rollback, Unknown and cancellation. These use a controlled port, not MariaDB.
+- Both Cargo commands use `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`,
+  `CARGO_BUILD_JOBS=2` and the existing local validation dev target directory.
+- Syntax-only ownership, architecture check/self-test, formatting and diff checks pass.
+  Reviewed logical Session size is 82,127 production + 106,531 test = 188,658 lines
+  (-2/+34); no physical ceiling, field, exception or persistence baseline is expanded.
+- Logs: `/tmp/rustycore-578-save-owner-{before,all-final,integration,ownership,architecture-checked,self-test}.log`.
+- `PROTOC=/home/ubuntu/.local/protoc/bin/protoc ./tools/validation-v2 quick --base HEAD`:
+  pass; manifest `target/validation-v2/manifests/20260906T145042.693001Z-3-quick.json`.
+- The subsequent explicit detach-success assertion also passes the focused
+  `full_save_reads_native_map_and_level_despite_stale_session_staging` test;
+  log `/tmp/rustycore-578-save-owner-detach-final.log`. No production code changed
+  after the whole-library/integration/quick runs.
+
+No Session mirror writer is added or retired globally, no new concurrent save execution
+is enabled, and teleport-destination precedence, health projection, transaction order,
+money/cancellation fences and revision-safe ACK remain unchanged. Actual phase admission,
+far-transfer save postponement, full lifecycle and real durability QA remain C0/C1 work.
+
+Next transition evidence: `Player.cpp:1494-1503` executes delayed save after delayed
+resurrection, and `MovementHandler.cpp:234/302` runs delayed operations after successful
+far/near transfer. Rust currently calls only delayed resurrection from
+`handlers/misc/travel.rs` and the near-ACK path; no equivalent delayed-save flag exists
+in `PlayerTeleportStateLikeCpp`. `WorldSession.cpp:544-551` finishes far transfers before
+logout, while Rust `session/lifecycle/logout.rs` goes directly to save/finalization.
+Therefore a save-entry early return alone is not an acceptable fix: it could suppress
+the disconnect save without completing the transfer. Implement defer/resume and logout
+completion together, including failed attach and cancellation, before claiming this gate.
 
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 

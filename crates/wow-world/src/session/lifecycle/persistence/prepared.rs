@@ -82,13 +82,11 @@ impl WorldSession {
         let (map_id, instance_id, position) = if let Some((map_id, position)) = destination {
             (map_id, 0, position)
         } else {
-            let instance_id = match residence {
-                wow_map::PlayerResidenceLikeCpp::Active(key) => key.instance_id,
-                wow_map::PlayerResidenceLikeCpp::Detached => 0,
-            };
+            // Player.cpp:19480-19514 reads the Player's location. ResetMap
+            // (Object.cpp:1814) retains map/instance even while detached.
             (
-                self.player_map_id_like_cpp(),
-                instance_id,
+                player.unit().world().map_id() as u16,
+                player.unit().world().instance_id(),
                 player.unit().world().position(),
             )
         };
@@ -112,7 +110,7 @@ impl WorldSession {
             map_id,
             instance_id,
             position,
-            level: self.player_level_like_cpp(),
+            level: unit.data().level as u8, // C++ Unit::GetLevel (Unit.h:733).
             xp: player.active_data().xp.max(0) as u32,
             money: player.money(),
             health,

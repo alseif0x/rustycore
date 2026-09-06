@@ -10,6 +10,7 @@ fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() 
     session.player_level = 17;
     session
         .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_level(17);
             player.set_xp(10);
             player.set_money(20);
         })
@@ -77,9 +78,9 @@ fn save_snapshot_reads_active_and_detached_owner_without_changing_state() {
             PlayerSaveToDbSnapshotLikeCpp {
                 guid,
                 map_id: 571,
-                instance_id: if detached { 0 } else { 7 },
+                instance_id: 7, // C++ ResetMap retains the last instance.
                 position,
-                level: 17, // Session identity staging is separate remaining ownership debt.
+                level: 60, // C++ SaveToDB reads Unit::GetLevel, not Session staging.
                 xp: 1234,
                 money: 5678,
                 health: 456,
@@ -89,10 +90,8 @@ fn save_snapshot_reads_active_and_detached_owner_without_changing_state() {
                 ]),
             }
         );
-        assert_eq!(
-            Some(snapshot),
-            session.fixture_player_save_to_db_snapshot_like_cpp()
-        );
+        // The old fixture header uses Session level and clears detached instance;
+        // it is deliberately not an oracle for these corrected owner reads.
         assert!(manager.try_lock().is_ok());
         session
             .with_owned_player_like_cpp(|player| {
@@ -137,9 +136,12 @@ fn save_snapshot_keeps_pending_destination_precedence_without_relocating_player(
                     (1, 0, near)
                 }
             );
+            let legacy = session
+                .fixture_player_save_to_db_snapshot_like_cpp()
+                .unwrap();
             assert_eq!(
-                Some(snapshot),
-                session.fixture_player_save_to_db_snapshot_like_cpp()
+                (snapshot.map_id, snapshot.instance_id, snapshot.position),
+                (legacy.map_id, legacy.instance_id, legacy.position)
             );
             assert_eq!(session.player_position_like_cpp(), Some(original));
         }
@@ -168,8 +170,11 @@ fn save_snapshot_preserves_existing_residence_specific_dead_health_projection() 
             .unwrap();
         assert_eq!(snapshot.health, expected);
         assert_eq!(
-            Some(snapshot),
-            session.fixture_player_save_to_db_snapshot_like_cpp()
+            snapshot.health,
+            session
+                .fixture_player_save_to_db_snapshot_like_cpp()
+                .unwrap()
+                .health
         );
     }
 }

@@ -30,6 +30,34 @@ fn canonical_session(
 }
 
 #[tokio::test]
+async fn full_save_reads_native_map_and_level_despite_stale_session_staging() {
+    // Player.cpp:19480-19495 saves GetLevel()/GetMapId(), not Session mirrors.
+    for detached in [false, true] {
+        let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+        install_canonical_player_owner_for_test(&mut session, 571, 43);
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        session
+            .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(73))
+            .unwrap();
+        session.current_map_id = 1;
+        session.player_level = 11;
+        let prepared = session.prepare_player_save_like_cpp(123).unwrap();
+        assert_eq!((prepared.header.map_id, prepared.header.level), (571, 73));
+        assert_eq!(prepared.request.character.position.map_id, 571);
+        assert_eq!(prepared.request.character.position.instance_id, 43);
+        assert_eq!(prepared.request.character.level, 73);
+        session.save_current_player_to_db_like_cpp().await;
+        let requests = port.character_saves();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].character.position.map_id, 571);
+        assert_eq!(requests[0].character.position.instance_id, 43);
+        assert_eq!(requests[0].character.level, 73);
+    }
+}
+
+#[tokio::test]
 async fn full_save_ack_does_not_clean_a_reputation_row_shadowed_by_the_projection() {
     let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session

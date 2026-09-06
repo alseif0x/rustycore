@@ -10935,8 +10935,8 @@ impl WorldSession {
         let residence = manager.player_residence_like_cpp(handle)?;
         // C++ Player.cpp:19480-19514 reads one Player and selects a save-only
         // teleport destination. Resolve every mutable input under this same guard.
-        // Session map/level staging and the existing residence-specific health
-        // projection remain explicit compatibility debt, not a new source of truth.
+        // The existing residence-specific health projection remains explicit
+        // compatibility debt; map, instance and level come from the Player.
         manager.with_player_like_cpp(handle, |player| {
             self.player_save_header_from_owner_like_cpp(player, residence)
         })

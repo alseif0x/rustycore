@@ -980,6 +980,7 @@ async fn character_save_does_not_reapply_save_destination_or_progression_to_runt
         assert_eq!(saves[0].character.position.x, destination.x);
         assert_eq!(saves[0].character.position.y, destination.y);
         assert_eq!(saves[0].character.position.z, destination.z);
+        assert_eq!(saves[0].character.level, 60);
         assert_eq!(saves[0].character.xp, 1234);
         assert_eq!(saves[0].character.money, 5678);
         session
