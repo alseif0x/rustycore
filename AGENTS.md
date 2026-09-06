@@ -118,9 +118,12 @@ they are not separate frozen architecture snapshots.
   crates/wow-world/src/session/registry.rs and actual registrations for the current thunk
   signature; do not copy an outdated snippet or reintroduce a dispatcher opcode match.
   Keep exact-set metadata/registration tests for changes to that boundary.
-- The current execution track is #578 -> #583 -> #153 before #133 closes. Reanalysis points
-  live in the checkpoint/plan: pre-migration conformance, first real operation integration,
-  macro acceptance, then terminal audit. These are evidence reviews, not new routine approvals.
+- The user-approved delivery track is bounded #578/#579 closeout, then #584's crate-focused
+  core macrodeliverables, #583 and #153 before #133 closes. #584 retains unfinished C0–C4;
+  do not require the entire core refactor in #578 or treat its closure as completing it.
+  No next crate is selected. Analyze each crate before defining its implementation macro,
+  include cross-crate consumers and preserve scoped regression/live acceptance. These
+  evidence reviews do not add routine approvals or authorize merge/runtime operations.
 - After playable M6.2/#47, perform the fresh whole-port planning pass before decomposing
   Part 2/#48. Do not prematurely create its child issue tree.
 

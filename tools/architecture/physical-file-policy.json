@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "baseline_commit": "8f5caedc41611a4fe72697fc00412fc43f04d6a1",
-  "migration_issue": 578,
+  "migration_issue": 584,
   "completed_checkpoints": [],
   "legacy": [
     {
@@ -9,707 +9,707 @@
       "observed_lines": 2243,
       "ceiling_lines": 2243,
       "split": "Separate runtime swap, packet-dump provenance and recovery orchestration; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/capture-diff/scripts/creature-spell-casting-fixture-common.sh",
       "observed_lines": 2144,
       "ceiling_lines": 2144,
       "split": "Separate creature spell fixture preflight, bounded mutation and verified restoration; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/capture-diff/scripts/detour-chase-fixture-common.sh",
       "observed_lines": 3605,
       "ceiling_lines": 3605,
       "split": "Separate Detour chase fixture preflight, journaled mutation and restoration; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/capture-diff/src/lineage.rs",
       "observed_lines": 3103,
       "ceiling_lines": 3103,
       "split": "Separate capture lineage/provenance validation and failure tests; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/capture-diff/src/semantic.rs",
       "observed_lines": 4013,
       "ceiling_lines": 4013,
       "split": "Separate scenario-specific semantic comparators and golden tests; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/app.rs",
       "observed_lines": 5652,
       "ceiling_lines": 5652,
       "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/creature_loaded_grid.rs",
       "observed_lines": 2944,
       "ceiling_lines": 2944,
       "split": "Separate grid population, loaded-creature construction and runtime-registration tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/lib.rs",
       "observed_lines": 2109,
       "ceiling_lines": 2109,
       "split": "Separate shutdown/session supervision contracts from runtime helper projections and tests; retain the thin main entrypoint.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/main_tests.rs",
       "observed_lines": 13040,
       "ceiling_lines": 13040,
       "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/runtime/game_events.rs",
       "observed_lines": 2643,
       "ceiling_lines": 2643,
       "split": "Separate game-event state coordination, map application and delivery tests; preserve the admitted clock.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/runtime/map.rs",
       "observed_lines": 2109,
       "ceiling_lines": 2109,
       "split": "Separate canonical tick orchestration, respawn persistence projections and recipient delivery; no I/O under map guards.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/spawn_store_loader.rs",
       "observed_lines": 5125,
       "ceiling_lines": 5125,
       "split": "Separate creature, gameobject, addon and spawn-group catalog construction without changing startup or DB ownership.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/spawn_store_loader_tests.rs",
       "observed_lines": 5632,
       "ceiling_lines": 5632,
       "split": "Move catalog-specific loader fixtures and negative cases beside their loader responsibilities.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/spell_acquisition_loader.rs",
       "observed_lines": 2267,
       "ceiling_lines": 2267,
       "split": "Separate spell/talent/trait acquisition catalog assembly and load-validation cases.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-ai/src/lib.rs",
       "observed_lines": 2541,
       "ceiling_lines": 2541,
       "split": "Separate AI interfaces, scripted/default behavior capabilities and behavior tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/conditions.rs",
       "observed_lines": 4759,
       "ceiling_lines": 4759,
       "split": "Separate condition metadata, catalog loading, validation and evaluator-specific fixtures.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/creature_template.rs",
       "observed_lines": 2458,
       "ceiling_lines": 2458,
       "split": "Separate creature template row decoding, validation and difficulty/scaling catalog rules.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/misc_generated.rs",
       "observed_lines": 2062,
       "ceiling_lines": 2062,
       "split": "Separate handwritten DB2 row/readers by store family; generated-style naming is not generator provenance.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/skill.rs",
       "observed_lines": 3816,
       "ceiling_lines": 3816,
       "split": "Separate skill/race/class/ability stores and their reader/query tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell/mod.rs",
       "observed_lines": 2093,
       "ceiling_lines": 2093,
       "split": "Keep spell data facade; separate immutable spell metadata/query families and construction rules.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell/stores.rs",
       "observed_lines": 3123,
       "ceiling_lines": 3123,
       "split": "Separate spell store loading/index construction from family-specific query/test helpers.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell_acquisition.rs",
       "observed_lines": 2837,
       "ceiling_lines": 2837,
       "split": "Separate acquisition catalog rules and indexes by skill/talent/trait dependency.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell_db2.rs",
       "observed_lines": 3124,
       "ceiling_lines": 3124,
       "split": "Separate DB2 spell record readers and cross-store assembly with exact schema/field tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell_tests.rs",
       "observed_lines": 6136,
       "ceiling_lines": 6136,
       "split": "Split spell store/reader/acquisition fixtures and test registration by catalog responsibility.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-database/src/statements/character.rs",
       "observed_lines": 3429,
       "ceiling_lines": 3429,
       "split": "Split character prepared statements by lifecycle/transaction family, preserving identifiers, SQL text and registration.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-database/src/statements/character_tests.rs",
       "observed_lines": 3315,
       "ceiling_lines": 3315,
       "split": "Split exact SQL/registration tests by character transaction family without reducing the tested statement set.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-database/src/statements/world.rs",
       "observed_lines": 2004,
       "ceiling_lines": 2004,
       "split": "Split world prepared-statement families with unchanged IDs, SQL and registration.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/creature.rs",
       "observed_lines": 3850,
       "ceiling_lines": 3850,
       "split": "Separate creature identity/lifecycle, template/stat initialization and gameplay capabilities.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/creature_tests.rs",
       "observed_lines": 3092,
       "ceiling_lines": 3092,
       "split": "Distribute creature lifecycle, stats, movement and combat scenarios to the corresponding capabilities.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/game_object.rs",
       "observed_lines": 4369,
       "ceiling_lines": 4369,
       "split": "Separate GameObject lifecycle, interaction/state transitions and associated tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/object_accessor.rs",
       "observed_lines": 3174,
       "ceiling_lines": 3174,
       "split": "Separate object identity lookup and typed read capabilities from compatibility bridge/test code.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/pet.rs",
       "observed_lines": 5082,
       "ceiling_lines": 5082,
       "split": "Separate pet identity/lifetime, progression, commands and save-state projections.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/player/items/storage.rs",
       "observed_lines": 3298,
       "ceiling_lines": 3298,
       "split": "Separate item-slot admission, placement/stack plans, application and slot-boundary tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/player/mod.rs",
       "observed_lines": 4904,
       "ceiling_lines": 4904,
       "split": "Keep Player identity/state facade; move progression, inventory, spells, social and lifecycle operations into cohesive private modules. Above bc3bdd2f +3 lines declare/initialize the private deferred-save intent and its cohesive module; no Session mirror. The operation and tests live in deferred_save.rs. C4 retirement remains.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/player_tests.rs",
       "observed_lines": 9497,
       "ceiling_lines": 9497,
       "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures. Above 2fdbd962 +3 formatting lines adapt existing tuple-header expectations to the native trait value; no new scenario bodies here. C4 retirement remains.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/unit.rs",
       "observed_lines": 4308,
       "ceiling_lines": 4308,
       "split": "Separate Unit identity/state facade, vitals, combat, spell/aura and update-field capabilities.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/unit_subsystems/tests.rs",
       "observed_lines": 2260,
       "ceiling_lines": 2260,
       "split": "Separate unit-subsystem fixtures and tests by combat, movement and aura responsibility.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/world_object.rs",
       "observed_lines": 2451,
       "ceiling_lines": 2451,
       "split": "Separate spatial identity/location, map residence, visibility and update-field capabilities.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-instances/src/lib.rs",
       "observed_lines": 3036,
       "ceiling_lines": 3036,
       "split": "Separate instance identity/binds, admission/reset rules and their tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-loot/src/authority.rs",
       "observed_lines": 3515,
       "ceiling_lines": 3515,
       "split": "Separate loot claim planning, durable outcome/recovery and claim-interleaving tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-loot/src/lib.rs",
       "observed_lines": 3835,
       "ceiling_lines": 3835,
       "split": "Separate loot domain facade, roll/distribution rules and their tests; retain one award authority.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/manager.rs",
       "observed_lines": 4585,
       "ceiling_lines": 4585,
       "split": "Separate map creation, lifetime/instance coordination, update barriers and tests around one manager authority.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/map/game_object.rs",
       "observed_lines": 2310,
       "ceiling_lines": 2310,
       "split": "Separate map-owned GameObject lifecycle transitions and their interaction/respawn tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/map/mod.rs",
       "observed_lines": 5310,
       "ceiling_lines": 5310,
       "split": "Separate map phase orchestration, object admission and spatial/grid capabilities while retaining one Map owner.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/map/relocation.rs",
       "observed_lines": 2182,
       "ceiling_lines": 2182,
       "split": "Separate relocation planning, grid/visibility effects and movement-boundary tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/map/spawn_groups.rs",
       "observed_lines": 2384,
       "ceiling_lines": 2384,
       "split": "Separate spawn-group admission, activation/deactivation and failure tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/map_tests.rs",
       "observed_lines": 18288,
       "ceiling_lines": 18288,
       "split": "Separate map lifetime/transfer, grids, respawn, movement, visibility and update-phase suites.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/pool.rs",
       "observed_lines": 2699,
       "ceiling_lines": 2699,
       "split": "Separate pool selection, activation/lifetime and deterministic selection tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/spawn.rs",
       "observed_lines": 2021,
       "ceiling_lines": 2021,
       "split": "Separate spawn identity/metadata, spawn policy and respawn scheduling tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-network/src/world_socket.rs",
       "observed_lines": 2021,
       "ceiling_lines": 2021,
       "split": "Separate encrypted framing, socket state/admission and transport tests without changing wire boundaries.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/misc/social.rs",
       "observed_lines": 2045,
       "ceiling_lines": 2045,
       "split": "Separate social packet families into cohesive modules with unchanged field order, masks, bytes and test coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/misc/tests.rs",
       "observed_lines": 4928,
       "ceiling_lines": 4928,
       "split": "Separate misc packet-family wire tests into cohesive modules with unchanged field order, masks, bytes and test coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/movement.rs",
       "observed_lines": 2240,
       "ceiling_lines": 2240,
       "split": "Separate movement packet families into cohesive modules with unchanged field order, masks, bytes and test coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/party.rs",
       "observed_lines": 2152,
       "ceiling_lines": 2152,
       "split": "Separate party packet families into cohesive modules with unchanged field order, masks, bytes and test coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/update/block.rs",
       "observed_lines": 2352,
       "ceiling_lines": 2352,
       "split": "Separate update-block mask/payload construction into cohesive modules with unchanged field order, masks, bytes and test coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/update/player.rs",
       "observed_lines": 3466,
       "ceiling_lines": 3466,
       "split": "Separate Player/ActivePlayer update fields into cohesive modules with unchanged field order, masks, bytes and test coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/update_tests.rs",
       "observed_lines": 3676,
       "ceiling_lines": 3676,
       "split": "Separate entity update-field and mask wire tests into cohesive modules with unchanged field order, masks, bytes and test coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-recastdetour/src/lib.rs",
       "observed_lines": 3194,
       "ceiling_lines": 3194,
       "split": "Separate FFI boundary, mesh/query ownership and safe pathfinding adapters; preserve native lifetime contracts.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-recastdetour/src/lib_tests.rs",
       "observed_lines": 2471,
       "ceiling_lines": 2471,
       "split": "Separate mesh loading, query/pathfinding and native-boundary failure scenarios.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-recastdetour/vendor/Detour/Source/DetourNavMeshQuery.cpp",
       "observed_lines": 3663,
       "ceiling_lines": 3663,
       "split": "Review pinned upstream Detour provenance and a concrete bounded vendor exception at C4; do not rewrite upstream solely for line count.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-social/src/group/tests.rs",
       "observed_lines": 2508,
       "ceiling_lines": 2508,
       "split": "Separate membership, capacity/leadership, ready-check and publication tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/battle_pet_purchase.rs",
       "observed_lines": 5206,
       "ceiling_lines": 5206,
       "split": "Separate purchase admission/domain plan, persistence coordination, publication and failure scenarios.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/conditions.rs",
       "observed_lines": 3359,
       "ceiling_lines": 3359,
       "split": "Separate condition source/target adapters and evaluator families with their tests.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/entity_update_bridge.rs",
       "observed_lines": 2107,
       "ceiling_lines": 2107,
       "split": "Separate typed entity update projections and delivery adapters; retire duplicate-state bridges under C3.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/account.rs",
       "observed_lines": 2246,
       "ceiling_lines": 2246,
       "split": "Separate account character operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/items.rs",
       "observed_lines": 3874,
       "ceiling_lines": 3874,
       "split": "Separate item move/use operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/mod.rs",
       "observed_lines": 2728,
       "ceiling_lines": 2728,
       "split": "Separate character admission and lifecycle dispatch by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
       "observed_lines": 2796,
       "ceiling_lines": 2796,
       "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above e8a3fb1f +11 lines checkpoint native zone/scaling phases and distinguish unavailable scaling from unchanged state. Resumption lives in a private lifecycle module. Complete login/worldport separation and C4 retirement remain.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/vendor.rs",
       "observed_lines": 2605,
       "ceiling_lines": 2605,
       "split": "Separate vendor purchase/sale operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/world_entry.rs",
       "observed_lines": 2840,
       "ceiling_lines": 2840,
       "split": "Separate world entry and initialization by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above c61903fc +26 lines complete native transfer before explicit logout save, leave Terminal source-save to disconnect, and reject quarantined/unadmitted character-select readiness. No new state or retry policy; retain the C1 logout split and C4 retirement exit.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
       "observed_lines": 12634,
       "ceiling_lines": 12634,
       "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/chat.rs",
       "observed_lines": 4265,
       "ceiling_lines": 4265,
       "split": "Separate chat command/message adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/group.rs",
       "observed_lines": 2995,
       "ceiling_lines": 2995,
       "split": "Separate group membership and party operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/group_tests.rs",
       "observed_lines": 5964,
       "ceiling_lines": 5964,
       "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot/handlers.rs",
       "observed_lines": 2463,
       "ceiling_lines": 2463,
       "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot/requests.rs",
       "observed_lines": 2524,
       "ceiling_lines": 2524,
       "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot/sources.rs",
       "observed_lines": 3109,
       "ceiling_lines": 3109,
       "split": "Separate typed loot source discovery and queries by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot_tests.rs",
       "observed_lines": 16393,
       "ceiling_lines": 16393,
       "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/movement.rs",
       "observed_lines": 3162,
       "ceiling_lines": 3162,
       "split": "Separate movement admission/acknowledgement by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/quest/handlers.rs",
       "observed_lines": 2716,
       "ceiling_lines": 2716,
       "split": "Separate quest admission and client adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/quest/rewards.rs",
       "observed_lines": 2232,
       "ceiling_lines": 2232,
       "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/quest_tests.rs",
       "observed_lines": 10679,
       "ceiling_lines": 10679,
       "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/spell.rs",
       "observed_lines": 6737,
       "ceiling_lines": 6737,
       "split": "Separate spell admission/cast operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/talent.rs",
       "observed_lines": 2299,
       "ceiling_lines": 2299,
       "split": "Separate talent learning/reset operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/trainer.rs",
       "observed_lines": 3693,
       "ceiling_lines": 3693,
       "split": "Separate trainer catalog/admission/purchase operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/map_manager/mod.rs",
       "observed_lines": 2190,
       "ceiling_lines": 2190,
       "split": "Separate legacy-map facade/lifetime from runtime capabilities; retire remaining authority bridges under C3.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/map_manager/movement.rs",
       "observed_lines": 2334,
       "ceiling_lines": 2334,
       "split": "Separate legacy movement planning, canonical synchronization and delivery results; preserve the selected clock.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/map_manager_tests.rs",
       "observed_lines": 6273,
       "ceiling_lines": 6273,
       "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/reputation/mgr.rs",
       "observed_lines": 2520,
       "ceiling_lines": 2520,
       "split": "Separate reputation rules/state projection, persistence receipt and publication adaptation without adding an owner mirror.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/session/directory.rs",
       "observed_lines": 2363,
       "ceiling_lines": 2363,
       "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
       "observed_lines": 76559,
       "ceiling_lines": 76559,
       "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above bc3bdd2f +1 line reexports the explicit full-save outcome for its caller adapters. Deferred intent belongs to Player and its adapter lives in private lifecycle/persistence/deferred.rs; no new Session field. C4 retirement remains open.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
       "observed_lines": 96722,
       "ceiling_lines": 96722,
       "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above e8a3fb1f +7 lines extend existing exact teleport state through active/detached/replaced ownership and reject stale completion without changing the replacement. New scenarios stay in bounded files. C4 split exit remains.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/spell_acquisition/application.rs",
       "observed_lines": 3588,
       "ceiling_lines": 3588,
       "split": "Separate complete spell acquisition planning/application and failure tests; preserve one canonical mutation.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/check_architecture.py",
       "observed_lines": 3858,
       "ceiling_lines": 3106,
       "split": "Extract dependency/runtime-policy validation and their fixture suites from CLI orchestration; the Rust size scanner is already a private module.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/handler-contract-check/src/bridge_access.rs",
       "observed_lines": 2128,
       "ceiling_lines": 2128,
       "split": "Separate bridge AST collection, classification and adversarial tests without narrowing the scanner's Rust/cfg coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/handler-contract-check/src/persistence_access.rs",
       "observed_lines": 21248,
       "ceiling_lines": 12348,
       "split": "Separate the remaining production AST traversal, statement/workflow classification and provenance. The 226 former inline regression tests now live in 16 private responsibility modules (184-943 lines) with a 45-line shared root; callable import/reexport resolution, the pinned SQL text classifier and the canonical records/accumulation/snapshot contract have private production modules. The C1 classified Database COMMIT wrapper adds three traversal lines to retain explicit commit recognition; its regression remains in the private alias/path test module. These extractions and this narrow coverage addition do not retire the remaining 12,348-line root.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/handler-contract-check/src/registry_access.rs",
       "observed_lines": 3066,
       "ceiling_lines": 3066,
       "split": "Separate registry access AST traversal, policy classification and tests without narrowing the scanner's Rust/cfg coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/handler-contract-check/src/session_ownership.rs",
       "observed_lines": 2996,
       "ceiling_lines": 2996,
       "split": "Separate Session ownership AST inventory, exact membership validation and fixtures without narrowing the scanner's Rust/cfg coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/handler-contract-check/src/tests.rs",
       "observed_lines": 2289,
       "ceiling_lines": 2289,
       "split": "Separate handler dispatch/metadata and syntax adversarial fixtures without narrowing the scanner's Rust/cfg coverage.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/wow-test-bot/src/loot_race.rs",
       "observed_lines": 8188,
       "ceiling_lines": 8188,
       "split": "Separate fixture journal/recovery, routed connection/logout, loot race, group capacity and their tests without widening cleanup scope.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/wow-test-bot/src/main.rs",
       "observed_lines": 21071,
       "ceiling_lines": 21071,
       "split": "Separate protocol connection/authentication, scenario orchestration and scenario-specific tests; keep shared wire primitives narrow.",
-      "review_checkpoint": "578:C4"
+      "review_checkpoint": "584:C4"
     }
   ],
   "exceptions": [],

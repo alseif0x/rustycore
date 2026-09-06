@@ -15,6 +15,20 @@ before implementation. Architecture/tooling work uses its explicit, proportional
 
 ## Current execution agreement — #133 / #578
 
+**Superseding delivery agreement, 2026-09-06:** the user replaced the single
+all-core implementation PR with crate-focused macrodeliverables, each preceded by
+current-source/dependency/behavior analysis. #578/#579 closes only its delivered
+canonical-owner foundation and represented lifecycle hardening once its scoped
+regression/integration/live/publication gates pass. **#584** retains all unfinished
+C0–C4 obligations under #133 and coordinates finite implementation children; it is
+not another all-core PR. No next crate or crate order is selected (`wow-map` was only
+an example). Each child includes necessary cross-crate consumers and tests; crate
+completion means its agreed architecture outcome, not every future port feature.
+#583 production integration waits for the completed required core work in #584;
+#153 audits it and #583. Full #133 acceptance is unchanged. The closeout matrix in
+`session-578-checkpoint.md` owns the exact #578 remaining gates. Older one-PR/C0–C4
+allocation paragraphs in this section are the superseded plan, not active scope.
+
 The current ownership delivery remains one **macro-issue #578 / draft PR #579**. The subsequent
 functional modularity proof is **#583 under #99**, then #153 independently audits both before
 #133 closes. Keep coherent internal commits and checkpoints; do not turn

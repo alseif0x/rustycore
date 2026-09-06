@@ -1,5 +1,67 @@
 # Session convergence checkpoint — updated 2026-09-06
 
+## Current delivery agreement — 2026-09-06, user-approved replan
+
+The user explicitly replaced the single all-core #578 delivery with analyzed,
+crate-focused macrodeliverables. #578 / PR #579 now targets the **canonical-owner
+foundation and represented lifecycle hardening already implemented** at `a0916c0d`,
+plus any fixes necessary to make that delivered change safe. It does not claim a
+thin Session, full C0–C4 completion, production hecs migration or a finished LFG.
+
+**#584 owns all remaining core C0–C4 work under #133.** It is a coordination epic,
+not another giant implementation PR. Select no next crate yet: `wow-map` was an
+example, explicitly not a selected task. Before each implementation child, audit
+that crate's current responsibilities, callers, C++ behavior, invariants, dependencies,
+tests and physical hotspots; then define a finite complete outcome and its consumer
+changes. A crate-focused issue may touch other crates to finish its operation.
+Analyze subsequent crates just in time; do not create a speculative issue tree.
+
+This section supersedes older statements below requiring all C0–C4 inside #578.
+Those contracts and historical evidence remain valid inputs to #584; none is marked
+completed by the scope transfer. #583 waits for the required core macrodeliverables
+in #584; #153 remains an independent auditor, not the owner of unfinished work.
+
+### Bounded #578 closeout inventory
+
+| Delivered result | Evidence boundary |
+|---|---|
+| Canonical Player authority and generation-checked active/detached identity; retired whole-Player Session write-back and ObjectAccessor copies | Existing source/ownership inventories and production-library tests; not all remaining Session gameplay authority |
+| Coherent Character save request/receipt, replacement-safe acknowledgement and retirement, represented transfer/deferred-save/finalization hardening | Exact preceding commits and positive/negative integration evidence below; not complete Login-side save or general durability recovery |
+| Finite independent native/Rust-Wasm/C-Wasm module conformance | Recorded laboratory protocol/results; not a production SDK or hecs migration |
+| Physical/logical guardrails, persistence/adapter/tooling splits and classified collection COMMIT results | Current exact inventory, source/test budgets and focused evidence; 101 legacy ceilings remain debt |
+
+### Required before declaring #578/#579 merge-ready
+
+- Review the actual delivered diff for regressions and unresolved findings. An
+  introduced safety defect stays in #578; it cannot be renamed as future crate work.
+- Run the relevant production-linked lifetime/save integration target in dev and
+  release and affected shutdown tests at the closing SHA, alongside the exact
+  inventory/policy/architecture checks and clean-HEAD final publication profile.
+- Retain the applicable live/capture gates for changed lifecycle, timing and
+  persistence behavior. Earlier bounded normal save/relogin evidence does not
+  establish all subsequent transfer/logout changes. Scope and authorize missing
+  runtime QA before execution; neither mocks nor this replan waive it.
+- Reconcile issue/PR/documentation and explicit remaining owners. No known work
+  disappears into #153; no non-growth ceiling becomes a terminal exception.
+- Publish the validated closing HEAD, resolve actionable review findings, and
+  obtain the applicable merge authority. Do not close the issue from a green helper
+  or from the scope edit alone.
+
+At this review the first three closeout gates are **not fully proven**. #578 and
+draft PR #579 remain open. This is a point of situation and delivery replan, not
+merge/readiness acceptance. Global #133 terminal physical/semantic criteria remain
+unchanged and are delivered through #584's implementation children and #583.
+
+Replan validation above `a0916c0d`: architecture `check` and `self-test`, all five
+preserved persistence-policy tests, JSON/diff checks and quick manifest
+`20260906T231702.330734Z-3-quick.json` pass. All 101 physical entries preserve their
+paths, split exits and ceilings; only their owning checkpoint changes to `584:C4`.
+The exhaustive persistence snapshot and policy hashes remain byte-identical to
+the preceding implementation commit. Current open retirement/dependency ownership
+is reassigned to #584; exact measured state/field/bridge membership is unchanged.
+GitHub #578/#133/#583/#153/#99/#49 and draft #579 were updated and read back; #584
+was created open. No issue was closed, runtime changed or crate implementation begun.
+
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 

@@ -1,5 +1,15 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
+**Delivery revision, 2026-09-06:** #584 now coordinates the unfinished core C0–C4
+contracts through analyzed crate-focused macrodeliverables. #578/#579 retains its
+delivered foundation/hardening and scoped closeout gates, not the entire remaining
+architecture. References below assigning all remaining core work to #578 are the
+superseded allocation. #583 depends on the completed required core deliveries in
+#584, not merely #578 merging; #153 audits both programs. No next crate is selected.
+The finite pre-migration conformance has passed as recorded in the V2 evidence;
+production storage integration and SDK acceptance remain distinct and unfinished.
+Storage/module choices and the full #133 outcome are unchanged.
+
 **Decision date:** 2026-09-05. **Reviewed production code:** `93e4002a` on the
 #578 branch; reviewed laboratory/planning HEAD: `ee9a0128`. This is a bounded
 architecture review, not a new whole-port parity audit or an implemented ECS migration.

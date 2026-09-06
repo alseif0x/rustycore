@@ -391,7 +391,8 @@
       "depends_on": [
         184,
         578,
-        583
+        583,
+        584
       ]
     },
     {
@@ -2262,7 +2263,7 @@
     {
       "number": 578,
       "state": "open",
-      "title": "[ARCH.CLOSE.OWNER] Converge Session gameplay state onto canonical Player/Map ownership",
+      "title": "[ARCH.OWNER] Establish canonical Player ownership foundations and harden represented lifecycle",
       "kind": "slice",
       "parents": [
         133
@@ -2283,8 +2284,17 @@
       ],
       "depends_on": [
         231,
-        578
+        578,
+        584
       ]
+    },
+    {
+      "number": 584,
+      "state": "open",
+      "title": "[ARCH.CORE] Complete remaining architecture through analyzed crate-scoped macrodeliverables",
+      "kind": "epic",
+      "parents": [133],
+      "depends_on": [578]
     }
   ]
 }

@@ -164,8 +164,8 @@
     {
       "from": "wow-world",
       "to": "wow-handler",
-      "tracking_issue": 578,
-      "reason": "wow-handler supplies admission/processing vocabulary and HandlerFuture; the sole registry and concrete thunk live in wow-world after #359. An application protocol adapter may legitimately consume that vocabulary. #578 owns making handlers thin over typed Player/Map transitions and deciding the final registry boundary from those consumers, without adding a PacketRouter trait or moving the registry merely to erase this category exception. #153 verifies the completed decision; it implements no inversion."
+      "tracking_issue": 584,
+      "reason": "wow-handler supplies admission/processing vocabulary and HandlerFuture; the sole registry and concrete thunk live in wow-world after #359. An application protocol adapter may legitimately consume that vocabulary. #584 owns making handlers thin over typed Player/Map transitions and deciding the final registry boundary from those consumers, without adding a PacketRouter trait or moving the registry merely to erase this category exception. #153 verifies the completed decision; it implements no inversion."
     },
     {
       "from": "wow-world",
@@ -176,14 +176,14 @@
     {
       "from": "wow-world",
       "to": "wow-network",
-      "tracking_issue": 578,
-      "reason": "Directory, Group and mailbox authority have already left wow-network. The mixed wow-world application still adapts concrete session-link, framing and transport-fence contracts. This adapter consumption is not itself a second gameplay owner. #578 owns separating those legitimate protocol/lifecycle uses from any remaining gameplay-to-transport coupling, preserving socket, ordering and backpressure contracts. It may retain an evidenced adapter edge; no new trait or crate is required solely to remove the exception. #153 verifies the final classification."
+      "tracking_issue": 584,
+      "reason": "Directory, Group and mailbox authority have already left wow-network. The mixed wow-world application still adapts concrete session-link, framing and transport-fence contracts. This adapter consumption is not itself a second gameplay owner. #584 owns separating those legitimate protocol/lifecycle uses from any remaining gameplay-to-transport coupling, preserving socket, ordering and backpressure contracts. It may retain an evidenced adapter edge; no new trait or crate is required solely to remove the exception. #153 verifies the final classification."
     },
     {
       "from": "wow-world",
       "to": "wow-packet",
-      "tracking_issue": 578,
-      "reason": "Protocol handlers and presenters legitimately decode and encode wow-packet DTOs inside the mixed wow-world application crate. The debt is gameplay rules and ownership still exposed through WorldSession, not the existence of packet presentation at that edge. #578 owns complete command/query/outcome verticals that keep packet DTOs outside domain APIs and records the final adapter classification. It must not invent a crate or trait merely to make this Cargo edge disappear. #153 verifies the completed boundary."
+      "tracking_issue": 584,
+      "reason": "Protocol handlers and presenters legitimately decode and encode wow-packet DTOs inside the mixed wow-world application crate. The debt is gameplay rules and ownership still exposed through WorldSession, not the existence of packet presentation at that edge. #584 owns complete command/query/outcome verticals that keep packet DTOs outside domain APIs and records the final adapter classification. It must not invent a crate or trait merely to make this Cargo edge disappear. #153 verifies the completed boundary."
     },
     {
       "from": "wow-world",
@@ -194,8 +194,8 @@
     {
       "from": "wow-world",
       "to": "wow-session",
-      "tracking_issue": 578,
-      "reason": "#297 earned a transport-only kernel and #378 kept application/gameplay adapters outside it. wow-world consuming that kernel is an intended application-to-adapter relationship; wow-session retains its exact wow-network/wow-packet allowlist and may not gain gameplay, map, database or catalog dependencies. #578 owns the remaining kernel/application boundary decision after complete consumer migration. Concrete transport types need ports only if a real boundary requires them, not to erase this exception or force an application-layer reclassification. #153 verifies the decision without implementing a new abstraction."
+      "tracking_issue": 584,
+      "reason": "#297 earned a transport-only kernel and #378 kept application/gameplay adapters outside it. wow-world consuming that kernel is an intended application-to-adapter relationship; wow-session retains its exact wow-network/wow-packet allowlist and may not gain gameplay, map, database or catalog dependencies. #584 owns the remaining kernel/application boundary decision after complete consumer migration. Concrete transport types need ports only if a real boundary requires them, not to erase this exception or force an application-layer reclassification. #153 verifies the decision without implementing a new abstraction."
     }
   ],
   "external_dependencies": {

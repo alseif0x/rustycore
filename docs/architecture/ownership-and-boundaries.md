@@ -1,5 +1,15 @@
 # RustyCore ownership and dependency boundaries
 
+**Delivery revision, user-approved 2026-09-06:** #578/#579 is the bounded delivered
+canonical-owner foundation/hardening closeout. All unfinished C0–C4 ownership,
+dependency, runtime and physical exits move to coordination epic #584 under #133,
+then to crate-focused implementation children after each crate's prior analysis.
+No crate is selected yet. Existing references below assigning remaining work to
+#578 denote the previous allocation and now resolve to #584, not to completed work.
+#583 waits for those completed core seams; #153 audits rather than implements them.
+Architecture invariants and #133 terminal acceptance do not change. The active
+closeout gates are in `session-578-checkpoint.md`.
+
 This document records the architecture baseline for the refactor tracked by issue #133.
 The active contract was reviewed on 2026-09-05 at `7eaf8ddc` (production code `93e4002a`);
 dated issue/LOC evidence below is historical, not a fresh whole-workspace parity audit. The
@@ -994,8 +1004,8 @@ display is checked against the JSON ledger:
 120. #359 — single dispatch mechanism for every opcode;
 121. #297 — promote the Session kernel to `wow-session`;
 122. #378 — classify the remaining Session application modules; inherited implementation stays in the following ownership macro;
-123. #578 — canonical Player/Map ownership and inherited boundary closure macro.
-124. #583 — native/Wasm gameplay modules with shared hooks and durable lifecycle.
+123. #578 — bounded canonical Player/Map foundation and represented lifecycle hardening closeout.
+124. #583 — native/Wasm gameplay modules after required core children of the coordination epic.
 125. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent

@@ -1,5 +1,13 @@
 # Module design and source navigability
 
+**Allocation revision, 2026-09-06:** remaining core semantic/physical work previously
+assigned below to #578 C2/C4 is now owned by coordination epic #584 under #133 and
+its analyzed crate-focused implementation children. #578 closes its delivered
+foundation only after scoped acceptance. This changes delivery size, not budgets,
+invariants or global terminal acceptance. No next crate is selected. Each child
+includes necessary consumer integration and meets both criteria below; #153 must
+not inherit implementation work. References to #578 below record the former allocation.
+
 **Approved project policy: 2026-09-05.** Applies to RustyCore's internal refactors,
 new code, integrated tooling and module SDK/examples. This is a maintained design
 contract, not a claim that the current tree already complies. The initial review

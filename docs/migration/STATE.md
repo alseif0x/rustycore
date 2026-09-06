@@ -1,5 +1,13 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Delivery replan — 2026-09-06, implementation `a0916c0d`:** #578/#579 remains open
+for bounded canonical-owner foundation/hardening closeout, with regression,
+integration and applicable live/capture gates still to be fully demonstrated.
+User-approved coordination epic #584 owns remaining C0–C4 work as crate-focused
+macrodeliverables with prior analysis; no next crate has been selected. Older
+allocations of all remaining core work to #578 below are historical, not closure
+proof. #583 remains gated on completed core seams; #133/#153 acceptance is unchanged.
+
 **Historical capability-audit base:** 2026-08-09 · `3.4.3` @ `42977e9a`, including issue #26's
 bounded creature-spell P1 wire/lifecycle acceptance and login faction hydration.
 **Architecture/plan review:** 2026-09-05 · local #578 branch @ `93e4002a`.
