@@ -60,6 +60,14 @@ The current independent Session and map loops still lack the required phase coor
 the integration cut and queue/incarnation/barrier obligations are recorded in the owning
 checkpoint. A passing pure filter test is not production scheduling or C0 acceptance.
 
+The C0/C1 residence cut above `590b93f0` checks canonical index, generation, backing
+Player identity/container and world/map binding together. Existing residence queries
+now fail closed on inconsistent state; the checked API distinguishes those errors
+from missing and replaced owners. Public production-library lifecycle and Session
+login/save regressions exercise the change. This is invalid-state admission hardening,
+not a new scheduler, storage migration or complete lifecycle/durability acceptance;
+exact tests and remaining boundaries live in the Session checkpoint.
+
 ## Current architecture and execution checkpoint — 2026-09-05
 
 The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal

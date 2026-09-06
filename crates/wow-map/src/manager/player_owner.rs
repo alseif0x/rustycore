@@ -21,6 +21,8 @@ use crate::map::{
 };
 use crate::{MapKey, MapObjectRelocationError, MapObjectRelocationOutcome, RemoveFromMapError};
 
+mod resolution;
+
 #[cfg(test)]
 mod failure_tests;
 
@@ -55,22 +57,64 @@ pub(crate) struct PlayerOwnershipLikeCpp {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlayerOwnerError {
     EmptyGuid,
-    InvalidGuid { guid: ObjectGuid },
-    InvalidPosition { position: Position },
-    ReplacementRetireFailed { guid: ObjectGuid },
+    InvalidGuid {
+        guid: ObjectGuid,
+    },
+    InvalidPosition {
+        position: Position,
+    },
+    ReplacementRetireFailed {
+        guid: ObjectGuid,
+    },
     GenerationExhausted,
-    AlreadyOwned { guid: ObjectGuid },
-    ActivePlayerMissing { guid: ObjectGuid },
-    AmbiguousActivePlayer { guid: ObjectGuid },
+    AlreadyOwned {
+        guid: ObjectGuid,
+    },
+    ActivePlayerMissing {
+        guid: ObjectGuid,
+    },
+    AmbiguousActivePlayer {
+        guid: ObjectGuid,
+    },
     StaleHandle,
+    MissingOwner {
+        guid: ObjectGuid,
+    },
+    PlayerGuidMismatch {
+        expected: ObjectGuid,
+        actual: ObjectGuid,
+    },
+    ActivePlayerNotInWorld {
+        guid: ObjectGuid,
+    },
+    ActivePlayerMapMismatch {
+        guid: ObjectGuid,
+        expected: MapKey,
+        actual: Option<MapKey>,
+    },
     NotDetached,
     NotActive,
-    MissingMap { key: MapKey },
-    MissingPlayer { guid: ObjectGuid },
-    DetachedPlayerStillInWorld { guid: ObjectGuid },
-    DetachedPlayerStillBound { guid: ObjectGuid, key: MapKey },
-    ActiveObjectAlreadyPresent { guid: ObjectGuid, key: MapKey },
-    ActiveObjectNotPlayer { guid: ObjectGuid, key: MapKey },
+    MissingMap {
+        key: MapKey,
+    },
+    MissingPlayer {
+        guid: ObjectGuid,
+    },
+    DetachedPlayerStillInWorld {
+        guid: ObjectGuid,
+    },
+    DetachedPlayerStillBound {
+        guid: ObjectGuid,
+        key: MapKey,
+    },
+    ActiveObjectAlreadyPresent {
+        guid: ObjectGuid,
+        key: MapKey,
+    },
+    ActiveObjectNotPlayer {
+        guid: ObjectGuid,
+        key: MapKey,
+    },
     RelocatePlayer(MapObjectRelocationError),
     RemoveFromMap(RemoveFromMapError),
 }
@@ -160,12 +204,14 @@ impl MapManager {
         Ok(PlayerHandle { guid, generation })
     }
 
+    /// Compatibility projection for existing optional queries. Inconsistent
+    /// backing state fails closed; new admission paths should preserve the errors
+    /// from `checked_player_residence_like_cpp` instead of treating None as absence.
     pub fn player_residence_like_cpp(
         &self,
         handle: PlayerHandle,
     ) -> Option<PlayerResidenceLikeCpp> {
-        self.current_player_owner_like_cpp(handle)
-            .map(|owner| owner.residence)
+        self.checked_player_residence_like_cpp(handle).ok()
     }
 
     pub fn with_player_like_cpp<R>(

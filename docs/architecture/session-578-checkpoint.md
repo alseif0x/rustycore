@@ -3,6 +3,71 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C0/C1 checked canonical residence — 2026-09-06, above `590b93f0`
+
+The next cut adds `MapManager::checked_player_residence_like_cpp` in a private
+`manager/player_owner/resolution.rs` module. It resolves the ownership index,
+generation, expected container, Player GUID, IsInWorld and current map binding under
+the caller's existing manager borrow. Missing owner, replaced generation, missing
+map/Player and inconsistent identity/residence have distinct errors. This is a
+point-in-time observation, not an execution lease or a borrow across await.
+
+The existing `player_residence_like_cpp` now projects this checked result to Option.
+This intentionally tightens invalid-state admission: previously a surviving index
+alone returned Some(Active/Detached) even if its backing Player/map was absent.
+Existing signatures and valid settled lifecycle results are preserved. The failure
+behavior change is explicit, not claimed as pure mechanical movement. Existing
+Option callers remain transitional; new phase admission must preserve the checked
+errors rather than interpret every None as a session without a Player.
+
+Affected current callers are the coherent save preparation in
+`wow-world/src/session/lifecycle/persistence/prepared.rs`, save-header capture, owner
+existence/attach/detach/position resolution and current-map queries in Session.
+No second Player, new lock, runtime loop, packet registry change, SQL operation or
+default state is introduced. Actual lifecycle mutation methods still use their
+existing generation and transition guards; this cut does not globally remove broad
+mutable Map/Player escapes or discover duplicate records in unrelated map containers.
+
+C++ anchors: `Server/WorldSession.cpp:64-108` reads the real Player and IsInWorld;
+`Maps/Map.cpp:427-462` binds/adds the active Player, and `:907-934` removes it from
+world/grid. Rust's settled active/detached ownership contract requires the backing
+container and world binding to agree. The check is not asserted inside C++'s
+intermediate leave-map callbacks, nor proof that Rust implements all those callbacks.
+
+The new negative fixtures deliberately corrupt private index/container state or use
+existing broad mutable access; they reproduce unsafe query results, not live Player
+loss. A separate `wow-map/tests/player_residence.rs` target exercises real public
+production-library install, failed attach, transfer, retirement and replacement,
+retaining the same Player's money. It does not use a fake owner or cfg(test) storage.
+Evidence on the working tree above `590b93f0` (aarch64):
+
+- `cargo test --offline --locked -p wow-map --lib`: 712 PASS, 1 pre-existing ignored;
+  includes 10 new resolution tests. Root 685 lines, private resolver 79, private
+  tests 201, production-linked integration 62; no physical ceiling is increased.
+- `cargo test --offline --locked -p wow-map --test player_residence`, in dev and
+  with `--release`: 1 PASS each, no ignored cases.
+- `cargo test --offline --locked -p wow-world --test production_login_player_owner`:
+  6 PASS, including coherent save, later mutations, replacement and rollback/unknown/
+  cancellation fixtures. This does not establish real DB durability.
+- `cargo test --offline --locked -p wow-world --lib`: 3,743 PASS, 1 pre-existing
+  ignored. This run reuses the validation-v2 Cargo target cache; it is not a fresh build.
+- `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check --offline --locked
+  -p world-server`: PASS with the same reused cache; existing warnings remain.
+- `check_architecture.py check`: PASS (954 source files, 101 legacy ceilings);
+  syntax-only Session ownership PASS with unchanged 590 registry rows.
+- `validation-v2 quick --base HEAD`: PASS, verified manifest
+  `target/validation-v2/manifests/20260906T115021.478444Z-23-quick.json`.
+  This is bounded dirty iteration above `590b93f0`, not full-PR publication evidence.
+
+C0 phase coordination and the complete C1 lifecycle/durability acceptance remain open.
+For that next integration, the current `MapUpdateVisitPlan::session_update_players`
+field is only constructed in `map/mod.rs:3544-3608` and asserted in `map_tests.rs`;
+no production consumer dispatches those sessions. `ManagedMap`'s actual update path
+in `manager.rs:499-602` starts dynamic-tree/represented object-family updates without
+consuming that plan. Wiring a phase to the plan alone would therefore miss the live
+driver. The production coordination cut must join the actual Session runner and
+ManagedMap update path, not claim execution from the visit-plan fixture.
+
 ## C0 packet-filter contract and integration cut — 2026-09-06
 
 Source audit at `36d0ccbf`; the following working change starts the executable C0
