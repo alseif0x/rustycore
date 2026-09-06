@@ -75779,6 +75779,7 @@ fn canonical_player_logout_cleanup_removes_player_before_session_inventory_like_
         session.insert_inventory_item_object(item);
 
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
         assert!(
             canonical
@@ -75865,6 +75866,7 @@ fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
         other_session.current_map_id = 571;
 
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
         insert_session_player_into_canonical_map_like_cpp(&other_session, &canonical, 571, 0);
         add_canonical_test_creature(
             &canonical,
@@ -75925,6 +75927,7 @@ fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp()
                 session.current_map_id = 571;
 
                 insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+                assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
                 session
                     .cleanup_shared_runtime_state_on_disconnect_like_cpp()

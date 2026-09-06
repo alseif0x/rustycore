@@ -442,6 +442,8 @@ async fn hydrate(
     (session, port, output, send_rx)
 }
 
+#[path = "production_login_player_owner/cleanup.rs"]
+mod cleanup;
 #[path = "production_login_player_owner/save.rs"]
 mod save;
 #[path = "production_login_player_owner/teleport_admission.rs"]

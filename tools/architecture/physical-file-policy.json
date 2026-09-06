@@ -643,8 +643,8 @@
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 96719,
-      "ceiling_lines": 96719,
+      "observed_lines": 96722,
+      "ceiling_lines": 96722,
       "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above e8a3fb1f +7 lines extend existing exact teleport state through active/detached/replaced ownership and reject stale completion without changing the replacement. New scenarios stay in bounded files. C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },

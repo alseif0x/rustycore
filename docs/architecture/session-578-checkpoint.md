@@ -3,6 +3,75 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C1 canonical retirement never reacquires by GUID — above `8cb125c1`, 2026-09-06
+
+The preceding cleanup risk is now reproduced through the production wow-world library.
+Both `production_repeated_cleanup_preserves_replacement_of_stale_owner` and
+`production_repeated_cleanup_preserves_replacement_after_successful_retirement` fail
+on `8cb125c1` with the new tests: 0 passed / 2 failed, log
+`/tmp/rustycore-cleanup-incarnation-before.log`. In the first case the second cleanup
+deletes the replacement; in the second case the first cleanup after replacement does.
+The old implementation consumed its handle, then a later call fell back to GUID/map
+search and removed a different incarnation while leaving its manager ownership index
+inconsistent. These are controlled repeated public cleanup calls, not proof that a
+current network scenario automatically schedules that repetition.
+
+Intentional lifecycle repair in `session/lifecycle/cleanup.rs`: retire only the exact
+Session-held PlayerHandle, clear it only after retirement returns the owned Player,
+and retain it on failure. No handle means no authority to remove a map resident.
+The unsafe GUID/map search is deleted, not moved behind cfg(test), and no new field,
+mirror, lock, public method or automatic retry is added. A retained stale handle
+continues to fail against a replacement; successful retirement followed by another
+cleanup cannot reacquire it. C++ `Server/WorldSession.cpp:660-672` removes the exact
+`_player` pointer, including its detached-map caveat, then clears that pointer; it
+does not authorize deleting a newly found Player with the same GUID.
+
+Alternatives rejected: retaining a stale token after every successful retirement would
+contradict the existing cleared-handle contract, while a second "already cleaned" flag
+would duplicate lifecycle state. The actual production construction/adoption paths
+(`ensure_canonical_player_owner_exists_like_cpp`,
+`install_detached_canonical_player_from_session_like_cpp`, and canonical transfer
+admission in Session) already acquire an incarnation handle. Cleanup must not acquire
+new ownership. Three older library fixtures inserted raw map Players without giving
+their Session a handle; each now uses the existing explicit fixture-adoption helper.
+All removal, detached-owner, unrelated-object and inventory assertions are preserved.
+
+The small production integration module additionally injects a missing backing Player,
+retains its exact Box locally, attempts cleanup, restores that same value, and repeats
+cleanup. It checks both backing-value retirement and removal of the ownership index.
+This proves retained retirement identity under controlled failure, not a supported
+production transfer protocol, DB durability or a complete cleanup recovery policy.
+Directory unregister still checks the control-channel identity; login-claim release
+still checks its Arc identity. Visibility refresh ordering and inventory cleanup are
+unchanged. Broad cancellation/partial-finalization results remain a separate open C1
+obligation: a failed canonical retirement still does not classify the outer unit cleanup.
+
+Reviewed metrics: cleanup.rs falls from 112 to 89 physical lines; Session logical
+production/test/total becomes 82,797 / 107,493 / 190,290 (-23/+3/-20).
+The existing Session test root grows by three explicit fixture-adoption lines to 96,722;
+its temporary C4 ceiling retains the named family splits. New scenarios live in the
+100-line private production integration module. No persistence inventory is regenerated
+and no legacy physical ceiling is retired by this bounded repair.
+
+Local aarch64 validation, with pinned PROTOC and offline/locked Cargo:
+`cargo test -p wow-world --lib --test production_login_player_owner` passes 3,776
+library tests (one ignored) and 27 production-linked integration tests, log
+`/tmp/rustycore-cleanup-incarnation-final-tests.log`. Syntax-only ownership stays at
+282 production + 433 fixture fields, 3,699 associated items and 590 registry rows.
+Architecture check/self-test and five preserved persistence-policy tests pass.
+Quick passes with verified manifest
+`target/validation-v2/manifests/20260906T220301.557014Z-3-quick.json`; this evidence
+paragraph was completed afterward. Migration checks cover 998 source files and retain
+101 legacy ceilings; they do not close C4. The same production integration target
+also passes all 27 tests under `--release`, log
+`/tmp/rustycore-cleanup-incarnation-release.log`, including both formerly failing
+replacement cases and the retained-token failure case. The mutated production
+retirement path therefore executes with and without debug assertions.
+
+No publication, runtime restart or DB operation is performed. C0 cross-clock admission,
+the complete C1 finalization report/recovery and real lifecycle QA, C2/C3/C4 retirement
+and full before/after-add/logout parity remain open.
+
 ## C1 disconnect attempt reaches supervision — above `ab753fe5`, 2026-09-06
 
 The disconnect wrapper previously discarded `PlayerSaveOutcomeLikeCpp`, and the

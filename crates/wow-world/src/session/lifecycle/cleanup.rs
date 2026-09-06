@@ -28,44 +28,21 @@ impl WorldSession {
             return;
         };
 
-        if let Some(handle) = self.player_handle_like_cpp.take() {
-            if manager.retire_player_like_cpp(handle).is_none() {
-                warn!(
-                    "Failed to retire canonical Player {:?}: stale handle or missing owner value",
-                    guid
-                );
-            }
-            return;
-        }
-
-        let map_id = u32::from(self.player_map_id_like_cpp());
-
-        let mut instance_id = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if instance_id.is_none() && managed.map().get_typed_player(guid).is_some() {
-                instance_id = Some(managed.instance_id());
-            }
-        });
-
-        let Some(instance_id) = instance_id else {
+        // C++ WorldSession::LogoutPlayer retires its exact Player*, not a fresh
+        // GUID lookup (WorldSession.cpp:660-672). Without an incarnation token
+        // this Session has no authority to remove any current map resident.
+        let Some(handle) = self.player_handle_like_cpp else {
             return;
         };
-        let Some(managed) = manager.find_map_mut(map_id, instance_id) else {
-            return;
-        };
-
-        if let Err(err) = managed.map_mut().remove_from_map_like_cpp(guid, true) {
-            match err {
-                wow_map::RemoveFromMapError::ObjectNotFound { .. } => {
-                    debug!("Canonical Player {:?} already removed from map", guid);
-                }
-                wow_map::RemoveFromMapError::ResetMap(reset_err) => {
-                    warn!(
-                        "Failed to remove canonical Player {:?} from map: {reset_err:?}",
-                        guid
-                    );
-                }
-            }
+        if manager.retire_player_like_cpp(handle).is_some() {
+            self.player_handle_like_cpp = None;
+        } else {
+            // Retain the exact token on failure. Any later attempt must still
+            // target this incarnation, never adopt or search for a replacement.
+            warn!(
+                "Failed to retire canonical Player {:?}: stale handle or missing owner value",
+                guid
+            );
         }
     }
 

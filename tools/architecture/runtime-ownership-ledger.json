@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82820,
-          "test_lines": 107490,
-          "total_lines": 190310,
+          "production_lines": 82797,
+          "test_lines": 107493,
+          "total_lines": 190290,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 deferred-save integration above bc3bdd2f: +95 production/+326 tests. A private persistence adapter retains transfer-blocked requests on canonical Player and returns explicit save outcomes. Worldport drains intent after resurrection; an already-due periodic save joins that phase. Known rollback retains intent until the next scheduled save without disconnecting solely for rollback. Focused private tests cover registered ACK, success/failure/unknown, pre/post-submit cancellation and newer-intent receipts. No new Session field or clock. Unit-returning outer logout/factory finalization and C0-C4 remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 exact-incarnation cleanup above 8cb125c1: remove the unsafe GUID/map retirement fallback (-23 production lines). Three existing cleanup fixtures now explicitly adopt their inserted Player through the existing handle helper (+3 fixture lines), preserving their assertions and exercising the real production retirement path. Small production-linked tests cover repeated cleanup against replacement and retained identity after a failed retirement. No new Session field, method, lock or automatic retry. The preceding factory cut propagates typed character-save attempts, but whole-finalization outcomes, C0 phase coordination and C2-C4 retirement remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
