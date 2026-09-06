@@ -36,7 +36,11 @@ The physical ratchet implemented above `8f5caedc` now covers repository source/t
 with 103 initial legacy non-growth ceilings and an independent terminal mode. The first Rust
 split above `d3f5c20c` reduces the persistence facade from 4,513 to 544 lines, preserving root
 public contracts in private operation modules and retiring its legacy ceiling (102 remain).
-This is physical decomposition, not closure of broad lifecycle capability cohesion. The existing
+The following adapter split above `1e6b7c40` reduces its 4,957-line root to 1,608 lines,
+with private statement/row modules and responsibility-specific tests (101 legacy ceilings
+remain). Its reviewed exhaustive inventory and matching policy are reconciled in the owning
+checkpoint, including stale pre-catalog records and preservation of currency caller provenance.
+These are physical decompositions, not closure of broad lifecycle capability cohesion. The existing
 logical-owner guards remain. Migration PASS is not terminal acceptance: the legacy files
 still need their stated splits or concrete bounded exceptions before #578 closes.
 

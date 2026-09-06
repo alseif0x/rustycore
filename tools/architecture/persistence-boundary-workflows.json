@@ -2,6 +2,202 @@
   "schema_version": 2,
   "workflows": [
     {
+      "package": "wow-database",
+      "module": "crate::world_query_catalog_adapter",
+      "source": "crates/wow-database/src/world_query_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::creature_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_query_catalog_adapter",
+      "source": "crates/wow-database/src/world_query_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::gameobject_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_query_catalog_adapter",
+      "source": "crates/wow-database/src/world_query_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_query_catalog_adapter",
+      "source": "crates/wow-database/src/world_query_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::page_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_query_catalog_adapter",
+      "source": "crates/wow-database/src/world_query_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_query_catalog_adapter",
+      "source": "crates/wow-database/src/world_query_catalog_adapter.rs",
+      "enclosing": "struct MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The startup adapter owns one WorldDatabase handle. Its pooled SELECTs are sequential independent reads, not one transaction or a repeatable-read snapshot.",
+      "current_order": "Preserve creature templates/difficulty then models then locales; gameobject templates/addons then locales; page texts then locales. ObjectMgr.cpp loaders at 349/255, 7552/7770/7461 and 6143/6189 anchor the startup ownership, not whole-query parity.",
+      "failure_and_unknown_commit": "A failed SELECT aborts its typed load with Failed; no partial catalog is returned from that load. World-server startup requires the resulting catalogs before publishing session capabilities. No writes, COMMIT or durability guarantee are inferred."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "boundary": "Private Player lifecycle statement module imports (#578)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::login_writes",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Player lifecycle statement module imports (#578)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::save_steps",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/save_steps.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Player lifecycle statement module imports (#578)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::save_plan",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/save_plan.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Player lifecycle statement module imports (#578)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::collections",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/collections.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "Private Player lifecycle statement module imports (#578)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::login_reads",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Player lifecycle statement module imports (#578)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter::transports",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/transports.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Private Player lifecycle statement module imports (#578)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module declarations import concrete statement vocabulary; they acquire no pool or transaction.",
+      "current_order": "Imports introduce no execution order; each relocated builder retains its separately annotated statement and bind order.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module imports; the unchanged lifecycle adapter retains outcome handling."
+    },
+    {
       "package": "bnet-server",
       "module": "crate",
       "source": "crates/bnet-server/src/main.rs",
@@ -3186,81 +3382,6 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::creature_query_catalog_adapter",
-      "source": "crates/wow-database/src/creature_query_catalog_adapter.rs",
-      "enclosing": "fn statement_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Pure construction of one World-database prepared statement; it opens no connection or transaction.",
-      "current_order": "Build the selected creature base, locale or display statement and bind the creature entry exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing a statement."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::creature_query_catalog_adapter",
-      "source": "crates/wow-database/src/creature_query_catalog_adapter.rs",
-      "enclosing": "impl MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::new",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::creature_query_catalog_adapter",
-      "source": "crates/wow-database/src/creature_query_catalog_adapter.rs",
-      "enclosing": "impl wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp for MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp::load_creature_query_catalog_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "All reads use the adapter's single World database handle; no cross-database boundary is implied.",
-      "current_order": "Read the base template first; if present, optionally read locale and then display rows, preserving the represented Rust handler order.",
-      "failure_and_unknown_commit": "Base failure is terminal, no base row is Missing, locale failure is returned as a non-fatal diagnostic, and display failure retains the empty-display fallback. Reads have no COMMIT outcome."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::creature_query_catalog_adapter",
-      "source": "crates/wow-database/src/creature_query_catalog_adapter.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The module owns only the transitional World catalog adapter.",
-      "current_order": "SQL identity, binds and row projection stay private; packet construction and per-session cache remain in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::creature_query_catalog_adapter",
-      "source": "crates/wow-database/src/creature_query_catalog_adapter.rs",
-      "enclosing": "struct MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free creature-query catalog reads (#480)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The adapter stores exactly one World database handle.",
-      "current_order": "The handle surface implies no runtime order beyond the port method.",
-      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
-    },
-    {
-      "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
       "enclosing": "fn connect_pool_like_cpp",
@@ -4509,186 +4630,6 @@
       "connection_affinity": "The adapter stores exactly one World database handle.",
       "current_order": "The handle surface implies no order beyond the one typed load method.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_query_catalog_adapter",
-      "source": "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
-      "enclosing": "fn statement_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Pure construction of one World-database prepared statement; it opens no connection or transaction.",
-      "current_order": "Build the selected gameobject base, locale or quest-item statement and bind the gameobject entry exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing a statement."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_query_catalog_adapter",
-      "source": "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
-      "enclosing": "impl MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::new",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_query_catalog_adapter",
-      "source": "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
-      "enclosing": "impl wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp for MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp::load_gameobject_query_catalog_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "All reads use the adapter's single World database handle; no cross-database boundary is implied.",
-      "current_order": "Read the base template first; if present, optionally read locale and then quest-item rows, preserving the represented Rust handler order.",
-      "failure_and_unknown_commit": "Base failure is terminal, no base row is Missing, and locale or quest-item failures return independent non-fatal diagnostics. Reads have no COMMIT outcome."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_query_catalog_adapter",
-      "source": "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The module owns only the transitional World catalog adapter.",
-      "current_order": "SQL identity, binds and row projection stay private; packet construction remains in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_query_catalog_adapter",
-      "source": "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
-      "enclosing": "struct MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gameobject-query catalog reads (#482)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The adapter stores exactly one World database handle.",
-      "current_order": "The handle surface implies no runtime order beyond the port method.",
-      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_use_template_adapter",
-      "source": "crates/wow-database/src/gameobject_use_template_adapter.rs",
-      "enclosing": "fn gameobject_money_loot_statement_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Pure construction of one World-database statement; it opens no connection or transaction.",
-      "current_order": "Builds SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and binds the gameobject entry as one unsigned 32-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_use_template_adapter",
-      "source": "crates/wow-database/src/gameobject_use_template_adapter.rs",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "fn gameobject_use_template_statement_like_cpp",
-      "connection_affinity": "Pure construction of one World-database statement; it opens no connection or transaction.",
-      "current_order": "Builds SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and binds the gameobject entry as one unsigned 32-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_use_template_adapter",
-      "source": "crates/wow-database/src/gameobject_use_template_adapter.rs",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "impl MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::new",
-      "connection_affinity": "Composition supplies one process-wide World adapter before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_use_template_adapter",
-      "source": "crates/wow-database/src/gameobject_use_template_adapter.rs",
-      "enclosing": "impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_money_loot_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Pure construction of one World-database statement; it opens no connection or transaction.",
-      "current_order": "Builds SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and binds the gameobject entry as one unsigned 32-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_use_template_adapter",
-      "source": "crates/wow-database/src/gameobject_use_template_adapter.rs",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp for MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp::load_gameobject_use_template_like_cpp",
-      "connection_affinity": "Executes one non-transactional prepared read through the configured World adapter.",
-      "current_order": "Executes SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY and projects type, IconName, size, Data0 through Data34 and ContentTuningId before returning a typed outcome.",
-      "failure_and_unknown_commit": "A row maps to Found, no row to Missing and a driver error to Failed; this read has no commit or unknown-commit phase."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_use_template_adapter",
-      "source": "crates/wow-database/src/gameobject_use_template_adapter.rs",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "module",
-      "connection_affinity": "The module is bound to one configured World adapter and opens no cross-database workflow.",
-      "current_order": "The adapter preserves the represented Rust query identity and tolerant projection while object admission, template interpretation and gameplay dispatch remain in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed gameobject-template port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::gameobject_use_template_adapter",
-      "source": "crates/wow-database/src/gameobject_use_template_adapter.rs",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented gameobject-use template reads (#462)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "struct MariaDbGameObjectUseTemplatePersistenceAdapterLikeCpp",
-      "connection_affinity": "The adapter stores exactly one World-database handle.",
-      "current_order": "Construction stores the handle only; the typed method owns statement execution and row projection.",
-      "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
     },
     {
       "package": "wow-database",
@@ -6751,81 +6692,6 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::next_mail_time_adapter",
-      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "fn next_mail_time_load_statement_like_cpp",
-      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
-      "current_order": "Builds CHAR_SEL_MAIL and binds the player GUID as one unsigned 64-bit parameter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing the statement."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::next_mail_time_adapter",
-      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new",
-      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::next_mail_time_adapter",
-      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp",
-      "connection_affinity": "Executes one non-transactional prepared read through the configured Characters adapter.",
-      "current_order": "Executes CHAR_SEL_MAIL, projects message type, sender, delivery time, checked flags and stationery from their C++ column positions, then returns typed rows to the session.",
-      "failure_and_unknown_commit": "Successful execution maps to Loaded and a driver error to Failed; this read has no commit or unknown-commit phase."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::next_mail_time_adapter",
-      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "module",
-      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
-      "current_order": "The adapter preserves the represented Rust query identity, bind and projection while leaving mail filtering, sender deduplication, cap and packet routing in the session.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed mail-read port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::next_mail_time_adapter",
-      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "enclosing": "struct MariaDbNextMailTimePersistenceAdapterLikeCpp",
-      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
-      "current_order": "Construction stores the handle only; the typed method owns statement execution and row projection.",
-      "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
-    },
-    {
-      "package": "wow-database",
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "fn account_ban_statements_like_cpp",
@@ -6943,81 +6809,6 @@
       "connection_affinity": "The adapter holds the one configured Login-database handle used by both semantic operations.",
       "current_order": "Construction stores the handle only; admission invokes lookup and persistence in its existing order.",
       "failure_and_unknown_commit": "No I/O occurs while constructing or storing the adapter."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::page_text_catalog_adapter",
-      "source": "crates/wow-database/src/page_text_catalog_adapter.rs",
-      "enclosing": "fn statement_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Pure construction of one World-database prepared statement; it opens no connection or transaction.",
-      "current_order": "Build the selected page or locale statement and bind the page-text identifier exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing a statement."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::page_text_catalog_adapter",
-      "source": "crates/wow-database/src/page_text_catalog_adapter.rs",
-      "enclosing": "impl MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
-      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::page_text_catalog_adapter",
-      "source": "crates/wow-database/src/page_text_catalog_adapter.rs",
-      "enclosing": "impl wow_persistence::PageTextCatalogPersistencePortLikeCpp for MariaDbPageTextCatalogPersistenceAdapterLikeCpp::load_page_text_catalog_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Every page and locale read uses the adapter's single World database handle; no cross-database boundary is implied.",
-      "current_order": "For each page, read the base row and then the optional locale before following NextPageID; preserve missing-row, cycle and 100-page termination.",
-      "failure_and_unknown_commit": "A base-read failure terminates with the pages already loaded; a locale failure records a non-fatal diagnostic and keeps the base text. Reads have no COMMIT outcome."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::page_text_catalog_adapter",
-      "source": "crates/wow-database/src/page_text_catalog_adapter.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The module owns only the transitional World catalog adapter.",
-      "current_order": "SQL identity, binds, chain iteration and row projection stay private; diagnostics and packet construction remain in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::page_text_catalog_adapter",
-      "source": "crates/wow-database/src/page_text_catalog_adapter.rs",
-      "enclosing": "struct MariaDbPageTextCatalogPersistenceAdapterLikeCpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The adapter stores exactly one World database handle.",
-      "current_order": "The handle surface implies no runtime order beyond the port method.",
-      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
     },
     {
       "package": "wow-database",
@@ -8599,8 +8390,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::collections",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/collections.rs",
       "enclosing": "fn account_collection_load_statements_like_cpp",
       "logical_databases": [
         "login"
@@ -8614,8 +8405,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn append_player_currency_save_request_like_cpp",
       "logical_databases": [
         "characters"
@@ -8629,8 +8420,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::save_plan",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/save_plan.rs",
       "enclosing": "fn build_tutorials_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8644,8 +8435,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_bank_slot_purchase_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8659,8 +8450,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_buyback_clear_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8674,8 +8465,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_reads",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs",
       "enclosing": "fn player_character_base_load_row_like_cpp",
       "logical_databases": [
         "characters"
@@ -8689,8 +8480,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_reads",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs",
       "enclosing": "fn player_character_base_load_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8704,8 +8495,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::save_steps",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/save_steps.rs",
       "enclosing": "fn player_character_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8719,8 +8510,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::save_plan",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/save_plan.rs",
       "enclosing": "fn player_character_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8749,8 +8540,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_durability_repair_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8764,8 +8555,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_writes",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs",
       "enclosing": "fn player_homebind_persistence_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8779,8 +8570,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_reads",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs",
       "enclosing": "fn player_inventory_item_load_row_like_cpp",
       "logical_databases": [
         "characters"
@@ -8794,8 +8585,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_reads",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs",
       "enclosing": "fn player_login_admission_load_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8809,8 +8600,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_reads",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_reads.rs",
       "enclosing": "fn player_login_auxiliary_load_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8824,8 +8615,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_writes",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs",
       "enclosing": "fn player_login_item_repair_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8839,8 +8630,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_writes",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs",
       "enclosing": "fn player_login_pet_talent_reset_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8854,8 +8645,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::transports",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/transports.rs",
       "enclosing": "fn player_login_transport_load_rows_like_cpp",
       "logical_databases": [
         "world"
@@ -8869,8 +8660,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::transports",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/transports.rs",
       "enclosing": "fn player_login_transport_load_statement_like_cpp",
       "logical_databases": [
         "world"
@@ -8884,8 +8675,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_money_transaction_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8899,8 +8690,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_money_write_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8914,8 +8705,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::login_writes",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/login_writes.rs",
       "enclosing": "fn player_online_mark_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8929,8 +8720,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_realm_character_count_statements_like_cpp",
       "logical_databases": [
         "characters",
@@ -8945,8 +8736,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_talent_reset_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8960,8 +8751,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_uncage_item_state_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8975,8 +8766,8 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::player_lifecycle_adapter",
-      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "module": "crate::player_lifecycle_adapter::economy",
+      "source": "crates/wow-database/src/player_lifecycle_adapter/economy.rs",
       "enclosing": "fn player_xp_persistence_statements_like_cpp",
       "logical_databases": [
         "characters"

@@ -71,12 +71,12 @@ The executable contracts are split deliberately:
 
 - `session::tests::save_plan_order::the_character_save_request_is_semantic_and_deterministic_like_cpp`
   pins the real Session's deterministic semantic request without exposing SQL;
-- `player_lifecycle_adapter::tests::character_save_adapter_preserves_the_frozen_statement_order_like_cpp`
+- `player_lifecycle_adapter::tests::save_order::character_save_adapter_preserves_the_frozen_statement_order_like_cpp`
   expands a semantic request and compares the exact SQL run order with
   `player-save-plan-order.json`; the fixture now covers every represented group plus equipment,
   transmog, void-storage and CUF insert/update/delete branches rather than the former twelve-group
   subset;
-- `player_lifecycle_adapter::tests::every_private_character_save_operation_maps_to_the_existing_mariadb_statement_like_cpp`
+- `player_lifecycle_adapter::tests::save_steps::every_private_character_save_operation_maps_to_the_existing_mariadb_statement_like_cpp`
   covers every private adapter operation and proves it still selects the previous MariaDB statement;
 - the lifecycle persistence tests drive production orchestration through a fake port and prove
   `Applied` clears dirty state, definite rollback preserves it, and unknown COMMIT both preserves

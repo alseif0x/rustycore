@@ -173,13 +173,6 @@
       "review_checkpoint": "578:C4"
     },
     {
-      "path": "crates/wow-database/src/player_lifecycle_adapter.rs",
-      "observed_lines": 4957,
-      "ceiling_lines": 4957,
-      "split": "Separate login/load, full-save statement plans, account collections and their transaction/failure tests.",
-      "review_checkpoint": "578:C4"
-    },
-    {
       "path": "crates/wow-database/src/statements/character.rs",
       "observed_lines": 3429,
       "ceiling_lines": 3429,

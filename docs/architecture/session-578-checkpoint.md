@@ -1,7 +1,91 @@
-# Session convergence checkpoint — updated 2026-09-05
+# Session convergence checkpoint — updated 2026-09-06
 
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
+
+## MariaDB lifecycle adapter decomposition — 2026-09-06
+
+The structural cut above `1e6b7c40` preserves the existing
+`MariaDbPlayerLifecycleAdapterLikeCpp`, its three pool handles and its single lifecycle-port
+implementation. The root shrinks from 4,957 to 1,608 lines. Seven private modules own economy
+statement plans, login writes, login reads/decoding, transport reads, collection reads,
+full-save steps/bindings and full-save ordering. The largest extracted production file is
+693 lines. Four test modules separate economy/writes, login reads, save-step mapping and
+save ordering; their largest file is 612 lines, with narrow shared fixtures in `tests.rs`.
+The exact legacy physical-policy row is retired; **101 initial oversized files remain**.
+
+The remaining root exceeds the 1,000-line review signal but not the 2,000-line limit.
+Cohesion review keeps the one existing trait implementation and its transaction/outcome
+branches together for this mechanical cut. This is not a new terminal exception or closure
+of the broad lifecycle capability: C2 must still address that real operation boundary.
+No pool, lock, trait, async gate, queue, mutable owner or transaction boundary is added.
+The public adapter/tutorial builder paths are preserved, the latter through a scoped module
+reexport. The shared crate-visible currency builder keeps its original root definition and
+body: the existing analyzer loses caller provenance through a restricted callable reexport.
+Private moved builders are visible only to the parent adapter and its descendants.
+
+Before editing, C++ `Entities/Player/Player.cpp:19323` (`SaveToDB`, including deferred far
+save) and `Handlers/CharacterHandler.cpp:88` onward (`LoginQueryHolder` statement setup)
+were contrasted with the current adapter and the
+[bounded lifecycle contract](../migration/player-lifecycle-persistence-contract.md).
+Existing sequential-load, partial-save and separate account-collection transaction differences
+remain unresolved; relocation does not approve them as C++ parity.
+
+All 1,850 helper-source lines are accounted for exactly once (1,813 relocated; the shared
+37-line currency builder retained). Independent rustfmt-normalized
+comparisons preserve every extracted builder body and the complete original adapter/trait
+implementation; the four moved test bodies also match, except the fixture's relative path
+which still names the same unchanged JSON file. All 25 prior test identities execute and pass
+on aarch64; only their responsibility submodule prefixes change. No statement, binding,
+transaction ordering, await, commit classification or packet path changes.
+
+The first exhaustive scan exposed two distinct issues instead of supplying an acceptable
+replacement baseline. Its checked inventory dates from `05ca65ce`, before `11c34e6b` retired
+five on-demand adapters and introduced startup query catalogs/mail hydration, and before
+subsequent process-resource borrowing and nullable-LFG test changes. The current code audit
+reconciles those historical paths separately: 27 annotations for absent adapters are retired;
+six startup `world_query_catalog_adapter` workflows are annotated from actual source and
+`app.rs:2290`/`world_query_catalog::load_like_cpp`. The ObjectMgr C++ loaders at
+255/349, 6143/6189 and 7461/7552/7770 establish the startup responsibility. Their seven SELECTs
+are independent reads, not a transactional snapshot. This reconciles inventory, not wider
+packet or database parity; unrelated historical policies/retirement issues are not retargeted.
+
+The initial test-module import chain also hid PreparedStatement value/argument/macro evidence;
+tests now name concrete builder imports explicitly. Retaining the original currency definition
+protects vendor/inventory transaction provenance instead of accepting four missing inventory
+rows (including the vendor row's three occurrences). **Remaining C4 guard work:** add an
+adversarial scoped-callable reexport/import-chain fixture and fix the analyzer before relying
+on that mechanism in future adapter splits. No analyzer weakening or blanket baseline drop
+is part of this cut.
+
+The final exhaustive `session-ownership-check print-persistence-baseline` run completed on
+the final source, with **10,116 access rows** versus the checked 10,255. The reviewed delta
+accounts for historical sources (-174 rows), the prior Mail branch (+4), and explicit module
+imports (+31). After source/module relocation, scoped visibility and two exact rustfmt-only
+trailing-comma changes are normalized, no other body or consumer access disappears. In
+particular, the vendor/inventory currency references are identical, including occurrence counts.
+The first/intermediate inventories with missing references were **not installed**.
+
+Snapshot SHA-256: `8203a54719416170fd3716f3dcefd521b61057267205c02e33a53765c20bb562`.
+The policy is rendered from that same reviewed artifact and the preserved workflow annotations;
+SHA-256: `98baa1e37e3d4320109eae698d796af2a20e41a69dd10672c54b210e2956ef1f`.
+Both installed files compare byte-for-byte to those outputs. The retained workflow contracts
+compare unchanged after the exact path reconciliation; no remaining retirement issue or
+failure/unknown-COMMIT contract is relaxed. The five persistence-policy tests now pass,
+including checked-snapshot/policy consistency and stale/overlapping/unowned rejection.
+Local review artifact: `/tmp/rustycore-578-adapter-inventory-verified-review.log`.
+
+aarch64 validation uses `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`, locked/offline Cargo
+and two build jobs: `cargo test -p wow-database --lib` passes **354**, with the same two ignored;
+`cargo test -p wow-world --test production_login_player_owner` passes **six**; and
+`cargo check -p world-server --all-targets` passes with existing warnings. Architecture
+check/self-test, syntax-only ownership, formatting and diff checks pass. Quick validation
+for this cut uses `--base 1e6b7c40`; manifest before the final inventory installation:
+`target/validation-v2/manifests/20260906T094333.362607Z-3-quick.json`.
+The post-installation quick pass is
+`target/validation-v2/manifests/20260906T095839.334914Z-3-quick.json`.
+This is not the whole-PR final gate. No live durability, fresh capture, installation,
+publication or macro completion is claimed by this structural cut.
 
 ## Persistence contract source decomposition — 2026-09-05
 
