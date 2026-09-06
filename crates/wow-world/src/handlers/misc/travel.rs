@@ -225,11 +225,6 @@ impl crate::session::WorldSession {
             new_pos.z
         );
 
-        // C++ updates area-based item scaling from SendInitialPacketsAfterAddToMap,
-        // after the same Player has been attached to its destination Map
-        // (Player.cpp:23650). Resolve/adopt that canonical owner first so the
-        // transition cannot be written into a discarded Session fallback.
-        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         self.update_registry_position();
 
         // SMSG_NEW_WORLD was already sent from handle_suspend_token_response (C++ sends it in

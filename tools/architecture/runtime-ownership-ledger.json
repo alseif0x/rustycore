@@ -1470,11 +1470,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20645,
-          "test_lines": 12934,
-          "total_lines": 33579,
+          "production_lines": 20648,
+          "test_lines": 13014,
+          "total_lines": 33662,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 rest cancellation repair above bb0c6d7e: +4 production/+121 test lines. Post-add leaves the native marker pending across world-state await and acknowledges channel acceptance afterward. A private 108-line canonical-Player test cancels exactly at a controlled read, reenters and checks accepted/closed output. Existing lifecycle fixture gains 13 lines for queued futures and module registration, with no duplicate fixture. C0-C4 remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 post-add scaling phase repair above d70c88c3: +3 production/+80 test lines. Destination item scaling moves from early worldport to the shared after-add phase (misc travel shrinks 5 lines). Two private canonical-Player tests in 78 lines reproduce early worldport scaling and missing login-phase scaling; the existing root gains only 2 registration lines. No new state, lock, query, or packet representation. C0-C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

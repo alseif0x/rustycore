@@ -1945,6 +1945,9 @@ impl WorldSession {
         // This re-sends SMSG_PHASE_SHIFT_CHANGE (the second phase-shift of login,
         // byte-identical to the AddToMap one). #NEXT.R8.ENTITIES.1228.
         self.send_packet(&PhaseShiftChange::default_for(guid));
+        // C++ Player.cpp:23648-23650 applies destination item scaling after
+        // PhasingHandler::OnMapChange, shared by login and far worldport.
+        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         // C++ RestMgr only dirties PLAYER_FLAGS_RESTING during UpdateZone; the
         // map object-update owner flushes that field after post-add packets.
         // Keep the marker on Player across the world-state await; only channel acceptance

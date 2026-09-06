@@ -1543,6 +1543,65 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1 destination scaling phase and logout prerequisite audit — above `d70c88c3`, 2026-09-06
+
+Intentional phase-order repair. C++ `Player.cpp:23648-23650` calls
+UpdateItemLevelAreaBasedScaling after PhasingHandler::OnMapChange in the shared
+SendInitialPacketsAfterAddToMap path. Rust instead called the represented helper only
+from worldport, immediately after attachment and before ResumeToken/self CREATE; the
+shared login post-add path omitted it. The two canonical-Player regressions fail against
+`d70c88c3` with tests: worldport is already scaled during the initial-world-state read,
+while direct login post-add remains unscaled at completion
+(`/tmp/rustycore-post-add-scaling-before.log`).
+
+The existing helper now runs in the shared post-add path after phase publication. Its
+rules, owner access, remove/apply item modifiers and health-percentage restoration are
+unchanged (`Player.cpp:28715-28729` is the C++ rule anchor). The redundant early worldport
+call is removed; no new state, DB query, lock, packet representation or execution owner
+is introduced. Existing aura-triggered scaling callers are not relocated. This establishes
+the represented map-entry phase, not full item/stat or initialization parity.
+
+Two tests in private `character_tests/post_add_scaling.rs` (78 lines) share the existing
+typed lifecycle fixture. One invokes the real worldport handler, the other the shared
+login post-add operation. The read callback inspects the same map-owned Player before
+InitWorldStates without sending under its map guard; both assert final scaling. This is
+a controlled phase observation, not an installed-client capture or full-login scenario.
+Physical travel shrinks 679 -> 674; session_state grows 2,782 -> 2,785; the old test root
+gains only two registrations lines (12,631 -> 12,633). Logical Character +3 production/
+80 tests is explicitly reviewed; no new physical exception or syntax-policy item.
+
+Local aarch64 evidence on the working cut above `d70c88c3`, using pinned PROTOC and
+the validation Cargo cache: `cargo test --offline --locked -p wow-world --lib` passes
+3,764 tests (one ignored); `--test production_login_player_owner` passes 12 controlled
+production-linked cases. Syntax-only ownership, architecture check/self-test, five
+standalone persistence-policy tests and format/diff checks pass. Bounded quick passes;
+verified manifest `target/validation-v2/manifests/20260906T184211.729956Z-3-quick.json`.
+Only this evidence paragraph was completed after the run. No fresh client/capture,
+live DB, deployment or durability acceptance is inferred from the local tests.
+
+The same current-source audit identifies the next C1 integration prerequisites, rather
+than treating the completed helpers as a finished disconnect operation:
+
+- `WorldSession.cpp:544-551` completes pending far transfer before the logout flag/save.
+  Rust `session/lifecycle/logout.rs` sets logout and saves without that completion, while
+  the network ACK rejects Disconnecting and depends on working transport/fences. Calling
+  that ACK blindly from disconnect is not a correct integration.
+- `handlers/misc/travel.rs` clears far/pending destination after attachment, before its
+  awaited visibility and post-add effects. A cancelled, attached Player can therefore
+  have far=false while Session is still Transfer. The far semaphore alone cannot prove
+  initialization complete or safely drive save admission/reentry.
+- `Player.cpp:19324-19333` schedules DELAYED_SAVE_PLAYER during far transfer. Rust's full
+  save currently does not provide that deferred outcome; merely adding an early return
+  would discard the disconnect save when the factory next cleans up the owner.
+- The bounded Terminal recovery/source-save contract remains valid for its tested failure
+  case, not a substitute for ordinary transfer completion. Full-save APIs return unit;
+  factory completion/logging alone is not evidence of committed durability.
+
+Continue with an explicit completion/admission contract for the **whole** transfer and its
+non-network effects before enabling deferred-save/logout integration. Preserve the existing
+incarnation-bound save receipt and commit-unknown fences. C0–C4, nonblocking output,
+before-add completeness and real durability/runtime acceptance remain open.
+
 ### C1/C3 rest publication survives cancellation — above `bb0c6d7e`, 2026-09-06
 
 Intentional Rust async-lifecycle repair, separate from the preceding structural extraction.

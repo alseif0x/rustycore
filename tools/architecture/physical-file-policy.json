@@ -475,9 +475,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2782,
-      "ceiling_lines": 2782,
-      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above bb0c6d7e +4 lines retain the rest marker across the world-state await and consume only after channel acceptance. Complete login/worldport separation and C4 retirement remain.",
+      "observed_lines": 2785,
+      "ceiling_lines": 2785,
+      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above d70c88c3 +3 lines apply destination item scaling in the shared post-add phase after PhasingHandler, rather than early worldport only. Complete login/worldport separation and C4 retirement remain.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -496,9 +496,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12631,
-      "ceiling_lines": 12631,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above bb0c6d7e +13 lines register a small private cancellation scenario and allow the existing world-state fixture queue to own ready/pending futures. No duplicate lifecycle fixture; C4 split exit remains.",
+      "observed_lines": 12633,
+      "ceiling_lines": 12633,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above d70c88c3 +2 lines register the private post-add scaling tests, reusing existing lifecycle fixtures. No duplicate lifecycle fixture; C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },
     {

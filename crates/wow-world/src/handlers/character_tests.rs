@@ -11,6 +11,8 @@
 
 #[path = "character_tests/post_add_rest.rs"]
 mod post_add_rest;
+#[path = "character_tests/post_add_scaling.rs"]
+mod post_add_scaling;
 
 // Explicit database imports: this module reaches its parent through
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
