@@ -115,19 +115,21 @@ inventory::submit! {
 
 impl crate::session::WorldSession {
     /// C++ `Map::SendInitSelf` (Map.cpp:1826), invoked by `Map::AddPlayerToMap(initPlayer=true)`
-    /// on a non-seamless far teleport (HandleMoveWorldportAck -> AddPlayerToMap, Map.cpp:470).
+    /// on a non-seamless far teleport (HandleMoveWorldportAck -> AddPlayerToMap, Map.cpp:427-463).
     /// Re-sends the player's OWN object (ActivePlayer create block) so the client finishes the
     /// loading screen and enters the destination map. Sourced from session state; combat stats
     /// are placeholders here (health from the live value, the rest defaulted) and corrected by
     /// the `send_stat_update` that follows. Inventory item objects are not yet re-sent on
     /// teleport, unlike Player.cpp:3586-3608 — an open #NEXT.R8.ENTITIES.1229 parity gap.
+    /// None means unavailable Player projection; Some reports channel acceptance only.
+    /// A rejected send must not suppress the remaining native worldport effects.
     pub(super) async fn send_player_self_create_for_teleport_like_cpp(
         &mut self,
         trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
-    ) -> bool {
+    ) -> Option<bool> {
         let _ = trait_node_entries; // Compatibility until the caller's catalog contract is narrowed.
         let Some(player_pkt) = self.prepare_player_self_create_for_teleport_like_cpp() else {
-            return false;
+            return None;
         };
         let sent = self.send_packet(&player_pkt);
         info!(
@@ -136,7 +138,7 @@ impl crate::session::WorldSession {
             accepted = sent,
             "[FAR_TELEPORT] prepared SendInitSelf (player ActivePlayer create) for destination map"
         );
-        sent
+        Some(sent)
     }
     /// CMSG_SUSPEND_TOKEN_RESPONSE — client acknowledges SMSG_SUSPEND_TOKEN during a far
     /// teleport. C++ `WorldSession::HandleSuspendTokenResponse` (MovementHandler.cpp:239)
@@ -258,7 +260,7 @@ impl crate::session::WorldSession {
         let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
 
         // Before-add control packets the client needs for the new map: C++
-        // SendInitialPacketsBeforeAddToMap resets m_movementCounter (Player.cpp:23483) and
+        // SendInitialPacketsBeforeAddToMap resets m_movementCounter (Player.cpp:23459) and
         // ends with SetMovedUnit -> SMSG_MOVE_SET_ACTIVE_MOVER, plus a fresh time sync. The
         // full before-add packet set (spells/factions/action bars/etc.) IS replayed by
         // C++ on non-seamless transfer. Rust still omits it: this is an open parity gap,
@@ -267,16 +269,16 @@ impl crate::session::WorldSession {
         self.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
         self.send_time_sync();
 
-        // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:470): re-send the
+        // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:446): re-send the
         // player's OWN object (ActivePlayer create block) for the destination map. Without it
         // the client loads to 100% but never enters the world. #NEXT.R8.ENTITIES.1229.
-        if !self
+        let Some(self_create_accepted) = self
             .send_player_self_create_for_teleport_like_cpp(trait_node_entries)
             .await
-        {
-            self.kick("worldport self CREATE has incomplete Player state or unavailable delivery");
+        else {
+            self.kick("worldport self CREATE has incomplete Player state");
             return;
-        }
+        };
 
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
         self.send_nearby_creatures_with_catalogs_like_cpp(
@@ -318,8 +320,9 @@ impl crate::session::WorldSession {
 
         // Preserve server effects above even when output closes. Client readiness,
         // however, must not be reported after a failed terminal publication.
-        if !self.send_stat_update() {
-            self.kick("worldport final stat projection or delivery unavailable");
+        let final_stat_accepted = self.send_stat_update();
+        if !self_create_accepted || !final_stat_accepted {
+            self.kick("worldport self CREATE delivery or final stat publication unavailable");
             return;
         }
         info!(

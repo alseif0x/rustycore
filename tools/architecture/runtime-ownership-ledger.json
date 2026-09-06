@@ -1471,10 +1471,10 @@
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
           "production_lines": 20648,
-          "test_lines": 13033,
-          "total_lines": 33681,
+          "test_lines": 13069,
+          "total_lines": 33717,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 terminal worldport readiness repair above 5b6a233d: +0 production/+19 test lines in logical Character. The existing 97-line post-add module adds closed-output coverage and supplies stat catalogs to distinguish actual channel failure from unavailable projection. Native scaling still completes; successful output can reach LoggedIn. Only terminal acceptance is guarded, not the entire resumable transfer. No new owner, lock, clock or query. C0-C4 remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 early worldport output repair above 71383a93: +0 production/+36 test lines in logical Character. The existing 133-line post-add module distinguishes output closure before ACK from closure during the world-state read, and checks delayed resurrection consumption as well as native scaling. Projection-unavailable still rejects entry; delivery-unavailable no longer skips native effects. No new owner, lock, clock or query. Whole-transfer cancellation/save and C0-C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

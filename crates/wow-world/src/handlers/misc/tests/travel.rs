@@ -93,12 +93,13 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_xp_like_cpp(1_234_567);
     session.set_player_next_level_xp_like_cpp(2_345_678);
-    assert!(
-        !session
+    assert_eq!(
+        session
             .send_player_self_create_for_teleport_like_cpp(
                 &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
             )
-            .await
+            .await,
+        None
     );
     assert!(
         send_rx.is_empty(),
@@ -111,11 +112,14 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         .to_bytes();
     assert!(send_rx.is_empty(), "building a CREATE must not publish it");
 
-    session
-        .send_player_self_create_for_teleport_like_cpp(
-            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
-        )
-        .await;
+    assert_eq!(
+        session
+            .send_player_self_create_for_teleport_like_cpp(
+                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            )
+            .await,
+        Some(true)
+    );
 
     let bytes = send_rx.recv().expect("far teleport sends self CREATE");
     assert_eq!(
@@ -140,12 +144,13 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
             .to_bytes(),
         prepared
     );
-    assert!(
-        !session
+    assert_eq!(
+        session
             .send_player_self_create_for_teleport_like_cpp(
                 &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
             )
             .await,
+        Some(false),
         "closed delivery is separate from successful construction"
     );
 }

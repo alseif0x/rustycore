@@ -2,20 +2,32 @@ use super::*;
 
 #[tokio::test]
 async fn worldport_scales_items_only_after_post_add_initialization() {
-    assert_post_add_scaling(true, false).await;
+    assert_post_add_scaling(true, OutputClosure::Never).await;
 }
 
 #[tokio::test]
 async fn login_post_add_applies_destination_item_scaling() {
-    assert_post_add_scaling(false, false).await;
+    assert_post_add_scaling(false, OutputClosure::Never).await;
 }
 
 #[tokio::test]
 async fn worldport_does_not_report_logged_in_when_post_add_delivery_closes() {
-    assert_post_add_scaling(true, true).await;
+    assert_post_add_scaling(true, OutputClosure::DuringWorldStateRead).await;
 }
 
-async fn assert_post_add_scaling(worldport: bool, disconnect: bool) {
+#[tokio::test]
+async fn worldport_finishes_native_effects_when_self_create_delivery_is_closed() {
+    assert_post_add_scaling(true, OutputClosure::BeforeAck).await;
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum OutputClosure {
+    Never,
+    BeforeAck,
+    DuringWorldStateRead,
+}
+
+async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
     let (mut session, send_rx) = make_session_with_send_capacity(64);
     let guid = ObjectGuid::create_player(1, 42);
     let position = Position::new(1.0, 2.0, 3.0, 0.5);
@@ -42,7 +54,14 @@ async fn assert_post_add_scaling(worldport: bool, disconnect: bool) {
     let observed = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let observation = observed.clone();
     let mut send_rx = Some(send_rx);
-    let close_during_read = if disconnect { send_rx.take() } else { None };
+    if closure == OutputClosure::BeforeAck {
+        drop(send_rx.take());
+    }
+    let close_during_read = if closure == OutputClosure::DuringWorldStateRead {
+        send_rx.take()
+    } else {
+        None
+    };
     port.initial_world_state_outcomes
         .lock()
         .unwrap()
@@ -67,6 +86,18 @@ async fn assert_post_add_scaling(worldport: bool, disconnect: bool) {
         }));
     session.set_player_lifecycle_port_like_cpp(port);
     if worldport {
+        assert!(
+            session.schedule_represented_resurrection_after_teleport_like_cpp(
+                wow_entities::PlayerResurrectionRequestLikeCpp {
+                    resurrecter: guid,
+                    map_id: 571,
+                    position,
+                    health: 100,
+                    mana: 50,
+                    aura: 0,
+                }
+            )
+        );
         assert!(session.set_pending_teleport_like_cpp(Some((571, position))));
         assert!(session.set_represented_far_teleport_pending_like_cpp(true));
         session.set_state(crate::session::SessionState::Transfer);
@@ -75,11 +106,16 @@ async fn assert_post_add_scaling(worldport: bool, disconnect: bool) {
             .await;
         assert_eq!(
             session.state(),
-            if disconnect {
+            if closure != OutputClosure::Never {
                 crate::session::SessionState::Disconnecting
             } else {
                 crate::session::SessionState::LoggedIn
             }
+        );
+        assert!(
+            session
+                .represented_delayed_resurrection_after_teleport_like_cpp()
+                .is_none()
         );
     } else {
         session

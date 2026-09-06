@@ -1543,6 +1543,46 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1/C3 early self CREATE delivery does not abort native effects — above `71383a93`, 2026-09-06
+
+The actual worldport handler still returned before post-add processing when its self
+CREATE sender reported false. That conflated unavailable canonical projection with closed
+output. A controlled receiver closure **before ACK** reproduces an unconsumed native delayed
+resurrection on `71383a93` (`/tmp/rustycore-worldport-early-output-before.log`); the previous
+closure-during-world-state-read test did not exercise this earlier exit.
+
+C++ `Map.cpp:427-463` calls SendInitSelf and then continues visibility/phase/map-entry
+effects; its success result is not the socket send result. `WorldSession.cpp:250-255`
+returns from SendPacket for an absent socket, while `MovementHandler.cpp:153-234`
+continues the after-add/zone/pet/delayed-operation tail. The repair preserves this separation:
+the private sender returns `None` for unavailable projection, `Some(false)` for rejected
+delivery, and `Some(true)` for channel acceptance. Only unavailable projection takes the
+existing early rejection path. Rejected delivery runs the represented remaining native
+effects and fails final client readiness, even if later publication were accepted.
+
+The existing self-CREATE test now pins all three outcomes and still compares exact prepared
+and delivered bytes. The 133-line post-add test module covers successful login/worldport,
+closure during the read, and closure before ACK; worldport cases also pin consumption of
+the canonical delayed resurrection. Character's reviewed logical growth is 36 test lines
+(20,648 production / 13,069 tests / 33,717 total); misc travel is 681 physical lines.
+No new Player/Session state, lock, clock, query, packet representation or physical exception.
+
+This repairs delivery-dependent loss of represented native work, not missing C++ gameplay
+or cancellation resumption. In particular, a dropped worldport future can still interrupt
+the visibility/world-state awaits; the far semaphore and destination have already cleared.
+The factory still calls disconnect save then cleanup without a retained whole-transfer
+stage. Completing that contract requires incarnation-bound remaining work before the save
+admission/cleanup decision, not replaying the network ACK or merely postponing SaveToDB
+while the factory discards the owner. C0–C4 remain open; no live durability or capture claim.
+
+Local aarch64 evidence above `71383a93`: `cargo test --offline --locked -p wow-world
+--lib` passes 3,766 tests (one ignored), and `--test production_login_player_owner` passes
+12. The checker's `--lib persistence_policy` passes five; syntax-only ownership passes
+with the same 282 production/433 fixture fields, 3,690 associated items and 590 registry
+rows. Architecture check/self-test and format/diff checks pass. Quick manifest
+`target/validation-v2/manifests/20260906T192245.785370Z-3-quick.json` verifies green.
+No push, restart, live DB test or macro closure is claimed.
+
 ### C1/C3 completion separates server effects from publication — above `5b6a233d`, 2026-09-06
 
 The controlled worldport scenario closes its receiver inside the initial-world-state
