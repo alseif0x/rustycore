@@ -3,6 +3,8 @@
 //! controlled, not MariaDB; partial login hydration is not full login/relogin QA.
 use super::*;
 use std::sync::Mutex;
+#[path = "save/logout.rs"]
+mod logout;
 
 pub(super) async fn assert_terminal_source_save(session: &mut WorldSession, port: &LoginPort) {
     let probe = Arc::new(SaveProbe {
@@ -302,17 +304,17 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
 
 #[tokio::test]
 async fn production_disconnect_completes_pending_far_transfer_before_save() {
-    pending_far_disconnect(DisconnectDestination::Requested).await;
+    pending_far_disconnect(DisconnectDestination::Requested, false).await;
 }
 
 #[tokio::test]
 async fn production_disconnect_recovers_pending_far_transfer_to_homebind_without_packets() {
-    pending_far_disconnect(DisconnectDestination::Homebind).await;
+    pending_far_disconnect(DisconnectDestination::Homebind, false).await;
 }
 
 #[tokio::test]
 async fn production_disconnect_rejected_far_and_homebind_preserves_terminal_source_save() {
-    pending_far_disconnect(DisconnectDestination::Rejected).await;
+    pending_far_disconnect(DisconnectDestination::Rejected, false).await;
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -322,7 +324,7 @@ enum DisconnectDestination {
     Rejected,
 }
 
-async fn pending_far_disconnect(outcome: DisconnectDestination) {
+async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout: bool) {
     let (mut session, port, output, receiver) = hydrate(true, true, true).await;
     let guid = ObjectGuid::create_player(1, 42);
     let destination = Position::new(7.0, 8.0, 9.0, 0.5);
@@ -384,11 +386,13 @@ async fn pending_far_disconnect(outcome: DisconnectDestination) {
         )));
     }
     while receiver.try_recv().is_ok() {}
-    for _ in 0..8 {
-        output.try_send(vec![0]).unwrap();
+    if !explicit_logout {
+        for _ in 0..8 {
+            output.try_send(vec![0]).unwrap();
+        }
+        assert!(output.is_full());
+        session.kick("controlled disconnect before suspend/worldport ACK");
     }
-    assert!(output.is_full());
-    session.kick("controlled disconnect before suspend/worldport ACK");
     let probe = Arc::new(SaveProbe {
         requests: Mutex::new(vec![]),
         released: AtomicBool::new(true),
@@ -396,6 +400,64 @@ async fn pending_far_disconnect(outcome: DisconnectDestination) {
     });
     *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    if explicit_logout {
+        // Direct production adapter call proves LogoutPlayer ordering, not that
+        // the LoggedIn-only network registration admits a packet during Transfer.
+        session
+            .handle_logout_request_with_generator_like_cpp(
+                &generator,
+                wow_packet::packets::misc::LogoutRequest { idle_logout: false },
+            )
+            .await;
+        if outcome == DisconnectDestination::Rejected {
+            assert_eq!(session.state(), SessionState::Disconnecting);
+            assert_eq!(session.player_guid(), Some(guid));
+            assert!(probe.requests.lock().unwrap().is_empty());
+            assert!(
+                receiver
+                    .try_iter()
+                    .all(|bytes| u16::from_le_bytes([bytes[0], bytes[1]])
+                        != wow_constants::ServerOpcodes::LogoutComplete as u16)
+            );
+            session
+                .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+                .await;
+            let requests = probe.requests.lock().unwrap();
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0].character.position.map_id, 0);
+            assert_eq!(requests[0].character.position.x, 0.0);
+            assert_eq!(requests[0].character.health, 500);
+            return;
+        }
+        assert_eq!(session.state(), SessionState::Authed);
+        assert!(session.player_guid().is_none());
+        let requests = probe.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].character.position.map_id, 1);
+        assert_eq!(requests[0].character.position.x, destination.x);
+        assert_eq!(requests[0].character.health, 123);
+        assert!(
+            port.manager
+                .lock()
+                .unwrap()
+                .find_map(1, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(guid)
+                .is_none()
+        );
+        assert_eq!(
+            receiver
+                .try_iter()
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+            vec![
+                wow_constants::ServerOpcodes::LogoutResponse as u16,
+                wow_constants::ServerOpcodes::LogoutComplete as u16
+            ]
+        );
+        return;
+    }
     session
         .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
         .await;

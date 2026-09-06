@@ -80,16 +80,17 @@ impl WorldSession {
 
     /// Handle CMSG_LOGOUT_REQUEST — player wants to log out.
     ///
-    /// C# logic: if player is in combat or in a duel, deny logout.
-    /// Otherwise, if in a resting zone or GM, instant logout.
-    /// Else, 20-second countdown.
-    ///
-    /// For now we always allow instant logout (simplified).
+    /// C++ MiscHandler.cpp:238 validates combat/falling/duel and selects instant
+    /// or timed logout. Rust's existing instant-only admission remains incomplete;
+    /// the persistence completion below does not implement those missing rules.
     pub async fn handle_logout_request_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         req: LogoutRequest,
     ) {
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return;
+        }
         info!(
             "LogoutRequest (idle={}) from account {}",
             req.idle_logout, self.account_id
@@ -99,10 +100,19 @@ impl WorldSession {
             self.send_packet(&LootReleaseAll);
         }
 
-        self.set_player_logout_like_cpp(true);
-
         // Always allow instant logout for now (no combat/duel checks)
         self.send_packet(&LogoutResponse::instant_ok());
+
+        // C++ LogoutPlayer completes pending far entry before setting its logout
+        // flag and saving (WorldSession.cpp:544-551), independently of socket output.
+        if !self.finish_worldport_native_before_disconnect_like_cpp() {
+            self.kick("explicit logout refused incomplete worldport native work");
+            return;
+        }
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return; // Terminal recovery leaves its source save to disconnect finalization.
+        }
+        self.set_player_logout_like_cpp(true);
 
         // Complete logout immediately
         self.logout_time = None;
@@ -115,8 +125,24 @@ impl WorldSession {
 
         // Trinity clears buyback slots before SaveToDB; persisted buyback items must not survive logout.
         self.clear_buyback_on_logout().await;
-        self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+        let save_outcome = self
+            .save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
             .await;
+        // A submitted save can quarantine the session. Do not discard its owner,
+        // release its login claim or overwrite Disconnecting with Authed below.
+        if self.state() == crate::session::SessionState::Disconnecting {
+            return;
+        }
+        if !matches!(
+            save_outcome,
+            crate::session::PlayerSaveOutcomeLikeCpp::Applied
+                | crate::session::PlayerSaveOutcomeLikeCpp::Failed
+        ) {
+            self.kick("explicit logout save was not admitted; retain owner for disconnect");
+            return;
+        }
+        // Known rollback keeps the existing C++/Rust logout behavior. Reaching
+        // character selection is not proof the attempted transaction committed.
         self.save_account_mounts_like_cpp().await;
         self.save_account_toys_like_cpp().await;
         self.save_account_heirlooms_like_cpp().await;

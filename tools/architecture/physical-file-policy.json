@@ -489,16 +489,16 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/world_entry.rs",
-      "observed_lines": 2814,
-      "ceiling_lines": 2814,
-      "split": "Separate world entry and initialization by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 2840,
+      "ceiling_lines": 2840,
+      "split": "Separate world entry and initialization by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above c61903fc +26 lines complete native transfer before explicit logout save, leave Terminal source-save to disconnect, and reject quarantined/unadmitted character-select readiness. No new state or retry policy; retain the C1 logout split and C4 retirement exit.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12633,
-      "ceiling_lines": 12633,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above d70c88c3 +2 lines register the private post-add scaling tests, reusing existing lifecycle fixtures. No duplicate lifecycle fixture; C4 split exit remains.",
+      "observed_lines": 12634,
+      "ceiling_lines": 12634,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },
     {

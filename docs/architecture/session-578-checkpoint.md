@@ -3,6 +3,67 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C1 explicit logout preserves save quarantine — above `c61903fc`, 2026-09-06
+
+The next caller review reproduced an actual production-linked failure: an explicit
+logout's full save classified COMMIT as Unknown and kicked the session, but the handler
+continued through owner retirement and reset Disconnecting to Authed. The regression
+`production_explicit_logout_does_not_restore_authed_after_unknown_commit` fails on
+`c61903fc` with tests (0 passed / 1 failed, Authed instead of Disconnecting), log
+`/tmp/rustycore-logout-quarantine-before.log`. This uses the compiled production library
+and a controlled persistence port, not MariaDB or a complete login/client scenario.
+
+The intentional async-lifecycle repair in `handlers/character/world_entry.rs` now:
+
+- refuses to restart explicit logout on an already Disconnecting session;
+- sends the existing LogoutResponse, then completes represented native far-transfer work
+  before the logout flag/save, following `Handlers/MiscHandler.cpp:238-275` and
+  `Server/WorldSession.cpp:544-551`; Terminal recovery returns to disconnect finalization
+  without an extra explicit-handler source save;
+- consumes the full-save outcome and preserves Disconnecting after its await; Deferred,
+  Unavailable or quarantine cannot fall through to owner retirement, claim release,
+  LogoutComplete or Authed. The owner remains for the existing disconnect path;
+- preserves the existing known-rollback logout policy rather than adding a retry loop or
+  claiming that returning to character selection proves a committed save. C++ submits
+  SaveToDB before retiring Player and sending LogoutComplete (`WorldSession.cpp:633,
+  :672-676`), but that sequence does not supply a Rust confirmed-COMMIT receipt.
+
+The 190-line private production integration module `save/logout.rs` adds six tests:
+Unknown, submitted cancellation/no replay, unavailable source projection, normal applied/
+known-rollback behavior, pending transfer completed before save/retirement, and Terminal
+recovery with exactly one source save left to disconnect. The transfer cases reuse the
+existing fixture and call the production adapter directly; they do not claim its LoggedIn-
+only network registration admits LogoutRequest during Transfer. Assertions cover actual
+Player retention/retirement, GUID/state, transaction counts, saved destination/resurrection
+health and absence/presence of LogoutComplete. The existing loot-release test now explicitly
+installs its controlled persistence port and retains its exact packet-order assertions.
+
+Reviewed Character logical growth is +26 production / +1 fixture line, to
+20,685 / 13,131 / 33,816. Temporary physical ceilings become 2,840 for world_entry.rs
+and 12,634 for the existing Character test root, retaining their named C1/C4 splits.
+The integration fixture parent is 526 lines. There is no new production field, method,
+clock, retry policy, opcode metadata or persistence inventory row. Session syntax remains
+282 + 433 fields, 3,699 associated items and 590 exact registry rows. The 101 legacy
+physical ceilings still require retirement; migration checks do not close C4.
+
+Local aarch64 validation with pinned PROTOC and the existing Cargo validation cache:
+`cargo test --offline --locked -p wow-world --lib --test production_login_player_owner`
+passes 3,776 library tests (one ignored) and 22 controlled integration tests, log
+`/tmp/rustycore-logout-quarantine-final-tests.log`. Syntax-only ownership, architecture
+check/self-test, five preserved persistence-policy tests and diff checks pass.
+Quick/format checks pass with verified manifest
+`target/validation-v2/manifests/20260906T212034.629873Z-3-quick.json`; this evidence
+paragraph was completed afterward. No fresh capture or live durability is claimed.
+
+**Still open:** the factory-facing disconnect wrapper returns unit and its cleanup/shutdown
+policy does not yet consume a typed finalization report. Cancellation after the character
+save, collection/offline writes and partial retirement still need the whole operation's
+completion contract. Known-rollback behavior is preserved, not upgraded to durable recovery.
+The instant-only logout admission also remains incomplete against MiscHandler.cpp; its
+old unsupported provenance comment is replaced by that exact source and an explicit limit.
+Full before/after-add semantics, C0 cross-clock exclusion, C2/C3/C4 and real DB/restart/relogin/
+action-specific captures remain open. No runtime or publication action was performed.
+
 ## C1 retained deferred save and registered ACK — above `bc3bdd2f`, 2026-09-06
 
 Intentional async lifecycle repair implementing the transfer admission/resumption part

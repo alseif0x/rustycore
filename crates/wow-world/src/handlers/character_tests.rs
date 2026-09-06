@@ -11125,6 +11125,7 @@ fn query_pet_name_handler_registration_matches_cpp() {
 #[tokio::test]
 async fn logout_releases_active_loot_views_like_cpp_remove_from_world() {
     let (mut session, send_rx) = make_session_with_send_capacity(4);
+    session.set_player_lifecycle_port_like_cpp(CollectionLoadPortLikeCpp::new([]));
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_030);
     let canonical: crate::session::SharedCanonicalMapManager =

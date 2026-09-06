@@ -1470,11 +1470,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20659,
-          "test_lines": 13130,
-          "total_lines": 33789,
+          "production_lines": 20685,
+          "test_lines": 13131,
+          "total_lines": 33816,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +11 production/+61 tests. Shared after-add records zone/scaling phases on canonical Player. The 194-line test module covers real cancellation at the world-state read, retained work before zone, wrong target rejection and repeated completion without repeating pet/resurrection effects. Production-linked save coverage is separate. No Session mirror or new clock; whole-transfer and C4 remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 explicit logout above c61903fc: +26 production/+1 test. The handler completes pending native worldport before logout/save, leaves Terminal recovery to disconnect finalization, and consumes the explicit save outcome without undoing Disconnecting quarantine or retiring an unadmitted save owner. Known rollback and instant-only admission remain the existing policies, not new durability/parity proof. The existing loot-release fixture now declares a controlled save port; new failure/transfer cases live in a small production integration child module. No new state, clock, retry or persistence inventory row; C1/C4 remain; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
