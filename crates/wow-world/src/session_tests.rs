@@ -17282,6 +17282,7 @@ async fn db_implicit_caster_destination_ignores_other_map_for_non_teleport_bind_
 #[tokio::test]
 async fn teleport_units_uses_cross_map_db_destination_for_player_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 717_i32;
     let player_guid = ObjectGuid::create_player(1, 7023);
     let player_position = Position::new(260.0, 360.0, 52.0, 0.5);
@@ -17394,6 +17395,7 @@ fn decode_spell_go_target_data_like_cpp(bytes: &[u8], expected_spell_id: i32) ->
 #[tokio::test]
 async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 8690_i32;
     let player_guid = ObjectGuid::create_player(1, 7040);
     let player_position = Position::new(300.0, 400.0, 60.0, 0.5);
@@ -17469,6 +17471,7 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
 #[tokio::test]
 async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     let spell_id = 86_902_i32;
     let player_guid = ObjectGuid::create_player(1, 7043);
     let creature_guid = test_creature_guid(7043);
@@ -17671,6 +17674,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
 #[tokio::test]
 async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 86_901_i32;
     let player_guid = ObjectGuid::create_player(1, 7042);
     let player_position = Position::new(310.0, 410.0, 62.0, 0.5);
@@ -17875,6 +17879,7 @@ async fn teleport_units_without_destination_is_noop_like_cpp() {
 #[tokio::test]
 async fn primary_teleport_units_uses_explicit_destination_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
     let spell_id = 730_i32;
     let player_guid = ObjectGuid::create_player(1, 7029);
     let player_position = Position::new(271.0, 371.0, 55.0, 0.75);
@@ -44424,6 +44429,7 @@ async fn spell_self_resurrect_skips_alive_player_like_cpp() {
 #[tokio::test]
 async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     let spell_id = 783_i32;
     let player_guid = ObjectGuid::create_player(1, 783);
     let start = Position::new(10.0, 20.0, 30.0, 1.0);
@@ -48557,6 +48563,7 @@ async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_li
     let (mut source, _, source_rx) = make_session();
     let (mut viewer, _, viewer_rx) = make_session();
     let source_guid = ObjectGuid::create_player(1, 817);
+    source.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let viewer_guid = ObjectGuid::create_player(1, 818);
     let source_position = Position::new(10.0, 20.0, 30.0, 0.5);
     let viewer_position = Position::new(11.0, 21.0, 30.0, 0.0);

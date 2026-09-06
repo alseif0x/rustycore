@@ -40421,10 +40421,16 @@ impl WorldSession {
         new_pos: wow_core::Position,
         mut options: TeleportToOptionsLikeCpp,
     ) {
-        // Validate inputs
-        if new_map as u16 > 0xFFF {
+        // C++ Player.cpp:1239 validates the catalog map and all four coordinates
+        // before movement, combat, pet, ownership or teleport state is changed.
+        if self
+            .map_store
+            .as_ref()
+            .is_none_or(|maps| maps.get(new_map).is_none())
+            || !new_pos.is_valid_map_coord_like_cpp()
+        {
             warn!(
-                "Invalid map ID {} for teleport from account {}",
+                "Invalid map or coordinates for teleport to {} from account {}",
                 new_map, self.account_id
             );
             return;

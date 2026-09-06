@@ -496,9 +496,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12616,
-      "ceiling_lines": 12616,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 12617,
+      "ceiling_lines": 12617,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above 40aa1131 one fixture line supplies the hearth destination catalog required by C++ teleport admission; no scenario or responsibility added to this monolith.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -636,16 +636,16 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76747,
-      "ceiling_lines": 76747,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. The C0 rename callback owner adds only its private field and initializer (reviewed 76,745 -> 76,747); callback implementation remains in small private modules. This does not renew or close the C4 retirement gate.",
+      "observed_lines": 76753,
+      "ceiling_lines": 76753,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above 40aa1131 six lines replace the truncated map-ID test with the exact catalog/coordinate admission gate before existing teleport effects. New regressions live in a separate integration module. This does not renew or close the C4 retirement gate.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 96627,
-      "ceiling_lines": 96627,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration.",
+      "observed_lines": 96634,
+      "ceiling_lines": 96634,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above 40aa1131 seven existing teleport scenarios explicitly install their destination catalogs instead of relying on the missing production validation. No new test bodies are placed in this monolith.",
       "review_checkpoint": "578:C4"
     },
     {

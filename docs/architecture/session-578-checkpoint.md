@@ -1064,6 +1064,56 @@ Therefore a save-entry early return alone is not an acceptable fix: it could sup
 the disconnect save without completing the transfer. Implement defer/resume and logout
 completion together, including failed attach and cancellation, before claiming this gate.
 
+### C1 teleport admission prerequisite — 2026-09-06, above `40aa1131`
+
+The production `teleport_to_with_options` entry now validates the full u32 map ID
+against its MapStore and all X/Y/Z/orientation components before any movement reset,
+pet/combat effect, packet, detachment or pending-transfer mutation. It replaces the
+old `new_map as u16 > 0xFFF` check, which neither proved catalog membership nor
+validated coordinates. Exact anchors: `Player.cpp:1237-1244`,
+`MapManager.h:90-97`, `MapManager.cpp:339-342`, `GridDefines.h:231-248`.
+This is a parity correction needed by transfer/save work, not full transfer acceptance.
+
+The production-linked regression reproduced packets being emitted for infinite Z
+before the correction. It now checks near/far invalid destinations, nonfinite and
+out-of-range components, missing/truncated map IDs, preserved native position and
+existing teleport state. A positive test admits both signed coordinate limits and
+finite orientations outside a normalized angle range, as C++ does. The lower-level
+Map cell check deliberately remains two-dimensional (`Map.cpp:426-434`): do not
+mistake its separate contract for the complete teleport admission gate.
+
+Nine existing library scenarios lacked their destination catalog. They now supply
+explicit maps through a small test-only catalog builder; no production/cfg(test)
+validation bypass and no weaker assertions are introduced. New integration cases
+live in `tests/production_login_player_owner/teleport_admission.rs` rather than the
+legacy monoliths. Reviewed necessary physical growth: Session root +6 gate lines,
+Session tests +7 catalog-install lines, character tests +1 catalog-install line;
+their existing C4 split exits remain. No field, lock, clock or durable writer is added.
+
+Local aarch64 evidence on this working cut above `40aa1131`:
+
+- `cargo test --offline --locked -p wow-world --lib`: 3,750 passed, zero failed,
+  one ignored, after supplying the nine missing fixture catalogs.
+- `cargo test --offline --locked -p wow-world --test production_login_player_owner`:
+  eight passed, including the two new production-library admission cases.
+- Cargo uses `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`, `CARGO_BUILD_JOBS=2`
+  and the existing validation dev target directory. Syntax ownership passes with
+  unchanged fields, associated items and exact registry metadata.
+- Logs: `/tmp/rustycore-578-teleport-admission-{before,lib-final,production-final,ownership}.log`.
+- Architecture check/self-test, `cargo fmt --all -- --check`, `git diff --check`
+  and `validation-v2 quick --base HEAD` pass. Verified quick manifest:
+  `target/validation-v2/manifests/20260906T150418.986434Z-3-quick.json`.
+  Logical Session is 82,133 production + 106,538 tests = 188,671 lines;
+  Character is 20,617 + 12,812 = 33,429. The three explained physical ceiling
+  updates are migration debt, not terminal exceptions or C4 acceptance.
+
+The remaining ACK path still consumes its destination/clears the far semaphore before
+checking map creation/attach success, and its caller ignores the ensure result. C++
+`MovementHandler.cpp:50-134` validates the ACK destination, rechecks entry, restores
+the old binding after failed AddPlayerToMap and requests homebind recovery; its delayed
+operations run only after successful completion. This must be addressed with the
+defer/resume/logout contract above. No runtime/capture/DB QA or C0-C4 closure is claimed.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,

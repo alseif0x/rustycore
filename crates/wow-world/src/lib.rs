@@ -44,6 +44,8 @@ mod player_lifecycle_contract;
 #[cfg(test)]
 mod player_quest_persistence_test_fixture;
 #[cfg(test)]
+mod teleport_test_fixtures;
+#[cfg(test)]
 mod vendor_trade_persistence_test_fixture;
 
 pub use map_manager::{

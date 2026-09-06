@@ -7348,6 +7348,7 @@ fn insert_equippable_test_item(
 
 fn make_hearth_and_resurrect_session(area_flags: u32) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (mut session, send_rx) = make_session_with_send_capacity(4);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5));

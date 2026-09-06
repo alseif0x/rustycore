@@ -444,6 +444,8 @@ async fn hydrate(
 
 #[path = "production_login_player_owner/save.rs"]
 mod save;
+#[path = "production_login_player_owner/teleport_admission.rs"]
+mod teleport_admission;
 
 #[tokio::test]
 async fn production_login_constructs_player_before_inventory_and_mail_hydration() {

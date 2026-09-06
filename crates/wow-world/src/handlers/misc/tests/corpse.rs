@@ -75,6 +75,7 @@ async fn request_cemetery_list_filters_conditions_and_caps_at_sixteen_like_cpp()
 #[tokio::test]
 async fn resurrect_response_accepts_matching_request_like_cpp() {
     let (mut session, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let resurrecter = ObjectGuid::create_player(1, 77);
     let target_position = Position::new(11.0, 22.0, 33.0, 1.5);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
