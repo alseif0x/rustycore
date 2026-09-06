@@ -53,6 +53,13 @@ operation removed and a byte-identical policy. Exact deltas and limitations live
 owning checkpoint. The parser root's ceiling shrinks from 21,248 to 21,030 lines, with small
 private provenance/test modules; this is not terminal physical or semantic closure.
 
+The subsequent C4 repair above `bca3885f` corrects implicit child resolution beneath
+explicit `#[path]` file mounts in both source walkers. Five compiler-backed fixtures
+and the full 334-test checker suite pass. The exhaustive inventory comparison also
+passes with the same 10,084 persistence rows and byte-identical snapshot/policy;
+no ceiling or exception is widened. This closes the bounded module-path defect,
+not C4 or production C0/C3 phase coordination; details live in the owning checkpoint.
+
 The C0 cut above `36d0ccbf` adds the exact C++ world/map packet-filter contract to
 `wow-handler`, tested across all processing classes and Player residences in dev/release.
 It corrects the misleading Inplace/socket-thread description, without changing dispatch.

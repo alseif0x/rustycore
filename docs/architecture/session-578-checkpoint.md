@@ -3,6 +3,64 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C4 explicit module-path fidelity — above `bca3885f`, 2026-09-06
+
+The FIFO test cut below exposed a real source-audit defect, not a prohibition in
+Rust. For `#[path = "mounted/renamed.rs"] mod logical;`, an implicit `mod child;`
+inside the mounted file loads `mounted/child.rs`. Both audit walkers instead appended
+the mounted filename stem, selecting `mounted/renamed/child.rs`. If that other file
+exists, the audit can silently inspect the wrong source and omit the compiled child;
+otherwise it rejects a valid decomposition. The ordinary `mod ordinary;` rule still
+uses `ordinary/child.rs` and must not be changed globally.
+
+The correction is limited to explicit file mounts in `ownership.rs` and
+`registrations.rs`. Child directories belong to logical mounts, not physical source
+identity: an ordinary and an explicit mount of the same file can have different children.
+The graph retains both contexts and keys traversal by source, child directory and
+context. It no longer rejects those valid mounts merely for having different child
+directories. Existing package confinement, cycle detection, cfg ancestry, duplicate
+logical ownership and unsupported inline/conditional path grammar remain enforced.
+This is a checker repair; no server scheduling, packets, persistence operation or
+gameplay state is changed.
+
+The new private `registrations/path_tests.rs` compiles each fixture with
+`rustc 1.98.0 (88d9e12ae 2026-08-18)`, edition 2024, metadata only. Decoy files contain
+`compile_error!`, so compiler success independently establishes which paths were not
+selected. Both source-graph membership and registration traversal must then agree.
+Cases cover an explicit renamed file, explicit `mod.rs`, inline and ordinary descendants,
+an ordinary file, and ordinary/explicit aliases of one physical file. The initial four
+cases on the old walkers give **2 PASS / 2 FAIL**, with both failures selecting decoys
+that rustc did not compile. After repair all five cases pass. These compiler observations
+complement the [Rust Reference module-path rules](https://doc.rust-lang.org/reference/items/modules.html#the-path-attribute);
+they do not claim that the checker accepts every Rust module grammar.
+
+Focused/full checker evidence on the working change above `bca3885f` (aarch64):
+`cargo test --offline --locked --release --manifest-path
+tools/architecture/handler-contract-check/Cargo.toml --lib registrations::path_tests`
+passes all five cases; the same command with `--lib` and no filter passes **334 tests**,
+none ignored, including the repository registry contract and preserved persistence
+policy/snapshot tests. The existing 42 Session path mounts are unchanged. Source sizes
+shrink from 1,973 to 1,959 lines in ownership and from 1,452 to 1,451 in registrations;
+the new tests occupy 177 lines. No physical or logical ceiling is increased.
+
+Architecture `check` passes (956 physical files, 101 retained legacy ceilings and
+unchanged logical counts). Bounded `validation-v2 quick --base HEAD` passes with
+verified manifest `target/validation-v2/manifests/20260906T125506.332071Z-3-quick.json`;
+format/diff checks pass. This is dirty-tree iteration evidence, not publication final.
+
+Because this changes the source grammar consumed by the persistence inventory, the
+exhaustive `session-ownership-check check` comparison was required for this cut.
+It completes with PASS: 7,773 production + 2,311 fixture persistence rows (10,084 total),
+1,027 semantic groups, 65 bridge rows, 48 generated inputs, 590 registry rows and the
+unchanged Session field/item/install/command surfaces. No snapshot or policy regeneration
+was needed. Their SHA-256 values remain respectively
+`27009495e4d54fd339c93a21a7bef48a365b8e7a2f86110fe4b506884efc3d4e` and
+`98baa1e37e3d4320109eae698d796af2a20e41a69dd10672c54b210e2956ef1f`.
+Exact command: `cargo run --offline --locked --release --manifest-path
+tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check`;
+local result log `/tmp/rustycore-578-path-inventory.log`. This proves inventory preservation
+on the reviewed working source above `bca3885f`, not macro/terminal or runtime acceptance.
+
 ## C0 FIFO queue conservation — 2026-09-06, above `bdae6204`
 
 Exact C++ inspection adds an important constraint to the earlier filter contract:
@@ -50,7 +108,8 @@ for the existing `#[path]`-mounted driver test file, rustc resolves its implicit
 beside the mounted file while the source-graph collector expected the filename-derived
 subdirectory. The 115-line probe suite stays inline in its cohesive 290-line driver
 test module; the same tests execute, without a new mount or ignored checker error.
-The collector's general `#[path]` child-resolution fidelity remains C4 guard work.
+The compiler-backed C4 repair above addresses that child-resolution discrepancy;
+the original probe remains inline and no test is removed or silently remounted.
 
 Validation on the working source above `bdae6204` (aarch64, reused validation-v2
 Cargo target cache, not a fresh build):
