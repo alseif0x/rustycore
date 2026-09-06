@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82157,
-          "test_lines": 106720,
-          "total_lines": 188877,
+          "production_lines": 82178,
+          "test_lines": 106828,
+          "total_lines": 189006,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 map-entry extraction above ef480679: +26 production/+71 test lines. Preserve preparation body and existing synchronous preparation-then-attachment facade in a 276-line private lifecycle module; add one Session-visible preparation method without new fields, locks, clocks or persistence paths. Two separate tests cover active/detached residence and absent catalogs. Preparation retains existing admission/map-creation side effects, is not a reservation, and must not cross async work. Failed entry recovery and deferred save/logout remain open.",
+          "latest_growth_review": "2026-09-06 detached recovery prerequisite above 8c9a8042: +21 production/+108 test lines. Near requires active same-map residence in immediate/delayed paths; detached entry suppresses seamless and clears obsolete near state. Missing-map/player combat finalization releases its map guard. Seven active-owner fixtures add 42 lines; private map-entry suite adds 66. No new owner, field, clock, lock or persistence path. Full failed-ACK recovery/save/logout and client capture remain open.",
           "open_retirement_issues": [
             578
           ],
@@ -1471,10 +1471,10 @@
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
           "production_lines": 20617,
-          "test_lines": 12812,
-          "total_lines": 33429,
+          "test_lines": 12813,
+          "total_lines": 33430,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 teleport admission above 40aa1131: +0 production/+1 test line. The existing hearth/resurrection fixture explicitly installs map 571 to satisfy the C++ catalog admission gate. Expectations, handler registration and production character code are unchanged. C0-C4 remain open in session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 detached recovery prerequisite above 8c9a8042: +0 production/+1 test line. The shared hearth fixture installs its canonical active Player before state setup, preserving near-transfer and rejection expectations. No production character changes or new scenario; C4 split exit remains.",
           "open_retirement_issues": [
             578
           ],

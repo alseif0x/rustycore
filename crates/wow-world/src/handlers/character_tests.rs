@@ -7350,6 +7350,7 @@ fn make_hearth_and_resurrect_session(area_flags: u32) -> (WorldSession, flume::R
     let (mut session, send_rx) = make_session_with_send_capacity(4);
     session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5));
     session.set_player_zone_area_like_cpp(10, 77);

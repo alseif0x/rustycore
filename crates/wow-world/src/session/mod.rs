@@ -12964,10 +12964,12 @@ impl WorldSession {
             };
             let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
             else {
+                drop(manager);
                 return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
             };
             let map = managed.map_mut();
             let Some(player) = map.get_typed_player_mut(player_guid) else {
+                drop(manager);
                 return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
             };
 
@@ -40258,7 +40260,10 @@ impl WorldSession {
             return;
         }
 
-        let same_map_near_teleport = u32::from(self.player_map_id_like_cpp()) == new_map;
+        // Approved recovery exception: a detached Player needs AddPlayerToMap,
+        // even when returning to its old map. A near ACK only relocates it.
+        let active_map = self.current_canonical_player_map_key_like_cpp();
+        let same_map_near_teleport = active_map.is_some_and(|key| key.map_id == new_map);
         if same_map_near_teleport {
             if !self.set_represented_far_teleport_pending_like_cpp(false) {
                 return;
@@ -40279,11 +40284,12 @@ impl WorldSession {
             return;
         }
 
-        if u32::from(self.player_map_id_like_cpp()) != new_map {
-            options = self.teleport_options_after_seamless_gate_like_cpp(new_map, options);
+        options = self.teleport_options_after_seamless_gate_like_cpp(new_map, options);
+        if active_map.is_none() {
+            options &= !TELE_TO_SEAMLESS_LIKE_CPP;
         }
 
-        if u32::from(self.player_map_id_like_cpp()) != new_map {
+        if !same_map_near_teleport {
             let Some(can_delay) = self
                 .player_teleport_state_snapshot_like_cpp()
                 .map(|state| state.can_delay)
@@ -40292,10 +40298,10 @@ impl WorldSession {
             };
             if !self.update_player_teleport_state_like_cpp(|state| {
                 state.has_delayed = can_delay;
+                state.near_pending = false;
+                state.near_destination = None;
+                state.near_destination_zone_area = None;
                 if can_delay {
-                    state.near_pending = false;
-                    state.near_destination = None;
-                    state.near_destination_zone_area = None;
                     state.far_pending = true;
                     state.delayed = Some((new_map, new_pos, options));
                 }
@@ -40564,7 +40570,10 @@ impl WorldSession {
         }) {
             return false;
         }
-        if u32::from(self.player_map_id_like_cpp()) == map_id {
+        if self
+            .current_canonical_player_map_key_like_cpp()
+            .is_some_and(|key| key.map_id == map_id)
+        {
             self.initiate_same_map_near_teleport_like_cpp(map_id, destination, options);
         } else {
             self.initiate_far_teleport_after_delay_like_cpp(map_id, destination, options);
@@ -40578,6 +40587,18 @@ impl WorldSession {
         destination: wow_core::Position,
         options: TeleportToOptionsLikeCpp,
     ) {
+        if !self.update_player_teleport_state_like_cpp(|state| {
+            state.near_pending = false;
+            state.near_destination = None;
+            state.near_destination_zone_area = None;
+        }) {
+            return;
+        }
+        let options = if self.current_canonical_player_map_key_like_cpp().is_none() {
+            options & !TELE_TO_SEAMLESS_LIKE_CPP
+        } else {
+            options
+        };
         self.set_selection_guid_like_cpp(None);
         self.combat_stop_like_cpp();
         self.reset_contested_pvp_like_cpp();

@@ -496,9 +496,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12617,
-      "ceiling_lines": 12617,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above 40aa1131 one fixture line supplies the hearth destination catalog required by C++ teleport admission; no scenario or responsibility added to this monolith.",
+      "observed_lines": 12618,
+      "ceiling_lines": 12618,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above 8c9a8042 the shared hearth fixture installs its canonical active Player before state setup (+1 line), covering both admission and rejection cases. No new scenario or terminal exception; C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -636,16 +636,16 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76500,
-      "ceiling_lines": 76500,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above ef480679 extract map preparation/attachment into the 276-line lifecycle/map_entry.rs, reducing this root by 251 lines. This is a synchronous seam, not transferred gameplay ownership or C4 closure.",
+      "observed_lines": 76521,
+      "ceiling_lines": 76521,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above ef480679 extract map preparation/attachment into the 276-line lifecycle/map_entry.rs, reducing this root by 251 lines. This is a synchronous seam, not transferred gameplay ownership or C4 closure. Above 8c9a8042 +21 lines distinguish active near transfers from detached map entry in both immediate/delayed paths and release map guards before combat finalization. No new owner or terminal exception.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 96641,
-      "ceiling_lines": 96641,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above ef480679 two wiring lines register the separate 69-line map-entry suite; no new test bodies are placed in this monolith. The C4 split exit remains.",
+      "observed_lines": 96683,
+      "ceiling_lines": 96683,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above ef480679 two wiring lines register the separate 69-line map-entry suite; no new test bodies are placed in this monolith. The C4 split exit remains. Above 8c9a8042 +42 lines explicitly activate the Player in seven existing near/seamless fixtures; the new recovery tests live in the small map_entry module. C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },
     {

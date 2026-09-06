@@ -3,6 +3,74 @@
 use super::*;
 
 #[tokio::test]
+async fn production_detached_return_to_source_requires_world_entry_handshake() {
+    let (mut session, port, _, receiver) = hydrate(true, true, true).await;
+    session.set_map_store(Arc::new(MapStore::from_entries([0, 1].map(|id| {
+        MapEntry {
+            id,
+            instance_type: 0,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }
+    }))));
+    session.set_state(SessionState::LoggedIn);
+    session
+        .teleport_to(1, Position::new(7.0, 8.0, 9.0, 0.5))
+        .await;
+    while receiver.try_recv().is_ok() {}
+
+    // Rejected recovery inputs must not emit a second transfer or lose the
+    // pending far transfer while the Player remains detached.
+    session
+        .teleport_to(0, Position::new(f32::NAN, 2.0, 3.0, 0.5))
+        .await;
+    assert!(receiver.is_empty());
+    assert_eq!(session.state(), SessionState::Transfer);
+
+    // The failed destination has not been bound: homebind can share the old
+    // map ID even though Player is detached. A near ACK cannot add it back.
+    session
+        .teleport_to(0, Position::new(1.0, 2.0, 3.0, 0.5))
+        .await;
+    let opcodes: Vec<_> = receiver
+        .try_iter()
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect();
+    assert_eq!(
+        opcodes,
+        vec![
+            wow_constants::ServerOpcodes::CancelCombat as u16,
+            wow_constants::ServerOpcodes::TransferPending as u16,
+            wow_constants::ServerOpcodes::SuspendToken as u16,
+        ]
+    );
+    assert_eq!(session.state(), SessionState::Transfer);
+    assert_eq!(
+        port.manager
+            .try_lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .player_count(),
+        0
+    );
+    session
+        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
+        .await;
+    let bytes = receiver
+        .try_recv()
+        .expect("retained Player answers recovery suspend ACK");
+    assert_eq!(
+        u16::from_le_bytes([bytes[0], bytes[1]]),
+        wow_constants::ServerOpcodes::NewWorld as u16
+    );
+    assert!(receiver.is_empty());
+}
+
+#[tokio::test]
 async fn production_far_transfer_retains_owner_until_suspend_ack() {
     let (mut session, port, _, receiver) = hydrate(true, true, true).await;
     session.set_map_store(Arc::new(MapStore::from_entries([0, 1].map(|id| {

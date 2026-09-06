@@ -47324,6 +47324,12 @@ async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
 
     session
         .teleport_to_with_options(0, destination, TELE_TO_SEAMLESS_LIKE_CPP)
@@ -48260,6 +48266,12 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
 
     session.teleport_to(571, destination).await;
 
@@ -48542,8 +48554,14 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.set_player_health_like_cpp(100, 100);
-    session.in_combat = true;
+    session.set_in_combat_like_cpp(true);
     session.set_represented_can_delay_teleport_like_cpp(true);
     session.teleport_to(571, destination).await;
     assert!(send_rx.try_recv().is_err());
@@ -48558,7 +48576,7 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
     );
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
     assert!(session.near_teleport_pending_like_cpp());
 }
 
@@ -48587,6 +48605,12 @@ async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_li
         80,
         0,
     ));
+    source.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        source
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     source.set_player_movement_time_like_cpp(456);
     source.register_in_player_registry();
 
@@ -48661,6 +48685,12 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.combat_target = Some(creature_guid);
     session.in_combat = true;
 
@@ -48705,6 +48735,12 @@ async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp()
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.set_player_logout_like_cpp(true);
 
     session
@@ -48835,6 +48871,12 @@ async fn teleport_to_same_map_without_revive_flag_keeps_dead_player_like_cpp() {
         80,
         0,
     ));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
     session.set_player_health_like_cpp(0, 400);
 
     session.teleport_to(571, destination).await;

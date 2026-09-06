@@ -1205,6 +1205,97 @@ Remaining: wire the separate phases into the full ACK create/bind/send/add/recov
 contract, then complete delayed-save resumption and logout transfer completion without
 weakening persistence fences. C0-C4 and real client/DB/runtime acceptance remain open.
 
+### C1 recovery contract review — 2026-09-06, `8c9a8042`
+
+Source tracing identifies an unresolved legacy corner before wiring homebind recovery:
+
+1. `Player.cpp:1453-1455` removes Player from the old map with `delete=false`.
+   `Map.cpp:907-934` removes world/grid membership but retains the old map binding.
+2. On destination creation/admission failure, `MovementHandler.cpp:90-100` invokes
+   `TeleportTo(homebind)` before destination relocation or rebinding. Failed add
+   similarly restores the old binding before homebind (`:124-134`).
+3. If homebind has the old map ID, `Player.cpp:1303-1346` selects a near teleport
+   without testing `IsInWorld()`. The near ACK (`MovementHandler.cpp:263-303`)
+   calls `UpdatePosition`, not `AddPlayerToMap` or `AddToWorld`.
+4. `Player.cpp:6122-6138` delegates to `Unit.cpp:12257-12300`, which calls
+   `Map::PlayerRelocation` (`Map.cpp:1015-1044`). That path may change grid
+   membership, but does not restore world membership. For a same-cell destination,
+   even grid insertion is skipped. This is static source evidence of a potentially
+   stranded Player, not a reproduced legacy server/client failure.
+
+The current Rust `teleport_to_with_options` also chooses near solely by map ID.
+Therefore naively adding `teleport_to(homebind)` to the failed ACK is not an adequate
+recovery contract. Neither suppressing save during far transfer alone nor looping ACKs
+at logout resolves this case; C++ logout only loops while the far semaphore remains set
+(`WorldSession.cpp:544-551`), and the near path clears that semaphore.
+
+**Explicit legacy-departure contract approved by the user on 2026-09-06:** recovery must
+retain the same canonical Player incarnation and finish with validated active map/world
+membership before reporting successful entry, regardless of whether homebind shares the
+source map ID. Evaluate a full far-recovery handshake for a detached Player even on the
+same map; do not enable it without positive/negative production-linked tests and the
+required action-specific client capture. Keep ordinary active same-map teleports unchanged.
+Preserve save fences and do not fabricate successful entry or durable completion on failure.
+Invalid/unavailable homebind and interrupted recovery still require explicit terminal
+outcomes in that implementation; no guessed fallback location or unbounded retry is approved.
+
+Alternatives: reproducing the legacy near branch preserves source selection but fails the
+membership invariant above; reattaching before an ordinary near handshake changes admission
+and publication order and also needs an explicit contract. A real legacy capture may clarify
+observable behavior, but does not itself authorize silently repairing a legacy defect.
+The user's approval resolves the behavior-design pause. No runtime, publication, deployment or
+database authority is added; this is not C1 acceptance or a new macro/issue.
+
+Local implementation above `8c9a8042` corrects immediate and delayed near/far selection:
+near requires active same-map residence, not merely a retained map ID. Detached entry
+clears obsolete near state and suppresses seamless transfer. Active near/seamless paths
+retain their existing packet expectations. The production-library reproduction first
+hung in `combat_stop_like_cpp`: missing-map/player branches called finalization while
+still holding the manager guard, and finalization reentered canonical state setters.
+Both branches now drop that guard before finalization. C++ `Unit.cpp:5802-5818`
+performs combat cancellation without this Rust-only mutex/reentrancy problem.
+
+After the guard repair, the new integration test reproduced CancelCombat + MoveTeleport
+on the old selector. The local correction instead produces CancelCombat + TransferPending
++ SuspendToken, followed by NewWorld on suspend ACK. It also rejects nonfinite recovery
+coordinates without publishing a replacement transfer. The private map-entry test covers
+immediate/delayed detached return, obsolete near state, suppressed seamless, exact handle
+and object address retention, and reattachment through the existing canonical operation.
+It deliberately does not substitute direct attachment for full ACK/client acceptance.
+
+Seven legacy near/seamless unit fixtures now install and attach their canonical Player;
+the hearth and resurrection fixtures also establish active membership before setting
+state. Their old Session-only setup did not establish the premise of a near teleport.
+The delayed-near combat assertion now reads native state rather than stale Session staging.
+No production cfg(test) bypass, new field, lock, clock or persistence path is introduced.
+
+Still required: failed-ACK dispatch into bounded homebind recovery, no-success publication
+on failed add, terminal handling of invalid/unavailable homebind, interrupted ACK recovery,
+delayed-save resumption and logout completion. No target build was installed/restarted;
+the action-specific real-client capture gate remains open. This local prerequisite is
+not a completed recovery operation or C0-C4 acceptance.
+
+Local aarch64 validation on the working cut above `8c9a8042`:
+
+- `cargo test --offline --locked -p wow-world --lib`: 3,756 passed, zero failed,
+  one ignored. `--test production_login_player_owner`: ten passed. Both use
+  the existing validation dev target, `CARGO_BUILD_JOBS=2` and local PROTOC.
+- Syntax-only ownership passes with unchanged fields, associated items and exact
+  registration rows. Five standalone persistence-policy tests pass; no persistence
+  inventory rows or snapshot were regenerated.
+- Architecture check/self-test, formatting and diff checks pass. Physical inventory:
+  982 files, 101 legacy ceilings, no new terminal exception. The explained growth is
+  Session root +21 lines, seven root fixture setups +42, private map-entry tests +66,
+  shared hearth fixture +1 and resurrection fixture +1. Production-linked recovery
+  coverage grows its existing small integration module by 68 lines.
+- Logical Session: 82,178 production + 106,828 tests = 189,006; Character:
+  20,617 + 12,813 = 33,430. These are transitional ceilings with retained C4 exits.
+- `validation-v2 quick --base HEAD` passes; manifest:
+  `target/validation-v2/manifests/20260906T155842.050525Z-3-quick.json`.
+- Logs: `/tmp/rustycore-578-homebind-{before,unlocked,lib-verified,integration-final,ownership,policy,architecture-final,self-test,quick-final}.log`.
+  `before` is the interrupted deadlock reproduction; `unlocked` records the expected
+  failing near/far assertion, not passing acceptance. No real-client or DB result is claimed.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,
