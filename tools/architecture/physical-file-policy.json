@@ -672,8 +672,8 @@
     {
       "path": "tools/architecture/handler-contract-check/src/persistence_access.rs",
       "observed_lines": 21248,
-      "ceiling_lines": 13336,
-      "split": "Separate the remaining production AST traversal, statement/workflow classification, provenance and policy validation. The 226 former inline regression tests now live in 16 private responsibility modules (184-943 lines) with a 45-line shared root; callable import/reexport resolution already has its private module. Test extraction is not retirement of the remaining 13,336-line production root.",
+      "ceiling_lines": 12879,
+      "split": "Separate the remaining production AST traversal, statement/workflow classification, provenance and policy validation. The 226 former inline regression tests now live in 16 private responsibility modules (184-943 lines) with a 45-line shared root; callable import/reexport resolution and the 471-line pinned SQL text classifier have private production modules. These extractions do not retire the remaining 12,879-line root.",
       "review_checkpoint": "578:C4"
     },
     {

@@ -5,6 +5,36 @@ audit, a full C++ parity approval, or a live-client acceptance report.
 
 ## C4 persistence-parser test decomposition — above `0038d265`, 2026-09-06
 
+### Subsequent production SQL-text boundary — above `7bd208a5`
+
+`persistence_access/sql_text.rs` now owns pinned literal/compile-time-string interpretation,
+SQL quoting/comments and conservative advisory-lock classification. It is a private
+471-line module with five parent-visible operations; symbol resolution stays a supplied
+callback, not access to ModuleSymbols, the source graph or mutable flow state. Its only
+parent helpers normalize identifiers/tokens/paths. No new crate, state, lock or public API.
+
+This is a mechanical production boundary extraction. Comparing the moved block against
+the original after removing only the five `pub(super)` qualifiers proves byte equality;
+no function body, function signature parameter, constant or order is changed. All original
+callers use the same named functions through private imports. The existing SQL-string,
+SQL-classification, macro and query regressions continue to exercise the complete inventory
+pipeline; they are not replaced by isolated helper tests.
+
+The parser root decreases again from 13,336 to 12,879 lines, with its exact ceiling
+tightened accordingly. The remaining root and all 101 legacy entries still need their
+stated production splits/acceptance; this module does not complete C4. Full standalone
+checker `cargo test --offline --locked --release --manifest-path
+tools/architecture/handler-contract-check/Cargo.toml --lib` passes 334 tests, none ignored,
+on the working cut above `7bd208a5` (aarch64). Bounded quick validation passes with verified
+manifest `target/validation-v2/manifests/20260906T132208.087707Z-3-quick.json`; format/diff
+checks pass. Snapshot/policy consistency tests remain in the full suite. No grammar or
+concrete persistence source changes require another exhaustive inventory for this move;
+the preceding grammar repair's comparison is not replaced with a regenerated baseline.
+Architecture `check` also passes: 974 physical files, 101 legacy ceilings and unchanged
+logical-owner counts. Only the reviewed parser-root ceiling is tightened.
+
+### Test relocation evidence
+
 Mechanical test relocation: `handler-contract-check/src/persistence_access.rs` shrinks
 from 21,030 to 13,336 physical lines. All 226 tests from its former inline test module
 move into 16 private responsibility modules under `persistence_access/tests/`: aliases,
