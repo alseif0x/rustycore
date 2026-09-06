@@ -8682,7 +8682,7 @@
           "kind": "method",
           "name": "send_stat_update",
           "visibility": "pub (crate)",
-          "signature": "fn send_stat_update (& mut self)",
+          "signature": "fn send_stat_update (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

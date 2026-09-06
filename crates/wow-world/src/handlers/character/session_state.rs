@@ -1224,14 +1224,14 @@ impl WorldSession {
     /// Recalculate all stats from base + gear and send a VALUES update to the client.
     ///
     /// Called after equip/desequip changes to gear slots (0-18).
-    pub(crate) fn send_stat_update(&mut self) {
+    pub(crate) fn send_stat_update(&mut self) -> bool {
         let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
-            return;
+            return false;
         };
 
         let update =
             UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
-        self.send_packet(&update);
+        self.send_packet(&update)
     }
 
     /// Recalculate stats for C++ `HandleModTotalPercentStat`.

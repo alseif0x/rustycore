@@ -237,7 +237,7 @@ impl crate::session::WorldSession {
         // player->m_movementCounter (read here, before SendInitialPacketsBeforeAddToMap resets
         // it) and Reason = 1 for a non-seamless far teleport (MovementHandler.cpp:108-111).
         let Some(resume_seq) = self.movement_counter_like_cpp() else {
-            self.set_state(crate::session::SessionState::LoggedIn);
+            self.kick("worldport lost its Player movement state");
             return;
         };
         self.send_packet(&ResumeToken {
@@ -252,7 +252,7 @@ impl crate::session::WorldSession {
         );
 
         let Some(guid) = self.player_guid() else {
-            self.set_state(crate::session::SessionState::LoggedIn);
+            self.kick("worldport lost its Player identity");
             return;
         };
         let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
@@ -315,19 +315,21 @@ impl crate::session::WorldSession {
         // In particular, self CREATE must precede the delayed resurrection.
         self.resummon_pet_temporary_unsummoned_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
+
+        // Preserve server effects above even when output closes. Client readiness,
+        // however, must not be reported after a failed terminal publication.
+        if !self.send_stat_update() {
+            self.kick("worldport final stat projection or delivery unavailable");
+            return;
+        }
         info!(
             account = self.account_id,
             map = new_map,
             zone = zone_id,
             area = area_id,
             resume_seq,
-            "[FAR_TELEPORT] COMPLETE — sent after-add init (InitWorldStates for this map + \
-             phase-shift x2 + CUF + auras). Client should now be live in the new map."
+            "[FAR_TELEPORT] final stat packet accepted by output channel"
         );
-
-        // Full stat VALUES update — C++ login sends this after the create; it overwrites the
-        // self-create block's placeholder combat stats with the player's real values.
-        self.send_stat_update();
 
         // Back to LoggedIn — handler dispatch resumes.
         self.set_state(crate::session::SessionState::LoggedIn);

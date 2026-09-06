@@ -250,7 +250,8 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     assert!(!session.represented_far_teleport_pending_like_cpp());
     assert_eq!(session.player_map_id_like_cpp(), 0);
     assert_eq!(session.player_position_like_cpp(), Some(destination));
-    assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+    // This partial fixture lacks stat catalogs: attachment is not client readiness.
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
     {
         let manager = canonical.lock().unwrap();
         assert!(
@@ -406,7 +407,8 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         !session.represented_is_resting_like_cpp(),
         "C++ HandleMoveWorldportAck calls UpdateZone in SendInitialPacketsAfterAddToMap before later rest-state saves observe flags"
     );
-    assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+    // Rest effects complete, but this fixture cannot construct the final stat packet.
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
     let opcodes: Vec<_> = std::iter::from_fn(|| send_rx.try_recv().ok())
         .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
         .collect();

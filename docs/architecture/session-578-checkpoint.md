@@ -1543,6 +1543,61 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1/C3 completion separates server effects from publication — above `5b6a233d`, 2026-09-06
+
+The controlled worldport scenario closes its receiver inside the initial-world-state
+read, after attachment/self CREATE and before the post-add packet tail. Against
+`5b6a233d` with the test, the actual handler ends LoggedIn instead of Disconnecting
+(`/tmp/rustycore-worldport-completion-before.log`). This is a reproduced false readiness
+transition, not evidence that the whole initialization can be replayed safely.
+
+`send_stat_update` now reports unavailable projection or the existing channel-send result.
+Worldport checks this final publication before LoggedIn and before logging terminal
+acceptance. Missing Player identity/movement-state branches also disconnect rather than
+declare readiness. The same packets and server effects run in their existing order;
+post-add scaling, pet recovery and delayed resurrection are not skipped merely because
+the output closes. Other stat-update callers retain their existing behavior. No new
+state, clock, lock, queue, query or packet representation is introduced.
+
+The reused 97-line post-add test module now has the two successful scaling cases plus
+the closed-output case. The latter verifies that native destination scaling still occurs
+while Session is not admitted as LoggedIn. C++ `WorldSession.cpp:215-270` can return from
+SendPacket when the socket is absent without aborting the caller's gameplay operation;
+`MovementHandler.cpp:153-234` continues after-add effects and delayed operations. These
+anchors support separating domain completion from network availability, not aborting
+all remaining server effects on the first failed packet.
+
+The final fixture supplies stat catalogs and asserts projection availability, so its
+closed-output case isolates delivery failure; the initial red reproduction lacked those
+catalogs and establishes false readiness, not a rejected final packet. Two existing partial
+worldport fixtures retain all native-state/packet assertions but now expect Disconnecting
+when the final stat projection is unavailable. Logical Character grows by 19 test lines
+only (20,648 production / 13,033 tests / 33,681 total); no physical ceiling is widened.
+
+The completion contract for the remaining transfer integration has two independent axes:
+
+- Server effects complete + presentation accepted: eligible for client-ready admission,
+  subject to the full required packet/phase contract; acceptance is not client receipt.
+- Server effects complete + presentation closed/failed: disconnect without LoggedIn;
+  the coherent native state can enter the established save fences/receipt workflow.
+- Server effects incomplete, regardless of presentation: retain the same incarnation and
+  remaining operation; no saved/ready claim and no blind whole-ACK replay or owner discard.
+
+This cut enforces the reproduced **terminal-send** gate only. The shared post-add helper
+still returns unit, earlier senders have partial result propagation, and cancellation does
+not yet retain a resumable whole-operation stage. A single boolean must not conflate those
+two axes. Continue integrating explicit remaining server work with save admission and
+factory cleanup; C0–C4 and live durability/capture/runtime acceptance remain open.
+
+Local aarch64 validation above `5b6a233d`: `cargo test --offline --locked -p wow-world
+--lib` passes 3,765 tests (one ignored); `--test production_login_player_owner` passes
+12, and the standalone checker's `--lib persistence_policy` passes five. Syntax-only
+ownership passes with unchanged 282 production/433 fixture fields and 3,690 associated
+items (the stat helper's bool signature is reviewed in policy). Architecture check/self-test,
+format/diff checks and quick pass; quick manifest
+`target/validation-v2/manifests/20260906T191422.360574Z-3-quick.json` verifies green.
+No capture, live restart/DB proof, publication or macro closure is claimed.
+
 ### C1 far destination joins the canonical teleport owner — above `160d1ce5`, 2026-09-06
 
 Ownership migration under the safe-refactor skill, prerequisite to incarnation-bound

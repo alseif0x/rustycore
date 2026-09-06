@@ -2,15 +2,20 @@ use super::*;
 
 #[tokio::test]
 async fn worldport_scales_items_only_after_post_add_initialization() {
-    assert_post_add_scaling(true).await;
+    assert_post_add_scaling(true, false).await;
 }
 
 #[tokio::test]
 async fn login_post_add_applies_destination_item_scaling() {
-    assert_post_add_scaling(false).await;
+    assert_post_add_scaling(false, false).await;
 }
 
-async fn assert_post_add_scaling(worldport: bool) {
+#[tokio::test]
+async fn worldport_does_not_report_logged_in_when_post_add_delivery_closes() {
+    assert_post_add_scaling(true, true).await;
+}
+
+async fn assert_post_add_scaling(worldport: bool, disconnect: bool) {
     let (mut session, send_rx) = make_session_with_send_capacity(64);
     let guid = ObjectGuid::create_player(1, 42);
     let position = Position::new(1.0, 2.0, 3.0, 0.5);
@@ -27,13 +32,17 @@ async fn assert_post_add_scaling(worldport: bool) {
     ])));
     session.set_player_guid(Some(guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
     session.set_player_position_like_cpp(position);
+    set_priest_level80_stats(&mut session, 1000, 20);
+    assert!(session.player_stat_changes_like_cpp().is_some());
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     let canonical = session.canonical_map_manager.as_ref().unwrap().clone();
     let port = CollectionLoadPortLikeCpp::for_initial_world_states([]);
     let observed = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let observation = observed.clone();
+    let mut send_rx = Some(send_rx);
+    let close_during_read = if disconnect { send_rx.take() } else { None };
     port.initial_world_state_outcomes
         .lock()
         .unwrap()
@@ -50,6 +59,7 @@ async fn assert_post_add_scaling(worldport: bool) {
                 "scaling must not precede post-add InitWorldStates/auras/phase"
             );
             observation.store(true, std::sync::atomic::Ordering::SeqCst);
+            drop(close_during_read);
             PlayerInitialWorldStatesLoadOutcomeLikeCpp {
                 templates: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
                 saved_values: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
@@ -63,7 +73,14 @@ async fn assert_post_add_scaling(worldport: bool) {
         session
             .handle_world_port_response(WorldPacket::new_empty())
             .await;
-        assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+        assert_eq!(
+            session.state(),
+            if disconnect {
+                crate::session::SessionState::Disconnecting
+            } else {
+                crate::session::SessionState::LoggedIn
+            }
+        );
     } else {
         session
             .send_initial_packets_after_add_to_map(guid, &position, 571, false)
@@ -74,5 +91,7 @@ async fn assert_post_add_scaling(worldport: bool) {
         session.represented_using_pvp_item_levels_like_cpp(),
         "the shared post-add phase must apply destination scaling for login and worldport"
     );
-    assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::InitWorldStates));
+    if let Some(send_rx) = send_rx {
+        assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::InitWorldStates));
+    }
 }
