@@ -211,6 +211,23 @@ uploads the manifest even on failure; signals and timeouts therefore cannot beco
 Repository-level Actions concurrency serializes audits, while superseded external-PR final runs
 are cancelled.
 
-Publication evidence belongs to the final clean committed HEAD. The runner permits dirty
-iteration and records it; its successful exit does not by itself certify a clean publication SHA
-or completion of an issue's capture/live acceptance.
+## Publication evidence without redundant builds
+
+Validate the committed publication candidate, not the cosmetic cleanliness of the directory.
+Normally run `final --base origin/3.4.3` with no tracked modifications. Unrelated untracked
+documents may remain when inspection establishes that no build script, test, generator or
+configuration consumes them. Record their paths and hashes, verify tracked files still match
+HEAD after the run, and retain the manifest's truthful `dirty: true` value. Do not delete,
+stage, hide or relocate another task's files merely to obtain `dirty: false`. An uncertain
+input or a source/configuration change needs isolation or appropriate revalidation.
+
+A successful final run may also be reused when the only subsequent committed changes are
+reviewed documentation or operating-instruction edits with no executable, schema, policy-data,
+dependency, build, fixture or test-input changes. Run `quick --base <validated-sha>` for that
+delta, check the exact diff and unchanged integration base, and record both SHAs and manifests.
+The evidence is a tested code revision plus a validated documentation delta, not a claim that
+the older run executed at the new SHA. Changes outside this exception require the normal final
+profile. Do not restart an already-running equivalent validation merely for an evidence note.
+
+Publication validation and merge acceptance are distinct: neither this exception nor a green
+profile waives explicit review, capture/live acceptance, or push/merge/runtime permissions.

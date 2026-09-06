@@ -162,11 +162,17 @@ Never blindly regenerate a baseline to hide drift; review the semantic delta and
 ceilings after validated retirement. Keep changed TSV schemas valid; the R8 ledger has nine
 tab-separated columns. Do not pipe checks through a command that masks their exit status.
 
-Before an authorized push, on clean committed HEAD:
+Before an authorized push, validate the committed publication candidate:
 
 ~~~bash
 ./tools/validation-v2 final --base origin/3.4.3
 ~~~
+
+Use the publication-evidence rules in `docs/operations/validation-v2.md`: unrelated
+untracked documents do not require a new worktree or recompilation when their lack
+of build/test influence is verified. Preserve them and record the manifest's actual
+dirty status. Reuse green evidence for unchanged code with a validated documentation-only
+delta; never relabel an earlier run as having tested a later SHA.
 
 For exactly alseif0x-authored PRs, local final plus focused evidence is the required gate;
 configured hosted validation/reviewer jobs intentionally skip. External authors retain

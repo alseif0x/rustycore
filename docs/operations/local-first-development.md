@@ -52,8 +52,9 @@ output must be retained, redirect it to a log and check the validator's own exit
 
 Use focused checks within the approved issue or macro; an internal cut does not require a new
 PR, exhaustive run or repeated approval. Before publication, commit the completed local work,
-run `final` on that clean HEAD and retain the issue-specific acceptance evidence. `final` can
-run on a dirty tree for iteration, but that result is not clean-SHA publication evidence.
+validate the publication candidate and retain the issue-specific acceptance evidence. Follow
+the publication-evidence rules in `validation-v2.md` for unrelated untracked documents and
+reuse across a validated documentation-only delta; do not duplicate those rules here.
 Push, merge, deployment and destructive fixture authority remain distinct; reuse each existing
 approval within its stated scope, and do not infer it from a passing validator or a test host.
 
