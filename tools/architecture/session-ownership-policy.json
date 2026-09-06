@@ -1963,9 +1963,9 @@
         {
           "name": "pending_teleport",
           "type": "Option < (u32 , wow_core :: Position) >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "visibility": "private",
+          "cfg": ["cfg (test)"],
+          "source_class": "test_fixture"
         },
         {
           "name": "persistence_ports_like_cpp",
@@ -32487,6 +32487,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "pending_teleport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn pending_teleport_like_cpp (& self) -> Option < (u32 , Position) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": ["visible"]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "pending_teleport_save_destination_like_cpp",
           "visibility": "private",
           "signature": "fn pending_teleport_save_destination_like_cpp (& self) -> Option < (u16 , Position) >",
@@ -48321,6 +48332,17 @@
             "setter",
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_pending_teleport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_pending_teleport_like_cpp (& mut self , destination : Option < (u32 , Position) > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": ["setter", "visible"]
         },
         {
           "module": "crate::session",
@@ -76369,7 +76391,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a06b9b8c33cde7aebc64f338843fbe19:len=96464|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:75ecc957bc41d5ec02951e03fe58ae1f:len=96410|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

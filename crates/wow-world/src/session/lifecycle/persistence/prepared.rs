@@ -84,7 +84,8 @@ impl WorldSession {
         let teleport = &player.gameplay_state().teleport;
         let destination = (teleport.recovery != wow_entities::PlayerTransferRecovery::Terminal)
             .then(|| {
-                self.pending_teleport
+                teleport
+                    .far_destination
                     .map(|(map, position)| (u16::try_from(map).unwrap_or(u16::MAX), position))
                     .or_else(|| {
                         teleport

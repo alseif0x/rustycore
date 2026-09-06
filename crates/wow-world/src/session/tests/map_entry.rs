@@ -127,7 +127,7 @@ async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
     );
     let handle = session.player_handle_like_cpp.unwrap();
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
-    session.pending_teleport = Some((1, Position::default()));
+    assert!(session.set_pending_teleport_like_cpp(Some((1, Position::default()))));
     assert!(session.set_represented_far_teleport_pending_like_cpp(true));
     session.state = SessionState::Transfer;
     session.recover_rejected_worldport_like_cpp().await;
@@ -138,7 +138,7 @@ async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
             .recovery,
         PlayerTransferRecovery::Homebind
     );
-    assert_eq!(session.pending_teleport, Some((0, home)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, home)));
     drain_server_opcodes(&output);
     session.set_map_store(crate::teleport_test_fixtures::world_maps([]));
     assert!(!session.try_attach_worldport_destination_like_cpp(0, home));
@@ -177,7 +177,7 @@ async fn recovery_missing_or_invalid_homebind_terminates_without_replacing_sourc
         install_canonical_player_owner_for_test(&mut session, 0, 0);
         session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
         assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
-        session.pending_teleport = Some((1, Position::default()));
+        assert!(session.set_pending_teleport_like_cpp(Some((1, Position::default()))));
         assert!(session.set_represented_far_teleport_pending_like_cpp(true));
         if invalid {
             assert!(
@@ -190,7 +190,10 @@ async fn recovery_missing_or_invalid_homebind_terminates_without_replacing_sourc
         }
         session.recover_rejected_worldport_like_cpp().await;
         assert_eq!(session.state, SessionState::Disconnecting);
-        assert_eq!(session.pending_teleport, Some((1, Position::default())));
+        assert_eq!(
+            session.pending_teleport_like_cpp(),
+            Some((1, Position::default()))
+        );
         assert!(output.is_empty());
     }
 }
@@ -277,7 +280,7 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
                 .unwrap()
                 .near_pending
         );
-        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
         assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
         assert_eq!(session.player_handle_like_cpp, Some(handle));
         // Exercise attachment separately from packet publication. This is not

@@ -7479,9 +7479,9 @@ pub struct WorldSession {
     /// Currently active area trigger ID (to prevent retriggering on same position).
     /// Set to Some(trigger_id) when entered, None when exited.
     pub(crate) active_area_trigger: Option<u32>,
-    /// Pending far teleport destination (map_id, position).
-    /// Set by `teleport_to`, consumed by `handle_world_port_response`.
-    pub(crate) pending_teleport: Option<(u32, wow_core::Position)>,
+    /// Ownerless legacy fixtures only; production uses Player's teleport state.
+    #[cfg(test)]
+    pending_teleport: Option<(u32, wow_core::Position)>,
 
     // ── QueryCreature cache ────────────────────────────────────────
     /// Creature entry IDs for which we've already sent a QueryCreatureResponse.
@@ -9252,6 +9252,7 @@ impl WorldSession {
             #[cfg(test)]
             gossip_options: Vec::new(),
             active_area_trigger: None,
+            #[cfg(test)]
             pending_teleport: None,
             creature_query_cache: std::collections::HashSet::new(),
             instance_lock_mgr: None,
@@ -10723,6 +10724,7 @@ impl WorldSession {
             };
             *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
+                far_destination: self.pending_teleport,
                 can_delay: self.represented_can_delay_teleport_like_cpp,
                 has_delayed: self.represented_has_delayed_teleport_like_cpp,
                 near_pending: self.near_teleport_pending_like_cpp,
@@ -11042,7 +11044,7 @@ impl WorldSession {
     }
 
     fn pending_teleport_save_destination_like_cpp(&self) -> Option<(u16, Position)> {
-        if let Some((map_id, position)) = self.pending_teleport {
+        if let Some((map_id, position)) = self.pending_teleport_like_cpp() {
             return Some((u16::try_from(map_id).unwrap_or(u16::MAX), position));
         }
         if let Some(teleport) = self.player_teleport_state_snapshot_like_cpp()
@@ -40372,7 +40374,9 @@ impl WorldSession {
         let _ = self.remove_current_player_from_canonical_current_map_like_cpp();
 
         // 2. Store pending destination — completed in handle_world_port_response
-        self.pending_teleport = Some((new_map, new_pos));
+        if !self.set_pending_teleport_like_cpp(Some((new_map, new_pos))) {
+            return;
+        }
         self.active_area_trigger = None;
 
         // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client. C++
@@ -40526,8 +40530,8 @@ impl WorldSession {
         }
 
         let map_id = u16::try_from(map_id).unwrap_or(self.player_map_id_like_cpp());
-        self.pending_teleport = None;
         if !self.update_player_teleport_state_like_cpp(|state| {
+            state.far_destination = None;
             state.near_pending = true;
             state.near_destination = Some((map_id, destination));
             state.near_destination_zone_area = None;
@@ -40648,7 +40652,9 @@ impl WorldSession {
 
         let _ = self.remove_current_player_from_canonical_current_map_like_cpp();
 
-        self.pending_teleport = Some((map_id, destination));
+        if !self.set_pending_teleport_like_cpp(Some((map_id, destination))) {
+            return;
+        }
         self.active_area_trigger = None;
 
         if !self.player_logout_like_cpp {
@@ -59874,6 +59880,7 @@ impl WorldSession {
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
+                far_destination: self.pending_teleport,
                 can_delay: self.represented_can_delay_teleport_like_cpp,
                 has_delayed: self.represented_has_delayed_teleport_like_cpp,
                 near_pending: self.near_teleport_pending_like_cpp,
@@ -59903,6 +59910,7 @@ impl WorldSession {
                 .player_teleport_state_snapshot_like_cpp()
                 .unwrap_or_default();
             update(&mut state);
+            self.pending_teleport = state.far_destination;
             self.represented_can_delay_teleport_like_cpp = state.can_delay;
             self.represented_has_delayed_teleport_like_cpp = state.has_delayed;
             self.near_teleport_pending_like_cpp = state.near_pending;

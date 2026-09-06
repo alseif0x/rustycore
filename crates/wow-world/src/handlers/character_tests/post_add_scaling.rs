@@ -57,7 +57,7 @@ async fn assert_post_add_scaling(worldport: bool) {
         }));
     session.set_player_lifecycle_port_like_cpp(port);
     if worldport {
-        session.pending_teleport = Some((571, position));
+        assert!(session.set_pending_teleport_like_cpp(Some((571, position))));
         assert!(session.set_represented_far_teleport_pending_like_cpp(true));
         session.set_state(crate::session::SessionState::Transfer);
         session

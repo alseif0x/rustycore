@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "715 exact Rust named-field identifiers: 283 production and 432 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
+    "field_identity": "715 exact Rust named-field identifiers: 282 production and 433 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -44,7 +44,7 @@
     "families": [
       {
         "id": "test_only_fixtures",
-        "expected_field_count": 432,
+        "expected_field_count": 433,
         "field_names": [
           "account_mounts_like_cpp",
           "active_player_local_flags_like_cpp",
@@ -156,6 +156,7 @@
           "party_level_req_like_cpp",
           "party_raid_warnings_like_cpp",
           "pass_on_group_loot",
+          "pending_teleport",
           "pet_default_spell_store",
           "pet_family_spell_store",
           "pet_levelup_spell_store",
@@ -479,7 +480,7 @@
           "watched_faction_index_like_cpp",
           "weekly_quests_completed_like_cpp"
         ],
-        "current_storage": "432 exact cfg(test) fields on WorldSession. These are legacy fixture inputs and observation sinks, not production storage. Canonical Player/Map is the production owner for migrated families; test-only setters can seed that owner. Field movement to cfg(test) alone does not prove that all associated methods or adapters are thin.",
+        "current_storage": "433 exact cfg(test) fields on WorldSession. These are legacy fixture inputs and observation sinks, not production storage. Canonical Player/Map is the production owner for migrated families; test-only setters can seed that owner. Field movement to cfg(test) alone does not prove that all associated methods or adapters are thin.",
         "sole_writer": "Focused tests and their test-only setters; production has no writer.",
         "readers": "Focused tests in wow-world and handler test modules.",
         "clock_lifetime": "One test/session fixture; no production clock.",
@@ -894,17 +895,16 @@
       },
       {
         "id": "player_movement_combat_and_visibility",
-        "expected_field_count": 7,
+        "expected_field_count": 6,
         "field_names": [
           "active_area_trigger",
           "combat_tick_last_at_like_cpp",
           "is_ffa_pvp_realm_like_cpp",
           "is_pvp_realm_like_cpp",
           "last_presented_creature_melee_health_state_revision_like_cpp",
-          "pending_teleport",
           "taxi_node_map_ids_like_cpp"
         ],
-        "current_storage": "Seven production fields remain in this family. Canonical Player/Map owns migrated movement and combat values; active position updates now use generation-checked MapRuntime relocation including cell membership. The remaining Session-side control/coordination must still move; 66 fixture fields are classified separately.",
+        "current_storage": "Six production fields remain in this family. Canonical Player/Map owns migrated movement, combat and far destination values; active position updates use generation-checked MapRuntime relocation including cell membership. The far destination now follows the same Player while detached and cannot leak across stale handles; the old field is fixture-only. Remaining Session control/coordination still needs migration.",
         "sole_writer": "Session handlers currently own many Player representations; canonical Map owns already-migrated creature transitions. No transition may have simultaneous Session and global writers.",
         "readers": "Movement/combat/character/vehicle handlers, map runtime, visibility/fanout, packet builders, directory snapshots, and persistence.",
         "clock_lifetime": "Player-in-world lifetime under Map phases plus Session protocol timers. Player visibility membership is per client; spatial traversal and in-world mutation are Map-owned.",
@@ -1045,8 +1045,8 @@
     ],
     "expected_field_count": 715,
     "expected_unique_field_count": 715,
-    "expected_production_field_count": 283,
-    "expected_test_fixture_field_count": 432
+    "expected_production_field_count": 282,
+    "expected_test_fixture_field_count": 433
   },
   "inventories": {
     "session_resources": {
@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82454,
-          "test_lines": 107066,
-          "total_lines": 189520,
+          "production_lines": 82483,
+          "test_lines": 107096,
+          "total_lines": 189579,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 rest cancellation repair above bb0c6d7e: +5 production/+0 test lines. Rest sender reports channel acceptance; both zone branches retire the existing native marker only on acceptance, and zone reentry does not reset it. No new state, lock, writer or serialization. Full lifecycle/phase integration and C4 retirement remain. Evidence: session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 far destination ownership above 160d1ce5: +29 production/+30 test lines in logical Session. A private 19-line adapter reads/writes the existing canonical teleport owner; writers check availability, and the save header reads the captured Player directly. The former Session destination is private cfg(test) only; test accessors, exhaustive literals and stale-handle checks account for growth. No new lock/clock or concurrent owner. Whole-transfer completion and C4 retirement remain; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1520,10 +1520,10 @@
         {
           "path": "crates/wow-entities/src/player/mod.rs",
           "production_lines": 11328,
-          "test_lines": 10135,
-          "total_lines": 21463,
+          "test_lines": 10137,
+          "total_lines": 21465,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-06 full native trait value above 2fdbd962: +41 production/+3 test lines. Private types retain header plus optional full details/entries/insertion order; header-only fixtures remain explicitly incomplete for CREATE. The existing single map and reset lifecycle remain authoritative. No duplicate map, packet dependency or clock; C4 retirement remains. Evidence: session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 far destination ownership above 160d1ce5: +0 production/+2 tests in this logical Player tree. The sibling player_gameplay_state.rs adds one native field to the existing teleport state; exact location tests include it. This replaces the production Session destination without changing near/far phases, payloads or clocks. Complete transfer lifecycle and C4 retirement remain; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

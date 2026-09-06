@@ -15,6 +15,7 @@ mod logout;
 mod map_entry;
 mod persistence;
 mod pet_load;
+mod transfer_destination;
 mod transfer_recovery;
 
 pub(super) use pet_load::PetLoadQueryHolderRowsLikeCpp;

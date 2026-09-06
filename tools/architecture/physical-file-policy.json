@@ -636,16 +636,16 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76540,
-      "ceiling_lines": 76540,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above bb0c6d7e +5 lines expose rest-packet channel acceptance, retain pending markers on zone reentry and guard their retirement in both zone branches. No new state or owner; C4 retirement remains open.",
+      "observed_lines": 76548,
+      "ceiling_lines": 76548,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above 160d1ce5 +8 physical lines make the far destination fixture-only, add its existing fixture-state conversions and guard canonical destination writes. New accessors live in the 19-line transfer_destination module; C4 retirement remains open.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 96685,
-      "ceiling_lines": 96685,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above cf5b0757 +2 lines initialize the Player recovery marker in existing exhaustive test literals. New bounded recovery scenarios stay in the small map_entry module; no new test bodies in this monolith. C4 split exit remains.",
+      "observed_lines": 96712,
+      "ceiling_lines": 96712,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above 160d1ce5 +27 lines migrate far-destination reads/writes to checked accessors, extend existing exact state literals and assert stale-handle rejection. Most growth is rustfmt wrapping; no new scenario bodies in this monolith. C4 split exit remains.",
       "review_checkpoint": "578:C4"
     },
     {

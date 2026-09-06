@@ -150,7 +150,7 @@ impl crate::session::WorldSession {
         if !self.represented_far_teleport_pending_like_cpp() {
             return;
         }
-        let Some((new_map, new_pos)) = self.pending_teleport else {
+        let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
             return;
         };
         if !self.send_packet(&wow_packet::packets::misc::NewWorld {
@@ -194,7 +194,7 @@ impl crate::session::WorldSession {
             );
             return;
         }
-        let Some((new_map, new_pos)) = self.pending_teleport else {
+        let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
             warn!(
                 "WorldPortResponse from account {} but no pending teleport",
                 self.account_id
@@ -214,7 +214,9 @@ impl crate::session::WorldSession {
             return;
         }
         self.set_represented_far_teleport_pending_like_cpp(false);
-        self.pending_teleport = None;
+        if !self.set_pending_teleport_like_cpp(None) {
+            return;
+        }
 
         info!(
             account = self.account_id,

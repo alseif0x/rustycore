@@ -11,14 +11,14 @@ use wow_packet::packets::misc::ERR_TAXITOOFARAWAY_LIKE_CPP;
 async fn world_port_response_ignores_ack_without_far_teleport_semaphore_like_cpp() {
     let (mut session, send_rx) = make_session();
     let destination = Position::new(11.0, 22.0, 33.0, 1.5);
-    session.pending_teleport = Some((0, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, destination))));
     session.set_state(crate::session::SessionState::Transfer);
 
     session
         .handle_world_port_response(WorldPacket::new_empty())
         .await;
 
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.state(), crate::session::SessionState::Transfer);
     assert!(send_rx.try_recv().is_err());
 }
@@ -31,7 +31,7 @@ async fn suspend_token_response_sends_new_world_for_far_teleport_like_cpp() {
     // client sits at 0% on the loading screen forever. #NEXT.R8.ENTITIES.1229.
     let (mut session, send_rx) = make_session();
     let destination = Position::new(11.0, 22.0, 33.0, 1.5);
-    session.pending_teleport = Some((1, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((1, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -45,14 +45,14 @@ async fn suspend_token_response_sends_new_world_for_far_teleport_like_cpp() {
             .collect::<Vec<_>>(),
         vec![ServerOpcodes::NewWorld as u16]
     );
-    assert_eq!(session.pending_teleport, Some((1, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((1, destination)));
 }
 
 #[tokio::test]
 async fn suspend_token_response_no_op_without_far_teleport_like_cpp() {
     // C++ HandleSuspendTokenResponse early-returns unless IsBeingTeleportedFar().
     let (mut session, send_rx) = make_session();
-    session.pending_teleport = Some((1, Position::new(11.0, 22.0, 33.0, 1.5)));
+    assert!(session.set_pending_teleport_like_cpp(Some((1, Position::new(11.0, 22.0, 33.0, 1.5)))));
     // far-teleport semaphore deliberately not set.
 
     session
@@ -196,7 +196,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
-    session.pending_teleport = Some((0, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, destination))));
     session.set_player_health_like_cpp(135_791, 2_000_000);
     assert!(
         session.complete_represented_trait_config_authority_load_like_cpp([(900, 1, 62, 4)], true)
@@ -246,7 +246,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         .handle_world_port_response(WorldPacket::new_empty())
         .await;
 
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(!session.represented_far_teleport_pending_like_cpp());
     assert_eq!(session.player_map_id_like_cpp(), 0);
     assert_eq!(session.player_position_like_cpp(), Some(destination));
@@ -393,7 +393,7 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
     );
     while send_rx.try_recv().is_ok() {}
 
-    session.pending_teleport = Some((571, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((571, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -511,7 +511,7 @@ async fn world_port_response_activates_pvp_item_levels_for_flagged_map_like_cpp(
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
-    session.pending_teleport = Some((30, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((30, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -558,7 +558,7 @@ async fn world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
-    session.pending_teleport = Some((571, destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((571, destination))));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 

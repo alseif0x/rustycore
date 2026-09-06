@@ -369,6 +369,7 @@ pub struct PlayerResurrectionStateLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct PlayerTeleportStateLikeCpp {
     pub recovery: PlayerTransferRecovery,
+    pub far_destination: Option<(u32, wow_core::Position)>,
     pub can_delay: bool,
     pub has_delayed: bool,
     pub near_pending: bool,

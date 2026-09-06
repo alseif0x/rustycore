@@ -1543,6 +1543,56 @@ type and its bridge fingerprint, two read/hydration methods and self-CREATE's bo
 Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
 far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
 
+### C1 far destination joins the canonical teleport owner — above `160d1ce5`, 2026-09-06
+
+Ownership migration under the safe-refactor skill, prerequisite to incarnation-bound
+transfer progress. C++ `Player.h:2167,3098` and `Player.cpp:1315,1335,1383,1456` place
+the teleport destination on Player. Rust's semaphores/recovery were already native,
+but the far destination remained a separate production Session field. Adding progress
+beside that split would permit destination and completion authority to diverge.
+
+`PlayerTeleportStateLikeCpp::far_destination` now owns the existing optional map/position.
+Private `session/lifecycle/transfer_destination.rs` (19 lines) uses generation-checked
+Player access for reads/writes, including detached ownership. Immediate/delayed far
+initiation, near-transfer clearing, suspend/ACK, homebind recovery, corpse checks and
+save projections all migrate. The prepared save reads the destination directly from
+the Player already captured under the manager guard, never through a locking accessor.
+Missing/stale writers return failure rather than retaining a destination on Session.
+
+The old member is private cfg(test) only, used by the existing ownerless fixture adapter
+and fixture adoption. No production mirror, lock, clock, query or packet is added. The
+former direct test assignments now use checked setters; existing exact-state tests
+include the destination through active/detached ownership and replacement, and explicitly
+reject stale reads/writes without changing the replacement. Save-header/recovery and
+worldport packet tests exercise the migrated consumers. Near/far representations,
+clear-after-attachment timing, terminal source-save exception and ordinary save semantics
+are deliberately unchanged: this is not full C++ teleport/instance-location parity.
+
+Reviewed syntax: 282 production/433 fixture Session fields (715 total), two crate-local
+accessors, unchanged 590 registry rows/38 commands/8 resources. Only the affected field,
+method entries and corresponding Session struct fingerprint change. Physical Session
+root +8 lines, existing Session tests +27 (mostly accessor wrapping plus exact literals
+and stale assertions); new bodies stay in the private lifecycle module. Logical Session
++29 production/+30 tests; Player's logical tree +2 tests and its sibling gameplay-state
+file +1 production field. The family ledger now has six remaining production members.
+The 101 legacy ceilings and their C4 split exits remain; no terminal exception is added.
+
+Local aarch64 tests above `160d1ce5`, pinned PROTOC and validation Cargo cache:
+`cargo test --offline --locked -p wow-world --lib` passes 3,764 (one ignored),
+`-p wow-entities --lib` passes 721, and `-p wow-world --test production_login_player_owner`
+passes 12 controlled production-linked cases. Syntax-only ownership, architecture
+check/self-test, five preserved persistence-policy tests and format/diff checks pass.
+`cargo check --offline --locked -p world-server` also passes; no server is installed or started.
+Bounded quick passes with verified manifest
+`target/validation-v2/manifests/20260906T185414.270148Z-3-quick.json`; only checkpoint and
+ledger review prose was completed afterward. The exhaustive persistence snapshot is not regenerated.
+No fresh capture, runtime installation, live DB or restart acceptance is claimed.
+
+Next, bind progress to this same canonical transfer and distinguish attachment from
+completed initialization before deferred-save/logout admission. Do not infer completion
+from far=false, replay the whole ACK after cancellation, or discard the owner after a
+deferred return. C0–C4 remain open; the migration does not establish live durability.
+
 ### C1 destination scaling phase and logout prerequisite audit — above `d70c88c3`, 2026-09-06
 
 Intentional phase-order repair. C++ `Player.cpp:23648-23650` calls

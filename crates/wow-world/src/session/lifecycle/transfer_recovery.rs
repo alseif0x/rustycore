@@ -44,7 +44,7 @@ impl WorldSession {
             return;
         };
         let destination = (homebind.map_id, homebind.position);
-        if self.pending_teleport == Some(destination) {
+        if self.pending_teleport_like_cpp() == Some(destination) {
             // Already rejected this exact destination; do not replay it forever.
             self.terminate_worldport_recovery_like_cpp();
             return;
@@ -56,7 +56,7 @@ impl WorldSession {
             return;
         }
         self.teleport_to(homebind.map_id, homebind.position).await;
-        if self.pending_teleport != Some(destination) {
+        if self.pending_teleport_like_cpp() != Some(destination) {
             self.terminate_worldport_recovery_like_cpp();
         }
     }

@@ -256,7 +256,7 @@ impl crate::session::WorldSession {
         // resurrected state. InstanceScript combat-res charges, aura original
         // caster, and SpawnCorpseBones remain represented gaps.
         self.teleport_to(request.map_id, request.position).await;
-        if self.pending_teleport.is_some() || self.near_teleport_pending_like_cpp() {
+        if self.pending_teleport_like_cpp().is_some() || self.near_teleport_pending_like_cpp() {
             self.schedule_represented_resurrection_after_teleport_like_cpp(request);
         } else {
             self.apply_represented_resurrection_health_like_cpp(request.health);

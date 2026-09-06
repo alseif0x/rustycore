@@ -17348,7 +17348,7 @@ async fn teleport_units_uses_cross_map_db_destination_for_player_like_cpp() {
         .expect("TARGET_DEST_DB teleport should execute");
 
     assert_eq!(
-        session.pending_teleport,
+        session.pending_teleport_like_cpp(),
         Some((
             1,
             Position::new(
@@ -17468,7 +17468,10 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         "C++ SelectSpellTargets resolves TARGET_DEST_HOME before SpellGo"
     );
     assert_eq!(packet_target.map_id, None);
-    assert_eq!(session.pending_teleport, Some((1, home_position)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((1, home_position))
+    );
     assert_eq!(session.state, SessionState::Transfer);
 }
 
@@ -17778,7 +17781,10 @@ async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() 
         home_position,
         "effect 0 BIND keeps its HOME snapshot while later TELEPORT uses DB"
     );
-    assert_eq!(session.pending_teleport, Some((1, db_destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((1, db_destination))
+    );
 }
 
 #[tokio::test]
@@ -17826,7 +17832,7 @@ async fn teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_
         .await
         .expect("missing represented homebind keeps current bounded no-op");
 
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -17875,7 +17881,8 @@ async fn teleport_units_without_destination_is_noop_like_cpp() {
         .expect("destination-less teleport should execute as effect no-op");
 
     assert_eq!(
-        session.pending_teleport, None,
+        session.pending_teleport_like_cpp(),
+        None,
         "C++ EffectTeleportUnits returns when m_targets.HasDst() is false"
     );
     assert_ne!(session.state, SessionState::Transfer);
@@ -17947,7 +17954,7 @@ async fn primary_teleport_units_uses_explicit_destination_like_cpp() {
         .expect("represented primary teleport should execute");
 
     assert_eq!(
-        session.pending_teleport,
+        session.pending_teleport_like_cpp(),
         Some((
             1,
             Position::new(
@@ -32870,6 +32877,7 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
     let destination = Position::new(3701.0, 1501.0, 121.0, 0.5);
     let owned = wow_entities::PlayerTeleportStateLikeCpp {
         recovery: Default::default(),
+        far_destination: Some((1, destination)),
         can_delay: true,
         has_delayed: true,
         near_pending: true,
@@ -32897,6 +32905,7 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
     let old_handle = session.player_handle_like_cpp.expect("canonical handle");
 
     assert!(session.update_player_teleport_state_like_cpp(|state| *state = owned));
+    assert_eq!(session.pending_teleport_like_cpp(), owned.far_destination);
     assert_eq!(
         session.player_teleport_state_snapshot_like_cpp(),
         Some(owned)
@@ -32917,6 +32926,7 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
 
     let replacement_state = wow_entities::PlayerTeleportStateLikeCpp {
         recovery: Default::default(),
+        far_destination: None,
         can_delay: false,
         has_delayed: false,
         near_pending: false,
@@ -32939,6 +32949,8 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
         .expect("replacement owner");
 
     assert_eq!(session.player_teleport_state_snapshot_like_cpp(), None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
+    assert!(!session.set_pending_teleport_like_cpp(Some((1, destination))));
     assert!(!session.set_represented_can_delay_teleport_like_cpp(true));
     assert!(!session.set_represented_far_teleport_pending_like_cpp(false));
     assert!(!session.set_near_teleport_pending_like_cpp(
@@ -44464,7 +44476,7 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         .await
         .expect("represented stuck spell should execute");
 
-    assert_eq!(session.pending_teleport, Some((0, home)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, home)));
     assert!(
         session
             .spell_last_cast_time_like_cpp(8690)
@@ -44548,7 +44560,7 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
     assert_eq!(
         session.selection_guid_like_cpp(),
@@ -44623,7 +44635,7 @@ async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_li
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects the instance cap"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
     assert!(
         canonical.lock().unwrap().find_map(631, 0).is_none(),
@@ -44711,7 +44723,10 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((631, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((631, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
     assert_eq!(
         session.selection_guid_like_cpp(),
@@ -44805,7 +44820,7 @@ async fn teleport_to_blocks_client_without_target_map_expansion_like_cpp() {
         .to_bytes()
     );
     assert!(send_rx.try_recv().is_err());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -44905,7 +44920,10 @@ async fn teleport_to_allows_target_map_when_session_expansion_matches_like_cpp()
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((870, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((870, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
 }
 
@@ -44942,7 +44960,7 @@ async fn teleport_to_battleground_without_assignment_is_silent_like_cpp() {
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns false without SMSG_TRANSFER_ABORTED for unassigned battleground/arena maps"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -44984,7 +45002,10 @@ async fn teleport_to_battleground_with_assignment_can_start_transfer_like_cpp() 
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((529, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((529, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
     assert_eq!(
         session.represented_battleground_leave_requests_like_cpp(),
@@ -45040,7 +45061,10 @@ async fn teleport_to_leaves_represented_battleground_when_target_map_differs_lik
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((571, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((571, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
     assert_eq!(
         session.represented_battleground_leave_requests_like_cpp(),
@@ -45116,7 +45140,7 @@ async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
     assert_eq!(session.represented_pet_guid_like_cpp, None);
     assert_eq!(
@@ -47035,7 +47059,7 @@ async fn teleport_to_far_map_without_pet_does_not_request_pet_unsummon_like_cpp(
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
 }
 
@@ -47096,7 +47120,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         Some((0, destination, TELE_TO_NONE_LIKE_CPP))
     );
     assert!(session.represented_far_teleport_pending_like_cpp());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(
         session.in_combat,
         "C++ delayed far branch returns before CombatStop"
@@ -47164,7 +47188,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
         ]
     );
     assert_eq!(session.state, SessionState::Transfer);
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
@@ -47219,7 +47243,7 @@ async fn teleport_to_far_map_clears_transport_server_time_override_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert_eq!(
         session.active_player_local_flags_like_cpp()
@@ -47356,7 +47380,7 @@ async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_
         }
         .to_bytes()
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_ne!(
         session.active_player_local_flags_like_cpp()
             & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
@@ -47484,7 +47508,7 @@ async fn teleport_to_player_logout_suppresses_transfer_packets_like_cpp() {
         vec![ServerOpcodes::CancelCombat],
         "C++ Player::TeleportTo suppresses both TransferPending and SuspendToken during PlayerLogout"
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_ne!(
         session.active_player_local_flags_like_cpp()
             & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
@@ -47569,7 +47593,7 @@ async fn teleport_to_far_map_removes_current_player_dynamic_objects_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     let manager = canonical.lock().unwrap();
     let map = manager.find_map(571, 0).unwrap().map();
     assert!(
@@ -47655,7 +47679,7 @@ async fn teleport_to_far_map_removes_current_player_area_triggers_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     let manager = canonical.lock().unwrap();
     let map = manager.find_map(571, 0).unwrap().map();
     assert!(
@@ -47744,7 +47768,7 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(
         session.active_spell_cast_snapshot_like_cpp().is_none(),
         "C++ Player::TeleportTo interrupts non-melee casts before transfer"
@@ -48052,7 +48076,7 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((0, destination)));
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(!session.visible_auras.contains_key(&represented_moving_slot));
     assert!(
         !session
@@ -48118,7 +48142,7 @@ async fn teleport_to_blocks_unescaped_death_knight_leaving_start_map_like_cpp() 
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -48191,7 +48215,7 @@ async fn teleport_to_dk_escape_abort_still_masks_movement_flags_like_cpp() {
         send_rx.try_recv().is_err(),
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
     );
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
 }
 
@@ -48234,7 +48258,10 @@ async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.pending_teleport, Some((571, destination)));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        Some((571, destination))
+    );
     assert_eq!(session.state, SessionState::Transfer);
 }
 
@@ -48299,7 +48326,7 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
         .to_bytes()
     );
     assert!(session.near_teleport_pending_like_cpp());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.state, SessionState::Transfer);
     assert_eq!(session.fall_information_like_cpp(), (0, source.z));
 }
@@ -48754,7 +48781,7 @@ async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp()
         "C++ same-map TeleportTo does not SendTeleportPacket during PlayerLogout"
     );
     assert!(session.near_teleport_pending_like_cpp());
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
 }
 
 #[tokio::test]
@@ -49165,7 +49192,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         .await
         .expect("represented stuck spell in-flight branch should execute as no-op");
 
-    assert_eq!(session.pending_teleport, None);
+    assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(
         session
             .spell_last_cast_time_like_cpp(8690)
@@ -49203,7 +49230,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         .await
         .expect("disabled CastUnstuck should execute as C++ no-op");
 
-    assert_eq!(disabled_session.pending_teleport, None);
+    assert_eq!(disabled_session.pending_teleport_like_cpp(), None);
     assert!(
         disabled_session
             .spell_last_cast_time_like_cpp(8690)
@@ -57232,7 +57259,7 @@ fn logout_save_snapshot_uses_pending_far_teleport_destination_like_cpp() {
         80,
         0,
     ));
-    session.pending_teleport = Some((0, teleport_destination));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, teleport_destination))));
 
     let snapshot = session
         .current_player_save_to_db_snapshot_like_cpp()
@@ -58406,7 +58433,7 @@ async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
     let (mut session, _, _) = make_session();
     session.state = SessionState::LoggedIn;
     session.set_player_save_interval_ms_like_cpp(100);
-    session.pending_teleport = Some((0, Position::new(10.0, 20.0, 30.0, 1.5)));
+    assert!(session.set_pending_teleport_like_cpp(Some((0, Position::new(10.0, 20.0, 30.0, 1.5)))));
     session.update_player_save_timer_like_cpp(100);
 
     session

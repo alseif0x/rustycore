@@ -124,7 +124,7 @@ fn save_snapshot_keeps_pending_destination_precedence_without_relocating_player(
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
         }
         for pending in [None, Some((u32::MAX, far))] {
-            session.pending_teleport = pending;
+            assert!(session.set_pending_teleport_like_cpp(pending));
             let snapshot = session
                 .current_player_save_to_db_snapshot_like_cpp()
                 .unwrap();
