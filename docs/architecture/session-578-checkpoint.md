@@ -1114,6 +1114,53 @@ the old binding after failed AddPlayerToMap and requests homebind recovery; its 
 operations run only after successful completion. This must be addressed with the
 defer/resume/logout contract above. No runtime/capture/DB QA or C0-C4 closure is claimed.
 
+### C1 worldport owner preservation — 2026-09-06, above `218a8d2a`
+
+The still-active worldport regression now adopts the canonical handle before ACK.
+On the old code it reproduced source coordinates `(1,2,3,0)` after a requested move
+to `(11,22,33,1.5)`: Session's cross-map position setter correctly refuses to relocate
+an active Player on another map, but the ACK then attached it using that old position.
+`handlers/misc/travel.rs` now detaches the same owner before destination relocation,
+as required by `MovementHandler.cpp:84-104`. A missing destination or failed owner
+detachment no longer consumes the pending transfer or publishes LoggedIn success.
+
+The existing Session detach operation is now crate-visible for this caller. Its raw
+multi-map fallback previously discarded `RemoveFromMap`'s returned boxed Player;
+it now adopts only a unique unowned legacy record and retains the checked handle.
+A stale or GUID-mismatched handle never triggers fresh adoption. Already-detached
+ownership is idempotent. C++ removes with `delete=false` (`Player.cpp:1453-1455`;
+`Map.cpp:907-934`), not by reconstructing Player from Session after removal.
+
+Three new tests in the 106-line `session/tests/player_detach.rs` check exact object
+address/data retention, ambiguous-record rejection without partial deletion, and
+stale-handle rejection without touching the replacement. Two old fixtures now adopt
+before setting homebind/cast state. The preserved-spell test explicitly requires the
+detached owner to exist; its old optional mutation closure could silently skip assertion.
+The production-library test starts a far teleport and verifies that its retained Player
+answers SuspendTokenResponse with NewWorld; it is not full worldport/live acceptance.
+
+Local aarch64 working-cut evidence above `218a8d2a`:
+
+- `cargo test --offline --locked -p wow-world --lib`: 3,753 passed, zero failed,
+  one ignored. `--test production_login_player_owner`: nine passed.
+- Both use the existing validation dev target, `CARGO_BUILD_JOBS=2` and
+  `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`. Syntax-only ownership and the
+  five standalone persistence-policy tests pass. Only the existing detach method's
+  crate visibility/visible guard changes in the exact policy; no persistence rows change.
+- Logs: `/tmp/rustycore-578-worldport-owner-{before,lib-final,production,ownership,policy}.log`.
+- Root production shrinks 76,753 -> 76,751; legacy root tests grow five explained
+  wiring/fixture/assertion lines. Logical Session is 82,131 + 106,649 = 188,780.
+- Architecture check/self-test, formatting and diff checks pass. Quick validation
+  (`PROTOC=... ./tools/validation-v2 quick --base HEAD`) and manifest verification
+  pass: `target/validation-v2/manifests/20260906T152207.017814Z-3-quick.json`.
+
+Still open: map creation/admission/attach are fused in the existing ensure helper;
+the ACK still ignores its failure and lacks the full C++ create/bind/send/add/recovery
+sequence. Homebind recovery, failed-attach publication, delayed-save resumption and
+logout transfer completion must be completed together. No new clock, lock, asynchronous
+save writer or map-guarded packet delivery is introduced. C0-C4 and live/capture/DB
+acceptance remain open; the unrelated untracked LFG audit remains untouched.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,

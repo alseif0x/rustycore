@@ -335,16 +335,25 @@ impl crate::session::WorldSession {
             );
             return;
         }
-        self.set_represented_far_teleport_pending_like_cpp(false);
-
-        let Some((new_map, new_pos)) = self.pending_teleport.take() else {
+        let Some((new_map, new_pos)) = self.pending_teleport else {
             warn!(
                 "WorldPortResponse from account {} but no pending teleport",
                 self.account_id
             );
-            self.set_state(crate::session::SessionState::LoggedIn);
             return;
         };
+        // C++ MovementHandler.cpp:84-100 removes a still-active Player before
+        // relocating it. Otherwise the canonical same-map relocation guard
+        // rejects this cross-map position and attachment uses the old position.
+        if !self.remove_current_player_from_canonical_current_map_like_cpp() {
+            warn!(
+                account = self.account_id,
+                "WorldPortResponse cannot detach its Player owner"
+            );
+            return;
+        }
+        self.set_represented_far_teleport_pending_like_cpp(false);
+        self.pending_teleport = None;
 
         info!(
             account = self.account_id,

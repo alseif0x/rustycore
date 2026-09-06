@@ -11050,7 +11050,7 @@ impl WorldSession {
         None
     }
 
-    fn remove_current_player_from_canonical_current_map_like_cpp(&mut self) -> bool {
+    pub(crate) fn remove_current_player_from_canonical_current_map_like_cpp(&mut self) -> bool {
         let Some(guid) = self.player_guid() else {
             return false;
         };
@@ -11060,28 +11060,26 @@ impl WorldSession {
         let Ok(mut manager) = manager.lock() else {
             return false;
         };
-        if let Some(handle) = self.player_handle_like_cpp {
-            return match manager.player_residence_like_cpp(handle) {
-                Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
-                    manager.detach_player_like_cpp(handle).is_ok()
-                }
-                Some(wow_map::PlayerResidenceLikeCpp::Detached) => true,
-                None => false,
-            };
+        let handle = match self.player_handle_like_cpp {
+            Some(handle) if handle.guid() == guid => handle,
+            Some(_) => return false,
+            None => {
+                // Adopt a unique legacy record before removing it. Discarding
+                // RemoveFromMap's returned Box would destroy the live Player.
+                let Ok(handle) = manager.adopt_active_player_like_cpp(guid) else {
+                    return false;
+                };
+                self.player_handle_like_cpp = Some(handle);
+                handle
+            }
+        };
+        match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
+                manager.detach_player_like_cpp(handle).is_ok()
+            }
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => true,
+            None => false,
         }
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let mut removed = false;
-        manager.do_for_all_maps_mut(|managed| {
-            if managed.map_id() != map_id {
-                return;
-            }
-            match managed.map_mut().remove_from_map_like_cpp(guid, false) {
-                Ok(_) => removed = true,
-                Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => {}
-                Err(_) => {}
-            }
-        });
-        removed
     }
 
     pub(crate) fn mutate_canonical_player_like_cpp<R>(

@@ -3,6 +3,51 @@
 use super::*;
 
 #[tokio::test]
+async fn production_far_transfer_retains_owner_until_suspend_ack() {
+    let (mut session, port, _, receiver) = hydrate(true, true, true).await;
+    session.set_map_store(Arc::new(MapStore::from_entries([0, 1].map(|id| {
+        MapEntry {
+            id,
+            instance_type: 0,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }
+    }))));
+    session.set_state(SessionState::LoggedIn);
+    session
+        .teleport_to(1, Position::new(7.0, 8.0, 9.0, 0.5))
+        .await;
+    assert_eq!(session.state(), SessionState::Transfer);
+    assert!(
+        port.manager
+            .try_lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(ObjectGuid::create_player(1, 42))
+            .is_none()
+    );
+    while receiver.try_recv().is_ok() {}
+    // This public production path reads far_pending through the retained owner.
+    // Dropping the detached Player would suppress NewWorld and strand the client.
+    session
+        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
+        .await;
+    let bytes = receiver
+        .try_recv()
+        .expect("retained Player answers suspend ACK");
+    assert_eq!(
+        u16::from_le_bytes([bytes[0], bytes[1]]),
+        wow_constants::ServerOpcodes::NewWorld as u16
+    );
+    assert!(receiver.is_empty());
+}
+
+#[tokio::test]
 async fn production_teleport_accepts_cpp_coordinate_limits_and_finite_orientation() {
     let limit = Position::MAP_HALFSIZE_LIKE_CPP - 0.5;
     for sign in [-1.0, 1.0] {

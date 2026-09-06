@@ -147,6 +147,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.pending_teleport = Some((0, destination));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);

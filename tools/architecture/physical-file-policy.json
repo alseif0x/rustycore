@@ -636,16 +636,16 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76753,
-      "ceiling_lines": 76753,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above 40aa1131 six lines replace the truncated map-ID test with the exact catalog/coordinate admission gate before existing teleport effects. New regressions live in a separate integration module. This does not renew or close the C4 retirement gate.",
+      "observed_lines": 76751,
+      "ceiling_lines": 76751,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above 218a8d2a the canonical detach path retires raw multi-map removal that discarded Player ownership, shrinking this root by two lines. New lifetime tests live in a small private module. This does not renew or close the C4 retirement gate.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 96634,
-      "ceiling_lines": 96634,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above 40aa1131 seven existing teleport scenarios explicitly install their destination catalogs instead of relying on the missing production validation. No new test bodies are placed in this monolith.",
+      "observed_lines": 96639,
+      "ceiling_lines": 96639,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above 218a8d2a two module wiring lines register the separate detach suite; two existing fixtures adopt Player before setting native state, and the retained-spell assertion now fails if no owner is read (+3 lines). No new test bodies are placed in this monolith.",
       "review_checkpoint": "578:C4"
     },
     {

@@ -28,6 +28,8 @@ mod login_auxiliary_persistence;
 mod mailbox_pump;
 #[path = "session/tests/pending_cast_owner.rs"]
 mod pending_cast_owner;
+#[path = "session/tests/player_detach.rs"]
+mod player_detach;
 #[path = "session/tests/rest_owner.rs"]
 mod rest_owner;
 #[path = "session/tests/routing.rs"]
@@ -17715,12 +17717,13 @@ async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() 
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 1,
         area_id: 1519,
         position: home_position,
     });
-    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(spell_id, spell_info.clone());
     session.set_spell_store(Arc::new(spell_store));
@@ -47882,6 +47885,8 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_active_spell_cast_like_cpp(Some(SpellCastState {
         spell_id: 61_810,
         target_guid: player_guid,
@@ -47892,7 +47897,6 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
         metadata: SpellCastMetadata::default(),
     }));
-    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
         player
             .unit_mut()
@@ -47915,14 +47919,15 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
         session.active_spell_cast_snapshot_like_cpp().is_some(),
         "C++ Player::TeleportTo skips InterruptNonMeleeSpells when TELE_TO_SPELL is set"
     );
-    session.mutate_canonical_player_like_cpp(|player| {
-        assert_eq!(
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
             player
                 .unit()
-                .current_spell(wow_entities::CurrentSpellSlot::Generic),
-            Some(generic_spell)
-        );
-    });
+                .current_spell(wow_entities::CurrentSpellSlot::Generic)
+        }),
+        Some(Some(generic_spell)),
+        "the exact detached Player must retain its active spell"
+    );
 }
 
 #[tokio::test]

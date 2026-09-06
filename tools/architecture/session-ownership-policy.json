@@ -36395,11 +36395,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_current_player_from_canonical_current_map_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn remove_current_player_from_canonical_current_map_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
