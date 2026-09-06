@@ -49,6 +49,7 @@ async fn production_worldport_cannot_finish_with_incomplete_self_create() {
         .handle_world_port_response_with_catalogs_like_cpp(
             &catalogs,
             &trait_tree::TraitNodeEntryStore::from_entries([]),
+            &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
             wow_packet::WorldPacket::new_empty(),
         )
         .await;
@@ -117,6 +118,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
         .handle_world_port_response_with_catalogs_like_cpp(
             &catalogs,
             &trait_tree::TraitNodeEntryStore::from_entries([]),
+            &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
             wow_packet::WorldPacket::new_empty(),
         )
         .await;
@@ -137,6 +139,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
         .handle_world_port_response_with_catalogs_like_cpp(
             &catalogs,
             &trait_tree::TraitNodeEntryStore::from_entries([]),
+            &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
             wow_packet::WorldPacket::new_empty(),
         )
         .await;
@@ -162,6 +165,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
             .handle_world_port_response_with_catalogs_like_cpp(
                 &catalogs,
                 &trait_tree::TraitNodeEntryStore::from_entries([]),
+                &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
                 wow_packet::WorldPacket::new_empty(),
             )
             .await;

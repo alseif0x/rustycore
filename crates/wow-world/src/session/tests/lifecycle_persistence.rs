@@ -382,6 +382,8 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
     }
 }
 
+#[path = "lifecycle_persistence/deferred_transfer.rs"]
+mod deferred_transfer;
 #[path = "lifecycle_persistence/save_interleaving.rs"]
 mod save_interleaving;
 

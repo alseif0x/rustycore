@@ -12,6 +12,7 @@ use super::*;
 #[derive(Debug)]
 pub struct PlayerSaveAcknowledgementLikeCpp {
     guid: ObjectGuid,
+    deferred_save: super::deferred_save::DeferredPlayerSave,
     spells: BTreeMap<i32, PlayerKnownSpellRecord>,
     fallback: BTreeMap<i32, PlayerKnownSpellRecord>,
     skills: Vec<PlayerSkillRecord>,
@@ -34,6 +35,7 @@ impl Player {
         let state = self.gameplay_state();
         PlayerSaveAcknowledgementLikeCpp {
             guid: self.guid(),
+            deferred_save: self.deferred_save,
             spells: state.spells.rows.clone(),
             fallback: state.spells.fallback_rows.clone(),
             skills: state.skills.clone(),
@@ -59,6 +61,7 @@ impl Player {
         if self.guid() != saved.guid {
             return;
         }
+        self.deferred_save.acknowledge(saved.deferred_save);
         let state = &mut self.gameplay_state;
         if groups.spells && state.spells.rows_loaded && state.spells.rows_complete {
             acknowledge_spells(&mut state.spells, saved.spells);

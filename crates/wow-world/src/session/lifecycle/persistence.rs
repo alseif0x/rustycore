@@ -9,8 +9,10 @@
 
 use std::sync::Arc;
 
+mod deferred;
 #[cfg(test)]
 mod fixture_tests;
+pub(crate) use deferred::PlayerSaveOutcomeLikeCpp;
 mod prepared;
 mod projection;
 
@@ -121,10 +123,13 @@ impl WorldSession {
     pub(crate) async fn save_current_player_to_db_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) {
+    ) -> PlayerSaveOutcomeLikeCpp {
         // C++ `Player::SaveToDB` delays the next autosave for manual, code, and
         // autosave callers before it appends statements.
         self.reset_player_save_timer_like_cpp();
+        if let Some(outcome) = self.defer_player_save_for_transfer_like_cpp() {
+            return outcome;
+        }
 
         let money_tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
         let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
@@ -147,7 +152,7 @@ impl WorldSession {
                 item_guid_generator,
             )
             .await;
-            return;
+            return PlayerSaveOutcomeLikeCpp::Quarantined;
         }
         trace!(
             fence = "player.save.pending_durable_work_drained",
@@ -164,10 +169,14 @@ impl WorldSession {
                 item_guid_generator,
             )
             .await;
-            return;
+            return PlayerSaveOutcomeLikeCpp::Quarantined;
         }
 
         let Some(prepared) = self.prepare_player_save_like_cpp(unix_now()) else {
+            // Transfer may have begun while draining previously admitted durable work.
+            let outcome = self
+                .defer_player_save_for_transfer_like_cpp()
+                .unwrap_or(PlayerSaveOutcomeLikeCpp::Unavailable);
             warn!(
                 account = self.account_id,
                 player_guid = ?self.player_guid(),
@@ -181,7 +190,7 @@ impl WorldSession {
                 item_guid_generator,
             )
             .await;
-            return;
+            return outcome;
         };
         let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
         else {
@@ -196,7 +205,7 @@ impl WorldSession {
                 item_guid_generator,
             )
             .await;
-            return;
+            return PlayerSaveOutcomeLikeCpp::Unavailable;
         };
 
         if money_tracker.is_indeterminate_like_cpp() {
@@ -209,7 +218,7 @@ impl WorldSession {
                 item_guid_generator,
             )
             .await;
-            return;
+            return PlayerSaveOutcomeLikeCpp::Quarantined;
         }
         let mut cancellation_fence =
             PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(&money_tracker));
@@ -219,7 +228,7 @@ impl WorldSession {
         let result = player_lifecycle_port
             .save_character_like_cpp(prepared.request)
             .await;
-        match result.outcome {
+        let outcome = match result.outcome {
             wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows } => {
                 cancellation_fence.disarm_like_cpp();
                 prepared.receipt.acknowledge(self, &result.committed);
@@ -232,6 +241,7 @@ impl WorldSession {
                     statement_count = rows,
                     "Player::SaveToDB represented save committed in one CharacterDatabase transaction"
                 );
+                PlayerSaveOutcomeLikeCpp::Applied
             }
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
                 cancellation_fence.disarm_like_cpp();
@@ -239,6 +249,7 @@ impl WorldSession {
                     guid = guid.counter(),
                     "Failed to commit Player::SaveToDB represented transaction: {reason}"
                 );
+                PlayerSaveOutcomeLikeCpp::Failed
             }
             wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 // The full save includes many absolute replacements. A money
@@ -255,20 +266,22 @@ impl WorldSession {
                     guid = guid.counter(),
                     "Player::SaveToDB represented transaction COMMIT outcome is unknown: {reason}"
                 );
+                PlayerSaveOutcomeLikeCpp::Quarantined
             }
-        }
+        };
         drop(money_mutation_lock);
         drop(money_save_fence);
         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
             item_guid_generator,
         )
         .await;
+        outcome
     }
 
     #[cfg(test)]
-    pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
+    pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) -> PlayerSaveOutcomeLikeCpp {
         let generators = self.id_generators_for_test_like_cpp();
         self.save_current_player_to_db_with_generator_like_cpp(generators.item.as_ref())
-            .await;
+            .await
     }
 }

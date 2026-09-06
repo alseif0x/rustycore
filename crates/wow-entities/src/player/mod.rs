@@ -11,6 +11,7 @@
 
 mod collections;
 mod damage_control;
+mod deferred_save;
 mod identity;
 mod items;
 mod location;
@@ -3710,6 +3711,7 @@ pub struct Player {
     inventory: Box<PlayerInventoryStorage>,
     inventory_runtime: Box<PlayerInventoryRuntime>,
     gameplay_state: PlayerGameplayState,
+    deferred_save: deferred_save::DeferredPlayerSave,
     player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
     active_player_data_changes: UpdateMask,
@@ -3750,6 +3752,7 @@ impl Player {
             inventory: Box::default(),
             inventory_runtime: Box::default(),
             gameplay_state: PlayerGameplayState::default(),
+            deferred_save: deferred_save::DeferredPlayerSave::default(),
             player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),

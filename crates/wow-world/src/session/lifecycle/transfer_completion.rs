@@ -11,24 +11,37 @@ impl WorldSession {
         map_id: u32,
         position: Position,
     ) -> bool {
-        self.with_owned_player_mut_like_cpp(|player| {
-            if player.unit().world().map_id() != map_id
-                || player.unit().world().position() != position
+        let begun = self
+            .with_owned_player_mut_like_cpp(|player| {
+                if player.unit().world().map_id() != map_id
+                    || player.unit().world().position() != position
+                {
+                    return false;
+                }
+                let state = player.teleport_state_mut_like_cpp();
+                if state.post_add.is_some() {
+                    return false;
+                }
+                state.post_add = Some(PlayerWorldportPostAddLikeCpp {
+                    map_id,
+                    position,
+                    phase: Phase::BeforeZone,
+                });
+                true
+            })
+            .unwrap_or(false);
+        if begun && self.pending_periodic_player_save_like_cpp {
+            // The timer can expire before Transfer stops ordinary Session autosaves.
+            // Give that due request the same native delayed-operation phase as a
+            // direct SaveToDB call, before any following queued packet is admitted.
+            if self.defer_player_save_for_transfer_like_cpp()
+                != Some(crate::session::PlayerSaveOutcomeLikeCpp::Deferred)
             {
                 return false;
             }
-            let state = player.teleport_state_mut_like_cpp();
-            if state.post_add.is_some() {
-                return false;
-            }
-            state.post_add = Some(PlayerWorldportPostAddLikeCpp {
-                map_id,
-                position,
-                phase: Phase::BeforeZone,
-            });
-            true
-        })
-        .unwrap_or(false)
+            self.reset_player_save_timer_like_cpp();
+        }
+        begun
     }
 
     pub(crate) fn advance_worldport_post_add_like_cpp(&mut self, phase: Phase) -> bool {
@@ -221,5 +234,40 @@ mod tests {
             state.recovery = wow_entities::PlayerTransferRecovery::Terminal;
         }));
         assert!(session.prepare_player_save_like_cpp(1).is_some());
+    }
+
+    #[tokio::test]
+    async fn transfer_save_retains_native_intent_when_timer_is_reset() {
+        use crate::session::PlayerSaveOutcomeLikeCpp;
+        let mut session = save_fixture();
+        session.set_player_save_interval_ms_like_cpp(100);
+        session.update_player_save_timer_like_cpp(100);
+        assert!(session.pending_periodic_player_save_like_cpp);
+        assert!(session.update_player_teleport_state_like_cpp(|state| {
+            state.far_pending = true;
+            state.far_destination = Some((1, Position::new(7.0, 8.0, 9.0, 0.5)));
+        }));
+        for _ in 0..2 {
+            assert_eq!(
+                session.save_current_player_to_db_like_cpp().await,
+                PlayerSaveOutcomeLikeCpp::Deferred
+            );
+            assert_eq!(
+                session.with_owned_player_like_cpp(|p| p.has_deferred_player_save_like_cpp()),
+                Some(true)
+            );
+        }
+        assert_eq!(session.next_player_save_ms_like_cpp, 100);
+        assert!(!session.pending_periodic_player_save_like_cpp);
+        assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+        // Unavailable persistence is not a confirmation and must retain the intent.
+        assert_eq!(
+            session.save_current_player_to_db_like_cpp().await,
+            PlayerSaveOutcomeLikeCpp::Unavailable
+        );
+        assert_eq!(
+            session.with_owned_player_like_cpp(|p| p.has_deferred_player_save_like_cpp()),
+            Some(true)
+        );
     }
 }

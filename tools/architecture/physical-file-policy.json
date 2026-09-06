@@ -237,9 +237,9 @@
     },
     {
       "path": "crates/wow-entities/src/player/mod.rs",
-      "observed_lines": 4901,
-      "ceiling_lines": 4901,
-      "split": "Keep Player identity/state facade; move progression, inventory, spells, social and lifecycle operations into cohesive private modules. Above 2fdbd962 +2 declarations export private full trait-config types; header tuples become the single richer native value, not another map. C4 retirement remains.",
+      "observed_lines": 4904,
+      "ceiling_lines": 4904,
+      "split": "Keep Player identity/state facade; move progression, inventory, spells, social and lifecycle operations into cohesive private modules. Above bc3bdd2f +3 lines declare/initialize the private deferred-save intent and its cohesive module; no Session mirror. The operation and tests live in deferred_save.rs. C4 retirement remains.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76558,
-      "ceiling_lines": 76558,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above e8a3fb1f +10 lines add two fixture default fields and separate scaling availability/publication without changing existing callers' boolean behavior. Transfer completion lives in a private lifecycle module. C4 retirement remains open.",
+      "observed_lines": 76559,
+      "ceiling_lines": 76559,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above bc3bdd2f +1 line reexports the explicit full-save outcome for its caller adapters. Deferred intent belongs to Player and its adapter lives in private lifecycle/persistence/deferred.rs; no new Session field. C4 retirement remains open.",
       "review_checkpoint": "578:C4"
     },
     {

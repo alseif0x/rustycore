@@ -14,6 +14,7 @@ mod login;
 mod logout;
 mod map_entry;
 mod persistence;
+pub(crate) use persistence::PlayerSaveOutcomeLikeCpp;
 mod pet_load;
 mod transfer_completion;
 mod transfer_destination;

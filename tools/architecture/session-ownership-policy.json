@@ -16845,7 +16845,7 @@
           "kind": "method",
           "name": "handle_world_port_response_with_catalogs_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_world_port_response_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , _pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_world_port_response_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , item_guid_generator : & wow_core :: ObjectGuidGenerator , _pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44125,6 +44125,28 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "defer_player_save_for_transfer_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn defer_player_save_for_transfer_like_cpp (& mut self ,) -> Option < PlayerSaveOutcomeLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": ["visible"]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resume_deferred_player_save_with_generator_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn resume_deferred_player_save_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> Option < PlayerSaveOutcomeLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": ["visible"]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "sanitize_rest_bonus_like_cpp",
           "visibility": "private",
           "signature": "fn sanitize_rest_bonus_like_cpp (rest_bonus : f32) -> f32",
@@ -44138,7 +44160,7 @@
           "kind": "method",
           "name": "save_current_player_to_db_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn save_current_player_to_db_like_cpp (& mut self)",
+          "signature": "async fn save_current_player_to_db_like_cpp (& mut self) -> PlayerSaveOutcomeLikeCpp",
           "cfg": [
             "cfg (test)"
           ],
@@ -44153,7 +44175,7 @@
           "kind": "method",
           "name": "save_current_player_to_db_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn save_current_player_to_db_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,)",
+          "signature": "async fn save_current_player_to_db_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> PlayerSaveOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [

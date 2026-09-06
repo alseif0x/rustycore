@@ -89,6 +89,9 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
         spells.rows.insert(10, spell(10));
         // Change only the canonical owner after login hydrated Session's level.
         p.unit_mut().set_level(73);
+        p.teleport_state_mut_like_cpp().far_pending = true;
+        assert_eq!(p.defer_save_if_transfer_pending_like_cpp(), Some(true));
+        p.teleport_state_mut_like_cpp().far_pending = false;
         owner.create_world_map(1, 0);
     }
     let probe = Arc::new(SaveProbe {
@@ -130,6 +133,9 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
             p.gameplay_state_mut().spells.rows_loaded = true;
             p.gameplay_state_mut().spells.rows_complete = true;
             p.gameplay_state_mut().spells.rows.insert(10, spell(10));
+            p.teleport_state_mut_like_cpp().far_pending = true;
+            assert_eq!(p.defer_save_if_transfer_pending_like_cpp(), Some(true));
+            p.teleport_state_mut_like_cpp().far_pending = false;
             Some(owner.install_detached_player_like_cpp(p).unwrap())
         } else {
             owner
@@ -158,6 +164,7 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
         let spells = &p.gameplay_state().spells;
         let clean =
             !replace && !cancel && matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. });
+        assert_eq!(p.has_deferred_player_save_like_cpp(), !clean);
         assert_eq!(
             spells.rows[&10].state,
             if clean {
@@ -228,6 +235,7 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
                 position,
                 phase: wow_entities::PlayerWorldportPostAddPhaseLikeCpp::ZoneApplied,
             });
+        assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(true));
         player.gameplay_state_mut().using_pvp_item_levels = true;
         player.unit_mut().set_max_health(1000);
         player.unit_mut().set_health(500);
@@ -282,6 +290,7 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
         .get_typed_player(guid)
         .unwrap();
     assert!(player.teleport_state_like_cpp().post_add.is_none());
+    assert!(!player.has_deferred_player_save_like_cpp());
     assert!(
         player
             .resurrection_state_like_cpp()
@@ -345,6 +354,9 @@ async fn pending_far_disconnect(outcome: DisconnectDestination) {
             .as_mut()
             .unwrap()
             .position = home;
+        player.teleport_state_mut_like_cpp().far_pending = true;
+        assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(true));
+        player.teleport_state_mut_like_cpp().far_pending = false;
         player
             .resurrection_state_mut_like_cpp()
             .delayed_after_teleport = Some(wow_entities::PlayerResurrectionRequestLikeCpp {
@@ -420,6 +432,7 @@ async fn pending_far_disconnect(outcome: DisconnectDestination) {
     assert!(!player.teleport_state_like_cpp().far_pending);
     assert!(player.teleport_state_like_cpp().far_destination.is_none());
     assert!(player.teleport_state_like_cpp().post_add.is_none());
+    assert!(!player.has_deferred_player_save_like_cpp());
     assert_eq!(requests[0].character.health, 123);
     assert_eq!(requests[0].character.position.map_id, expected_map as u16);
     assert_eq!(requests[0].character.position.x, expected_position.x);

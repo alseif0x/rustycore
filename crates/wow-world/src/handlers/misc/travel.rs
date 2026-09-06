@@ -57,6 +57,7 @@ inventory::submit! {
                     .handle_world_port_response_with_catalogs_like_cpp(
                         catalogs.creature_spawns.as_ref(),
                         catalogs.player_bootstrap.trait_node_entries.as_ref(),
+                        catalogs.id_generators.item.as_ref(),
                         pkt,
                     )
                     .await
@@ -180,6 +181,7 @@ impl crate::session::WorldSession {
         &mut self,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         _pkt: wow_packet::WorldPacket,
     ) {
         use wow_packet::packets::misc::ResumeToken;
@@ -324,6 +326,27 @@ impl crate::session::WorldSession {
             return;
         }
 
+        // Player.cpp:1494-1503: delayed resurrection precedes DELAYED_SAVE_PLAYER.
+        // Do not replay the ACK or promote an unknown COMMIT back to LoggedIn.
+        if let Some(outcome) = self
+            .resume_deferred_player_save_with_generator_like_cpp(item_guid_generator)
+            .await
+        {
+            // A known rollback preserves the existing SaveToDB failure policy:
+            // keep dirty intent for the next scheduled save, without a hot retry.
+            if !matches!(
+                outcome,
+                crate::session::PlayerSaveOutcomeLikeCpp::Applied
+                    | crate::session::PlayerSaveOutcomeLikeCpp::Failed
+            ) {
+                self.kick("worldport deferred save did not complete; retain native intent");
+                return;
+            }
+            if self.state() == crate::session::SessionState::Disconnecting {
+                return;
+            }
+        }
+
         // Preserve server effects above even when output closes. Client readiness,
         // however, must not be reported after a failed terminal publication.
         let final_stat_accepted = self.send_stat_update();
@@ -347,9 +370,11 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub async fn handle_world_port_response(&mut self, pkt: wow_packet::WorldPacket) {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        let generators = self.id_generators_for_test_like_cpp();
         self.handle_world_port_response_with_catalogs_like_cpp(
             &catalogs,
             &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            generators.item.as_ref(),
             pkt,
         )
         .await;

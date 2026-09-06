@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82706,
-          "test_lines": 107164,
-          "total_lines": 189870,
+          "production_lines": 82801,
+          "test_lines": 107490,
+          "total_lines": 190291,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 pre-ACK disconnect above fbad212b: +107 production/+20 tests. Existing private map-entry methods gain nonpublishing adapters that retain all admission decisions/side effects. Completion admits the pending destination, retries homebind once and retains the approved terminal-source save exception. Prepared save rejects unresolved nonterminal far transfers; co-located tests pin that boundary. Production-linked coverage separately checks requested/homebind/rejected entry with full output. No new field, clock or physical ceiling; full native/protocol parity and C0-C4 remain; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 deferred-save integration above bc3bdd2f: +95 production/+326 tests. A private persistence adapter retains transfer-blocked requests on canonical Player and returns explicit save outcomes. Worldport drains intent after resurrection; an already-due periodic save joins that phase. Known rollback retains intent until the next scheduled save without disconnecting solely for rollback. Focused private tests cover registered ACK, success/failure/unknown, pre/post-submit cancellation and newer-intent receipts. No new Session field or clock. Unit-returning outer logout/factory finalization and C0-C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1519,11 +1519,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 11328,
-          "test_lines": 10139,
-          "total_lines": 21467,
+          "production_lines": 11374,
+          "test_lines": 10184,
+          "total_lines": 21558,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +0 production/+2 tests in logical Player. The sibling player_gameplay_state.rs adds 17 lines for native post-add progress and its immutable target, independent of the far semaphore. Existing location literals remain exact; active/detached/replacement coverage lives in Session tests. Whole-transfer and C4 remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 deferred-save intent above bc3bdd2f: +46 production/+45 tests. Private deferred_save.rs owns a checked revision and pending bit on the same Player. The existing full-save receipt captures that revision and clears only matching confirmed intent; overflow is rejected. Three root lines declare/initialize the private owner. No timer, DB, packet or Session mirror is added; whole-lifetime and C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

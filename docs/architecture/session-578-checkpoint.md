@@ -3,6 +3,83 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C1 retained deferred save and registered ACK — above `bc3bdd2f`, 2026-09-06
+
+Intentional async lifecycle repair implementing the transfer admission/resumption part
+of the review below, not a behavior-preserving file split. Exact C++ anchors remain
+`Player.cpp:19324-19333` (timer reset and DELAYED_SAVE_PLAYER), `:1494-1503`
+(resurrection before delayed save), and `WorldSession.cpp:544-551` (complete far entry
+before disconnect save). Rust's retained-until-confirmed-COMMIT policy remains stronger
+than C++'s synchronous delayed-operation flag clearing; this does not invent a new
+transaction or infer legacy durability from that flag.
+
+- A private 85-line `wow-entities/src/player/deferred_save.rs` owns pending intent and
+  a checked revision on the same Player. No Session mirror, timer, lock or DB dependency.
+  Repeated requests coalesce into the next admitted save. The existing full-save receipt
+  captures the revision; a matching confirmed receipt clears it, an older receipt does
+  not clear newer intent, and the existing PlayerHandle gate protects a replacement.
+  Revision overflow fails closed. Terminal/source-save remains the approved exception;
+  unresolved native post-add work still defers even with Terminal set.
+- The 67-line private `session/lifecycle/persistence/deferred.rs` adapter checks current
+  Session GUID/handle and canonical access. Full-save orchestration now returns Applied,
+  Deferred, Unavailable, Failed or Quarantined. Transfer deferral happens before durable
+  waits/submission, and is checked again if preparation fails after those awaits. Existing
+  item/money admission, reconciliation, commit cancellation and dirty-state fences remain.
+  Confirmed application is not relabelled failure if the old owner can no longer receive
+  its local acknowledgement.
+- Worldport's actual registry thunk borrows the existing process-owned item generator.
+  After represented native resurrection/completion, it drains the retained save before
+  final stat publication and LoggedIn. A known rollback keeps dirty intent for the next
+  scheduled save without disconnecting solely for that rollback, preserving existing
+  SaveToDB failure behavior. Unknown/unavailable/still-deferred results reject readiness;
+  an awaited save cannot overwrite Disconnecting with LoggedIn. An already-due Session
+  periodic flag is transferred to native intent when post-add begins, so it participates
+  in this phase rather than waiting behind the next packet-drain tail. No opcode, packet
+  bytes, registry metadata, output queue or runtime clock is replaced.
+- Private 289-line `lifecycle_persistence/deferred_transfer.rs` tests execute the **registered
+  WorldPortResponse thunk** with canonical Player and controlled persistence. They cover
+  direct coalesced requests and due periodic save, saved resurrection health, known failure,
+  unknown COMMIT, rollback retry only at the next due autosave, submitted cancellation
+  without replay, pre-submit cancellation without
+  quarantine, and a newer intent surviving an older transaction's confirmed receipt.
+  Existing production-linked save tests now retain native intent across saturated output,
+  cancellation/unknown, replacement incarnation, retained post-add, and pre-ACK requested/
+  homebind/Terminal-source save. The latter tests seed intent through the real Player
+  operation; they do not claim that seed itself is a production direct-save caller.
+
+Reviewed physical growth is limited to three Player-root declaration/initialization lines
+and one Session-root outcome reexport. Both temporary C4 ceilings retain their split exits;
+no new legacy exception is introduced. Logical Session is 82,801 production / 107,490 tests /
+190,291 total (+95/+326), Player is 11,374 / 10,184 / 21,558 (+46/+45). Syntax remains
+282 production + 433 fixture Session fields, with 3,699 exact associated items (+2 private
+adapter methods) and unchanged 590 registry rows. No persistence inventory row is closed
+or regenerated, and passing these migration ratchets does not retire the 101 legacy ceilings.
+
+Local aarch64 validation on this working cut, using pinned PROTOC and the existing
+validation Cargo cache: `cargo test --offline --locked -p wow-world --lib` passes
+3,776 tests (one ignored); `cargo test --offline --locked -p wow-entities --lib` passes
+723 tests; `cargo test --offline --locked -p wow-world --test production_login_player_owner`
+passes 16 controlled integration tests. `cargo check --offline --locked -p world-server`,
+syntax-only ownership, architecture check/self-test, five preserved persistence-policy
+tests and format/diff checks pass. Full library evidence after the rollback-policy review:
+`/tmp/rustycore-deferred-save-lib-final.log`; native/integration evidence:
+`/tmp/rustycore-deferred-save-entities.log`, `/tmp/rustycore-deferred-save-integration.log`.
+Verified quick manifest: `target/validation-v2/manifests/20260906T205057.846445Z-3-quick.json`.
+The documentation evidence paragraph was completed afterward; no live durability or
+action-specific capture acceptance is inferred from these controlled tests.
+
+**Remaining C1 caller/finalization boundary:** the periodic processor, trainer pre-save,
+explicit logout and disconnect wrapper still retain their existing outer flow. The trainer
+continues its existing post-await revalidation. Explicit logout and the factory-facing
+disconnect wrapper do not yet return a typed finalization result to authorize retirement;
+their unit return or completion log is not durable-save proof. Complete that outcome/
+cleanup contract next, including known rollback, unavailable projection/port, unknown
+COMMIT and shutdown timeout, without turning a confirmed old-incarnation transaction into
+a retry against its replacement. No repeated every-tick save retry is introduced here.
+Cross-clock admission/exclusion, complete before/after-add gameplay/protocol parity, C2/C3/C4
+retirements and live DB/restart/relogin/capture acceptance remain open. No publication or
+runtime action was performed; this is not C0–C4 completion.
+
 ## C1 deferred-save admission review — `ae7a01b7`, 2026-09-06
 
 This is a bounded implementation-prerequisite review, not deferred-save implementation
