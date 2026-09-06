@@ -2,7 +2,9 @@
 //!
 //! C++ CharacterHandler.cpp:1550-1610 separates query submission from its ready
 //! callback. This owned operation preserves the existing Rust result-before-response
-//! fence; it does not yet implement that callback scheduling or authorize detachment.
+//! fence. Query preparation cannot submit a transaction: the Session must consume
+//! its ready continuation to do so. The caller still awaits both stages until the
+//! production callback/phase and shutdown integration is installed.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -33,6 +35,45 @@ pub(crate) struct RenameOutcome {
     pub result: Result<String, RenameFailure>,
 }
 
+pub(crate) enum RenamePreparation {
+    Rejected(RenameOutcome),
+    Ready(PreparedRename),
+}
+
+/// An owned, single-use continuation, not a submitted transaction. Dropping it
+/// cannot write. No Clone or field access allows callers to replay its commit.
+pub(crate) struct PreparedRename {
+    port: Arc<dyn CharacterAdministrationPersistencePortLikeCpp>,
+    request: RenameRequest,
+    old_name: String,
+    remaining_flags: u16,
+}
+
+impl PreparedRename {
+    /// The admitted callback consumes this continuation. Construction of the
+    /// future is lazy; once polled, cancellation is NOT evidence of rollback.
+    pub(crate) fn commit(self) -> impl Future<Output = RenameOutcome> + Send + 'static {
+        async move {
+            let result = match self
+                .port
+                .commit_rename_like_cpp(
+                    self.request.guid,
+                    &self.request.new_name,
+                    self.remaining_flags,
+                )
+                .await
+            {
+                MutationOutcome::Applied => Ok(self.old_name),
+                MutationOutcome::Failed { reason } => Err(RenameFailure::CommitFailed(reason)),
+            };
+            RenameOutcome {
+                new_name: self.request.new_name,
+                result,
+            }
+        }
+    }
+}
+
 /// Admission (account ownership and name validation) belongs to the caller.
 /// No Session/entity borrow, guard, transport handle or catalog crosses either await.
 /// Cancellation before the query completes must not start the transaction. Once a
@@ -43,35 +84,43 @@ pub(crate) fn rename(
     request: RenameRequest,
 ) -> impl Future<Output = RenameOutcome> + Send + 'static {
     async move {
-        let result = persist_rename(port.as_ref(), &request).await;
-        RenameOutcome {
-            new_name: request.new_name,
-            result,
+        match prepare_rename(port, request).await {
+            RenamePreparation::Rejected(outcome) => outcome,
+            RenamePreparation::Ready(prepared) => prepared.commit().await,
         }
     }
 }
 
-async fn persist_rename(
-    port: &dyn CharacterAdministrationPersistencePortLikeCpp,
-    request: &RenameRequest,
-) -> Result<String, RenameFailure> {
-    let candidate = match port
-        .load_rename_candidate_like_cpp(request.guid, &request.new_name)
-        .await
-    {
-        LoadOutcome::Loaded(candidate) => candidate,
-        LoadOutcome::NotFound => return Err(RenameFailure::NotFound),
-        LoadOutcome::Failed { reason } => return Err(RenameFailure::QueryFailed(reason)),
-    };
-    if candidate.at_login_flags & AT_LOGIN_RENAME == 0 {
-        return Err(RenameFailure::NotEligible);
-    }
-    let remaining_flags = candidate.at_login_flags & !AT_LOGIN_RENAME;
-    match port
-        .commit_rename_like_cpp(request.guid, &request.new_name, remaining_flags)
-        .await
-    {
-        MutationOutcome::Applied => Ok(candidate.old_name),
-        MutationOutcome::Failed { reason } => Err(RenameFailure::CommitFailed(reason)),
+/// The read stage may be polled independently, but its ready value has no write
+/// effects. A future Session-owned queue can discard it on retirement, including
+/// after the database read completes but before the callback is admitted.
+pub(crate) fn prepare_rename(
+    port: Arc<dyn CharacterAdministrationPersistencePortLikeCpp>,
+    request: RenameRequest,
+) -> impl Future<Output = RenamePreparation> + Send + 'static {
+    async move {
+        let failure = match port
+            .load_rename_candidate_like_cpp(request.guid, &request.new_name)
+            .await
+        {
+            LoadOutcome::Loaded(candidate) if candidate.at_login_flags & AT_LOGIN_RENAME != 0 => {
+                return RenamePreparation::Ready(PreparedRename {
+                    port,
+                    request,
+                    old_name: candidate.old_name,
+                    remaining_flags: candidate.at_login_flags & !AT_LOGIN_RENAME,
+                });
+            }
+            LoadOutcome::Loaded(_) => RenameFailure::NotEligible,
+            LoadOutcome::NotFound => RenameFailure::NotFound,
+            LoadOutcome::Failed { reason } => RenameFailure::QueryFailed(reason),
+        };
+        RenamePreparation::Rejected(RenameOutcome {
+            new_name: request.new_name,
+            result: Err(failure),
+        })
     }
 }
+
+#[cfg(test)]
+mod tests;

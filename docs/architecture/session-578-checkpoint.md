@@ -1168,6 +1168,41 @@ Validation of this working cut above `5dcc118e` (aarch64):
 
 #### Owned rename application boundary — above `a12df541`
 
+Subsequent read-ready/write boundary above `e72a3ad6` (2026-09-06): the same production
+`rename` operation now composes an owned `prepare_rename` future and an opaque single-use
+`PreparedRename::commit` continuation. Reading or discarding a ready candidate cannot
+call the mutation port. The continuation retains only the typed persistence port,
+GUID/name, previous name and remaining at-login flags; it has no Clone, Session/Player
+borrow, packet sink or field access for callers. Both futures are `Send + 'static`.
+The existing handler still awaits their composition, so production scheduling and its
+result-before-response fence are unchanged. This is a structural prerequisite, not
+an enabled callback queue, phase coordinator, new worker or proof of SQL rollback.
+
+The exact C++ contract was re-read at `CharacterHandler.cpp:1550-1610`,
+`AsyncCallbackProcessor.h:40-51`, `QueryCallback.cpp:205-224` and
+`DatabaseWorkerPool.cpp:302-326`: pending reads do not block callback passes, but a
+retired callback must not start a transaction. Moving the entire former async body
+into a detached worker would violate that boundary. The new staged implementation
+makes that distinction explicit while retaining the current Rust commit-result fence.
+Before enabling asynchronous production callbacks, Session must own admission of ready
+reads and publication; already-submitted commits need actual supervised shutdown and
+classified recovery, not an assumption that dropping a future rolls back a database.
+The first complete Player lifecycle/save vertical and all C0–C4 gates remain required.
+
+Validation on this working cut above `e72a3ad6` (aarch64): `cargo test --offline --locked
+-p wow-world --lib character_administration::tests` passes three manually polled tests:
+ready reads cannot commit without explicit continuation consumption, read retirement
+before/after readiness cannot write, and discarding an unpolled commit cannot submit it.
+`cargo test --offline --locked -p wow-world --test production_character_rename` passes all
+five unchanged production-linked cases, including pending query/commit and all rejection
+outcomes. Both use `PROTOC=/home/ubuntu/.local/protoc/bin/protoc` and the existing local
+validation Cargo cache. `session-ownership-check check --syntax-only` and architecture
+`check` pass with unchanged Session/registry/logical-owner counts, 976 physical files
+and 101 remaining legacy ceilings. Production application/test files are 126/182 lines;
+no ceiling, snapshot or policy is regenerated. Bounded quick passes with verified manifest
+`target/validation-v2/manifests/20260906T133956.099202Z-3-quick.json`; format/diff checks pass.
+These tests do not prove phase scheduling, asynchronous commit supervision or real durability.
+
 Boundary extraction, preserving current Rust behavior: the real rename handler now
 calls private `wow-world/src/character_administration.rs`. The operation owns a narrow
 GUID/name request and an Arc to the existing SQLx-free administration port; its return
