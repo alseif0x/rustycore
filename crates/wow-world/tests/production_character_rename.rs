@@ -312,10 +312,46 @@ fn pending_commit_preserves_existing_result_before_response_fence() {
         );
         packet.skip_opcode();
         let result = packet.read_uint8().unwrap();
+        assert_eq!(result, if applied { 0 } else { 25 });
+        assert!(send_rx.try_recv().is_err());
+    }
+}
+
+#[test]
+fn rejected_query_outcomes_never_start_rename_commit() {
+    for result in [
+        LoadResult::NotFound,
+        LoadResult::Failed {
+            reason: "controlled query failure".into(),
+        },
+        LoadResult::Loaded(CharacterRenameCandidateLikeCpp {
+            old_name: "Oldname".into(),
+            at_login_flags: AT_LOGIN_CUSTOMIZE_LIKE_CPP,
+        }),
+    ] {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        session.set_legit_characters(vec![request().guid]);
+        let (complete, completion) = oneshot::channel();
+        let port = Arc::new(RenamePortFixtureLikeCpp {
+            load_completion: Mutex::new(Some(completion)),
+            ..Default::default()
+        });
+        session.set_character_administration_persistence_port_like_cpp(port.clone());
+        complete.send(result).unwrap();
+        let mut handler = Box::pin(session.handle_character_rename_request(request()));
+        assert!(poll_once(handler.as_mut()).is_ready());
+        assert_eq!(port.trace.lock().unwrap().len(), 1, "no transaction");
+        let sent = send_rx.try_recv().expect("query rejection");
+        let mut packet = WorldPacket::from_bytes(&sent);
         assert_eq!(
-            result == 0,
-            applied,
-            "failed persistence must not publish success"
+            packet.server_opcode(),
+            Some(ServerOpcodes::CharacterRenameResult)
+        );
+        packet.skip_opcode();
+        assert_eq!(packet.read_uint8().unwrap(), 25); // C++ CHAR_CREATE_ERROR
+        assert!(
+            !packet.read_bit().unwrap(),
+            "failure omits the character GUID"
         );
         assert!(send_rx.try_recv().is_err());
     }

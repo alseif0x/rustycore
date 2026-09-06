@@ -280,55 +280,37 @@ impl WorldSession {
             }
         };
 
-        let candidate = match port
-            .load_rename_candidate_like_cpp(pkt.guid.counter() as u64, &pkt.new_name)
-            .await
-        {
-            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(candidate) => {
-                candidate
-            }
-            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::NotFound => {
-                self.send_character_rename_like_cpp(
-                    CHAR_CREATE_ERROR_LIKE_CPP,
-                    pkt.guid,
-                    pkt.new_name,
+        use crate::character_administration::{RenameFailure, RenameRequest, rename};
+        let outcome = rename(
+            port,
+            RenameRequest {
+                guid: pkt.guid.counter() as u64,
+                new_name: pkt.new_name,
+            },
+        )
+        .await;
+        let result = match outcome.result {
+            Ok(old_name) => {
+                info!(
+                    "Account {} renamed character {:?} from {} to {}",
+                    self.account_id, pkt.guid, old_name, outcome.new_name
                 );
-                return;
+                RESPONSE_SUCCESS_LIKE_CPP
             }
-            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!("Character rename free-name query failed: {reason}");
-                self.send_character_rename_like_cpp(
-                    CHAR_CREATE_ERROR_LIKE_CPP,
-                    pkt.guid,
-                    pkt.new_name,
-                );
-                return;
+            Err(failure) => {
+                match failure {
+                    RenameFailure::QueryFailed(reason) => {
+                        warn!("Character rename free-name query failed: {reason}");
+                    }
+                    RenameFailure::CommitFailed(reason) => {
+                        warn!("Character rename transaction failed: {reason}");
+                    }
+                    RenameFailure::NotFound | RenameFailure::NotEligible => {}
+                }
+                CHAR_CREATE_ERROR_LIKE_CPP
             }
         };
-
-        let old_name = candidate.old_name;
-        let mut at_login_flags = candidate.at_login_flags;
-        if (at_login_flags & AT_LOGIN_RENAME_LIKE_CPP) == 0 {
-            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
-            return;
-        }
-
-        at_login_flags &= !AT_LOGIN_RENAME_LIKE_CPP;
-
-        if let wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Failed { reason } =
-            port.commit_rename_like_cpp(pkt.guid.counter() as u64, &pkt.new_name, at_login_flags)
-                .await
-        {
-            warn!("Character rename transaction failed: {reason}");
-            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
-            return;
-        }
-
-        info!(
-            "Account {} renamed character {:?} from {} to {}",
-            self.account_id, pkt.guid, old_name, pkt.new_name
-        );
-        self.send_character_rename_like_cpp(RESPONSE_SUCCESS_LIKE_CPP, pkt.guid, pkt.new_name);
+        self.send_character_rename_like_cpp(result, pkt.guid, outcome.new_name);
     }
 
     fn send_char_customize_failure_like_cpp(&self, result: u8, guid: ObjectGuid) {

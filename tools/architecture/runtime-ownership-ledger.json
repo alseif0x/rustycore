@@ -1469,9 +1469,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20622,
+          "production_lines": 20604,
           "test_lines": 12811,
-          "total_lines": 33433,
+          "total_lines": 33415,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "latest_growth_review": "2026-09-05 borrowed QuestInfo queries: +30 production/+0 tests. Three registrations narrow the process-owned catalog through status calculation; old public entrypoints are test-only adapters. Production field remains for GameObject activation and quest-list/gossip, explicitly not retired. Metadata disagreement regression pins all three registered paths. docs/architecture/session-578-checkpoint.md.",
           "open_retirement_issues": [

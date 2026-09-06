@@ -1009,6 +1009,51 @@ Validation of this working cut above `5dcc118e` (aarch64):
   `target/validation-v2/manifests/20260906T123047.312680Z-3-quick.json`.
   This is a bounded dirty-tree iteration, not a clean-HEAD publication final.
 
+#### Owned rename application boundary — above `a12df541`
+
+Boundary extraction, preserving current Rust behavior: the real rename handler now
+calls private `wow-world/src/character_administration.rs`. The operation owns a narrow
+GUID/name request and an Arc to the existing SQLx-free administration port; its return
+type explicitly guarantees `Future + Send + 'static`. No Session/Player borrow, catalog,
+packet writer, concrete SQL or new lock/task is available inside that operation. Account/
+name admission and result presentation remain in the handler. Query outcome, at-login
+eligibility, clearing only the rename bit, awaited commit, failure classification and
+the previous name for the success log belong to the application operation.
+
+This removes the Session dependency from the persistence continuation, not the handler's
+await or its current task clock. It is **not** yet submitted to a ready-callback queue;
+do not detach the whole operation and thereby let a query cancelled with its Session
+start a new transaction. C0/C3 still needs explicit query-ready/commit/publication phase
+integration, cancellation and supervised finalization, including the C++ difference
+recorded immediately above. All C1/C2 Player and macro gates remain.
+
+The exact legacy references remain `CharacterHandler.cpp:1550-1610` and
+`DatabaseWorkerPool.cpp:302-326`. No intentional scheduling or durability repair is mixed
+into this extraction. The existing production rename integration tests retain their
+query/commit cancellation and publication assertions; a fifth test covers NotFound,
+query failure and missing rename eligibility without starting a transaction. Failure
+responses assert the exact C++ error byte 25 and absence of a GUID. No opcode registration,
+packet encoding, concrete statement or persistence inventory entry is changed.
+
+Physical result: lifecycle handler 839 → 821 lines; private application file 77 lines;
+production integration file 358 lines. Character logical-owner ceilings tighten from
+20,622/12,811/33,433 to 20,604/12,811/33,415 production/test/total lines. No test moves or
+new physical exception are hidden in that reduction; the application source is separately
+counted by the physical inventory. This is one extracted operation, not closure of the
+remaining create/delete/customize or Player lifecycle capabilities.
+
+Validation above `a12df541` (aarch64): production integration target
+`cargo test --offline --locked -p wow-world --test production_character_rename`
+passes all five tests in both dev and `--release`; `cargo test --offline --locked
+-p wow-world --lib character_rename` passes all three existing admission tests.
+The standalone syntax-only ownership check passes with unchanged field/item/registry
+sets. Architecture `check` and `self-test` pass, including the tightened character
+ceiling; all five persistence-policy/snapshot tests pass without a baseline refresh.
+Final bounded quick manifest
+`target/validation-v2/manifests/20260906T124321.209765Z-4-quick.json` passes and verifies;
+format/diff checks pass. This is not clean-HEAD publication, fresh capture or live DB
+evidence. Only this reviewed application extraction and its tests are claimed complete.
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
