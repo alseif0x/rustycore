@@ -62,9 +62,11 @@ selects private, selective `hecs`, retaining cohesive domain aggregates. Before 
 migration, #578 runs the finite independent-module conformance proof: a frozen host accepts a
 third module/new state type, with equivalent native Rust/Rust Core Wasm/C Core Wasm and mixed
 execution cases. The gate can falsify the selection through a concrete backend limitation; it is
-not another indefinite candidate comparison. It has not run. Then #578 proves real-owner
-integration and all C0–C4 lifetime/save/phase/operation obligations. No production dependency has
-been installed, and no SDK-wide prerequisite or new issue is added.
+not another indefinite candidate comparison. As reconciled on 2026-09-06 at `36d0ccbf`,
+the finite gate has passed: see the [V2 evidence](../architecture/modularity-conformance-results.md)
+and [owning checkpoint](../architecture/session-578-checkpoint.md). The next work is real-owner
+integration and all C0–C4 lifetime/save/phase/operation obligations. No production hecs dependency
+has been installed, and no SDK-wide prerequisite or new issue is added.
 
 The following #583 macro delivers shared semantic hooks for native first-party/custom modules
 and a bounded Wasm executor with Rust/C bindings, alongside policies, scoped/reentrant encounter

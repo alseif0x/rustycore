@@ -53,6 +53,13 @@ operation removed and a byte-identical policy. Exact deltas and limitations live
 owning checkpoint. The parser root's ceiling shrinks from 21,248 to 21,030 lines, with small
 private provenance/test modules; this is not terminal physical or semantic closure.
 
+The C0 cut above `36d0ccbf` adds the exact C++ world/map packet-filter contract to
+`wow-handler`, tested across all processing classes and Player residences in dev/release.
+It corrects the misleading Inplace/socket-thread description, without changing dispatch.
+The current independent Session and map loops still lack the required phase coordination;
+the integration cut and queue/incarnation/barrier obligations are recorded in the owning
+checkpoint. A passing pure filter test is not production scheduling or C0 acceptance.
+
 ## Current architecture and execution checkpoint — 2026-09-05
 
 The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal

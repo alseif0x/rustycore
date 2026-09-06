@@ -49,7 +49,10 @@ selective `hecs`, retaining cohesive domain aggregates. Before production storag
 #578 must pass the finite independent-module/native-Wasm conformance proof in that plan, then
 prove the affected real-owner integration. The selection is made; a demonstrated backend-specific
 limitation can reopen it, but another indefinite candidate comparison is not required. Neither
-the conformance proof nor production migration has passed; production storage is unchanged.
+the selected backend nor its laboratory alone proves production acceptance. As reconciled on
+2026-09-06 at `36d0ccbf`, the finite conformance gate has passed (see the
+[V2 evidence](modularity-conformance-results.md) and [checkpoint](session-578-checkpoint.md));
+production storage migration and real-owner integration acceptance remain open.
 
 #583, under #99/#133 and after #231/#578, delivers shared semantic hooks for native first-party
 and custom modules and a bounded Wasm executor with Rust/C bindings, alongside the full stateful

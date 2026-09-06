@@ -3,6 +3,79 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C0 packet-filter contract and integration cut — 2026-09-06
+
+Source audit at `36d0ccbf`; the following working change starts the executable C0
+contract, **not production phase enforcement or C0 acceptance**. The live #578 body
+was also read on this date; its historical "conformance has not run" statement is
+superseded by the completed finite gate recorded below, not a reason to repeat it.
+
+Exact C++ references under `src/server/game/`:
+
+- `Server/WorldSession.cpp:64-108`: `MapSessionFilter::Process` and
+  `WorldSessionFilter::Process`. Inplace passes both filters; ThreadUnsafe only the
+  world filter; ThreadSafe the map filter only for an existing in-world Player,
+  otherwise the world filter. Missing and detached Player are distinct observations,
+  even though these two filters give them the same eligibility.
+- `Server/WorldSocket.cpp:472-499`: the default registered-opcode path queues the
+  packet. Inplace is not a general instruction to invoke it on the socket thread.
+- `Server/WorldSession.cpp:339-475`: queue filtering precedes the independent status
+  gate and invocation. LoggedIn without a Player can be requeued when not recently
+  logged out. Dropping a packet because it belongs to the other phase is not equivalent.
+- `World/World.cpp:2704,2748,3394-3418`: world-session update precedes MapManager update.
+  `Maps/Map.cpp:666-718` runs map sessions before respawns and Player/object updates;
+  `Maps/MapManager.cpp:287-318` joins map updates before DelayedUpdate.
+
+Current production call-path evidence:
+
+- `world-server/src/session_factory.rs:170-208` independently runs the synchronous
+  Session pass and then awaits `process_pending_with_catalogs_like_cpp`, with its own
+  elapsed diff and idle sleep. Calling this pass a map phase would not create a barrier.
+- `wow-world/src/session/driver/mod.rs:280-294` drains every pending packet and invokes
+  the same registered dispatcher, after Session gameplay ticks. `dispatch.rs` checks
+  SessionStatus but never reads PacketProcessing.
+- `world-server/src/runtime/map.rs:1606-1695` independently spawns the canonical map
+  interval and acquires its manager guard for the synchronous update. Moving the async
+  Session dispatcher under that guard would violate the no-I/O/await-under-map-lock
+  contract, not repair the missing phase order.
+- `wow-map/src/manager/player_owner.rs:163-186,338-345` exposes generation-filtered
+  residence/Player queries as Option. The production phase adapter must not collapse
+  stale or inconsistent resolution into Missing, or substitute SessionState for the
+  canonical Player's actual in-world state.
+
+Implementation: `wow-handler/src/processing.rs` owns the pure filter vocabulary and
+`PacketProcessing::allows_phase`; its private tests exhaust all 18 phase/class/residence
+combinations and eligibility changes through attach/detach/reattach/retirement observations.
+The enum documentation now matches the exact C++ filters. No new task, lock, queue,
+registry entry, state mirror, SQL operation or handler invocation is introduced. Existing
+packet bytes, status handling, order and current runtime behavior are unchanged.
+
+Focused evidence on the working change above `36d0ccbf` (aarch64):
+
+- `cargo test --offline --locked -p wow-handler`: 2 tests PASS, no ignored tests.
+- Same command with `--release`: 2 tests PASS, no ignored tests.
+- `python3 tools/architecture/check_architecture.py check`: PASS; 951 physical
+  source files, 101 remaining legacy ceilings, unchanged logical ownership totals.
+- `session-ownership-check check --syntax-only`: PASS; 590 exact registry rows.
+- Checker `cargo test --offline --locked --release --lib persistence_policy` with
+  its standalone manifest: 5 tests PASS, including preserved reviewed semantics and
+  checked snapshot/policy consistency. No persistence inventory/policy is regenerated.
+- `validation-v2 quick --base origin/3.4.3`: PASS and verified manifest
+  `target/validation-v2/manifests/20260906T113510.650238Z-3-quick.json`; dirty iteration
+  evidence, not a clean-HEAD publication final. Format and diff checks also pass.
+
+The active PORT_PLAN and ownership guide also retire their stale "conformance has not
+run" statements in favor of the existing V2 evidence; no acceptance gate is removed.
+
+Remaining integration/deletion conditions: use the sole registry's metadata during real
+phase selection; resolve canonical incarnation/residence with explicit errors; retain
+ineligible queued packets and re-evaluate after transitions; consume Inplace exactly once;
+separate existing status/requeue discrepancies from structural movement. Implement the
+world/map coordination and cancellation/backpressure/barrier contract alongside the first
+real operation, then test the production call path before replicating it. The filter is
+not a second dispatcher or evidence that an independent Session task runs in Map::Update.
+No scheduler, storage, durability or live/capture acceptance is claimed by these unit tests.
+
 ## Scoped callable provenance guard — 2026-09-06
 
 The local C4 change above published `9cd1da41` repairs the callable import/reexport
