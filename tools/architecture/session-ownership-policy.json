@@ -33934,6 +33934,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "prepare_canonical_map_entry_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn prepare_canonical_map_entry_like_cpp (& mut self , map_id : u32 ,) -> Option < wow_map :: CreateMapDecision >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "prepare_player_save_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn prepare_player_save_like_cpp (& mut self , now : i64 ,) -> Option < PreparedPlayerSave >",

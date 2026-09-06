@@ -1161,6 +1161,50 @@ logout transfer completion must be completed together. No new clock, lock, async
 save writer or map-guarded packet delivery is introduced. C0-C4 and live/capture/DB
 acceptance remain open; the unrelated untracked LFG audit remains untouched.
 
+### C1 map preparation/attachment seam — 2026-09-06, above `ef480679`
+
+The 250-line map ensure operation moves from Session's root to the 276-line private
+`session/lifecycle/map_entry.rs`. Its compatibility facade still reads the current
+destination/position, performs preparation and attaches synchronously in the same order.
+The extracted preparation body is byte-identical to the old body excluding its final
+attachment block. C++ `MapManager.cpp:139-231` returns the selected map separately from
+the caller's binding/add operation (`MovementHandler.cpp:84-134`). This extraction
+does not claim that the existing Rust ACK already implements that complete sequence.
+
+`prepare_canonical_map_entry_like_cpp` is Session-visible, not a public capability or
+an asynchronous permit. It preserves admission packets, map creation, canonical owner
+materialization, instance history and recent-instance/lock side effects. It is neither
+a pure query nor a reservation; failed later attachment does not roll those effects back.
+No field, lock, clock, packet metadata, durable writer or runtime path is added.
+
+Two tests in the separate 69-line `session/tests/map_entry.rs` verify that preparing
+new/existing destinations preserves an active or detached Player's handle, residence and
+position, leaves the destination empty and releases its guard; an absent catalog entry
+leaves the current owner untouched. Root production shrinks 76,751 -> 76,500 lines;
+root tests grow only two registration lines to 96,641. Logical Session is
+82,157 production + 106,720 tests = 188,877. These are reviewed transitional counts,
+not ownership retirement or renewed terminal exceptions.
+
+Local aarch64 working-cut evidence above `ef480679`:
+
+- `cargo test --offline --locked -p wow-world --lib`: 3,755 passed, zero failed,
+  one ignored; the focused `create_map` filter also passes all 22 tests.
+- `cargo test --offline --locked -p wow-world --test production_login_player_owner`:
+  nine passed. Existing validation dev target, `CARGO_BUILD_JOBS=2` and local PROTOC.
+- Syntax-only ownership passes: one reviewed Session-visible method added, no changed
+  fields or exact opcode registration rows. Five persistence-policy tests pass;
+  no exhaustive inventory regeneration or snapshot changes are required by this move.
+- Logs: `/tmp/rustycore-578-map-entry-{lib,focused,production,ownership,policy}.log`.
+- `validation-v2 quick --base HEAD` passes; manifest:
+  `target/validation-v2/manifests/20260906T153559.581434Z-3-quick.json`.
+- Manifest verification, architecture check/self-test, formatting and diff checks
+  pass. The physical inventory has 982 files and the same 101 legacy ceilings;
+  no terminal exception is added. The self-test runs 20 fixtures.
+
+Remaining: wire the separate phases into the full ACK create/bind/send/add/recovery
+contract, then complete delayed-save resumption and logout transfer completion without
+weakening persistence fences. C0-C4 and real client/DB/runtime acceptance remain open.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,

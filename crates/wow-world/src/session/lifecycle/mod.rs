@@ -12,6 +12,7 @@
 mod cleanup;
 mod login;
 mod logout;
+mod map_entry;
 mod persistence;
 mod pet_load;
 

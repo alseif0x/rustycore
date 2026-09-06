@@ -26,6 +26,8 @@ mod lifecycle_persistence;
 mod login_auxiliary_persistence;
 #[path = "session/tests/mailbox_pump.rs"]
 mod mailbox_pump;
+#[path = "session/tests/map_entry.rs"]
+mod map_entry;
 #[path = "session/tests/pending_cast_owner.rs"]
 mod pending_cast_owner;
 #[path = "session/tests/player_detach.rs"]

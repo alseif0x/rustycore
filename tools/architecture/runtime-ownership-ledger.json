@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82131,
-          "test_lines": 106649,
-          "total_lines": 188780,
+          "production_lines": 82157,
+          "test_lines": 106720,
+          "total_lines": 188877,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 worldport/detach ownership above 218a8d2a: -2 production/+111 test lines. Retire raw multi-map removal that discarded the returned Player; adopt only a unique unowned record and detach through its checked handle. Expose that existing operation within the crate for worldport ACK before destination relocation. New 106-line private suite checks identity/data retention, ambiguity and stale replacement; +5 root fixture/wiring/assertion lines. No new field, lock, clock or persistence path. Failed map entry recovery and deferred save/logout remain open in session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 map-entry extraction above ef480679: +26 production/+71 test lines. Preserve preparation body and existing synchronous preparation-then-attachment facade in a 276-line private lifecycle module; add one Session-visible preparation method without new fields, locks, clocks or persistence paths. Two separate tests cover active/detached residence and absent catalogs. Preparation retains existing admission/map-creation side effects, is not a reservation, and must not cross async work. Failed entry recovery and deferred save/logout remain open.",
           "open_retirement_issues": [
             578
           ],
