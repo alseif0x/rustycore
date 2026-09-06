@@ -3,6 +3,63 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C1 Login-save boundary audit — `8c5aa68b`, 2026-09-06
+
+The next finalization boundary cannot be accepted by moving the five collection
+helpers out of Session or batching only those five calls. Exact legacy evidence in
+`src/server/game/Entities/Player/Player.cpp:19312-19322,19662-19688` shows full
+`SaveToDB` builds separate Character and Login transactions. The Login transaction
+contains toys, battle pets, heirlooms, mounts, item appearances, transmog illusions,
+then last-character delete/insert, in that order. This is not logout-only. Character
+commit is submitted before Login commit; this is not distributed atomicity or proof
+of asynchronous completion order.
+
+Current Rust evidence at the audited SHA:
+
+- `handlers/character/account.rs:1685-1904` prepares and saves collections through
+  five independent calls, logging and discarding their persistence outcomes.
+  `session/lifecycle/logout.rs:62` and `handlers/character/world_entry.rs:146` call
+  them after character save, starting with mounts rather than C++'s toys.
+- `wow-database/src/player_lifecycle_adapter.rs:1473-1570` builds and commits a
+  transaction per collection. Its `Database::commit_transaction` path calls
+  `SqlTransaction::commit`, which erases `SqlTransactionCommitError` classification;
+  the collection adapter maps every returned error to `Failed`, unlike the full
+  character-save adapter's explicit `Unknown`. A returned collection failure is
+  therefore not proof of rollback.
+- Repository-wide Rust search for `DEL_BNET_LAST_PLAYER_CHARACTERS` and
+  `INS_BNET_LAST_PLAYER_CHARACTERS` finds only enum/SQL definitions in
+  `wow-database/src/statements/login.rs`, not a caller of those statement variants.
+  This search does not rule out equivalent raw SQL or prove whole-port coverage.
+- `session/mod.rs::account_item_appearance_save_plan_like_cpp` advances favorite
+  dirty state before persistence. C++ `CollectionMgr.cpp:516-558` also advances it
+  while appending statements, before COMMIT. Retaining dirty state until confirmed
+  receipt would be intentional durability hardening, not a mechanical parity move.
+- Existing `battle_pet_account` authority and `battle_pet_purchase` recovery must
+  be traced before including battle pets in another save coordinator. The existing
+  purchase saga is not permission to create another account owner or replay grants.
+
+**Decision for the next implementation:** model the complete Login-side save
+operation and its relationships to existing account owners before extracting its
+application boundary. Keep Character and Login results distinct; do not claim a
+five-collection batch restores full-save parity. Compare integration with existing
+durable account operations before changing their transaction/recovery contracts.
+Do not add a universal Session context, account mirror or per-table service just
+to split files. Unknown-COMMIT, cancellation, concurrent account mutations and
+version/incarnation-bound acknowledgements remain explicit implementation work.
+
+This audit corrects contradictory C++ attribution in the collection DTO, port and
+adapter comments; it changes no executable behavior and closes no C0–C4 acceptance.
+The preceding committed cleanup validation manifest
+`target/validation-v2/manifests/20260906T221208.238092Z-3-quick.json` was verified green
+at `8c5aa68b`. No publication, live runtime or database operation was performed.
+
+Validation of this comment/document-only delta above that SHA: `cargo fmt --all
+-- --check`, `git diff --check`, ownership `check --syntax-only`, architecture
+`check`/`self-test`, and all five `persistence_policy` tests pass. `validation-v2
+quick --base HEAD` compiles the affected persistence/database test targets; manifest
+`target/validation-v2/manifests/20260906T222040.230319Z-3-quick.json` verifies green.
+No logical/physical ceiling or persistence inventory was changed.
+
 ## C1 canonical retirement never reacquires by GUID — above `8cb125c1`, 2026-09-06
 
 The preceding cleanup risk is now reproduced through the production wow-world library.

@@ -1560,8 +1560,8 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     illusion_blocks.len()
                 }
             };
-            // One collection, one transaction — the shape C++ logout uses and
-            // #187 freezes.
+            // Existing Rust boundary, not C++ transaction parity: #187 tracks
+            // the separate collection transactions (see AccountCollectionSaveLikeCpp).
             match self.login_db.commit_transaction(tx).await {
                 Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows: rows as u64 },
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {

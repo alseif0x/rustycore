@@ -246,8 +246,8 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerOnlineMarkRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
-    /// Persist one account-wide collection in its own Login-database
-    /// transaction, as C++ does during logout.
+    /// Persist one account-wide collection in its own Login transaction.
+    /// This existing Rust boundary differs from C++ full save; see #187.
     fn save_account_collection_like_cpp<'a>(
         &'a self,
         save: AccountCollectionSaveLikeCpp,

@@ -79,12 +79,12 @@ pub struct AccountHeirloomLoadRowLikeCpp {
 
 /// One row of an account-wide collection, ready to persist.
 ///
-/// These are Battle.net account collections, not character state: C++ writes
-/// them to the Login database during logout, each collection in its own
-/// transaction. The five-transaction shape is preserved deliberately — #187
-/// records that C++ appends them to one transaction and Rust does not, and
-/// changing that is a behaviour fix with its own evidence, not something to
-/// fold into an architecture move.
+/// These are Battle.net account collections, not character-table state. C++
+/// `Player::SaveToDB` appends them, battle pets and last-character metadata to
+/// one Login transaction (`Player.cpp:19662-19688`), not one per collection.
+/// Rust's separate collection transactions remain a known #187 difference.
+/// Repairing that complete operation requires its own behavioral evidence;
+/// a mechanical architecture move must not claim transaction parity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccountCollectionSaveLikeCpp {
     Mounts(Vec<AccountMountRowLikeCpp>),
