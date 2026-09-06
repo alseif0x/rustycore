@@ -648,7 +648,10 @@ fn native_trait_config_lifecycle_preserves_raw_headers_and_resets_invalid_author
     state.trait_definition_ids_complete = true;
     state.override_spells.insert(10, BTreeSet::from([30]));
     assert!(state.complete_trait_config_load_like_cpp(vec![(1, -1, -2, -3)], false));
-    assert_eq!(state.trait_config_rows, BTreeMap::from([(1, (-1, -2, -3))]));
+    assert_eq!(
+        state.trait_config_rows,
+        BTreeMap::from([(1, (-1, -2, -3).into())])
+    );
     assert!(state.trait_config_rows_complete && state.trait_entry_rows_complete);
     assert!(!state.trait_entry_rows_empty);
     assert!(state.trait_definition_ids_complete);
@@ -752,7 +755,7 @@ fn prepared_acquisition_validates_then_installs_both_families_preserving_source_
     let mut player = Player::new(None, false);
     let mut runtime = PlayerSpellRuntimeState::default();
     runtime.fallback_rows.insert(10, spell.clone());
-    runtime.trait_config_rows.insert(777, (1, 62, 4));
+    runtime.trait_config_rows.insert(777, (1, 62, 4).into());
     runtime.trait_config_rows_complete = true;
     player.replace_spell_runtime_like_cpp(runtime.clone());
     player.apply_prepared_spell_acquisition_like_cpp(prepared);

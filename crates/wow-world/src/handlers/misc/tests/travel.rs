@@ -93,6 +93,18 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_xp_like_cpp(1_234_567);
     session.set_player_next_level_xp_like_cpp(2_345_678);
+    assert!(
+        !session
+            .send_player_self_create_for_teleport_like_cpp(
+                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            )
+            .await
+    );
+    assert!(
+        send_rx.is_empty(),
+        "unloaded traits are not an authoritative empty CREATE"
+    );
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
 
     session
         .send_player_self_create_for_teleport_like_cpp(
@@ -158,8 +170,25 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     session.pending_teleport = Some((0, destination));
     session.set_player_health_like_cpp(135_791, 2_000_000);
+    assert!(
+        session.complete_represented_trait_config_authority_load_like_cpp([(900, 1, 62, 4)], true)
+    );
+    assert!(session.retain_loaded_trait_configs_like_cpp(&[
+        wow_packet::packets::update::TraitConfigCreateData {
+            id: 900,
+            config_type: 1,
+            chr_specialization_id: 62,
+            combat_config_flags: 4,
+            local_identifier: 3,
+            skill_line_id: 0,
+            trait_system_id: 0,
+            name: "RuntimeTraitsRetained".into(),
+            entries: vec![],
+        }
+    ]));
     canonical
         .lock()
         .unwrap()
@@ -235,6 +264,15 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
             u16::from_le_bytes([bytes[0], bytes[1]]) == ServerOpcodes::UpdateObject as u16
         })
         .expect("destination self CREATE");
+    assert!(
+        create
+            .windows(b"RuntimeTraitsRetained".len())
+            .any(|bytes| bytes == b"RuntimeTraitsRetained")
+    );
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp().unwrap()[0].name,
+        "RuntimeTraitsRetained"
+    );
     let choice_bytes = [0x1234ABCDu32.to_le_bytes(), 0x3456CDEFu32.to_le_bytes()].concat();
     assert!(
         create.windows(8).any(|bytes| bytes == choice_bytes),
@@ -321,6 +359,7 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     session.set_player_zone_area_like_cpp(10, 10);
     assert!(session.update_zone_represented_like_cpp(20, 20));
     assert!(
@@ -391,6 +430,7 @@ async fn world_port_response_activates_pvp_item_levels_for_flagged_map_like_cpp(
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     session.pending_teleport = Some((30, destination));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
@@ -436,6 +476,7 @@ async fn world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     let _ = session.set_represented_using_pvp_item_levels_like_cpp(true);
     session.pending_teleport = Some((571, destination));
     session.set_represented_far_teleport_pending_like_cpp(true);

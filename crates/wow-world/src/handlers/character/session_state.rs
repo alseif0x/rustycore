@@ -1639,6 +1639,7 @@ impl WorldSession {
             );
 
         if trait_query_authority_complete_like_cpp {
+            let _ = self.retain_loaded_trait_configs_like_cpp(&configs);
             let exact_traits = self.trait_definition_store().map(|definitions| {
                 let mut exact = BTreeMap::<i32, i32>::new();
                 for entry in configs

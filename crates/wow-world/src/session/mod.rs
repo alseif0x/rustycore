@@ -15,6 +15,7 @@ mod driver;
 mod lifecycle;
 pub mod mailbox;
 pub mod registry;
+mod trait_configs;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 #[cfg(test)]
@@ -5117,7 +5118,7 @@ struct RepresentedPlayerSpellRuntimeLikeCpp {
     favorite_known_spells: HashSet<i32>,
     trait_definition_ids: HashMap<i32, i32>,
     trait_definition_ids_complete: bool,
-    trait_config_rows: BTreeMap<i32, (i32, i32, i32)>,
+    trait_config_rows: BTreeMap<i32, wow_entities::PlayerTraitConfigState>,
     trait_config_rows_complete: bool,
     trait_entry_rows_complete: bool,
     trait_entry_rows_empty: bool,
@@ -6365,7 +6366,7 @@ pub struct WorldSession {
     /// trait-spell map because an empty entry query can still make C++ create
     /// or replace a config with condition-granted entries.
     #[cfg(test)]
-    represented_trait_config_rows_like_cpp: BTreeMap<i32, (i32, i32, i32)>,
+    represented_trait_config_rows_like_cpp: BTreeMap<i32, wow_entities::PlayerTraitConfigState>,
     #[cfg(test)]
     represented_trait_config_rows_complete_like_cpp: bool,
     #[cfg(test)]
@@ -29198,7 +29199,10 @@ impl WorldSession {
         for (config_id, config_type, specialization_id, combat_flags) in configs {
             if config_id <= 0
                 || exact_configs
-                    .insert(config_id, (config_type, specialization_id, combat_flags))
+                    .insert(
+                        config_id,
+                        (config_type, specialization_id, combat_flags).into(),
+                    )
                     .is_some()
             {
                 self.fixture_begin_trait_config_authority_load_like_cpp();
@@ -29587,7 +29591,8 @@ impl WorldSession {
         if runtime.trait_config_rows.len() != expected_specs.len() {
             return false;
         }
-        for &(config_type, specialization_id, combat_flags) in runtime.trait_config_rows.values() {
+        for config in runtime.trait_config_rows.values() {
+            let (config_type, specialization_id, combat_flags) = config.header;
             const TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP: i32 = 1;
             const TRAIT_COMBAT_CONFIG_ACTIVE_FOR_SPEC_LIKE_CPP: i32 = 0x1;
             if config_type != TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP

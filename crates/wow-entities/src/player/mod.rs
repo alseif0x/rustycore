@@ -24,6 +24,8 @@ mod save_ack;
 pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
 mod social;
 mod spellbook;
+mod trait_config;
+pub use trait_config::{PlayerTraitConfigDetails, PlayerTraitConfigState, PlayerTraitEntry};
 mod visibility;
 mod vitals;
 
@@ -514,7 +516,7 @@ pub struct PlayerSpellRuntimeState {
     /// config ID. Completeness is explicit because an authoritative empty
     /// entry result is materially different from an owner that was not
     /// resolved during login.
-    pub trait_config_rows: BTreeMap<i32, (i32, i32, i32)>,
+    pub trait_config_rows: BTreeMap<i32, PlayerTraitConfigState>,
     pub trait_config_rows_complete: bool,
     pub trait_entry_rows_complete: bool,
     pub trait_entry_rows_empty: bool,

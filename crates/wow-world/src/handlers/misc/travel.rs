@@ -125,19 +125,19 @@ impl crate::session::WorldSession {
     pub(super) async fn send_player_self_create_for_teleport_like_cpp(
         &mut self,
         trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
-    ) {
+    ) -> bool {
         use wow_core::guid::HighGuid;
         use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
 
         let Some(guid) = self.player_guid() else {
-            return;
+            return false;
         };
         let Some(pos) = self.player_position_like_cpp() else {
-            return;
+            return false;
         };
         let map_id = self.player_map_id_like_cpp();
         let Some((zone_id, _area_id)) = self.player_zone_area_like_cpp() else {
-            return;
+            return false;
         };
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
@@ -148,16 +148,16 @@ impl crate::session::WorldSession {
             self.resolved_player_next_level_xp_like_cpp(),
             self.resolved_player_scaling_level_delta_like_cpp(),
         ) else {
-            return;
+            return false;
         };
         let Some(player_money) = self.resolved_player_money_like_cpp() else {
-            return;
+            return false;
         };
 
         // Equipped items drive the visible model; bag slots / item objects are not re-sent here.
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
         let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
-            return;
+            return false;
         };
         for (slot, item) in inventory_items {
             if (slot as usize) < 19 {
@@ -166,7 +166,7 @@ impl crate::session::WorldSession {
         }
 
         let Some((health, _, _)) = self.resolved_player_vitals_like_cpp() else {
-            return;
+            return false;
         };
         let health = health.max(1);
         let combat = PlayerCombatStats {
@@ -179,13 +179,14 @@ impl crate::session::WorldSession {
         let account_toys = self.account_toy_active_player_rows_like_cpp();
         let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
         let account_transmog = self.account_transmog_active_player_rows_like_cpp();
-        let trait_configs = self
-            .load_active_player_trait_configs_like_cpp(trait_node_entries, guid)
-            .await;
+        let _ = trait_node_entries; // Kept for the existing catalog-bearing entrypoint.
+        let Some(trait_configs) = self.owned_trait_configs_for_create_like_cpp() else {
+            return false;
+        };
         // PlayerData::WriteCreate serializes current Player fields, not a new
         // login query (UpdateFields.cpp:1777,1822-1825). Missing owner is not empty.
         let Some(customizations) = self.owned_player_customizations_like_cpp() else {
-            return;
+            return false;
         };
         let player_customizations = customizations
             .into_iter()
@@ -211,7 +212,7 @@ impl crate::session::WorldSession {
             ) {
                 let Some(player_skill_records) = self.resolved_player_skill_records_like_cpp()
                 else {
-                    return;
+                    return false;
                 };
                 let mut skill_records: Vec<_> = player_skill_records.values().collect();
                 skill_records.sort_by_key(|skill| skill.skill_id);
@@ -267,7 +268,7 @@ impl crate::session::WorldSession {
         let Some((player_flags, player_flags_ex)) =
             self.resolved_player_flags_for_create_like_cpp()
         else {
-            return;
+            return false;
         };
         player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
         player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
@@ -279,7 +280,7 @@ impl crate::session::WorldSession {
             self.resolved_xp_rest_threshold_like_cpp(),
             self.resolved_xp_rest_state_like_cpp(),
         ) else {
-            return;
+            return false;
         };
         player_pkt.set_player_rest_info_like_cpp(0, rest_threshold, rest_state);
         player_pkt.set_player_account_guids_like_cpp(
@@ -293,16 +294,18 @@ impl crate::session::WorldSession {
             trait_configs,
         );
         let Some(action_buttons) = self.represented_action_buttons_snapshot_like_cpp() else {
-            return;
+            return false;
         };
         player_pkt.set_player_action_buttons_like_cpp(action_buttons);
         player_pkt.set_player_customizations_like_cpp(player_customizations);
-        self.send_packet(&player_pkt);
+        let sent = self.send_packet(&player_pkt);
         info!(
             account = self.account_id,
             map = map_id,
-            "[FAR_TELEPORT] sent SendInitSelf (player ActivePlayer create) for destination map"
+            accepted = sent,
+            "[FAR_TELEPORT] prepared SendInitSelf (player ActivePlayer create) for destination map"
         );
+        sent
     }
     /// CMSG_SUSPEND_TOKEN_RESPONSE — client acknowledges SMSG_SUSPEND_TOKEN during a far
     /// teleport. C++ `WorldSession::HandleSuspendTokenResponse` (MovementHandler.cpp:239)
@@ -439,8 +442,13 @@ impl crate::session::WorldSession {
         // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:470): re-send the
         // player's OWN object (ActivePlayer create block) for the destination map. Without it
         // the client loads to 100% but never enters the world. #NEXT.R8.ENTITIES.1229.
-        self.send_player_self_create_for_teleport_like_cpp(trait_node_entries)
-            .await;
+        if !self
+            .send_player_self_create_for_teleport_like_cpp(trait_node_entries)
+            .await
+        {
+            self.kick("worldport self CREATE has incomplete Player state or unavailable delivery");
+            return;
+        }
 
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
         self.send_nearby_creatures_with_catalogs_like_cpp(

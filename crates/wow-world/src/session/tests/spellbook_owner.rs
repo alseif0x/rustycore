@@ -558,7 +558,7 @@ fn trait_config_lifecycle_matches_previous_route_for_active_and_detached_owner()
                         runtime.known_spells = vec![99];
                         runtime.trait_definition_ids.insert(99, 100);
                         runtime.trait_definition_ids_complete = true;
-                        runtime.trait_config_rows.insert(777, (1, 62, 4));
+                        runtime.trait_config_rows.insert(777, (1, 62, 4).into());
                         runtime.trait_config_rows_complete = true;
                         runtime.trait_entry_rows_complete = true;
                         runtime.trait_entry_rows_empty = true;
@@ -611,7 +611,7 @@ fn trait_config_lifecycle_does_not_reset_replacement_through_stale_or_missing_ow
     replacement.unit_mut().world_mut().object_mut().create(guid);
     let mut expected = wow_entities::PlayerSpellRuntimeState::default();
     expected.trait_definition_ids.insert(99, 100);
-    expected.trait_config_rows.insert(777, (1, 62, 4));
+    expected.trait_config_rows.insert(777, (1, 62, 4).into());
     expected.trait_entry_rows_complete = true;
     replacement.replace_spell_runtime_like_cpp(expected.clone());
     let handle = manager
@@ -668,7 +668,7 @@ fn spell_metadata_transitions_preserve_active_and_detached_owner_contracts() {
                 runtime.trait_definition_ids_complete = true;
                 runtime.override_spells.insert(50, BTreeSet::from([60]));
                 runtime.override_spells_complete = true;
-                runtime.trait_config_rows.insert(777, (1, 62, 4));
+                runtime.trait_config_rows.insert(777, (1, 62, 4).into());
                 player.replace_spell_runtime_like_cpp(runtime);
             };
             session.with_owned_player_mut_like_cpp(prepare).unwrap();

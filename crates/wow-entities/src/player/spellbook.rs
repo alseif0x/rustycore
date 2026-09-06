@@ -136,7 +136,11 @@ impl PlayerSpellRuntimeState {
     ) -> bool {
         let mut exact = BTreeMap::new();
         for (id, kind, specialization, flags) in configs {
-            if id <= 0 || exact.insert(id, (kind, specialization, flags)).is_some() {
+            if id <= 0
+                || exact
+                    .insert(id, (kind, specialization, flags).into())
+                    .is_some()
+            {
                 self.begin_trait_config_load_like_cpp();
                 return false;
             }

@@ -3,6 +3,78 @@
 use super::*;
 
 #[test]
+fn trait_create_projection_retains_full_rows_order_and_invalidation() {
+    use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
+    let (mut session, _, _) = make_session();
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    let first = TraitConfigCreateData {
+        id: 900,
+        config_type: 1,
+        chr_specialization_id: 62,
+        combat_config_flags: 4,
+        local_identifier: 17,
+        skill_line_id: 27,
+        trait_system_id: 37,
+        name: "Runtime configuration".into(),
+        entries: vec![TraitEntryCreateData {
+            trait_node_id: 55,
+            trait_node_entry_id: 66,
+            rank: 2,
+            granted_ranks: 1,
+        }],
+    };
+    let mut second = first.clone();
+    second.id = 100;
+    second.name = "Second in insertion order".into();
+    let configs = vec![first, second];
+    assert!(
+        session.complete_represented_trait_config_authority_load_like_cpp(
+            configs.iter().map(|c| (
+                c.id,
+                c.config_type,
+                c.chr_specialization_id,
+                c.combat_config_flags
+            )),
+            false,
+        )
+    );
+    assert!(
+        session.owned_trait_configs_for_create_like_cpp().is_none(),
+        "headers are not full configurations"
+    );
+    assert!(
+        !session.retain_loaded_trait_configs_like_cpp(&[configs[0].clone(), configs[0].clone()])
+    );
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    assert!(session.retain_loaded_trait_configs_like_cpp(&configs));
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(configs.clone())
+    );
+    let mut mismatched = configs.clone();
+    mismatched[1].config_type = 3;
+    assert!(!session.retain_loaded_trait_configs_like_cpp(&mismatched));
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(configs.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(configs)
+    );
+    session.begin_represented_trait_config_authority_load_like_cpp();
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(vec![])
+    );
+}
+
+#[test]
 fn appearance_read_distinguishes_missing_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     assert_eq!(session.owned_player_customizations_like_cpp(), None);

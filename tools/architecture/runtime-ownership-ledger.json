@@ -1446,11 +1446,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82329,
-          "test_lines": 106990,
-          "total_lines": 189319,
+          "production_lines": 82449,
+          "test_lines": 107066,
+          "total_lines": 189515,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 worldport appearance above b769b860: +11 production/+35 test lines. A ten-line private appearance reader plus one module declaration project the generation-checked Player choices without a login query. Small map-entry suite covers missing/empty/active/detached/retired owner. No new field, lock, persistent mirror or transaction. Trait reconstruction, full transfer/save/logout and C4 retirement remain open. Evidence: session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 full trait representation above 2fdbd962: +120 production/+76 test lines. Private trait-config hydration/projection retains native details in the existing map, including insertion order; transient snapshots and the fixture field use that same value. Tests cover full reconstruction, header-only rejection, atomic mismatch rejection, detached reads, reset and real login-loader retention. No new Session field, lock or packet cache. Trait gameplay validation, full transfer/logout/save and C4 retirement remain open. Evidence: session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1470,11 +1470,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20617,
+          "production_lines": 20618,
           "test_lines": 12813,
-          "total_lines": 33430,
+          "total_lines": 33431,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 detached recovery prerequisite above 8c9a8042: +0 production/+1 test line. The shared hearth fixture installs its canonical active Player before state setup, preserving near-transfer and rejection expectations. No production character changes or new scenario; C4 split exit remains.",
+          "latest_growth_review": "2026-09-06 native trait retention above 2fdbd962: +1 production/+0 test lines. The existing login loader retains full parsed config details after its complete-header proof. No new query, transaction, field or lock. Full TraitMgr parity and C4 split exit remain; session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],
@@ -1519,11 +1519,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 11287,
-          "test_lines": 10132,
-          "total_lines": 21419,
+          "production_lines": 11328,
+          "test_lines": 10135,
+          "total_lines": 21463,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-06 bounded recovery above cf5b0757: +0 production/+2 test lines in this logical Player module for exhaustive teleport-state literals. The native recovery enum lives in the separately measured player_gameplay_state.rs file; no Session mirror or clock is introduced. Prior save acknowledgement boundaries are unchanged. C1/C4 evidence: session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-06 full native trait value above 2fdbd962: +41 production/+3 test lines. Private types retain header plus optional full details/entries/insertion order; header-only fixtures remain explicitly incomplete for CREATE. The existing single map and reset lifecycle remain authoritative. No duplicate map, packet dependency or clock; C4 retirement remains. Evidence: session-578-checkpoint.md.",
           "open_retirement_issues": [
             578
           ],

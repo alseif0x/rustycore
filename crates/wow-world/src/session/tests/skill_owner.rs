@@ -90,7 +90,7 @@ fn acquisition_install_matches_previous_validation_and_owner_state() {
                         RepresentedPlayerSpellStateLikeCpp::New,
                     )),
                 );
-                runtime.trait_config_rows.insert(777, (1, 62, 4));
+                runtime.trait_config_rows.insert(777, (1, 62, 4).into());
                 runtime.trait_config_rows_complete = true;
                 runtime.trait_entry_rows_complete = true;
                 runtime.trait_entry_rows_empty = true;

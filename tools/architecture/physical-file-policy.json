@@ -237,16 +237,16 @@
     },
     {
       "path": "crates/wow-entities/src/player/mod.rs",
-      "observed_lines": 4899,
-      "ceiling_lines": 4899,
-      "split": "Keep Player identity/state facade; move progression, inventory, spells, social and lifecycle operations into cohesive private modules.",
+      "observed_lines": 4901,
+      "ceiling_lines": 4901,
+      "split": "Keep Player identity/state facade; move progression, inventory, spells, social and lifecycle operations into cohesive private modules. Above 2fdbd962 +2 declarations export private full trait-config types; header tuples become the single richer native value, not another map. C4 retirement remains.",
       "review_checkpoint": "578:C4"
     },
     {
       "path": "crates/wow-entities/src/player_tests.rs",
-      "observed_lines": 9494,
-      "ceiling_lines": 9494,
-      "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures.",
+      "observed_lines": 9497,
+      "ceiling_lines": 9497,
+      "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures. Above 2fdbd962 +3 formatting lines adapt existing tuple-header expectations to the native trait value; no new scenario bodies here. C4 retirement remains.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -475,9 +475,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2833,
-      "ceiling_lines": 2833,
-      "split": "Separate session-facing character state adapters by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 2834,
+      "ceiling_lines": 2834,
+      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above 2fdbd962 +1 line retains full login trait configurations in the same Player-owned map. Complete login/worldport separation and C4 retirement remain.",
       "review_checkpoint": "578:C4"
     },
     {
@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76530,
-      "ceiling_lines": 76530,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep admission, transport and lifecycle in small private Session modules. Above b769b860 +1 root line registers the ten-line private appearance reader. No new root method, state owner or field; C4 root retirement remains open.",
+      "observed_lines": 76535,
+      "ceiling_lines": 76535,
+      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above 2fdbd962 +5 lines register trait projection and adapt the existing header reader/fixture conversion. Same native map value is retained through transient snapshots; no new Session field. C4 retirement remains open.",
       "review_checkpoint": "578:C4"
     },
     {

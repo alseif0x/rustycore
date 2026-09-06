@@ -4910,7 +4910,7 @@
         },
         {
           "name": "represented_trait_config_rows_like_cpp",
-          "type": "BTreeMap < i32 , (i32 , i32 , i32) >",
+          "type": "BTreeMap < i32 , wow_entities :: PlayerTraitConfigState >",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -16974,7 +16974,7 @@
           "kind": "method",
           "name": "send_player_self_create_for_teleport_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,)",
+          "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -53511,6 +53511,28 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "owned_trait_configs_for_create_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn owned_trait_configs_for_create_like_cpp (& self ,) -> Option < Vec < TraitConfigCreateData > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": ["visible"]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "retain_loaded_trait_configs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn retain_loaded_trait_configs_like_cpp (& mut self , configs : & [TraitConfigCreateData] ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": ["visible"]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "try_attach_worldport_destination_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn try_attach_worldport_destination_like_cpp (& mut self , map_id : u32 , position : wow_core :: Position ,) -> bool",
@@ -76313,7 +76335,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c7405b6b48995df2291c549157153439:len=96443|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a06b9b8c33cde7aebc64f338843fbe19:len=96464|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

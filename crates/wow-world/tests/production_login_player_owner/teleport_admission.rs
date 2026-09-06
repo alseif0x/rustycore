@@ -3,6 +3,73 @@
 use super::*;
 
 #[tokio::test]
+async fn production_worldport_cannot_finish_with_incomplete_self_create() {
+    // Login deliberately stopped before complete trait hydration. The controlled
+    // port panics on unexpected auxiliary queries: worldport must not reload it.
+    let (mut session, port, _, receiver) = hydrate(true, true, true).await;
+    assert!(
+        !port
+            .manager
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(ObjectGuid::create_player(1, 42))
+            .unwrap()
+            .gameplay_state()
+            .spells
+            .trait_config_rows_complete
+    );
+    session.set_map_store(Arc::new(MapStore::from_entries([0, 1].map(|id| {
+        MapEntry {
+            id,
+            instance_type: 0,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }
+    }))));
+    session.set_state(SessionState::LoggedIn);
+    session
+        .teleport_to(1, Position::new(7.0, 8.0, 9.0, 0.5))
+        .await;
+    while receiver.try_recv().is_ok() {}
+    let catalogs = CreatureSpawnCatalogsLikeCpp {
+        difficulty: Arc::new(CreatureDifficultyStoreLikeCpp::default()),
+        base_stats: Arc::new(CreatureBaseStatsStoreLikeCpp::default()),
+        health_rates: CreatureClassificationHealthRatesLikeCpp::default(),
+        addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
+        equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
+        power_types: Arc::new(PowerTypeStore::from_entries([])),
+    };
+    session
+        .handle_world_port_response_with_catalogs_like_cpp(
+            &catalogs,
+            &trait_tree::TraitNodeEntryStore::from_entries([]),
+            wow_packet::WorldPacket::new_empty(),
+        )
+        .await;
+    assert_eq!(session.state(), SessionState::Disconnecting);
+    assert!(receiver.try_iter().all(|bytes| {
+        u16::from_le_bytes([bytes[0], bytes[1]])
+            != wow_constants::ServerOpcodes::UpdateObject as u16
+    }));
+    assert!(
+        port.manager
+            .lock()
+            .unwrap()
+            .find_map(1, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(ObjectGuid::create_player(1, 42))
+            .is_some()
+    );
+}
+
+#[tokio::test]
 async fn production_rejected_worldport_recovers_once_then_saves_retained_source() {
     let (mut session, port, _, receiver) = hydrate(true, true, true).await;
     port.manager

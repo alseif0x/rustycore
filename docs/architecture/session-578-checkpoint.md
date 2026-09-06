@@ -1486,6 +1486,63 @@ and migrate its actual readers/writers before retiring that loader. Whole-packet
 preparation, before-add ordering, transfer cancellation, logout completion and ordinary
 far-save deferral/resumption remain open; this appearance repair does not close C1/C2.
 
+### C1 trait retention and worldport projection — above `2fdbd962`, 2026-09-06
+
+The preceding appearance review's missing full trait representation is now addressed
+for loaded configuration retention/CREATE projection. The existing native config map
+has richer values: the same raw header plus explicitly optional names, local/skill/system
+IDs, complete entries/ranks and dynamic-field insertion order. There is no second map or
+packet cache. Header-only states remain insufficient for CREATE. All existing transient
+spell snapshots, fixture conversions, readers and reset/clear writers retain the same
+value type, so unrelated spell operations cannot silently discard its full details.
+
+`session/trait_configs.rs` retains the existing login loader's full parsed configurations
+after its complete-header proof and projects them through the checked Player handle.
+Duplicate IDs, mismatched headers or incomplete ownership are rejected before mutation;
+empty and unavailable are distinct. CREATE preserves insertion order, not sorted map-ID
+order. `send_player_self_create_for_teleport_like_cpp` no longer invokes either trait or
+customization login queries, nor restarts trait authority hydration. Its success result
+also prevents the outer ACK from continuing to LoggedIn when self CREATE cannot be built
+or queued. This does not undo an already attached Player or prove wire delivery.
+
+Re-read C++ anchors under legacy `src/server/game`: `Player.cpp:26635-26779` loads,
+validates, supplies defaults and applies trait configs; `MovementHandler.cpp:120-162`
+initializes the attached Player; `UpdateFields.cpp:2560-2586,3135-3137` serializes
+owned configurations and their dynamic-field order.
+**Still not implemented by this cut:** full `TraitMgr::IsValidEntry`, `ValidateConfig`,
+granted-entry/default-config creation and active-config application parity. Preserving
+all currently parsed fields is not proof those gameplay operations have been ported.
+No guessed defaults or empty substitute replaces an incomplete configuration.
+
+Evidence: the canonical login auxiliary test retains the complete parsed payload, and
+the new owner test round-trips deliberately unsorted IDs, names, all entry fields and
+header/detail metadata, rejects duplicate/mismatched input atomically, preserves detached
+reads and invalidates on reset. Worldport's actual self CREATE contains a runtime trait
+name and preserves its owner state. Header-incomplete self CREATE returns failure without
+packets; a production-linked partial-login case disconnects instead of claiming entry
+success, and its controlled port rejects any unexpected auxiliary read.
+
+Local aarch64 tests with pinned PROTOC and the existing validation Cargo cache pass:
+`cargo test --offline --locked -p wow-world --lib` (3,761; one ignored),
+`cargo test --offline --locked -p wow-entities --lib` (721), and
+`cargo test --offline --locked -p wow-world --test production_login_player_owner` (12).
+These are local controlled tests, not real DB/client/relogin/capture acceptance.
+
+Session syntax/exact-item policy passes with 3,686 items and unchanged fields/registry;
+five preserved persistence-policy tests and architecture check/self-test (20 fixtures)
+pass without inventory regeneration. Format and diff checks pass. Bounded
+`validation-v2 quick --base HEAD` above `2fdbd962` passes; verified manifest:
+`target/validation-v2/manifests/20260906T175615.351735Z-3-quick.json`.
+
+Reviewed growth: Session +120 production/+76 test lines, Player +41/+3, Character +1/+0.
+Native types are 35 lines; the private hydration/projection adapter is 115. Existing roots
+grow only by wiring/type/reader adjustments (+5 Session, +2 Player, +1 character init)
+and three formatting lines in the old Player test root. No new physical exception, field,
+lock, clock, transaction or registry row. The exact policy changes are the fixture field
+type and its bridge fingerprint, two read/hydration methods and self-CREATE's bool result.
+Full before-add ordering, packet backpressure/cancellation, logout completion, ordinary
+far-save deferral/resumption, C0/C3 coordination and all 101 legacy ceilings remain open.
+
 ## Independent extension checkpoint — 2026-09-05, `c67acbfd`
 
 The post-freeze third module, `expedition` (ID 73), passes the real native, Rust-Wasm,

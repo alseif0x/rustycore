@@ -776,6 +776,8 @@ async fn trait_config_loads_preserve_cpp_entry_then_config_order_and_raw_values(
     let (mut session, _, _) = make_session();
     session.set_player_lifecycle_port_like_cpp(port.clone());
     let guid = ObjectGuid::create_player(1, 48);
+    session.set_player_guid(Some(guid));
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let configs = session
         .load_active_player_trait_configs_like_cpp(
@@ -796,6 +798,10 @@ async fn trait_config_loads_preserve_cpp_entry_then_config_order_and_raw_values(
     assert_eq!(configs[0].entries[0].trait_node_entry_id, 300);
     assert_eq!(configs[0].entries[0].rank, 2);
     assert_eq!(configs[0].entries[0].granted_ranks, 1);
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(configs)
+    );
     assert_eq!(
         port.requests(),
         vec![
