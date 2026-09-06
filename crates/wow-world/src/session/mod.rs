@@ -5999,7 +5999,7 @@ pub struct WorldSession {
     legit_characters: Vec<ObjectGuid>,
 
     // Pending async packets to process
-    pending_packets: Vec<WorldPacket>,
+    pending_packets: VecDeque<WorldPacket>,
 
     // ── ConnectTo flow ──────────────────────────────────────────
     /// GUID of the character being logged in (set during PlayerLogin).
@@ -8354,7 +8354,7 @@ impl WorldSession {
             #[cfg(test)]
             void_storage_item_id_generator_like_cpp: None,
             legit_characters: Vec::new(),
-            pending_packets: Vec::new(),
+            pending_packets: VecDeque::new(),
             player_loading: None,
             player_login_claim_like_cpp: None,
             player_logout_like_cpp: false,

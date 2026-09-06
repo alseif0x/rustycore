@@ -11,6 +11,121 @@ use super::*;
 use crate::session::driver::MAX_PACKETS_PER_UPDATE;
 use crate::session::driver::phases::SessionDriverPhaseLikeCpp as Phase;
 
+mod queued_packets {
+    //! Exercise the actual driver and dispatcher with a local test-only thunk.
+    //! The thunk records entry, then suspends marker 1; no timers or real DB are used.
+    use super::*;
+    use std::future::Future;
+    use std::task::{Context, Poll, Waker};
+
+    static PROBE: crate::session::registry::PacketHandlerEntry =
+        crate::session::registry::PacketHandlerEntry {
+            opcode: ClientOpcodes::QueryTime,
+            status: SessionStatus::Authed,
+            processing: PacketProcessing::Inplace,
+            handler_name: "queued_packet_probe",
+            handler: |session, _catalogs, mut packet| {
+                Box::pin(async move {
+                    let marker = packet.read_uint32().unwrap();
+                    session
+                        .time_sync_clock_delta_queue
+                        .push_back((i64::from(marker), 0));
+                    if marker == 1 {
+                        std::future::pending::<()>().await;
+                    }
+                })
+            },
+        };
+
+    fn marked_packet(marker: u32) -> WorldPacket {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_uint16(ClientOpcodes::QueryTime as u16);
+        packet.write_uint32(marker);
+        packet.flush_bits();
+        packet.reset_read();
+        packet
+    }
+
+    #[tokio::test]
+    async fn cancelled_handler_preserves_unselected_packets_without_replaying_partial_effects() {
+        let (mut session, _tx, _rx) = make_session();
+        // Replace only this session's entry; the production inventory is untouched.
+        session
+            .dispatch_table
+            .insert(ClientOpcodes::QueryTime, &PROBE);
+        for marker in [1, 2, 3] {
+            session.pending_packets.push_back(marked_packet(marker));
+        }
+        let mut pass = Box::pin(session.process_pending());
+        assert!(matches!(
+            pass.as_mut().poll(&mut Context::from_waker(Waker::noop())),
+            Poll::Pending
+        ));
+        drop(pass);
+        assert_eq!(
+            session
+                .time_sync_clock_delta_queue
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![(1, 0)]
+        );
+        assert_eq!(session.pending_packets.len(), 2);
+        assert_eq!(
+            session.pending_packets.front().unwrap().data(),
+            marked_packet(2).data()
+        );
+        assert_eq!(
+            session.pending_packets.back().unwrap().data(),
+            marked_packet(3).data()
+        );
+
+        session.process_pending().await;
+        assert!(session.pending_packets.is_empty());
+        assert_eq!(
+            session
+                .time_sync_clock_delta_queue
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![(1, 0), (2, 0), (3, 0)]
+        );
+    }
+
+    #[tokio::test]
+    async fn dropping_an_unpolled_pass_leaves_the_entire_queue_owned_by_session() {
+        let (mut session, _tx, _rx) = make_session();
+        session.pending_packets.push_back(marked_packet(2));
+        drop(session.process_pending());
+        assert_eq!(session.pending_packets.len(), 1);
+        assert_eq!(
+            session.pending_packets.front().unwrap().data(),
+            marked_packet(2).data()
+        );
+    }
+
+    #[test]
+    fn retained_packets_share_the_next_ingestion_budget_without_dropping_surplus() {
+        let (mut session, _tx, _rx) = make_session();
+        session.pending_packets.push_back(marked_packet(2));
+        session.pending_packets.push_back(marked_packet(3));
+        let (tx, rx) = flume::unbounded();
+        session.set_packet_rx(rx);
+        for _ in 0..MAX_PACKETS_PER_UPDATE {
+            tx.send(benign_packet()).unwrap();
+        }
+        assert_eq!(session.update(0), MAX_PACKETS_PER_UPDATE - 2);
+        assert_eq!(session.pending_packets.len(), MAX_PACKETS_PER_UPDATE);
+        assert_eq!(tx.len(), 2);
+        assert_eq!(session.update(0), 0);
+        assert_eq!(tx.len(), 2);
+        assert_eq!(
+            session.pending_packets.front().unwrap().data(),
+            marked_packet(2).data()
+        );
+    }
+}
+
 /// A cheap packet the AntiDOS gate never throttles.
 fn benign_packet() -> WorldPacket {
     let mut packet = WorldPacket::new_empty();

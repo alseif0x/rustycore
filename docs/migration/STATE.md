@@ -68,6 +68,14 @@ login/save regressions exercise the change. This is invalid-state admission hard
 not a new scheduler, storage migration or complete lifecycle/durability acceptance;
 exact tests and remaining boundaries live in the Session checkpoint.
 
+The following C0 queue cut above `bdae6204` preserves unselected packets in one
+bounded Session FIFO when a handler future is cancelled, without replaying the
+selected handler's partial effects. C++ LockedQueue filters only the head and stops
+when it is ineligible; this constrains the pending world/map integration. Current
+normal dispatch order and registry remain unchanged; phase filtering and coordination
+are still not enabled. The checkpoint records focused tests and the reviewed small
+logical-owner growth, not a physical monolith waiver or C0 completion.
+
 ## Current architecture and execution checkpoint — 2026-09-05
 
 The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal

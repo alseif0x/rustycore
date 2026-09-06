@@ -3,6 +3,72 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C0 FIFO queue conservation — 2026-09-06, above `bdae6204`
+
+Exact C++ inspection adds an important constraint to the earlier filter contract:
+`WorldSession.h:1920` declares `LockedQueue<WorldPacket*> _recvQueue`, and
+`src/common/Threading/LockedQueue.h:82-98` checks **only the front packet**. If its
+filter rejects it, `next` returns false without consuming or scanning ahead. A future
+world/map phase adapter must stop at that head, not search for a later eligible opcode.
+`WorldSession.cpp:354-490` consumes one selected packet and readds its separate
+status-deferred list after the pass. Processing-place rejection and status requeue
+are distinct operations; neither is implemented by relabeling the current driver.
+
+The production Session queue now uses its existing VecDeque import and selects one
+front packet immediately before the sole registered dispatcher call. The old
+`drain(..).collect()` moved all pending packets into the async pass; cancelling that
+future could destroy packets whose handlers had not been entered. The selected packet
+remains consumed on cancellation because the handler may already have effects; unselected
+packets remain with Session in FIFO order. Destroying Session still destroys its queue.
+This is explicit cancellation behavior hardening, not durable delivery or rollback.
+
+Both primary and realm ingestion now account for retained pending packets against
+the existing shared 100-packet bound. With an empty pending queue the existing order,
+budget, bytes, status gate and handler calls are unchanged. At capacity, surplus stays
+in the transport channel. No new queue, clock, task, lock, mirror, handler registration
+or persistence operation is added. This keeps the current Rust intake budget; it does
+not claim equivalence to the C++ `processedPackets > 100` per-update stopping condition
+or solve the broader intake/AntiDOS/status-requeue ordering differences.
+
+Three focused tests in the existing driver module poll the actual async driver and
+dispatcher using a per-session test thunk (not an inventory registration): cancellation
+after the first handler entry retains exact bytes of the next two packets, a resumed
+pass does not replay partial effects and preserves order, an unpolled dropped pass
+consumes nothing, and retained packets share the next ingestion capacity. No timer,
+real database or production scheduling is simulated by those assertions.
+
+Reviewed guard delta: `pending_packets` changes only Vec to VecDeque in the exact
+field ledger. The full Session bridge surface fingerprint changes by that five-character
+type spelling; its legacy/canonical evidence fingerprint and multiplicity are unchanged.
+The logical owner grows by 7 production and 115 test lines for this in-scope C0 safety
+contract; its exact ceiling and latest review are updated manually, retaining #578
+retirement. The existing driver tests remain one 290-line responsibility module; no
+physical monolith ceiling is increased. No persistence snapshot/policy is regenerated.
+
+An initial external test child exposed a checker/Rust path-resolution discrepancy:
+for the existing `#[path]`-mounted driver test file, rustc resolves its implicit child
+beside the mounted file while the source-graph collector expected the filename-derived
+subdirectory. The 115-line probe suite stays inline in its cohesive 290-line driver
+test module; the same tests execute, without a new mount or ignored checker error.
+The collector's general `#[path]` child-resolution fidelity remains C4 guard work.
+
+Validation on the working source above `bdae6204` (aarch64, reused validation-v2
+Cargo target cache, not a fresh build):
+
+- `cargo test --offline --locked -p wow-world --lib session::tests::driver`:
+  10 PASS, no ignored tests; `cargo test --offline --locked -p wow-world --lib`:
+  3,746 PASS, 1 pre-existing ignored. Final suite includes the inline probe tests.
+- `session-ownership-check check --syntax-only`: PASS, unchanged 590 registry rows.
+- `check_architecture.py check`: PASS, 954 physical source files, 101 legacy ceilings.
+- Standalone checker `cargo test --offline --locked --release --lib persistence_policy`:
+  5 PASS, including reviewed persistence semantics and snapshot/policy consistency.
+- `validation-v2 quick --base HEAD`: PASS and verified manifest
+  `target/validation-v2/manifests/20260906T120958.598002Z-4172-quick.json`.
+  Dirty bounded iteration is not a clean-HEAD publication final or live QA.
+
+Phase-filter activation, current-owner error handling at dispatch, actual world/map
+coordination, queue-head handoff and production timing/capture acceptance remain open.
+
 ## C0/C1 checked canonical residence — 2026-09-06, above `590b93f0`
 
 The next cut adds `MapManager::checked_player_residence_like_cpp` in a private

@@ -49,7 +49,9 @@ impl WorldSession {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainPrimaryPackets);
 
         // Drain the primary (instance) packet channel
-        while processed < MAX_PACKETS_PER_UPDATE {
+        while processed < MAX_PACKETS_PER_UPDATE
+            && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+        {
             let pkt = match self.packet_rx().try_recv() {
                 Ok(p) => p,
                 Err(flume::TryRecvError::Empty) => break,
@@ -78,7 +80,7 @@ impl WorldSession {
                     "RUST_CEMETERY_TRACE queued primary packet"
                 );
             }
-            self.pending_packets.push(pkt);
+            self.pending_packets.push_back(pkt);
             processed += 1;
         }
 
@@ -86,7 +88,9 @@ impl WorldSession {
         // packets like BattlenetRequest, Ping, etc. arrive here)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
         if let Some(realm_rx) = self.realm_packet_rx() {
-            while processed < MAX_PACKETS_PER_UPDATE {
+            while processed < MAX_PACKETS_PER_UPDATE
+                && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+            {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
                         self.last_packet_time = Instant::now();
@@ -104,7 +108,7 @@ impl WorldSession {
                                 "RUST_CEMETERY_TRACE queued realm packet"
                             );
                         }
-                        self.pending_packets.push(pkt);
+                        self.pending_packets.push_back(pkt);
                         processed += 1;
                     }
                     Err(flume::TryRecvError::Empty) => break,
@@ -280,8 +284,11 @@ impl WorldSession {
         }
 
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DispatchQueuedPackets);
-        let packets: Vec<WorldPacket> = self.pending_packets.drain(..).collect();
-        for pkt in packets {
+        // C++ LockedQueue::next selects only the head. Keep unselected packets
+        // on Session if this future is cancelled; never replay the in-flight
+        // handler, which may already have produced effects. Phase filtering is
+        // still pending and must stop, not skip ahead, at an ineligible head.
+        while let Some(pkt) = self.pending_packets.pop_front() {
             if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
                 && pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList)
             {

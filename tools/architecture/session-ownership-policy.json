@@ -1941,7 +1941,7 @@
         },
         {
           "name": "pending_packets",
-          "type": "Vec < WorldPacket >",
+          "type": "VecDeque < WorldPacket >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -76154,7 +76154,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:60f8e3b3d7d7efab74fa25707d137104:len=96381|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:852bf562fb4623651641979bc3709f6c:len=96386|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
