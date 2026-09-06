@@ -3,6 +3,42 @@
 Issue #578 remains open. This is an exact inventory reconciliation, not the terminal #153
 audit, a full C++ parity approval, or a live-client acceptance report.
 
+## C4 persistence-parser test decomposition — above `0038d265`, 2026-09-06
+
+Mechanical test relocation: `handler-contract-check/src/persistence_access.rs` shrinks
+from 21,030 to 13,336 physical lines. All 226 tests from its former inline test module
+move into 16 private responsibility modules under `persistence_access/tests/`: aliases,
+cross-source and dependency contracts, generic/trait/callable resolution, type/tuple
+flow, control/deferred effects, conservative escapes, macros, SQL strings/classification,
+query execution and baseline/cfg rules. Files range from 184 to 943 lines; their shared
+root is 45 lines and retains only the original three fixture helpers plus module mounts.
+No replacement oversized test file, public API, production helper or source mirror is added.
+
+Before moving, the complete source and exact test list were checked; extraction stops
+if either input is truncated or membership differs. Every original test body is copied
+with its embedded fixture strings intact, then formatted with rustfmt. The zero-context
+diff changes only the old test module, starting at line 13,336: production parser code
+above its `#[cfg(test)]` attribute is byte-unchanged. Existing sibling parser test modules
+remain untouched. This is not a new parser behavior or persistence interpretation.
+
+`cargo test --offline --locked --release --manifest-path
+tools/architecture/handler-contract-check/Cargo.toml --lib` passes **334 tests**, none
+ignored, on the working cut above `0038d265` (aarch64). Before/after `-- --list` output
+has identical membership and multiplicity after removing only the introduced private
+module qualifier from the moved tests. The complete suite includes the five compiler
+path-oracle cases and preserved persistence-policy/snapshot consistency tests.
+Bounded quick validation passes with verified manifest
+`target/validation-v2/manifests/20260906T131648.290936Z-3-quick.json`; format/diff checks pass.
+Architecture `check` and `self-test` pass with 973 physical files, the tightened ceiling
+and unchanged logical-owner counts; the usual 175 cohesion reviews remain migration debt.
+
+The physical policy tightens only this root's ceiling to 13,336, preserving its historical
+observed size and #578 C4 retirement. Remaining production AST traversal, statement/workflow
+classification and provenance still need real decomposition. The 101 legacy entries are
+not closed by moving tests, and terminal physical acceptance remains open. No fresh
+exhaustive inventory is needed for this test-only move: the production parser is unchanged,
+and the preceding grammar repair's exhaustive comparison and snapshot/policy remain intact.
+
 ## C4 explicit module-path fidelity — above `bca3885f`, 2026-09-06
 
 The FIFO test cut below exposed a real source-audit defect, not a prohibition in
