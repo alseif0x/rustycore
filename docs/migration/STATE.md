@@ -20,8 +20,12 @@ and retained-destination normalization. Original character location and server b
 were restored and verified. Applicable fresh C++ capture comparison remains outstanding.
 A temporary derived C++ executable has now been built with two explicit build-only
 corrections; a private database copy is imported and stopped, ready for isolated QA.
-Neither has yet produced the paired capture. The old capture wrappers target PM2,
-not the current systemd deployment. These bounded passes are not full parity or issue closure.
+The fresh paired normal-logout capture is divergent: instant-logout response/order,
+missing side effects and LogoutComplete's connection differ. A capture-driven realm
+publication correction is now under validation. The same starting fixture also exposes
+a reputation flag mismatch; neither failed comparison is waived. The old capture wrappers
+target PM2, not the current systemd deployment. These bounded passes are not full parity
+or issue closure; details and private evidence identities are in the checkpoint below.
 Current #585 contract, evidence and remaining boundaries:
 [session finalization](../architecture/session-finalization-585.md).
 

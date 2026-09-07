@@ -1447,11 +1447,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 83369,
-          "test_lines": 107522,
-          "total_lines": 190891,
+          "production_lines": 83370,
+          "test_lines": 107582,
+          "total_lines": 190952,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines for finalization extraction, then +9 production/+28 fixture lines for canonical far-destination orientation normalization and pending-transfer completion regression. The latter reuses WorldLocation instead of duplicating its normalization; no new field, clock, lock or recovery owner. Account/offline/buyback adapters moved from character into private lifecycle modules; the finite policy lives outside Session in crate::finalization. One task-owned ledger retains progress and recovery input. Physical new modules remain below 500 lines; root physical ceiling unchanged. Remaining Session authority stays under #584. See session-finalization-585.md.",
+          "latest_growth_review": "2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines for finalization extraction, then +9 production/+28 fixture lines for canonical far-destination orientation normalization. Fresh paired logout capture then requires realm publication: +1 production separator/+60 test lines in lifecycle/finalization.rs for the two-route backpressure/closed-realm regression, with unchanged send_async semantics and no new method, field, clock, lock or recovery owner. Account/offline/buyback adapters moved from character into private lifecycle modules; finite policy lives outside Session in crate::finalization. One task-owned ledger retains progress and recovery input. Physical new modules remain below 500 lines; root physical ceiling unchanged. Remaining Session authority stays under #584. See session-finalization-585.md.",
           "open_retirement_issues": [
             584
           ],

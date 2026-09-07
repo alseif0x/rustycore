@@ -69,7 +69,8 @@ Autocommit offline writes can lose their acknowledgement too. The current execut
 API does not prove submission stage on an error, so those errors are conservatively
 Unknown, rather than inventing a definitely-rolled-back result. No statements change.
 
-LogoutComplete uses the same serialized packet and current connection, with an
+LogoutComplete uses the same serialized packet and, after the capture-driven correction,
+the realm connection required by C++ Opcodes.cpp:1665, with an
 asynchronous channel send. Applied for that obligation means channel acceptance,
 not client receipt. Timed logout no longer publishes success before persistence.
 
@@ -412,3 +413,74 @@ The historical DB2 specialization patch remains a separate known derivation,
 not applied to this new build and not assumed unnecessary before startup evidence.
 These preparation results neither satisfy the capture gate nor reopen Rust's
 already-green code validation.
+
+### Fresh normal-logout comparison: divergence reproduced — 2026-09-07
+
+Isolated C++ startup reproduced two further prerequisites, corrected only in its
+private clone: MySQLConnection.cpp mutated the shared host from `.` to `localhost`
+on the first socket connection, losing the private socket on subsequent opens;
+`c547aba6` uses a connection-local hostname. DB2 loading then reproduced the exact
+ChrSpecialization OrderIndex assertion covered by the existing creature-spell
+reference patch; that patch is reused unchanged in `8fe8fbf5`.
+Current derived reference HEAD is `8fe8fbf57b84f880651662a5cc503ebd1bde3e33`,
+worldserver SHA-256 `1901259f3b83377029d05e046c0495c1a37f9030e603a862c656f733a93ff9d5`.
+The full four-file derivation is retained at
+`/tmp/rustycore-585-cpp-reference.3xdDma/runtime-reference.patch`, SHA-256
+`444c4b63186407d3385da6534c568ee48e8d7136d1bd9a300fb49def20a9b65b`.
+This is a derived reference, not unmodified C++.
+
+Both worlds used localhost:18085/18086 and the private database socket; an independent
+BNet process used localhost:18081/11119 with the copied auth schema. Original services
+were not restarted or replaced. The initial 180-second startup probe expired before
+the bot connected; its connection-refused result is not a server behavior failure.
+
+The next C++ login/logout failed the bot's unchanged-row check: factions 910, 946,
+978, 1119 and 1126 changed flags from 0 to 2 (AtWar), standing still 0. C++
+ReputationMgr.cpp:776-778 applies AtWar for hostile rank during loading. The resulting
+private auth/characters state was exported as `normalized-session.sql` under the
+private database directory, SHA-256
+`e81b72e1f9da9471f1db4e43b35f53d3b7751a6f30704f321e5dc54020e6a3dc`.
+The C++ repeat then passed login, LogoutComplete and the six save projections.
+The same snapshot was restored for the Rust side, where the bot failed because
+those five flags returned to 0. Do not weaken that assertion or label Rust's run
+passing. The precise reputation cause remains to be established; the reputation
+manager source is unchanged from integrated `59f5bced`, but that alone is not a
+before/after runtime reproduction. No reputation repair is included here.
+
+Evidence directory: `/tmp/rustycore-585-cpp-reference.3xdDma`.
+C++ report `cpp-stable.json`, packet log `cpp-normal-stable.pkt` (SHA-256
+`1e0484edbc89895f4297603f668de3d7fa870d8a1a3a2557628c295a20be2ffe`);
+Rust report/log `rust-normal.json`/`rust-normal.log`, raw dump `rust-normal/`.
+Rust executable is the previously identified `bf884aec` release candidate;
+bot executable SHA-256 is `e28908e4024ce126db635116a1153befbe917cbc4dec612c791ced669c914211`.
+
+`target/debug/capture-diff diff --cpp <cpp-normal-stable.pkt> --rust <rust-normal/> --from-opcode c2s:0x34D6 --until-opcode s2c:0x2684 --direction both --strict`
+exited 1: one matched packet, one value difference, one route difference and sixteen
+missing packets. Full result is `normal-unfiltered-diff.txt`. The proposed time-sync
+filter was independently rejected because the two sides have different counts;
+no asymmetric filtering or accepted baseline was installed. LogoutResponse differs
+in its Instant bit; the pre-#585 handler already unconditionally used instant_ok.
+C++ also has stand/root, group/aura/combat/object effects absent from this Rust window.
+Those differences are not silently converted into completed #585 functionality.
+
+The directly in-scope LogoutComplete route is corrected in the Session finalization
+adapter from the active instance sender to `realm_route_tx().send_async`. Packet
+bytes, obligation ordering, bounded backpressure and failure classification remain.
+A private test exercises a saturated realm with an empty instance, successful exact
+publication, then a closed realm without instance fallback. The reviewed logical
+delta is one production separator and 60 test lines, with no field/API/clock growth.
+The follow-up correction needs its validation and a new installed capture; the earlier
+green final run and this failed paired run cannot be relabelled as testing that fix.
+
+Both private world/BNet processes were stopped and the temporary MariaDB shut down
+cleanly after the comparison. Both original services were verified active. No fresh
+paired disconnect/transfer acceptance or whole-issue completion is claimed.
+
+Local correction evidence above `c07e9c39`: the new realm/backpressure/failure test
+passed. The first complete wow-world run had 3,784 passes, one ignored and one
+failure in the unchanged `adjust_client_movement_time_uses_clock_delta_or_cpp_fallback`:
+its `assert_ne!(adjusted, 1000)` coincided with the valid fallback clock value 1000.
+The unchanged-code repeat passed 3,785 tests, zero failures, one ignored. Both logs
+are retained as `logout-route-world-tests.log` and `logout-route-world-retry.log`
+in the evidence directory; the initial failure is not relabelled green. The reviewed
+hotspot ratchet passes. This does not yet validate a rebuilt/installed closing SHA.

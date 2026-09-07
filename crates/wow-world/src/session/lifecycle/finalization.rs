@@ -161,11 +161,11 @@ impl WorldSession {
                 self.unregister_canonical_player_from_map_like_cpp()
             }
             LogoutPublication => {
-                // Same channel and bytes as the previous send_packet call, but
-                // saturation yields instead of blocking the executor thread.
+                // C++ Opcodes.cpp:1665 routes LogoutComplete to realm.
+                // Saturation yields instead of blocking the executor thread.
                 // Success proves channel acceptance, not client receipt.
                 let bytes = wow_packet::ServerPacket::to_bytes(&LogoutComplete);
-                match self.send_tx().send_async(bytes).await {
+                match self.realm_route_tx().send_async(bytes).await {
                     Ok(()) => FinalizationOutcome::Applied,
                     Err(_) => FinalizationOutcome::Unavailable,
                 }
@@ -187,5 +187,66 @@ impl WorldSession {
                 FinalizationOutcome::Applied
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::future::Future;
+
+    #[tokio::test]
+    async fn logout_publication_uses_realm_and_preserves_backpressure_and_failure() {
+        let (_, input) = flume::bounded(1);
+        let (output, instance) = flume::bounded(1);
+        let mut session = WorldSession::new(
+            585,
+            "LogoutRoute".into(),
+            0,
+            2,
+            9,
+            54261,
+            vec![0; 40],
+            "enUS".into(),
+            input,
+            output,
+        );
+        let (realm_tx, realm) = flume::bounded(1);
+        realm_tx.send(vec![0]).unwrap();
+        session.install_realm_send_channel_for_test(realm_tx);
+        let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+        let mut publication = Box::pin(session.execute_finalization_step(
+            FinalizationStep::LogoutPublication,
+            FinalizationMode::CharacterSelection,
+            &generator,
+        ));
+        assert!(
+            std::future::poll_fn(|cx| {
+                std::task::Poll::Ready(publication.as_mut().poll(cx).is_pending())
+            })
+            .await
+        );
+        assert!(instance.is_empty());
+        assert_eq!(realm.try_recv().unwrap(), vec![0]);
+        assert_eq!(publication.await, FinalizationOutcome::Applied);
+        assert_eq!(
+            realm.try_recv().unwrap(),
+            wow_packet::ServerPacket::to_bytes(&LogoutComplete)
+        );
+        drop(realm);
+        assert_eq!(
+            session
+                .execute_finalization_step(
+                    FinalizationStep::LogoutPublication,
+                    FinalizationMode::TimedLogout,
+                    &generator,
+                )
+                .await,
+            FinalizationOutcome::Unavailable
+        );
+        assert!(
+            instance.is_empty(),
+            "a closed realm must not fall back to instance"
+        );
     }
 }
