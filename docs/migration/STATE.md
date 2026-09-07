@@ -7,9 +7,12 @@ are coordination issues, not prerequisite implementations. Further core deliveri
 under #584 precede #583; #153 audits the integrated result before #133 closes.
 The next family after #585 is not selected. Relevant live QA deferred at #579 merge
 is included in #585's acceptance, not recorded as passed. Older allocation/status
-statements below are historical. No new implementation or validation is claimed here.
+statements below are historical. No new whole-port completion or parity audit is claimed.
 
-Current #585 contract and in-progress boundaries:
+Local #585 candidate `ccf5f84d` passed final validation on 2026-09-07. Runtime QA
+has not started: the execution permission reviewer rejected the scoped service
+swap despite the user's affirmative reply. This is not live acceptance or issue closure.
+Current #585 contract, evidence and remaining boundaries:
 [session finalization](../architecture/session-finalization-585.md).
 
 **Historical capability-audit base:** 2026-08-09 · `3.4.3` @ `42977e9a`, including issue #26's

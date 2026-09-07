@@ -123,8 +123,40 @@ TESTBOT1@bot.local login/logout/save/relogin with restoration of the original bu
 normal auth/character writes only, no account creation, deletion or bnet restart.
 This authorization does not claim execution, transfer/capture coverage or a pass.
 
-Remaining acceptance: validate the committed publication candidate with the final
-profile; perform the authorized normal save/relogin QA and the separately applicable
+Remaining acceptance: perform the normal save/relogin QA and the separately applicable
 action-specific transfer/logout/disconnect capture/runtime scenarios; record exact
 candidate and restored identities; prepare the single #585 PR. Normal save/relogin
 does not waive the action-specific gate. No live or full issue acceptance is claimed.
+
+### Committed candidate — 2026-09-07
+
+`ccf5f84df6b277b16e50f683a94a8cb3fdf7b275` passed
+`CARGO_INCREMENTAL=0 PROTOC=/home/ubuntu/.local/protoc/bin/protoc VALIDATION_V2_CARGO_JOBS=2 VALIDATION_V2_TIMEOUT_SECONDS=1200 ./tools/validation-v2 final --base origin/3.4.3`.
+The verified-green manifest is
+`target/validation-v2/manifests/20260907T014920.415561Z-3-final.json`.
+It includes affected/reverse-consumer compilation and library suites: world-server
+569 passed; wow-database 358 passed/two ignored; wow-world 3,782 passed/one ignored.
+Tracked files matched HEAD after the run. Its truthful dirty flag includes only the
+unrelated, untracked `docs/architecture/lfg-343-audit.md`, retained unchanged with SHA-256
+`1a9155fbc06617201dc65ace2170e5885532e55c9dcb389e95a0a31b1de285dc`;
+it is not a Rust build input and is not part of #585's commit.
+
+The release executable embeds this candidate commit and has SHA-256
+`6cbc844d66f84d50cb4003c2101dbca19403830238eb7feda021ac39cc48930f`.
+The current bot was rebuilt successfully, SHA-256
+`ce591f69ae084e3b2e5065964b3a25528401cf513c037cd7faf20a1cb8271290`.
+A clean checkout of the same candidate at
+`/tmp/rustycore-585-runtime.XxNlUp/source` supplies the runtime guard's source identity;
+the existing build is reused, not rebuilt in that checkout. Guarded dry-run passed.
+
+Runtime QA did **not** start: the execution permission reviewer rejected the actual
+service-swap command twice, including reconsideration with the user's affirmative
+reply to the scoped authorization question. No service stop/copy/start or bot login
+was executed by those rejected calls. The original live identity observed before
+the attempt was SHA-256
+`c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`,
+PID 1234826, zero automatic restarts and no packet dump. A runtime gate remains
+outstanding; final-profile success does not waive it. Push, merge and #585 closure
+have not occurred.
+The read-only snapshot after rejection confirmed the identical PID, executable
+hash, restart count and absent packet dump; no restoration was necessary.
