@@ -802,3 +802,52 @@ The local delivery is ready for the single PR's publication/review with these li
 disclosed. No additional implementation is selected here. Full Login-side save,
 general crash recovery and the remaining #584 C0–C4 requirements stay open; #583
 does not become unblocked. This disposition creates no push or merge authorization.
+
+### PR #586 review — cross-socket write ordering repair
+
+The user authorized publication and subsequently merge after review. Review of
+`2a56becc` raised P1 TransferPending/SuspendToken ordering and P2 LogoutResponse/
+LogoutComplete ordering. Merge is held until these included-path findings are
+resolved; this is not reassignment of the inherited full-parity gaps above.
+
+Contract: the existing socket-writer FIFO marker must be acknowledged before a
+later packet is enqueued on the other socket. This proves prior socket writes,
+not client receipt or a TCP-wide ordering guarantee across two connections.
+C++ routes TransferPending and LogoutComplete to realm and SuspendToken and
+LogoutResponse to instance (Opcodes.cpp:2173/1665/2150/1666). Player.cpp:1435-1474
+and MiscHandler.cpp:238-291 with WorldSession.cpp:673-675 establish call order.
+C++ WorldSocket.cpp:526-534 logs/enqueues before its socket update writes;
+that capture order alone is not a physical cross-socket write acknowledgement.
+The repair reuses Rust's existing bounded writer fences, rather than claiming
+that C++ has the same fence or adding a client acknowledgement protocol.
+
+Both immediate and delayed ordinary far transfers now retain their destination,
+far-pending semaphore and Transfer state before the interruptible realm fence.
+Only after acknowledgement is SuspendToken queued. Failure kicks the session
+without losing the exact canonical handle/native completion destination; no token
+is emitted on the failed path. Seamless and logout-suppressed notifications do not
+require a fence for a TransferPending packet that was never sent.
+
+The delayed route becomes async through the existing update driver and the sole
+world-server session task. The driver keeps the same phase/call order and no map
+or entity guard crosses the wait. Existing synchronous accesses finish before it.
+Force cancellation leaves the destination on the owned Player for existing native
+disconnect completion; it creates no detached publisher, retry or second owner.
+Alternatives rejected for this correction: blocking the driver thread on a writer,
+spawning a detached token task, or adding a second pending-publication queue. Each
+adds blocking/ownership or cancellation complexity not needed by the existing task.
+
+LogoutPublication waits for prior instance writes before realm publication. A
+failed/missing fence returns Unavailable to the existing finite ledger, preserving
+RetainAndEscalate and unreleased claims. Cancellation leaves its step InFlight;
+the existing interruption policy does not reinterpret that as success or rollback.
+
+Reviewed structural delta: four existing methods become async; the factory body
+fingerprint changes only for awaiting update. No field, task, lock, persistence
+operation or opcode registration is added. Logical Session growth is +25 production/
+111 test lines; character tests +19, with new scenarios in bounded existing modules.
+The root's inseparable +16 physical lines keep the reviewed #584:C4 split exit.
+Test coverage includes held writer acknowledgements, realm backpressure, missing
+fences, receiver disappearance/timeout and cancellation for immediate/delayed transfer,
+plus native completion retaining the exact handle. Prior validation/live evidence
+does not yet validate this changed executable; renewed acceptance is in progress.

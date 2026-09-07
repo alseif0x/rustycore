@@ -161,6 +161,14 @@ impl WorldSession {
                 self.unregister_canonical_player_from_map_like_cpp()
             }
             LogoutPublication => {
+                // Separate writers must finish the earlier instance response first.
+                // A failed/cancelled fence cannot authorize completion publication.
+                if !self
+                    .wait_for_instance_send_before_realm_send_like_cpp()
+                    .await
+                {
+                    return FinalizationOutcome::Unavailable;
+                }
                 // C++ Opcodes.cpp:1665 routes LogoutComplete to realm.
                 // Saturation yields instead of blocking the executor thread.
                 // Success proves channel acceptance, not client receipt.
@@ -215,6 +223,21 @@ mod tests {
         realm_tx.send(vec![0]).unwrap();
         session.install_realm_send_channel_for_test(realm_tx);
         let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+        assert_eq!(
+            session
+                .execute_finalization_step(
+                    FinalizationStep::LogoutPublication,
+                    FinalizationMode::CharacterSelection,
+                    &generator,
+                )
+                .await,
+            FinalizationOutcome::Unavailable,
+            "missing instance fence cannot authorize completion"
+        );
+        let fence = wow_network::SocketWriteFenceLikeCpp::default();
+        session
+            .connection
+            .set_send_write_fence_like_cpp(fence.clone());
         let mut publication = Box::pin(session.execute_finalization_step(
             FinalizationStep::LogoutPublication,
             FinalizationMode::CharacterSelection,
@@ -226,7 +249,20 @@ mod tests {
             })
             .await
         );
-        assert!(instance.is_empty());
+        let marker = instance.try_recv().expect("instance writer fence");
+        assert_eq!(
+            realm.len(),
+            1,
+            "completion cannot precede instance write acknowledgement"
+        );
+        assert!(fence.acknowledge_marker_like_cpp(&marker));
+        assert!(
+            std::future::poll_fn(|cx| std::task::Poll::Ready(
+                publication.as_mut().poll(cx).is_pending()
+            ))
+            .await,
+            "realm backpressure remains after the instance fence"
+        );
         assert_eq!(realm.try_recv().unwrap(), vec![0]);
         assert_eq!(publication.await, FinalizationOutcome::Applied);
         assert_eq!(
@@ -234,6 +270,7 @@ mod tests {
             wow_packet::ServerPacket::to_bytes(&LogoutComplete)
         );
         drop(realm);
+        drop(instance);
         assert_eq!(
             session
                 .execute_finalization_step(
@@ -243,10 +280,6 @@ mod tests {
                 )
                 .await,
             FinalizationOutcome::Unavailable
-        );
-        assert!(
-            instance.is_empty(),
-            "a closed realm must not fall back to instance"
         );
     }
 }

@@ -47,6 +47,12 @@ combat/aura/group/object cleanup differences as retained #584 work, not addition
 #585 implementation prerequisites. Included-path blockers were corrected and tested.
 The local delivery is ready for publication/review with those limits disclosed;
 no full-action parity, push, merge or next implementation family is claimed.
+PR #586 is now published. The user authorized merge after review; its two new
+cross-socket ordering findings are being corrected before integration. Immediate
+and delayed transfer use the existing realm writer fence; LogoutComplete uses the
+instance writer fence. The existing session update becomes async without a new
+owner/task. Renewed validation/live acceptance is pending; earlier green evidence
+does not cover this executable change, and #585 remains open.
 Fresh C++ EOF and pending-transfer bot scenarios passed; C++ then crashed on stopping
 after the portal scenario. That reference shutdown is not recorded as successful.
 Current #585 contract, evidence and remaining boundaries:

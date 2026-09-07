@@ -7,6 +7,8 @@ async fn pending_worldport_uses_separate_cpp_connections() {
     let (mut session, instance) = make_session_with_send_capacity(100);
     let (realm_tx, realm) = flume::unbounded();
     session.install_realm_send_channel_for_test(realm_tx);
+    let fence = wow_network::SocketWriteFenceLikeCpp::default();
+    session.install_realm_send_write_fence_for_test(fence.clone());
     session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 571]));
     let guid = ObjectGuid::create_player(1, 585_2173);
     assert!(session.ensure_login_player_controller_like_cpp(
@@ -21,8 +23,25 @@ async fn pending_worldport_uses_separate_cpp_connections() {
     ));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     let destination = Position::new(100.0, 200.0, 40.0, 2.0);
-    session.teleport_to(571, destination).await;
-    let realm_packets: Vec<_> = realm.try_iter().collect();
+    use std::future::Future;
+    let mut transfer = Box::pin(session.teleport_to(571, destination));
+    assert!(
+        std::future::poll_fn(|cx| std::task::Poll::Ready(transfer.as_mut().poll(cx).is_pending()))
+            .await
+    );
+    let mut realm_packets: Vec<_> = realm.try_iter().collect();
+    let marker = realm_packets
+        .pop()
+        .expect("realm writer fence after TransferPending");
+    assert!(
+        instance
+            .try_iter()
+            .all(|packet| u16::from_le_bytes(packet[..2].try_into().unwrap())
+                != ServerOpcodes::SuspendToken as u16),
+        "SuspendToken cannot overtake TransferPending"
+    );
+    assert!(fence.acknowledge_marker_like_cpp(&marker));
+    transfer.await;
     assert_eq!(realm_packets.len(), 1);
     assert_eq!(
         u16::from_le_bytes(realm_packets[0][..2].try_into().unwrap()),

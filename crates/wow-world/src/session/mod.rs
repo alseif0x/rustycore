@@ -40391,6 +40391,12 @@ impl WorldSession {
         }
         self.active_area_trigger = None;
 
+        // Retain native completion authority before an interruptible writer wait.
+        if !self.set_represented_far_teleport_pending_like_cpp(true) {
+            return;
+        }
+        self.state = SessionState::Transfer;
+
         // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client. C++
         // Player::TeleportTo sets SequenceIndex = m_movementCounter WITHOUT incrementing
         // (Player.cpp:1466), and HandleMoveWorldportAck's ResumeToken uses the SAME counter
@@ -40398,6 +40404,14 @@ impl WorldSession {
         // resume by this index, so they MUST match — a hardcoded 1 here vs the real counter in
         // ResumeToken left the client stuck on the loading screen. #NEXT.R8.ENTITIES.1229.
         if !self.player_logout_like_cpp {
+            if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
+                && !self
+                    .wait_for_realm_send_before_instance_update_like_cpp()
+                    .await
+            {
+                self.kick("TransferPending writer fence failed; retain native destination");
+                return;
+            }
             let Some(suspend_seq) = self.movement_counter_like_cpp() else {
                 return;
             };
@@ -40410,12 +40424,6 @@ impl WorldSession {
                 },
             });
         }
-
-        // 4. Transition to Transfer state — only WorldPortResponse accepted now
-        if !self.set_represented_far_teleport_pending_like_cpp(true) {
-            return;
-        }
-        self.state = SessionState::Transfer;
 
         info!(
             account = self.account_id,
@@ -40582,7 +40590,7 @@ impl WorldSession {
         );
     }
 
-    fn process_represented_delayed_teleport_after_update_like_cpp(&mut self) -> bool {
+    async fn process_represented_delayed_teleport_after_update_like_cpp(&mut self) -> bool {
         let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
             return false;
         };
@@ -40610,12 +40618,13 @@ impl WorldSession {
         {
             self.initiate_same_map_near_teleport_like_cpp(map_id, destination, options);
         } else {
-            self.initiate_far_teleport_after_delay_like_cpp(map_id, destination, options);
+            self.initiate_far_teleport_after_delay_like_cpp(map_id, destination, options)
+                .await;
         }
         true
     }
 
-    fn initiate_far_teleport_after_delay_like_cpp(
+    async fn initiate_far_teleport_after_delay_like_cpp(
         &mut self,
         map_id: u32,
         destination: wow_core::Position,
@@ -40668,8 +40677,20 @@ impl WorldSession {
             return;
         }
         self.active_area_trigger = None;
+        if !self.set_represented_far_teleport_pending_like_cpp(true) {
+            return;
+        }
+        self.state = SessionState::Transfer;
 
         if !self.player_logout_like_cpp {
+            if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
+                && !self
+                    .wait_for_realm_send_before_instance_update_like_cpp()
+                    .await
+            {
+                self.kick("Delayed TransferPending writer fence failed; retain native destination");
+                return;
+            }
             // C++ SuspendToken.SequenceIndex = m_movementCounter (Player.cpp:1466); must match
             // the ResumeToken sent later so the client resumes. #NEXT.R8.ENTITIES.1229.
             let Some(suspend_seq) = self.movement_counter_like_cpp() else {
@@ -40684,11 +40705,6 @@ impl WorldSession {
                 },
             });
         }
-
-        if !self.set_represented_far_teleport_pending_like_cpp(true) {
-            return;
-        }
-        self.state = SessionState::Transfer;
     }
 
     fn unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(

@@ -629,9 +629,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76568,
-      "ceiling_lines": 76568,
-      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds two lines for one task-owned finalization ledger and its initialization; coordination and effects live in separate bounded modules. Final live QA adds seven inseparable identity-hydration guard lines to preserve canonical reputation across the repeated map-entry call; its 79-line regression is private and separate. No new field, mirror or public API. This reviewed growth is not physical closeout: the remaining C4 root split stays in #584.",
+      "observed_lines": 76584,
+      "ceiling_lines": 76584,
+      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds the task-owned finalization ledger and identity-hydration guard. PR #586 review adds 16 inseparable lines to retain the native far-transfer destination before an interruptible realm writer fence in both immediate and delayed paths. Existing update methods become async in the same Session task; no new field, task, lock or state mirror. New failure/cancellation tests remain in bounded files. This reviewed growth is not physical closeout: the remaining C4 root split stays in #584.",
       "review_checkpoint": "584:C4"
     },
     {

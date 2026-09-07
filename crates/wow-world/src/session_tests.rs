@@ -47184,7 +47184,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     session.teleport_to(0, destination).await;
     assert!(send_rx.try_recv().is_err());
 
-    session.update(50);
+    session.update(50).await;
 
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -48602,7 +48602,7 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
     session.teleport_to(571, destination).await;
     assert!(send_rx.try_recv().is_err());
 
-    session.update(50);
+    session.update(50).await;
     assert_eq!(session.state, SessionState::LoggedIn);
     assert!(!session.represented_has_delayed_teleport_like_cpp());
 
@@ -64129,12 +64129,12 @@ fn kick_sets_disconnecting() {
     assert!(session.is_disconnecting());
 }
 
-#[test]
-fn disconnected_channel_sets_disconnecting() {
+#[tokio::test]
+async fn disconnected_channel_sets_disconnecting() {
     let (mut session, pkt_tx, _) = make_session();
     drop(pkt_tx); // Close the channel
 
-    session.update(100);
+    session.update(100).await;
     assert!(session.is_disconnecting());
 }
 
@@ -75383,8 +75383,8 @@ fn update_pvp_flag_keeps_timer_before_five_minutes_like_cpp() {
     assert_eq!(session.player_pvp_end_timer_like_cpp, Some(1_000));
 }
 
-#[test]
-fn logged_in_update_consumes_expired_pvp_timer_like_cpp() {
+#[tokio::test]
+async fn logged_in_update_consumes_expired_pvp_timer_like_cpp() {
     let (mut session, _pkt_tx, canonical, guid) =
         session_with_canonical_player_for_away_like_cpp_with_packet_tx();
     session.set_state(SessionState::LoggedIn);
@@ -75401,7 +75401,7 @@ fn logged_in_update_consumes_expired_pvp_timer_like_cpp() {
     session.player_pvp_end_timer_like_cpp = Some(now - 301);
 
     assert_eq!(session.state(), SessionState::LoggedIn);
-    let _ = session.update(50);
+    let _ = session.update(50).await;
 
     assert_eq!(session.player_pvp_end_timer_like_cpp, None);
     let manager = canonical.lock().unwrap();
@@ -85256,8 +85256,8 @@ fn global_legacy_owner_skips_creature_tick_but_keeps_player_combat_tick_like_cpp
     assert_eq!(session.creature_tick, 4);
 }
 
-#[test]
-fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
+#[tokio::test]
+async fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
     // This drives `WorldSession::update` itself, not a hand-copied subset of
     // the guard.  With `GlobalLegacy`, the session must not move the shared
     // creature even when the tick cadence would normally fire.
@@ -85297,7 +85297,7 @@ fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
     session.creature_tick = 3; // update() increments to 4, so creature tick would fire.
     session.time_sync_timer_ms = 0;
 
-    assert_eq!(session.update(50), 0);
+    assert_eq!(session.update(50).await, 0);
 
     let guard = manager.read().unwrap();
     let creature = guard.find_creature(0, 0, guid).expect("creature exists");
