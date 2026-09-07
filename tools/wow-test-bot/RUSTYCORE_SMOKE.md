@@ -52,6 +52,26 @@ module is private `src/login_save.rs`; `test_login_save_relog.sh` tests report
 acceptance without a server or database. Missing/mutated existing data is a
 failure to investigate, not permission to repair the fixture.
 
+## Transport disconnect/save/relogin (#585)
+
+Under the same authorized runtime guard, select
+`QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_disconnect_relog.sh`.
+This uses only existing TESTBOT1@bot.local, with provisioning disabled and no SQL
+fixture writes or cleanup. The first authentication drains login and sends TCP FIN
+on both authenticated transports **without CMSG_LOGOUT_REQUEST**. It waits for a
+strictly newer offline character save and an offline Login account, then compares
+the same six preserved projections. A second fresh authentication verifies those
+projections and spell packets and finishes with ordinary confirmed logout.
+
+The modes `WOW_BOT_LOGIN_DISCONNECT_CHECK=1` and `WOW_BOT_LOGIN_SAVE_CHECK=1`
+are mutually exclusive; the wrapper sets each phase explicitly. The private JSON
+distinguishes `disconnect_confirmed` from `logout_confirmed`; the aggregate flag is
+`login_disconnect_relog_verified`, not ordinary `login_save_relog_verified`.
+DB polling allows 90 seconds for legacy socket expiry; the runtime wrapper retains
+its overall timeout/restoration guard. This covers orderly transport EOF, not RST,
+pending transfer, process crash, uncertain COMMIT recovery or a fresh capture.
+`test_login_disconnect_relog.sh` tests report acceptance without a server/database.
+
 ## What was adapted
 
 - `--login-only`: verifies world entry and drains the login streams.
