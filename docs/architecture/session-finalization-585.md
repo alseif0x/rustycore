@@ -549,3 +549,41 @@ Both tests passed with `cargo test -p wow-data --test faction_reputation_arrays 
 using the existing validation target and CARGO_INCREMENTAL=0. The installed scenario
 and final profile must be rerun for this code delta; the green `07698639` evidence
 does not validate it or establish that all reputation discrepancies are resolved.
+
+At `04c4a914`, both loader tests passed, including the explicit host-data test;
+the synthetic regression also failed as expected against the retained pre-fix library
+(`faction-before-regression.log`, palette case). The real Faction.db2 SHA-256 is
+`75ca205dd3a9e88eed6099c7ae77aa9f074184aea07dd9786443ee315b2b4d73`.
+Release build passed; executable SHA-256
+`c90771a53a89802cfd70c9ff7a86daf3e7207f90e1f60c0d669d025e64e8ef73`.
+All 34 release production-integration tests passed. Installed isolated QA still failed
+the same five saved rows (`rust-faction-fixed.log`/raw capture `rust-faction-fixed/`).
+However, strict comparison restricted to InitializeFactions (s2c:0x2724) now passes
+one matched packet with no differences (`faction-initial-diff.txt`). This proves the
+catalog correction, not final save retention. The final profile was deliberately
+interrupted with SIGINT after this failure exposed a further correction; manifest
+`20260907T143919.566382Z-2752391-final.json` is interrupted, not passing evidence.
+The isolated processes and database were stopped; originals were not replaced.
+
+### Repeated map-entry identity initialization loses loaded reputation
+
+The fresh packet contains flags 2 for all five affected faction indices, but the
+subsequent saved rows contain 0. Inspection locates a second
+`ensure_login_player_controller_like_cpp` in `handlers/character/session_state.rs`
+inside `send_login_sequence`, after initial packets. Its existing-owner path invokes
+`set_loaded_player_identity_like_cpp`, which unconditionally initialized reputation
+again. C++ CharacterHandler.cpp:1070/1141/1176 loads, publishes and adds the same
+Player; map admission does not repeat ReputationMgr::Initialize. The relevant Rust
+call and unconditional initialization also exist at integrated `59f5bced`; this is
+a source-confirmed inherited defect, not yet a baseline live reproduction.
+
+The bounded correction initializes when race/class changes or canonical reputation
+is empty, preserving already-loaded state for repeated identity/location/level updates.
+It adds no mirror, lock, field or public API. The private character-consumer regression
+`repeated_login_attachment_preserves_loaded_reputation_for_final_save` reproduces both
+attachment calls with loaded hostile flags, nonzero standing and clean save state;
+it also covers location-only updates and a real race change. Reviewed logical delta:
+Session +7 production lines; character tests +82 lines including registration.
+The focused regression passed (one test, 3,786 filtered out), as did the reviewed
+hotspot ratchet and cargo fmt check. Full and installed acceptance remain to be
+recorded at the new candidate; these focused results are not whole-issue closure.

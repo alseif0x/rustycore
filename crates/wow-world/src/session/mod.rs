@@ -41854,6 +41854,11 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) {
+        let initialize_reputation = self.player_race_like_cpp() != race
+            || self.player_class_like_cpp() != class
+            || self
+                .with_owned_player_like_cpp(|player| player.gameplay_state().reputations.is_empty())
+                .unwrap_or(true);
         if self.player_map_id_like_cpp() != map_id
             || self.player_race_like_cpp() != race
             || self.player_class_like_cpp() != class
@@ -41867,7 +41872,9 @@ impl WorldSession {
         self.player_level = level;
         self.player_gender = gender;
         self.set_player_faction_for_race_like_cpp(race);
-        self.initialize_reputation_mgr_like_cpp();
+        if initialize_reputation {
+            self.initialize_reputation_mgr_like_cpp();
+        }
         self.refresh_represented_talent_points_like_cpp();
     }
 

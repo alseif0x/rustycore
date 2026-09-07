@@ -5,6 +5,9 @@ use super::*;
 #[path = "transfer_routing.rs"]
 mod transfer_routing;
 
+#[path = "reputation_retention.rs"]
+mod reputation_retention;
+
 #[test]
 fn late_login_sequence_failure_releases_claim_and_partial_player_like_cpp() {
     let guid = ObjectGuid::create_player(1, 9_001_701);
