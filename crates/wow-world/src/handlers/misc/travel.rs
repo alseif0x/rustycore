@@ -156,11 +156,16 @@ impl crate::session::WorldSession {
         let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
             return;
         };
-        if !self.send_packet(&wow_packet::packets::misc::NewWorld {
+        let packet = wow_packet::packets::misc::NewWorld {
             map_id: new_map,
             pos: new_pos,
-            reason: 0,
-        }) {
+            reason: 16, // C++ Player.h NEW_WORLD_NORMAL (not the seamless value 21).
+        };
+        if self
+            .realm_route_tx()
+            .send(wow_packet::ServerPacket::to_bytes(&packet))
+            .is_err()
+        {
             self.kick("worldport NewWorld could not be queued");
             return;
         }

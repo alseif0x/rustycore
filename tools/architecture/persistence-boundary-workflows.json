@@ -8960,9 +8960,9 @@
       "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "connection_affinity": "One autocommit UPDATE on the selected Character or Login adapter; account-wide finalization is not one shared transaction.",
+      "current_order": "The #585 coordinator submits each represented offline mark in its mode-specific obligation order and awaits the returned receipt before admitting the next step.",
+      "failure_and_unknown_commit": "A confirmed execute result is Applied. The current execute API cannot prove the submission stage of an error, so every error is conservatively Unknown, including possible lost autocommit acknowledgement. The coordinator retains and escalates; no automatic replay or rollback claim."
     },
     {
       "package": "wow-database",

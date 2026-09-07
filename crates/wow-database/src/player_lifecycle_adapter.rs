@@ -172,11 +172,11 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
             };
             match result {
                 Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
-                // A single-statement write outside a transaction either applied
-                // or it did not; there is no COMMIT whose outcome could be
-                // indeterminate. `Unknown` is reserved for the transactional
-                // paths #200 migrates next, so do not manufacture it here.
-                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                // Autocommit still has an acknowledgement boundary: losing the
+                // reply does not prove the statement failed to apply. This API
+                // cannot identify the submission stage, so retain uncertainty
+                // conservatively instead of manufacturing a rollback receipt.
+                Err(error) => PersistenceOutcomeLikeCpp::Unknown {
                     reason: error.to_string(),
                 },
             }

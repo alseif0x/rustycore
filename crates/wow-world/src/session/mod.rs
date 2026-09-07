@@ -13,7 +13,7 @@ pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
 mod lifecycle;
-pub use lifecycle::{DisconnectSaveAttemptLikeCpp, PlayerSaveOutcomeLikeCpp};
+pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 pub mod mailbox;
 pub mod registry;
 mod trait_configs;
@@ -6012,6 +6012,7 @@ pub struct WorldSession {
     player_login_claim_like_cpp: Option<(ObjectGuid, Arc<()>)>,
     /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
     player_logout_like_cpp: bool,
+    finalization: Option<crate::finalization::SessionFinalization>,
 
     /// Session manager for ConnectTo flow (shared with instance listener).
     session_mgr: Option<Arc<SessionManager>>,
@@ -8363,6 +8364,7 @@ impl WorldSession {
             player_loading: None,
             player_login_claim_like_cpp: None,
             player_logout_like_cpp: false,
+            finalization: None,
             session_mgr: None,
             time_sync_next_counter: 0,
             time_sync_timer_ms: 0,
@@ -40377,7 +40379,7 @@ impl WorldSession {
                 ship: None,
                 transfer_spell_id: None,
             };
-            self.send_packet(&transfer_pending);
+            self.send_packet_realm(&transfer_pending);
             self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
         }
 
@@ -40389,6 +40391,12 @@ impl WorldSession {
         }
         self.active_area_trigger = None;
 
+        // Retain native completion authority before an interruptible writer wait.
+        if !self.set_represented_far_teleport_pending_like_cpp(true) {
+            return;
+        }
+        self.state = SessionState::Transfer;
+
         // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client. C++
         // Player::TeleportTo sets SequenceIndex = m_movementCounter WITHOUT incrementing
         // (Player.cpp:1466), and HandleMoveWorldportAck's ResumeToken uses the SAME counter
@@ -40396,6 +40404,14 @@ impl WorldSession {
         // resume by this index, so they MUST match — a hardcoded 1 here vs the real counter in
         // ResumeToken left the client stuck on the loading screen. #NEXT.R8.ENTITIES.1229.
         if !self.player_logout_like_cpp {
+            if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
+                && !self
+                    .wait_for_realm_send_before_instance_update_like_cpp()
+                    .await
+            {
+                self.kick("TransferPending writer fence failed; retain native destination");
+                return;
+            }
             let Some(suspend_seq) = self.movement_counter_like_cpp() else {
                 return;
             };
@@ -40408,12 +40424,6 @@ impl WorldSession {
                 },
             });
         }
-
-        // 4. Transition to Transfer state — only WorldPortResponse accepted now
-        if !self.set_represented_far_teleport_pending_like_cpp(true) {
-            return;
-        }
-        self.state = SessionState::Transfer;
 
         info!(
             account = self.account_id,
@@ -40580,7 +40590,7 @@ impl WorldSession {
         );
     }
 
-    fn process_represented_delayed_teleport_after_update_like_cpp(&mut self) -> bool {
+    async fn process_represented_delayed_teleport_after_update_like_cpp(&mut self) -> bool {
         let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
             return false;
         };
@@ -40608,12 +40618,13 @@ impl WorldSession {
         {
             self.initiate_same_map_near_teleport_like_cpp(map_id, destination, options);
         } else {
-            self.initiate_far_teleport_after_delay_like_cpp(map_id, destination, options);
+            self.initiate_far_teleport_after_delay_like_cpp(map_id, destination, options)
+                .await;
         }
         true
     }
 
-    fn initiate_far_teleport_after_delay_like_cpp(
+    async fn initiate_far_teleport_after_delay_like_cpp(
         &mut self,
         map_id: u32,
         destination: wow_core::Position,
@@ -40656,7 +40667,7 @@ impl WorldSession {
                 ship: None,
                 transfer_spell_id: None,
             };
-            self.send_packet(&transfer_pending);
+            self.send_packet_realm(&transfer_pending);
             self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
         }
 
@@ -40666,8 +40677,20 @@ impl WorldSession {
             return;
         }
         self.active_area_trigger = None;
+        if !self.set_represented_far_teleport_pending_like_cpp(true) {
+            return;
+        }
+        self.state = SessionState::Transfer;
 
         if !self.player_logout_like_cpp {
+            if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
+                && !self
+                    .wait_for_realm_send_before_instance_update_like_cpp()
+                    .await
+            {
+                self.kick("Delayed TransferPending writer fence failed; retain native destination");
+                return;
+            }
             // C++ SuspendToken.SequenceIndex = m_movementCounter (Player.cpp:1466); must match
             // the ResumeToken sent later so the client resumes. #NEXT.R8.ENTITIES.1229.
             let Some(suspend_seq) = self.movement_counter_like_cpp() else {
@@ -40682,11 +40705,6 @@ impl WorldSession {
                 },
             });
         }
-
-        if !self.set_represented_far_teleport_pending_like_cpp(true) {
-            return;
-        }
-        self.state = SessionState::Transfer;
     }
 
     fn unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
@@ -41852,6 +41870,11 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) {
+        let initialize_reputation = self.player_race_like_cpp() != race
+            || self.player_class_like_cpp() != class
+            || self
+                .with_owned_player_like_cpp(|player| player.gameplay_state().reputations.is_empty())
+                .unwrap_or(true);
         if self.player_map_id_like_cpp() != map_id
             || self.player_race_like_cpp() != race
             || self.player_class_like_cpp() != class
@@ -41865,7 +41888,9 @@ impl WorldSession {
         self.player_level = level;
         self.player_gender = gender;
         self.set_player_faction_for_race_like_cpp(race);
-        self.initialize_reputation_mgr_like_cpp();
+        if initialize_reputation {
+            self.initialize_reputation_mgr_like_cpp();
+        }
         self.refresh_represented_talent_points_like_cpp();
     }
 

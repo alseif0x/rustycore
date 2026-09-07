@@ -103,84 +103,15 @@ impl WorldSession {
         // Always allow instant logout for now (no combat/duel checks)
         self.send_packet(&LogoutResponse::instant_ok());
 
-        // C++ LogoutPlayer completes pending far entry before setting its logout
-        // flag and saving (WorldSession.cpp:544-551), independently of socket output.
-        if !self.finish_worldport_native_before_disconnect_like_cpp() {
-            self.kick("explicit logout refused incomplete worldport native work");
-            return;
-        }
-        if self.state() == crate::session::SessionState::Disconnecting {
-            return; // Terminal recovery leaves its source save to disconnect finalization.
-        }
-        self.set_player_logout_like_cpp(true);
-
-        // Complete logout immediately
-        self.logout_time = None;
-
-        if let Some(player_guid) = self.player_guid() {
-            self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
-                .await;
-            self.do_loot_release_all_like_cpp(player_guid).await;
-        }
-
-        // Trinity clears buyback slots before SaveToDB; persisted buyback items must not survive logout.
-        self.clear_buyback_on_logout().await;
-        let save_outcome = self
-            .save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+        let report = self
+            .finalize_session_with_generator_like_cpp(
+                crate::FinalizationMode::CharacterSelection,
+                item_guid_generator,
+            )
             .await;
-        // A submitted save can quarantine the session. Do not discard its owner,
-        // release its login claim or overwrite Disconnecting with Authed below.
-        if self.state() == crate::session::SessionState::Disconnecting {
+        if report.disposition != crate::FinalizationDisposition::Complete {
             return;
         }
-        if !matches!(
-            save_outcome,
-            crate::session::PlayerSaveOutcomeLikeCpp::Applied
-                | crate::session::PlayerSaveOutcomeLikeCpp::Failed
-        ) {
-            self.kick("explicit logout save was not admitted; retain owner for disconnect");
-            return;
-        }
-        // Known rollback keeps the existing C++/Rust logout behavior. Reaching
-        // character selection is not proof the attempted transaction committed.
-        self.save_account_mounts_like_cpp().await;
-        self.save_account_toys_like_cpp().await;
-        self.save_account_heirlooms_like_cpp().await;
-        self.save_account_item_appearances_like_cpp().await;
-        self.save_account_transmog_illusions_like_cpp().await;
-
-        // Mark character offline in DB
-        self.mark_character_offline().await;
-
-        // Queue the full visibility diff while the old canonical snapshot can
-        // still identify its map, then retire every shared owner of that
-        // Player before releasing the sole-login claim below.
-        self.unregister_from_player_registry();
-        self.notify_other_players_visibility_changed_like_cpp();
-        self.unregister_canonical_player_from_map_like_cpp();
-        // Send LogoutComplete → client returns to character select
-        self.set_state(crate::session::SessionState::Authed);
-        self.send_packet(&LogoutComplete);
-        self.mark_character_account_offline_like_cpp().await;
-        self.set_player_guid(None);
-        // Keep the sole character authority until the account-wide offline
-        // write and old Player identity teardown are complete. Otherwise a
-        // new login can publish online=true before this logout's broader
-        // online=false update reaches the database.
-        self.release_character_login_claim_like_cpp();
-
-        // Clear inventory state
-        self.clear_all_inventory_runtime_like_cpp();
-        let _ = self.clear_player_currencies_like_cpp();
-        self.set_active_loot_guid(ObjectGuid::EMPTY);
-
-        // ── Restore realm socket as primary ──────────────────────────
-        // After ConnectTo, send_tx/packet_rx point to the instance socket.
-        // On logout the client returns to character select on the REALM
-        // connection. If we don't swap back, the next PlayerLogin sends
-        // ConnectTo on the dead instance socket → client stuck at 90%.
-        self.restore_realm_channels();
-        self.set_player_logout_like_cpp(false);
 
         info!("Player logged out for account {}", self.account_id);
     }

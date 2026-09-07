@@ -204,6 +204,34 @@ mod tests {
     }
 
     #[test]
+    fn pending_far_completion_normalizes_orientation_before_exact_post_add_comparison() {
+        for orientation in [180.0, -7.0, std::f32::consts::TAU] {
+            let mut session = save_fixture();
+            session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
+            let requested = Position::new(67.7607, 2490.98, -4.29649, orientation);
+            let expected = wow_entities::WorldLocation::new(
+                1,
+                requested.x,
+                requested.y,
+                requested.z,
+                orientation,
+            )
+            .position();
+            assert!(session.set_pending_teleport_like_cpp(Some((1, requested))));
+            assert!(
+                session.update_player_teleport_state_like_cpp(|state| state.far_pending = true)
+            );
+            assert_eq!(session.pending_teleport_like_cpp(), Some((1, expected)));
+            assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+            assert_eq!(session.player_position_like_cpp(), Some(expected));
+            let state = session.player_teleport_state_snapshot_like_cpp().unwrap();
+            assert!(!state.far_pending);
+            assert!(state.post_add.is_none());
+            assert!(session.prepare_player_save_like_cpp(1).is_some());
+        }
+    }
+
+    #[test]
     fn prepared_save_rejects_retained_post_add_until_native_completion() {
         let mut session = save_fixture();
         let position = session.player_position_like_cpp().unwrap();

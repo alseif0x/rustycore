@@ -42,7 +42,7 @@ impl WorldSession {
     /// Process queued packets (up to [`MAX_PACKETS_PER_UPDATE`] per call).
     ///
     /// Returns the number of packets processed.
-    pub fn update_with_catalogs_like_cpp(
+    pub async fn update_with_catalogs_like_cpp(
         &mut self,
         diff_ms: u32,
         catalogs: &SessionHandlerCatalogsLikeCpp,
@@ -176,7 +176,8 @@ impl WorldSession {
                 Self::current_game_time_secs_like_cpp(),
             );
             let _ = self.set_represented_can_delay_teleport_like_cpp(false);
-            self.process_represented_delayed_teleport_after_update_like_cpp();
+            self.process_represented_delayed_teleport_after_update_like_cpp()
+                .await;
         }
 
         // ── Periodic TimeSyncRequest ──────────────────────────────
@@ -206,9 +207,9 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn update(&mut self, diff_ms: u32) -> usize {
+    pub async fn update(&mut self, diff_ms: u32) -> usize {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
-        self.update_with_catalogs_like_cpp(diff_ms, &catalogs)
+        self.update_with_catalogs_like_cpp(diff_ms, &catalogs).await
     }
 
     /// Process pending packets asynchronously. Call after `update()`.

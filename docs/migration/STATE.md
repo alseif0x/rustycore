@@ -1,12 +1,65 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Delivery replan — 2026-09-06, implementation `a0916c0d`:** #578/#579 remains open
-for bounded canonical-owner foundation/hardening closeout, with regression,
-integration and applicable live/capture gates still to be fully demonstrated.
-User-approved coordination epic #584 owns remaining C0–C4 work as crate-focused
-macrodeliverables with prior analysis; no next crate has been selected. Older
-allocations of all remaining core work to #578 below are historical, not closure
-proof. #583 remains gated on completed core seams; #133/#153 acceptance is unchanged.
+**Current delivery — 2026-09-07, integration `59f5bced`:** #579 merged and #578 closed.
+#585 is the selected implementation: represented session finalization outcomes,
+cancellation and exact-incarnation retirement, including its consumers. #133/#584
+are coordination issues, not prerequisite implementations. Further core deliveries
+under #584 precede #583; #153 audits the integrated result before #133 closes.
+The next family after #585 is not selected. Relevant live QA deferred at #579 merge
+is included in #585's acceptance, not recorded as passed. Older allocation/status
+statements below are historical. No new whole-port completion or parity audit is claimed.
+
+Local #585 candidate `ccf5f84d` passed final validation on 2026-09-07. After renewed
+explicit authorization, guarded normal save/relogin QA passed and the original
+world-server executable was restored and serving. The earlier permission blocker
+is resolved. The subsequent orderly transport-disconnect/save/relogin scenario
+also passed with QA tooling `55ec9a8b`, and the original server was restored.
+Candidate `bf884aec` subsequently passed final validation and guarded pending-transfer
+disconnect/save/relogin QA, after two separately committed fixes for realm routing
+and retained-destination normalization. Original character location and server binary
+were restored and verified. Applicable fresh C++ capture comparison remains outstanding.
+A temporary derived C++ executable has now been exercised on an isolated database copy;
+its four explicit reference corrections are documented in the checkpoint.
+Candidate `07698639` passed final validation and 34 release production-integration tests.
+Its installed LogoutComplete now matches C++ in bytes and realm connection in a fresh
+strict one-packet comparison. The full paired normal-logout capture remains divergent:
+instant-logout response/order and missing side effects. The same starting fixture exposes
+a reputation flag mismatch; neither failed comparison is waived. The old capture wrappers
+target PM2, not the current systemd deployment. These bounded passes are not full parity
+or issue closure; details and private evidence identities are in the checkpoint below.
+Subsequent final QA corrected compressed faction arrays and repeated map-entry reputation
+initialization; installed `48b3729b` preserves the five affected faction rows. Its next
+failure exposed persisted bows being rejected by a new-acquisition ambiguity policy.
+That bounded load correction and fresh-C++-driven portal reason/orientation corrections
+are implemented and installed candidate `5f5e225f` passed all three paired live
+scenarios (normal logout, EOF disconnect and pending-transfer disconnect, each with
+relogin and six retained persistence projections). Release production integration
+passed 34 tests. Scoped LogoutComplete, InitializeFactions, TransferPending and
+NewWorld comparisons match C++; full logout/portal windows remain divergent.
+Final validation first exposed a concurrent ambient-trace test; the test-only
+isolation repair passed 358 database tests and 20 concurrent trace-suite repetitions.
+Candidate `b8895373` then passed final validation; the reviewed exhaustive ownership
+check also passed with all 10,106 persistence references and 1,029 semantic groups.
+This is bounded local acceptance evidence, not publication, full action parity or
+closure of #585/#584.
+The subsequent bounded scope review classifies inherited admission and broader
+combat/aura/group/object cleanup differences as retained #584 work, not additional
+#585 implementation prerequisites. Included-path blockers were corrected and tested.
+The local delivery is ready for publication/review with those limits disclosed;
+no full-action parity, push, merge or next implementation family is claimed.
+PR #586 is published. Its two cross-socket ordering findings are corrected. Immediate
+and delayed transfer use the existing realm writer fence; LogoutComplete uses the
+instance writer fence. The existing session update becomes async without a new
+owner/task. Renewed final validation at `37ef2a93` passed 6,162 tests with zero
+failures. Release executable `5e48162a` passed paired normal logout/relogin and
+pending-portal disconnect/relogin on the isolated database; the four scoped
+logout/transfer packet comparisons passed. The original runtime stayed intact.
+The user authorized integration without another review request; #585 remains open
+until PR #586 merges. Further #584 work and the next-family selection remain separate.
+Fresh C++ EOF and pending-transfer bot scenarios passed; C++ then crashed on stopping
+after the portal scenario. That reference shutdown is not recorded as successful.
+Current #585 contract, evidence and remaining boundaries:
+[session finalization](../architecture/session-finalization-585.md).
 
 **Historical capability-audit base:** 2026-08-09 · `3.4.3` @ `42977e9a`, including issue #26's
 bounded creature-spell P1 wire/lifecycle acceptance and login faction hydration.

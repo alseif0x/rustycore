@@ -52,15 +52,15 @@ impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for RecordingPacketSp
     }
 }
 
-#[test]
-fn update_empty_queue() {
+#[tokio::test]
+async fn update_empty_queue() {
     let (mut session, _, _) = make_session();
-    let processed = session.update(100);
+    let processed = session.update(100).await;
     assert_eq!(processed, 0);
 }
 
-#[test]
-fn update_processes_packets() {
+#[tokio::test]
+async fn update_processes_packets() {
     let (mut session, pkt_tx, _) = make_session();
 
     // Send some packets (they'll be logged as "no handler" but won't crash)
@@ -69,13 +69,13 @@ fn update_processes_packets() {
         pkt_tx.send(pkt).unwrap();
     }
 
-    let processed = session.update(100);
+    let processed = session.update(100).await;
     assert_eq!(processed, 5);
     assert_eq!(session.pending_packets.len(), 5);
 }
 
-#[test]
-fn update_disconnects_when_socket_timeout_deadline_expired_like_cpp() {
+#[tokio::test]
+async fn update_disconnects_when_socket_timeout_deadline_expired_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {
         unauthenticated_secs: 60,
@@ -83,32 +83,30 @@ fn update_disconnects_when_socket_timeout_deadline_expired_like_cpp() {
     });
     session.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
 
-    assert_eq!(session.update(100), 0);
+    assert_eq!(session.update(100).await, 0);
     assert!(session.is_disconnecting());
 }
 
-#[test]
-fn timed_logout_preserves_player_until_disconnect_save_like_cpp() {
+#[tokio::test]
+async fn timed_logout_preserves_player_until_disconnect_save_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let guid = ObjectGuid::create_player(1, 77);
     session.set_player_guid(Some(guid));
     session.set_state(SessionState::LoggedIn);
     session.logout_time = Some(Instant::now() - Duration::from_secs(1));
 
-    session.update(100);
+    session.update(100).await;
 
-    let packet = send_rx.try_recv().expect("LogoutComplete packet");
-    let mut packet = WorldPacket::from_bytes(&packet);
-    assert_eq!(
-        packet.read_uint16().unwrap(),
-        wow_constants::ServerOpcodes::LogoutComplete as u16
+    assert!(
+        send_rx.try_recv().is_err(),
+        "timer admission is not completed finalization"
     );
     assert_eq!(session.player_guid(), Some(guid));
     assert!(session.is_disconnecting());
 }
 
-#[test]
-fn update_resets_socket_timeout_on_regular_packet_like_cpp() {
+#[tokio::test]
+async fn update_resets_socket_timeout_on_regular_packet_like_cpp() {
     let (mut session, pkt_tx, _) = make_session();
     session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {
         unauthenticated_secs: 60,
@@ -119,12 +117,12 @@ fn update_resets_socket_timeout_on_regular_packet_like_cpp() {
         .send(WorldPacket::from_bytes(&[0x00, 0x00]))
         .expect("packet queued");
 
-    assert_eq!(session.update(100), 1);
+    assert_eq!(session.update(100).await, 1);
     assert!(!session.is_disconnecting());
 }
 
-#[test]
-fn keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp() {
+#[tokio::test]
+async fn keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp() {
     let keep_alive_opcode = (ClientOpcodes::KeepAlive as u16).to_le_bytes();
 
     let (mut authed_session, authed_tx, _) = make_session();
@@ -137,7 +135,7 @@ fn keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp() {
         .send(WorldPacket::from_bytes(&keep_alive_opcode))
         .expect("keepalive queued");
 
-    assert_eq!(authed_session.update(100), 1);
+    assert_eq!(authed_session.update(100).await, 1);
     assert!(authed_session.is_disconnecting());
 
     let (mut logged_in_session, logged_in_tx, _) = make_session();
@@ -151,12 +149,12 @@ fn keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp() {
         .send(WorldPacket::from_bytes(&keep_alive_opcode))
         .expect("keepalive queued");
 
-    assert_eq!(logged_in_session.update(100), 1);
+    assert_eq!(logged_in_session.update(100).await, 1);
     assert!(!logged_in_session.is_disconnecting());
 }
 
-#[test]
-fn packet_spoof_policy_kick_blocks_over_limit_opcode_like_cpp() {
+#[tokio::test]
+async fn packet_spoof_policy_kick_blocks_over_limit_opcode_like_cpp() {
     let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
     let (mut session, pkt_tx, _) = make_session();
     session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
@@ -171,13 +169,13 @@ fn packet_spoof_policy_kick_blocks_over_limit_opcode_like_cpp() {
         .send(WorldPacket::from_bytes(&hotfix_opcode))
         .expect("second packet queued");
 
-    assert_eq!(session.update(100), 1);
+    assert_eq!(session.update(100).await, 1);
     assert_eq!(session.pending_packets.len(), 1);
     assert!(session.is_disconnecting());
 }
 
-#[test]
-fn packet_spoof_policy_log_keeps_over_limit_opcode_like_cpp() {
+#[tokio::test]
+async fn packet_spoof_policy_log_keeps_over_limit_opcode_like_cpp() {
     let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
     let (mut session, pkt_tx, _) = make_session();
     session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
@@ -192,13 +190,13 @@ fn packet_spoof_policy_log_keeps_over_limit_opcode_like_cpp() {
         .send(WorldPacket::from_bytes(&hotfix_opcode))
         .expect("second packet queued");
 
-    assert_eq!(session.update(100), 2);
+    assert_eq!(session.update(100).await, 2);
     assert_eq!(session.pending_packets.len(), 2);
     assert!(!session.is_disconnecting());
 }
 
-#[test]
-fn packet_spoof_policy_ban_stages_account_ban_like_cpp() {
+#[tokio::test]
+async fn packet_spoof_policy_ban_stages_account_ban_like_cpp() {
     let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
     let (mut session, pkt_tx, _) = make_session();
     session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
@@ -213,7 +211,7 @@ fn packet_spoof_policy_ban_stages_account_ban_like_cpp() {
         .send(WorldPacket::from_bytes(&hotfix_opcode))
         .expect("second packet queued");
 
-    assert_eq!(session.update(100), 1);
+    assert_eq!(session.update(100).await, 1);
     assert!(session.is_disconnecting());
     assert_eq!(
         session.pending_packet_spoof_ban_like_cpp,
@@ -224,8 +222,8 @@ fn packet_spoof_policy_ban_stages_account_ban_like_cpp() {
     );
 }
 
-#[test]
-fn packet_spoof_policy_ban_stages_ip_ban_from_remote_address_like_cpp() {
+#[tokio::test]
+async fn packet_spoof_policy_ban_stages_ip_ban_from_remote_address_like_cpp() {
     let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
     let (mut session, pkt_tx, _) = make_session();
     session.set_remote_address_like_cpp(Some("203.0.113.77".to_string()));
@@ -241,7 +239,7 @@ fn packet_spoof_policy_ban_stages_ip_ban_from_remote_address_like_cpp() {
         .send(WorldPacket::from_bytes(&hotfix_opcode))
         .expect("second packet queued");
 
-    assert_eq!(session.update(100), 1);
+    assert_eq!(session.update(100).await, 1);
     assert!(session.is_disconnecting());
     assert_eq!(
         session.pending_packet_spoof_ban_like_cpp,
@@ -709,8 +707,8 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
     );
 }
 
-#[test]
-fn packet_spoof_zero_limit_opcode_is_unlimited_like_cpp() {
+#[tokio::test]
+async fn packet_spoof_zero_limit_opcode_is_unlimited_like_cpp() {
     let player_login_opcode = (ClientOpcodes::PlayerLogin as u16).to_le_bytes();
     let (mut session, pkt_tx, _) = make_session();
     session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
@@ -724,7 +722,7 @@ fn packet_spoof_zero_limit_opcode_is_unlimited_like_cpp() {
             .expect("packet queued");
     }
 
-    assert_eq!(session.update(100), 5);
+    assert_eq!(session.update(100).await, 5);
     assert_eq!(session.pending_packets.len(), 5);
     assert!(!session.is_disconnecting());
 }

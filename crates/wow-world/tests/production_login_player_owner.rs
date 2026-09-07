@@ -16,6 +16,10 @@ use wow_persistence::*;
 use wow_world::{WorldSession, session::*};
 
 struct LoginPort {
+    // Projection tests retain the source by injecting a later known failure;
+    // successful-finalization tests leave this disabled and assert retirement.
+    retain_after_save: AtomicBool,
+    finalization_probe: std::sync::Mutex<Option<Arc<finalization::Probe>>>,
     save_probe: std::sync::Mutex<Option<Arc<save::SaveProbe>>>,
     reached_pet_load: AtomicBool,
     reached_inventory_load: AtomicBool,
@@ -27,8 +31,18 @@ struct LoginPort {
 impl PlayerLifecyclePortLikeCpp for LoginPort {
     fn mark_offline_like_cpp<'a>(
         &'a self,
-        _: PlayerOfflineMarkLikeCpp,
+        mark: PlayerOfflineMarkLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        if let Some(probe) = self.finalization_probe.lock().unwrap().clone() {
+            return probe.offline(mark);
+        }
+        if self.retain_after_save.load(Ordering::SeqCst) {
+            return Box::pin(async {
+                PersistenceOutcomeLikeCpp::Failed {
+                    reason: "controlled offline failure retains the projection witness".into(),
+                }
+            });
+        }
         if self.save_probe.lock().unwrap().is_some() {
             return Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } });
         }
@@ -164,8 +178,11 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
     }
     fn save_account_collection_like_cpp<'a>(
         &'a self,
-        _: AccountCollectionSaveLikeCpp,
+        save: AccountCollectionSaveLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        if let Some(probe) = self.finalization_probe.lock().unwrap().clone() {
+            return probe.collection(save);
+        }
         if self.save_probe.lock().unwrap().is_some() {
             return Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } });
         }
@@ -338,6 +355,8 @@ async fn hydrate(
             .unwrap();
     }
     let port = Arc::new(LoginPort {
+        retain_after_save: AtomicBool::new(false),
+        finalization_probe: std::sync::Mutex::new(None),
         save_probe: std::sync::Mutex::new(None),
         reached_pet_load: AtomicBool::new(false),
         reached_inventory_load: AtomicBool::new(false),
@@ -444,6 +463,8 @@ async fn hydrate(
 
 #[path = "production_login_player_owner/cleanup.rs"]
 mod cleanup;
+#[path = "production_login_player_owner/finalization.rs"]
+mod finalization;
 #[path = "production_login_player_owner/save.rs"]
 mod save;
 #[path = "production_login_player_owner/teleport_admission.rs"]

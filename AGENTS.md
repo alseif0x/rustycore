@@ -118,16 +118,22 @@ they are not separate frozen architecture snapshots.
   crates/wow-world/src/session/registry.rs and actual registrations for the current thunk
   signature; do not copy an outdated snippet or reintroduce a dispatcher opcode match.
   Keep exact-set metadata/registration tests for changes to that boundary.
-- The user-approved delivery track is bounded #578/#579 closeout, then #584's crate-focused
-  core macrodeliverables, #583 and #153 before #133 closes. #584 retains unfinished C0–C4;
-  do not require the entire core refactor in #578 or treat its closure as completing it.
-  No next crate is selected. Analyze each crate before defining its implementation macro,
+- #579 is merged and #578 closed. Implement #585's represented session finalization now,
+  then the remaining core macrodeliverables under #584, #583 and #153 before #133 closes.
+  #133/#584 are umbrellas, not prerequisite implementations. #584 retains unfinished C0–C4;
+  closing #585 does not open #583 immediately. The family after #585 is not selected.
+  Analyze each responsibility before defining its implementation macro,
   include cross-crate consumers and preserve scoped regression/live acceptance. These
   evidence reviews do not add routine approvals or authorize merge/runtime operations.
 - After playable M6.2/#47, perform the fresh whole-port planning pass before decomposing
   Part 2/#48. Do not prematurely create its child issue tree.
 
 ## Validation
+
+For #585, the user's 2026-09-07 execution instruction supersedes routine iteration
+cadence below: implement the complete delivery first, then run its affected acceptance
+tests, applicable QA and publication validation. Do not run CI, builds or tests for
+each internal microchange. Do not claim unexecuted evidence as passing.
 
 Use [validation-v2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md) for the actual profiles.

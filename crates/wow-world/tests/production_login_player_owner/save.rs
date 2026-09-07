@@ -6,6 +6,18 @@ use std::sync::Mutex;
 #[path = "save/logout.rs"]
 mod logout;
 
+fn character_save_outcome(report: wow_world::FinalizationReport) -> PlayerSaveOutcomeLikeCpp {
+    match report.outcome(wow_world::FinalizationStep::CharacterSave) {
+        wow_world::FinalizationOutcome::Applied => PlayerSaveOutcomeLikeCpp::Applied,
+        wow_world::FinalizationOutcome::DefinitelyRolledBack => PlayerSaveOutcomeLikeCpp::Failed,
+        wow_world::FinalizationOutcome::Unknown | wow_world::FinalizationOutcome::InFlight => {
+            PlayerSaveOutcomeLikeCpp::Quarantined
+        }
+        wow_world::FinalizationOutcome::Deferred => PlayerSaveOutcomeLikeCpp::Deferred,
+        other => panic!("unexpected Character obligation: {other:?}"),
+    }
+}
+
 pub(super) async fn assert_terminal_source_save(session: &mut WorldSession, port: &LoginPort) {
     let probe = Arc::new(SaveProbe {
         requests: Mutex::new(vec![]),
@@ -13,9 +25,13 @@ pub(super) async fn assert_terminal_source_save(session: &mut WorldSession, port
         outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     });
     *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    port.retain_after_save.store(true, Ordering::SeqCst);
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
     session
-        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .finalize_session_with_generator_like_cpp(
+            wow_world::FinalizationMode::Disconnect,
+            &generator,
+        )
         .await;
     let requests = probe.requests.lock().unwrap();
     assert_eq!(requests.len(), 1);
@@ -28,9 +44,9 @@ pub(super) async fn assert_terminal_source_save(session: &mut WorldSession, port
 }
 
 pub(super) struct SaveProbe {
-    requests: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
-    released: AtomicBool,
-    outcome: PersistenceOutcomeLikeCpp,
+    pub(super) requests: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
+    pub(super) released: AtomicBool,
+    pub(super) outcome: PersistenceOutcomeLikeCpp,
 }
 
 pub(super) fn save<'a>(
@@ -102,13 +118,16 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
         outcome: outcome.clone(),
     });
     *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    port.retain_after_save.store(true, Ordering::SeqCst);
     for _ in 0..8 {
         output.try_send(vec![0]).unwrap();
     }
     assert!(output.is_full());
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
-    let mut future =
-        Box::pin(session.save_disconnect_player_to_db_with_generator_like_cpp(&generator));
+    let mut future = Box::pin(session.finalize_session_with_generator_like_cpp(
+        wow_world::FinalizationMode::Disconnect,
+        &generator,
+    ));
     assert!(
         std::future::poll_fn(|cx| std::task::Poll::Ready(future.as_mut().poll(cx).is_pending()))
             .await
@@ -156,12 +175,12 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
     if !cancel {
         probe.released.store(true, Ordering::SeqCst);
         assert_eq!(
-            future.await,
-            DisconnectSaveAttemptLikeCpp::Character(match outcome {
+            character_save_outcome(future.await),
+            match outcome {
                 PersistenceOutcomeLikeCpp::Applied { .. } => PlayerSaveOutcomeLikeCpp::Applied,
                 PersistenceOutcomeLikeCpp::Failed { .. } => PlayerSaveOutcomeLikeCpp::Failed,
                 PersistenceOutcomeLikeCpp::Unknown { .. } => PlayerSaveOutcomeLikeCpp::Quarantined,
-            })
+            }
         );
     } else {
         drop(future);
@@ -210,11 +229,14 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
     assert_eq!(probe.requests.lock().unwrap().len(), 1);
     if cancel || matches!(outcome, PersistenceOutcomeLikeCpp::Unknown { .. }) {
         let report = session
-            .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+            .finalize_session_with_generator_like_cpp(
+                wow_world::FinalizationMode::Disconnect,
+                &generator,
+            )
             .await;
         assert_eq!(
-            report,
-            DisconnectSaveAttemptLikeCpp::Character(PlayerSaveOutcomeLikeCpp::Quarantined)
+            character_save_outcome(report),
+            PlayerSaveOutcomeLikeCpp::Quarantined
         );
         assert_eq!(
             probe.requests.lock().unwrap().len(),
@@ -279,13 +301,17 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
         outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     });
     *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    port.retain_after_save.store(true, Ordering::SeqCst);
     for _ in 0..8 {
         output.try_send(vec![0]).unwrap();
     }
     assert!(output.is_full());
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
     session
-        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .finalize_session_with_generator_like_cpp(
+            wow_world::FinalizationMode::Disconnect,
+            &generator,
+        )
         .await;
     assert_eq!(
         receiver.len(),
@@ -410,7 +436,10 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
         outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     });
     *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    port.retain_after_save.store(true, Ordering::SeqCst);
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    port.retain_after_save
+        .store(!explicit_logout, Ordering::SeqCst);
     if explicit_logout {
         // Direct production adapter call proves LogoutPlayer ordering, not that
         // the LoggedIn-only network registration admits a packet during Transfer.
@@ -431,7 +460,10 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
                         != wow_constants::ServerOpcodes::LogoutComplete as u16)
             );
             session
-                .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+                .finalize_session_with_generator_like_cpp(
+                    wow_world::FinalizationMode::Disconnect,
+                    &generator,
+                )
                 .await;
             let requests = probe.requests.lock().unwrap();
             assert_eq!(requests.len(), 1);
@@ -470,7 +502,10 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
         return;
     }
     session
-        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .finalize_session_with_generator_like_cpp(
+            wow_world::FinalizationMode::Disconnect,
+            &generator,
+        )
         .await;
     assert_eq!(
         receiver.len(),

@@ -1,5 +1,12 @@
 # Session convergence checkpoint — updated 2026-09-06
 
+**Closed predecessor, 2026-09-07:** PR #579 merged into `3.4.3` as `59f5bced`;
+#578 is closed. The user explicitly accepted integration with action-specific
+live QA deferred, not passed. #585 now owns the represented finalization delivery
+and its applicable acceptance; #584 retains other core work. The older open/draft
+status and unfulfilled pre-merge gates below are historical, not instructions to
+reopen #578. #585 does not inherit all C0–C4 or full Login-side SaveToDB parity.
+
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
 The user explicitly replaced the single all-core #578 delivery with analyzed,

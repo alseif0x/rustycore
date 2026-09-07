@@ -978,12 +978,12 @@ impl ServerPacket for RaidDifficultySet {
 
 // ── DbQueryBulk (CMSG 0x35e5) ─────────────────────────────────────
 
-/// Sent after WorldPortResponse to place the player in the new world.
-/// C# ref: MovementPackets.NewWorld
+/// Sent after SuspendTokenResponse, before the client's WorldPortResponse.
+/// C++ MovementPackets.cpp:696, Opcodes.cpp:1811: NewWorld on the realm connection.
 pub struct NewWorld {
     pub map_id: u32,
     pub pos: wow_core::Position,
-    /// 0 = Normal teleport, 1 = Seamless.
+    /// C++ Player.h: 16 = Normal teleport, 21 = Seamless.
     pub reason: u32,
 }
 

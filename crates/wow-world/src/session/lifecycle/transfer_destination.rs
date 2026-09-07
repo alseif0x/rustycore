@@ -14,6 +14,15 @@ impl WorldSession {
         &mut self,
         destination: Option<(u32, Position)>,
     ) -> bool {
+        // C++ Player.cpp:1456 constructs WorldLocation; Position.h:29 normalizes
+        // orientation there, before the same destination is used for attachment.
+        // Retaining raw orientation would disagree with canonical WorldObject
+        // after relocation and falsely block native post-add/finalization.
+        let destination = destination.map(|(map, pos)| {
+            let location =
+                wow_entities::WorldLocation::new(map, pos.x, pos.y, pos.z, pos.orientation);
+            (map, location.position())
+        });
         self.update_player_teleport_state_like_cpp(|state| state.far_destination = destination)
     }
 }

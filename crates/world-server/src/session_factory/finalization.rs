@@ -1,114 +1,58 @@
-//! Disconnect supervision: attempt completion is not whole-operation durability.
+//! Whole-operation completion policy and fail-stop retention.
 use super::*;
-use wow_world::session::{DisconnectSaveAttemptLikeCpp, PlayerSaveOutcomeLikeCpp};
 
-/// Preserve existing retirement policy while exposing the returned classification.
-/// Only the established incomplete-native-work gate refuses normal cleanup.
-/// Deferred/Unavailable still need cause-specific recovery; neither they nor a
-/// completed attempt authorize retries or prove whole-operation durability.
-pub(super) fn allow_disconnect_cleanup_after_attempt_like_cpp(
-    runtime: &WorldRuntimeStateLikeCpp,
-    account_id: u32,
-    attempt: Option<DisconnectSaveAttemptLikeCpp>,
+pub(super) fn completed_session_finalization(
+    report: &Option<wow_world::FinalizationReport>,
 ) -> bool {
-    use DisconnectSaveAttemptLikeCpp::{Character, NativeCompletionUnavailable, NoPlayer};
-    use PlayerSaveOutcomeLikeCpp::{Applied, Deferred, Failed, Quarantined, Unavailable};
-    match attempt {
-        Some(NativeCompletionUnavailable) => {
-            runtime.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-            tracing::error!(
-                account_id,
-                ?attempt,
-                "Disconnect save not admitted; refusing normal cleanup"
-            );
-            false
-        }
-        Some(Character(Deferred | Unavailable | Failed | Quarantined)) => {
-            // Preserve the existing rollback/retirement and quarantine/reload
-            // contracts. Never retry an uncertain transaction or label it Applied.
-            tracing::warn!(
-                account_id,
-                ?attempt,
-                "Retiring disconnected session without confirmed character save"
-            );
-            true
-        }
-        Some(NoPlayer | Character(Applied)) => true,
-        None => {
-            runtime.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-            true // Timeout is fatal, but cleanup still gets its own bounded attempt.
-        }
-    }
+    finalization_disposition_can_release(report.as_ref().map(|report| report.disposition))
+}
+
+fn finalization_disposition_can_release(
+    disposition: Option<wow_world::FinalizationDisposition>,
+) -> bool {
+    disposition == Some(wow_world::FinalizationDisposition::Complete)
+}
+
+/// Fail-stop retention, not a recovery worker. The existing session task keeps
+/// ownership and remains registered until the Tokio runtime is torn down. Its
+/// supervisor has already closed admission and requested terminal error status.
+/// Process teardown does not claim that a remote DB operation rolled back.
+pub(super) async fn retain_session_until_process_teardown(session: &mut WorldSession) {
+    std::future::pending::<()>().await;
+    // Keep the mutable borrow live across the wait: no early Session/claim drop.
+    let _ = session.finalization_report_like_cpp();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wow_world::FinalizationDisposition;
 
-    #[tokio::test]
-    async fn shutdown_preserves_returned_save_classification() {
-        use DisconnectSaveAttemptLikeCpp::{Character, NativeCompletionUnavailable, NoPlayer};
-        use PlayerSaveOutcomeLikeCpp::{Applied, Deferred, Failed, Quarantined, Unavailable};
-        for report in [
-            NoPlayer,
-            NativeCompletionUnavailable,
-            Character(Applied),
-            Character(Deferred),
-            Character(Unavailable),
-            Character(Failed),
-            Character(Quarantined),
+    #[test]
+    fn shutdown_finalization_requires_whole_operation_completion() {
+        assert!(finalization_disposition_can_release(Some(
+            FinalizationDisposition::Complete
+        )));
+        for disposition in [
+            None,
+            Some(FinalizationDisposition::InProgress),
+            Some(FinalizationDisposition::RetainAndEscalate),
         ] {
-            let runtime = WorldRuntimeStateLikeCpp::new();
-            let result = run_world_session_shutdown_finalize_step_like_cpp(
-                &runtime,
-                Duration::from_secs(1),
-                async { report },
-            )
-            .await;
-            assert_eq!(result, Some(report));
-            // The timeout helper classifies completion, not semantic success.
-            assert_eq!(
-                runtime.get_exit_code_like_cpp(),
-                SHUTDOWN_EXIT_CODE_LIKE_CPP
-            );
-            let admitted = !matches!(report, NativeCompletionUnavailable);
-            assert_eq!(
-                allow_disconnect_cleanup_after_attempt_like_cpp(&runtime, 1, result),
-                admitted
-            );
-            assert_eq!(
-                runtime.get_exit_code_like_cpp(),
-                if admitted {
-                    SHUTDOWN_EXIT_CODE_LIKE_CPP
-                } else {
-                    ERROR_EXIT_CODE_LIKE_CPP
-                }
-            );
+            assert!(!finalization_disposition_can_release(disposition));
         }
+        assert!(!completed_session_finalization(&None));
     }
 
     #[tokio::test]
-    async fn shutdown_timeout_still_allows_independent_cleanup_attempt() {
+    async fn shutdown_timeout_does_not_authorize_independent_cleanup() {
         let runtime = WorldRuntimeStateLikeCpp::new();
         let result = run_world_session_shutdown_finalize_step_like_cpp(
             &runtime,
             Duration::from_millis(1),
-            std::future::pending::<DisconnectSaveAttemptLikeCpp>(),
+            std::future::pending::<wow_world::FinalizationReport>(),
         )
         .await;
-        assert_eq!(result, None);
-        assert!(allow_disconnect_cleanup_after_attempt_like_cpp(
-            &runtime, 1, result
-        ));
-        assert_eq!(
-            run_world_session_shutdown_finalize_step_like_cpp(
-                &runtime,
-                Duration::from_secs(1),
-                async { "cleanup attempted" },
-            )
-            .await,
-            Some("cleanup attempted")
-        );
+        assert!(!completed_session_finalization(&result));
         assert_eq!(runtime.get_exit_code_like_cpp(), ERROR_EXIT_CODE_LIKE_CPP);
     }
 }

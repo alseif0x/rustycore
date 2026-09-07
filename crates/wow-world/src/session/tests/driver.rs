@@ -104,8 +104,8 @@ mod queued_packets {
         );
     }
 
-    #[test]
-    fn retained_packets_share_the_next_ingestion_budget_without_dropping_surplus() {
+    #[tokio::test]
+    async fn retained_packets_share_the_next_ingestion_budget_without_dropping_surplus() {
         let (mut session, _tx, _rx) = make_session();
         session.pending_packets.push_back(marked_packet(2));
         session.pending_packets.push_back(marked_packet(3));
@@ -114,10 +114,10 @@ mod queued_packets {
         for _ in 0..MAX_PACKETS_PER_UPDATE {
             tx.send(benign_packet()).unwrap();
         }
-        assert_eq!(session.update(0), MAX_PACKETS_PER_UPDATE - 2);
+        assert_eq!(session.update(0).await, MAX_PACKETS_PER_UPDATE - 2);
         assert_eq!(session.pending_packets.len(), MAX_PACKETS_PER_UPDATE);
         assert_eq!(tx.len(), 2);
-        assert_eq!(session.update(0), 0);
+        assert_eq!(session.update(0).await, 0);
         assert_eq!(tx.len(), 2);
         assert_eq!(
             session.pending_packets.front().unwrap().data(),
@@ -137,7 +137,7 @@ fn benign_packet() -> WorldPacket {
 
 async fn one_pass(session: &mut WorldSession, diff_ms: u32) -> usize {
     session.reset_driver_phase_trace_like_cpp();
-    let processed = session.update(diff_ms);
+    let processed = session.update(diff_ms).await;
     session.process_pending().await;
     processed
 }
@@ -212,7 +212,7 @@ async fn ingestion_stops_at_the_shared_budget_like_cpp() {
     }
 
     session.reset_driver_phase_trace_like_cpp();
-    let processed = session.update(0);
+    let processed = session.update(0).await;
 
     assert_eq!(processed, MAX_PACKETS_PER_UPDATE);
     assert_eq!(session.pending_packets.len(), MAX_PACKETS_PER_UPDATE);
@@ -233,7 +233,7 @@ async fn realm_and_primary_ingestion_share_one_budget_like_cpp() {
     }
     realm_tx.send(benign_packet()).unwrap();
 
-    let processed = session.update(0);
+    let processed = session.update(0).await;
 
     assert_eq!(processed, MAX_PACKETS_PER_UPDATE);
     assert_eq!(realm_tx.len(), 1, "realm packet waits for the next pass");
@@ -247,7 +247,7 @@ async fn expired_idle_deadline_marks_the_session_disconnecting_like_cpp() {
     session.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
 
     session.reset_driver_phase_trace_like_cpp();
-    session.update(0);
+    session.update(0).await;
 
     assert!(
         session

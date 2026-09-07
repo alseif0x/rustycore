@@ -19,6 +19,12 @@ impl WorldSession {
     /// Re-entry by this same session is idempotent; a live foreign claim is
     /// rejected before either session can load and later save stale rows.
     pub(crate) fn try_claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {
+        if let Some(operation) = &self.finalization {
+            if operation.report().disposition != crate::FinalizationDisposition::Complete {
+                return false;
+            }
+            self.finalization = None;
+        }
         if self
             .player_login_claim_like_cpp
             .as_ref()
