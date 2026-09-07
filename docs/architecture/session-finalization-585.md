@@ -625,3 +625,45 @@ missing effective metadata. Existing range/step tests remain registered in skill
 `cargo test -p wow-data --lib skill::` passed all 33 tests after the repair.
 This is not a general redesign of how login handles genuinely indeterminate
 metadata or full Login-side SaveToDB composition; that boundary remains under #584.
+
+### Fresh EOF/portal references and portal contract correction
+
+Using the same derived C++ executable and normalized private database, the orderly
+EOF scenario passed with the original pinned bot: disconnect confirmed, character
+and Login account offline, six projections unchanged. Evidence `cpp-disconnect.json`
+SHA-256 `31bb8f287d17506c24385ec3c57f6abee1f5c513a595f776eda9a81381ad37b0`,
+capture `cpp-disconnect.pkt` SHA-256
+`2ffad3f438d01e806582d35e20d3edb99f755f57fbc9c630a9148ebb72b2a5eb`.
+
+The private copy was restored, then only character 14/account 8's seven location
+fields were set to the already-reviewed trigger 2173 fixture. The first portal run
+failed the bot because its NewWorld check incorrectly expected reason 0. The C++
+capture carries reason 16 at payload offset 28 and orientation pi at offset 16.
+Exact anchors: Player.h:769-770 (`NEW_WORLD_NORMAL=16`, seamless=21),
+MovementHandler.cpp:251-255, MovementPackets.cpp:696-702; ObjectMgr.cpp:7032 converts
+WorldSafeLocs.Facing from degrees before constructing the destination.
+
+The Rust ordinary far-transfer adapter now sends reason 16; packet documentation
+is corrected. The production area-trigger composition converts the raw persistence
+row's SQL Facing to radians, without changing that SQL/source DTO or introducing
+a second conversion in the generic Position type. This closes the previously
+identified destination-loader gap for this composed path. The bot now checks the
+exact normal reason and pi orientation, with negative checks for the old wrong values.
+The actual composition/order tests passed (2), the realm transfer test passed (1),
+and the bot portal test passed (1). Reviewed logical increases: character tests +4,
+world-server tests +14; production LOC is unchanged for this portal correction.
+
+Rebuilt bot SHA-256 `dfdee794935eb9578d691c30030351502759e2fd83825de20cbb3dd82ecf6395`
+then passed the fresh C++ pending-transfer scenario: no WorldPortResponse, saved
+destination map 369, both offline marks and all six projections retained.
+Report `cpp-pending-transfer-corrected.json` SHA-256
+`b0e31d820166ca8732b985d1aa74d27f839ac5e00f91075f512da8c6510fb540`;
+capture `cpp-pending-transfer-corrected-bot.pkt` SHA-256
+`0ebf6c4f4db04907754841c21369fdebeee07c34d4e3642f40153d8e1e5b0fd1`.
+Both portal-reference processes subsequently exited 139 when requested to stop;
+the second crash occurred after the bot had confirmed the save. This is not a
+successful reference shutdown, and its cause is not established. Packet/SQL
+observations before that stop remain distinct from shutdown evidence. BNet stopped
+normally, the private database was shut down, and original services were untouched.
+The corrected Rust portal and persisted-skill paths still require installed QA
+and a new final candidate; no acceptance assertion or capture filter was waived.

@@ -132,9 +132,9 @@
     },
     {
       "path": "crates/wow-data/src/skill.rs",
-      "observed_lines": 3816,
-      "ceiling_lines": 3816,
-      "split": "Separate skill/race/class/ability stores and their reader/query tests.",
+      "observed_lines": 3761,
+      "ceiling_lines": 3761,
+      "split": "Persisted skill hydration is now in private skill/loaded.rs, separately from acquisition; its regression tests are bounded there. The 33 skill tests pass after the reviewed 55-line root reduction. Remaining skill/race/class/ability stores and reader/query test splits stay under #584.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -629,9 +629,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76561,
-      "ceiling_lines": 76561,
-      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds two lines for one task-owned finalization ledger and its initialization; coordination and effects live in separate bounded modules. This is cancellation-progress state, not Player duplication. The remaining C4 root split stays in #584.",
+      "observed_lines": 76568,
+      "ceiling_lines": 76568,
+      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds two lines for one task-owned finalization ledger and its initialization; coordination and effects live in separate bounded modules. Final live QA adds seven inseparable identity-hydration guard lines to preserve canonical reputation across the repeated map-entry call; its 79-line regression is private and separate. No new field, mirror or public API. This reviewed growth is not physical closeout: the remaining C4 root split stays in #584.",
       "review_checkpoint": "584:C4"
     },
     {

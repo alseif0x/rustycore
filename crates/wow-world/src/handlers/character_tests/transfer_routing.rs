@@ -42,6 +42,10 @@ async fn pending_worldport_uses_separate_cpp_connections() {
         u16::from_le_bytes(new_world[..2].try_into().unwrap()),
         ServerOpcodes::NewWorld as u16
     );
+    assert_eq!(
+        u32::from_le_bytes(new_world[30..34].try_into().unwrap()),
+        16
+    );
     assert!(instance.is_empty());
     assert!(session.represented_far_teleport_pending_like_cpp());
     drop(realm);

@@ -983,7 +983,7 @@ impl ServerPacket for RaidDifficultySet {
 pub struct NewWorld {
     pub map_id: u32,
     pub pos: wow_core::Position,
-    /// 0 = Normal teleport, 1 = Seamless.
+    /// C++ Player.h: 16 = Normal teleport, 21 = Seamless.
     pub reason: u32,
 }
 

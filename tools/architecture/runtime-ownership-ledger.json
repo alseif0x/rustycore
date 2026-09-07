@@ -1472,10 +1472,10 @@
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
           "production_lines": 20262,
-          "test_lines": 13279,
-          "total_lines": 33541,
+          "test_lines": 13283,
+          "total_lines": 33545,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-07 final QA: +82 test lines in private reputation_retention.rs and its registration cover repeated map-entry attachment, retained flags/standing/dirty state, location-only updates and actual race changes. 2026-09-07 #585: -423 production/+15 fixture lines for finalization extraction, then +51 fixture lines for the live-discovered transfer routing regression in private character_tests/transfer_routing.rs. The new test separates realm/instance channels, leaves worldport pending and rejects closed-realm NewWorld delivery. No new production authority or physical root ceiling. Logout delegates to the coordinator; account/offline/buyback adapters move into lifecycle modules. Four consumer tests move into character_tests/finalization.rs. Known rollback retains/escalates as documented in session-finalization-585.md. Remaining character responsibilities stay under #584.",
+          "latest_growth_review": "2026-09-07 paired portal capture: +4 test lines assert NEW_WORLD_NORMAL=16 on the realm packet; no handler production LOC growth. 2026-09-07 final QA: +82 test lines in private reputation_retention.rs and its registration cover repeated map-entry attachment, retained flags/standing/dirty state, location-only updates and actual race changes. 2026-09-07 #585: -423 production/+15 fixture lines for finalization extraction, then +51 fixture lines for the live-discovered transfer routing regression in private character_tests/transfer_routing.rs. The new test separates realm/instance channels, leaves worldport pending and rejects closed-realm NewWorld delivery. No new production authority or physical root ceiling. Logout delegates to the coordinator; account/offline/buyback adapters move into lifecycle modules. Four consumer tests move into character_tests/finalization.rs. Known rollback retains/escalates as documented in session-finalization-585.md. Remaining character responsibilities stay under #584.",
           "open_retirement_issues": [
             584
           ],
@@ -1497,10 +1497,10 @@
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
           "production_lines": 28980,
-          "test_lines": 27094,
-          "total_lines": 56074,
+          "test_lines": 27108,
+          "total_lines": 56088,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "2026-09-06 post-add cancellation above e8a3fb1f: +10 production/+0 tests. After existing rename-commit draining, factory completes retained native transfer work before ordinary save/cleanup. Unavailable completion selects the existing fatal exit and refuses normal cleanup; no new clock or timeout. This is not a durable-save receipt or full shutdown acceptance. session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-07 paired portal capture: +14 test lines in area_trigger_world_catalog.rs verify the actual composition converts SQL Facing=180 degrees to pi radians while retaining destination/script/tavern order and dormant-read exclusion; no production LOC growth. 2026-09-06 post-add cancellation above e8a3fb1f: +10 production/+0 tests. After existing rename-commit draining, factory completes retained native transfer work before ordinary save/cleanup. Unavailable completion selects the existing fatal exit and refuses normal cleanup; no new clock or timeout. This is not a durable-save receipt or full shutdown acceptance. session-578-checkpoint.md.",
           "open_retirement_issues": [
             584
           ],

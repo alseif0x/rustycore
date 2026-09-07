@@ -27,6 +27,13 @@ instant-logout response/order and missing side effects. The same starting fixtur
 a reputation flag mismatch; neither failed comparison is waived. The old capture wrappers
 target PM2, not the current systemd deployment. These bounded passes are not full parity
 or issue closure; details and private evidence identities are in the checkpoint below.
+Subsequent final QA corrected compressed faction arrays and repeated map-entry reputation
+initialization; installed `48b3729b` preserves the five affected faction rows. Its next
+failure exposed persisted bows being rejected by a new-acquisition ambiguity policy.
+That bounded load correction and fresh-C++-driven portal reason/orientation corrections
+are now implemented with focused tests, awaiting combined installed/final acceptance.
+Fresh C++ EOF and pending-transfer bot scenarios passed; C++ then crashed on stopping
+after the portal scenario. That reference shutdown is not recorded as successful.
 Current #585 contract, evidence and remaining boundaries:
 [session finalization](../architecture/session-finalization-585.md).
 

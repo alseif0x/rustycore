@@ -55,7 +55,14 @@ fn check_new_world(payload: &[u8]) -> Result<()> {
     let xyz = std::array::from_fn(|i| {
         f32::from_le_bytes(payload[4 + i * 4..8 + i * 4].try_into().unwrap())
     });
-    if !near(xyz, DESTINATION) || payload[20..28] != [255; 8] || payload[28..44] != [0; 16] {
+    let orientation = f32::from_le_bytes(payload[16..20].try_into().unwrap());
+    if !near(xyz, DESTINATION)
+        || !orientation.is_finite()
+        || (orientation - std::f32::consts::PI).abs() >= 0.00001
+        || payload[20..28] != [255; 8]
+        || payload[28..32] != 16u32.to_le_bytes()
+        || payload[32..44] != [0; 12]
+    {
         bail!("unexpected new-world destination/reason/offset");
     }
     Ok(())
@@ -174,11 +181,24 @@ mod tests {
         for value in DESTINATION {
             p.extend_from_slice(&value.to_le_bytes());
         }
-        p.extend_from_slice(&0f32.to_le_bytes());
+        p.extend_from_slice(&std::f32::consts::PI.to_le_bytes());
         p.extend_from_slice(&[255; 8]);
-        p.extend_from_slice(&[0; 16]);
+        p.extend_from_slice(&16u32.to_le_bytes());
+        p.extend_from_slice(&[0; 12]);
         assert!(check_new_world(&p).is_ok());
         assert!(check_new_world(&p[..43]).is_err());
+        p[28] = 0;
+        assert!(
+            check_new_world(&p).is_err(),
+            "reject the former Rust reason 0"
+        );
+        p[28] = 16;
+        p[16..20].copy_from_slice(&180f32.to_le_bytes());
+        assert!(
+            check_new_world(&p).is_err(),
+            "Facing must not remain in degrees"
+        );
+        p[16..20].copy_from_slice(&std::f32::consts::PI.to_le_bytes());
         p[0] ^= 1;
         assert!(check_new_world(&p).is_err());
         assert!(!near([f32::NAN, 0.0, 0.0], SOURCE));
