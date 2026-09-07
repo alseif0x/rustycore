@@ -97,11 +97,9 @@ fn timed_logout_preserves_player_until_disconnect_save_like_cpp() {
 
     session.update(100);
 
-    let packet = send_rx.try_recv().expect("LogoutComplete packet");
-    let mut packet = WorldPacket::from_bytes(&packet);
-    assert_eq!(
-        packet.read_uint16().unwrap(),
-        wow_constants::ServerOpcodes::LogoutComplete as u16
+    assert!(
+        send_rx.try_recv().is_err(),
+        "timer admission is not completed finalization"
     );
     assert_eq!(session.player_guid(), Some(guid));
     assert!(session.is_disconnecting());

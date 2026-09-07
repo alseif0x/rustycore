@@ -15,49 +15,71 @@
 use tracing::{debug, warn};
 
 use super::super::WorldSession;
+use crate::finalization::FinalizationOutcome;
 
 impl WorldSession {
-    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&mut self) {
-        let Some(guid) = self.player_guid() else {
-            return;
+    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&mut self) -> FinalizationOutcome {
+        let Some(handle) = self.player_handle_like_cpp else {
+            return if self.player_guid().is_none() {
+                FinalizationOutcome::NoWork
+            } else {
+                FinalizationOutcome::Unavailable
+            };
         };
         let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return;
+            return FinalizationOutcome::Unavailable;
         };
         let Ok(mut manager) = manager.lock() else {
-            return;
+            return FinalizationOutcome::Unavailable;
         };
 
         // C++ WorldSession::LogoutPlayer retires its exact Player*, not a fresh
         // GUID lookup (WorldSession.cpp:660-672). Without an incarnation token
         // this Session has no authority to remove any current map resident.
-        let Some(handle) = self.player_handle_like_cpp else {
-            return;
-        };
         if manager.retire_player_like_cpp(handle).is_some() {
             self.player_handle_like_cpp = None;
+            FinalizationOutcome::Applied
         } else {
             // Retain the exact token on failure. Any later attempt must still
             // target this incarnation, never adopt or search for a replacement.
             warn!(
                 "Failed to retire canonical Player {:?}: stale handle or missing owner value",
-                guid
+                handle.guid()
             );
+            FinalizationOutcome::RetirementFailed
         }
     }
 
-    pub fn cleanup_shared_runtime_state(&mut self) {
+    pub fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
+        if self.finalization.as_ref().is_some_and(|operation| {
+            operation.report().disposition == crate::FinalizationDisposition::Complete
+        }) {
+            return FinalizationOutcome::NoWork;
+        }
+        if self.finalization.as_ref().is_some_and(|operation| {
+            operation.report().disposition != crate::FinalizationDisposition::Complete
+        }) {
+            return FinalizationOutcome::Unavailable;
+        }
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
-        self.unregister_canonical_player_from_map_like_cpp();
+        let outcome = self.unregister_canonical_player_from_map_like_cpp();
+        if !matches!(
+            outcome,
+            FinalizationOutcome::Applied | FinalizationOutcome::NoWork
+        ) {
+            return outcome;
+        }
         self.release_character_login_claim_like_cpp();
         self.clear_inventory_items_and_objects_like_cpp();
+        outcome
     }
 
+    #[cfg(test)]
     pub async fn cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) {
+    ) -> FinalizationOutcome {
         self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
             .await;
         if let Some(player_guid) = self.player_guid()
@@ -65,7 +87,7 @@ impl WorldSession {
         {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
-        self.cleanup_shared_runtime_state();
+        self.cleanup_shared_runtime_state()
     }
 
     #[cfg(test)]

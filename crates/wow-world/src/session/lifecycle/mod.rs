@@ -9,12 +9,13 @@
 //! ordering each part must preserve is documented beside the code that owns
 //! it rather than in a separate note that can drift.
 
+mod account;
 mod cleanup;
+mod finalization;
 mod login;
 mod logout;
 mod map_entry;
 mod persistence;
-pub use logout::DisconnectSaveAttemptLikeCpp;
 pub use persistence::PlayerSaveOutcomeLikeCpp;
 mod pet_load;
 mod transfer_completion;

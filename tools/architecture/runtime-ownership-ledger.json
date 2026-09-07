@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "baseline_commit": "74daf3f9dd337d1ed69701153111f3e740fc7bac",
-  "curated_at": "2026-09-05",
-  "purpose": "User-approved 2026-09-06 allocation: remaining ownership/retirement issues now belong to coordination epic #584 and its analyzed crate-focused macrodeliverables; #578 retains bounded foundation/hardening closeout. Exact fields, counts, hashes and ceilings are preserved. Historical evidence: Exact ownership checkpoint at 74daf3f9 plus the reviewed active-relocation/grid-capability and hotfix-capability slices; see docs/architecture/session-578-checkpoint.md. #578 remains open; no terminal ownership or full parity acceptance is implied. The 2026-09-05 plan reconciliation at 93e4002a assigns remaining implementation/classification to #584 C0-C4 and leaves #153 as terminal verifier; field membership and measured inventories are not recomputed by this metadata update.",
+  "baseline_commit": "59f5bced9b5cade0deb9150d82406f9113b4b61e",
+  "curated_at": "2026-09-07",
+  "purpose": "#579 squash merge 59f5bced integrates the closed #578 foundations. It replaces the pre-squash 74daf3f9 ancestor anchor; historical measurements retain their original provenance below. #585 updates only the represented finalization field family and affected logical ceilings, with reviewed syntax and physical deltas in session-finalization-585.md. Remaining ownership/retirement work belongs to coordination epic #584 and its analyzed macrodeliverables; #153 remains terminal verification. No whole-core completion or fresh whole-port parity audit is claimed.",
   "authorities": {
     "behavior": "C++ under /home/server/woltk-trinity-legacy and committed packet/runtime traces",
     "syntax": "Rust AST at baseline_commit",
@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "715 exact Rust named-field identifiers: 282 production and 433 cfg(test) fixture members. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
+    "field_identity": "716 exact Rust named-field identifiers: 283 production and 433 cfg(test) fixture members. #585 adds one task-owned finalization operation ledger, not a second Player or account owner. The syntax baseline retains source_class; every fixture is listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 715,
+      "expected_field_count": 716,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -596,13 +596,14 @@
       },
       {
         "id": "persistence_and_session_lifecycle",
-        "expected_field_count": 22,
+        "expected_field_count": 23,
         "field_names": [
           "account_data_like_cpp",
           "battle_pet_account_attachment_like_cpp",
           "character_rename_callbacks",
           "durable_item_loot_persistence_like_cpp",
           "durable_loot_money_persistence_like_cpp",
+          "finalization",
           "homebind_persistence_tx_like_cpp",
           "level_played_time",
           "login_time",
@@ -621,7 +622,7 @@
           "tutorials_loaded_coherently_like_cpp",
           "tutorials_loaded_from_db_like_cpp"
         ],
-        "current_storage": "WorldSession retains SQLx-free persistence capabilities, lifecycle flags/timers and pending load/save coordination. pet_load_query_holder_rows_like_cpp is the deferred six-result Pet load staging value, not the live Pet owner (C++ Pet.cpp:157-203,386-408). It remains pending lifecycle/application boundary work under #578.",
+        "current_storage": "WorldSession retains SQLx-free persistence capabilities, lifecycle flags/timers and pending load/save coordination. #585 adds finalization: one task-owned application obligation ledger with in-flight outcomes and retained uncertain collection input; not a second Player/account owner. Pet load staging remains separate. Other lifecycle/application boundary work remains in #584.",
         "sole_writer": "The owning Session/lifecycle flow mutates session flags; all durable work crosses typed capabilities composed by world-server, sometimes through detached workers or sagas.",
         "readers": "Login/load, logout/save, periodic save, recovery, handlers, and post-commit publication paths.",
         "clock_lifetime": "Selected-character/session lifetime with periodic save and logout clocks; durable commands may outlive one handler call and must recover after restart.",
@@ -1043,9 +1044,9 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       }
     ],
-    "expected_field_count": 715,
-    "expected_unique_field_count": 715,
-    "expected_production_field_count": 282,
+    "expected_field_count": 716,
+    "expected_unique_field_count": 716,
+    "expected_production_field_count": 283,
     "expected_test_fixture_field_count": 433
   },
   "inventories": {
@@ -1446,11 +1447,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 82797,
-          "test_lines": 107493,
-          "total_lines": 190290,
+          "production_lines": 83360,
+          "test_lines": 107494,
+          "total_lines": 190854,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-06 exact-incarnation cleanup above 8cb125c1: remove the unsafe GUID/map retirement fallback (-23 production lines). Three existing cleanup fixtures now explicitly adopt their inserted Player through the existing handle helper (+3 fixture lines), preserving their assertions and exercising the real production retirement path. Small production-linked tests cover repeated cleanup against replacement and retained identity after a failed retirement. No new Session field, method, lock or automatic retry. The preceding factory cut propagates typed character-save attempts, but whole-finalization outcomes, C0 phase coordination and C2-C4 retirement remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines under the logical Session root. Existing account/offline/buyback adapters move from the character handler into private lifecycle/account.rs; lifecycle/finalization.rs executes effects and exposes explicit results. The finite obligation order lives outside Session in crate::finalization. Character handler production drops by 423 lines. One task-owned operation ledger retains progress and recovery input; no second Player, clock, lock or automatic replay is introduced. Physical new modules remain below 500 lines. This is a reviewed boundary extraction plus explicit failure-policy hardening, not closure of Session's remaining authority under #584. See session-finalization-585.md.",
           "open_retirement_issues": [
             584
           ],
@@ -1470,11 +1471,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20685,
-          "test_lines": 13131,
-          "total_lines": 33816,
+          "production_lines": 20262,
+          "test_lines": 13146,
+          "total_lines": 33408,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-06 explicit logout above c61903fc: +26 production/+1 test. The handler completes pending native worldport before logout/save, leaves Terminal recovery to disconnect finalization, and consumes the explicit save outcome without undoing Disconnecting quarantine or retiring an unadmitted save owner. Known rollback and instant-only admission remain the existing policies, not new durability/parity proof. The existing loot-release fixture now declares a controlled save port; new failure/transfer cases live in a small production integration child module. No new state, clock, retry or persistence inventory row; C1/C4 remain; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-07 #585: -423 production/+15 fixture lines. Logout delegates to the finalization coordinator and consumes the whole report; account/offline/buyback adapters move into lifecycle modules. Failed-login callers consume exact retirement outcomes. Four affected consumer tests move into character_tests/finalization.rs with explicit canonical ownership and failed-persistence expectations. Known rollback now retains and escalates rather than publishing successful logout: intentional policy change, documented in session-finalization-585.md. Remaining character responsibilities stay under #584.",
           "open_retirement_issues": [
             584
           ],

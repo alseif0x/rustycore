@@ -263,7 +263,8 @@ pub struct WorldSessionShutdownFlushLikeCppCommand {
 }
 
 /// Result returned to the world server when a session observes a shutdown
-/// flush command.
+/// flush command. This is mailbox observation only, not a save/finalization
+/// receipt. The session task reports finalization separately to its supervisor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorldSessionShutdownFlushResultLikeCpp {
     pub diff_ms: u32,

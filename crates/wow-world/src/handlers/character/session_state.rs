@@ -2130,8 +2130,13 @@ impl WorldSession {
     /// partially loaded `Player`; mirror that lifetime boundary immediately
     /// so the process-wide character claim cannot outlive this failed login.
     pub(super) fn abort_partial_login_sequence_like_cpp(&mut self) {
-        self.cleanup_shared_runtime_state();
-        self.set_player_guid(None);
+        let retirement = self.cleanup_shared_runtime_state();
+        if matches!(
+            retirement,
+            crate::FinalizationOutcome::Applied | crate::FinalizationOutcome::NoWork
+        ) {
+            self.set_player_guid(None);
+        }
         self.kick("WorldSession::HandlePlayerLogin login packet sequence failed");
     }
 
@@ -2675,8 +2680,13 @@ impl WorldSession {
             reason,
             "RUST_LOGIN map_add aborted"
         );
-        self.cleanup_shared_runtime_state();
-        self.set_player_guid(None);
+        let retirement = self.cleanup_shared_runtime_state();
+        if matches!(
+            retirement,
+            crate::FinalizationOutcome::Applied | crate::FinalizationOutcome::NoWork
+        ) {
+            self.set_player_guid(None);
+        }
         self.kick("WorldSession::HandlePlayerLogin authoritative map resolution failed");
         false
     }

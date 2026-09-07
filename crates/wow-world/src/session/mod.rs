@@ -13,7 +13,7 @@ pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
 mod lifecycle;
-pub use lifecycle::{DisconnectSaveAttemptLikeCpp, PlayerSaveOutcomeLikeCpp};
+pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 pub mod mailbox;
 pub mod registry;
 mod trait_configs;
@@ -6012,6 +6012,7 @@ pub struct WorldSession {
     player_login_claim_like_cpp: Option<(ObjectGuid, Arc<()>)>,
     /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
     player_logout_like_cpp: bool,
+    finalization: Option<crate::finalization::SessionFinalization>,
 
     /// Session manager for ConnectTo flow (shared with instance listener).
     session_mgr: Option<Arc<SessionManager>>,
@@ -8363,6 +8364,7 @@ impl WorldSession {
             player_loading: None,
             player_login_claim_like_cpp: None,
             player_logout_like_cpp: false,
+            finalization: None,
             session_mgr: None,
             time_sync_next_counter: 0,
             time_sync_timer_ms: 0,

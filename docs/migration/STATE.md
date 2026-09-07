@@ -9,6 +9,9 @@ The next family after #585 is not selected. Relevant live QA deferred at #579 me
 is included in #585's acceptance, not recorded as passed. Older allocation/status
 statements below are historical. No new implementation or validation is claimed here.
 
+Current #585 contract and in-progress boundaries:
+[session finalization](../architecture/session-finalization-585.md).
+
 **Historical capability-audit base:** 2026-08-09 · `3.4.3` @ `42977e9a`, including issue #26's
 bounded creature-spell P1 wire/lifecycle acceptance and login faction hydration.
 **Architecture/plan review:** 2026-09-05 · local #578 branch @ `93e4002a`.

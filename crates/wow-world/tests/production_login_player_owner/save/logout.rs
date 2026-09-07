@@ -25,9 +25,13 @@ async fn production_disconnect_reports_incomplete_native_work_before_persistence
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
     assert_eq!(
         session
-            .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
-            .await,
-        DisconnectSaveAttemptLikeCpp::NativeCompletionUnavailable
+            .finalize_session_with_generator_like_cpp(
+                wow_world::FinalizationMode::Disconnect,
+                &generator
+            )
+            .await
+            .outcome(wow_world::FinalizationStep::NativeTransfer),
+        wow_world::FinalizationOutcome::Unavailable
     );
     assert_eq!(session.player_guid(), Some(guid));
     assert_eq!(session.state(), SessionState::Disconnecting);
@@ -61,11 +65,14 @@ async fn production_disconnect_reports_unavailable_save_without_retiring_owner()
     }
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
     let report = session
-        .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+        .finalize_session_with_generator_like_cpp(
+            wow_world::FinalizationMode::Disconnect,
+            &generator,
+        )
         .await;
     assert_eq!(
-        report,
-        DisconnectSaveAttemptLikeCpp::Character(PlayerSaveOutcomeLikeCpp::Unavailable)
+        report.outcome(wow_world::FinalizationStep::CharacterSave),
+        wow_world::FinalizationOutcome::Unavailable
     );
     assert_eq!(session.state(), SessionState::Disconnecting);
     assert_eq!(session.player_guid(), Some(guid));
@@ -134,7 +141,7 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
             .handle_logout_request_with_generator_like_cpp(&generator, request)
             .await;
     }
-    let quarantined = cancel || matches!(outcome, PersistenceOutcomeLikeCpp::Unknown { .. });
+    let quarantined = cancel || !matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. });
     assert_eq!(
         session.state(),
         if quarantined {
@@ -165,7 +172,10 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
         assert!(player.has_deferred_player_save_like_cpp());
         drop(manager);
         session
-            .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
+            .finalize_session_with_generator_like_cpp(
+                wow_world::FinalizationMode::Disconnect,
+                &generator,
+            )
             .await;
         assert_eq!(session.state(), SessionState::Disconnecting);
         assert_eq!(
@@ -187,9 +197,13 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
         drop(manager);
         assert_eq!(
             session
-                .save_disconnect_player_to_db_with_generator_like_cpp(&generator)
-                .await,
-            DisconnectSaveAttemptLikeCpp::NoPlayer,
+                .finalize_session_with_generator_like_cpp(
+                    wow_world::FinalizationMode::Disconnect,
+                    &generator
+                )
+                .await
+                .disposition,
+            wow_world::FinalizationDisposition::Complete,
         );
         assert_eq!(probe.requests.lock().unwrap().len(), 1);
     }
@@ -212,7 +226,7 @@ async fn production_cancelled_explicit_logout_keeps_owner_and_does_not_replay_sa
 }
 
 #[tokio::test]
-async fn production_explicit_logout_preserves_applied_and_known_rollback_behavior() {
+async fn production_explicit_logout_completes_applied_but_retains_known_rollback() {
     exercise(PersistenceOutcomeLikeCpp::Applied { rows: 1 }, false).await;
     exercise(
         PersistenceOutcomeLikeCpp::Failed {

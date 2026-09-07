@@ -197,49 +197,6 @@ impl WorldSession {
         None
     }
 
-    pub(crate) async fn clear_buyback_on_logout(&mut self) {
-        let guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
-        };
-        let Some(buyback_items) = self.resolved_buyback_items_like_cpp() else {
-            return;
-        };
-        if buyback_items.is_empty() {
-            self.clear_buyback_runtime_like_cpp();
-            return;
-        }
-
-        let port = match self.player_lifecycle_port_like_cpp().map(Arc::clone) {
-            Some(port) => port,
-            None => return,
-        };
-        let request = wow_persistence::PlayerBuybackClearRequestLikeCpp {
-            player_guid: guid.counter() as u64,
-            item_db_guids: buyback_items.values().map(|item| item.db_guid).collect(),
-        };
-        match port.clear_buyback_like_cpp(request).await {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                warn!(
-                    "Failed to clear buyback items on logout for guid {}: {reason}",
-                    guid.counter()
-                );
-                return;
-            }
-        }
-
-        let Some(buyback_items) = self.resolved_buyback_items_like_cpp() else {
-            return;
-        };
-        let removed_guids: Vec<_> = buyback_items.values().map(|item| item.guid).collect();
-        for item_guid in removed_guids {
-            self.remove_inventory_item_object(item_guid);
-        }
-        self.clear_buyback_runtime_like_cpp();
-    }
-
     pub(super) fn vendor_item_conditions_meet_like_cpp(
         condition_store: &ConditionEntriesByTypeStore,
         creature_entry: u32,

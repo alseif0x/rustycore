@@ -453,13 +453,6 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/character/account.rs",
-      "observed_lines": 2246,
-      "ceiling_lines": 2246,
-      "split": "Separate account character operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/wow-world/src/handlers/character/items.rs",
       "observed_lines": 3874,
       "ceiling_lines": 3874,
@@ -475,29 +468,29 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2796,
-      "ceiling_lines": 2796,
-      "split": "Separate character adapters by complete operation into narrow owner capabilities and scenario tests; preserve registration/publication order. Above e8a3fb1f +11 lines checkpoint native zone/scaling phases and distinguish unavailable scaling from unchanged state. Resumption lives in a private lifecycle module. Complete login/worldport separation and C4 retirement remain.",
+      "observed_lines": 2806,
+      "ceiling_lines": 2806,
+      "split": "Separate character adapters by complete operation; preserve registration/publication order. #585 adds ten lines so both failed-login consumers retain identity when canonical retirement fails, rather than discarding the returned outcome. This bounded safety integration does not retire the remaining login/worldport module debt in #584.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/vendor.rs",
-      "observed_lines": 2605,
-      "ceiling_lines": 2605,
+      "observed_lines": 2562,
+      "ceiling_lines": 2562,
       "split": "Separate vendor purchase/sale operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/world_entry.rs",
-      "observed_lines": 2840,
-      "ceiling_lines": 2840,
+      "observed_lines": 2771,
+      "ceiling_lines": 2771,
       "split": "Separate world entry and initialization by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above c61903fc +26 lines complete native transfer before explicit logout save, leave Terminal source-save to disconnect, and reject quarantined/unadmitted character-select readiness. No new state or retry policy; retain the C1 logout split and C4 retirement exit.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12634,
-      "ceiling_lines": 12634,
+      "observed_lines": 12393,
+      "ceiling_lines": 12393,
       "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains.",
       "review_checkpoint": "584:C4"
     },
@@ -636,9 +629,9 @@
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76559,
-      "ceiling_lines": 76559,
-      "split": "Retire gameplay orchestration/catalog access by complete C1/C2 operations; keep lifecycle in small private modules. Above bc3bdd2f +1 line reexports the explicit full-save outcome for its caller adapters. Deferred intent belongs to Player and its adapter lives in private lifecycle/persistence/deferred.rs; no new Session field. C4 retirement remains open.",
+      "observed_lines": 76561,
+      "ceiling_lines": 76561,
+      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds two lines for one task-owned finalization ledger and its initialization; coordination and effects live in separate bounded modules. This is cancellation-progress state, not Player duplication. The remaining C4 root split stays in #584.",
       "review_checkpoint": "584:C4"
     },
     {
