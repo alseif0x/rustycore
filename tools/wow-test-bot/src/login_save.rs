@@ -5,6 +5,7 @@
 use super::*;
 use mysql::prelude::Queryable;
 use std::collections::BTreeMap;
+mod portal;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub(super) struct Projection {
@@ -19,6 +20,9 @@ pub(super) struct Evidence {
     logout_confirmed: bool,
     disconnect_confirmed: bool,
     login_account_offline: Option<bool>,
+    pending_portal: Option<portal::Receipt>,
+    saved_map: u32,
+    saved_position: [f32; 3],
     offline: bool,
     retained_existing_rows: bool,
     logout_time_before: u64,
@@ -33,6 +37,7 @@ pub(super) struct Before {
     logout_time: u64,
     projection: BTreeMap<String, Projection>,
     disconnect: bool,
+    portal: bool,
 }
 
 pub(super) fn enabled() -> bool {
@@ -89,6 +94,9 @@ pub(super) fn preflight(bot: &config::BotConfig) -> Result<Before> {
     if flag("WOW_BOT_LOGIN_SAVE_CHECK") && flag("WOW_BOT_LOGIN_DISCONNECT_CHECK") {
         bail!("choose normal logout or transport disconnect, not both");
     }
+    if portal::enabled() && !flag("WOW_BOT_LOGIN_DISCONNECT_CHECK") {
+        bail!("pending portal requires the disconnect-save mode");
+    }
     if !bot.account.eq_ignore_ascii_case("TESTBOT1@bot.local") {
         bail!("bounded login-save QA is pinned to TESTBOT1@bot.local");
     }
@@ -107,10 +115,14 @@ pub(super) fn preflight(bot: &config::BotConfig) -> Result<Before> {
     if rows.len() != 1 || rows[0].0 != bot.character_guid || rows[0].1 != 0 {
         bail!("login-save requires the exact sole offline character of the approved account");
     }
+    if portal::enabled() {
+        portal::preflight(&mut conn, bot)?;
+    }
     Ok(Before {
         logout_time: rows[0].2,
         projection: projections(&mut conn, bot.character_guid)?,
         disconnect: flag("WOW_BOT_LOGIN_DISCONNECT_CHECK"),
+        portal: portal::enabled(),
     })
 }
 
@@ -127,6 +139,11 @@ pub(super) async fn complete(
     realm: &mut Option<EncryptedWorldConnection>,
     result: &mut BotRunResult,
 ) -> Result<Evidence> {
+    let pending_portal = if before.portal {
+        Some(portal::begin(stream, crypt, inflater, realm, result).await?)
+    } else {
+        None
+    };
     if before.disconnect {
         let mut realm = realm
             .take()
@@ -151,13 +168,14 @@ pub(super) async fn complete(
         }
     }
     let selected = bot.clone();
-    tokio::task::spawn_blocking(move || finish(&selected, before, known)).await?
+    tokio::task::spawn_blocking(move || finish(&selected, before, known, pending_portal)).await?
 }
 
 fn finish(
     bot: &config::BotConfig,
     before: Before,
     known: LoginKnownSpellsLikeCpp,
+    mut pending_portal: Option<portal::Receipt>,
 ) -> Result<Evidence> {
     let mut conn = connect(characters_db_url()?)?;
     if before.disconnect {
@@ -182,14 +200,17 @@ fn finish(
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
-    let (online, logout_time): (u8, u64) = conn
+    let (online, logout_time, saved_map, x, y, z): (u8, u64, u32, f32, f32, f32) = conn
         .exec_first(
-            "SELECT online, logout_time FROM characters WHERE guid = ? AND account = ?",
+            "SELECT online, logout_time, map, position_x, position_y, position_z FROM characters WHERE guid = ? AND account = ?",
             (bot.character_guid, bot.account_id),
         )?
         .context("saved character disappeared")?;
     if !offline_save_observed(online, logout_time, before.logout_time) {
         bail!("session termination did not produce a new offline save marker");
+    }
+    if let Some(receipt) = &mut pending_portal {
+        portal::verify_saved(&mut conn, bot, receipt)?;
     }
     let after = projections(&mut conn, bot.character_guid)?;
     for (table, saved) in &before.projection {
@@ -204,6 +225,9 @@ fn finish(
         logout_confirmed: !before.disconnect,
         disconnect_confirmed: before.disconnect,
         login_account_offline: before.disconnect.then_some(true),
+        pending_portal,
+        saved_map,
+        saved_position: [x, y, z],
         offline: true,
         retained_existing_rows: true,
         logout_time_before: before.logout_time,

@@ -72,6 +72,38 @@ its overall timeout/restoration guard. This covers orderly transport EOF, not RS
 pending transfer, process crash, uncertain COMMIT recovery or a fresh capture.
 `test_login_disconnect_relog.sh` tests report acceptance without a server/database.
 
+### Pending portal transfer (#585)
+
+`run_session_transfer_qa.py --allow-position-fixture --source CLEAN_CHECKOUT
+--world-exec CANDIDATE` is the separately authorized positional fixture wrapper.
+It pins existing TESTBOT1 (character 14/account 8), requires no online characters,
+journals the seven original location fields in a private directory, stops the
+world service, positions the character at DB2 trigger 2173, and starts the service.
+The existing runtime guard then owns candidate installation and restoration.
+After the scenario, the positional wrapper stops the service, restores only those
+location fields (not old inventory or account state), and verifies the original
+executable is serving. No rows are created/deleted; bnet is not restarted.
+
+The bot sends AreaTrigger enter, observes TransferPending on realm and SuspendToken
+on instance, replies to the suspend token, receives NewWorld on realm, then closes
+both transports **without WorldPortResponse**. It requires save at the intended map
+369 destination, then fresh normal relog/logout at that same saved position.
+This is not a completed-teleport logout or an LFG scenario. The first private report
+contains the three observed non-secret transfer payloads and the withheld-ACK fact.
+
+Source selection can be inspected read-only through wow-data's
+`inspect_finalization_portal DATA_DIR LOCALE 2173` example, using the production DB2
+reader. Destination is the existing world relation to safe location 3650. C++ wire
+and connection anchors are recorded in `src/login_save/portal.rs`; a Rust-only run
+does not establish fresh C++ capture parity.
+
+On interruption, retain the printed private journal. Recovery uses
+`python3 run_session_transfer_qa.py --allow-position-fixture --recover JOURNAL`.
+The ordinary exception path attempts restoration; SIGKILL/host loss still needs
+explicit recovery. Recovery refuses to start a non-original executable or overwrite
+an online character. `test_session_transfer_qa.py` exercises the recovery policy
+without DB/service access. Do not use this wrapper concurrently with manual play.
+
 ## What was adapted
 
 - `--login-only`: verifies world entry and drains the login streams.
