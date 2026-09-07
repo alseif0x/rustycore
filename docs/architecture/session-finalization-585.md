@@ -851,3 +851,14 @@ Test coverage includes held writer acknowledgements, realm backpressure, missing
 fences, receiver disappearance/timeout and cancellation for immediate/delayed transfer,
 plus native completion retaining the exact handle. Prior validation/live evidence
 does not yet validate this changed executable; renewed acceptance is in progress.
+
+The complete wow-world library suite passed after the repair: 3,787 passed, zero
+failed, one ignored. Candidate `5e48162a` was then committed. Its first final run
+did not complete: concurrent final/release compilation plus exhaustive analysis
+exceeded this 23-GiB host's memory. Kernel OOM records identify a killed rustc and
+auxiliary openclaw-gateway/dbus processes. Original world/BNet remained active.
+Remaining compilation processes were interrupted deliberately (exit 130), as were
+the isolated BNet/private database preparation services, to release memory; no bot
+scenario had started. Final manifest `20260907T201933.981898Z-2877005-final.json`
+is interrupted/failed evidence, not a pass. Continue heavy work serially with one
+Cargo job; do not treat the previously built world executable as the new candidate.
