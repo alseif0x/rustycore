@@ -9,9 +9,11 @@ The next family after #585 is not selected. Relevant live QA deferred at #579 me
 is included in #585's acceptance, not recorded as passed. Older allocation/status
 statements below are historical. No new whole-port completion or parity audit is claimed.
 
-Local #585 candidate `ccf5f84d` passed final validation on 2026-09-07. Runtime QA
-has not started: the execution permission reviewer rejected the scoped service
-swap despite the user's affirmative reply. This is not live acceptance or issue closure.
+Local #585 candidate `ccf5f84d` passed final validation on 2026-09-07. After renewed
+explicit authorization, guarded normal save/relogin QA passed and the original
+world-server executable was restored and serving. The earlier permission blocker
+is resolved. Action-specific transfer/logout/disconnect QA remains outstanding;
+normal save/relogin is not full live acceptance or issue closure.
 Current #585 contract, evidence and remaining boundaries:
 [session finalization](../architecture/session-finalization-585.md).
 

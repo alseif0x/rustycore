@@ -123,7 +123,7 @@ TESTBOT1@bot.local login/logout/save/relogin with restoration of the original bu
 normal auth/character writes only, no account creation, deletion or bnet restart.
 This authorization does not claim execution, transfer/capture coverage or a pass.
 
-Remaining acceptance: perform the normal save/relogin QA and the separately applicable
+Remaining acceptance: perform the separately applicable
 action-specific transfer/logout/disconnect capture/runtime scenarios; record exact
 candidate and restored identities; prepare the single #585 PR. Normal save/relogin
 does not waive the action-specific gate. No live or full issue acceptance is claimed.
@@ -160,3 +160,35 @@ outstanding; final-profile success does not waive it. Push, merge and #585 closu
 have not occurred.
 The read-only snapshot after rejection confirmed the identical PID, executable
 hash, restart count and absent packet dump; no restoration was necessary.
+
+### Authorized normal save/relogin — 2026-09-07
+
+The user renewed explicit runtime authorization after the rejection above. The
+execution control accepted the same bounded procedure; the earlier permission
+blocker is resolved. On the already validated `ccf5f84d` candidate, run:
+
+```bash
+BNET_HOST=127.0.0.1 BNET_PORT=8081 \
+QA_GIT_DIR=/tmp/rustycore-585-runtime.XxNlUp/source \
+QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_save_relog.sh \
+./tools/qa-runtime.sh --allow-runtime-qa \
+  --world-exec /home/server/rustycore/target/validation-v2/cargo/209fefad83026767/release/world-server \
+  --report /tmp/rustycore-585-runtime.XxNlUp/runtime.json login
+```
+
+Exit 0; runtime report `outcome=passed-restored`, `bot_status=0`. The private report
+`/tmp/rustycore-login-qa.QpBnwv/bot.json` has
+`login_save_relog_verified=true` and successful authentication, character enumeration,
+world entry and drained login streams. The maintained wrapper's two fresh
+authentications verified normal logout/save and matching saved projections.
+Candidate PID was 2492153; executable SHA-256 remained
+`6cbc844d66f84d50cb4003c2101dbca19403830238eb7feda021ac39cc48930f`.
+The guard restored the original executable with SHA-256
+`c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`
+and confirmed it was serving before returning success.
+
+Only existing TESTBOT1@bot.local and normal auth/character writes were used;
+no account provisioning, fixture deletion or bnet-server restart was performed.
+This is bounded normal save/relogin evidence, not transfer/disconnect fault-injection,
+fresh packet-capture parity or unknown-COMMIT recovery proof. Those action-specific
+acceptance gates remain outstanding. #585 remains open; no push or merge occurred.
