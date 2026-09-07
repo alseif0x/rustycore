@@ -36,8 +36,12 @@ scenarios (normal logout, EOF disconnect and pending-transfer disconnect, each w
 relogin and six retained persistence projections). Release production integration
 passed 34 tests. Scoped LogoutComplete, InitializeFactions, TransferPending and
 NewWorld comparisons match C++; full logout/portal windows remain divergent.
-Final validation failed a concurrent ambient-trace test; its isolated test correction
-passes all 358 database library tests and requires renewed final validation.
+Final validation first exposed a concurrent ambient-trace test; the test-only
+isolation repair passed 358 database tests and 20 concurrent trace-suite repetitions.
+Candidate `b8895373` then passed final validation; the reviewed exhaustive ownership
+check also passed with all 10,106 persistence references and 1,029 semantic groups.
+This is bounded local acceptance evidence, not publication, full action parity or
+closure of #585/#584.
 Fresh C++ EOF and pending-transfer bot scenarios passed; C++ then crashed on stopping
 after the portal scenario. That reference shutdown is not recorded as successful.
 Current #585 contract, evidence and remaining boundaries:

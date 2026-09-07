@@ -3,8 +3,9 @@
 Candidate `5f5e225f` passed bounded normal, disconnect and pending-transfer paired
 runtime QA on the #585 branch, based on integrated `59f5bced`.
 The implementation block preceded validation, as requested by the user.
-Fresh scoped comparisons pass, but full logout/portal windows remain divergent and
-renewed final validation is pending; this is not issue closure.
+Candidate `b8895373` subsequently passed final validation after a test-only repair
+and reviewed test-fixture policy entry. Fresh scoped comparisons pass, but full
+logout/portal windows remain divergent; this is not issue closure.
 
 ## Scope and owners
 
@@ -721,5 +722,42 @@ constructor: `crate::session::lifecycle::finalization::tests`, WorldSession::new
 10 arguments, cfg(test), count 1. The reviewed policy adds exactly that record,
 without granting a production surface. Policy SHA-256
 `3612c5388d799f1ec0ab0e70a7e16ee656e33f4a09f074ff673815fc8c1730bb` matches
-the private reviewed copy supplied to the running exhaustive check. Its completion
-must be recorded separately; the first failed attempt did not compare persistence.
+the private reviewed copy supplied to the exhaustive check, which subsequently
+passed. The first failed attempt did not compare persistence.
+
+### Closing local validation — `b8895373`
+
+`validation-v2 final --base origin/3.4.3` completed successfully, manifest
+`20260907T155105.620844Z-2788490-final.json`, exit 0. Its complete library suites
+passed: world-server 569, wow-data 724, wow-database 358 (2 ignored), wow-packet 724,
+wow-world 3,786 (1 ignored). Ignored tests are not passing evidence. The corrected
+transaction trace suite also passed 20 repetitions with eight test threads.
+The installed production executable remains the tested `5f5e225f` build: the
+subsequent delta is one cfg(test) repair, the reviewed constructor policy and docs,
+not a claim of reinstalling `b8895373`.
+
+The exhaustive command `session-ownership-check check --policy <reviewed-policy>`
+passed using the byte-identical policy identified above: 283 production and 433
+test-fixture Session fields, 51 impl owners, 3,704 associated items, 590 registry
+rows, 7,777 production plus 2,329 test-fixture persistence rows, 1,029 semantic
+groups and 65 bridge rows. The additional tracked-policy syntax-only check passed.
+The reviewed policy was prepared while final validation ran at `5f5e225f`; the
+later one-test isolation change does not affect this Session persistence inventory.
+Normal semantic/physical ratchets pass. Global physical terminal acceptance still
+reports the 100 inherited file ceilings owned by #584, not a completed C0–C4 program.
+
+Tracked files matched the committed candidate at final completion. The manifest
+truthfully retains dirty status for unrelated untracked `docs/architecture/lfg-343-audit.md`
+(SHA-256 `1a9155fbc06617201dc65ace2170e5885532e55c9dcb389e95a0a31b1de285dc`),
+which has no build/test influence and was neither edited nor staged.
+
+Residual review boundary: `59f5bced` already sends `LogoutResponse::instant_ok()`
+in `handlers/character/world_entry.rs:104` and sends CancelCombat through the
+active packet route in `session/mod.rs:13071`. C++ MiscHandler.cpp:238-291 instead
+selects timed admission and stand/root state; Opcodes.cpp:1209 places CancelCombat
+on realm, through Player.cpp:20620-20623. These are verified inherited gaps, not
+new finalization regressions. Full normal-window group/aura/object cleanup and the
+additional portal cleanup packet remain unproven beyond the scoped results above.
+They are not silently implemented, waived or bulk-closed here. Review the bounded
+capture contract and remaining responsibility assignment before merging; do not
+interpret these local passes as full C++ action parity or a new whole-port audit.
