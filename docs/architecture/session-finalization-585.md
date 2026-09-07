@@ -5,7 +5,8 @@ runtime QA on the #585 branch, based on integrated `59f5bced`.
 The implementation block preceded validation, as requested by the user.
 Candidate `b8895373` subsequently passed final validation after a test-only repair
 and reviewed test-fixture policy entry. Fresh scoped comparisons pass, but full
-logout/portal windows remain divergent; this is not issue closure.
+logout/portal windows remain divergent. The bounded scope disposition below resolves
+that review without claiming full action parity; publication and issue closure remain pending.
 
 ## Scope and owners
 
@@ -761,3 +762,43 @@ additional portal cleanup packet remain unproven beyond the scoped results above
 They are not silently implemented, waived or bulk-closed here. Review the bounded
 capture contract and remaining responsibility assignment before merging; do not
 interpret these local passes as full C++ action parity or a new whole-port audit.
+
+### Residual scope disposition — reviewed above `2096fd17`
+
+The #585 issue explicitly covers the currently represented obligations and says not
+to turn unrelated pre-existing gaps into prerequisites. Applying that existing scope
+does not authorize dropping a failing included obligation. The review disposition is:
+
+| Finding | Disposition and retained responsibility |
+| --- | --- |
+| LogoutComplete route, retained transfer destination, faction/skill retention and normal NewWorld payload | Included-path blockers, corrected in the separate behavior commits above; installed scoped captures and paired persistence/relogin scenarios pass. |
+| Instant-only logout versus C++ timed admission, stand/root and timer-window traffic | Inherited admission gap, not implementation of the new outcome coordinator. Retain under #584's C0/C1 lifecycle work; this delivery does not claim complete logout request/cancel parity. |
+| CancelCombat route and additional portal combat/object cleanup | Inherited transfer/publication gap. Retain under #584's C1/C3 boundaries until assigned to an analyzed implementation family; no automatic second family is selected. |
+| Normal-window group/aura/object cleanup | Full gameplay cleanup composition is not among the represented obligations. Retain under #584 C1 and the corresponding gameplay owners; individual packet causes remain to be characterized there. |
+| Derived C++ portal process exit 139 on shutdown | Reference-runtime defect of unknown cause. Do not claim successful C++ shutdown or use the captured save as proof of shutdown correctness. The isolated Rust shutdowns passed. |
+
+Evidence for the boundary, not merely the age of the code: the baseline explicit
+logout path in `handlers/character/world_entry.rs` already performs directory removal,
+visibility notification and exact canonical retirement without the C++ group/aura/
+combat cleanup sequence. The new `FinalizationStep::Retirement` preserves those
+three calls and makes retirement failure explicit. `wow-map/src/manager/player_owner.rs`
+has no diff against `59f5bced`. The production body of `transfer_completion.rs` is
+unchanged; its delta adds a destination regression test. The Session combat helper
+and its CancelCombat emission are unchanged; Session's production delta contains
+the ledger, TransferPending route correction and hydration guard, not deletion of
+combat or aura cleanup. C++ Player.cpp:1391 and :1454 perform combat stop and source
+map removal during far-transfer preparation; WorldSession.cpp:637-672 contains the
+broader group/social/destruction sequence. This comparison does not assign an exact
+cause to every missing UpdateObject/AuraUpdate packet.
+
+Consequently the broad divergent windows remain negative full-parity evidence,
+but do not require implementing those excluded families to accept #585's bounded
+outcome/retirement contract. No capture filter, golden, inventory row or issue
+acceptance checkbox is changed to manufacture parity. A later reproduction showing
+loss of an included authority, failed-save misclassification or replacement retirement
+would reopen this acceptance regardless of whether its cause predates #585.
+
+The local delivery is ready for the single PR's publication/review with these limits
+disclosed. No additional implementation is selected here. Full Login-side save,
+general crash recovery and the remaining #584 C0–C4 requirements stay open; #583
+does not become unblocked. This disposition creates no push or merge authorization.

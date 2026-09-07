@@ -42,6 +42,11 @@ Candidate `b8895373` then passed final validation; the reviewed exhaustive owner
 check also passed with all 10,106 persistence references and 1,029 semantic groups.
 This is bounded local acceptance evidence, not publication, full action parity or
 closure of #585/#584.
+The subsequent bounded scope review classifies inherited admission and broader
+combat/aura/group/object cleanup differences as retained #584 work, not additional
+#585 implementation prerequisites. Included-path blockers were corrected and tested.
+The local delivery is ready for publication/review with those limits disclosed;
+no full-action parity, push, merge or next implementation family is claimed.
 Fresh C++ EOF and pending-transfer bot scenarios passed; C++ then crashed on stopping
 after the portal scenario. That reference shutdown is not recorded as successful.
 Current #585 contract, evidence and remaining boundaries:
