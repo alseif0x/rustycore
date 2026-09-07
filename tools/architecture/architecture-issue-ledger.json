@@ -175,6 +175,7 @@
     297,
     378,
     578,
+    585,
     583,
     153
   ],
@@ -2262,7 +2263,7 @@
     },
     {
       "number": 578,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.OWNER] Establish canonical Player ownership foundations and harden represented lifecycle",
       "kind": "slice",
       "parents": [
@@ -2294,6 +2295,14 @@
       "title": "[ARCH.CORE] Complete remaining architecture through analyzed crate-scoped macrodeliverables",
       "kind": "epic",
       "parents": [133],
+      "depends_on": [578]
+    },
+    {
+      "number": 585,
+      "state": "open",
+      "title": "[ARCH.CORE.FINALIZATION] Complete represented session finalization outcomes and retirement supervision",
+      "kind": "slice",
+      "parents": [133, 584],
       "depends_on": [578]
     }
   ]

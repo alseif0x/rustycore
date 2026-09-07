@@ -1,12 +1,13 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Delivery replan — 2026-09-06, implementation `a0916c0d`:** #578/#579 remains open
-for bounded canonical-owner foundation/hardening closeout, with regression,
-integration and applicable live/capture gates still to be fully demonstrated.
-User-approved coordination epic #584 owns remaining C0–C4 work as crate-focused
-macrodeliverables with prior analysis; no next crate has been selected. Older
-allocations of all remaining core work to #578 below are historical, not closure
-proof. #583 remains gated on completed core seams; #133/#153 acceptance is unchanged.
+**Current delivery — 2026-09-07, integration `59f5bced`:** #579 merged and #578 closed.
+#585 is the selected implementation: represented session finalization outcomes,
+cancellation and exact-incarnation retirement, including its consumers. #133/#584
+are coordination issues, not prerequisite implementations. Further core deliveries
+under #584 precede #583; #153 audits the integrated result before #133 closes.
+The next family after #585 is not selected. Relevant live QA deferred at #579 merge
+is included in #585's acceptance, not recorded as passed. Older allocation/status
+statements below are historical. No new implementation or validation is claimed here.
 
 **Historical capability-audit base:** 2026-08-09 · `3.4.3` @ `42977e9a`, including issue #26's
 bounded creature-spell P1 wire/lifecycle acceptance and login faction hydration.
