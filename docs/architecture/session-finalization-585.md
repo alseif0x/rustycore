@@ -369,3 +369,46 @@ and a bounded, restorative capture harness are needed before claiming that evide
 Do not run the old service-swap scripts unchanged, waive the gate, or infer full portal
 orientation parity from the successful Rust lifecycle scenario. Publication/review
 and issue closure remain separate from this local evidence.
+
+### Reference build and isolated database prepared — 2026-09-07
+
+The pristine legacy `a5f8da2e` build failed in five LFGList.cpp diagnostics that
+use nonexistent `LOG_DEBUG`. A private clone at
+`/tmp/rustycore-585-cpp-reference.3xdDma/source` replaces those calls with the
+existing fmt-style TC_LOG_DEBUG (`0f205830`). Release linking then exposed a
+missing emitted Spell::SearchTargets specialization called by SpellAuras.cpp;
+`1f2053f2ba4cebf5ae15fc07bdb8895602d1481f` explicitly instantiates the existing
+template body, without altering its search logic. The original legacy repository
+is unchanged and clean. No LFG implementation or gameplay repair is claimed.
+
+`cmake --build /tmp/rustycore-585-cpp-reference.3xdDma/derived-build --target worldserver --parallel 2`
+passed with GCC 13.3, Release, static scripts, tools/tests disabled. Executable:
+`/tmp/rustycore-585-cpp-reference.3xdDma/derived-build/src/server/worldserver/worldserver`,
+SHA-256 `1c26893b072226d5301f5b0d48cfdfd70e95de34e76d6c1ce5f50e160b630ac3`.
+`--version` reports revision prefix `1f2053f2ba4c`; do not describe it as pristine
+`a5f8da2e` or reuse the historical capture's different patched identity.
+The complete base-to-derived patch is retained privately at
+`/tmp/rustycore-585-cpp-reference.3xdDma/build-compatibility.patch`, SHA-256
+`a01ec25064181bbac6a370e32c4de49990df1fa6dffddb0e5977d22eee62e0f4`.
+
+Source inspection also showed that C++ startup mutates more than TESTBOT1:
+Main.cpp:664-696 resets online/battleground state and updates world version;
+World.cpp:2343/2444 invokes old-mail and old-character cleanup. The reference must
+therefore run on isolated data, not through the existing position-only live guard.
+A single-transaction, skip-lock-tables export of auth/characters/world/hotfixes
+was imported into a separate MariaDB under the mode-0700 directory
+`/tmp/rustycore-585-capture-db.unfTnR`. Its verified datadir is that directory's
+`data/`, socket is `mysql.sock`, and `@@skip_networking=1`. The copy contains
+41/118/242/444 tables respectively and offline character 14/account 8.
+Private snapshot SHA-256:
+`4be282882cbafa9b5ca592c45deea506bb21eef7b832d0bce1bda8560be75439`.
+The temporary database was cleanly shut down after verification; no reference
+world server was started. Both original world-server and bnet-server remain active.
+The dump contains private data: do not print, publish or commit it.
+
+Next: configure and prove isolated reference startup, then the bounded paired
+logout/disconnect/transfer capture with exact source/build/fixture provenance.
+The historical DB2 specialization patch remains a separate known derivation,
+not applied to this new build and not assumed unnecessary before startup evidence.
+These preparation results neither satisfy the capture gate nor reopen Rust's
+already-green code validation.

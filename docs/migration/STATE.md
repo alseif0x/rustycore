@@ -17,9 +17,11 @@ also passed with QA tooling `55ec9a8b`, and the original server was restored.
 Candidate `bf884aec` subsequently passed final validation and guarded pending-transfer
 disconnect/save/relogin QA, after two separately committed fixes for realm routing
 and retained-destination normalization. Original character location and server binary
-were restored and verified. Applicable fresh C++ capture comparison remains outstanding:
-the reference executable is absent and the old capture wrappers target PM2, not the
-current systemd deployment. These bounded passes are not full parity or issue closure.
+were restored and verified. Applicable fresh C++ capture comparison remains outstanding.
+A temporary derived C++ executable has now been built with two explicit build-only
+corrections; a private database copy is imported and stopped, ready for isolated QA.
+Neither has yet produced the paired capture. The old capture wrappers target PM2,
+not the current systemd deployment. These bounded passes are not full parity or issue closure.
 Current #585 contract, evidence and remaining boundaries:
 [session finalization](../architecture/session-finalization-585.md).
 
