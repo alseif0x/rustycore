@@ -1581,11 +1581,11 @@ mod trace_tests {
 
     #[test]
     fn an_untraced_transaction_records_nothing() {
-        // The recorder is opt-in; production builds the same transactions.
-        let recorder = PersistenceRecorder::new();
+        // Exclude ambient capture tests while exercising the production opt-out.
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
         let mut trans = SqlTransaction::new();
         trans.append(PreparedStatement::for_statement(CharStatements::SEL_ENUM));
-        assert!(recorder.take().events.is_empty());
+        assert!(crate::persistence_trace::ambient_recorder().is_none());
     }
 }
 

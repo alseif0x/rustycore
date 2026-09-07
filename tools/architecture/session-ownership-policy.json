@@ -55900,6 +55900,16 @@
           "count": 1
         },
         {
+          "module": "crate::session::lifecycle::finalization::tests",
+          "callee": "WorldSession::new",
+          "argument_count": 10,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
           "module": "crate::session::tests",
           "callee": "WorldSession::new",
           "argument_count": 10,

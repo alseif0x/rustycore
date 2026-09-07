@@ -1,9 +1,10 @@
 # Represented session finalization — #585
 
-Candidate `bf884aec` passed final validation and bounded normal, disconnect and
-pending-transfer runtime QA on the #585 branch, based on integrated `59f5bced`.
+Candidate `5f5e225f` passed bounded normal, disconnect and pending-transfer paired
+runtime QA on the #585 branch, based on integrated `59f5bced`.
 The implementation block preceded validation, as requested by the user.
-Fresh applicable C++ capture comparison remains outstanding; this is not issue closure.
+Fresh scoped comparisons pass, but full logout/portal windows remain divergent and
+renewed final validation is pending; this is not issue closure.
 
 ## Scope and owners
 
@@ -665,5 +666,60 @@ the second crash occurred after the bot had confirmed the save. This is not a
 successful reference shutdown, and its cause is not established. Packet/SQL
 observations before that stop remain distinct from shutdown evidence. BNet stopped
 normally, the private database was shut down, and original services were untouched.
-The corrected Rust portal and persisted-skill paths still require installed QA
-and a new final candidate; no acceptance assertion or capture filter was waived.
+The corrected Rust portal and persisted-skill paths were subsequently exercised
+in the combined installed QA below; no acceptance assertion or capture filter was waived.
+
+### Combined installed candidate and final acceptance findings
+
+On aarch64, clean QA checkout `5f5e225f` produced world-server SHA-256
+`c4a1b0cd14f94ff220a39caa56b0fafec9e8c849b6d23d7b0c71cfe93a6ab8fa`.
+Release `production_login_player_owner` passed 34 tests. With the pinned corrected
+bot above, all three two-pass scenarios passed the maintained save/disconnect
+aggregation checks: normal logout/relogin, orderly EOF disconnect/relogin and
+pending-transfer disconnect/relogin without WorldPortResponse. Each scenario began
+from the same normalized private database; only the portal fixture's location was
+changed. Six persistence projections survive, including 207 reputation rows and
+14 skills. EOF and portal first-pass saved projections also equal their C++ reports.
+
+Private aggregate reports under `/tmp/rustycore-585-cpp-reference.3xdDma`:
+
+| Report | SHA-256 |
+| --- | --- |
+| `rust-closing-normal.json` | `3c0b21a475b8bad60ab5a47b4f4bb8cf8d276636204d11d826653f80651f0837` |
+| `rust-closing-disconnect.json` | `81eafa2ac2309312e0e63503cd62b037a59e6f7168dd57d33f391db891a971ad` |
+| `rust-closing-portal.json` | `fe6a534adf68fb4ffb7a248ceabfe035b53f5a8ff2ba76422dd768ca4c2bbbd5` |
+
+Strict one-packet comparisons match bytes and connection for LogoutComplete
+(`0x2684`), InitializeFactions (`0x2724`), TransferPending (`0x25CD`) and NewWorld
+(`0x2594`). These are deliberately scoped results, not whole-action parity.
+The full normal window still reports 2 matched, 1 value difference, 16 missing
+packets, zero routing differences and zero extras. The portal window, from
+CMSG_AREA_TRIGGER (`0x31D6`) through SMSG_NEW_WORLD, reports 5 matched, zero value
+differences, 1 CancelCombat routing difference, 2 missing packets (CancelCombat
+and UpdateObject), zero extras. The full logs are `closing-full-logout-diff.txt`
+and `closing-portal-diff.txt`. Their residual admission/combat/object side effects
+are not implemented by claiming the represented finalization ledger complete;
+acceptance must resolve their scope explicitly before issue closure.
+
+All isolated Rust world/BNet processes stopped successfully after their scenarios;
+the private MariaDB instance shut down normally. Original world/BNet processes
+remained active and the original world executable retained SHA-256
+`c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`.
+Reference C++ portal shutdown failures above remain distinct and unresolved.
+
+Final manifest `20260907T152501.562479Z-2778496-final.json` at `5f5e225f`
+failed: an ambient recording test received SEL_ENUM from concurrently running
+`an_untraced_transaction_records_nothing`. That opt-out test did not acquire the
+existing process-wide capture-test mutex. Its test-only correction acquires that
+mutex and asserts the ambient recorder is absent, replacing the meaningless
+assertion on a never-installed recorder. All 358 database library tests pass with
+two ignored after the correction; production behavior and test line counts are
+unchanged. A fresh final profile remains required, not a relabelled earlier pass.
+
+The exhaustive ownership attempt also exposed one unregistered test-fixture
+constructor: `crate::session::lifecycle::finalization::tests`, WorldSession::new,
+10 arguments, cfg(test), count 1. The reviewed policy adds exactly that record,
+without granting a production surface. Policy SHA-256
+`3612c5388d799f1ec0ab0e70a7e16ee656e33f4a09f074ff673815fc8c1730bb` matches
+the private reviewed copy supplied to the running exhaustive check. Its completion
+must be recorded separately; the first failed attempt did not compare persistence.

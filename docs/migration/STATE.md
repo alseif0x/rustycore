@@ -31,7 +31,13 @@ Subsequent final QA corrected compressed faction arrays and repeated map-entry r
 initialization; installed `48b3729b` preserves the five affected faction rows. Its next
 failure exposed persisted bows being rejected by a new-acquisition ambiguity policy.
 That bounded load correction and fresh-C++-driven portal reason/orientation corrections
-are now implemented with focused tests, awaiting combined installed/final acceptance.
+are implemented and installed candidate `5f5e225f` passed all three paired live
+scenarios (normal logout, EOF disconnect and pending-transfer disconnect, each with
+relogin and six retained persistence projections). Release production integration
+passed 34 tests. Scoped LogoutComplete, InitializeFactions, TransferPending and
+NewWorld comparisons match C++; full logout/portal windows remain divergent.
+Final validation failed a concurrent ambient-trace test; its isolated test correction
+passes all 358 database library tests and requires renewed final validation.
 Fresh C++ EOF and pending-transfer bot scenarios passed; C++ then crashed on stopping
 after the portal scenario. That reference shutdown is not recorded as successful.
 Current #585 contract, evidence and remaining boundaries:
