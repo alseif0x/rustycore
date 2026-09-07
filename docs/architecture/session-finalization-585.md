@@ -192,3 +192,56 @@ no account provisioning, fixture deletion or bnet-server restart was performed.
 This is bounded normal save/relogin evidence, not transfer/disconnect fault-injection,
 fresh packet-capture parity or unknown-COMMIT recovery proof. Those action-specific
 acceptance gates remain outstanding. #585 remains open; no push or merge occurred.
+
+### Authorized transport EOF/save/relogin — 2026-09-07
+
+QA tooling commit `55ec9a8b` adds a bounded disconnect mode in the private
+`tools/wow-test-bot/src/login_save.rs` scenario, extracting termination from the
+main bot dispatcher. Existing normal logout still requires LogoutComplete.
+The new mode sends FIN on both authenticated transports without LogoutRequest,
+then requires a newer offline Character save and Login account offline. A second
+fresh authentication verifies the same six saved projections and known/favorite
+spell packets, and finishes with confirmed normal logout. No fixture SQL is written.
+
+Finished-tool validation (aarch64): `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test
+--offline --locked --manifest-path tools/wow-test-bot/Cargo.toml` passed all 144
+tests. The corresponding `cargo build` succeeded. The normal report acceptance
+script passed its positive and 11 negative cases; the disconnect script passed
+its positive and 12 negative cases. Bot formatting, diff checks and the physical
+ratchet passed (1,006 files, 100 legacy ceilings). These are tool-specific results,
+not a new whole-branch final manifest.
+
+The clean runtime checkout was advanced to `55ec9a8b`. Its delta from core candidate
+`ccf5f84d` contains documentation and bot tooling only; the already validated server
+executable was reused with unchanged SHA-256
+`6cbc844d66f84d50cb4003c2101dbca19403830238eb7feda021ac39cc48930f`.
+The rebuilt bot SHA-256 is
+`f2a882e29cd98a8f2d4f35c9f8e661b58892ab345058887531a5c104c13df24b`.
+
+```bash
+BNET_HOST=127.0.0.1 BNET_PORT=8081 \
+QA_GIT_DIR=/tmp/rustycore-585-runtime.XxNlUp/source \
+QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_disconnect_relog.sh \
+./tools/qa-runtime.sh --allow-runtime-qa \
+  --world-exec /home/server/rustycore/target/validation-v2/cargo/209fefad83026767/release/world-server \
+  --report /tmp/rustycore-585-runtime.XxNlUp/disconnect-runtime.json login
+```
+
+Exit 0, `outcome=passed-restored`, `bot_status=0`; candidate PID 2502495.
+Private `/tmp/rustycore-login-qa.ovG9vK/bot.json` records
+`login_disconnect_relog_verified=true`. Its first-phase report confirms
+`disconnect_confirmed=true`, `logout_confirmed=false`,
+`login_account_offline=true`, and a new offline save. The second phase confirms
+normal logout and matching saved state. The guard restored original SHA-256
+`c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`
+and confirmed it serving before returning. No account provisioning, SQL fixture
+setup/deletion or bnet restart occurred.
+
+C++ `WorldSession.cpp:507-536` supplies the closed-socket expiry/removal reference;
+this pass does not claim identical timing, TCP RST, pending-transfer behavior,
+fresh capture parity or crash/unknown-COMMIT recovery. Pending-transfer lifecycle
+QA remains separate. The bot's existing auto-teleport is LFG-specific and must not
+be used as a substitute. The represented area-trigger route in
+`handlers/misc/travel.rs:386` validates proximity before teleporting, matching
+`MiscHandler.cpp:478-503`; exercising it needs an explicitly scoped portal scenario,
+not an arbitrary trigger packet from the current character position.

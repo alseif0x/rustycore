@@ -12,8 +12,10 @@ statements below are historical. No new whole-port completion or parity audit is
 Local #585 candidate `ccf5f84d` passed final validation on 2026-09-07. After renewed
 explicit authorization, guarded normal save/relogin QA passed and the original
 world-server executable was restored and serving. The earlier permission blocker
-is resolved. Action-specific transfer/logout/disconnect QA remains outstanding;
-normal save/relogin is not full live acceptance or issue closure.
+is resolved. The subsequent orderly transport-disconnect/save/relogin scenario
+also passed with QA tooling `55ec9a8b`, and the original server was restored.
+Pending-transfer lifecycle QA and applicable fresh captures remain outstanding;
+these bounded passes are not full live acceptance or issue closure.
 Current #585 contract, evidence and remaining boundaries:
 [session finalization](../architecture/session-finalization-585.md).
 
