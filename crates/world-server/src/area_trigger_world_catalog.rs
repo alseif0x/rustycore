@@ -31,7 +31,7 @@ pub(super) async fn load_area_trigger_world_catalogs_like_cpp(
                 target_x: row.target_x,
                 target_y: row.target_y,
                 target_z: row.target_z,
-                target_orientation: row.target_orientation,
+                target_orientation: row.target_orientation.to_radians(),
             }),
     ));
 
@@ -93,7 +93,19 @@ mod tests {
             AreaTriggerWorldLoadOutcomeLikeCpp<AreaTriggerDestinationPersistenceRowLikeCpp>,
         > {
             self.calls.lock().unwrap().push("destination");
-            Box::pin(async { AreaTriggerWorldLoadOutcomeLikeCpp::Loaded(Vec::new()) })
+            Box::pin(async {
+                // C++ ObjectMgr::LoadWorldSafeLocs converts SQL Facing degrees.
+                AreaTriggerWorldLoadOutcomeLikeCpp::Loaded(vec![
+                    AreaTriggerDestinationPersistenceRowLikeCpp {
+                        trigger_id: 2173,
+                        target_map: 369,
+                        target_x: 67.7607,
+                        target_y: 2490.98,
+                        target_z: -4.29649,
+                        target_orientation: 180.0,
+                    },
+                ])
+            })
         }
 
         fn load_script_rows_like_cpp(
@@ -153,7 +165,9 @@ mod tests {
             *port.calls.lock().unwrap(),
             ["destination", "script", "tavern"]
         );
-        assert_eq!(loaded.area_trigger_store.len(), 0);
+        assert_eq!(loaded.area_trigger_store.len(), 1);
+        let trigger = loaded.area_trigger_store.get_trigger(2173).unwrap();
+        assert_eq!(trigger.pos.orientation, std::f32::consts::PI);
         assert!(loaded.script_outcome.store.is_empty());
         assert!(loaded.tavern_outcome.store.is_empty());
     }

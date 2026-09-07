@@ -6200,25 +6200,20 @@ async fn run_bot_with_void_storage(
         )
         .await?;
         if let Some(before) = login_save_before {
-            let confirmed = loot_race::logout_and_wait_routed_like_cpp(
+            let known = saved_known_spells.context("save check missing known-spell packet")?;
+            let evidence = login_save::complete(
                 bot_index,
+                &bot,
+                before,
+                known,
                 &mut stream,
                 &mut crypt,
                 &mut server_inflater,
-                realm_connection.as_mut(),
-                bot.character_guid,
+                &mut realm_connection,
                 &mut result,
             )
             .await?;
-            if !confirmed {
-                bail!("save check requires SMSG_LOGOUT_COMPLETE, not socket-loss fallback");
-            }
-            let selected = bot.clone();
-            let known = saved_known_spells.context("save check missing known-spell packet")?;
-            result.login_save = Some(
-                tokio::task::spawn_blocking(move || login_save::finish(&selected, before, known))
-                    .await??,
-            );
+            result.login_save = Some(evidence);
         }
         info!(
             "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",

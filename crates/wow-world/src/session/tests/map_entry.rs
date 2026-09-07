@@ -2,6 +2,88 @@
 //! composes both synchronously; a decision is not a durable/asynchronous permit.
 use super::*;
 
+#[tokio::test]
+async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failure() {
+    use std::future::Future;
+    use std::task::{Context, Poll, Waker};
+    for delayed in [false, true] {
+        for outcome in ["written", "cancelled", "missing", "closed", "timeout"] {
+            let (mut session, _input, instance) = make_session();
+            install_canonical_player_owner_for_test(&mut session, 0, 0);
+            session.set_player_health_like_cpp(100, 100);
+            session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+            let handle = session.player_handle_like_cpp.unwrap();
+            let destination = Position::new(10.0, 20.0, 30.0, 0.5);
+            let (realm_tx, realm) = flume::unbounded();
+            session.install_realm_send_channel_for_test(realm_tx);
+            let fence = wow_network::SocketWriteFenceLikeCpp::default();
+            if outcome != "missing" {
+                session.install_realm_send_write_fence_for_test(fence.clone());
+            }
+            if delayed {
+                assert!(session.set_represented_can_delay_teleport_like_cpp(true));
+                session.teleport_to(1, destination).await;
+                assert!(realm.is_empty());
+            }
+            let mut transfer = Box::pin(async {
+                if delayed {
+                    assert!(
+                        session
+                            .process_represented_delayed_teleport_after_update_like_cpp()
+                            .await
+                    );
+                } else {
+                    session.teleport_to(1, destination).await;
+                }
+            });
+            let first = transfer
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop()));
+            if outcome == "missing" {
+                assert!(first.is_ready());
+            } else {
+                assert!(matches!(first, Poll::Pending));
+            }
+            let pending = realm.try_recv().expect("TransferPending precedes fence");
+            assert_eq!(
+                u16::from_le_bytes(pending[..2].try_into().unwrap()),
+                ServerOpcodes::TransferPending as u16
+            );
+            assert!(!drain_server_opcodes(&instance).contains(&ServerOpcodes::SuspendToken));
+            if outcome == "written" {
+                assert!(fence.acknowledge_marker_like_cpp(&realm.try_recv().unwrap()));
+                transfer.await;
+                assert_eq!(
+                    drain_server_opcodes(&instance),
+                    vec![ServerOpcodes::SuspendToken]
+                );
+            } else if outcome == "closed" {
+                // A receiver disappearing after marker admission must not release the token.
+                // Without a physical-writer close notification this reaches the bounded timeout.
+                drop(realm);
+                transfer.await;
+            } else if outcome == "timeout" {
+                transfer.await;
+            } else {
+                drop(transfer);
+            }
+            assert_eq!(session.player_handle_like_cpp, Some(handle));
+            assert_eq!(session.pending_teleport_like_cpp(), Some((1, destination)));
+            assert!(session.represented_far_teleport_pending_like_cpp());
+            if outcome != "written" && outcome != "cancelled" {
+                assert_eq!(session.state(), SessionState::Disconnecting);
+            }
+            assert!(
+                instance.is_empty(),
+                "failure/cancellation must not publish a late token"
+            );
+            assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+            assert_eq!(session.player_handle_like_cpp, Some(handle));
+            assert_eq!(session.player_position_like_cpp(), Some(destination));
+        }
+    }
+}
+
 #[test]
 fn trait_create_projection_retains_full_rows_order_and_invalidation() {
     use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
@@ -263,7 +345,11 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
             .await;
         if delayed {
             assert!(output.is_empty());
-            assert!(session.process_represented_delayed_teleport_after_update_like_cpp());
+            assert!(
+                session
+                    .process_represented_delayed_teleport_after_update_like_cpp()
+                    .await
+            );
         }
         assert_eq!(
             drain_server_opcodes(&output),

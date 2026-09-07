@@ -1004,9 +1004,10 @@ display is checked against the JSON ledger:
 120. #359 — single dispatch mechanism for every opcode;
 121. #297 — promote the Session kernel to `wow-session`;
 122. #378 — classify the remaining Session application modules; inherited implementation stays in the following ownership macro;
-123. #578 — bounded canonical Player/Map foundation and represented lifecycle hardening closeout.
-124. #583 — native/Wasm gameplay modules after required core children of the coordination epic.
-125. #153 — terminal architecture audit.
+123. #578 — closed canonical Player/Map foundation, merged through PR 579.
+124. #585 — current represented session finalization outcomes and retirement supervision.
+125. #583 — native/Wasm gameplay modules after all required core children of the coordination epic, not immediately after finalization.
+126. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

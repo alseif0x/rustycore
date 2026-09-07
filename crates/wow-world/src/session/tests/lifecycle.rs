@@ -38,12 +38,10 @@ fn releasing_without_a_claim_leaves_the_owner_untouched_like_cpp() {
     owner.release_character_login_claim_like_cpp();
 }
 
-/// Timed logout sends `SMSG_LOGOUT_COMPLETE` and moves the session to
-/// disconnecting, but must keep the represented player alive: C++ saves while
-/// `_player` still exists, so clearing it here would make the later
-/// disconnect save a no-op.
+/// Timer admission preserves the player and does not publish completion
+/// before the supervisor has executed the finalization obligations.
 #[test]
-fn complete_logout_notifies_the_client_and_keeps_the_player_for_the_save_like_cpp() {
+fn complete_logout_defers_notification_and_keeps_the_player_for_the_save_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let player = ObjectGuid::create_player(1, 0x5100_0003);
     session.set_player_guid(Some(player));
@@ -51,10 +49,14 @@ fn complete_logout_notifies_the_client_and_keeps_the_player_for_the_save_like_cp
 
     session.complete_logout();
 
-    let packet = send_rx.try_recv().expect("LogoutComplete");
+    assert!(send_rx.try_recv().is_err());
+    let report = session
+        .finalization_report_like_cpp()
+        .expect("timer admission");
+    assert_eq!(report.mode, crate::FinalizationMode::TimedLogout);
     assert_eq!(
-        u16::from_le_bytes([packet[0], packet[1]]),
-        ServerOpcodes::LogoutComplete as u16
+        report.outcome(crate::FinalizationStep::CharacterSave),
+        crate::FinalizationOutcome::NotAttempted
     );
     assert!(session.is_disconnecting());
     assert_eq!(
@@ -72,6 +74,7 @@ fn shared_runtime_cleanup_releases_the_login_claim_like_cpp() {
     let (mut session, _, _) = make_session();
     let (mut next, _, _) = make_session();
     session.set_player_guid(Some(guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 1, 0);
     assert!(session.try_claim_character_login_like_cpp(guid));
     assert!(!next.try_claim_character_login_like_cpp(guid));
 

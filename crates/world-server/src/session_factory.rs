@@ -2,7 +2,6 @@
 
 use super::*;
 mod finalization;
-use finalization::allow_disconnect_cleanup_after_attempt_like_cpp;
 
 pub(super) fn load_realm_info_from_snapshot_like_cpp(
     realm_list: &SharedRealmListLikeCpp,
@@ -184,7 +183,9 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
                 .min(u128::from(u32::MAX)) as u32;
             last_session_update = now;
 
-            let count = session.update_with_catalogs_like_cpp(diff_ms, handler_catalogs);
+            let count = session
+                .update_with_catalogs_like_cpp(diff_ms, handler_catalogs)
+                .await;
             session
                 .process_pending_with_catalogs_like_cpp(handler_catalogs)
                 .await;
@@ -364,99 +365,62 @@ pub(super) async fn create_session(
     // Retired reads cannot start writes. Join writes already submitted by ready
     // callbacks before saving/discarding this Session. A timeout is fatal, not an
     // acknowledgement that a transaction rolled back or a worker stopped.
-    let rename_drain = async {
-        if !session.finish_character_rename_callbacks_like_cpp().await {
-            world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        }
-    };
-    if active_session_registry.is_shutting_down_like_cpp() {
-        if run_world_session_shutdown_finalize_step_like_cpp(
+    let rename_drain = session.finish_character_rename_callbacks_like_cpp();
+    let rename_finished = if active_session_registry.is_shutting_down_like_cpp() {
+        run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state.as_ref(),
             WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
             rename_drain,
         )
         .await
-        .is_none()
-        {
-            tracing::error!(
-                account_id,
-                "Timed out draining character rename commits; completion unproven"
-            );
-        }
+            == Some(true)
     } else {
-        rename_drain.await;
-    }
-    // Complete retained native transfer work before save/cleanup; never treat
-    // an unavailable incarnation or unfinished operation as a clean disconnect.
-    if !session.finish_worldport_native_before_disconnect_like_cpp() {
+        rename_drain.await
+    };
+    if !rename_finished {
+        active_session_registry.begin_shutdown_like_cpp();
+        active_session_registry.request_session_stop_like_cpp();
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
         tracing::error!(
             account_id,
-            "Worldport native completion unavailable; refusing normal save and cleanup"
+            "Rename writer completion remains owned by session; refusing finalization and release"
         );
-        return;
+        finalization::retain_session_until_process_teardown(&mut session).await;
     }
-    // During server
-    // shutdown, disconnect persistence and cleanup each get an independent
-    // bounded attempt. Normal disconnects preserve the prior unbounded save
-    // contract and are never truncated by shutdown policy.
-    if active_session_registry.is_shutting_down_like_cpp() {
-        let attempt = run_world_session_shutdown_finalize_step_like_cpp(
+    let attempt = if active_session_registry.is_shutting_down_like_cpp() {
+        run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state.as_ref(),
             WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
-            session.save_disconnect_player_to_db_with_generator_like_cpp(
-                resources.core.handler_catalogs.id_generators.item.as_ref(),
-            ),
-        )
-        .await;
-        if attempt.is_none() {
-            tracing::error!(
-                account_id,
-                timeout_ms = WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP.as_millis(),
-                "Timed out saving disconnected world session during shutdown finalization"
-            );
-        }
-        if !allow_disconnect_cleanup_after_attempt_like_cpp(
-            world_runtime_state.as_ref(),
-            account_id,
-            attempt,
-        ) {
-            return;
-        }
-        if run_world_session_shutdown_finalize_step_like_cpp(
-            world_runtime_state.as_ref(),
-            WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
-            session.cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+            session.finalize_session_with_generator_like_cpp(
+                wow_world::FinalizationMode::Disconnect,
                 resources.core.handler_catalogs.id_generators.item.as_ref(),
             ),
         )
         .await
-        .is_none()
-        {
-            tracing::error!(
-                account_id,
-                timeout_ms = WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP.as_millis(),
-                "Timed out cleaning shared runtime state during world-session finalization"
-            );
-        }
     } else {
-        let attempt = session
-            .save_disconnect_player_to_db_with_generator_like_cpp(
-                resources.core.handler_catalogs.id_generators.item.as_ref(),
-            )
-            .await;
-        if !allow_disconnect_cleanup_after_attempt_like_cpp(
-            world_runtime_state.as_ref(),
+        Some(
+            session
+                .finalize_session_with_generator_like_cpp(
+                    wow_world::FinalizationMode::Disconnect,
+                    resources.core.handler_catalogs.id_generators.item.as_ref(),
+                )
+                .await,
+        )
+    };
+    let report = attempt.or_else(|| session.interrupt_finalization_like_cpp());
+    if !finalization::completed_session_finalization(&report) {
+        // Keep this task's Session, exact claim, remaining operation state and
+        // registration alive. Closing admission precedes fail-stop; no other
+        // session can race a still-unproven writer through a released claim.
+        active_session_registry.begin_shutdown_like_cpp();
+        active_session_registry.request_session_stop_like_cpp();
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        tracing::error!(
             account_id,
-            Some(attempt),
-        ) {
-            return;
-        }
-        session
-            .cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
-                resources.core.handler_catalogs.id_generators.item.as_ref(),
-            )
-            .await;
+            ?report,
+            "Finalization unresolved; retaining task-owned session until process teardown"
+        );
+        finalization::retain_session_until_process_teardown(&mut session).await;
     }
     drop(active_session_registration);
 }
