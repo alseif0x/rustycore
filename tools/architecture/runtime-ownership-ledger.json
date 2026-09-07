@@ -1472,10 +1472,10 @@
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
           "production_lines": 20262,
-          "test_lines": 13146,
-          "total_lines": 33408,
+          "test_lines": 13197,
+          "total_lines": 33459,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-09-07 #585: -423 production/+15 fixture lines. Logout delegates to the finalization coordinator and consumes the whole report; account/offline/buyback adapters move into lifecycle modules. Failed-login callers consume exact retirement outcomes. Four affected consumer tests move into character_tests/finalization.rs with explicit canonical ownership and failed-persistence expectations. Known rollback now retains and escalates rather than publishing successful logout: intentional policy change, documented in session-finalization-585.md. Remaining character responsibilities stay under #584.",
+          "latest_growth_review": "2026-09-07 #585: -423 production/+15 fixture lines for finalization extraction, then +51 fixture lines for the live-discovered transfer routing regression in private character_tests/transfer_routing.rs. The new test separates realm/instance channels, leaves worldport pending and rejects closed-realm NewWorld delivery. No new production authority or physical root ceiling. Logout delegates to the coordinator; account/offline/buyback adapters move into lifecycle modules. Four consumer tests move into character_tests/finalization.rs. Known rollback retains/escalates as documented in session-finalization-585.md. Remaining character responsibilities stay under #584.",
           "open_retirement_issues": [
             584
           ],

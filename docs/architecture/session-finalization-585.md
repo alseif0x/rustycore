@@ -245,3 +245,34 @@ be used as a substitute. The represented area-trigger route in
 `handlers/misc/travel.rs:386` validates proximity before teleporting, matching
 `MiscHandler.cpp:478-503`; exercising it needs an explicitly scoped portal scenario,
 not an arbitrary trigger packet from the current character position.
+
+### Pending portal QA: routing defect reproduced — 2026-09-07
+
+The user explicitly authorized temporary relocation/restoration of TESTBOT1 and
+the development/runtime tests needed for this delivery. Tooling `2c43d68a` adds
+the recoverable position-only fixture and an actual AreaTrigger/SuspendToken/
+NewWorld handshake, withholding WorldPortResponse. The production DB2 reader
+locates trigger 2173 at map 0, (-8346.46, 514.031, 96.5989), radius 10; existing
+safe location 3650 targets map 369 at (67.7607, 2490.98, -4.29649).
+No portal/world rows are changed. The positional wrapper records original
+map/instance/zone/XYZ/orientation before mutation and restores only those fields
+with the world service stopped. All 145 bot tests and four hermetic fixture
+recovery tests passed; this is tooling evidence, not server acceptance.
+
+The real run on unchanged core `ccf5f84d` failed before its intended cutoff:
+`misrouted/duplicate transfer-pending`. Private evidence is
+`/tmp/rustycore-login-qa.gy2BIF`; runtime report and recovery journal are under
+`/tmp/rustycore-session-transfer-585.vbftsly3`. The runtime guard reported failure
+and restored the original executable; the positional wrapper separately verified
+the original location and serving original executable, then exited nonzero.
+The journal records `restored=true`. This failed run is not transfer acceptance.
+
+Current source confirms the route defect: both represented TransferPending
+emission sites call instance-default `send_packet`, as does the NewWorld response.
+Exact C++ `Opcodes.cpp:2173/1811` register these on realm; `:2150` registers
+SuspendToken on instance. The bounded correction changes those two packet routes,
+preserves the existing NewWorld queue-failure kick, and adds a private two-channel
+regression. This is an intentional protocol repair, not structural refactoring.
+The character logical-test ceiling grows by exactly 51 lines for that regression;
+production ownership and physical root ceilings are unchanged. Validation of the
+correction and a new installed-candidate run remain outstanding.

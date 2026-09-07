@@ -40379,7 +40379,7 @@ impl WorldSession {
                 ship: None,
                 transfer_spell_id: None,
             };
-            self.send_packet(&transfer_pending);
+            self.send_packet_realm(&transfer_pending);
             self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
         }
 
@@ -40658,7 +40658,7 @@ impl WorldSession {
                 ship: None,
                 transfer_spell_id: None,
             };
-            self.send_packet(&transfer_pending);
+            self.send_packet_realm(&transfer_pending);
             self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
         }
 
