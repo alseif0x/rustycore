@@ -1447,11 +1447,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 83360,
-          "test_lines": 107494,
-          "total_lines": 190854,
+          "production_lines": 83369,
+          "test_lines": 107522,
+          "total_lines": 190891,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines under the logical Session root. Existing account/offline/buyback adapters move from the character handler into private lifecycle/account.rs; lifecycle/finalization.rs executes effects and exposes explicit results. The finite obligation order lives outside Session in crate::finalization. Character handler production drops by 423 lines. One task-owned operation ledger retains progress and recovery input; no second Player, clock, lock or automatic replay is introduced. Physical new modules remain below 500 lines. This is a reviewed boundary extraction plus explicit failure-policy hardening, not closure of Session's remaining authority under #584. See session-finalization-585.md.",
+          "latest_growth_review": "2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines for finalization extraction, then +9 production/+28 fixture lines for canonical far-destination orientation normalization and pending-transfer completion regression. The latter reuses WorldLocation instead of duplicating its normalization; no new field, clock, lock or recovery owner. Account/offline/buyback adapters moved from character into private lifecycle modules; the finite policy lives outside Session in crate::finalization. One task-owned ledger retains progress and recovery input. Physical new modules remain below 500 lines; root physical ceiling unchanged. Remaining Session authority stays under #584. See session-finalization-585.md.",
           "open_retirement_issues": [
             584
           ],

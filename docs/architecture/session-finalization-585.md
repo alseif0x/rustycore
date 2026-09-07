@@ -276,3 +276,35 @@ regression. This is an intentional protocol repair, not structural refactoring.
 The character logical-test ceiling grows by exactly 51 lines for that regression;
 production ownership and physical root ceilings are unchanged. Validation of the
 correction and a new installed-candidate run remain outstanding.
+
+Routing correction `8805ab51` passed its two-channel regression, the complete
+wow-world library (3,783 passed, one ignored), formatting, architecture and current
+syntax-only ownership checks. Its release build succeeded; executable SHA-256
+`ffe50b9a2dcc2e98a279e3b8a6164f9caf807b3dd2cabcfcb1985d63dd813682`.
+The next real run reached NewWorld but failed the 90-second offline/save check.
+Candidate PID 2553366 reported NativeTransfer=Unavailable, every later obligation
+NotAttempted, RetainAndEscalate; the supervisor did not label this a successful save.
+Private evidence: `/tmp/rustycore-login-qa.O3sIpW`; runtime/journal:
+`/tmp/rustycore-session-transfer-585.yzobe_mc`. Both original executable and original
+character location were restored and verified; the run exited nonzero.
+
+The pending destination setter retained raw orientation, while canonical
+WorldObject relocation normalizes it. A request such as orientation 180 therefore
+cannot satisfy the exact-position comparison at native post-add admission.
+C++ Player.cpp:1456 creates WorldLocation, whose Position constructor normalizes
+orientation (Position.h:29). The bounded correction reuses Rust's WorldLocation
+normalization when retaining the far destination. Its regression covers positive,
+negative and full-turn inputs through native completion and save preparation.
+This does not change map authority, introduce a position mirror or weaken the
+post-add equality guard. The normalization regression and full wow-world library
+passed locally (3,784 passed, one ignored); formatting/diff checks pass. The fresh
+installed-candidate retry remains outstanding.
+
+Separate catalog limitation: the production area-trigger destination query joins
+raw world_safe_locs.Facing, whereas C++ ObjectMgr.cpp:7032 converts degrees to radians.
+Rust's separate WorldSafeLocsStore already does that conversion, but the currently
+composed direct destination loader bypasses it. This pre-existing catalog-unit
+defect is not proof against finalization of a valid radian destination, and is not
+silently repaired by normalization. It remains outside #585's finalization contract;
+do not label the portal's orientation as full C++ teleport parity. The normalizing
+setter still must handle any finite radian input consistently with canonical relocation.
