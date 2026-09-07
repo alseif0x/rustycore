@@ -1234,7 +1234,6 @@ impl SkillStore {
         })
     }
 
-
     /// Return the subset of `known_spells` that are abilities for `skill_id`.
     ///
     /// Used by the `ShowTradeSkill` handler to build the response recipe list.

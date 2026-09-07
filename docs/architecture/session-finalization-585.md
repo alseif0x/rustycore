@@ -587,3 +587,41 @@ Session +7 production lines; character tests +82 lines including registration.
 The focused regression passed (one test, 3,786 filtered out), as did the reviewed
 hotspot ratchet and cargo fmt check. Full and installed acceptance remain to be
 recorded at the new candidate; these focused results are not whole-issue closure.
+
+At `48b3729b`, release build and all 34 production integration tests passed.
+Executable SHA-256 was `1453e0dd42c011ffd17eaad44d83907753e6d2ec8cfc556fc0e99e2a97f57fa4`.
+The installed normalized-fixture run (`rust-retention-fixed/`, matching bot log)
+preserved flags 2 for all five faction rows, but failed the next unchanged-row
+assertion: skill 45 disappeared. The original services were not replaced; the
+isolated Rust world/BNet processes stopped normally. Final validation did not pass:
+`20260907T145830.398534Z-2766232-final.json` rejected the seven-line physical Session
+growth. That transition requires an explicit reviewed physical ceiling update,
+not a regenerated baseline or a claim that the earlier final run covered it.
+
+### Persisted skills are not new skill acquisition
+
+The normalized C++ fixture has `(guid=14, skill=45, value=1, max=15, professionSlot=-1)`.
+Rust loads 14 rows, logs `Skipping forbidden persisted skill` for 45, then saves 13.
+The same warning exists in the earlier `rust-route-fixed-server.log`; it is not
+introduced by the reputation-retention correction. Raw SkillRaceClassInfo.db2 has
+matching records 126 (race mask 650, class mask 4, availability 1) and 127 (32767,
+13, availability 0), both flags 128 and tier 0. The current general acquisition
+lookup calls that overlap Indeterminate. Treating it as a forbidden persisted
+skill loses an existing row.
+
+C++ Player.cpp:25723-25800 `_LoadSkills` does not read Availability or MinLevel;
+its normalization reads the skill range/tier and subsequent level-update flags.
+The bounded load contract now accepts matching candidates only when flags and
+skill tier agree, while retaining rejection for malformed/missing sources or
+disagreement in those consumed fields. Only conflict diagnostics may be bypassed
+under that agreement. General acquisition lookup remains fail-closed and unchanged;
+no arbitrary unordered candidate or default permission is introduced.
+
+Mechanical commit `aec5fda0` moved the unchanged hydration method to private
+`wow-data/src/skill/loaded.rs`; the separate repair changes its load-only lookup.
+The two new private tests cover the actual bow overlap in both record orders,
+continued acquisition rejection, forbidden class, conflicting flags/tier and
+missing effective metadata. Existing range/step tests remain registered in skill.rs.
+`cargo test -p wow-data --lib skill::` passed all 33 tests after the repair.
+This is not a general redesign of how login handles genuinely indeterminate
+metadata or full Login-side SaveToDB composition; that boundary remains under #584.
