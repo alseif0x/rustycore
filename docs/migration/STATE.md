@@ -18,11 +18,12 @@ Candidate `bf884aec` subsequently passed final validation and guarded pending-tr
 disconnect/save/relogin QA, after two separately committed fixes for realm routing
 and retained-destination normalization. Original character location and server binary
 were restored and verified. Applicable fresh C++ capture comparison remains outstanding.
-A temporary derived C++ executable has now been built with two explicit build-only
-corrections; a private database copy is imported and stopped, ready for isolated QA.
-The fresh paired normal-logout capture is divergent: instant-logout response/order,
-missing side effects and LogoutComplete's connection differ. A capture-driven realm
-publication correction is now under validation. The same starting fixture also exposes
+A temporary derived C++ executable has now been exercised on an isolated database copy;
+its four explicit reference corrections are documented in the checkpoint.
+Candidate `07698639` passed final validation and 34 release production-integration tests.
+Its installed LogoutComplete now matches C++ in bytes and realm connection in a fresh
+strict one-packet comparison. The full paired normal-logout capture remains divergent:
+instant-logout response/order and missing side effects. The same starting fixture exposes
 a reputation flag mismatch; neither failed comparison is waived. The old capture wrappers
 target PM2, not the current systemd deployment. These bounded passes are not full parity
 or issue closure; details and private evidence identities are in the checkpoint below.

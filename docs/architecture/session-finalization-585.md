@@ -484,3 +484,68 @@ The unchanged-code repeat passed 3,785 tests, zero failures, one ignored. Both l
 are retained as `logout-route-world-tests.log` and `logout-route-world-retry.log`
 in the evidence directory; the initial failure is not relabelled green. The reviewed
 hotspot ratchet passes. This does not yet validate a rebuilt/installed closing SHA.
+
+### Realm publication recapture and final validation — 2026-09-07
+
+Correction candidate `07698639cde82d983b64562ace8b4a2a6c87782a` passed
+`./tools/validation-v2 final --base origin/3.4.3` (all 14 commands), manifest
+`target/validation-v2/manifests/20260907T141018.250049Z-2726418-final.json`.
+The manifest truthfully records dirty=true: the sole untracked file was the unrelated
+`docs/architecture/lfg-343-audit.md`, with no build/test influence; tracked files were
+unchanged throughout validation. Release production integration also passed all 34 tests.
+These are aarch64 results, not hosted x86_64 evidence.
+
+The rebuilt release executable SHA-256 is
+`2fd79300b0ea5d0274578470752dbe620c7386a94fbf6eb3bc7c2b3d152d79f0`.
+It was actually started on the isolated database restored from the same normalized
+snapshot, with the independent BNet and pinned bot described above. Fresh raw capture
+`rust-route-fixed/` and bot report/log `rust-route-fixed.json`/`rust-route-fixed.log`
+are under the existing private evidence directory. The bot still failed the unchanged
+reputation-row assertion; this is not a whole-scenario pass.
+
+`target/debug/capture-diff diff --cpp <cpp-normal-stable.pkt> --rust <rust-route-fixed/> --from-opcode s2c:0x2684 --until-opcode s2c:0x2684 --direction s2c --strict`
+passed: one matched LogoutComplete, zero value/route/missing/extra differences.
+Output `logout-publication-diff.txt` SHA-256:
+`18475e76b91212876e0f7f8114fd90250cd236339d70c7b54cec8f4f49f7afd7`.
+Raw-file hash manifest `rust-route-fixed-files.sha256` SHA-256:
+`73278699b972b13d750304a4c86bd6db57667e1b02d84cc54730e5e018b3a3b8`.
+Capture-diff executable SHA-256:
+`49f5d22c9ae53b14b6bc278de421332b5bd3a167f4f6eca13d6e1100293f6cfa`.
+
+The complete CMSG_LOGOUT_REQUEST to SMSG_LOGOUT_COMPLETE comparison still exits 1:
+two matched, one value difference, zero route differences and sixteen missing packets
+(`normal-after-route-diff.txt`). The narrow successful comparison proves only the
+publication correction; it does not replace the full failed comparison. No ignore rule
+or golden was changed. Paired disconnect/transfer evidence remains outstanding.
+The isolated world/BNet processes were stopped, the private database shut down, and
+both original services verified active without replacing their executables.
+
+Read-only investigation also found InitializeFactions differences at reputation indices
+37 and 93 (C++ flags 16, Rust 18). These two wire differences have not been connected
+to the five saved faction rows above; neither their cause nor a pre-#585 runtime
+reproduction is established. Keep reputation diagnosis separate from acceptance of
+the publication fix and do not silently expand this delivery into gameplay repairs.
+
+### Bounded faction-catalog correction during final QA
+
+Further read-only inspection reproduced an input decoding defect: FactionStore used
+`get_array_i32` for fields 14/15, which reads raw record bits even for PalletArray.
+For faction 910 the loaded base was 84936240, while the compression-aware reader
+returns -42000. The five affected factions have distinct reputation indices, ruling
+out an index alias for these rows. Exact C++ anchors are DB2Metadata.h:3567-3591
+(signed int32[4] ReputationBase/Max) and DB2FileLoader.cpp:847-858
+(`RecordGetVarInt` PalletArray lookup followed by payload-bit copy).
+
+The bounded correction changes only FactionStore's two arrays to use the existing
+compression-aware `get_array_element(..., 32) as i32`. The generic WDC4 helper and
+its other consumers remain unchanged; this is an intentional catalog correction,
+not structural movement. It is needed to investigate the persisted-reputation
+guarantee exercised by #585's live QA, not an all-catalog repair campaign.
+`crates/wow-data/tests/faction_reputation_arrays.rs` exercises the actual loader on
+synthetic palette/uncompressed records, distinct indices, zero, negative and signed
+boundary values. A separately ignored host-data test checks the five real faction
+bases; it must be explicitly run and must not silently pass when data is absent.
+Both tests passed with `cargo test -p wow-data --test faction_reputation_arrays -- --include-ignored`
+using the existing validation target and CARGO_INCREMENTAL=0. The installed scenario
+and final profile must be rerun for this code delta; the green `07698639` evidence
+does not validate it or establish that all reputation discrepancies are resolved.

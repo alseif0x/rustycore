@@ -831,8 +831,8 @@ impl FactionStore {
             renown_currency_id: r.get_field_i32(idx, 11),
             reputation_class_mask: std::array::from_fn(|i| r.get_array_i16(idx, 12, i)),
             reputation_flags: std::array::from_fn(|i| r.get_array_u16(idx, 13, i)),
-            reputation_base: std::array::from_fn(|i| r.get_array_i32(idx, 14, i)),
-            reputation_max: std::array::from_fn(|i| r.get_array_i32(idx, 15, i)),
+            reputation_base: std::array::from_fn(|i| r.get_array_element(idx, 14, i, 32) as i32),
+            reputation_max: std::array::from_fn(|i| r.get_array_element(idx, 15, i, 32) as i32),
             parent_faction_mod: [
                 f32::from_bits(r.get_array_element(idx, 16, 0, 32)),
                 f32::from_bits(r.get_array_element(idx, 16, 1, 32)),
