@@ -6,7 +6,8 @@ The implementation block preceded validation, as requested by the user.
 Candidate `b8895373` subsequently passed final validation after a test-only repair
 and reviewed test-fixture policy entry. Fresh scoped comparisons pass, but full
 logout/portal windows remain divergent. The bounded scope disposition below resolves
-that review without claiming full action parity; publication and issue closure remain pending.
+that review without claiming full action parity. The final cross-socket corrections
+also passed renewed final and isolated live acceptance below; PR #586 integration is pending.
 
 ## Scope and owners
 
@@ -862,3 +863,53 @@ the isolated BNet/private database preparation services, to release memory; no b
 scenario had started. Final manifest `20260907T201933.981898Z-2877005-final.json`
 is interrupted/failed evidence, not a pass. Continue heavy work serially with one
 Cargo job; do not treat the previously built world executable as the new candidate.
+
+### Cross-socket correction: renewed acceptance
+
+The serial rerun passed at committed `37ef2a93` (documentation-only over executable
+`5e48162a`), aarch64, 2026-09-07. Final manifest
+`20260907T204538.164579Z-2887783-final.json` verifies green: 6,162 library tests passed,
+zero failed, three ignored; reverse-dependent compilation and profile checks passed.
+The exhaustive ownership check also passed: 10,106 persistence rows, 1,029 semantic
+groups, 3,704 associated items, unchanged canonical fields and reviewed async delta.
+Tracked files matched HEAD. The unrelated untracked `lfg-343-audit.md` remains
+untouched (SHA-256 `1a9155fbc06617201dc65ace2170e5885532e55c9dcb389e95a0a31b1de285dc`);
+the final manifest truthfully records dirty status, not a clean-worktree fiction.
+
+The clean `5e48162a` checkout built world-server release successfully with one Cargo
+job. Executable SHA-256:
+`53f69d81d408119d8bf4b024fbd5f96cd0f4883afc55773311019bf19d2a2819`.
+Using the same private Unix-socket database, normalized fixture, configuration and
+pinned bot documented above, both paired normal logout/relogin and pending-portal
+disconnect/relogin passed. The six retained persistence projections match across
+each pair. Portal 2173 withheld WorldPortResponse, saved map 369 at
+`67.7607, 2490.98, -4.29649`, and relogged there successfully.
+Private evidence root remains `/tmp/rustycore-585-cpp-reference.3xdDma`, with
+`review-fences-normal-{first,second,combined}.json` and corresponding
+`review-fences-portal-*` reports. The maintained `login_save_relog.jq` and
+`login_disconnect_relog.jq` accepted their respective pairs.
+
+Fresh Rust capture directories `review-fences-normal` and `review-fences-portal`
+each passed the applicable strict single-opcode comparisons against the retained,
+disclosed derived C++ captures: LogoutComplete `0x2684`, TransferPending `0x25CD`,
+SuspendToken `0x25A8` and NewWorld `0x2594`, each one match with no byte/routing/missing/
+extra differences. This is scoped evidence, not a new full-window parity claim or
+proof of client acknowledgement. Held-fence/cancellation tests supply the ordering
+and failure evidence that successful captures cannot establish alone.
+
+Only isolated QA world/BNet/database processes were stopped afterward. Original
+world PID 2572466 and BNet PID 4153913 stayed active; original world executable hash
+remains `c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`.
+No original database restoration or server replacement was required.
+
+The explicit production-linked target also passed all 34 release tests at clean
+`5e48162a`: `CARGO_INCREMENTAL=0 PROTOC=/home/ubuntu/.local/protoc/bin/protoc
+CARGO_TARGET_DIR=/home/server/rustycore/target/validation-v2/cargo/209fefad83026767
+cargo test --manifest-path /tmp/rustycore-585-runtime.XxNlUp/source/Cargo.toml
+-p wow-world --test production_login_player_owner --release --locked -j1`.
+Log: `review-fences-production-release.log` in the same private evidence root.
+This closes the correction's local acceptance; publication reuses the verified
+`37ef2a93` final with a checked documentation-only delta, without claiming a new
+final run at the publication SHA. The user explicitly requested no further review
+request. The two existing findings are addressed; integration remains a GitHub action,
+not inferred from the local passes.
