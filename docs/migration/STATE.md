@@ -14,8 +14,12 @@ explicit authorization, guarded normal save/relogin QA passed and the original
 world-server executable was restored and serving. The earlier permission blocker
 is resolved. The subsequent orderly transport-disconnect/save/relogin scenario
 also passed with QA tooling `55ec9a8b`, and the original server was restored.
-Pending-transfer lifecycle QA and applicable fresh captures remain outstanding;
-these bounded passes are not full live acceptance or issue closure.
+Candidate `bf884aec` subsequently passed final validation and guarded pending-transfer
+disconnect/save/relogin QA, after two separately committed fixes for realm routing
+and retained-destination normalization. Original character location and server binary
+were restored and verified. Applicable fresh C++ capture comparison remains outstanding:
+the reference executable is absent and the old capture wrappers target PM2, not the
+current systemd deployment. These bounded passes are not full parity or issue closure.
 Current #585 contract, evidence and remaining boundaries:
 [session finalization](../architecture/session-finalization-585.md).
 

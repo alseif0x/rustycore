@@ -1,8 +1,9 @@
 # Represented session finalization — #585
 
-Implementation is in final validation on the #585 branch, based on integrated
-`59f5bced`. The implementation block preceded validation, as requested by the user.
-This is not issue closure or runtime acceptance.
+Candidate `bf884aec` passed final validation and bounded normal, disconnect and
+pending-transfer runtime QA on the #585 branch, based on integrated `59f5bced`.
+The implementation block preceded validation, as requested by the user.
+Fresh applicable C++ capture comparison remains outstanding; this is not issue closure.
 
 ## Scope and owners
 
@@ -86,7 +87,7 @@ Legacy root: `/home/server/woltk-trinity-legacy`.
   and `docs/migration/player-lifecycle-persistence-contract.md`; their historical
   open-#578 status does not reopen that predecessor.
 
-## Acceptance still to execute
+## Implementation and acceptance evidence (chronological)
 
 Development evidence on the uncommitted implementation above `1e1a4c41`
 (aarch64, 2026-09-07; not evidence at a closing SHA): the production integration
@@ -275,7 +276,8 @@ preserves the existing NewWorld queue-failure kick, and adds a private two-chann
 regression. This is an intentional protocol repair, not structural refactoring.
 The character logical-test ceiling grows by exactly 51 lines for that regression;
 production ownership and physical root ceilings are unchanged. Validation of the
-correction and a new installed-candidate run remain outstanding.
+correction and a new installed-candidate run were still outstanding at that checkpoint;
+the following entries record their results.
 
 Routing correction `8805ab51` passed its two-channel regression, the complete
 wow-world library (3,783 passed, one ignored), formatting, architecture and current
@@ -298,7 +300,7 @@ negative and full-turn inputs through native completion and save preparation.
 This does not change map authority, introduce a position mirror or weaken the
 post-add equality guard. The normalization regression and full wow-world library
 passed locally (3,784 passed, one ignored); formatting/diff checks pass. The fresh
-installed-candidate retry remains outstanding.
+installed-candidate retry was outstanding at that checkpoint and subsequently passed below.
 
 Separate catalog limitation: the production area-trigger destination query joins
 raw world_safe_locs.Facing, whereas C++ ObjectMgr.cpp:7032 converts degrees to radians.
@@ -308,3 +310,62 @@ defect is not proof against finalization of a valid radian destination, and is n
 silently repaired by normalization. It remains outside #585's finalization contract;
 do not label the portal's orientation as full C++ teleport parity. The normalizing
 setter still must handle any finite radian input consistently with canonical relocation.
+
+### Pending portal and final candidate accepted locally — 2026-09-07
+
+On aarch64, candidate `bf884aecee151551503238fae761f52141b07556` passed the
+guarded pending-transfer scenario after the distinct routing (`8805ab51`) and
+normalization (`bf884aec`) repairs. The installed release binary SHA-256 was
+`3662aabb0746694030e72af07d6e1cfbb51233dbb2cf99000c9db8cf3de855aa`;
+the bot SHA-256 was
+`62ea6ce7581783af5d7047b6d16345112fbb34e42789a39a2c9177cfd7fd671c`.
+The clean source checkout was at the same candidate. Command:
+
+```bash
+python3 tools/wow-test-bot/run_session_transfer_qa.py \
+  --allow-position-fixture \
+  --source /tmp/rustycore-585-runtime.XxNlUp/source \
+  --world-exec /home/server/rustycore/target/validation-v2/cargo/209fefad83026767/release/world-server
+```
+
+The command exited 0. Private runtime evidence is
+`/tmp/rustycore-session-transfer-585.l2mpgaxb/runtime.json` (`passed-restored`,
+bot status 0); its recovery journal records `admitted=true`, `restored=true`.
+Bot evidence is `/tmp/rustycore-login-qa.812yZO/bot.json` and the accompanying
+first/second reports. TransferPending and NewWorld arrived on realm, SuspendToken
+on instance; the bot withheld WorldPortResponse and closed the transports.
+The first phase confirmed disconnect, character/account offline and destination
+save at map 369, (67.7607, 2490.98, -4.29649), without LogoutComplete. A fresh
+login followed by normal logout confirmed the same saved destination and the six
+tracked save projections/known and favorite spells; the aggregate reports
+`login_disconnect_relog_verified=true`. This is not a TCP RST or crash-recovery test.
+
+The wrapper verified both the original character location and the serving original
+executable after restoration; installed SHA-256 is
+`c2a3b461132553156cb341933afa832424479f7efcdb2d555c647381b528ae46`.
+No bnet restart, account creation/deletion or world portal-row mutation occurred.
+
+The same candidate passed `validation-v2 final --base origin/3.4.3` with
+`CARGO_INCREMENTAL=0`, the declared PROTOC, two Cargo jobs and a 1200-second
+per-command timeout. Verified-green manifest:
+`target/validation-v2/manifests/20260907T103421.255301Z-2-final.json`.
+All 14 planned commands passed, including reverse-dependent compilation, the
+affected library suites and QA-bot compilation. The wow-world library has 3,784
+passing tests and one ignored. Production-linked `production_login_player_owner`
+also passed in dev and release (34 tests per profile), using the same shared target
+and `cargo test --offline --locked -p wow-world --test production_login_player_owner`
+(with `--release` for the release run). Tracked files matched HEAD after validation.
+The truthful dirty flag is solely the unchanged unrelated LFG document identified
+in the earlier candidate evidence, not a modified source or fixture.
+
+Remaining acceptance is the applicable fresh C++/Rust action capture comparison,
+not another implementation of the coordinator. The documented reference executable
+`/home/server/trinity-legacy-install/bin/worldserver` is absent, as is the temporary
+C++ executable named by the historical creature-spell evidence. Current clean legacy
+source is `a5f8da2e`; old artifacts cannot be relabelled as a capture of this candidate.
+The recording wrappers explicitly target PM2 while this deployment uses systemd
+(`crates/capture-diff/README.md`, Recording a capture). A replacement reference build
+and a bounded, restorative capture harness are needed before claiming that evidence.
+Do not run the old service-swap scripts unchanged, waive the gate, or infer full portal
+orientation parity from the successful Rust lifecycle scenario. Publication/review
+and issue closure remain separate from this local evidence.
