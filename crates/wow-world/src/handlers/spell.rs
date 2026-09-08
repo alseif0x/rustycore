@@ -340,6 +340,10 @@ impl WorldSession {
             metadata: crate::session::SpellCastMetadata {
                 from_client: true,
                 misc: req.misc,
+                // C++ `HandleCastSpellOpcode` copies the request trajectory
+                // into `m_targets`; `SpellCastTargets::HasTraj()` then gates
+                // `CAST_FLAG_ADJUST_MISSILE` in `Spell::SendSpellGo`.
+                request_has_trajectory_like_cpp: req.has_trajectory_like_cpp,
                 ..Default::default()
             },
         };

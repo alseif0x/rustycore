@@ -70,39 +70,6 @@ impl WorldSession {
         );
     }
 
-    pub(crate) fn player_cast_wire_data_like_cpp(
-        &self,
-        spell: &wow_data::SpellInfo,
-    ) -> wow_packet::packets::spell::SpellCastData {
-        let remaining_power = self
-            .with_owned_player_like_cpp(|player| {
-                let costs =
-                    spell.calc_power_costs_like_cpp(player.unit().get_create_mana_like_cpp());
-                if !costs
-                    .iter()
-                    .any(|cost| cost.power_type != PowerType::Health as i8)
-                {
-                    return Vec::new();
-                }
-                costs
-                    .iter()
-                    .filter_map(|cost| {
-                        let power =
-                            <PowerType as num_traits::FromPrimitive>::from_i8(cost.power_type)?;
-                        Some(wow_packet::packets::spell::SpellPowerData {
-                            amount: player.get_power(power),
-                            power_type: cost.power_type,
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        wow_packet::packets::spell::SpellCastData {
-            remaining_power,
-            ..Default::default()
-        }
-    }
-
     pub(crate) fn publish_player_cast_frame_like_cpp(
         &mut self,
         metadata: SpellCastMetadata,

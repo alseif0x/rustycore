@@ -7,6 +7,8 @@ struct Fixture {
     known: bool,
     power: bool,
     admits_install: bool,
+    visual_available: bool,
+    publishable: bool,
     pending: Option<PendingSpellCastRequestLikeCpp>,
     active: Option<SpellCastState>,
     allocated: Cell<u32>,
@@ -35,6 +37,8 @@ impl Fixture {
             known: true,
             power: true,
             admits_install: true,
+            visual_available: true,
+            publishable: true,
             pending: None,
             active: None,
             allocated: Cell::new(0),
@@ -89,10 +93,24 @@ impl Runtime for Fixture {
         Some((ObjectGuid::EMPTY, Some(7)))
     }
     fn visual(&self, _: &SpellInfo) -> Option<SpellCastVisualLikeCpp> {
-        Some(SpellCastVisualLikeCpp {
+        self.visual_available.then(|| SpellCastVisualLikeCpp {
             spell_visual_id: 123,
             script_visual_id: 0,
         })
+    }
+    fn publication_supported(
+        &mut self,
+        _: &SpellInfo,
+        _: ObjectGuid,
+        _: &SpellCastVisualLikeCpp,
+        _: &wow_entities::SpellCastMetadata,
+    ) -> bool {
+        self.events.push("publication");
+        if !self.publishable {
+            self.events.push("failure");
+            self.failures.push(SpellCastResult::Error as i32);
+        }
+        self.publishable
     }
     fn prepare_mapping(&mut self, _: ObjectGuid, _: ObjectGuid) {
         self.events.push("prepare");
@@ -134,7 +152,10 @@ fn instant_and_timed_requests_share_mapping_validation_install_and_start() {
     for time in [0, 1500] {
         let mut runtime = Fixture::new(time);
         assert_eq!(prepare(&mut runtime, Fixture::request()), time == 0);
-        assert_eq!(runtime.events, ["prepare", "power", "install", "start"]);
+        assert_eq!(
+            runtime.events,
+            ["publication", "prepare", "power", "install", "start"]
+        );
         let cast = runtime.active.unwrap();
         assert_eq!(cast.cast_time_ms, time);
         assert_eq!(cast.spell_visual.spell_visual_id, 123);
@@ -181,7 +202,7 @@ fn failed_power_retains_mapping_but_cannot_start_or_install() {
     let mut runtime = Fixture::new(0);
     runtime.power = false;
     assert!(!prepare(&mut runtime, Fixture::request()));
-    assert_eq!(runtime.events, ["prepare", "power"]);
+    assert_eq!(runtime.events, ["publication", "prepare", "power"]);
     assert_eq!(runtime.allocated.get(), 1);
     assert!(runtime.active.is_none());
 }
@@ -191,7 +212,7 @@ fn rejected_residence_install_cannot_publish_start() {
     let mut runtime = Fixture::new(0);
     runtime.admits_install = false;
     assert!(!prepare(&mut runtime, Fixture::request()));
-    assert_eq!(runtime.events, ["prepare", "power", "install"]);
+    assert_eq!(runtime.events, ["publication", "prepare", "power", "install"]);
     assert!(runtime.active.is_none());
 }
 
@@ -201,4 +222,29 @@ fn immediate_request_also_retires_an_older_pending_request() {
     runtime.pending = Some(Fixture::request());
     assert!(request(&mut runtime, Fixture::request()));
     assert_eq!(runtime.events, ["cancel-old"]);
+}
+
+#[test]
+fn unrepresented_publication_payload_is_rejected_before_consuming_an_identity() {
+    let mut runtime = Fixture::new(1500);
+    runtime.publishable = false;
+    assert!(!prepare(&mut runtime, Fixture::request()));
+    // The rejection precedes both the SpellPrepare mapping and allocation, so
+    // no server cast identity is consumed and no active cast is installed.
+    assert_eq!(runtime.events, ["publication", "failure"]);
+    assert_eq!(runtime.failures, [SpellCastResult::Error as i32]);
+    assert_eq!(runtime.allocated.get(), 0);
+    assert!(runtime.active.is_none());
+}
+
+#[test]
+fn unresolvable_visual_reports_a_failure_instead_of_dropping_the_request() {
+    let mut runtime = Fixture::new(1500);
+    runtime.visual_available = false;
+    assert!(!prepare(&mut runtime, Fixture::request()));
+    // C++ `GetCastSpellXSpellVisualId` always resolves; an unrepresented
+    // selection must not leave the client waiting on a silent request.
+    assert_eq!(runtime.events, ["failure"]);
+    assert_eq!(runtime.failures, [SpellCastResult::Error as i32]);
+    assert_eq!(runtime.allocated.get(), 0);
 }

@@ -22,6 +22,17 @@ pub(crate) trait Runtime {
     fn failure(&mut self, id: ObjectGuid, spell: i32, visual: SpellCastVisualLikeCpp, reason: i32);
     fn allocate(&self, spell: i32) -> Option<(ObjectGuid, Option<u64>)>;
     fn visual(&self, spell: &SpellInfo) -> Option<SpellCastVisualLikeCpp>;
+    /// Reject a request whose faithful `SendSpellStart`/`SendSpellGo` pair
+    /// needs an input this port does not represent. The adapter publishes the
+    /// rejection; `true` admits the request. This runs before allocation so a
+    /// non-publishable spell never consumes a server cast identity.
+    fn publication_supported(
+        &mut self,
+        spell: &SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: &wow_entities::SpellCastMetadata,
+    ) -> bool;
     fn prepare_mapping(&mut self, client: ObjectGuid, server: ObjectGuid);
     fn disabled(&self, spell: i32) -> bool;
     fn on_cooldown(&self, spell: &SpellInfo) -> Option<bool>;
@@ -91,9 +102,21 @@ pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastReque
         );
         return false;
     }
+    // C++ `GetCastSpellXSpellVisualId` always resolves a visual. `None` here is
+    // an unrepresented selection input, so the request is rejected explicitly
+    // instead of leaving the client waiting on a cast that never publishes.
     let Some(visual) = runtime.visual(&spell) else {
+        runtime.failure(
+            request.cast_id,
+            request.spell_id,
+            Default::default(),
+            SpellCastResult::Error as i32,
+        );
         return false;
     };
+    if !runtime.publication_supported(&spell, request.cast_id, &visual, &request.metadata) {
+        return false;
+    }
     let Some((server_id, revision)) = runtime.allocate(spell.spell_id) else {
         return false;
     };

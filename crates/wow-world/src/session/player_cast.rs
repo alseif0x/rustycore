@@ -3,12 +3,14 @@
 use super::*;
 use crate::player_cast::Runtime;
 use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
+use wire::{PlayerCastPublicationPhaseLikeCpp, UnrepresentedPlayerCastPublicationLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
 mod checks;
 mod identity;
 mod power;
 mod publication;
 mod state;
+pub(in crate::session) mod wire;
 
 impl WorldSession {
     pub(crate) fn cancel_client_cast_request_like_cpp(&mut self, spell_id: Option<i32>) {
@@ -148,9 +150,13 @@ impl Runtime for WorldSession {
                     continue;
                 }
                 if row.caster_unit_condition_id != 0 {
+                    // Rejected, not defaulted: visual zero is not a silent
+                    // substitute for an unevaluated `CasterUnitConditionID`.
                     tracing::warn!(
                         spell_id,
                         condition = row.caster_unit_condition_id,
+                        reason = UnrepresentedPlayerCastPublicationLikeCpp::VisualUnitCondition
+                            .reason_like_cpp(),
                         "Player cast visual requires unrepresented UnitCondition evaluation"
                     );
                     return None;
@@ -163,6 +169,38 @@ impl Runtime for WorldSession {
             return Some(SpellCastVisualLikeCpp::default());
         }
         Some(SpellCastVisualLikeCpp::default())
+    }
+
+    fn publication_supported(
+        &mut self,
+        spell: &wow_data::SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: &SpellCastMetadata,
+    ) -> bool {
+        let Some(unrepresented) =
+            self.player_cast_unrepresented_publication_like_cpp(spell, metadata)
+        else {
+            return true;
+        };
+        // The rejection precedes allocation and the SpellPrepare mapping, so no
+        // server cast identity is consumed for a cast that cannot publish a
+        // faithful Start/Go pair.
+        self.send_packet(&CastFailed {
+            cast_id: cast,
+            spell_id: spell.spell_id,
+            visual: crate::spell_cast_adapter::present_visual(visual.clone()),
+            reason: SpellCastResult::Error as i32,
+            fail_arg1: 0,
+            fail_arg2: 0,
+        });
+        warn!(
+            account = self.account_id,
+            spell_id = spell.spell_id,
+            reason = unrepresented.reason_like_cpp(),
+            "Rejecting represented Player cast because its C++ publication payload is unrepresented"
+        );
+        false
     }
 
     fn prepare_mapping(&mut self, client: ObjectGuid, server: ObjectGuid) {
@@ -259,12 +297,13 @@ impl Runtime for WorldSession {
         let Some(caster) = self.player_guid() else {
             return;
         };
-        let cast_data = self.player_cast_wire_data_like_cpp(spell);
-        let power_flag = if cast_data.remaining_power.is_empty() {
-            0
-        } else {
-            0x800
+        // C++ `SendSpellStart` samples power before the debit; `m_timer != 0`
+        // is the timed-cast gate for the immunity section.
+        let phase = PlayerCastPublicationPhaseLikeCpp::Start {
+            timed: cast.cast_time_ms != 0,
         };
+        let cast_data = self.player_cast_wire_data_for_phase_like_cpp(spell, phase);
+        let cast_flags = self.player_cast_flags_like_cpp(spell, &cast_data, phase);
         let packet = SpellStartPkt {
             cast_data,
             caster,
@@ -272,7 +311,7 @@ impl Runtime for WorldSession {
             original_cast_id: ObjectGuid::EMPTY,
             spell_id: cast.spell_id,
             visual: crate::spell_cast_adapter::present_visual(cast.spell_visual.clone()),
-            cast_flags: 0x2 | power_flag,
+            cast_flags,
             cast_flags_ex: cast.metadata.cast_flags_ex,
             cast_time_ms: cast.cast_time_ms,
             target: crate::spell_cast_adapter::present_targets(cast.target_data.clone()),

@@ -39,6 +39,11 @@ pub struct SpellCastMetadata {
     pub unit_target_battle_pet_companion_guid: Option<ObjectGuid>,
     pub restore_last_spell_cast_time_on_power_failure: bool,
     pub previous_last_spell_cast_time_on_power_failure: Option<Instant>,
+    /// C++ `SpellCastTargets::HasTraj()`, which is `m_speed != 0` after
+    /// `HandleCastSpellOpcode` copies the request's `MissileTrajectory.Speed`.
+    /// Retained so publication can recognise a trajectory cast; the pitch and
+    /// speed pair and `Spell::m_delayMoment` are not represented.
+    pub request_has_trajectory_like_cpp: bool,
 }
 
 impl Default for SpellCastMetadata {
@@ -58,6 +63,7 @@ impl Default for SpellCastMetadata {
             unit_target_battle_pet_companion_guid: None,
             restore_last_spell_cast_time_on_power_failure: false,
             previous_last_spell_cast_time_on_power_failure: None,
+            request_has_trajectory_like_cpp: false,
         }
     }
 }

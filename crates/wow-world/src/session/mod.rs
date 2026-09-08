@@ -70495,25 +70495,16 @@ impl WorldSession {
         use wow_packet::packets::spell::SpellGoPkt;
 
         let spell_visual_id = spell_visual.spell_visual_id;
-        let cast_data = if metadata.client_cast_id.is_some() {
-            self.player_cast_wire_data_like_cpp(&spell_info)
+        // C++ `SendSpellGo` samples the power that remains after the debit
+        // above. Triggered consumers keep their own explicit metadata flags;
+        // normal client defaults are never imposed on them.
+        let go_phase = player_cast::wire::PlayerCastPublicationPhaseLikeCpp::Go;
+        let (cast_data, cast_flags) = if metadata.client_cast_id.is_some() {
+            let cast_data = self.player_cast_wire_data_for_phase_like_cpp(&spell_info, go_phase);
+            let cast_flags = self.player_cast_flags_like_cpp(&spell_info, &cast_data, go_phase);
+            (cast_data, cast_flags)
         } else {
-            Default::default()
-        };
-        let cast_flags = if metadata.client_cast_id.is_some() {
-            0x100
-                | if spell_info.cooldown_ms == 0 {
-                    0x40000
-                } else {
-                    0
-                }
-                | if cast_data.remaining_power.is_empty() {
-                    0
-                } else {
-                    0x800
-                }
-        } else {
-            metadata.cast_flags
+            (Default::default(), metadata.cast_flags)
         };
         let go_pkt = SpellGoPkt {
             cast_data,
