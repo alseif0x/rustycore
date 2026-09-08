@@ -1,0 +1,21 @@
+{
+  "timeout_ms": 3000,
+  "actions": [
+    {"action": "cast", "spell_id": 30798, "cast_id": {"low": 41, "high": 0}},
+    {"action": "wait", "milliseconds": 500}
+  ],
+  "expect": [
+    {"event": "prepare", "client_cast_id": {"low": 41, "high": 0}},
+    {
+      "event": "start", "client_cast_id": {"low": 41, "high": 0},
+      "spell_id": 30798, "target": "empty", "cast_flags": 2, "cast_flags_ex": 0,
+      "metadata": {"visual_id": 251309, "original_cast_id": {"low": 0, "high": 0}, "cast_time_ms": 0, "remaining_power": []}
+    },
+    {
+      "event": "go", "client_cast_id": {"low": 41, "high": 0},
+      "spell_id": 30798, "target": "empty", "cast_flags": 262400, "cast_flags_ex": 0,
+      "metadata": {"visual_id": 251309, "original_cast_id": {"low": 0, "high": 0}, "remaining_power": []},
+      "hit_targets": 1, "miss_targets": 0, "full_combat_log": false
+    }
+  ]
+}

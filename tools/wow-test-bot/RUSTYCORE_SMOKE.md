@@ -62,6 +62,16 @@ complete encrypted frames.
 
 ## Transport disconnect/save/relogin (#585)
 
+### Player cast lifecycle (#589)
+
+The [cast lifecycle guide](CAST_LIFECYCLE.md) describes scripted instant/timed,
+queued/replaced and cancelled casts, typed packet acceptance and a second-session
+observer. The mode preserves ordinary login/transport and performs no fixture
+SQL or provisioning, and uses only pre-existing accounts. Its captured facts and
+normal logout are distinct from the acquisition/save/relogin persistence gate
+below. An `observe_only` observer session always reports `passed: false`: use the
+paired correlation procedure in the guide, never a hand-annotated pass.
+
 ### Spell acquisition / save / relogin (#587)
 
 `run_spell_acquisition_relog.sh` uses the same normal-save identity and logout
