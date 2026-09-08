@@ -94,12 +94,10 @@ saves Player money during SaveToDB.
 
 Persistence defaults to `{"kind":"direct_spell"}`: an active, non-disabled
 `character_spell` row for the target must survive both logouts. For a reviewed
-skill-rewarded target, set the plan's `persistence` explicitly, for example
-`{"kind":"skill","id":118,"value":1,"max":1}` for controlled 30798→674.
-C++ marks 674 dependent when its Dual Wield effect adds skill 118, omits the
-dependent spell row at save, and reconstructs it from that skill at login.
+skill-rewarded target with stable values across login, set the plan's
+`persistence` explicitly as `{"kind":"skill","id":<skill>,"value":<value>,"max":<max>}`.
 This contract requires the selected skill to be absent before acquisition,
-its exact ID/value/max after each logout, no active target spell row, and 674
+its exact ID/value/max after each logout, no active target spell row, and the target
 in the fresh login spellbook. The wrapper carries the same contract into its
 verify plan and compares it across reports. `saved_spell` remains the literal
 direct-row observation (false here); `observed_skill_root` and
@@ -114,19 +112,34 @@ paired C++ packet parity. No fixture IDs from unit tests are live defaults.
 
 For controlled EffectLearnSpell conformance when stock sources auto-learn their
 target during login, `prepare_spell_acquisition_data.py --source-data <Data>
---output-data <new-private-Data>` creates a separate data tree. It copies only
-SpellMisc and changes one reviewed byte per locale: record336029 / spell30798
-loses Attributes[1] CAST_WHEN_LEARNED (SQL column `Attributes2`). Other assets
-are read through symlinks; stock files are verified unchanged. Unknown file
-hashes and an existing output directory are rejected. The JSON manifest records
-the exact synthetic contract, source/overlay hashes and changed offsets.
+--output-data <new-private-Data> --target-spell 6197` creates a separate version-2
+data tree. SpellMisc record 336029 / spell 30798 loses Attributes[1]
+CAST_WHEN_LEARNED (SQL column `Attributes2`), changing one reviewed byte per
+locale. SpellEffect record 705389 retains parent 30798, difficulty 0, effect index 0
+and LEARN_SPELL 36; only its `EffectTriggerSpell` changes from 674 to 6197. That
+20-bit field begins at record bit 145, and the change affects two bytes per locale.
+The generator validates the reviewed enUS/esES/ruRU assets before creating output.
+Other assets are read through symlinks; stock files are verified unchanged.
+Unknown hashes and an existing output directory are rejected. The manifest records
+the source and target spells, version, input/output hashes, record/parent locations
+and changed bits. This does not change skill 118 metadata or weaken preservation.
+
+Omitting `--target-spell` (or selecting 674) preserves the original version-1
+SpellMisc-only overlay. Keep its previous artifacts as diagnostic evidence:
+C++ explicitly learns 674 and the first logout saves skill 118=1/1 without a
+direct 674 row. At the next login, stock SkillRaceClassInfo 132 flags 0x92 and
+SkillLine 118 category 6 cause `_LoadSkills` → `UpdateSkillsForLevel` to normalize
+that skill to 100/100 at level 20. This is expected server behavior; version 1
+does not satisfy the driver's unchanged six-family retention contract.
 
 Point both isolated servers at the same overlay and verify effective SQL
-SpellMisc/hotfix/dependency inputs before either run. Seed source30798 only in
-the authorized disposable, offline fixture. The existing cast driver must
-observe source30798 known/active and target674 absent after login, then require
-explicit-cast learning and ordinary save/relogin retention. This establishes
-paired conformance with controlled metadata; it does **not** establish stock
+SpellMisc, SpellEffect, hotfix and dependency inputs before either run. Seed source
+30798 only in the authorized disposable, offline fixture. The existing cast driver
+must observe source 30798 known/active and target 6197 absent after login for version 2.
+Use `expected_spell: 6197` and the default direct-spell persistence contract;
+require explicit-cast learning and ordinary save/relogin retention. Only passing
+paired action captures and both retention reports establish conformance with
+this controlled metadata; the generator alone does **not** establish stock
 30798 gameplay. The generator changes no configuration, database or service;
 runtime and fixture authority remain with the caller.
 

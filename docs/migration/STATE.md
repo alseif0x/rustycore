@@ -3,8 +3,9 @@
 **Current delivery — 2026-09-08, integration `8c47af95`:** #586 is merged and
 #585 closed. #587's represented spell-acquisition boundary is implemented locally
 on its own branch (original `43c4e801`, subsequent QA/evidence through `c88603ee`).
-The branch is now rebased onto #588 commit `328b721f`; combined runtime acceptance
-is pending. The earlier stationary-login visibility failure remains recorded.
+The branch is now rebased onto #588 commit `328b721f`; paired trainer and controlled
+ordinary-effect acquisition/save/relogin pass on runtime source `3a634630`.
+Combined final validation remains pending. The earlier stationary-login failure remains recorded.
 The user approved **#588 — deferred player visibility publication** as that
 concrete prerequisite. It connects the existing map notify phase to retained
 Session delivery, with exact incarnation/residence admission and the actual
@@ -15,9 +16,10 @@ After this prerequisite, resume #587; required #584 core still precedes #583,
 then #153 and #133 closure. The dated pre-merge account below remains historical
 evidence, not an instruction to reopen #585.
 
-Derived C++ trainer purchase/rejection/save/relogin passed. The controlled
-ordinary-effect fixture has been generated without altering stock data; effective
-SQL and paired runtime acceptance remain pending. Current #587 evidence:
+Derived C++ and Rust trainer purchase/rejection/save/relogin pass, as does the
+explicitly synthetic30798→6197 cast fixture with unchanged stock data and verified
+effective SQL. Full trainer/cast windows retain documented order/metadata differences;
+scoped learning and logout bytes match. Current #587 evidence:
 [spell acquisition](../architecture/spell-acquisition-587.md).
 #585's scoped acceptance and retained parity limits
 are recorded below and in its checkpoint; do not reopen it from pre-merge status text.

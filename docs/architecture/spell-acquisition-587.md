@@ -1,6 +1,73 @@
 # Represented spell-acquisition application boundary — #587
 
-## Current live result and dependency — 2026-09-08
+## Current acceptance — 2026-09-08
+
+The represented application boundary, its #588 visibility prerequisite and the
+bounded trainer visual codec repair are implemented locally. Both paired trainer
+and controlled ordinary-effect scenarios now **PASS** acquisition, normal logout,
+fresh authentication and all six retained persistence projections. Combined final
+validation is the remaining local acceptance step; no publication/merge is implied.
+
+Runtime source: `3a6346300ac912209b45258870315dfcc76d9c65`; Rust world executable
+SHA-256 `57267b35b7a8ad686e277301d7bcc91e93fdf602d3efcf819c546c7d72d0e866`,
+bot `3e382c6022a31d854812020d538c71c114cc158e6addad2f6c7a78a896d9f1bb`.
+Release build: `/tmp/rustycore-587-corrected-release.log`, 12m07, aarch64, one
+Cargo job. The C++ derivation retains its source/binary identity documented below.
+The later generator/reference-document changes do not alter either executable.
+
+Artifacts under `/tmp/rustycore-587-runtime.MYPSPW/`:
+
+- `cpp-trainer-candidate` / `rust-trainer-candidate`: observed NPC purchase6197,
+  one fee1140, repeated purchase rejected, saved/relogged money998860 and direct
+  acquired spell retained. Their `.acquisition.json` and ordinary paired reports
+  pass. `trainer-candidate-typed-comparison.json` verifies exact visual fields,
+  connection, one learning after visuals, rejection and requests against each
+  independently observed live NPC identity. The repaired player visual and
+  LearnedSpells match bytes exactly. Full-window comparison still fails:
+  two matches, four dynamic-NPC body differences, one missing/one extra money
+  UPDATE, no connection mismatch (`/tmp/rustycore-587-trainer-candidate-window-diff.json`).
+- `cpp-cast-direct` / `rust-cast-direct`: source30798 known and target6197 absent
+  at login; explicit CMSG_CAST_SPELL reaches learning, saves active6197 and
+  retains it at fresh login with money1000000 unchanged. The same six-family
+  checker passes without an exception. CMSG_CAST_SPELL and LearnedSpells match
+  exactly in the action window; the isolated LearnedSpells and LogoutComplete
+  comparisons also pass (`/tmp/rustycore-587-cast-direct-{learned,logout}-diff.json`).
+- The full cast window remains divergent: two matches, one SpellGo mismatch,
+  missing SpellPrepare and SpellStart, no connection mismatch
+  (`/tmp/rustycore-587-cast-direct-window-diff.json`). The inherited player cast
+  pipeline (`handlers/spell.rs:756`, unchanged from the integration base, and
+  `session/mod.rs:70847`, pre-existing metadata publication) differs in cast IDs,
+  visual ID, flags and target representation. Those broader casting contracts
+  remain #584/gameplay work; this acquisition boundary does not establish full
+  player-spell protocol parity or stock30798 acceptance.
+
+The accepted synthetic fixture is **version2**: the existing SpellMisc bit-clear
+plus SpellEffect705389's TriggerSpell674→6197. Talent classification, target
+selection, effect36 and all other bits remain unchanged. `cast-direct-data/fixture.json`
+records all three locales, IDs/parent relation, bit145/width20 and changed bytes.
+SpellEffect enUS/ruRU output SHA-256 is
+`c5e3eb1cc6378674e29e0696fa0fb85df84ac4ec7ba9e8d98992cf55b6913661`; esES is
+`50c34e2634ae7b8126d667fdec182fe8395e5456b7c9206fedde749d1de6d0ba`.
+Generation with Python `-O` and four negative cases pass; evidence is
+`/tmp/rustycore-587-direct-fixture-generation.json` and
+`/tmp/rustycore-587-direct-fixture-negative.json`. Effective SQL/hotfix/dependency
+override counts are all zero (`cast-direct-effective-metadata.json`); those
+unchanged world/hotfix inputs were shared by both runtimes.
+
+Version1 (30798→674) proves C++ learning and first-save skill118=1/1, but fails
+the unchanged relog preservation check: stock SkillRaceClassInfo132 flags0x92
+and SkillLine118 category6 legitimately normalize it to100/100 at level20.
+Rust's load path represents that same rule. This is not a malformed fixture
+value or repaired gameplay bug. Its failed reports remain diagnostic evidence,
+and the stable-skill persistence mode is not claimed live-accepted from it.
+
+All isolated world/BNet/database services are stopped after QA; original services
+remain active and were never replaced. No real-stack restart/crash durability,
+full-window parity, issue closure, push or merge is claimed. The earlier above-cap
+Defense restriction remains explicitly retained below. Required #584 core still
+precedes #583, then #153 and #133; no subsequent family is selected.
+
+## Diagnostic sequence and dependency
 
 At combined code `3ab2e3c3`, release executable SHA-256
 `eaf0419412fdaf3d800ab3efc23a345d50f4f1a92675564889012c7c381f74a1`,
@@ -77,6 +144,18 @@ and an empty struct variant correct those failures; neither failed run is green.
 The fresh C++ visual golden passes in wow-packet
 (`/tmp/rustycore-587-visual-codec-test.log`), and all39 trainer tests pass
 (`/tmp/rustycore-587-visual-trainer-tests.log`). Runtime repetition remains pending.
+
+The user-requested complementary AzerothCore source was inspected at
+`a5e0e6b8f2bf878cb45cb1dc2251eb1448b9bbc3`. It corroborates skill-based
+reconstruction (SpellMgr.cpp:1488, Player.cpp:5582,12231,14073), but its
+EffectLearnSpell:2565 and learnSpell:3415 use a different temporary/spec-mask
+representation. A reentrant reward returns when the spell is already active;
+PlayerStorage.cpp:7885 can therefore persist the directly acquired row. This is
+source-level contrast, not an executed AzerothCore scenario or a reason to
+replace the captured Classic dependent-root contract. Version differences are
+concrete: AzerothCore NPCPackets.cpp:48 reads GUID64+SpellID, whereas Classic
+NPCPackets.cpp:245 reads packed GUID128+TrainerID+SpellID. The 3.3.5 wire layout
+must not replace the target-version request.
 
 ### Earlier paired evidence before #588
 
