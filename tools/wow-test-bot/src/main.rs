@@ -5168,7 +5168,7 @@ async fn run_bot_with_void_storage(
         seen_opcodes: Vec::new(),
     };
 
-    let acquisition_plan = spell_acquisition::load()?;
+    let mut acquisition_plan = spell_acquisition::load()?;
     let login_save_before = if login_save::enabled() {
         if !login_only {
             bail!("login save check requires login-only mode");
@@ -5795,7 +5795,13 @@ async fn run_bot_with_void_storage(
                     let inventory_swap_login_ready = inventory_swap_options
                         .as_ref()
                         .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
-                    if login_ok && void_storage_login_ready && inventory_swap_login_ready {
+                    if login_ok
+                        && void_storage_login_ready
+                        && inventory_swap_login_ready
+                        && acquisition_plan
+                            .as_ref()
+                            .is_none_or(|plan| plan.login_ready())
+                    {
                         break;
                     }
                 } else if op == 0x304B {
@@ -5816,8 +5822,14 @@ async fn run_bot_with_void_storage(
                 {
                     break;
                 }
+                if let Some(plan) = acquisition_plan.as_mut() {
+                    plan.observe_login(op, &payload)?;
+                }
                 if require_known_spells
                     && login_known_spells_ready(login_ok, true, known_spells_seen)
+                    && acquisition_plan
+                        .as_ref()
+                        .is_none_or(|plan| plan.login_ready())
                 {
                     break;
                 }

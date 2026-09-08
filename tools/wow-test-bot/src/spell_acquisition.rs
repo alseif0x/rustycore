@@ -10,6 +10,64 @@ pub(super) struct Plan {
     expected_spell: u32,
     #[serde(flatten)]
     action: Action,
+    #[serde(skip)]
+    live_trainer: Option<(u64, u64)>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Spawn {
+    entry: u32,
+    map: u16,
+    position: [f32; 3],
+}
+
+impl Plan {
+    pub(super) fn observe_login(&mut self, opcode: u16, payload: &[u8]) -> Result<()> {
+        if let Action::Trainer {
+            spawn: Some(spawn), ..
+        } = &self.action
+        {
+            if opcode == SMSG_UPDATE_OBJECT {
+                for candidate in find_creature_guids_near_position_in_update_object(
+                    payload,
+                    spawn.map,
+                    spawn.entry,
+                    spawn.position[0],
+                    spawn.position[1],
+                    spawn.position[2],
+                    3.0,
+                    None,
+                ) {
+                    let guid = (candidate.low, candidate.high);
+                    if self.live_trainer.is_some_and(|previous| previous != guid) {
+                        bail!("multiple live trainer candidates match the pinned spawn position");
+                    }
+                    self.live_trainer = Some(guid);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn login_ready(&self) -> bool {
+        !matches!(&self.action, Action::Trainer { spawn: Some(_), .. })
+            || self.live_trainer.is_some()
+    }
+
+    fn trainer_guid(&self) -> Result<(u64, u64)> {
+        match &self.action {
+            Action::Trainer { spawn: Some(_), .. } => self
+                .live_trainer
+                .context("trainer CREATE_OBJECT was not observed"),
+            Action::Trainer {
+                guid_low,
+                guid_high,
+                ..
+            } => Ok((*guid_low, *guid_high)),
+            _ => bail!("not a trainer plan"),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,6 +79,8 @@ enum Action {
         trainer_id: i32,
         offer_spell: i32,
         fee: u64,
+        gossip_option: Option<i32>,
+        spawn: Option<Spawn>,
     },
     Cast {
         spell: i32,
@@ -33,6 +93,7 @@ enum Action {
 #[derive(Debug, Clone, Serialize)]
 pub(super) struct Evidence {
     expected_spell: u32,
+    trainer_guid: Option<(u64, u64)>,
     learned_on_instance: bool,
     verified_at_login: bool,
     money_before: u64,
@@ -52,17 +113,26 @@ pub(super) fn load() -> Result<Option<Plan>> {
     if plan.expected_spell == 0 || plan.expected_spell > i32::MAX as u32 {
         bail!("acquisition expected spell must be a positive signed spell ID");
     }
-    match plan.action {
+    match &plan.action {
         Action::Trainer {
             guid_low,
             guid_high,
             trainer_id,
             offer_spell,
+            spawn,
+            gossip_option,
             ..
-        } if guid_low == 0 || guid_high == 0 || trainer_id <= 0 || offer_spell <= 0 => {
+        } if (spawn.is_none() && (*guid_low == 0 || *guid_high == 0))
+            || *trainer_id <= 0
+            || *offer_spell <= 0
+            || gossip_option.is_some_and(|id| id < 0)
+            || spawn
+                .as_ref()
+                .is_some_and(|s| s.entry == 0 || s.position.iter().any(|v| !v.is_finite())) =>
+        {
             bail!("trainer plan requires a live NPC GUID, trainer and offer")
         }
-        Action::Cast { spell, .. } if spell <= 0 => bail!("cast spell must be positive"),
+        Action::Cast { spell, .. } if *spell <= 0 => bail!("cast spell must be positive"),
         _ => {}
     }
     if !std::env::var("WOW_BOT_LOGIN_SAVE_CHECK").is_ok_and(|v| is_truthy(&v))
@@ -224,6 +294,11 @@ pub(super) async fn execute(
     let verified_at_login = matches!(plan.action, Action::Verify {});
     let mut receipt = Evidence {
         expected_spell: spell,
+        trainer_guid: if matches!(&plan.action, Action::Trainer { .. }) {
+            Some(plan.trainer_guid()?)
+        } else {
+            None
+        },
         learned_on_instance: false,
         verified_at_login,
         money_before,
@@ -242,29 +317,59 @@ pub(super) async fn execute(
     if known.known_spells.contains(&spell) || saved_before {
         bail!("acquisition fixture already knows expected spell");
     }
-    match plan.action {
+    match &plan.action {
         Action::Trainer {
-            guid_low,
-            guid_high,
             trainer_id,
             offer_spell,
+            gossip_option,
             ..
         } => {
+            let (guid_low, guid_high) = plan.trainer_guid()?;
             let guid = build_packed_guid(guid_low, guid_high);
-            send_encrypted_packet(stream, crypt, 0x34AD, &guid).await?;
+            send_encrypted_packet(
+                stream,
+                crypt,
+                if gossip_option.is_some() {
+                    0x3492
+                } else {
+                    0x34AD
+                },
+                &guid,
+            )
+            .await?;
             let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
             let mut admitted = false;
+            let mut selected = false;
             while tokio::time::Instant::now() < deadline {
                 if let Some((_, op, payload)) =
                     next(stream, crypt, inflater, realm, deadline).await?
                 {
+                    if op == 0x2A98 && !selected {
+                        if let Some(option) = gossip_option {
+                            let (_, low, high) = packet_parser::parse_packed_guid(&payload)
+                                .context("invalid gossip GUID")?;
+                            if (low, high) != (guid_low, guid_high) {
+                                bail!("gossip NPC does not match fixture");
+                            }
+                            let menu = packet_parser::parse_gossip_id(&payload)
+                                .context("invalid gossip menu")?;
+                            send_encrypted_packet(
+                                stream,
+                                crypt,
+                                0x3494,
+                                &build_gossip_select_option(&guid, menu, *option),
+                            )
+                            .await?;
+                            selected = true;
+                        }
+                    }
                     if op == 0x26DF {
                         let summary = packet_parser::parse_trainer_list_summary(&payload)
                             .context("invalid trainer list")?;
                         let (size, low, high) = packet_parser::parse_packed_guid(&payload)
                             .context("invalid trainer GUID")?;
                         let _ = size;
-                        if (low, high) != (guid_low, guid_high) || summary.trainer_id != trainer_id
+                        if (low, high) != (guid_low, guid_high) || summary.trainer_id != *trainer_id
                         {
                             bail!("trainer admission response does not match selected fixture");
                         }
@@ -280,7 +385,7 @@ pub(super) async fn execute(
                 stream,
                 crypt,
                 0x34AE,
-                &trainer_buy(&guid, trainer_id, offer_spell),
+                &trainer_buy(&guid, *trainer_id, *offer_spell),
             )
             .await?;
         }
@@ -289,12 +394,12 @@ pub(super) async fn execute(
             cast_low,
             cast_high,
         } => {
-            if !known.known_spells.contains(&(spell as u32)) {
+            if !known.known_spells.contains(&(*spell as u32)) {
                 bail!("fixture does not know the requested cast");
             }
             let payload = cast_self(
-                spell,
-                (cast_low, cast_high),
+                *spell,
+                (*cast_low, *cast_high),
                 create_player_guid_raw(bot.character_guid, realm_id()),
             );
             send_encrypted_packet(stream, crypt, 0x329C, &payload).await?;
@@ -329,19 +434,18 @@ pub(super) async fn execute(
         bail!("expected learning publication timed out");
     }
     if let Action::Trainer {
-        guid_low,
-        guid_high,
         trainer_id,
         offer_spell,
         ..
-    } = plan.action
+    } = &plan.action
     {
+        let (guid_low, guid_high) = plan.trainer_guid()?;
         let guid = build_packed_guid(guid_low, guid_high);
         send_encrypted_packet(
             stream,
             crypt,
             0x34AE,
-            &trainer_buy(&guid, trainer_id, offer_spell),
+            &trainer_buy(&guid, *trainer_id, *offer_spell),
         )
         .await?;
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
@@ -356,7 +460,7 @@ pub(super) async fn execute(
                     let tail = payload.get(offset..).context("invalid trainer failure")?;
                     if (low, high) != (guid_low, guid_high)
                         || tail.len() != 8
-                        || i32::from_le_bytes(tail[..4].try_into().unwrap()) != offer_spell
+                        || i32::from_le_bytes(tail[..4].try_into().unwrap()) != *offer_spell
                         || u32::from_le_bytes(tail[4..].try_into().unwrap()) != 0
                     {
                         bail!("unexpected repeated trainer purchase failure");

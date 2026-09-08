@@ -60,10 +60,17 @@ failure to investigate, not permission to repair the fixture.
 guards, then verifies the action receipt and fresh known-spell packets. It requires
 `WOW_BOT_ACQUISITION_PLAN` pointing to an absolute private JSON file. A trainer plan
 has `action: "trainer"`, `expected_spell`, the observed live NPC `guid_low` and
-`guid_high`, `trainer_id`, `offer_spell`, and the discounted `fee`. A cast plan has
+`guid_high`, `trainer_id`, `offer_spell`, and the discounted `fee`. Optional
+`gossip_option` opens the NPC's actual gossip menu and selects its trainer option;
+otherwise the driver sends TrainerList directly. A cast plan has
 `action: "cast"`, `expected_spell`, a known player `spell`, and the client cast token
 `cast_low`/`cast_high`. The explicit target is the logged-in player. The wrapper's
 second authentication uses `action: "verify"` and sends no acquisition request.
+For runtime GUID discovery, set both GUID numbers to zero and provide
+`spawn: {"entry": <NPC entry>, "map": <map ID>, "position": [x,y,z]}` from the
+isolated SQL spawn. The bot waits for a unique matching CREATE_OBJECT within three
+yards and uses that observed GUID; SQL spawn IDs are never substituted for live
+GUID counters. Ambiguous or missing candidates fail before any purchase.
 
 Select a previously unknown, unranked spell whose acquisition does not replace
 existing skill/spell rows: this driver retains the existing six-family preservation
