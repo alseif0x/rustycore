@@ -5723,6 +5723,11 @@ async fn run_bot_with_void_storage(
                         )?;
                     }
                 }
+                if let Some(plan) = acquisition_plan.as_mut() {
+                    plan.observe_login(op, &payload, &mut stream, &mut crypt)
+                        .await?;
+                }
+                let acquisition_ready = acquisition_plan.as_ref().is_none_or(|p| p.login_ready());
                 if op == 0x2597 {
                     // SMSG_LOGIN_VERIFY_WORLD
                     info!("[Bot {}] ✅ SMSG_LOGIN_VERIFY_WORLD received", bot_index);
@@ -5745,6 +5750,7 @@ async fn run_bot_with_void_storage(
                         && equipment_set_login_ready
                         && void_storage_login_ready
                         && inventory_swap_login_ready
+                        && acquisition_ready
                     {
                         break;
                     }
@@ -5798,9 +5804,7 @@ async fn run_bot_with_void_storage(
                     if login_ok
                         && void_storage_login_ready
                         && inventory_swap_login_ready
-                        && acquisition_plan
-                            .as_ref()
-                            .is_none_or(|plan| plan.login_ready())
+                        && acquisition_ready
                     {
                         break;
                     }
@@ -5822,14 +5826,9 @@ async fn run_bot_with_void_storage(
                 {
                     break;
                 }
-                if let Some(plan) = acquisition_plan.as_mut() {
-                    plan.observe_login(op, &payload)?;
-                }
                 if require_known_spells
                     && login_known_spells_ready(login_ok, true, known_spells_seen)
-                    && acquisition_plan
-                        .as_ref()
-                        .is_none_or(|plan| plan.login_ready())
+                    && acquisition_ready
                 {
                     break;
                 }

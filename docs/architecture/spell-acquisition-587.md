@@ -1,5 +1,29 @@
 # Represented spell-acquisition application boundary — #587
 
+Current QA update, 2026-09-08: publication `final` passed at `9cf85e51`
+(`/tmp/rustycore-587-final-manifest.json`, verified green): 13 commands,
+3,793 wow-world tests passed, zero failed, one ignored. The manifest's dirty
+status includes the unrelated LFG document. Later bot changes at `1c87ae95`
+passed their five affected tests; that later SHA is not the final manifest's SHA.
+
+The first isolated trainer run entered the derived C++ world successfully but
+failed before purchase because no trainer CREATE_OBJECT was visible. Captures
+and `Player.cpp:23045` / `MovementHandler.cpp:808` identify the missing client
+MoveInitActiveMoverComplete ACK, already used by the bot's other NPC scenarios.
+The acquisition driver now sends that ACK at LoginVerifyWorld and applies its
+discovery gate to every normal login exit. Its five affected tests, executable
+build, physical-file policy and diff hygiene pass. This is a QA-driver correction;
+world-server Rust inputs and its previously built executable are unchanged.
+The failed run is not acquisition, save/relogin or packet-parity acceptance.
+Private evidence is under `/tmp/rustycore-587-runtime.MYPSPW/`; original services
+remain untouched. Live trainer and ordinary-effect acceptance remain pending.
+
+Per the user's latest direction, C++ is a behavioral reference, not correctness
+proof. Suspected defects require contrast with invariants, data and actual
+captures; intentional behavior corrections remain explicit and separate from
+this structural change. Neither a passing Rust test nor a C++ observation alone
+settles a disputed behavior.
+
 Authorization update, 2026-09-08: the user explicitly granted full autonomous
 control to continue. The earlier pending-commit authorization is resolved; the
 local candidate is being committed and prepared for the remaining scoped QA.

@@ -23,7 +23,24 @@ struct Spawn {
 }
 
 impl Plan {
-    pub(super) fn observe_login(&mut self, opcode: u16, payload: &[u8]) -> Result<()> {
+    pub(super) async fn observe_login(
+        &mut self,
+        opcode: u16,
+        payload: &[u8],
+        stream: &mut TcpStream,
+        crypt: &mut WorldCrypt,
+    ) -> Result<()> {
+        // C++ Player::CanNeverSee gates NPC visibility on this client ACK.
+        // MovementHandler::HandleMoveInitActiveMoverComplete then refreshes it.
+        if opcode == 0x2597 {
+            send_encrypted_packet(
+                stream,
+                crypt,
+                CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE,
+                &build_move_init_active_mover_complete_payload(0),
+            )
+            .await?;
+        }
         if let Action::Trainer {
             spawn: Some(spawn), ..
         } = &self.action
