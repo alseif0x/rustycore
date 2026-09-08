@@ -152,6 +152,7 @@ impl SessionCommand {
             self,
             Self::SendIfVisibleLikeCpp(_)
                 | Self::SendCreatureSpellCastIfVisibleLikeCpp(_)
+                | Self::SendPlayerSpellIfVisibleLikeCpp(_)
                 | Self::SendRealmIfVisibleLikeCpp(_)
                 | Self::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
         )
@@ -220,6 +221,8 @@ pub enum SessionCommand {
     /// gate, selecting the basic or full GO by the receiving player's C++
     /// advanced-combat-log preference.
     SendCreatureSpellCastIfVisibleLikeCpp(SendCreatureSpellCastIfVisibleLikeCppCommand),
+    /// One Player cast frame with recipients committed at its publication phase.
+    SendPlayerSpellIfVisibleLikeCpp(SendPlayerSpellIfVisibleLikeCppCommand),
     /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
     /// the accepted packet through the receiver's realm connection.
     SendRealmIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
@@ -494,6 +497,14 @@ pub struct SendCreatureSpellCastIfVisibleLikeCppCommand {
     /// lets the receiving session honor that decision instead of re-deriving it
     /// from a `HaveAtClient` set that has moved on, while still proving the
     /// command belongs to this session incarnation.
+    pub committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp,
+}
+
+#[derive(Clone, Debug)]
+pub struct SendPlayerSpellIfVisibleLikeCppCommand {
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub packet_bytes: Vec<u8>,
     pub committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp,
 }
 

@@ -10,6 +10,111 @@ The finite pre-migration conformance has passed as recorded in the V2 evidence;
 production storage integration and SDK acceptance remain distinct and unfinished.
 Storage/module choices and the full #133 outcome are unchanged.
 
+## Next core candidate — 2026-09-08
+
+The user approved **#589 — represented Player cast-request lifecycle** on
+2026-09-08 after localized source review at `cc8a8e97`. Implementation proceeds
+under #584; this does not complete all spell gameplay. The
+[#589 checkpoint](player-cast-589.md) records working implementation and acceptance.
+#588/#587 have local scoped acceptance; publication and integration remain pending.
+Their checkpoints retain exact tested source identities and capture limitations.
+
+The operation is client request → immediate/queued admission → preparation →
+instant/timed launch or cancellation → ordered publication and effect execution.
+At the reviewed base, `handlers/spell.rs::handle_cast_spell_with_catalogs_like_cpp` coordinates
+the immediate path, while Session's pending-request consumer can reach the shared
+executor without repeating preparation. `session/driver/mod.rs` completes the active
+cast before processing the pending request. Canonical state already resides in
+`PlayerGameplayState.pending_spell_cast` and `Unit.subsystems.spells.execution`,
+with transitions in `wow-entities/src/spell_cast.rs`; preserve those authorities.
+
+The proposed private application owns orchestration through narrow capabilities;
+Session adapts transport, catalogs and effect execution. A prepared result must
+distinguish client requests from server-triggered casts and retain identity,
+targets and publication metadata through exactly one consumption. No new mutable
+Session mirror, task, clock, map lock across delivery, or universal context is needed.
+Toy, binder, spell-click, first-login, item-acquisition and self-resurrection callers
+of the shared executor must retain explicit contracts. Loot, transfer, stance,
+channel cancellation and stuck interruption callers must reach the same canonical
+active/pending owners. These consumers belong in the migration, not follow-up helpers.
+
+Separate structural extraction from intentional repairs. The #587 action capture
+already demonstrates absent SpellPrepare/instant SpellStart and divergent SpellGo
+identity, visual and flags. Source inspection additionally finds queued requests
+bypassing preparation/revalidation and cancellation differences. Classic anchors
+at reference `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+`src/server/game/Entities/Player/Player.cpp` (`ExecutePendingSpellCastRequest`,
+lines 29122–29313), `src/server/game/Handlers/SpellHandler.cpp` (line 263), and
+`src/server/game/Spells/Spell.cpp` (construction 580–583, preparation 3562,
+cancellation 3579, update 4209, Start/Go 4656/4765). These source anchors do not
+relabel the earlier derived C++ captures as having run this reference SHA.
+Use the versioned complementary-source policy for missing or suspect behavior.
+
+The map-scoped server CastID allocator already exists:
+`wow-map/src/map/storage.rs::generate_low_guid_like_cpp(HighGuid::Cast)`.
+Prepare against the exact active `MapKey` after checked Player residence admission,
+consume that map's sequence and install prepared state under the existing guard;
+publish after releasing it. Allocate at preparation, not while merely queuing a
+request. The Session global counter must retire for creature publication as well as
+Player callers, because separate counters can collide within one map. Creature
+validation already holds the canonical guard; pass the allocated GUID onward rather
+than locking again. Classic `Map.h:515`, `Map.cpp:2505`, `Spell.cpp:580` and
+`ObjectGuid.cpp:623` establish this scope: instance ID is not encoded in CastGUID,
+separate instances may have identical bytes, and a live map retains its sequence
+across Player reentry. Do not introduce a replacement counter or encode instance ID
+as server ID. Add shared Player/creature sequence, cross-instance independence,
+reentry continuity, stale-admission/no-consumption and queued-cancellation tests.
+The existing Rust generator asserts at exhaustion; this proposal does not claim a
+recoverable allocation API or equivalence to C++ overflow shutdown.
+
+Identity inspection resolves the normal request contract: Classic
+`Player.cpp::ExecutePendingSpellCastRequest` sends ClientCastID only in the
+SpellPrepare mapping to the newly constructed server CastID. The constructor's
+OriginalCastID defaults to empty (`Spell.h:426`, `Spell.cpp:581`); it does not echo
+the request ID. Preserve explicit original IDs for triggered consumers rather than
+changing `SpellCastMetadata::original_cast_id_or` globally without migrating them.
+Classic selects the visual through `GetCastSpellXSpellVisualId` (`Spell.cpp:583`),
+not from the request's visual. Pending-request revalidation must precede construction
+and the mapping; preparation failures after construction retain that already-issued
+mapping and consumed server identity. This distinction belongs in negative captures.
+
+Before fixing publication, settle the server visual resolver, target selection and
+visible recipients. `wow-packet/src/packets/spell.rs` currently writes empty
+power/rune/projectile/immunity sections; merely adding flags cannot establish wire
+correctness. A private publication module may serve this operation, but must not
+silently change default metadata for all triggered consumers.
+
+Further serializer inspection at the same Rust/Classic revisions fixes the payload
+contract: Classic `Server/Packets/SpellPackets.cpp:334–446` writes power entries as
+`int32 amount + int8 type`, optional rune state with an explicit cooldown count,
+and separate optional ammo fields. These are controlled by serialized presence/count
+bits, not inferred by the serializer from CastFlags. Start samples power before
+execution; Go samples the remaining power and uses server time rather than cast
+duration (`Spell.cpp::SendSpellStart/SendSpellGo`). Start and Go do not populate
+identical optional fields. The current Classic Go rune cooldown loop is commented
+out, so do not claim that this reference supplies complete rune behavior. Rust's
+advanced combat-log power rows are a different structure and cannot substitute for
+cast RemainingPower. Any packet shape change also reaches the direct constructors
+in `handlers/misc/collections.rs`, creature publication in Session, and packet/server
+tests, even when their gameplay behavior remains outside the client-request repair.
+
+Acceptance covers paired instant/timed casts, queue admission inside/outside the
+400 ms window, replacement, active/pending cancellation and late failure; compare
+Prepare → Start → Go → effects, related identities, visual, payload-dependent flags,
+targets and connections, including a nearby observer. Verify single execution,
+power/cooldown phase, retired identity exclusion and detach/reentry. Preserve
+`active_cast_owner`, `pending_cast_owner`, opcode registration and production driver
+composition evidence, plus affected triggered consumers and #587/#588 regressions.
+Complete implementation and consumer migration before the affected test/QA campaign.
+
+This does not claim the full effects engine, SpellHistory, projectile simulation,
+channels/autorepeat, pets/vehicles or all target-selection rules. Those remain port
+work; any missing behavior required by the declared lifecycle scenarios must be
+resolved within its acceptance rather than waived through an exclusion. The account
+SaveToDB alternative remains unselected: its complete responsibility includes missing
+Login-side participants and cross-schema recovery, not just Session account caches.
+The global order remains required #584 core → #583 → #153 → #133.
+
 **Decision date:** 2026-09-05. **Reviewed production code:** `93e4002a` on the
 #578 branch; reviewed laboratory/planning HEAD: `ee9a0128`. This is a bounded
 architecture review, not a new whole-port parity audit or an implemented ECS migration.

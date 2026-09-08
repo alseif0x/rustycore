@@ -30,6 +30,8 @@ mod mailbox_pump;
 mod map_entry;
 #[path = "session/tests/pending_cast_owner.rs"]
 mod pending_cast_owner;
+#[path = "session/tests/player_cast_lifecycle.rs"]
+mod player_cast_lifecycle;
 #[path = "session/tests/player_detach.rs"]
 mod player_detach;
 #[path = "session/tests/rest_owner.rs"]

@@ -17,6 +17,7 @@ mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 mod effect_learning;
 pub mod mailbox;
+mod player_cast;
 pub mod registry;
 mod trainer_acquisition;
 mod trait_configs;
@@ -2015,7 +2016,6 @@ const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // runtime counter, so keep the canonical numeric value here.
 const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
-static NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 #[cfg(test)]
 static NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
@@ -2024,12 +2024,12 @@ const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 // `CreateWorldObject`, then `ObjectGuidFactory.cpp:GetRealmIdForObjectGuid(0)`
 // substitutes `realm.Id.Realm`. Rust passes that already-resolved local realm
 // explicitly; using the caster realm preserves the same visible GUID bits.
-fn next_represented_spell_cast_guid_for_map_like_cpp(
+fn represented_spell_cast_guid_for_map_like_cpp(
     realm_id: u16,
     map_id: u16,
     spell_id: i32,
+    counter: i64,
 ) -> ObjectGuid {
-    let counter = NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed);
     ObjectGuid::create_world_object(
         HighGuid::Cast,
         SPELL_CAST_SOURCE_NORMAL_LIKE_CPP,
@@ -5420,7 +5420,6 @@ pub enum SessionState {
 pub(crate) use wow_entities::PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp;
 pub use wow_entities::{SpellCastBattlePetItemModifiersLikeCpp, SpellCastMetadata, SpellCastState};
 
-const SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS: u32 = 400;
 const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
 
 /// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
@@ -15204,7 +15203,10 @@ impl WorldSession {
                 outcome.failed_casts += 1;
                 continue;
             };
-            let cast_id = self.next_represented_spell_cast_guid_like_cpp(spell_id);
+            let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+                outcome.failed_casts += 1;
+                continue;
+            };
 
             let result = self
                 .execute_spell_with_visual_and_target_data_and_generator_like_cpp(
@@ -15322,8 +15324,11 @@ impl WorldSession {
             return RepresentedSpellClickClickeeCasterOutcomeLikeCpp::UnsupportedCaster;
         };
 
-        let cast_id = self.next_represented_spell_cast_guid_like_cpp(spell_id);
+        let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+            return RepresentedSpellClickClickeeCasterOutcomeLikeCpp::Failed;
+        };
         self.send_packet(&SpellGoPkt {
+            cast_data: Default::default(),
             caster: creature_guid,
             cast_id,
             original_cast_id: cast_id,
@@ -50522,16 +50527,24 @@ impl WorldSession {
             return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
         };
 
-        let session_cast_interrupted = self
+        let interrupted_cast = self
             .mutate_cast_execution_like_cpp(|execution| {
                 let interrupted = execution.active.as_ref().is_some_and(|active| {
                     u32::try_from(active.spell_id)
                         .ok()
                         .is_some_and(|spell_id| canonical_interrupted_spell_ids.contains(&spell_id))
                 });
-                interrupted && execution.interrupt_active_cast(None)
+                if interrupted {
+                    execution.take_interrupted_cast(None)
+                } else {
+                    None
+                }
             })
-            .unwrap_or(false);
+            .flatten();
+        let session_cast_interrupted = interrupted_cast.is_some();
+        if let Some(cast) = interrupted_cast {
+            self.publish_player_cast_interruption_like_cpp(cast);
+        }
         if let Some(RepresentedStandChannelCancellationBoundary::Interrupted {
             session_cast_interrupted: recorded,
             ..
@@ -61230,234 +61243,8 @@ impl WorldSession {
         &self.movement_speed_ack_events_like_cpp
     }
 
-    pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
-        self.mutate_cast_execution_like_cpp(|state| state.interrupt_active_cast(None))
-            .unwrap_or(false)
-    }
-
-    fn with_cast_execution_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&wow_entities::CastExecutionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(f(&wow_entities::CastExecutionStateLikeCpp {
-                active: self.active_spell_cast.clone(),
-                last_cast_time: self.last_spell_cast_time,
-                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
-            }));
-        }
-        self.with_owned_player_like_cpp(|player| f(&player.unit().subsystems().spells.execution))
-    }
-
-    pub(crate) fn mutate_cast_execution_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let mut state = wow_entities::CastExecutionStateLikeCpp {
-                active: self.active_spell_cast.clone(),
-                last_cast_time: self.last_spell_cast_time,
-                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
-            };
-            let result = f(&mut state);
-            self.active_spell_cast = state.active;
-            self.last_spell_cast_time = state.last_cast_time;
-            self.last_spell_cast_time_per_spell = state.last_cast_time_per_spell;
-            return Some(result);
-        }
-        self.with_owned_player_mut_like_cpp(|player| {
-            f(&mut player.unit_mut().subsystems_mut().spells.execution)
-        })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn active_spell_cast_snapshot_like_cpp(&self) -> Option<SpellCastState> {
-        self.with_cast_execution_like_cpp(|state| state.active.clone())
-            .flatten()
-    }
-
-    pub(crate) fn set_active_spell_cast_like_cpp(&mut self, cast: Option<SpellCastState>) -> bool {
-        self.mutate_cast_execution_like_cpp(|state| state.active = cast)
-            .is_some()
-    }
-
-    pub(crate) fn last_spell_cast_time_like_cpp(&self) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(|state| state.last_cast_time)
-    }
-
-    pub(crate) fn spell_last_cast_time_like_cpp(&self, spell_id: i32) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(|state| {
-            state.last_cast_time_per_spell.get(&spell_id).copied()
-        })
-    }
-
-    pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
-        let Some(request) = self
-            .mutate_pending_spell_cast_like_cpp(Option::take)
-            .flatten()
-        else {
-            return false;
-        };
-
-        self.send_packet(&wow_packet::packets::spell::CastFailed {
-            cast_id: request.cast_id,
-            spell_id: request.spell_id,
-            visual: crate::spell_cast_adapter::present_visual(request.spell_visual),
-            reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
-            fail_arg1: 0,
-            fail_arg2: 0,
-        });
-        true
-    }
-
-    fn pending_spell_cast_snapshot_like_cpp(
-        &self,
-    ) -> Option<Option<RepresentedPendingSpellCastRequestLikeCpp>> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_pending_spell_cast_request_like_cpp.clone());
-        }
-        self.with_owned_player_like_cpp(|player| player.gameplay_state().pending_spell_cast.clone())
-    }
-
-    fn mutate_pending_spell_cast_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(f(&mut self.represented_pending_spell_cast_request_like_cpp));
-        }
-        self.with_owned_player_mut_like_cpp(|player| {
-            f(&mut player.gameplay_state_mut().pending_spell_cast)
-        })
-    }
-
-    pub(crate) fn remaining_global_cooldown_ms_like_cpp(
-        &self,
-        spell_info: &wow_data::SpellInfo,
-    ) -> Option<u32> {
-        self.with_cast_execution_like_cpp(|state| {
-            state.remaining_global_cooldown_ms(spell_info.cooldown_ms)
-        })
-    }
-
-    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> Option<u32> {
-        self.with_cast_execution_like_cpp(
-            wow_entities::CastExecutionStateLikeCpp::remaining_cast_ms,
-        )
-    }
-
-    pub(crate) fn can_request_represented_spell_cast_like_cpp(
-        &self,
-        spell_info: &wow_data::SpellInfo,
-    ) -> bool {
-        self.remaining_global_cooldown_ms_like_cpp(spell_info)
-            .zip(self.remaining_active_spell_cast_ms_like_cpp())
-            .is_some_and(|(gcd, cast)| {
-                gcd <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
-                    && cast <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
-            })
-    }
-
-    pub(crate) fn request_represented_spell_cast_like_cpp(
-        &mut self,
-        request: RepresentedPendingSpellCastRequestLikeCpp,
-    ) {
-        self.cancel_pending_spell_cast_request_like_cpp();
-        let _ = self.mutate_pending_spell_cast_like_cpp(|pending| *pending = Some(request));
-    }
-
-    pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-    ) {
-        let Some(request) = self.pending_spell_cast_snapshot_like_cpp().flatten() else {
-            return;
-        };
-        if Some(request.casting_unit_guid) != self.player_guid() {
-            self.cancel_pending_spell_cast_request_like_cpp();
-            return;
-        }
-        let Some(spell_info) = self
-            .spell_store()
-            .and_then(|store| store.get(request.spell_id))
-            .cloned()
-        else {
-            self.cancel_pending_spell_cast_request_like_cpp();
-            return;
-        };
-
-        if self.remaining_global_cooldown_ms_like_cpp(&spell_info) != Some(0) {
-            return;
-        }
-        if self.remaining_active_spell_cast_ms_like_cpp() != Some(0) {
-            return;
-        }
-
-        let Some(request) = self
-            .mutate_pending_spell_cast_like_cpp(|pending| {
-                if pending.as_ref().is_some_and(|current| {
-                    current.cast_id == request.cast_id
-                        && current.spell_id == request.spell_id
-                        && current.casting_unit_guid == request.casting_unit_guid
-                }) {
-                    pending.take()
-                } else {
-                    None
-                }
-            })
-            .flatten()
-        else {
-            return;
-        };
-        if let Err(error) = self
-            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
-                item_guid_generator,
-                creature_spawn_catalogs,
-                request.spell_id,
-                request.target_guid,
-                request.cast_id,
-                crate::spell_cast_adapter::present_visual(request.spell_visual.clone()),
-                crate::spell_cast_adapter::present_targets(request.target_data),
-                request.metadata,
-            )
-            .await
-        {
-            warn!(
-                account = self.account_id,
-                spell_id = request.spell_id,
-                "Pending spell execution failed: {error}"
-            );
-            self.send_packet(&wow_packet::packets::spell::CastFailed {
-                cast_id: request.cast_id,
-                spell_id: request.spell_id,
-                visual: crate::spell_cast_adapter::present_visual(request.spell_visual),
-                reason: SpellCastResult::NotKnown as i32,
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.tick_pending_spell_cast_request_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-        )
-        .await;
-    }
-
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
-        let session_cast_interrupted = self
-            .mutate_cast_execution_like_cpp(|state| state.interrupt_active_cast(None))
-            .unwrap_or(false);
+        let session_cast_interrupted = self.interrupt_player_cast_like_cpp(None);
         let canonical_spells_interrupted = self
             .mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
@@ -61494,9 +61281,7 @@ impl WorldSession {
             .unwrap_or(false);
 
         if interrupted {
-            let _ = self.mutate_cast_execution_like_cpp(|state| {
-                state.interrupt_active_cast(Some(spell_id as i32))
-            });
+            let _ = self.interrupt_player_cast_like_cpp(Some(spell_id as i32));
         }
 
         interrupted
@@ -66189,6 +65974,7 @@ fn resolve_creature_spell_hit_profile_like_cpp(
 fn append_committed_creature_spell_packets_like_cpp(
     plan: &mut RuntimePlan,
     command: &CreatureSpellCastPlanLikeCpp,
+    cast_id: ObjectGuid,
     hit_result: CreatureSpellTargetHitResultLikeCpp,
     source_position: Position,
     visibility_range: f32,
@@ -66200,11 +65986,6 @@ fn append_committed_creature_spell_packets_like_cpp(
         SpellTargetData,
     };
 
-    let cast_id = next_represented_spell_cast_guid_for_map_like_cpp(
-        command.caster_guid.realm_id(),
-        command.map_id,
-        command.spell_id,
-    );
     let visual = SpellCastVisual {
         spell_visual_id: command.spell_x_spell_visual_id,
         script_visual_id: 0,
@@ -66216,6 +65997,7 @@ fn append_committed_creature_spell_packets_like_cpp(
         ..Default::default()
     };
     let start = SpellStartPkt {
+        cast_data: Default::default(),
         caster: command.caster_guid,
         cast_id,
         original_cast_id: ObjectGuid::EMPTY,
@@ -66237,6 +66019,7 @@ fn append_committed_creature_spell_packets_like_cpp(
         ),
     };
     let go = SpellGoPkt {
+        cast_data: Default::default(),
         caster: command.caster_guid,
         cast_id,
         original_cast_id: ObjectGuid::EMPTY,
@@ -67749,9 +67532,24 @@ fn validate_and_append_creature_spell_cast_like_cpp(
                 false,
             );
     }
+    // Validation and allocation share the already-held canonical manager guard.
+    // Player and creature casts use one Map sequence, never process-local IDs.
+    let counter = manager
+        .find_map_mut(u32::from(command.map_id), command.instance_id)
+        .expect("validated map remains present under its manager guard")
+        .map_mut()
+        .generate_low_guid_like_cpp(HighGuid::Cast)
+        .expect("Cast is a supported map GUID sequence");
+    let cast_id = represented_spell_cast_guid_for_map_like_cpp(
+        command.caster_guid.realm_id(),
+        command.map_id,
+        command.spell_id,
+        counter,
+    );
     append_committed_creature_spell_packets_like_cpp(
         plan,
         command,
+        cast_id,
         hit_result,
         source_position,
         visibility_range,
@@ -69823,70 +69621,6 @@ impl WorldSession {
         self.flush_runtime_output(out);
     }
 
-    /// Called every ~100ms. Checks if an in-progress spell cast has completed.
-    ///
-    /// If `active_spell_cast` is set and its cast time has elapsed, this method
-    /// executes the spell (applies effects, cooldowns, etc.) and clears the cast state.
-    pub(crate) async fn tick_active_spell_cast_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-    ) {
-        let Some(cast_state) = self
-            .mutate_cast_execution_like_cpp(
-                wow_entities::CastExecutionStateLikeCpp::take_ready_cast,
-            )
-            .flatten()
-        else {
-            return;
-        };
-
-        let spell_id = cast_state.spell_id;
-        let target = cast_state.target_guid;
-        let target_data = crate::spell_cast_adapter::present_targets(cast_state.target_data);
-        let cast_id = cast_state.cast_id;
-        let spell_visual = crate::spell_cast_adapter::present_visual(cast_state.spell_visual);
-        let metadata = cast_state.metadata;
-
-        // The owner guard is released before effect execution and failure publication.
-        if let Err(e) = self
-            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
-                item_guid_generator,
-                creature_spawn_catalogs,
-                spell_id,
-                target,
-                cast_id,
-                spell_visual.clone(),
-                target_data,
-                metadata,
-            )
-            .await
-        {
-            warn!(account = self.account_id, "Spell execution failed: {}", e);
-            // Send CastFailed so client cancels cast animation
-            use wow_packet::packets::spell::CastFailed;
-            self.send_packet(&CastFailed {
-                cast_id,
-                spell_id,
-                visual: spell_visual,
-                reason: 2, // SpellCastResult::NotKnown
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn tick_active_spell_cast(&mut self) {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.tick_active_spell_cast_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-        )
-        .await;
-    }
-
     /// Called every ~100ms. Handles auto-attack swing timer (player → creature).
     /// Extract of the combat tick body. Returns all bytes that must be sent to
     /// the session channel. Callers must flush via `flush_runtime_output`.
@@ -70511,20 +70245,6 @@ impl WorldSession {
         .await
     }
 
-    /// Represented `Spell::m_castId` generation.
-    ///
-    /// C++ creates a `HighGuid::Cast` with `SPELL_CAST_SOURCE_NORMAL`, map id,
-    /// spell id, and `Map::GenerateLowGuid<HighGuid::Cast>()`. Rust does not
-    /// yet expose the map low-guid allocator for casts, so this uses a process
-    /// local monotonic counter while preserving the visible GUID shape.
-    pub(crate) fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> ObjectGuid {
-        next_represented_spell_cast_guid_for_map_like_cpp(
-            self.realm_id(),
-            self.player_map_id_like_cpp(),
-            spell_id,
-        )
-    }
-
     pub async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -70627,102 +70347,21 @@ impl WorldSession {
             "Executing spell effect"
         );
 
-        let has_represented_gameobject_summon_effect = spell_info.effects().iter().any(|effect| {
-            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
-                || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
-        });
-        let represented_spell_focus_aura_satisfies_check_cast =
-            if spell_info.requires_spell_focus_like_cpp() {
-                self.resolved_has_represented_aura_effect_with_misc_value_like_cpp(
-                    RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
-                    i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
-                )
-                .ok_or("Canonical Player aura owner unavailable")?
-            } else {
-                false
-            };
-        let represented_focus_object = if spell_info.requires_spell_focus_like_cpp()
-            && has_represented_gameobject_summon_effect
-            && !represented_spell_focus_aura_satisfies_check_cast
-        {
-            self.search_spell_focus_like_cpp(spell_info.requires_spell_focus)
-        } else {
-            None
+        let Some(represented_focus_object) = self.check_represented_cast_preparation_like_cpp(
+            &spell_info,
+            cast_id,
+            &spell_visual,
+            metadata,
+        )?
+        else {
+            self.publish_player_cast_interrupted_frames_like_cpp(
+                metadata,
+                cast_id,
+                spell_id,
+                &spell_visual,
+            );
+            return Ok(());
         };
-        if spell_info.requires_spell_focus_like_cpp()
-            && has_represented_gameobject_summon_effect
-            && !represented_spell_focus_aura_satisfies_check_cast
-            && represented_focus_object.is_none()
-        {
-            // C++ `Spell::CheckCast` fails before `SMSG_SPELL_GO` when no
-            // matching `SPELL_AURA_PROVIDE_SPELL_FOCUS` aura or focus object
-            // exists. `Spell::SendCastResult` carries the SpellFocusObject id
-            // in FailedArg1 for this failure reason.
-            self.send_packet(&wow_packet::packets::spell::CastFailed {
-                cast_id,
-                spell_id,
-                visual: spell_visual.clone(),
-                reason: SpellCastResult::RequiresSpellFocus as i32,
-                fail_arg1: i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
-                fail_arg2: 0,
-            });
-            debug!(
-                account = self.account_id,
-                spell_id = spell_id,
-                requires_spell_focus = spell_info.requires_spell_focus,
-                "Failing live GameObject summon because C++ SearchSpellFocus found no represented focusObject"
-            );
-            return Ok(());
-        }
-
-        if let Some(reason) =
-            self.check_represented_battle_pet_spell_like_cpp(&spell_info, metadata)
-        {
-            self.send_packet(&wow_packet::packets::spell::CastFailed {
-                cast_id,
-                spell_id,
-                visual: spell_visual.clone(),
-                reason: reason as i32,
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-            debug!(
-                account = self.account_id,
-                spell_id = spell_id,
-                reason = reason as i32,
-                "Failing represented battle-pet spell because C++ Spell::CheckCast rejected it"
-            );
-            return Ok(());
-        }
-
-        if let Some(outcome) = self.check_represented_mount_spell_like_cpp(&spell_info) {
-            match outcome {
-                RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(reason) => {
-                    self.send_packet(&wow_packet::packets::spell::CastFailed {
-                        cast_id,
-                        spell_id,
-                        visual: spell_visual.clone(),
-                        reason: reason as i32,
-                        fail_arg1: 0,
-                        fail_arg2: 0,
-                    });
-                    debug!(
-                        account = self.account_id,
-                        spell_id = spell_id,
-                        reason = reason as i32,
-                        "Failing represented mount spell because C++ Spell::CheckCast rejected it"
-                    );
-                }
-                RepresentedMountSpellCheckOutcomeLikeCpp::DontReport => {
-                    debug!(
-                        account = self.account_id,
-                        spell_id = spell_id,
-                        "Failing represented mount spell with C++ SPELL_FAILED_DONT_REPORT"
-                    );
-                }
-            }
-            return Ok(());
-        }
 
         if self.represented_gameobject_summon_missing_nearby_entry_destination_like_cpp(
             spell_id,
@@ -70747,6 +70386,12 @@ impl WorldSession {
                 spell_id = spell_id,
                 "Failing represented GameObject summon because C++ nearby-entry destination search found no target"
             );
+            self.publish_player_cast_interrupted_frames_like_cpp(
+                metadata,
+                cast_id,
+                spell_id,
+                &spell_visual,
+            );
             return Ok(());
         }
 
@@ -70758,6 +70403,12 @@ impl WorldSession {
                     state.last_cast_time = metadata.previous_last_spell_cast_time_on_power_failure;
                 });
             }
+            self.publish_player_cast_interrupted_frames_like_cpp(
+                metadata,
+                cast_id,
+                spell_id,
+                &spell_visual,
+            );
             return Ok(());
         }
 
@@ -70844,20 +70495,48 @@ impl WorldSession {
         use wow_packet::packets::spell::SpellGoPkt;
 
         let spell_visual_id = spell_visual.spell_visual_id;
+        let cast_data = if metadata.client_cast_id.is_some() {
+            self.player_cast_wire_data_like_cpp(&spell_info)
+        } else {
+            Default::default()
+        };
+        let cast_flags = if metadata.client_cast_id.is_some() {
+            0x100
+                | if spell_info.cooldown_ms == 0 {
+                    0x40000
+                } else {
+                    0
+                }
+                | if cast_data.remaining_power.is_empty() {
+                    0
+                } else {
+                    0x800
+                }
+        } else {
+            metadata.cast_flags
+        };
         let go_pkt = SpellGoPkt {
+            cast_data,
             caster: caster_guid,
             cast_id,
             original_cast_id: metadata.original_cast_id_or(cast_id),
             spell_id,
             visual: spell_visual,
-            cast_flags: metadata.cast_flags,
+            cast_flags,
             cast_flags_ex: metadata.cast_flags_ex,
             cast_time_ms: Self::game_time_ms_like_cpp(),
             target: spell_go_target_data,
             hit_targets: vec![target_guid],
             miss_targets: Vec::new(),
         };
-        self.send_packet(&go_pkt);
+        if metadata.client_cast_id.is_some() {
+            self.publish_player_cast_frame_like_cpp(
+                metadata,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        } else {
+            self.send_packet(&go_pkt);
+        }
         if caster_guid != player_guid && caster_guid.is_any_type_creature() {
             self.broadcast_creature_packet_to_visible_set_like_cpp(
                 caster_guid,
@@ -71702,7 +71381,9 @@ impl WorldSession {
             // 3286) must not start or advertise a player cooldown.
             if self
                 .mutate_cast_execution_like_cpp(|state| {
-                    state.last_cast_time = Some(Instant::now());
+                    if metadata.client_cast_id.is_none() {
+                        state.last_cast_time = Some(Instant::now());
+                    }
                     state
                         .last_cast_time_per_spell
                         .insert(spell_id, Instant::now());

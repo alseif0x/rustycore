@@ -17,11 +17,11 @@ use super::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyPlayerMeleeResultLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
     ReconcilePvpCombatExpiryLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SessionCommand,
+    SendIfVisibleLikeCppCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
 };
 
-/// Durable FIFO handoff for map-owned creature transitions that have
-/// already committed authoritative state.
+/// Retained FIFO handoff for committed map-owned creature transitions and
+/// Player cast publication decisions. Retention is in memory, not database durability.
 ///
 /// The bounded general-purpose session queue may legitimately reject visual
 /// fanout under backpressure. These commands cannot be dropped, but the global
@@ -40,6 +40,13 @@ pub struct DurableCreatureRuntimeCommandsLikeCpp {
 }
 
 impl DurableCreatureRuntimeCommandsLikeCpp {
+    pub fn publish_player_spell_if_visible_like_cpp(
+        &mut self,
+        command: SendPlayerSpellIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::SendPlayerSpellIfVisibleLikeCpp(command))
+    }
+
     fn publish_like_cpp(&mut self, command: SessionCommand) -> bool {
         if self.commands.len() >= MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP {
             self.overflowed = true;

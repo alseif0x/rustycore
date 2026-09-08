@@ -23,7 +23,8 @@ use crate::session::mailbox::{
     CreatureAttackStopLikeCppCommand, DurableCreatureRuntimeCommandsLikeCpp,
     LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
     RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+    SendIfVisibleLikeCppCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
+    SharedClientVisibleGuidsLikeCpp,
 };
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -1985,6 +1986,21 @@ impl PlayerRegistry {
                     .lock()
                     .ok()
                     .map(|mut durable| durable.publish_send_if_visible_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_player_spell_if_visible(
+        &self,
+        registration: PlayerRegistration,
+        command: SendPlayerSpellIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut queue| queue.publish_player_spell_if_visible_like_cpp(command))
             })
             .unwrap_or(false)
     }

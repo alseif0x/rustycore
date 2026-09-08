@@ -12,8 +12,9 @@
 //! advance the buffer even for fields we don't yet use (optionalReagents,
 //! MoveUpdate, SpellWeights, etc.).
 //!
-//! `SpellGoPkt` writes the basic `SpellCastData` used by ordinary viewers and
-//! can also serialize the C++ full combat-log suffix for advanced viewers.
+//! `SpellStartPkt` and `SpellGoPkt` serialize the shared C++ `SpellCastData`
+//! payload, while `SpellGoPkt` can also append the full combat-log suffix for
+//! advanced viewers.
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position};
@@ -21,6 +22,18 @@ use wow_core::{ObjectGuid, Position};
 use crate::packets::movement::MovementInfo;
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
+mod cast_interruption;
+pub use cast_interruption::{SpellFailedOtherPkt, SpellFailurePkt};
+
+mod cast_payload;
+#[cfg(test)]
+mod cast_tests;
+mod cast_types;
+
+pub use cast_types::{
+    CreatureImmunities, MissileTrajectoryResult, RuneData, SpellCastData, SpellHealPrediction,
+    SpellPowerData,
+};
 
 /// C++ `WorldPackets::Spells::CancelAura`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -687,99 +700,6 @@ impl SpellMissTarget {
     }
 }
 
-/// Write a minimal `SpellCastData` (used by both SpellStart and SpellGo).
-///
-/// C++ refs: `WorldPackets::Spells::SpellCastData` in `SpellPackets.h` and
-/// `WorldPackets::Spells::operator<<(ByteBuffer&, SpellCastData const&)` in
-/// `SpellPackets.cpp`. The fixed fields, bit counts, target data, and trailing
-/// vectors below follow that serializer in the same order.
-///
-/// Parameters
-/// - `caster`      : unit ObjectGuid written as both CasterGUID and CasterUnit
-/// - `cast_id`     : echo of the client's cast_id
-/// - `original_cast_id`: original cast ObjectGuid, or empty when absent
-/// - `spell_id`    : spell being cast
-/// - `visual`      : spell visual IDs
-/// - `cast_flags`  : C++ `SpellCastData::CastFlags`
-/// - `cast_flags_ex`: C++ `SpellCastData::CastFlagsEx`
-/// - `cast_time_ms`: 0 for instant
-/// - `target`      : SpellTargetData (unit + flags)
-/// - `hit_targets` : list of GUIDs that were hit (empty for visual-only)
-/// - `miss_targets`: failed target GUIDs paired with their miss status
-fn write_spell_cast_data(
-    pkt: &mut WorldPacket,
-    caster: &ObjectGuid,
-    cast_id: &ObjectGuid,
-    original_cast_id: &ObjectGuid,
-    spell_id: i32,
-    visual: &SpellCastVisual,
-    cast_flags: u32,
-    cast_flags_ex: u32,
-    cast_time_ms: u32,
-    target: &SpellTargetData,
-    hit_targets: &[ObjectGuid],
-    miss_targets: &[SpellMissTarget],
-) {
-    // CasterGUID, CasterUnit, CastID, OriginalCastID
-    pkt.write_packed_guid(caster);
-    pkt.write_packed_guid(caster); // This helper currently represents unit casters.
-    pkt.write_packed_guid(cast_id);
-    pkt.write_packed_guid(original_cast_id);
-
-    // SpellID + visual
-    pkt.write_int32(spell_id);
-    visual.write(pkt);
-
-    // CastFlags, CastFlagsEx, CastTime
-    pkt.write_uint32(cast_flags);
-    pkt.write_uint32(cast_flags_ex);
-    pkt.write_uint32(cast_time_ms);
-
-    // MissileTrajectoryResult: TravelTime(i32) + Pitch(f32)
-    pkt.write_int32(0);
-    pkt.write_float(0.0);
-
-    // DestLocSpellCastIndex
-    pkt.write_uint8(0);
-
-    // Immunities: School(u32) + Value(u32)
-    pkt.write_uint32(0);
-    pkt.write_uint32(0);
-
-    // SpellHealPrediction: Points(u32) + Type(u8) + BeaconGUID(packed)
-    pkt.write_uint32(0);
-    pkt.write_uint8(0);
-    pkt.write_packed_guid(&ObjectGuid::EMPTY);
-
-    // Bit counts
-    pkt.write_bits(hit_targets.len() as u32, 16); // HitTargets
-    pkt.write_bits(miss_targets.len() as u32, 16); // MissTargets
-    pkt.write_bits(miss_targets.len() as u32, 16); // MissStatus
-    pkt.write_bits(0, 9); // RemainingPower
-    pkt.write_bit(false); // RemainingRunes present?
-    pkt.write_bits(0, 16); // TargetPoints
-    pkt.write_bit(false); // AmmoDisplayID present?
-    pkt.write_bit(false); // AmmoInventoryType present?
-    pkt.flush_bits();
-
-    // Target
-    target.write(pkt);
-
-    // HitTargets
-    for guid in hit_targets {
-        pkt.write_packed_guid(guid);
-    }
-
-    // MissTargets and their parallel MissStatus entries.
-    for miss in miss_targets {
-        pkt.write_packed_guid(&miss.target);
-    }
-    for miss in miss_targets {
-        miss.status.write(pkt);
-    }
-    // (no RemainingPower, Runes, TargetPoints, or Ammo)
-}
-
 // ── SMSG_SPELL_PREPARE ───────────────────────────────────────────
 
 /// `SMSG_SPELL_PREPARE` — maps the client cast id to the server spell cast id.
@@ -817,13 +737,15 @@ pub struct SpellStartPkt {
     /// Cast time in milliseconds (0 for instant).
     pub cast_time_ms: u32,
     pub target: SpellTargetData,
+    /// Optional C++ `SpellCastData` fields beyond the common cast header.
+    pub cast_data: SpellCastData,
 }
 
 impl ServerPacket for SpellStartPkt {
     const OPCODE: ServerOpcodes = ServerOpcodes::SpellStart;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        write_spell_cast_data(
+        cast_payload::write_spell_cast_data(
             pkt,
             &self.caster,
             &self.cast_id,
@@ -834,6 +756,7 @@ impl ServerPacket for SpellStartPkt {
             self.cast_flags_ex,
             self.cast_time_ms,
             &self.target,
+            &self.cast_data,
             &[], // no hit targets in SPELL_START
             &[], // no miss targets in SPELL_START
         );
@@ -866,6 +789,10 @@ impl SpellCastLogData {
         pkt.write_int32(self.attack_power);
         pkt.write_int32(self.spell_power);
         pkt.write_int32(self.armor);
+        assert!(
+            self.power_data.len() <= 0x1ff,
+            "SpellCastLogData power count exceeds the C++ 9-bit field"
+        );
         pkt.write_bits(self.power_data.len() as u32, 9);
         pkt.flush_bits();
         for power in &self.power_data {
@@ -891,6 +818,8 @@ pub struct SpellGoPkt {
     /// server's wrapping `getMSTime()` timestamp, not the cast duration.
     pub cast_time_ms: u32,
     pub target: SpellTargetData,
+    /// Optional C++ `SpellCastData` fields beyond the common cast header.
+    pub cast_data: SpellCastData,
     /// GUIDs that were hit by the spell.
     pub hit_targets: Vec<ObjectGuid>,
     /// Failed targets and their per-target miss result.
@@ -900,7 +829,7 @@ pub struct SpellGoPkt {
 impl SpellGoPkt {
     fn write_with_log_data(&self, pkt: &mut WorldPacket, log_data: Option<&SpellCastLogData>) {
         // SpellCastData (`SMSG_SPELL_GO` carries the server timestamp here).
-        write_spell_cast_data(
+        cast_payload::write_spell_cast_data(
             pkt,
             &self.caster,
             &self.cast_id,
@@ -911,6 +840,7 @@ impl SpellGoPkt {
             self.cast_flags_ex,
             self.cast_time_ms,
             &self.target,
+            &self.cast_data,
             &self.hit_targets,
             &self.miss_targets,
         );
@@ -1044,6 +974,7 @@ mod tests {
             cast_flags_ex: 0,
             cast_time_ms: 0,
             target: SpellTargetData::default(),
+            cast_data: SpellCastData::default(),
             hit_targets,
             miss_targets,
         }
@@ -1638,6 +1569,7 @@ mod tests {
             cast_flags_ex: 0x08000,
             cast_time_ms: 0x1234_5678,
             target: SpellTargetData::default(),
+            cast_data: SpellCastData::default(),
             hit_targets: Vec::new(),
             miss_targets: Vec::new(),
         }
@@ -1670,6 +1602,7 @@ mod tests {
             cast_flags_ex: 0,
             cast_time_ms: 0,
             target: SpellTargetData::default(),
+            cast_data: SpellCastData::default(),
             hit_targets: Vec::new(),
             miss_targets: Vec::new(),
         };

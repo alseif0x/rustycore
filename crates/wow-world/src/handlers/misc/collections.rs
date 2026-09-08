@@ -377,7 +377,11 @@ impl crate::session::WorldSession {
             return;
         };
 
-        let server_cast_id = self.next_represented_spell_cast_guid_like_cpp(request.cast.spell_id);
+        let Some(server_cast_id) =
+            self.next_represented_spell_cast_guid_like_cpp(request.cast.spell_id)
+        else {
+            return;
+        };
         self.send_packet(&SpellPreparePkt {
             client_cast_id: request.cast.cast_id,
             server_cast_id,
@@ -410,6 +414,7 @@ impl crate::session::WorldSession {
 
         if spell_info.has_cast_time() {
             let start_pkt = SpellStartPkt {
+                cast_data: Default::default(),
                 caster: player_guid,
                 cast_id: server_cast_id,
                 original_cast_id: request.cast.cast_id,
