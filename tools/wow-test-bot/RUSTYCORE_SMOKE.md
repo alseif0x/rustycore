@@ -90,6 +90,24 @@ isolated target and action-specific capture before use. Its `.acquisition.json`
 report supplements the ordinary save/relogin report; neither report proves fresh
 paired C++ packet parity. No fixture IDs from unit tests are live defaults.
 
+For controlled EffectLearnSpell conformance when stock sources auto-learn their
+target during login, `prepare_spell_acquisition_data.py --source-data <Data>
+--output-data <new-private-Data>` creates a separate data tree. It copies only
+SpellMisc and changes one reviewed byte per locale: record336029 / spell30798
+loses Attributes[1] CAST_WHEN_LEARNED (SQL column `Attributes2`). Other assets
+are read through symlinks; stock files are verified unchanged. Unknown file
+hashes and an existing output directory are rejected. The JSON manifest records
+the exact synthetic contract, source/overlay hashes and changed offsets.
+
+Point both isolated servers at the same overlay and verify effective SQL
+SpellMisc/hotfix/dependency inputs before either run. Seed source30798 only in
+the authorized disposable, offline fixture. The existing cast driver must
+observe source30798 known/active and target674 absent after login, then require
+explicit-cast learning and ordinary save/relogin retention. This establishes
+paired conformance with controlled metadata; it does **not** establish stock
+30798 gameplay. The generator changes no configuration, database or service;
+runtime and fixture authority remain with the caller.
+
 Under the same authorized runtime guard, select
 `QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_disconnect_relog.sh`.
 This uses only existing TESTBOT1@bot.local, with provisioning disabled and no SQL

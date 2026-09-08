@@ -83,15 +83,26 @@ This is a new responsibility proposal, not a selected implementation or a blanke
 wow-map extraction. #587's failing acceptance is retained while its dependency is
 resolved; the order remains required #584 core → #583 → #153 → #133.
 
-### Ordinary-effect fixture still unresolved
+### Controlled ordinary-effect fixture
 
 The exploratory stored-source fixture 30798 → 674 was rejected by the driver:
 the target was already known at login, before any cast. Besides dependent learning,
 the source has `SPELL_ATTR1_CAST_WHEN_LEARNED` (`0x80000000`), which C++ AddSpell
 casts even while loading. The temporary DB2 inspection and failed `cpp-cast`
 report are retained privately. This is not a successful ordinary-effect action;
-the current known-source cast driver still needs a valid fixture or a separately
-bounded action entry. No gameplay or talent behavior was changed to manufacture one.
+stock 30798 is unsuitable for this explicit-cast scenario.
+
+The approved controlled fixture preserves Talent 1690 and EffectLearnSpell
+705389 (30798 → 674), clearing only SpellMisc 336029 Attributes[1]
+CAST_WHEN_LEARNED. This is paired conformance with synthetic metadata, not stock
+30798 gameplay or a production behavior change. The integrated generator
+`tools/wow-test-bot/prepare_spell_acquisition_data.py` creates a new private Data
+overlay and verifies stock files remain unchanged. On 2026-09-08 it passed with
+Python `-O` for enUS, esES and ruRU, changing exactly one byte per SpellMisc;
+existing output and source-tree destinations were also verified rejected.
+The manifest is `/tmp/rustycore-587-runtime.MYPSPW/cast-data/fixture.json`.
+Effective SQL hotfix verification and both served cast/save/relogin runs remain
+pending. Their preflight must observe 30798 active and 674 absent after login.
 
 Current QA update, 2026-09-08: publication `final` passed at `9cf85e51`
 (`/tmp/rustycore-587-final-manifest.json`, verified green): 13 commands,
