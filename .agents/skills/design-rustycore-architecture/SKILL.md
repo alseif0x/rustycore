@@ -23,7 +23,9 @@ manifests, and tests before relying on their claims. A bounded question does not
 whole-workspace inventory or a complete historical-log read.
 
 For affected base-server behavior, locate exact C++ owners and call paths under
-`/home/server/woltk-trinity-legacy`; use real captures when C++ is incomplete or ambiguous. Existing
+the versioned references in AGENTS.md; start with the 3.4.3 fork and use its
+complementary-source policy for missing or suspect gameplay. Use target-build
+captures to resolve incomplete, ambiguous or version-dependent behavior. Existing
 Rust and old tests are not parity proof. Distinguish implemented, integrated, and parity-proven.
 Keep architecture snapshots and campaign plans in project documents with a date, audited commit,
 and coverage limits, not embedded in this skill.

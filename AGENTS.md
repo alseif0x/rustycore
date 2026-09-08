@@ -1,14 +1,16 @@
 # AGENTS.md
 
 Shared operating guide for agents working in RustyCore. CLAUDE.md imports this file.
-Use current code to establish implementation state and the legacy C++/capture evidence
+Use current code to establish implementation state and versioned C++/capture evidence
 to establish required base-server behavior. Neither old documentation nor existing Rust
 is correctness proof. This guide does not override explicit user scope or approval gates.
 
 ## Project and sources of truth
 
 - Repository: /home/server/rustycore; remote: https://github.com/alseif0x/rustycore.git.
-- Behavioral reference: /home/server/woltk-trinity-legacy.
+- Target-version reference: /home/server/woltk-trinity-legacy (3.4.3).
+- Complementary gameplay reference: /home/server/azerothcore-wotlk-reference (3.3.5a).
+  The pinned source checkout and its coverage are recorded in docs/README.md.
 - Target: full functional parity with the TrinityCore-derived WoW 3.4.3 server, not a
   smaller compatible subset. A bounded milestone never silently reduces the full port.
 - Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
@@ -87,8 +89,15 @@ For protocol, gameplay, database, lifetime, persistence and runtime behavior:
 6. Validate proportionally and commit coherent validated changes on the issue branch.
    Continue remaining authorized work; publication retains its own gate.
 
-The behavioral audit is against C++ exclusively, supplemented by appropriate real captures where
-that source is incomplete. If an affected comment/test relies on an unsupported earlier analysis,
+Audit behavior against the relevant versioned C++ paths and appropriate real captures.
+The user approved AzerothCore as a complementary source for missing or suspect gameplay in
+the Classic fork; neither core is complete or infallible, and shared ancestry is not independent
+proof. Compare the complete operation, scripts and effective data before adapting its logic.
+Keep 3.4.3 packet layouts, IDs/data schemas, admission and lifecycle contracts explicit: 3.3.5
+wire formats or SQL are not drop-in replacements. Resolve version differences using target-build
+evidence and an explicit behavior contract; record source SHA/functions and retained uncertainty.
+Use secondary references selectively for the active responsibility, not as a new whole-port audit.
+If an affected comment/test relies on an unsupported earlier analysis,
 locate the C++ equivalent and correct the evidence before approving the behavior. Pause an
 unresolved mutation while continuing safe inspection; resume from evidence within scope, or ask
 for a material choice/new authority that evidence cannot settle. An intentional departure requires
