@@ -226,6 +226,18 @@ separate instance instead would need its own ports and its own copies of the
 auth, characters, world and hotfixes schemas; reusing the live schemas would
 write data that is not this delivery's to write.
 
+There is a second, independent blocker, and it is the harder one. #594 requires
+fresh **Rust and C++** captures taken under the same effective conditions, with
+the provenance of the C++ binary recorded separately. No C++ TrinityCore server
+binary exists on this host: `/home/server/trinity-legacy-install/` contains only
+`worldserver.conf`, `bnetserver.conf` and certificates, which the Rust server
+reuses, and the versioned reference tree at `/home/server/woltk-trinity-legacy`
+is source-only with no build directory. A search for `worldserver`, `authserver`
+or `bnetserver` executables under `/home/server`, `/opt` and `/usr/local` finds
+none. Producing the C++ side would mean building TrinityCore 3.4.3 from source
+with its dependencies, database and client data - a separate provisioning task,
+not a step of this delivery.
+
 So the paired matrix in #594 - instant and timed casts, the 400 ms queue
 boundary, replacement, active and pending cancellation, late failure, shared
 Player/creature identity, and a nearby observer's bytes, identities, visual,
@@ -237,3 +249,8 @@ the work needed is the runtime authority, not more tooling.
 
 The synthetic 30798 to 6197 fixture inherited from #587 remains synthetic and
 covers none of that matrix. `observe_only` bot collection never reports a pass.
+
+To close #594 later, two prerequisites must be supplied together: authority to
+run the candidate against a server target that is not the active unit, and a
+built C++ 3.4.3 reference whose binary provenance can be recorded. Neither is a
+code change in this repository.
