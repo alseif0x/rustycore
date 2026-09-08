@@ -64,7 +64,29 @@ stays under #584 and existing gameplay owners, not hidden as #588 evidence.
 ## Acceptance state
 
 Local implementation, focused acceptance and committed-candidate final validation
-are complete. Paired runtime acceptance remains pending. Final at
+are complete. Paired stationary trainer acceptance now passes on the combined
+#587 consumer at `3ab2e3c3`, executable SHA-256
+`eaf0419412fdaf3d800ab3efc23a345d50f4f1a92675564889012c7c381f74a1`.
+The bot at `bb1953fe` retains instance publication across login phases; its
+executable SHA-256 is `1cea4c812655cf7b1eecb88e54f1048de7d04058cb341d21ccddd048af037681`.
+Both `cpp-trainer-fixed` and `rust-trainer-fixed` pass purchase, repeat rejection,
+normal save and fresh login with six retained projections. The isolated fixture
+uses Defense100/100; the inherited above-cap skill restriction is recorded in
+the #587 checkpoint and is not claimed as repaired here.
+
+Global capture sequences show ACK→trainer UPDATE→gossip as C++74→76→84 and
+Rust45→78→84. Each has one pre-gossip UPDATE containing the independently
+parsed live trainer GUID and none before ACK. The bot sends no movement to
+obtain the trainer. This proves the stationary publication trigger and consumer;
+unit acceptance below covers duplicate/stale obligation handling more generally.
+Private evidence: `/tmp/rustycore-587-runtime.MYPSPW/trainer-fixed-sequence-evidence.json`.
+The complete ACK→gossip window does **not** match: one match, eight body
+mismatches, two missing and31 extra Rust packets, with no connection mismatch
+(`/tmp/rustycore-588-visibility-window-diff.json`). Dynamic identities and broader
+initial object/packet differences are retained boundaries, not a raw-byte parity
+pass or grounds to declare full visibility/gameplay complete.
+
+Final at
 `328b721f9b96c68a03c161e60118ebaca755c492` passed nine commands and 5,094 tests
 (two ignored, zero failed) in 822 seconds; the worktree was clean and Cargo used
 one job. `/tmp/rustycore-588-final-manifest.json` was independently verified green;

@@ -14,10 +14,12 @@ fn self_cast_has_cpp_optional_counts_bit_sections_and_explicit_unit() {
     // NPC/cast/target GUIDs use the same two-mask PackedGuid codec as C++.
     assert_eq!(&bytes[..3], &[1, 0, 1]);
     assert_eq!(&bytes[11..15], &[133, 0, 0, 0]);
-    assert_eq!(&bytes[31..33], &[0, 0]); // no crafting NPC
-    assert_eq!(&bytes[33..45], &[0; 12]); // all three counts
-    assert_eq!(&bytes[45..52], &[0, 0, 0, 0, 0, 0x20, 0]);
-    assert_eq!(&bytes[52..], &[1, 0, 7, 0, 0]);
+    // CombatLogPacketsCommon.cpp reads one visual ID; ScriptVisualID is absent.
+    assert_eq!(&bytes[15..27], &[0; 12]); // visual ID and trajectory
+    assert_eq!(&bytes[27..29], &[0, 0]); // no crafting NPC
+    assert_eq!(&bytes[29..41], &[0; 12]); // all three counts
+    assert_eq!(&bytes[41..48], &[0, 0, 0, 0, 0, 0x20, 0]);
+    assert_eq!(&bytes[48..], &[1, 0, 7, 0, 0]);
 }
 
 #[test]

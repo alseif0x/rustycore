@@ -92,6 +92,20 @@ learned spell and expected money after confirmed logout, then across fresh login
 The intermediate database money value is observational only because C++ normally
 saves Player money during SaveToDB.
 
+Persistence defaults to `{"kind":"direct_spell"}`: an active, non-disabled
+`character_spell` row for the target must survive both logouts. For a reviewed
+skill-rewarded target, set the plan's `persistence` explicitly, for example
+`{"kind":"skill","id":118,"value":1,"max":1}` for controlled 30798→674.
+C++ marks 674 dependent when its Dual Wield effect adds skill 118, omits the
+dependent spell row at save, and reconstructs it from that skill at login.
+This contract requires the selected skill to be absent before acquisition,
+its exact ID/value/max after each logout, no active target spell row, and 674
+in the fresh login spellbook. The wrapper carries the same contract into its
+verify plan and compares it across reports. `saved_spell` remains the literal
+direct-row observation (false here); `observed_skill_root` and
+`persistence_verified` record the alternative evidence. All six existing
+preservation checks remain required.
+
 The driver does not discover or seed fixture catalogs, relocate characters, grant
 spells, provision accounts or capture both servers by itself. Configure a verified
 isolated target and action-specific capture before use. Its `.acquisition.json`

@@ -2,12 +2,17 @@
 //! Wire authorities: NPCPackets.cpp TrainerBuySpell::Read; SpellPackets.cpp
 //! SpellCastRequest/SpellTargetData readers and LearnedSpellInfo/LearnedSpells writers.
 use super::*;
-use mysql::prelude::Queryable;
 use serde::Deserialize;
+
+mod persistence;
+use persistence::{read_state, Expectation};
+pub(super) use persistence::{verify_saved, Evidence};
 
 #[derive(Debug, Deserialize)]
 pub(super) struct Plan {
     expected_spell: u32,
+    #[serde(default)]
+    persistence: Expectation,
     #[serde(flatten)]
     action: Action,
     #[serde(skip)]
@@ -107,26 +112,12 @@ enum Action {
     Verify {},
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub(super) struct Evidence {
-    expected_spell: u32,
-    trainer_guid: Option<(u64, u64)>,
-    learned_on_instance: bool,
-    verified_at_login: bool,
-    money_before: u64,
-    observed_db_money_after_action: u64,
-    expected_saved_money: u64,
-    repeated_purchase_rejected: bool,
-    /// Read from the DB after confirmed logout, not inferred from packets.
-    saved_spell: bool,
-    saved_money: u64,
-}
-
 pub(super) fn load() -> Result<Option<Plan>> {
     let Some(path) = std::env::var_os("WOW_BOT_ACQUISITION_PLAN") else {
         return Ok(None);
     };
     let plan: Plan = serde_json::from_slice(&std::fs::read(path)?)?;
+    plan.persistence.validate()?;
     if plan.expected_spell == 0 || plan.expected_spell > i32::MAX as u32 {
         bail!("acquisition expected spell must be a positive signed spell ID");
     }
@@ -158,28 +149,6 @@ pub(super) fn load() -> Result<Option<Plan>> {
     Ok(Some(plan))
 }
 
-fn state(bot: &config::BotConfig, spell: u32) -> Result<(u64, bool)> {
-    let url = characters_db_url()?;
-    let opts = mysql::Opts::from_url(&url).map_err(|_| anyhow!("invalid QA DB options"))?;
-    let mut conn = mysql::Conn::new(opts).map_err(|_| anyhow!("QA DB connection failed"))?;
-    let money: Option<u64> = conn
-        .exec_first(
-            "SELECT money FROM characters WHERE guid=? AND account=?",
-            (bot.character_guid, bot.account_id),
-        )
-        .map_err(|_| anyhow!("acquisition character read failed"))?;
-    let learned: Option<u8> = conn
-        .exec_first(
-            "SELECT active FROM character_spell WHERE guid=? AND spell=? AND disabled=0",
-            (bot.character_guid, spell),
-        )
-        .map_err(|_| anyhow!("acquisition spell read failed"))?;
-    Ok((
-        money.context("acquisition character is missing")?,
-        learned == Some(1),
-    ))
-}
-
 fn trainer_buy(guid: &[u8], trainer: i32, spell: i32) -> Vec<u8> {
     let mut bytes = guid.to_vec();
     bytes.extend(trainer.to_le_bytes());
@@ -191,7 +160,7 @@ fn cast_self(spell: i32, cast: (u64, u64), player: (u64, u64)) -> Vec<u8> {
     let mut bytes = build_packed_guid(cast.0, cast.1);
     bytes.extend([0; 8]); // Misc[2]
     bytes.extend(spell.to_le_bytes());
-    bytes.extend([0; 16]); // SpellCastVisual[2], trajectory pitch/speed
+    bytes.extend([0; 12]); // SpellXSpellVisualID, trajectory pitch/speed
     bytes.extend(build_packed_guid(0, 0)); // CraftingNPC
     bytes.extend([0; 12]); // Currency/reagent/removal counts
     bytes.extend([0; 2]); // 5 flags, move bit, 2 weight bits, order bit
@@ -302,10 +271,9 @@ pub(super) async fn execute(
     if !bot.account.eq_ignore_ascii_case("TESTBOT1@bot.local") {
         bail!("acquisition QA requires the existing isolated TESTBOT1 identity");
     }
-    let selected = bot.clone();
     let spell = plan.expected_spell;
-    let (money_before, saved_before) =
-        tokio::task::spawn_blocking(move || state(&selected, spell)).await??;
+    let before = read_state(bot, spell, plan.persistence).await?;
+    let money_before = before.money;
     let verified_at_login = matches!(plan.action, Action::Verify {});
     let mut receipt = Evidence {
         expected_spell: spell,
@@ -322,14 +290,16 @@ pub(super) async fn execute(
         repeated_purchase_rejected: false,
         saved_spell: false,
         saved_money: 0,
+        persistence: plan.persistence,
+        observed_skill_root: None,
+        persistence_verified: false,
     };
     if verified_at_login {
-        if !known.known_spells.contains(&spell) || !saved_before {
-            bail!("relogin lost acquired spell");
-        }
+        plan.persistence
+            .verify_login(&before, known.known_spells.contains(&spell))?;
         return Ok(receipt);
     }
-    if known.known_spells.contains(&spell) || saved_before {
+    if known.known_spells.contains(&spell) || before.saved_spell || before.skill_root.is_some() {
         bail!("acquisition fixture already knows expected spell");
     }
     match &plan.action {
@@ -491,11 +461,7 @@ pub(super) async fn execute(
     }
     known.known_spells.sort_unstable();
     known.favorite_spells.sort_unstable();
-    let selected = bot.clone();
-    receipt.observed_db_money_after_action =
-        tokio::task::spawn_blocking(move || state(&selected, spell))
-            .await??
-            .0;
+    receipt.observed_db_money_after_action = read_state(bot, spell, plan.persistence).await?.money;
     receipt.expected_saved_money = match plan.action {
         Action::Trainer { fee, .. } => money_before
             .checked_sub(fee)
@@ -505,18 +471,6 @@ pub(super) async fn execute(
     // C++ persists ordinary Player money during SaveToDB. Observe this value,
     // but compare the fee only after confirmed logout, for both implementations.
     Ok(receipt)
-}
-
-pub(super) async fn verify_saved(bot: &config::BotConfig, receipt: &mut Evidence) -> Result<()> {
-    let selected = bot.clone();
-    let spell = receipt.expected_spell;
-    let (money, saved) = tokio::task::spawn_blocking(move || state(&selected, spell)).await??;
-    if !saved || money != receipt.expected_saved_money {
-        bail!("confirmed logout did not retain acquisition and money");
-    }
-    receipt.saved_money = money;
-    receipt.saved_spell = saved;
-    Ok(())
 }
 
 #[cfg(test)]

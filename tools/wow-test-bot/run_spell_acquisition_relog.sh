@@ -14,10 +14,7 @@ plan="${WOW_BOT_ACQUISITION_PLAN:?typed acquisition plan required}"
 export WOW_BOT_ACCOUNT=TESTBOT1@bot.local WOW_BOT_LOGIN_SAVE_CHECK=1
 relog_plan="$(mktemp /tmp/rustycore-acquisition-relog.XXXXXX)"
 trap 'rm -f -- "$relog_plan"' EXIT
-jq -e 'if (.action == "trainer" or .action == "cast") and
-  (.expected_spell | type == "number" and . > 0 and . == floor)
-  then {action: "verify", expected_spell: .expected_spell}
-  else error("requires a typed trainer or cast acquisition plan") end' "$plan" > "$relog_plan"
+jq -e -f spell_acquisition_verify_plan.jq "$plan" > "$relog_plan"
 WOW_BOT_REPORT="$report.first.json" WOW_BOT_LOG="$log.first.log" \
   ./run_rustycore_login_smoke.sh
 WOW_BOT_ACQUISITION_PLAN="$relog_plan" \

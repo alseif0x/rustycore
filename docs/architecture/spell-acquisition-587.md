@@ -30,8 +30,53 @@ the trainer UPDATE_OBJECT, but the subsequent drain required another one. The
 bot correction now retains instance publication across both phases in a private
 `login_stream` module (91 production/225 test lines); six focused tests pass in
 `/tmp/rustycore-587-login-stream-tests.log`. The root shrinks to20,952 lines and
-its physical ceiling is tightened. Renewed paired acceptance remains pending;
-no passing Rust acquisition is claimed from those failed attempts.
+its physical ceiling is tightened. Renewed paired trainer acceptance now passes
+with that bot (`bb1953fe`, executable SHA-256
+`1cea4c812655cf7b1eecb88e54f1048de7d04058cb341d21ccddd048af037681`):
+`cpp-trainer-fixed` and `rust-trainer-fixed` each buy6197 once, reject the repeated
+purchase, save money998860 and retain the acquired spell through fresh login and
+all six preservation projections. Artifacts are under the same private runtime
+directory. LearnedSpells and LogoutComplete independently match byte-for-byte
+and by connection (`/tmp/rustycore-587-trainer-learned-diff.json` and
+`/tmp/rustycore-587-trainer-logout-diff.json`).
+
+The complete buy→repeat-rejection window fails strict comparison: one match,
+five body mismatches, one missing/one extra UPDATE_OBJECT, no connection mismatch
+(`/tmp/rustycore-587-trainer-window-diff.json`). Three body differences are the
+different live NPC counters in requests/rejection. The two visual packets expose
+an inherited codec defect (`d7a224e85`): PlaySpellVisualKit writes a raw GUID,
+whereas SpellPackets.cpp:780 and the fresh C++ capture use PackedGuid. Its bounded
+repair is separate from the application refactor and requires renewed acceptance.
+C++ emits visuals→learning→money UPDATE; the represented Rust money fence emits
+money UPDATE→visuals→learning. This preserved contract is not a C++ full-window
+ordering pass. Both publish exactly one learning packet and charge once.
+
+The first controlled cast timed out on C++ CastFailed66/ITEM_GONE. The bot wrote
+an extra ScriptVisualID that neither C++ CombatLogPacketsCommon.cpp:164 nor
+Rust SpellCastVisual::read consumes. The corrected request passes five focused
+bot tests (`/tmp/rustycore-587-cast-wire-tests.log`) and C++ subsequently publishes
+LearnedSpells674 (`cpp-cast-wire-fixed.pkt`). Its direct character_spell-row check
+then fails: skill118=1/1 is saved, while674 is dependent and has no direct row.
+C++ EffectLearnSpell→LearnSpell(false)→SetSkill→LearnSkillRewardedSpells promotes
+the target to dependent (Player.cpp:2812); _SaveSpells:20399 excludes it, and
+_LoadSkills:25815 reconstructs it. The bot must explicitly verify that skill
+root and fresh-login knowledge; this failed assertion is not yet relog acceptance.
+The maintained driver now declares `persistence: {kind: "skill", id:118,
+value:1, max:1}` for this case, propagates it unchanged to the verification
+login, requires the exact saved root and no active direct target row, and records
+`saved_spell` literally alongside `persistence_verified`. The default trainer
+contract still requires a direct active spell row. No preservation check is waived.
+
+Correction acceptance at `bb1953fe` plus the reviewed local diff: nine focused
+bot tests pass (`/tmp/rustycore-587-derived-persistence-tests-3.log`), acquisition
+report positive/negative and contract-propagation checks pass, and the unchanged
+six-family report check passes its positive and eleven negative cases. The first
+bot compile rejected a Rust2024 let-chain in the standalone Rust2021 tool; the
+next run exposed serde's unit-variant handling of surplus fields. Nested syntax
+and an empty struct variant correct those failures; neither failed run is green.
+The fresh C++ visual golden passes in wow-packet
+(`/tmp/rustycore-587-visual-codec-test.log`), and all39 trainer tests pass
+(`/tmp/rustycore-587-visual-trainer-tests.log`). Runtime repetition remains pending.
 
 ### Earlier paired evidence before #588
 
@@ -118,7 +163,8 @@ tests passed, two ignored, zero failed). Its owning
 [checkpoint](deferred-visibility-588-checkpoint.md) records the exact represented
 scope and retained visibility limits. #587 is rebased onto that dependency;
 backup branch `backup/587-before-588-da2c2949` preserves all original commits.
-Combined runtime acceptance remains pending. The order remains required #584
+Combined trainer runtime acceptance passes; controlled effect/save/relogin and
+the final combined candidate remain pending. The order remains required #584
 core → #583 → #153 → #133.
 
 The combined architecture check passes at rebased code `5654f6ce` with the local
