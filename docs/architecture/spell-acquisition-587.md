@@ -49,7 +49,7 @@ were never replaced or stopped. All #587 isolated world/BNet/database units
 were stopped afterward; both original services were verified active. The private
 database retains disposable QA state. No push, PR or merge was performed.
 
-### Blocking visibility responsibility and proposed next core delivery
+### Approved visibility dependency #588
 
 Fresh Rust evidence records the active-mover ACK and 215 loaded creature records,
 but no trainer publication. `session/mod.rs::apply_move_init_active_mover_complete_like_cpp`
@@ -64,7 +64,7 @@ after move-list drains, but its plans are evidence-only, use empty prior client
 membership and have no production publication consumer. Calling a full refresh
 directly from the ACK would bypass the deferred phase.
 
-Proposed separate #584 macro: **complete deferred player visibility publication**.
+Approved separate #584 macro #588: **complete deferred player visibility publication**.
 The existing canonical map phase selects owned notification intents; after map
 guards are released, world-server routes them to the matching live Session/Player
 incarnation and residence. Session retains its single client-membership ledger and
@@ -79,9 +79,26 @@ the map phase without movement; repeated ACK gives no duplicate CREATE; inactive
 nonexpired grids retain work; mailbox saturation, logout, transfer and stale
 incarnations cannot lose or misapply delivery. Exercise the actual production
 map-loop/directory/Session path, then repeat paired captures and #587 trainer QA.
-This is a new responsibility proposal, not a selected implementation or a blanket
-wow-map extraction. #587's failing acceptance is retained while its dependency is
-resolved; the order remains required #584 core → #583 → #153 → #133.
+The bridge is implemented in `328b721f`, with 97 focused tests passing before its
+commit and committed-candidate final validation passing (nine commands; 5,094
+tests passed, two ignored, zero failed). Its owning
+[checkpoint](deferred-visibility-588-checkpoint.md) records the exact represented
+scope and retained visibility limits. #587 is rebased onto that dependency;
+backup branch `backup/587-before-588-da2c2949` preserves all original commits.
+Combined runtime acceptance remains pending. The order remains required #584
+core → #583 → #153 → #133.
+
+The combined architecture check passes at rebased code `5654f6ce` with the local
+documentation reconciliation (`/tmp/rustycore-587-combined-architecture.log`).
+Session root is 76,107 physical lines. Combined logical attribution is 83,278
+production / 108,260 test / 191,538 total lines; ceilings are tightened to those
+measured values, retaining the remaining #584 C2/C4 responsibilities. Earlier
+standalone measurements below retain their original candidate identities.
+The reconstructed root checker also passes syntax ownership: 54 impl owners,
+3,725 exact associated items, unchanged 283 production/433 fixture fields,
+39 commands and 592 registry rows. Log
+`/tmp/rustycore-587-combined-ownership-2.log`. The earlier log without `-2`
+used a cached checker bound to the #588 checkout and is not combined evidence.
 
 ### Controlled ordinary-effect fixture
 

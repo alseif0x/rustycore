@@ -1448,9 +1448,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 83530,
-          "test_lines": 108261,
-          "total_lines": 191791,
+          "production_lines": 83278,
+          "test_lines": 108260,
+          "total_lines": 191538,
           "owner": "wow-world WorldSession/application monolith.",
           "latest_growth_review": "2026-09-08 #588: +128 production/+568 test lines for the map-selected visibility adapter, retained mailbox slot/order and directory delivery; no WorldSession field, Player mirror or new lock/task. Ten bounded Session tests cover ACK, current client ledger, backpressure, committed-prefix order and stale consumers. Session root shrinks 24 physical lines. This is necessary protocol/lifecycle adaptation, not retirement of remaining gameplay ownership; #584 C2/C4 exits remain. PR #586 writer-order repair: +25 production/+111 test lines for interruptible far-transfer publication (immediate and delayed), instance-to-realm logout fencing and cancellation/failure coverage. Four existing update methods become async; no added field/task/lock/mirror. Tests use bounded existing modules; root +16 physical lines retains its #584:C4 split exit. 2026-09-07 final QA: +7 production lines preserve loaded canonical reputation on repeated same-race/class identity hydration; no field, API, lock or owner added. 2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines for finalization extraction, then +9 production/+28 fixture lines for canonical far-destination orientation normalization. Fresh paired logout capture then requires realm publication: +1 production separator/+60 test lines in lifecycle/finalization.rs for the two-route backpressure/closed-realm regression, with unchanged send_async semantics and no new method, field, clock, lock or recovery owner. Account/offline/buyback adapters moved from character into private lifecycle modules; finite policy lives outside Session in crate::finalization. One task-owned ledger retains progress and recovery input. Physical new modules remain below 500 lines; root physical ceiling unchanged. Remaining Session authority stays under #584. See session-finalization-585.md.",
           "open_retirement_issues": [

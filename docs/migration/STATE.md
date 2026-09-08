@@ -2,8 +2,9 @@
 
 **Current delivery — 2026-09-08, integration `8c47af95`:** #586 is merged and
 #585 closed. #587's represented spell-acquisition boundary is implemented locally
-on its own branch (`43c4e801`, subsequent QA/evidence through `c88603ee`), with
-trainer live acceptance blocked by inherited missing stationary-login visibility.
+on its own branch (original `43c4e801`, subsequent QA/evidence through `c88603ee`).
+The branch is now rebased onto #588 commit `328b721f`; combined runtime acceptance
+is pending. The earlier stationary-login visibility failure remains recorded.
 The user approved **#588 — deferred player visibility publication** as that
 concrete prerequisite. It connects the existing map notify phase to retained
 Session delivery, with exact incarnation/residence admission and the actual
@@ -14,19 +15,10 @@ After this prerequisite, resume #587; required #584 core still precedes #583,
 then #153 and #133 closure. The dated pre-merge account below remains historical
 evidence, not an instruction to reopen #585.
 
-**Current delivery — 2026-09-07, integration `59f5bced`:** #579 merged and #578 closed.
-#585 is the selected implementation: represented session finalization outcomes,
-cancellation and exact-incarnation retirement, including its consumers. #133/#584
-are coordination issues, not prerequisite implementations. Further core deliveries
-under #584 precede #583; #153 audits the integrated result before #133 closes.
-#587 is implemented locally with local validation recorded; live acceptance and
-publication remain pending:
+Derived C++ trainer purchase/rejection/save/relogin passed. The controlled
+ordinary-effect fixture has been generated without altering stock data; effective
+SQL and paired runtime acceptance remain pending. Current #587 evidence:
 [spell acquisition](../architecture/spell-acquisition-587.md).
-2026-09-08 live update: derived C++ trainer purchase/rejection/save/relogin passes;
-Rust fails before purchase because deferred NPC visibility after the mover ACK
-is not published. This inherited map-to-Session responsibility is proposed as a
-separate #584 delivery, not yet selected or implemented. Ordinary-effect live
-fixture acceptance also remains unresolved. Original services remain intact.
 #585's scoped acceptance and retained parity limits
 are recorded below and in its checkpoint; do not reopen it from pre-merge status text.
 The following dated candidate narrative is historical, not an instruction to repeat

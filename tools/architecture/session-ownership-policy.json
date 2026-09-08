@@ -55584,7 +55584,9 @@
           "signature": "async fn apply_deferred_player_visibility_refresh_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , intent : PlayerVisibilityRefreshIntentLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": ["visible"]
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",

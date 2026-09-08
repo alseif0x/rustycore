@@ -63,8 +63,12 @@ stays under #584 and existing gameplay owners, not hidden as #588 evidence.
 
 ## Acceptance state
 
-Local implementation and focused acceptance are complete. Committed-candidate
-final validation and paired runtime acceptance remain pending. The actual tested
+Local implementation, focused acceptance and committed-candidate final validation
+are complete. Paired runtime acceptance remains pending. Final at
+`328b721f9b96c68a03c161e60118ebaca755c492` passed nine commands and 5,094 tests
+(two ignored, zero failed) in 822 seconds; the worktree was clean and Cargo used
+one job. `/tmp/rustycore-588-final-manifest.json` was independently verified green;
+log `/tmp/rustycore-588-final.log`. The actual focused-test
 working tree was baseline `8c47af95` plus 19 changed Rust inputs, SHA-256
 `8afc15595300131ad7f48798b7652d4fa202b26dbc1438dfead9a2d1e8282ec9`
 (sorted relative paths, NUL, file contents, NUL). Do not relabel that as a later
@@ -110,7 +114,7 @@ its complete contract tests; world-server changes by -20 production/+128 test.
 These explained, reviewed ceilings retain the named #584 exits. Touching the
 shared callers does not transfer their unrelated remaining families into #588.
 
-Remaining acceptance: committed-candidate final validation and paired stationary
+Remaining acceptance: paired stationary
 trainer purchase/rejection/save/relogin captures. Earlier #587 green checks apply
 only to their unchanged inputs; they do not validate #588.
 
