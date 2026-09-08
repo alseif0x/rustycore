@@ -2,6 +2,39 @@
 
 ## Current live result and dependency — 2026-09-08
 
+At combined code `3ab2e3c3`, release executable SHA-256
+`eaf0419412fdaf3d800ab3efc23a345d50f4f1a92675564889012c7c381f74a1`,
+the stationary bot now observes the trainer CREATE and reaches gossip/list without
+movement. The first purchase was rejected with the old fixture. Temporary
+diagnostic instrumentation confirmed complete spell/skill authority and all 43
+login roots `CoveredWithoutNode`; it has been removed. Its executable SHA-256 was
+`19cded852e0781537372cad6d698318c12f1d881d8978bb782e64064be6f6408`,
+patch SHA-256 `e613f398845c23e2c639a830a7b1dca24f513516c027df157c5d2b0c616e5808`.
+
+That fixture retained Defense95 rank300/max100 after setting level20. C++
+`Player::_LoadSkills:25767` and `UpdateSkillsForLevel:5604` preserve rank when
+reducing the maximum; Defense's flags lack ALWAYS_MAX_VALUE. This can also follow
+`.character level`, not only direct fixture SQL. Rust loads it equivalently but
+the pre-existing acquisition planner rejects `skill_value_above_maximum`
+(`planner/mod.rs:228`, originating in `f32aa90b4`). The refactor preserves that
+restriction; ordinary-fixture acceptance does not establish parity for above-cap
+skills after level reduction. This retained gameplay boundary must not disappear
+from later core/parity work.
+
+For the ordinary paired scenario, the authorized private fixture now changes
+only Defense95 from300/100 to100/100 after restoring the same immutable snapshot.
+`ordinary-fixture.json` records that delta. Derived C++ purchase/rejection/save/
+relogin passes (`cpp-trainer-valid-report.json.acquisition.json`). The next Rust
+attempt exposed a bot phase-continuity defect: initial login had already observed
+the trainer UPDATE_OBJECT, but the subsequent drain required another one. The
+bot correction now retains instance publication across both phases in a private
+`login_stream` module (91 production/225 test lines); six focused tests pass in
+`/tmp/rustycore-587-login-stream-tests.log`. The root shrinks to20,952 lines and
+its physical ceiling is tightened. Renewed paired acceptance remains pending;
+no passing Rust acquisition is claimed from those failed attempts.
+
+### Earlier paired evidence before #588
+
 At QA-driver commit `f13fd26c`, the derived C++ trainer acquisition/repeated-buy/
 logout/fresh-login scenario **passes**; Rust's identical fixture **fails before
 purchase**, because the stationary client never receives the trainer CREATE_OBJECT.

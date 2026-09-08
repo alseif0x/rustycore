@@ -52,6 +52,14 @@ module is private `src/login_save.rs`; `test_login_save_relog.sh` tests report
 acceptance without a server or database. Missing/mutated existing data is a
 failure to investigate, not permission to repair the fixture.
 
+Login draining retains `login_instance_object_update_seen` from the initial
+login loop, so consuming the required NPC CREATE there does not require a second
+`UPDATE_OBJECT` during the drain. Only an INSTANCE packet grants that evidence;
+a REALM packet does not. Both sockets must remain open and quiet for a full second
+within the drain's 30-second deadline; every received packet restarts that quiet
+period. The drain continues to select cancellation-safe socket peeks before reading
+complete encrypted frames.
+
 ## Transport disconnect/save/relogin (#585)
 
 ### Spell acquisition / save / relogin (#587)

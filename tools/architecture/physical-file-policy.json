@@ -699,8 +699,8 @@
     },
     {
       "path": "tools/wow-test-bot/src/main.rs",
-      "observed_lines": 21071,
-      "ceiling_lines": 21071,
+      "observed_lines": 20952,
+      "ceiling_lines": 20952,
       "split": "Separate protocol connection/authentication, scenario orchestration and scenario-specific tests; keep shared wire primitives narrow.",
       "review_checkpoint": "584:C4"
     }
