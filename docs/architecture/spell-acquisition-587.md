@@ -14,6 +14,12 @@ The acquisition driver now sends that ACK at LoginVerifyWorld and applies its
 discovery gate to every normal login exit. Its five affected tests, executable
 build, physical-file policy and diff hygiene pass. This is a QA-driver correction;
 world-server Rust inputs and its previously built executable are unchanged.
+The ACK recheck discovered the actual trainer and received its gossip menu, then
+failed before purchase because the fixture sent SQL OptionID `0` instead of wire
+GossipOptionID `-1702912`. The captured signed ID matches the existing menu 6652
+row and C++ NPCPackets.cpp's signed field. The driver now permits signed IDs and
+documents that distinction. Its five affected tests and build pass again; the
+new executable hash is `98cfa383a394418c89c4951d9634cf4207a5290e5a628389802ba4f08b55bcb4`.
 The failed run is not acquisition, save/relogin or packet-parity acceptance.
 Private evidence is under `/tmp/rustycore-587-runtime.MYPSPW/`; original services
 remain untouched. Live trainer and ordinary-effect acceptance remain pending.

@@ -61,7 +61,8 @@ guards, then verifies the action receipt and fresh known-spell packets. It requi
 `WOW_BOT_ACQUISITION_PLAN` pointing to an absolute private JSON file. A trainer plan
 has `action: "trainer"`, `expected_spell`, the observed live NPC `guid_low` and
 `guid_high`, `trainer_id`, `offer_spell`, and the discounted `fee`. Optional
-`gossip_option` opens the NPC's actual gossip menu and selects its trainer option;
+`gossip_option` is the signed wire GossipOptionID (negative IDs are valid), not
+the SQL OptionID/order index; it opens the actual menu and selects that option;
 otherwise the driver sends TrainerList directly. A cast plan has
 `action: "cast"`, `expected_spell`, a known player `spell`, and the client cast token
 `cast_low`/`cast_high`. The explicit target is the logged-in player. The wrapper's

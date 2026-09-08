@@ -51,6 +51,7 @@ fn typed_plan_accepts_each_action_and_rejects_unknown_action_fields() {
         r#"{"expected_spell":133,"action":"cast","spell":100,"cast_low":1,"cast_high":0}"#,
         r#"{"expected_spell":133,"action":"trainer","guid_low":7,"guid_high":1,"trainer_id":42,"offer_spell":133,"fee":10}"#,
         r#"{"expected_spell":133,"action":"trainer","guid_low":7,"guid_high":1,"trainer_id":42,"offer_spell":133,"fee":10,"gossip_option":0}"#,
+        r#"{"expected_spell":6197,"action":"trainer","guid_low":7,"guid_high":1,"trainer_id":7,"offer_spell":6197,"fee":1140,"gossip_option":-1702912}"#,
         r#"{"expected_spell":133,"action":"trainer","guid_low":0,"guid_high":0,"trainer_id":42,"offer_spell":133,"fee":10,"spawn":{"entry":7,"map":530,"position":[1,2,3]}}"#,
     ] {
         serde_json::from_str::<Plan>(plan).unwrap();

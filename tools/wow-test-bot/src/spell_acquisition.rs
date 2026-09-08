@@ -137,12 +137,10 @@ pub(super) fn load() -> Result<Option<Plan>> {
             trainer_id,
             offer_spell,
             spawn,
-            gossip_option,
             ..
         } if (spawn.is_none() && (*guid_low == 0 || *guid_high == 0))
             || *trainer_id <= 0
             || *offer_spell <= 0
-            || gossip_option.is_some_and(|id| id < 0)
             || spawn
                 .as_ref()
                 .is_some_and(|s| s.entry == 0 || s.position.iter().any(|v| !v.is_finite())) =>
