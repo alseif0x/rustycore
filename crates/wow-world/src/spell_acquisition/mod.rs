@@ -72,14 +72,19 @@ const SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP: u32 = wow_data::SPELL_ATTR0_CU_IS_TALEN
 mod adapter;
 mod application;
 mod authority;
+mod effect_learning;
 mod model;
 mod planner;
+mod runtime_adapter;
+mod trainer_purchase;
 
 pub(crate) use application::*;
 pub(crate) use authority::*;
+pub(crate) use effect_learning::*;
 pub(crate) use model::*;
 #[allow(unused_imports)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) use planner::*;
+pub(crate) use trainer_purchase::*;
 
 #[cfg(test)]
 mod tests;

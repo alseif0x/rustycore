@@ -19,9 +19,13 @@ evidence, not an instruction to reopen #585.
 cancellation and exact-incarnation retirement, including its consumers. #133/#584
 are coordination issues, not prerequisite implementations. Further core deliveries
 under #584 precede #583; #153 audits the integrated result before #133 closes.
-The next family after #585 is not selected. Relevant live QA deferred at #579 merge
-is included in #585's acceptance, not recorded as passed. Older allocation/status
-statements below are historical. No new whole-port completion or parity audit is claimed.
+#587 is implemented locally with local validation recorded; live acceptance and
+publication remain pending:
+[spell acquisition](../architecture/spell-acquisition-587.md).
+#585's scoped acceptance and retained parity limits
+are recorded below and in its checkpoint; do not reopen it from pre-merge status text.
+The following dated candidate narrative is historical, not an instruction to repeat
+completed work or a new whole-port completion/parity claim.
 
 Local #585 candidate `ccf5f84d` passed final validation on 2026-09-07. After renewed
 explicit authorization, guarded normal save/relogin QA passed and the original
