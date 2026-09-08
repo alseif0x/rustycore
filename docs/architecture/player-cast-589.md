@@ -194,3 +194,46 @@ the rune nor the ammo section for a plain mana spell, and
 widened residence fence drops a server-triggered prepared cast after reentry.
 `player_cast/tests.rs` gains
 `unresolvable_visual_reports_a_cancellation_instead_of_dropping_the_request`.
+
+## Publication validation
+
+`./tools/validation-v2 final --base origin/3.4.3` **passed**: 14 of 14 commands
+green, exit 0, 1968 seconds, one Cargo job, peak child RSS 4.9 GiB. The
+manifest records head `215e481e`, base `8c47af95`, a clean tree
+(`dirty: false`), 109 changed paths and Rust 1.98.0, and is stored at
+`target/validation-v2/manifests/20260908T212452.975354Z-3593240-final.json`.
+The profile covered diff hygiene, the physical-files scan and its 20 unit
+tests, trailing-whitespace and JSON/Python/bash syntax gates, workspace and bot
+formatting, the hotspot ratchet, the reverse-dependent `cargo check --tests`
+closure over thirteen packages, the library suites for `world-server`,
+`wow-entities`, `wow-map`, `wow-packet` and `wow-world`, and the standalone bot
+manifest check.
+
+## Live QA: not executed, and why
+
+Paired caster/observer captures against a running server are **not** part of
+this evidence, and nothing here should be read as if they were.
+
+The maintained mechanism is `tools/qa-runtime.sh --allow-runtime-qa`, which
+snapshots the live build, swaps in the candidate, restarts the `world-server`
+systemd unit, runs the bot and restores the original. This host currently has
+that unit active (`world-server` from `/home/server/rustycore/target/deploy/live`
+against `/home/server/trinity-legacy-install/etc/worldserver.conf`, alongside
+`bnet-server` and MariaDB). The standing instruction for this delivery permits
+isolated QA but forbids modifying active original services or other people's
+data, and the guard restarts exactly that active service. Running a genuinely
+separate instance instead would need its own ports and its own copies of the
+auth, characters, world and hotfixes schemas; reusing the live schemas would
+write data that is not this delivery's to write.
+
+So the paired matrix in #594 - instant and timed casts, the 400 ms queue
+boundary, replacement, active and pending cancellation, late failure, shared
+Player/creature identity, and a nearby observer's bytes, identities, visual,
+flags, optional payload, targets, connections and ordering - remains
+outstanding. The acceptance evaluator for it is complete and tested
+(`tools/wow-test-bot`, 179 tests including 20 for the cast lifecycle, with a
+documented caster/observer correlation procedure in `CAST_LIFECYCLE.md`), so
+the work needed is the runtime authority, not more tooling.
+
+The synthetic 30798 to 6197 fixture inherited from #587 remains synthetic and
+covers none of that matrix. `observe_only` bot collection never reports a pass.
