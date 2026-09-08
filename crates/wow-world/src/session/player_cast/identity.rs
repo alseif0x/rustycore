@@ -21,6 +21,23 @@ impl WorldSession {
             .map(|(guid, _)| guid)
     }
 
+    /// The admitted residence revision for the logged-in player.
+    ///
+    /// A prepared cast is fenced against residence reentry by stamping this
+    /// value. Server-triggered timed casts need the same fence as normal
+    /// client requests: without it a cast prepared before a map transfer would
+    /// still launch after the player returns.
+    pub(crate) fn current_player_residence_revision_like_cpp(&self) -> Option<u64> {
+        let handle = self.player_handle_like_cpp?;
+        if Some(handle.guid()) != self.player_guid() {
+            return None;
+        }
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        manager
+            .player_active_residence_revision_like_cpp(handle)
+            .map(|(_, revision)| revision)
+    }
+
     pub(in crate::session) fn allocate_player_cast_identity_like_cpp(
         &self,
         spell_id: i32,

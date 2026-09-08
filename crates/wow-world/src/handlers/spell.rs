@@ -344,6 +344,7 @@ impl WorldSession {
                 // into `m_targets`; `SpellCastTargets::HasTraj()` then gates
                 // `CAST_FLAG_ADJUST_MISSILE` in `Spell::SendSpellGo`.
                 request_has_trajectory_like_cpp: req.has_trajectory_like_cpp,
+                request_trajectory_pitch_like_cpp: req.trajectory_pitch_like_cpp,
                 ..Default::default()
             },
         };
@@ -1902,12 +1903,17 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
+        // C++ `HandleSelfResOpcode` uses
+        // `CastSpell(_player, SpellID, GetMap()->GetDifficultyID())`, whose
+        // trigger flags are TRIGGERED_NONE: not a triggered cast, and the
+        // global cooldown applies.
         if self
-            .execute_spell_with_generator_like_cpp(
+            .execute_server_triggered_spell_like_cpp(
                 item_guid_generator,
                 creature_spawn_catalogs,
                 request.spell_id,
                 player_guid,
+                crate::session::SpellCastMetadata::default(),
             )
             .await
             .is_ok()

@@ -16,7 +16,7 @@ pub struct SpellCastBattlePetItemModifiersLikeCpp {
     pub display_id: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SpellCastMetadata {
     pub from_client: bool,
     /// Present only for the prepared normal client-request lifecycle. The
@@ -44,6 +44,15 @@ pub struct SpellCastMetadata {
     /// Retained so publication can recognise a trajectory cast; the pitch and
     /// speed pair and `Spell::m_delayMoment` are not represented.
     pub request_has_trajectory_like_cpp: bool,
+    /// C++ `SpellCastTargets::m_pitch`, written back by `SendSpellGo` as
+    /// `MissileTrajectory.Pitch` under `CAST_FLAG_ADJUST_MISSILE`.
+    pub request_trajectory_pitch_like_cpp: f32,
+    /// C++ `TRIGGERED_IGNORE_GCD`, part of `TRIGGERED_FULL_MASK`.
+    /// `Spell::prepare` calls `TriggerGlobalCooldown` only when the trigger
+    /// flags do not carry it, so a `CastSpell(..., true)` server cast leaves
+    /// the player's global cooldown untouched while a `TRIGGERED_NONE` server
+    /// cast still starts it.
+    pub triggered_ignores_global_cooldown_like_cpp: bool,
 }
 
 impl Default for SpellCastMetadata {
@@ -64,6 +73,8 @@ impl Default for SpellCastMetadata {
             restore_last_spell_cast_time_on_power_failure: false,
             previous_last_spell_cast_time_on_power_failure: None,
             request_has_trajectory_like_cpp: false,
+            request_trajectory_pitch_like_cpp: 0.0,
+            triggered_ignores_global_cooldown_like_cpp: false,
         }
     }
 }

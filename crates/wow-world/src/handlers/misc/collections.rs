@@ -427,6 +427,11 @@ impl crate::session::WorldSession {
             };
             self.send_packet(&start_pkt);
 
+            // Stamp the admitted residence so this timed toy cast is fenced
+            // against reentry exactly like a prepared normal request.
+            let mut metadata = metadata;
+            metadata.prepared_residence_revision =
+                self.current_player_residence_revision_like_cpp();
             self.set_active_spell_cast_like_cpp(Some(crate::session::SpellCastState {
                 spell_id: request.cast.spell_id,
                 target_guid,

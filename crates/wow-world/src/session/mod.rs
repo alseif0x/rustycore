@@ -2016,6 +2016,10 @@ const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // runtime counter, so keep the canonical numeric value here.
 const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
+
+/// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`). `SendSpellStart` and
+/// `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
+pub(crate) const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
 #[cfg(test)]
 static NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
@@ -33612,12 +33616,20 @@ impl WorldSession {
 
         let mut cast_count = 0usize;
         for spell_id in spells {
+            // C++ `CharacterHandler.cpp` casts the create-mode spells with
+            // `CastSpell(pCurrChar, spellId, true)`, i.e. TRIGGERED_FULL_MASK:
+            // the cast is triggered and ignores the global cooldown.
             if self
-                .execute_spell_with_generator_like_cpp(
+                .execute_server_triggered_spell_like_cpp(
                     item_guid_generator,
                     creature_spawn_catalogs,
                     spell_id as i32,
                     player_guid,
+                    SpellCastMetadata {
+                        cast_flags: CAST_FLAG_PENDING_LIKE_CPP,
+                        triggered_ignores_global_cooldown_like_cpp: true,
+                        ..SpellCastMetadata::default()
+                    },
                 )
                 .await
                 .is_ok()
@@ -45373,12 +45385,17 @@ impl WorldSession {
             if visible_auras.values().any(|aura| aura.spell_id == spell_id) {
                 continue;
             }
+            // C++ `Player::ApplyItemObtainSpells` uses
+            // `CastSpellExtraArgs().SetCastItem(item)`, whose default trigger
+            // flags are TRIGGERED_NONE: not a triggered cast, and the global
+            // cooldown applies.
             if self
-                .execute_spell_with_generator_like_cpp(
+                .execute_server_triggered_spell_like_cpp(
                     item_guid_generator,
                     creature_spawn_catalogs,
                     spell_id,
                     player_guid,
+                    SpellCastMetadata::default(),
                 )
                 .await
                 .is_ok()
@@ -70133,6 +70150,46 @@ impl WorldSession {
         .await
     }
 
+    /// Server-triggered cast with an explicit C++ trigger contract.
+    ///
+    /// C++ `Unit::CastSpell` always constructs a `Spell`, so `m_castId` is a
+    /// real `Map::GenerateLowGuid<HighGuid::Cast>` value even when no client
+    /// requested the cast. Publishing an empty CastID leaves the client unable
+    /// to correlate the resulting `SMSG_SPELL_GO`, so this entry point
+    /// allocates from the admitted Map's shared Cast sequence just like the
+    /// normal request path and the represented creature consumer.
+    ///
+    /// `metadata` carries the caller's own contract; normal client defaults are
+    /// never imposed on these consumers.
+    pub(crate) async fn execute_server_triggered_spell_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        metadata: SpellCastMetadata,
+    ) -> Result<(), &'static str> {
+        use wow_packet::packets::spell::SpellCastVisual;
+
+        let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+            return Err("canonical Map cast identity unavailable for a triggered cast");
+        };
+        self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            spell_id,
+            target_guid,
+            cast_id,
+            SpellCastVisual {
+                spell_visual_id: 0,
+                script_visual_id: 0,
+            },
+            Default::default(),
+            metadata,
+        )
+        .await
+    }
+
     #[cfg(test)]
     pub async fn execute_spell(
         &mut self,
@@ -70500,9 +70557,7 @@ impl WorldSession {
         // normal client defaults are never imposed on them.
         let go_phase = player_cast::wire::PlayerCastPublicationPhaseLikeCpp::Go;
         let (cast_data, cast_flags) = if metadata.client_cast_id.is_some() {
-            let cast_data = self.player_cast_wire_data_for_phase_like_cpp(&spell_info, go_phase);
-            let cast_flags = self.player_cast_flags_like_cpp(&spell_info, &cast_data, go_phase);
-            (cast_data, cast_flags)
+            self.player_cast_publication_like_cpp(&spell_info, &metadata, go_phase)
         } else {
             (Default::default(), metadata.cast_flags)
         };
@@ -71372,7 +71427,13 @@ impl WorldSession {
             // 3286) must not start or advertise a player cooldown.
             if self
                 .mutate_cast_execution_like_cpp(|state| {
-                    if metadata.client_cast_id.is_none() {
+                    // A prepared client cast already started its global
+                    // cooldown in `Spell::prepare`; a `TRIGGERED_FULL_MASK`
+                    // server cast carries `TRIGGERED_IGNORE_GCD` and never
+                    // starts one.
+                    if metadata.client_cast_id.is_none()
+                        && !metadata.triggered_ignores_global_cooldown_like_cpp
+                    {
                         state.last_cast_time = Some(Instant::now());
                     }
                     state

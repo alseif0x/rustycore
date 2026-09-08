@@ -505,6 +505,8 @@ pub struct CastSpellRequest {
     /// `MissileTrajectory.Speed` into `m_targets`, and `HasTraj()` is
     /// `m_speed != 0`. The pitch/speed values themselves are not retained.
     pub has_trajectory_like_cpp: bool,
+    /// C++ `SpellCastTargets::m_pitch` from `MissileTrajectory.Pitch`.
+    pub trajectory_pitch_like_cpp: f32,
 }
 
 impl ClientPacket for CastSpellRequest {
@@ -518,7 +520,7 @@ impl ClientPacket for CastSpellRequest {
         let visual = SpellCastVisual::read(pkt)?;
 
         // MissileTrajectoryRequest: Pitch + Speed (2 floats)
-        let _pitch = pkt.read_float()?;
+        let pitch = pkt.read_float()?;
         let speed = pkt.read_float()?;
 
         let _crafting_npc = pkt.read_packed_guid()?;
@@ -578,6 +580,7 @@ impl ClientPacket for CastSpellRequest {
             target,
             move_update,
             has_trajectory_like_cpp: speed != 0.0,
+            trajectory_pitch_like_cpp: pitch,
         })
     }
 }

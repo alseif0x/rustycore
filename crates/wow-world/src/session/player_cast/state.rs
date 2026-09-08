@@ -3,8 +3,27 @@
 use super::*;
 
 impl WorldSession {
+    /// C++ `Player::SendLoot` calls `InterruptNonMeleeSpells(false)`, i.e.
+    /// `withDelayed = false`, `spell_id = 0`, `withInstant = true`.
+    ///
+    /// That single C++ call reaches the caster's current-spell slots, so the
+    /// represented equivalent must interrupt both the prepared cast execution
+    /// state and the canonical Unit slots, exactly as the far-teleport path
+    /// does. Reaching only one of the two would let a canonical generic or
+    /// channeled spell survive looting.
     pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
-        self.interrupt_player_cast_like_cpp(None)
+        let session_cast_interrupted = self.interrupt_player_cast_like_cpp(None);
+        let canonical_spells_interrupted = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let unit = player.unit_mut();
+                if !unit.is_non_melee_spell_cast_like_cpp(false, false, false, true) {
+                    return false;
+                }
+                !unit.interrupt_non_melee_spells(None, false, true).is_empty()
+            })
+            .unwrap_or(false);
+
+        session_cast_interrupted || canonical_spells_interrupted
     }
 
     pub(in crate::session) fn with_cast_execution_like_cpp<R>(
@@ -145,7 +164,18 @@ impl WorldSession {
         let Some(request) = self.pending_spell_cast_snapshot_like_cpp().flatten() else {
             return;
         };
-        if Some(request.casting_unit_guid) != self.player_guid() {
+        // C++ `Player::CanExecutePendingSpellCastRequest` cancels the request
+        // when the casting unit is missing, is no longer in world, or is no
+        // longer `GetUnitBeingMoved()`. A detached or replaced handle must not
+        // execute a queued request against the current player.
+        let casting_unit_is_current = Some(request.casting_unit_guid) == self.player_guid()
+            && self
+                .player_moved_unit_guid_like_cpp()
+                .is_none_or(|moved| moved == request.casting_unit_guid)
+            && self
+                .player_handle_like_cpp
+                .is_none_or(|handle| handle.guid() == request.casting_unit_guid);
+        if !casting_unit_is_current {
             self.cancel_pending_spell_cast_request_like_cpp();
             return;
         }

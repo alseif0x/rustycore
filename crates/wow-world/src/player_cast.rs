@@ -22,17 +22,6 @@ pub(crate) trait Runtime {
     fn failure(&mut self, id: ObjectGuid, spell: i32, visual: SpellCastVisualLikeCpp, reason: i32);
     fn allocate(&self, spell: i32) -> Option<(ObjectGuid, Option<u64>)>;
     fn visual(&self, spell: &SpellInfo) -> Option<SpellCastVisualLikeCpp>;
-    /// Reject a request whose faithful `SendSpellStart`/`SendSpellGo` pair
-    /// needs an input this port does not represent. The adapter publishes the
-    /// rejection; `true` admits the request. This runs before allocation so a
-    /// non-publishable spell never consumes a server cast identity.
-    fn publication_supported(
-        &mut self,
-        spell: &SpellInfo,
-        cast: ObjectGuid,
-        visual: &SpellCastVisualLikeCpp,
-        metadata: &wow_entities::SpellCastMetadata,
-    ) -> bool;
     fn prepare_mapping(&mut self, client: ObjectGuid, server: ObjectGuid);
     fn disabled(&self, spell: i32) -> bool;
     fn on_cooldown(&self, spell: &SpellInfo) -> Option<bool>;
@@ -53,6 +42,25 @@ pub(crate) trait Runtime {
     fn start(&mut self, cast: &SpellCastState, spell: &SpellInfo);
 }
 
+/// C++ `Player::CancelPendingCastRequest` always publishes a CastFailed:
+/// "We have to inform the client that the cast has been canceled. Otherwise
+/// the cast button will remain highlightened." Every abandoned request in this
+/// module therefore reports, even when the cause is a lost canonical input.
+fn cancel_like_cpp(
+    runtime: &mut impl Runtime,
+    cast_id: ObjectGuid,
+    spell_id: i32,
+    visual: SpellCastVisualLikeCpp,
+) -> bool {
+    runtime.failure(
+        cast_id,
+        spell_id,
+        visual,
+        SpellCastResult::DontReport as i32,
+    );
+    false
+}
+
 /// Admission has one bounded queue window. Keep the original request spell ID:
 /// override/known-spell resolution occurs again when that request can prepare.
 pub(crate) fn request(runtime: &mut impl Runtime, request: PendingSpellCastRequestLikeCpp) -> bool {
@@ -60,7 +68,7 @@ pub(crate) fn request(runtime: &mut impl Runtime, request: PendingSpellCastReque
         return false;
     };
     let Some((gcd, active)) = runtime.remaining(&spell) else {
-        return false;
+        return cancel_like_cpp(runtime, request.cast_id, request.spell_id, Default::default());
     };
     if gcd > 400 || active > 400 {
         runtime.failure(
@@ -81,7 +89,7 @@ pub(crate) fn request(runtime: &mut impl Runtime, request: PendingSpellCastReque
 /// timed casts. Returns true only when the installed active cast is ready now.
 pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastRequestLikeCpp) -> bool {
     let Some(original) = runtime.spell(request.spell_id) else {
-        return false;
+        return cancel_like_cpp(runtime, request.cast_id, request.spell_id, Default::default());
     };
     if !runtime.known(request.spell_id) {
         runtime.failure(
@@ -106,19 +114,10 @@ pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastReque
     // an unrepresented selection input, so the request is rejected explicitly
     // instead of leaving the client waiting on a cast that never publishes.
     let Some(visual) = runtime.visual(&spell) else {
-        runtime.failure(
-            request.cast_id,
-            request.spell_id,
-            Default::default(),
-            SpellCastResult::Error as i32,
-        );
-        return false;
+        return cancel_like_cpp(runtime, request.cast_id, request.spell_id, Default::default());
     };
-    if !runtime.publication_supported(&spell, request.cast_id, &visual, &request.metadata) {
-        return false;
-    }
     let Some((server_id, revision)) = runtime.allocate(spell.spell_id) else {
-        return false;
+        return cancel_like_cpp(runtime, request.cast_id, request.spell_id, visual);
     };
     runtime.prepare_mapping(request.cast_id, server_id);
     if runtime.disabled(spell.spell_id) {
@@ -136,7 +135,9 @@ pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastReque
             );
             return false;
         }
-        None => return false,
+        // A lost cooldown owner is still an abandoned cast, and the mapping to
+        // this server identity has already been published.
+        None => return cancel_like_cpp(runtime, server_id, spell.spell_id, visual),
     }
     if !runtime.check_preconditions(&spell, server_id, &visual, request.metadata)
         || !runtime.check_power(&spell, server_id, &visual)
@@ -160,7 +161,7 @@ pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastReque
         metadata,
     };
     if !runtime.install(cast.clone()) {
-        return false;
+        return cancel_like_cpp(runtime, server_id, spell.spell_id, cast.spell_visual);
     }
     runtime.start(&cast, &spell);
     cast.cast_time_ms == 0
