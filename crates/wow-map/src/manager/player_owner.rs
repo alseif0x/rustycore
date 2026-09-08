@@ -22,6 +22,8 @@ use crate::map::{
 use crate::{MapKey, MapObjectRelocationError, MapObjectRelocationOutcome, RemoveFromMapError};
 
 mod resolution;
+mod visibility;
+pub use visibility::PlayerVisibilityRefreshIntentLikeCpp;
 
 #[cfg(test)]
 mod failure_tests;
@@ -52,6 +54,8 @@ pub enum PlayerResidenceLikeCpp {
 pub(crate) struct PlayerOwnershipLikeCpp {
     generation: u64,
     residence: PlayerResidenceLikeCpp,
+    residence_revision: u64,
+    pending_visibility_refresh: Option<PlayerVisibilityRefreshIntentLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +71,7 @@ pub enum PlayerOwnerError {
         guid: ObjectGuid,
     },
     GenerationExhausted,
+    ResidenceRevisionExhausted,
     AlreadyOwned {
         guid: ObjectGuid,
     },
@@ -149,6 +154,8 @@ impl MapManager {
             PlayerOwnershipLikeCpp {
                 generation,
                 residence: PlayerResidenceLikeCpp::Active(key),
+                residence_revision: 1,
+                pending_visibility_refresh: None,
             },
         );
         Ok(PlayerHandle { guid, generation })
@@ -199,6 +206,8 @@ impl MapManager {
             PlayerOwnershipLikeCpp {
                 generation,
                 residence: PlayerResidenceLikeCpp::Detached,
+                residence_revision: 0,
+                pending_visibility_refresh: None,
             },
         );
         Ok(PlayerHandle { guid, generation })
@@ -268,6 +277,13 @@ impl MapManager {
         if self.find_map(key.map_id, key.instance_id).is_none() {
             return Err(PlayerOwnerError::MissingMap { key });
         }
+        // Reserve the next residence identity before moving the Player. The
+        // incarnation survives transfers, but an old visibility request must
+        // never become current again after leaving and returning to this map.
+        let residence_revision = owner
+            .residence_revision
+            .checked_add(1)
+            .ok_or(PlayerOwnerError::ResidenceRevisionExhausted)?;
         let player = self
             .detached_players_like_cpp
             .remove(&handle.guid)
@@ -297,10 +313,13 @@ impl MapManager {
                 }
             });
         }
-        self.player_owners_like_cpp
+        let owner = self
+            .player_owners_like_cpp
             .get_mut(&handle.guid)
-            .expect("current Player handle must retain its owner row")
-            .residence = PlayerResidenceLikeCpp::Active(key);
+            .expect("current Player handle must retain its owner row");
+        owner.residence = PlayerResidenceLikeCpp::Active(key);
+        owner.residence_revision = residence_revision;
+        owner.pending_visibility_refresh = None;
         Ok(())
     }
 
@@ -328,10 +347,12 @@ impl MapManager {
                 }
             })?;
         self.detached_players_like_cpp.insert(handle.guid, player);
-        self.player_owners_like_cpp
+        let owner = self
+            .player_owners_like_cpp
             .get_mut(&handle.guid)
-            .expect("current Player handle must retain its owner row")
-            .residence = PlayerResidenceLikeCpp::Detached;
+            .expect("current Player handle must retain its owner row");
+        owner.residence = PlayerResidenceLikeCpp::Detached;
+        owner.pending_visibility_refresh = None;
         Ok(())
     }
 

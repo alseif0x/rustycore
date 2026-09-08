@@ -8163,6 +8163,24 @@ fn committed_bank_relocation_updates_runtime_only_after_explicit_apply() {
 async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp() {
     let (mut session, instance_rx, canonical) = make_bank_slot_session(16);
     insert_bank_test_player_in_world(&session, &canonical);
+    // Login adopts the canonical Player handle and the character arrives alive
+    // with a faction. The cast identity allocator fails closed without the
+    // handle, HandleBinderActivateOpcode returns early for a caster that is not
+    // alive, and the interaction reaction check fails closed without a faction
+    // template, so this fixture installs all three like production does.
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(
+        crate::canonical_player_access::configure_canonical_player_vitals_for_test(
+            &canonical,
+            session.player_guid().expect("loaded player"),
+            (100, 100, wow_constants::PowerType::Mana, 100, 100, 100),
+        )
+    );
+    session.set_player_faction_template_like_cpp(1);
+    // Login adopts the canonical Player handle and the character arrives alive.
+    // The cast identity allocator fails closed without the handle, and
+    // HandleBinderActivateOpcode returns early for a caster that is not alive,
+    // so this fixture installs both like production does.
     let player_guid = session.player_guid().expect("loaded player");
     let homebind_port = HomebindPortFixtureLikeCpp::new([PersistenceOutcomeLikeCpp::Failed {
         reason: "detached write failure".to_owned(),
@@ -8269,6 +8287,20 @@ async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp()
 async fn binder_activate_fans_spell_go_to_visible_nearby_observers_like_cpp() {
     let (mut session, sender_rx, canonical) = make_bank_slot_session(16);
     insert_bank_test_player_in_world(&session, &canonical);
+    // Login adopts the canonical Player handle and the character arrives alive
+    // with a faction. The cast identity allocator fails closed without the
+    // handle, HandleBinderActivateOpcode returns early for a caster that is not
+    // alive, and the interaction reaction check fails closed without a faction
+    // template, so this fixture installs all three like production does.
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(
+        crate::canonical_player_access::configure_canonical_player_vitals_for_test(
+            &canonical,
+            session.player_guid().expect("loaded player"),
+            (100, 100, wow_constants::PowerType::Mana, 100, 100, 100),
+        )
+    );
+    session.set_player_faction_template_like_cpp(1);
     let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 32);
     insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
     session.set_player_zone_area_like_cpp(12, 34);

@@ -490,6 +490,7 @@ fn deterministic(outcome: SpellAcquisitionOutcomeLikeCpp) -> SpellAcquisitionPla
 
 mod authority;
 mod cast;
+mod operations;
 mod skill_parent;
 mod skill_rewards;
 mod skill_state;

@@ -15,14 +15,20 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 mod bot_srp6;
+mod cast_lifecycle;
+mod run_report;
+use run_report::{log_bot_summary, write_report_if_requested};
 mod config;
 mod login_save;
+mod login_stream;
 mod loot_race;
 mod packet_parser;
 mod protocol;
+mod spell_acquisition;
 mod srp6_auth;
 mod wow_crypto;
 
+use login_stream::drain_login_streams;
 use packet_parser::*;
 use protocol::*;
 use wow_crypto::WorldCrypt;
@@ -344,6 +350,8 @@ struct CliOptions {
     creature_spell_capture: bool,
     creature_spell_fixture_manifest: Option<String>,
     creature_spell_capture_timeout_secs: u64,
+    cast_lifecycle: bool,
+    cast_lifecycle_plan: Option<String>,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     ack_disposable_overworld_loot_race: bool,
@@ -405,8 +413,11 @@ struct BotRunResult {
     world_auth: bool,
     enum_characters: bool,
     player_login_verified: bool,
+    login_instance_object_update_seen: bool,
     login_stream_drained: bool,
     login_save: Option<login_save::Evidence>,
+    spell_acquisition: Option<spell_acquisition::Evidence>,
+    cast_lifecycle: Option<cast_lifecycle::Evidence>,
     login_only: bool,
     stand_state_smoke: bool,
     stand_state_smoke_passed: Option<bool>,
@@ -737,6 +748,15 @@ impl BotRunResult {
                 && self.creature_spell_disconnect_confirmed
                 && !self.creature_spell_logout_confirmed;
         }
+        if self.cast_lifecycle.is_some() {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self
+                    .cast_lifecycle
+                    .as_ref()
+                    .is_some_and(|evidence| evidence.passed);
+        }
         if self.loot_race_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -779,6 +799,7 @@ struct RunReport {
     rested_xp_smoke: bool,
     detour_chase_capture: bool,
     creature_spell_capture: bool,
+    cast_lifecycle: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     group_capacity_race_smoke: bool,
@@ -1485,6 +1506,11 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(DEFAULT_CREATURE_SPELL_CAPTURE_TIMEOUT_SECS),
+        cast_lifecycle: std::env::var("WOW_BOT_CAST_LIFECYCLE")
+            .ok()
+            .is_some_and(|value| is_truthy(&value))
+            || std::env::var_os("WOW_BOT_CAST_LIFECYCLE_PLAN").is_some(),
+        cast_lifecycle_plan: std::env::var("WOW_BOT_CAST_LIFECYCLE_PLAN").ok(),
         loot_race_smoke: std::env::var("WOW_BOT_LOOT_RACE_SMOKE")
             .ok()
             .is_some_and(|value| is_truthy(&value)),
@@ -1792,6 +1818,11 @@ fn parse_cli() -> Result<CliOptions> {
             "--creature-spell-timeout" => {
                 opts.creature_spell_capture_timeout_secs =
                     next_arg(&mut args, "--creature-spell-timeout")?.parse()?;
+            }
+            "--cast-lifecycle" => opts.cast_lifecycle = true,
+            "--cast-lifecycle-plan" => {
+                opts.cast_lifecycle = true;
+                opts.cast_lifecycle_plan = Some(next_arg(&mut args, "--cast-lifecycle-plan")?);
             }
             "--loot-race-smoke" => opts.loot_race_smoke = true,
             "--loot-item-capture" => opts.loot_item_capture = true,
@@ -3181,6 +3212,10 @@ fn print_help() {
         "                           Env: WOW_BOT_CREATURE_SPELL_CAPTURE, WOW_BOT_CREATURE_SPELL_FIXTURE_MANIFEST, WOW_BOT_CREATURE_SPELL_TIMEOUT_SECS"
     );
     println!(
+        "  --cast-lifecycle          Run a JSON Cast/Cancel/Wait player spell script and ordered observer"
+    );
+    println!("  --cast-lifecycle-plan <path>  3.4.3 cast plan (or WOW_BOT_CAST_LIFECYCLE_PLAN)");
+    println!(
         "  --loot-race-smoke       Race ITEM and MONEY claims on one shared chest from two real sessions"
     );
     println!(
@@ -3906,6 +3941,7 @@ async fn main() -> Result<()> {
             || cli.rested_xp_smoke
             || cli.detour_chase_capture
             || cli.creature_spell_capture
+            || cli.cast_lifecycle
             || cli.loot_race_smoke
             || cli.loot_item_capture
             || cli.group_capacity_race_smoke
@@ -3942,6 +3978,14 @@ async fn main() -> Result<()> {
             fixture_manifest_sha256,
             timeout_secs: cli.creature_spell_capture_timeout_secs,
         })
+    } else {
+        None
+    };
+    let cast_lifecycle_options = if cli.cast_lifecycle {
+        let path = cli.cast_lifecycle_plan.as_deref().context(
+            "--cast-lifecycle requires --cast-lifecycle-plan or WOW_BOT_CAST_LIFECYCLE_PLAN",
+        )?;
+        Some(cast_lifecycle::load(Path::new(path))?)
     } else {
         None
     };
@@ -4003,6 +4047,15 @@ async fn main() -> Result<()> {
     if cli.creature_spell_capture && bots.len() != 1 {
         bail!("--creature-spell-capture requires exactly one pinned fixture bot");
     }
+    if cli.cast_lifecycle && bots.len() != 1 {
+        bail!("--cast-lifecycle requires exactly one configured bot; select it with --single");
+    }
+    if cli.cast_lifecycle && cli.login_only {
+        bail!("--cast-lifecycle and --login-only are separate post-login modes");
+    }
+    if cli.cast_lifecycle && cli.ensure_test_accounts {
+        bail!("--cast-lifecycle never provisions accounts; remove --ensure-test-accounts");
+    }
     let missing_passwords: Vec<&str> = bots
         .iter()
         .filter(|bot| {
@@ -4023,6 +4076,7 @@ async fn main() -> Result<()> {
     let guarded_identity_mode = loot_mode
         || cli.detour_chase_capture
         || cli.creature_spell_capture
+        || cli.cast_lifecycle
         || cli.group_capacity_race_smoke
         || cli.equipment_set_race_smoke;
     validate_provisioning_mode(guarded_identity_mode, cli.ensure_test_accounts)?;
@@ -4038,6 +4092,7 @@ async fn main() -> Result<()> {
         cli.rested_xp_smoke,
         cli.detour_chase_capture,
         cli.creature_spell_capture,
+        cli.cast_lifecycle,
         cli.loot_race_smoke,
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
@@ -4048,7 +4103,7 @@ async fn main() -> Result<()> {
     .count();
     if post_login_mode_count > 1 {
         bail!(
-            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
+            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, cast-lifecycle, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
         );
     }
     if cli.bank_smoke && bots.len() != 1 {
@@ -4231,6 +4286,8 @@ async fn main() -> Result<()> {
             "detour-chase-capture"
         } else if cli.creature_spell_capture {
             "creature-spell-capture"
+        } else if cli.cast_lifecycle {
+            "cast-lifecycle"
         } else if cli.loot_race_smoke {
             "loot-race-smoke"
         } else if cli.loot_item_capture {
@@ -4264,6 +4321,7 @@ async fn main() -> Result<()> {
         && !cli.rested_xp_smoke
         && !cli.detour_chase_capture
         && !cli.creature_spell_capture
+        && !cli.cast_lifecycle
         && !cli.loot_race_smoke
         && !cli.loot_item_capture
         && !cli.group_capacity_race_smoke
@@ -4340,6 +4398,7 @@ async fn main() -> Result<()> {
             info!("\n[Bot {}] Starting...", bot.account);
             let detour_failure_bot = cli.detour_chase_capture.then(|| bot.clone());
             let creature_spell_failure_bot = cli.creature_spell_capture.then(|| bot.clone());
+            let cast_lifecycle_failure_bot = cli.cast_lifecycle.then(|| bot.clone());
             let run = if cli.bank_smoke {
                 run_bank_smoke_workflow(
                     bot,
@@ -4436,6 +4495,8 @@ async fn main() -> Result<()> {
                     options,
                 )
                 .await
+            } else if let Some(options) = cast_lifecycle_options.clone() {
+                cast_lifecycle::run(bot, dungeon_id, timeout_secs, options).await
             } else {
                 run_bot(
                     bot,
@@ -4482,6 +4543,11 @@ async fn main() -> Result<()> {
                             options,
                             error.to_string(),
                         );
+                        log_bot_summary(&result, require_proposal, require_group, cli.login_only);
+                        results.push(result);
+                    } else if let Some(bot) = cast_lifecycle_failure_bot {
+                        let result =
+                            cast_lifecycle::failure_result(&bot, dungeon_id, error.to_string());
                         log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                         results.push(result);
                     } else {
@@ -4558,6 +4624,7 @@ async fn main() -> Result<()> {
         cli.rested_xp_smoke,
         cli.detour_chase_capture,
         cli.creature_spell_capture,
+        cli.cast_lifecycle,
         cli.loot_race_smoke,
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
@@ -4711,6 +4778,7 @@ async fn run_bot(
         None,
         None,
         None,
+        None,
     )
     .await
 }
@@ -4749,6 +4817,7 @@ async fn run_bot_with_detour_chase(
         None,
         None,
         Some(detour_chase_options),
+        None,
         None,
     )
     .await
@@ -4813,6 +4882,7 @@ async fn run_bot_with_creature_spell_capture(
         None,
         None,
         Some(creature_spell_options),
+        None,
     )
     .await
 }
@@ -4858,6 +4928,7 @@ async fn run_bot_with_void_storage(
     mut void_storage_options: Option<VoidStorageSmokeOptions>,
     detour_chase_options: Option<DetourChaseCaptureOptions>,
     creature_spell_options: Option<CreatureSpellCaptureOptions>,
+    cast_lifecycle_options: Option<cast_lifecycle::Options>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
     let void_storage_query_capture = void_storage_options
@@ -4880,8 +4951,13 @@ async fn run_bot_with_void_storage(
         world_auth: false,
         enum_characters: false,
         player_login_verified: false,
+        login_instance_object_update_seen: false,
         login_stream_drained: false,
         login_save: None,
+        spell_acquisition: None,
+        cast_lifecycle: cast_lifecycle_options
+            .as_ref()
+            .map(|_| cast_lifecycle::Evidence::default()),
         login_only,
         stand_state_smoke: stand_state_options.is_some(),
         stand_state_smoke_passed: None,
@@ -5165,6 +5241,7 @@ async fn run_bot_with_void_storage(
         seen_opcodes: Vec::new(),
     };
 
+    let mut acquisition_plan = spell_acquisition::load()?;
     let login_save_before = if login_save::enabled() {
         if !login_only {
             bail!("login save check requires login-only mode");
@@ -5532,6 +5609,7 @@ async fn run_bot_with_void_storage(
         {
             Ok(Ok((op, payload))) => {
                 result.seen_opcodes.push(format!("0x{:04X}", op));
+                login_stream::observe_login_packet(realm_connection.is_some(), op, &mut result);
                 if op == SMSG_SEND_KNOWN_SPELLS {
                     let decoded = decode_login_known_spells_like_cpp(&payload)?;
                     if !decoded.initial_login {
@@ -5719,6 +5797,11 @@ async fn run_bot_with_void_storage(
                         )?;
                     }
                 }
+                if let Some(plan) = acquisition_plan.as_mut() {
+                    plan.observe_login(op, &payload, &mut stream, &mut crypt)
+                        .await?;
+                }
+                let acquisition_ready = acquisition_plan.as_ref().is_none_or(|p| p.login_ready());
                 if op == 0x2597 {
                     // SMSG_LOGIN_VERIFY_WORLD
                     info!("[Bot {}] ✅ SMSG_LOGIN_VERIFY_WORLD received", bot_index);
@@ -5741,6 +5824,7 @@ async fn run_bot_with_void_storage(
                         && equipment_set_login_ready
                         && void_storage_login_ready
                         && inventory_swap_login_ready
+                        && acquisition_ready
                     {
                         break;
                     }
@@ -5791,7 +5875,11 @@ async fn run_bot_with_void_storage(
                     let inventory_swap_login_ready = inventory_swap_options
                         .as_ref()
                         .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
-                    if login_ok && void_storage_login_ready && inventory_swap_login_ready {
+                    if login_ok
+                        && void_storage_login_ready
+                        && inventory_swap_login_ready
+                        && acquisition_ready
+                    {
                         break;
                     }
                 } else if op == 0x304B {
@@ -5814,6 +5902,7 @@ async fn run_bot_with_void_storage(
                 }
                 if require_known_spells
                     && login_known_spells_ready(login_ok, true, known_spells_seen)
+                    && acquisition_ready
                 {
                     break;
                 }
@@ -5837,6 +5926,19 @@ async fn run_bot_with_void_storage(
         bail!("issue #20 item CREATE_OBJECT was not observed during the login window");
     }
     result.player_login_verified = true;
+
+    if let Some(cast_lifecycle_options) = cast_lifecycle_options {
+        cast_lifecycle::run_after_login(
+            cast_lifecycle_options,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &mut result,
+        )
+        .await;
+        return Ok(result);
+    }
 
     if let Some(stand_state_options) = stand_state_options {
         run_stand_state_smoke(
@@ -6191,7 +6293,12 @@ async fn run_bot_with_void_storage(
     }
 
     if login_only {
-        drain_login_streams(
+        login_save::finish_login(
+            acquisition_plan.as_ref(),
+            bot_index,
+            &bot,
+            login_save_before,
+            saved_known_spells,
             &mut stream,
             &mut crypt,
             &mut server_inflater,
@@ -6199,22 +6306,6 @@ async fn run_bot_with_void_storage(
             &mut result,
         )
         .await?;
-        if let Some(before) = login_save_before {
-            let known = saved_known_spells.context("save check missing known-spell packet")?;
-            let evidence = login_save::complete(
-                bot_index,
-                &bot,
-                before,
-                known,
-                &mut stream,
-                &mut crypt,
-                &mut server_inflater,
-                &mut realm_connection,
-                &mut result,
-            )
-            .await?;
-            result.login_save = Some(evidence);
-        }
         info!(
             "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
             bot_index
@@ -6384,591 +6475,6 @@ async fn run_bot_with_void_storage(
         bot_index, result_code, detail_code
     );
     Ok(result)
-}
-
-fn log_bot_summary(
-    result: &BotRunResult,
-    require_proposal: bool,
-    require_group: bool,
-    login_only: bool,
-) {
-    if result.success(require_proposal, require_group, login_only) {
-        if result.stand_state_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS stand_state_smoke requested={:?} confirmed={:?} failure={:?}",
-                result.account,
-                result.stand_states_requested,
-                result.stand_states_confirmed,
-                result.stand_state_failure
-            );
-            return;
-        }
-        if result.quest_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
-                result.account,
-                result.quest_target_entry,
-                result.quest_target_spawn_guid,
-                result.quest_ids_seen,
-                result.quest_details_seen,
-                result.quest_request_items_seen,
-                result.quest_accept_sent,
-                result.quest_db_verified,
-                result.quest_db_status,
-                result.quest_objective_db_verified,
-                result.quest_objective_db_before,
-                result.quest_objective_db_after,
-                result.quest_failure
-            );
-            return;
-        }
-        if result.bank_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS bank_smoke banker={:?}/{:?} item={:?}/entry={:?} slots={:?}->{:?} open={} deposit={} relog={} withdraw={} failure={:?}",
-                result.account,
-                result.bank_banker_entry,
-                result.bank_banker_spawn_guid,
-                result.bank_item_guid,
-                result.bank_item_entry,
-                result.bank_inventory_slot,
-                result.bank_bank_slot,
-                result.bank_open_confirmed,
-                result.bank_deposit_persisted,
-                result.bank_relogin_after_deposit,
-                result.bank_withdraw_persisted,
-                result.bank_failure
-            );
-            return;
-        }
-        if result.void_storage_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS void_storage item_id={:?} unlock={} deposit={} deposit_relog={} swap={} swap_relog={} withdraw={} withdraw_relog={} failure={:?}",
-                result.account,
-                result.void_storage_item_id,
-                result.void_storage_unlock_persisted,
-                result.void_storage_deposit_persisted,
-                result.void_storage_deposit_relogin_verified,
-                result.void_storage_swap_persisted,
-                result.void_storage_swap_relogin_verified,
-                result.void_storage_withdraw_persisted,
-                result.void_storage_withdraw_relogin_verified,
-                result.void_storage_failure
-            );
-            return;
-        }
-        if result.void_storage_query_capture {
-            info!(
-                "✅ Bot {}: SUCCESS void_storage_query_capture item_id={:?} failure={:?}",
-                result.account, result.void_storage_item_id, result.void_storage_failure
-            );
-            return;
-        }
-        if result.homebind_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
-                result.account,
-                result.homebind_innkeeper_entry,
-                result.homebind_innkeeper_spawn_guid,
-                result.homebind_spell_go_seen,
-                result.homebind_bind_point_update_seen,
-                result.homebind_player_bound_seen,
-                result.homebind_gossip_complete_seen,
-                result.homebind_db_persisted,
-                result.homebind_relogin_verified,
-                result.homebind_failure
-            );
-            return;
-        }
-        if result.inventory_swap_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} validation_gate={} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
-                result.account,
-                result.inventory_swap_item_guid_a,
-                result.inventory_swap_item_guid_b,
-                result.inventory_swap_item_entry_a,
-                result.inventory_swap_item_entry_b,
-                result.inventory_swap_slot_a,
-                result.inventory_swap_slot_b,
-                result.inventory_swap_validation_gate_seen,
-                result.inventory_swap_forward_persisted,
-                result.inventory_swap_relogin_after_forward,
-                result.inventory_swap_reverse_persisted,
-                result.inventory_swap_relogin_after_reverse,
-                result.inventory_swap_item_create_sha256,
-                result.inventory_swap_item_create_relogin_verified,
-                result.inventory_swap_item_metadata_persisted,
-                result.inventory_swap_failure
-            );
-            return;
-        }
-        if result.vendor_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS vendor_smoke vendor={:?}/{:?}/counter={:?} item={:?}/cost={:?} currency={:?} {:?}->{:?} item_total={:?} list={} buy={} set_currency={} item_push={} relog={} failure={:?}",
-                result.account,
-                result.vendor_entry,
-                result.vendor_spawn_guid,
-                result.vendor_runtime_counter,
-                result.vendor_item_entry,
-                result.vendor_extended_cost,
-                result.vendor_currency_id,
-                result.vendor_currency_before,
-                result.vendor_currency_after,
-                result.vendor_item_total_after,
-                result.vendor_inventory_seen,
-                result.vendor_buy_succeeded_seen,
-                result.vendor_set_currency_seen,
-                result.vendor_item_push_seen,
-                result.vendor_relogin_verified,
-                result.vendor_failure,
-            );
-            return;
-        }
-        if result.equipment_set_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS equipment_set_smoke type={:?} set_id={:?} guid={:?} login_count={:?} load={} db={} relog={} failure={:?}",
-                result.account,
-                result.equipment_set_type,
-                result.equipment_set_id,
-                result.equipment_set_generated_guid,
-                result.equipment_set_login_count,
-                result.equipment_set_load_seen,
-                result.equipment_set_db_persisted,
-                result.equipment_set_relogin_verified,
-                result.equipment_set_failure,
-            );
-            return;
-        }
-        if result.rested_xp_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS rested_xp_smoke offline={:?}/{:?} target={:?}/{:?}/counter={:?} xp={:?}+{:?} rest={:?}->{:?} relog={} failure={:?}",
-                result.account,
-                result.rested_xp_offline_wilderness_bonus,
-                result.rested_xp_offline_resting_bonus,
-                result.rested_xp_target_entry,
-                result.rested_xp_target_spawn_guid,
-                result.rested_xp_target_guid_counter,
-                result.rested_xp_packet_amount,
-                result.rested_xp_packet_original,
-                result.rested_xp_db_rest_before,
-                result.rested_xp_db_rest_after,
-                result.rested_xp_relog_verified,
-                result.rested_xp_failure,
-            );
-            return;
-        }
-        if result.detour_chase_capture {
-            info!(
-                "✅ Bot {}: SUCCESS detour_chase target={:?}/{:?}/counter={:?} attack_start={} first_swing={} prewindow_moves={} heartbeat={} window_moves={} move_sha256={:?} ping={:?}/pong={} time_sync={}/{}/{} logout={} failure={:?}",
-                result.account,
-                result.detour_chase_target_entry,
-                result.detour_chase_target_spawn_guid,
-                result.detour_chase_target_runtime_counter,
-                result.detour_chase_attack_start_confirmed,
-                result.detour_chase_first_swing_confirmed,
-                result.detour_chase_prewindow_target_moves,
-                result.detour_chase_heartbeat_sent,
-                result.detour_chase_window_target_moves,
-                result.detour_chase_monster_move_sha256,
-                result.detour_chase_ping_serial,
-                result.detour_chase_pong_confirmed,
-                result.detour_chase_time_sync_before_window,
-                result.detour_chase_time_sync_during_window,
-                result.detour_chase_time_sync_after_fence,
-                result.detour_chase_logout_confirmed,
-                result.detour_chase_failure,
-            );
-            return;
-        }
-        if result.creature_spell_capture {
-            info!(
-                "✅ Bot {}: SUCCESS creature_spell target={:?}/{:?}/counter={:?} heartbeat={} start={:?}/{:?} go={:?}/{:?} cast={:?}:{:?} hit={:?} miss={:?} full_log={:?} disconnect={} logout={} failure={:?}",
-                result.account,
-                result.creature_spell_target_entry,
-                result.creature_spell_target_spawn_guid,
-                result.creature_spell_target_runtime_counter,
-                result.creature_spell_heartbeat_sent,
-                result.creature_spell_start_opcode,
-                result.creature_spell_start_body_sha256,
-                result.creature_spell_go_opcode,
-                result.creature_spell_go_body_sha256,
-                result.creature_spell_cast_id_high,
-                result.creature_spell_cast_id_low,
-                result.creature_spell_go_hit_target_count,
-                result.creature_spell_go_miss_target_count,
-                result.creature_spell_full_combat_log,
-                result.creature_spell_disconnect_confirmed,
-                result.creature_spell_logout_confirmed,
-                result.creature_spell_failure,
-            );
-            return;
-        }
-        if result.loot_race_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
-                result.account,
-                result.loot_race_target_entry,
-                result.loot_race_target_spawn_guid,
-                result.loot_race_target_runtime_counter,
-                result.loot_race_party_confirmed,
-                result.loot_race_target_discovered,
-                result.loot_race_loot_opened,
-                result.loot_race_loot_list_id,
-                result.loot_race_loot_coins,
-                result.loot_race_item_push_seen,
-                result.loot_race_loot_removed_seen,
-                result.loot_race_money_notify_amount,
-                result.loot_race_coin_removed_seen,
-                result.loot_race_db_item_total,
-                result.loot_race_db_money_delta,
-                result.loot_race_relog_verified,
-                result.loot_race_failure,
-            );
-            return;
-        }
-        if result.group_capacity_race_smoke {
-            info!(
-                "✅ Bot {}: SUCCESS group_capacity_race group={:?} outcome={:?} final_members={:?} failure={:?}",
-                result.account,
-                result.group_capacity_group_id,
-                result.group_capacity_outcome,
-                result.group_capacity_final_member_count,
-                result.group_capacity_failure,
-            );
-            return;
-        }
-        info!(
-            "✅ Bot {}: SUCCESS login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
-            result.account,
-            result.world_auth,
-            result.enum_characters,
-            result.player_login_verified,
-            result.join_result,
-            result.join_detail,
-            result.got_proposal,
-            result.group_formed,
-            result.teleport_denied_reason
-        );
-    } else {
-        if result.stand_state_smoke {
-            error!(
-                "❌ Bot {}: FAILED stand_state_smoke requested={:?} confirmed={:?} failure={:?}",
-                result.account,
-                result.stand_states_requested,
-                result.stand_states_confirmed,
-                result.stand_state_failure
-            );
-            return;
-        }
-        if result.quest_smoke {
-            error!(
-                "❌ Bot {}: FAILED quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
-                result.account,
-                result.quest_target_entry,
-                result.quest_target_spawn_guid,
-                result.quest_ids_seen,
-                result.quest_details_seen,
-                result.quest_request_items_seen,
-                result.quest_accept_sent,
-                result.quest_db_verified,
-                result.quest_db_status,
-                result.quest_objective_db_verified,
-                result.quest_objective_db_before,
-                result.quest_objective_db_after,
-                result.quest_failure
-            );
-            return;
-        }
-        if result.bank_smoke {
-            error!(
-                "❌ Bot {}: FAILED bank_smoke banker={:?}/{:?} item={:?}/entry={:?} slots={:?}->{:?} open={} deposit={} relog={} withdraw={} failure={:?}",
-                result.account,
-                result.bank_banker_entry,
-                result.bank_banker_spawn_guid,
-                result.bank_item_guid,
-                result.bank_item_entry,
-                result.bank_inventory_slot,
-                result.bank_bank_slot,
-                result.bank_open_confirmed,
-                result.bank_deposit_persisted,
-                result.bank_relogin_after_deposit,
-                result.bank_withdraw_persisted,
-                result.bank_failure
-            );
-            return;
-        }
-        if result.void_storage_smoke {
-            error!(
-                "❌ Bot {}: FAILED void_storage item_id={:?} unlock={} deposit={} deposit_relog={} swap={} swap_relog={} withdraw={} withdraw_relog={} failure={:?}",
-                result.account,
-                result.void_storage_item_id,
-                result.void_storage_unlock_persisted,
-                result.void_storage_deposit_persisted,
-                result.void_storage_deposit_relogin_verified,
-                result.void_storage_swap_persisted,
-                result.void_storage_swap_relogin_verified,
-                result.void_storage_withdraw_persisted,
-                result.void_storage_withdraw_relogin_verified,
-                result.void_storage_failure
-            );
-            return;
-        }
-        if result.void_storage_query_capture {
-            error!(
-                "❌ Bot {}: FAILED void_storage_query_capture item_id={:?} failure={:?}",
-                result.account, result.void_storage_item_id, result.void_storage_failure
-            );
-            return;
-        }
-        if result.homebind_smoke {
-            error!(
-                "❌ Bot {}: FAILED homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
-                result.account,
-                result.homebind_innkeeper_entry,
-                result.homebind_innkeeper_spawn_guid,
-                result.homebind_spell_go_seen,
-                result.homebind_bind_point_update_seen,
-                result.homebind_player_bound_seen,
-                result.homebind_gossip_complete_seen,
-                result.homebind_db_persisted,
-                result.homebind_relogin_verified,
-                result.homebind_failure
-            );
-            return;
-        }
-        if result.inventory_swap_smoke {
-            error!(
-                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} validation_gate={} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
-                result.account,
-                result.inventory_swap_item_guid_a,
-                result.inventory_swap_item_guid_b,
-                result.inventory_swap_item_entry_a,
-                result.inventory_swap_item_entry_b,
-                result.inventory_swap_slot_a,
-                result.inventory_swap_slot_b,
-                result.inventory_swap_validation_gate_seen,
-                result.inventory_swap_forward_persisted,
-                result.inventory_swap_relogin_after_forward,
-                result.inventory_swap_reverse_persisted,
-                result.inventory_swap_relogin_after_reverse,
-                result.inventory_swap_item_create_sha256,
-                result.inventory_swap_item_create_relogin_verified,
-                result.inventory_swap_item_metadata_persisted,
-                result.inventory_swap_failure
-            );
-            return;
-        }
-        if result.vendor_smoke {
-            error!(
-                "❌ Bot {}: FAILED vendor_smoke vendor={:?}/{:?}/counter={:?} item={:?}/cost={:?} currency={:?} {:?}->{:?} item_total={:?} list={} buy={} set_currency={} item_push={} relog={} failure={:?}",
-                result.account,
-                result.vendor_entry,
-                result.vendor_spawn_guid,
-                result.vendor_runtime_counter,
-                result.vendor_item_entry,
-                result.vendor_extended_cost,
-                result.vendor_currency_id,
-                result.vendor_currency_before,
-                result.vendor_currency_after,
-                result.vendor_item_total_after,
-                result.vendor_inventory_seen,
-                result.vendor_buy_succeeded_seen,
-                result.vendor_set_currency_seen,
-                result.vendor_item_push_seen,
-                result.vendor_relogin_verified,
-                result.vendor_failure,
-            );
-            return;
-        }
-        if result.equipment_set_smoke {
-            error!(
-                "❌ Bot {}: FAILED equipment_set_smoke type={:?} set_id={:?} guid={:?} login_count={:?} load={} db={} relog={} failure={:?}",
-                result.account,
-                result.equipment_set_type,
-                result.equipment_set_id,
-                result.equipment_set_generated_guid,
-                result.equipment_set_login_count,
-                result.equipment_set_load_seen,
-                result.equipment_set_db_persisted,
-                result.equipment_set_relogin_verified,
-                result.equipment_set_failure,
-            );
-            return;
-        }
-        if result.rested_xp_smoke {
-            error!(
-                "❌ Bot {}: FAILED rested_xp_smoke offline={:?}/{:?} target={:?}/{:?}/counter={:?} packet={:?}/{:?} db_xp={:?}->{:?} db_rest={:?}->{:?} relog={} failure={:?}",
-                result.account,
-                result.rested_xp_offline_wilderness_bonus,
-                result.rested_xp_offline_resting_bonus,
-                result.rested_xp_target_entry,
-                result.rested_xp_target_spawn_guid,
-                result.rested_xp_target_guid_counter,
-                result.rested_xp_packet_amount,
-                result.rested_xp_packet_original,
-                result.rested_xp_db_xp_before,
-                result.rested_xp_db_xp_after,
-                result.rested_xp_db_rest_before,
-                result.rested_xp_db_rest_after,
-                result.rested_xp_relog_verified,
-                result.rested_xp_failure,
-            );
-            return;
-        }
-        if result.detour_chase_capture {
-            error!(
-                "❌ Bot {}: FAILED detour_chase target={:?}/{:?}/counter={:?} discovered={} active_mover={} attack_start={} first_swing={} prewindow_moves={} heartbeat={} window_moves={} move_sha256={:?} ping={:?}/pong={} time_sync={}/{}/{} logout={} failure={:?}",
-                result.account,
-                result.detour_chase_target_entry,
-                result.detour_chase_target_spawn_guid,
-                result.detour_chase_target_runtime_counter,
-                result.detour_chase_target_discovered,
-                result.detour_chase_active_mover_ack_sent,
-                result.detour_chase_attack_start_confirmed,
-                result.detour_chase_first_swing_confirmed,
-                result.detour_chase_prewindow_target_moves,
-                result.detour_chase_heartbeat_sent,
-                result.detour_chase_window_target_moves,
-                result.detour_chase_monster_move_sha256,
-                result.detour_chase_ping_serial,
-                result.detour_chase_pong_confirmed,
-                result.detour_chase_time_sync_before_window,
-                result.detour_chase_time_sync_during_window,
-                result.detour_chase_time_sync_after_fence,
-                result.detour_chase_logout_confirmed,
-                result.detour_chase_failure,
-            );
-            return;
-        }
-        if result.creature_spell_capture {
-            error!(
-                "❌ Bot {}: FAILED creature_spell target={:?}/{:?}/counter={:?} discovered={} heartbeat={} start={:?}/{:?} go={:?}/{:?} hit={:?} miss={:?} adjacent={} disconnect={} logout={} failure={:?}",
-                result.account,
-                result.creature_spell_target_entry,
-                result.creature_spell_target_spawn_guid,
-                result.creature_spell_target_runtime_counter,
-                result.creature_spell_target_discovered,
-                result.creature_spell_heartbeat_sent,
-                result.creature_spell_start_opcode,
-                result.creature_spell_start_body_sha256,
-                result.creature_spell_go_opcode,
-                result.creature_spell_go_body_sha256,
-                result.creature_spell_go_hit_target_count,
-                result.creature_spell_go_miss_target_count,
-                result.creature_spell_adjacent_start_go,
-                result.creature_spell_disconnect_confirmed,
-                result.creature_spell_logout_confirmed,
-                result.creature_spell_failure,
-            );
-            return;
-        }
-        if result.loot_race_smoke {
-            error!(
-                "❌ Bot {}: FAILED loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
-                result.account,
-                result.loot_race_target_entry,
-                result.loot_race_target_spawn_guid,
-                result.loot_race_target_runtime_counter,
-                result.loot_race_party_confirmed,
-                result.loot_race_target_discovered,
-                result.loot_race_loot_opened,
-                result.loot_race_loot_list_id,
-                result.loot_race_loot_coins,
-                result.loot_race_item_push_seen,
-                result.loot_race_loot_removed_seen,
-                result.loot_race_money_notify_amount,
-                result.loot_race_coin_removed_seen,
-                result.loot_race_db_item_total,
-                result.loot_race_db_money_delta,
-                result.loot_race_relog_verified,
-                result.loot_race_failure,
-            );
-            return;
-        }
-        if result.group_capacity_race_smoke {
-            error!(
-                "❌ Bot {}: FAILED group_capacity_race group={:?} outcome={:?} final_members={:?} failure={:?}",
-                result.account,
-                result.group_capacity_group_id,
-                result.group_capacity_outcome,
-                result.group_capacity_final_member_count,
-                result.group_capacity_failure,
-            );
-            return;
-        }
-        error!(
-            "❌ Bot {}: FAILED login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
-            result.account,
-            result.world_auth,
-            result.enum_characters,
-            result.player_login_verified,
-            result.join_result,
-            result.join_detail,
-            result.got_proposal,
-            result.group_formed,
-            result.teleport_denied_reason
-        );
-    }
-}
-
-fn write_report_if_requested(
-    cli: &CliOptions,
-    dungeon_id: u32,
-    timeout_secs: u64,
-    require_proposal: bool,
-    require_group: bool,
-    auto_teleport: bool,
-    login_only: bool,
-    stand_state_smoke: bool,
-    bank_smoke: bool,
-    void_storage_smoke: bool,
-    void_storage_query_capture: bool,
-    homebind_smoke: bool,
-    inventory_swap_smoke: bool,
-    vendor_smoke: bool,
-    equipment_set_race_smoke: bool,
-    rested_xp_smoke: bool,
-    detour_chase_capture: bool,
-    creature_spell_capture: bool,
-    loot_race_smoke: bool,
-    loot_item_capture: bool,
-    group_capacity_race_smoke: bool,
-    quest_smoke: bool,
-    results: &[BotRunResult],
-) -> Result<()> {
-    let path = cli.report_path.clone().unwrap_or_else(|| {
-        format!(
-            "/tmp/wow-bot-run-{}.json",
-            chrono::Utc::now().format("%Y%m%d-%H%M%S")
-        )
-    });
-    let report = RunReport {
-        dungeon_id,
-        timeout_secs,
-        require_proposal,
-        require_group,
-        auto_teleport,
-        login_only,
-        stand_state_smoke,
-        bank_smoke,
-        void_storage_smoke,
-        void_storage_query_capture,
-        homebind_smoke,
-        inventory_swap_smoke,
-        vendor_smoke,
-        equipment_set_race_smoke,
-        rested_xp_smoke,
-        detour_chase_capture,
-        creature_spell_capture,
-        loot_race_smoke,
-        loot_item_capture,
-        group_capacity_race_smoke,
-        quest_smoke,
-        results: results.to_vec(),
-    };
-    let json = serde_json::to_string_pretty(&report)?;
-    std::fs::write(&path, json)?;
-    info!("Report written: {}", path);
-    Ok(())
 }
 
 fn cleanup_bot_group_state(bots: &[config::BotConfig]) -> Result<()> {
@@ -9021,6 +8527,7 @@ async fn run_void_storage_smoke_workflow(
             Some(unlock_deposit),
             None,
             None,
+            None,
         )
         .await?;
         if !combined.void_storage_smoke_passed.unwrap_or(false) {
@@ -9064,6 +8571,7 @@ async fn run_void_storage_smoke_workflow(
                 None,
                 None,
                 Some(options),
+                None,
                 None,
                 None,
             )
@@ -9158,6 +8666,7 @@ async fn run_void_storage_query_capture_workflow(
         None,
         None,
         Some(fixture.options.clone()),
+        None,
         None,
         None,
     )
@@ -12757,76 +12266,6 @@ async fn wait_for_bank_item_location(
         item_guid,
         expected_slot
     )
-}
-
-// C++ Map::AddPlayerToMap / SendInitSelf publishes UPDATE_OBJECT after
-// LOGIN_VERIFY_WORLD. Keep both sockets alive through that publication and a
-// bounded quiet period; this is a stream-drain proof, not a gameplay acceptance.
-async fn drain_login_streams(
-    stream: &mut TcpStream,
-    crypt: &mut WorldCrypt,
-    inflater: &mut ServerPacketInflater,
-    realm_connection: &mut Option<EncryptedWorldConnection>,
-    result: &mut BotRunResult,
-) -> Result<()> {
-    let realm = realm_connection
-        .as_mut()
-        .context("login drain requires both sockets")?;
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
-    let mut object_update_seen = false;
-    loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining.is_zero() {
-            bail!("login streams did not settle after object publication");
-        }
-        let mut instance_peek = [0; 1];
-        let mut realm_peek = [0; 1];
-        // Peek is cancellation-safe: never race partial encrypted frame reads.
-        let ready = tokio::time::timeout(remaining.min(Duration::from_secs(1)), async {
-            tokio::select! {
-                bytes = stream.peek(&mut instance_peek) => {
-                    if bytes? == 0 { bail!("instance closed during login drain"); }
-                    Ok::<bool, anyhow::Error>(true)
-                }
-                bytes = realm.stream.peek(&mut realm_peek) => {
-                    if bytes? == 0 { bail!("realm closed during login drain"); }
-                    Ok(false)
-                }
-            }
-        })
-        .await;
-        let instance = match ready {
-            Ok(ready) => ready?,
-            Err(_) if object_update_seen => {
-                result.login_stream_drained = true;
-                return Ok(());
-            }
-            Err(_) => continue,
-        };
-        let (opcode, payload) = tokio::time::timeout_at(deadline, async {
-            if instance {
-                read_encrypted_packet(stream, crypt, inflater).await
-            } else {
-                read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater)
-                    .await
-            }
-        })
-        .await
-        .context("login drain frame deadline exceeded")??;
-        result.seen_opcodes.push(format!("0x{opcode:04X}"));
-        object_update_seen |= instance && opcode == SMSG_UPDATE_OBJECT;
-        if opcode == SMSG_TIME_SYNC_REQUEST {
-            // MiscPackets.cpp TimeSyncRequest::Write / TimeSyncResponse::Read.
-            let sequence = parse_time_sync_request_sequence(&payload)?;
-            let response = build_time_sync_response_payload(sequence, 0);
-            tokio::time::timeout_at(
-                deadline,
-                send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response),
-            )
-            .await
-            .context("login drain time-sync write deadline exceeded")??;
-        }
-    }
 }
 
 async fn logout_and_wait(
@@ -18700,59 +18139,6 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn login_drain_requires_object_publication_and_live_sockets() {
-        async fn pair() -> (TcpStream, TcpStream) {
-            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let client = TcpStream::connect(listener.local_addr().unwrap())
-                .await
-                .unwrap();
-            (client, listener.accept().await.unwrap().0)
-        }
-        for (publish, close_realm) in [(true, false), (true, true), (false, false)] {
-            let (mut instance, mut server) = pair().await;
-            let (realm, realm_server) = pair().await;
-            let mut connection = Some(EncryptedWorldConnection {
-                stream: realm,
-                crypt: WorldCrypt::new(&[0; 16]),
-                inflater: ServerPacketInflater::default(),
-            });
-            let mut server_crypt = WorldCrypt::new(&[0; 16]);
-            let (ciphertext, tag) = server_crypt
-                .encrypt_server(&SMSG_UPDATE_OBJECT.to_le_bytes(), &[])
-                .unwrap();
-            if publish {
-                server
-                    .write_all(&(ciphertext.len() as u32).to_le_bytes())
-                    .await
-                    .unwrap();
-                server.write_all(&tag).await.unwrap();
-                server.write_all(&ciphertext).await.unwrap();
-            }
-            let realm_server = if close_realm {
-                drop(realm_server);
-                None
-            } else {
-                Some(realm_server)
-            };
-            let mut result = BotRunResult::default();
-            let drained = tokio::time::timeout(
-                Duration::from_secs(2),
-                drain_login_streams(
-                    &mut instance,
-                    &mut WorldCrypt::new(&[0; 16]),
-                    &mut ServerPacketInflater::default(),
-                    &mut connection,
-                    &mut result,
-                ),
-            )
-            .await;
-            assert_eq!(matches!(drained, Ok(Ok(()))), publish && !close_realm);
-            assert_eq!(result.login_stream_drained, publish && !close_realm);
-            drop(realm_server);
-        }
-    }
 
     fn write_test_msb_bits(buffer: &mut [u8], bit_offset: usize, bit_count: usize, value: u32) {
         assert!(bit_count <= 32);

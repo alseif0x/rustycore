@@ -4,11 +4,7 @@
 use std::time::Instant;
 use wow_core::{ObjectGuid, Position};
 
-/// Additional spell cast metadata that C++ stores on `Spell` before `prepare`.
-///
-/// Default values preserve the represented normal-cast path: `OriginalCastID`
-/// is the same as `CastID`, `CastFlagsEx` is zero, and no item entry/misc data
-/// is attached.
+/// Item identity retained by the represented battle-pet acquisition effect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCastBattlePetItemModifiersLikeCpp {
     /// Stable identity of the caged item consumed by C++
@@ -20,9 +16,16 @@ pub struct SpellCastBattlePetItemModifiersLikeCpp {
     pub display_id: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SpellCastMetadata {
     pub from_client: bool,
+    /// Present only for the prepared normal client-request lifecycle. The
+    /// request identity is mapped by SpellPrepare, never used as server CastID.
+    pub client_cast_id: Option<ObjectGuid>,
+    /// Stamp of the admitted residence, not another owner or a lifetime lease.
+    /// The map adapter rechecks it before consuming a prepared client cast.
+    pub prepared_residence_revision: Option<u64>,
+    pub client_started_global_cooldown: bool,
     /// Overrides the visible/effect caster for represented triggered casts.
     /// Normal player casts leave this empty and use the logged-in player GUID.
     pub caster_guid_override: Option<ObjectGuid>,
@@ -36,12 +39,29 @@ pub struct SpellCastMetadata {
     pub unit_target_battle_pet_companion_guid: Option<ObjectGuid>,
     pub restore_last_spell_cast_time_on_power_failure: bool,
     pub previous_last_spell_cast_time_on_power_failure: Option<Instant>,
+    /// C++ `SpellCastTargets::HasTraj()`, which is `m_speed != 0` after
+    /// `HandleCastSpellOpcode` copies the request's `MissileTrajectory.Speed`.
+    /// Retained so publication can recognise a trajectory cast; the pitch and
+    /// speed pair and `Spell::m_delayMoment` are not represented.
+    pub request_has_trajectory_like_cpp: bool,
+    /// C++ `SpellCastTargets::m_pitch`, written back by `SendSpellGo` as
+    /// `MissileTrajectory.Pitch` under `CAST_FLAG_ADJUST_MISSILE`.
+    pub request_trajectory_pitch_like_cpp: f32,
+    /// C++ `TRIGGERED_IGNORE_GCD`, part of `TRIGGERED_FULL_MASK`.
+    /// `Spell::prepare` calls `TriggerGlobalCooldown` only when the trigger
+    /// flags do not carry it, so a `CastSpell(..., true)` server cast leaves
+    /// the player's global cooldown untouched while a `TRIGGERED_NONE` server
+    /// cast still starts it.
+    pub triggered_ignores_global_cooldown_like_cpp: bool,
 }
 
 impl Default for SpellCastMetadata {
     fn default() -> Self {
         Self {
             from_client: false,
+            client_cast_id: None,
+            prepared_residence_revision: None,
+            client_started_global_cooldown: false,
             caster_guid_override: None,
             cast_flags: 0,
             misc: [0, 0],
@@ -52,13 +72,16 @@ impl Default for SpellCastMetadata {
             unit_target_battle_pet_companion_guid: None,
             restore_last_spell_cast_time_on_power_failure: false,
             previous_last_spell_cast_time_on_power_failure: None,
+            request_has_trajectory_like_cpp: false,
+            request_trajectory_pitch_like_cpp: 0.0,
+            triggered_ignores_global_cooldown_like_cpp: false,
         }
     }
 }
 
 impl SpellCastMetadata {
     pub fn original_cast_id_or(self, cast_id: ObjectGuid) -> ObjectGuid {
-        if self.original_cast_id.is_empty() {
+        if self.original_cast_id.is_empty() && self.client_cast_id.is_none() {
             cast_id
         } else {
             self.original_cast_id
@@ -119,15 +142,22 @@ impl CastExecutionStateLikeCpp {
     /// the eligible slot/spell; `None` cancels any retained active cast.
     /// Pending player requests and packet publication are separate transitions.
     pub fn interrupt_active_cast(&mut self, spell_id: Option<i32>) -> bool {
+        self.take_interrupted_cast(spell_id).is_some()
+    }
+
+    pub fn take_interrupted_cast(&mut self, spell_id: Option<i32>) -> Option<SpellCastState> {
         if !self
             .active
             .as_ref()
             .is_some_and(|cast| spell_id.is_none_or(|id| cast.spell_id == id))
         {
-            return false;
+            return None;
         }
-        self.active.take();
-        true
+        let cast = self.active.take()?;
+        if cast.metadata.client_started_global_cooldown {
+            self.last_cast_time = None;
+        }
+        Some(cast)
     }
 
     pub fn remaining_cast_ms(&self) -> u32 {
@@ -163,6 +193,12 @@ impl CastExecutionStateLikeCpp {
             return None;
         }
         let mut cast = self.active.take()?;
+        if cast.metadata.client_cast_id.is_some() {
+            // Normal client casts start GCD during preparation. Consuming a
+            // ready cast must not restart it or apply the old triggered-cast
+            // timestamp rollback policy to that already-published start.
+            return Some(cast);
+        }
         cast.metadata.restore_last_spell_cast_time_on_power_failure = true;
         cast.metadata.previous_last_spell_cast_time_on_power_failure = self.last_cast_time;
         self.last_cast_time = Some(timestamp());
@@ -186,6 +222,54 @@ pub struct PendingSpellCastRequestLikeCpp {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn prepared_client_cast_consumes_once_without_restarting_global_cooldown() {
+        let started = Instant::now();
+        let mut active = cast(started, 1_500);
+        active.metadata.client_cast_id = Some(ObjectGuid::EMPTY);
+        active.metadata.client_started_global_cooldown = true;
+        let mut execution = CastExecutionStateLikeCpp {
+            active: Some(active),
+            last_cast_time: Some(started),
+            ..Default::default()
+        };
+        assert!(
+            execution
+                .take_ready_cast_after_elapsed(1_499, || panic!("not ready"))
+                .is_none()
+        );
+        assert!(
+            execution
+                .take_ready_cast_after_elapsed(1_500, || panic!("client GCD already started"))
+                .is_some()
+        );
+        assert_eq!(execution.last_cast_time, Some(started));
+        assert!(
+            execution
+                .take_ready_cast_after_elapsed(1_501, || panic!("already consumed"))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn cancellation_clears_only_the_matching_prepared_cast_global_cooldown() {
+        let started = Instant::now();
+        let mut active = cast(started, 1_500);
+        active.metadata.client_cast_id = Some(ObjectGuid::EMPTY);
+        active.metadata.client_started_global_cooldown = true;
+        let id = active.spell_id;
+        let mut execution = CastExecutionStateLikeCpp {
+            active: Some(active),
+            last_cast_time: Some(started),
+            ..Default::default()
+        };
+        assert!(execution.take_interrupted_cast(Some(id + 1)).is_none());
+        assert_eq!(execution.last_cast_time, Some(started));
+        assert!(execution.take_interrupted_cast(Some(id)).is_some());
+        assert!(execution.last_cast_time.is_none());
+        assert!(execution.active.is_none());
+    }
 
     fn cast(start: Instant, cast_time_ms: u32) -> SpellCastState {
         SpellCastState {

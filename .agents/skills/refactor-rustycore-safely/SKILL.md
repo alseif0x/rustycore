@@ -74,8 +74,9 @@ Apply the module-design policy to production, tests and fixtures as well as the 
 ## Validate and audit the finished boundary
 
 Use AGENTS.md and the validation-v2 operation guide for the actual commands/profiles:
-focused positive/negative tests and affected-crate checks during iteration; explicit production
-integration/failure cases for affected owners; clean-HEAD final and exact issue acceptance at
+focused positive/negative tests and affected-crate checks at completed-delivery acceptance;
+author tests during implementation without running per-slice checks. Include explicit production
+integration/failure cases for affected owners; committed-candidate final and exact issue acceptance at
 publication. Set PROTOC for protobuf builds and select the real lib/bin/integration target.
 Do not rerun exhaustive inventories per helper or treat a library suite as production wiring proof.
 The playbook provides change-specific evidence; it does not override proportional validation.

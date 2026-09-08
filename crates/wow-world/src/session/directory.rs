@@ -6,6 +6,9 @@
 //! Opaque directory of active session incarnations and addressing endpoints.
 //! Gameplay values resolve through bounded queries against their canonical owners.
 
+#[path = "directory/deferred_visibility.rs"]
+mod deferred_visibility;
+
 use crate::canonical_player_access::{
     HonorStatsLikeCpp, canonical_player_aggro_unit_state_like_cpp,
     canonical_player_honor_stats_like_cpp, canonical_player_presentation_like_cpp,
@@ -20,7 +23,8 @@ use crate::session::mailbox::{
     CreatureAttackStopLikeCppCommand, DurableCreatureRuntimeCommandsLikeCpp,
     LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
     RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+    SendIfVisibleLikeCppCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
+    SharedClientVisibleGuidsLikeCpp,
 };
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -1986,6 +1990,21 @@ impl PlayerRegistry {
             .unwrap_or(false)
     }
 
+    pub fn publish_current_player_spell_if_visible(
+        &self,
+        registration: PlayerRegistration,
+        command: SendPlayerSpellIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut queue| queue.publish_player_spell_if_visible_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
     pub fn publish_current_creature_spell_cast_if_visible(
         &self,
         registration: PlayerRegistration,
@@ -2013,37 +2032,6 @@ impl PlayerRegistry {
                 })
             })
             .unwrap_or(false)
-    }
-
-    /// Coalesce and queue a visibility refresh for a current recipient.
-    pub fn request_current_visibility_refresh(
-        &self,
-        registration: PlayerRegistration,
-        map_id: u16,
-        instance_id: u32,
-    ) -> Result<(), PlayerDirectorySendError> {
-        let entry = self
-            .entries
-            .get(&registration.guid)
-            .filter(|entry| entry.generation == registration.generation)
-            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let pending = Arc::clone(&entry.visibility_refresh_pending_like_cpp);
-        let tx = entry.command_tx.clone();
-        drop(entry);
-        pending.store(true, Ordering::Release);
-        let command = SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
-            RefreshVisibleWorldCreaturesLikeCppCommand {
-                map_id,
-                instance_id,
-            },
-        );
-        match tx.try_send(command) {
-            Ok(()) | Err(flume::TrySendError::Full(_)) => Ok(()),
-            Err(flume::TrySendError::Disconnected(_)) => {
-                pending.store(false, Ordering::Release);
-                Err(PlayerDirectorySendError::Disconnected)
-            }
-        }
     }
 
     /// Clone the only non-canonical fixture value without exposing storage.

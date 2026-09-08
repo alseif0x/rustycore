@@ -10,6 +10,7 @@ For the current RustyCore login gate, see:
 
 - `RUSTYCORE_SMOKE.md`
 - `run_rustycore_login_smoke.sh`
+- [Player cast lifecycle scenarios](CAST_LIFECYCLE.md) (`--cast-lifecycle-plan`)
 
 Examples beginning `tools/` run from the repository root; examples beginning
 `./run_rustycore_login_smoke.sh` run from `tools/wow-test-bot`.

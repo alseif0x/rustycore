@@ -1,5 +1,11 @@
 # RustyCore ownership and dependency boundaries
 
+**Current selection, 2026-09-08:** #585 closed through #586 at `8c47af95`.
+#587's acquisition boundary is implemented locally; approved #588 completes its
+deferred visibility runtime prerequisite before acquisition live acceptance resumes.
+The #588 checkpoint owns that finite contract. Required #584 core still precedes
+#583, then #153 and #133 closure; no later implementation family is selected.
+
 **Delivery revision, user-approved 2026-09-06:** #578/#579 is the bounded delivered
 canonical-owner foundation/hardening closeout. All unfinished C0–C4 ownership,
 dependency, runtime and physical exits move to coordination epic #584 under #133,
@@ -1005,9 +1011,11 @@ display is checked against the JSON ledger:
 121. #297 — promote the Session kernel to `wow-session`;
 122. #378 — classify the remaining Session application modules; inherited implementation stays in the following ownership macro;
 123. #578 — closed canonical Player/Map foundation, merged through PR 579.
-124. #585 — current represented session finalization outcomes and retirement supervision.
-125. #583 — native/Wasm gameplay modules after all required core children of the coordination epic, not immediately after finalization.
-126. #153 — terminal architecture audit.
+124. #585 — closed represented session finalization outcomes and retirement supervision, merged through PR 586.
+125. #588 — approved deferred player visibility publication, a runtime prerequisite exposed by acquisition QA.
+126. #587 — represented spell-acquisition application boundary; resume live acceptance after deferred visibility.
+127. #583 — native/Wasm gameplay modules after all required core children of the coordination epic, not immediately after finalization.
+128. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

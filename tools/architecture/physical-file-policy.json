@@ -62,9 +62,9 @@
     },
     {
       "path": "crates/world-server/src/main_tests.rs",
-      "observed_lines": 13040,
-      "ceiling_lines": 13040,
-      "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders.",
+      "observed_lines": 13042,
+      "ceiling_lines": 13042,
+      "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders. #589 adds two inseparable lines: SpellStartPkt and SpellGoPkt now carry the typed SpellCastData payload, so both creature-plan fixtures name the field explicitly instead of relying on the former hardcoded empty sections. No new scenario is added here.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -76,8 +76,8 @@
     },
     {
       "path": "crates/world-server/src/runtime/map.rs",
-      "observed_lines": 2109,
-      "ceiling_lines": 2109,
+      "observed_lines": 2063,
+      "ceiling_lines": 2063,
       "split": "Separate canonical tick orchestration, respawn persistence projections and recipient delivery; no I/O under map guards.",
       "review_checkpoint": "584:C4"
     },
@@ -293,9 +293,9 @@
     },
     {
       "path": "crates/wow-map/src/manager.rs",
-      "observed_lines": 4585,
-      "ceiling_lines": 4585,
-      "split": "Separate map creation, lifetime/instance coordination, update barriers and tests around one manager authority.",
+      "observed_lines": 4594,
+      "ceiling_lines": 4594,
+      "split": "Separate map creation, lifetime/instance coordination, update barriers and tests around one manager authority. #588 adds nine inseparable lines to record actually updated maps and export selected player notifiers after updater wait and before delayed removal. Intent ownership and new tests live in bounded private modules; the existing manager lifetime/update split remains at #584 C4.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -468,9 +468,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2806,
-      "ceiling_lines": 2806,
-      "split": "Separate character adapters by complete operation; preserve registration/publication order. #585 adds ten lines so both failed-login consumers retain identity when canonical retirement fails, rather than discarding the returned outcome. This bounded safety integration does not retire the remaining login/worldport module debt in #584.",
+      "observed_lines": 2810,
+      "ceiling_lines": 2810,
+      "split": "Separate character adapters by complete operation; preserve registration/publication order. #585 adds ten lines so both failed-login consumers retain identity when canonical retirement fails, rather than discarding the returned outcome. This bounded safety integration does not retire the remaining login/worldport module debt in #584. #589 adds four inseparable lines: the binder consumer adapts to fallible canonical cast-identity allocation and returns when the admitted Map cannot allocate, instead of publishing an empty CastID. No new responsibility enters this file.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -489,9 +489,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12393,
-      "ceiling_lines": 12393,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains.",
+      "observed_lines": 12421,
+      "ceiling_lines": 12421,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains. #589 adds 28 inseparable fixture lines: the two binder scenarios now adopt the canonical Player handle, set its vitals and set its faction template, because login installs all three and the cast identity allocator, the alive gate and the interaction reaction check each fail closed without them.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -573,9 +573,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/spell.rs",
-      "observed_lines": 6737,
-      "ceiling_lines": 6737,
-      "split": "Separate spell admission/cast operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 6282,
+      "ceiling_lines": 6282,
+      "split": "Separate spell admission/cast operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #589 moves normal request admission, preparation, identity, checks, power and publication into the private wow-world::player_cast application and its Session adapters, reducing this handler by 455 lines; the ceiling is tightened to the validated 6282. The remaining file still owns the broader spell handler responsibility and stays above the 2000-line budget, so its separation stays in #584 C4 rather than being declared closed by this reduction.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -588,8 +588,8 @@
     {
       "path": "crates/wow-world/src/handlers/trainer.rs",
       "observed_lines": 3693,
-      "ceiling_lines": 3693,
-      "split": "Separate trainer catalog/admission/purchase operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "ceiling_lines": 846,
+      "split": "#587 retires admitted acquisition sequencing into spell_acquisition/trainer_purchase.rs and separates trainer tests by scenario. The remaining 846-line handler owns trainer admission/list adaptation and battle-pet saga routing; opcode registration and publication order are preserved. No remaining oversized trainer file.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -622,30 +622,30 @@
     },
     {
       "path": "crates/wow-world/src/session/directory.rs",
-      "observed_lines": 2363,
-      "ceiling_lines": 2363,
-      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority.",
+      "observed_lines": 2351,
+      "ceiling_lines": 2351,
+      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 76584,
-      "ceiling_lines": 76584,
-      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds the task-owned finalization ledger and identity-hydration guard. PR #586 review adds 16 inseparable lines to retain the native far-transfer destination before an interruptible realm writer fence in both immediate and delayed paths. Existing update methods become async in the same Session task; no new field, task, lock or state mirror. New failure/cancellation tests remain in bounded files. This reviewed growth is not physical closeout: the remaining C4 root split stays in #584.",
+      "observed_lines": 75840,
+      "ceiling_lines": 75840,
+      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds the task-owned finalization ledger and identity-hydration guard. PR #586 review adds 16 inseparable lines to retain the native far-transfer destination before an interruptible realm writer fence in both immediate and delayed paths. #589 moves the represented Player cast publication out to session/player_cast/, a net reduction of 267 lines; the ceiling is tightened to the validated 75840. Existing update methods become async in the same Session task; no new field, task, lock or state mirror. New failure/cancellation tests remain in bounded files. This reviewed growth is not physical closeout: the remaining C4 root split stays in #584.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 96722,
-      "ceiling_lines": 96722,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. Above e8a3fb1f +7 lines extend existing exact teleport state through active/detached/replaced ownership and reject stale completion without changing the replacement. New scenarios stay in bounded files. C4 split exit remains.",
+      "observed_lines": 94724,
+      "ceiling_lines": 94724,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/spell_acquisition/application.rs",
       "observed_lines": 3588,
-      "ceiling_lines": 3588,
-      "split": "Separate complete spell acquisition planning/application and failure tests; preserve one canonical mutation.",
+      "ceiling_lines": 1458,
+      "split": "#587 separates generic runtime application, Session row/packet adaptation and scenario tests while retaining the pure plan validator and SQLx-free request/outcome conversion in this 1458-line file. Its cohesive validation responsibility was reviewed above 1000 lines; no oversized replacement file or second mutation owner.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -699,8 +699,8 @@
     },
     {
       "path": "tools/wow-test-bot/src/main.rs",
-      "observed_lines": 21071,
-      "ceiling_lines": 21071,
+      "observed_lines": 20952,
+      "ceiling_lines": 20952,
       "split": "Separate protocol connection/authentication, scenario orchestration and scenario-specific tests; keep shared wire primitives narrow.",
       "review_checkpoint": "584:C4"
     }

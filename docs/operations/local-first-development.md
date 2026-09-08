@@ -25,7 +25,7 @@ There is exactly one validation entry point. `docs/operations/validation-v2.md` 
 this document is only the trust policy around it.
 
 ```bash
-./tools/validation-v2 quick --base origin/3.4.3   # while iterating
+./tools/validation-v2 quick --base origin/3.4.3   # bounded acceptance / documentation delta
 ./tools/validation-v2 final --base origin/3.4.3   # before publishing the final commit
 ./tools/validation-v2 audit --base origin/3.4.3   # explicit exhaustive budget
 ```
@@ -40,7 +40,9 @@ database, or a review. `audit` covers committed capture contracts; live database
 runtime QA and code review remain separate procedures. Directory-first routing can compile
 documentation under crate/tool directories; see [the runner contract](validation-v2.md).
 
-Run focused tests explicitly when behavior changes, for example:
+AGENTS.md owns execution cadence and exclusive validation scheduling. Implement the
+complete delivery before running its acceptance; delegation adds no per-worker CI
+or independent review gate. Run focused tests for affected behavior at that point:
 
 ```bash
 PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test --locked -p wow-world exact_test_name --lib

@@ -377,7 +377,11 @@ impl crate::session::WorldSession {
             return;
         };
 
-        let server_cast_id = self.next_represented_spell_cast_guid_like_cpp(request.cast.spell_id);
+        let Some(server_cast_id) =
+            self.next_represented_spell_cast_guid_like_cpp(request.cast.spell_id)
+        else {
+            return;
+        };
         self.send_packet(&SpellPreparePkt {
             client_cast_id: request.cast.cast_id,
             server_cast_id,
@@ -410,6 +414,7 @@ impl crate::session::WorldSession {
 
         if spell_info.has_cast_time() {
             let start_pkt = SpellStartPkt {
+                cast_data: Default::default(),
                 caster: player_guid,
                 cast_id: server_cast_id,
                 original_cast_id: request.cast.cast_id,
@@ -422,6 +427,11 @@ impl crate::session::WorldSession {
             };
             self.send_packet(&start_pkt);
 
+            // Stamp the admitted residence so this timed toy cast is fenced
+            // against reentry exactly like a prepared normal request.
+            let mut metadata = metadata;
+            metadata.prepared_residence_revision =
+                self.current_player_residence_revision_like_cpp();
             self.set_active_spell_cast_like_cpp(Some(crate::session::SpellCastState {
                 spell_id: request.cast.spell_id,
                 target_guid,

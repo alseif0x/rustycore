@@ -1,13 +1,45 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Current delivery — 2026-09-07, integration `59f5bced`:** #579 merged and #578 closed.
-#585 is the selected implementation: represented session finalization outcomes,
-cancellation and exact-incarnation retirement, including its consumers. #133/#584
-are coordination issues, not prerequisite implementations. Further core deliveries
-under #584 precede #583; #153 audits the integrated result before #133 closes.
-The next family after #585 is not selected. Relevant live QA deferred at #579 merge
-is included in #585's acceptance, not recorded as passed. Older allocation/status
-statements below are historical. No new whole-port completion or parity audit is claimed.
+**Current delivery — 2026-09-08, integration `8c47af95`:** #586 is merged and
+#585 closed. #587's represented spell-acquisition boundary is implemented locally
+on its own branch (original `43c4e801`, subsequent QA/evidence through `c88603ee`).
+The branch is now rebased onto #588 commit `328b721f`; paired trainer and controlled
+ordinary-effect acquisition/save/relogin pass on runtime source `3a634630`.
+Combined final at `b48a1cfb` passes 14 commands, 5,824 Rust tests (two ignored) and
+20 physical-policy tests, with zero failures. Local scoped acceptance is complete;
+publication is pending. The earlier stationary-login failure remains recorded.
+The user approved **#588 — deferred player visibility publication** as that
+concrete prerequisite. It connects the existing map notify phase to retained
+Session delivery, with exact incarnation/residence admission and the actual
+client visibility ledger. No new clock or whole-map rewrite is selected.
+Implementation and acceptance are tracked in
+[the #588 checkpoint](../architecture/deferred-visibility-588-checkpoint.md).
+#588 and #587 have local scoped acceptance. Their content is carried in full by
+the #589 branch, which stacks on both, so a single PR integrates the three
+deliveries; the user authorised that integration on 2026-09-08.
+#589, the represented Player cast-request lifecycle, is **implemented and
+locally accepted**, described in
+[the existing architecture plan](../architecture/modularity-and-ecs-plan.md#next-core-candidate--2026-09-08)
+and recorded in [its checkpoint](../architecture/player-cast-589.md), which owns
+the executed evidence, the represented value limits of the publication payload
+and the deviations deliberately left open. Its six sub-issues #590-#595 cover the
+functional contract and consumers, the 3.4.3 payload and publication, ownership
+and physical organization, the acceptance bot, the integral regression campaign,
+and closure. The earlier "paused, uncommitted working tree" state is superseded.
+Required #584 core still precedes #583, then #153 and #133 closure; #589 does not
+complete #133 or all spell gameplay.
+The dated pre-merge account below remains historical
+evidence, not an instruction to reopen #585.
+
+Derived C++ and Rust trainer purchase/rejection/save/relogin pass, as does the
+explicitly synthetic30798→6197 cast fixture with unchanged stock data and verified
+effective SQL. Full trainer/cast windows retain documented order/metadata differences;
+scoped learning and logout bytes match. Current #587 evidence:
+[spell acquisition](../architecture/spell-acquisition-587.md).
+#585's scoped acceptance and retained parity limits
+are recorded below and in its checkpoint; do not reopen it from pre-merge status text.
+The following dated candidate narrative is historical, not an instruction to repeat
+completed work or a new whole-port completion/parity claim.
 
 Local #585 candidate `ccf5f84d` passed final validation on 2026-09-07. After renewed
 explicit authorization, guarded normal save/relogin QA passed and the original

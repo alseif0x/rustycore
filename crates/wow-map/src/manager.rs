@@ -31,7 +31,9 @@ use wow_entities::CreatureRuntimeUpdateContext;
 mod map_lifetime;
 mod player_owner;
 pub use map_lifetime::MapUnloadBlockedLikeCpp;
-pub use player_owner::{PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp};
+pub use player_owner::{
+    PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp, PlayerVisibilityRefreshIntentLikeCpp,
+};
 
 pub const MIN_GRID_DELAY_MS: u32 = 60_000;
 pub const MIN_MAP_UPDATE_DELAY_MS: u32 = 1;
@@ -1293,6 +1295,7 @@ impl MapManager {
         let current = self.timer.current();
         let keys: Vec<MapKey> = self.maps.keys().copied().collect();
         let mut destroyed = Vec::new();
+        let mut updated = Vec::new();
 
         for key in keys {
             let Some(map) = self.maps.get_mut(&key) else {
@@ -1305,6 +1308,8 @@ impl MapManager {
                 }
                 continue;
             }
+
+            updated.push(key);
 
             if self.updater.activated() {
                 match pool_update {
@@ -1351,6 +1356,10 @@ impl MapManager {
         if self.updater.activated() {
             self.updater.wait();
         }
+
+        // Export only this tick's selected player notifiers, after every map
+        // update completes and before delayed removal can change residence.
+        self.retain_selected_player_visibility_refreshes_like_cpp(updated);
 
         for key in destroyed {
             self.maps.remove(&key);

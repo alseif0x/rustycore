@@ -9,13 +9,17 @@
 mod admission;
 mod appearance;
 mod connection;
+mod deferred_visibility;
 pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
+mod effect_learning;
 pub mod mailbox;
+mod player_cast;
 pub mod registry;
+mod trainer_acquisition;
 mod trait_configs;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -2012,7 +2016,10 @@ const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // runtime counter, so keep the canonical numeric value here.
 const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
-static NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
+
+/// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`). `SendSpellStart` and
+/// `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
+pub(crate) const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
 #[cfg(test)]
 static NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
@@ -2021,12 +2028,12 @@ const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 // `CreateWorldObject`, then `ObjectGuidFactory.cpp:GetRealmIdForObjectGuid(0)`
 // substitutes `realm.Id.Realm`. Rust passes that already-resolved local realm
 // explicitly; using the caster realm preserves the same visible GUID bits.
-fn next_represented_spell_cast_guid_for_map_like_cpp(
+fn represented_spell_cast_guid_for_map_like_cpp(
     realm_id: u16,
     map_id: u16,
     spell_id: i32,
+    counter: i64,
 ) -> ObjectGuid {
-    let counter = NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed);
     ObjectGuid::create_world_object(
         HighGuid::Cast,
         SPELL_CAST_SOURCE_NORMAL_LIKE_CPP,
@@ -5417,7 +5424,6 @@ pub enum SessionState {
 pub(crate) use wow_entities::PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp;
 pub use wow_entities::{SpellCastBattlePetItemModifiersLikeCpp, SpellCastMetadata, SpellCastState};
 
-const SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS: u32 = 400;
 const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
 
 /// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
@@ -15201,7 +15207,10 @@ impl WorldSession {
                 outcome.failed_casts += 1;
                 continue;
             };
-            let cast_id = self.next_represented_spell_cast_guid_like_cpp(spell_id);
+            let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+                outcome.failed_casts += 1;
+                continue;
+            };
 
             let result = self
                 .execute_spell_with_visual_and_target_data_and_generator_like_cpp(
@@ -15319,8 +15328,11 @@ impl WorldSession {
             return RepresentedSpellClickClickeeCasterOutcomeLikeCpp::UnsupportedCaster;
         };
 
-        let cast_id = self.next_represented_spell_cast_guid_like_cpp(spell_id);
+        let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+            return RepresentedSpellClickClickeeCasterOutcomeLikeCpp::Failed;
+        };
         self.send_packet(&SpellGoPkt {
+            cast_data: Default::default(),
             caster: creature_guid,
             cast_id,
             original_cast_id: cast_id,
@@ -33604,12 +33616,20 @@ impl WorldSession {
 
         let mut cast_count = 0usize;
         for spell_id in spells {
+            // C++ `CharacterHandler.cpp` casts the create-mode spells with
+            // `CastSpell(pCurrChar, spellId, true)`, i.e. TRIGGERED_FULL_MASK:
+            // the cast is triggered and ignores the global cooldown.
             if self
-                .execute_spell_with_generator_like_cpp(
+                .execute_server_triggered_spell_like_cpp(
                     item_guid_generator,
                     creature_spawn_catalogs,
                     spell_id as i32,
                     player_guid,
+                    SpellCastMetadata {
+                        cast_flags: CAST_FLAG_PENDING_LIKE_CPP,
+                        triggered_ignores_global_cooldown_like_cpp: true,
+                        ..SpellCastMetadata::default()
+                    },
                 )
                 .await
                 .is_ok()
@@ -45365,12 +45385,17 @@ impl WorldSession {
             if visible_auras.values().any(|aura| aura.spell_id == spell_id) {
                 continue;
             }
+            // C++ `Player::ApplyItemObtainSpells` uses
+            // `CastSpellExtraArgs().SetCastItem(item)`, whose default trigger
+            // flags are TRIGGERED_NONE: not a triggered cast, and the global
+            // cooldown applies.
             if self
-                .execute_spell_with_generator_like_cpp(
+                .execute_server_triggered_spell_like_cpp(
                     item_guid_generator,
                     creature_spawn_catalogs,
                     spell_id,
                     player_guid,
+                    SpellCastMetadata::default(),
                 )
                 .await
                 .is_ok()
@@ -50519,16 +50544,24 @@ impl WorldSession {
             return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
         };
 
-        let session_cast_interrupted = self
+        let interrupted_cast = self
             .mutate_cast_execution_like_cpp(|execution| {
                 let interrupted = execution.active.as_ref().is_some_and(|active| {
                     u32::try_from(active.spell_id)
                         .ok()
                         .is_some_and(|spell_id| canonical_interrupted_spell_ids.contains(&spell_id))
                 });
-                interrupted && execution.interrupt_active_cast(None)
+                if interrupted {
+                    execution.take_interrupted_cast(None)
+                } else {
+                    None
+                }
             })
-            .unwrap_or(false);
+            .flatten();
+        let session_cast_interrupted = interrupted_cast.is_some();
+        if let Some(cast) = interrupted_cast {
+            self.publish_player_cast_interruption_like_cpp(cast);
+        }
         if let Some(RepresentedStandChannelCancellationBoundary::Interrupted {
             session_cast_interrupted: recorded,
             ..
@@ -52285,31 +52318,6 @@ impl WorldSession {
                 victim_guid: creature_guid,
             },
         );
-    }
-
-    pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
-        let transport_server_time = Self::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
-        if self
-            .mutate_active_player_update_state_like_cpp(|state| {
-                state.active_local_flags |=
-                    PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
-                state.active_transport_server_time = transport_server_time;
-            })
-            .is_none()
-        {
-            return;
-        }
-        self.sync_current_player_session_visibility_detection_like_cpp();
-        // C++ `HandleMoveInitActiveMoverComplete` calls
-        // `Player::UpdateObjectVisibility(false)`, which only queues
-        // `NOTIFY_VISIBILITY_CHANGED`. The represented Rust visibility scanner
-        // is broader than C++ `VisibleNotifier` today; materializing it here
-        // creates creatures/gameobjects that the captured C++ login stream does
-        // not send and corrupts the client during world load. Keep the packet
-        // side effect below, but do not turn the deferred notify into an
-        // immediate object-create batch until the map-owned notify pass is
-        // ported method-for-method.
-        self.send_active_player_transport_server_time_update_like_cpp();
     }
 
     pub(crate) fn player_moved_unit_guid_like_cpp(&self) -> Option<ObjectGuid> {
@@ -61252,234 +61260,8 @@ impl WorldSession {
         &self.movement_speed_ack_events_like_cpp
     }
 
-    pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
-        self.mutate_cast_execution_like_cpp(|state| state.interrupt_active_cast(None))
-            .unwrap_or(false)
-    }
-
-    fn with_cast_execution_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&wow_entities::CastExecutionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(f(&wow_entities::CastExecutionStateLikeCpp {
-                active: self.active_spell_cast.clone(),
-                last_cast_time: self.last_spell_cast_time,
-                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
-            }));
-        }
-        self.with_owned_player_like_cpp(|player| f(&player.unit().subsystems().spells.execution))
-    }
-
-    pub(crate) fn mutate_cast_execution_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let mut state = wow_entities::CastExecutionStateLikeCpp {
-                active: self.active_spell_cast.clone(),
-                last_cast_time: self.last_spell_cast_time,
-                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
-            };
-            let result = f(&mut state);
-            self.active_spell_cast = state.active;
-            self.last_spell_cast_time = state.last_cast_time;
-            self.last_spell_cast_time_per_spell = state.last_cast_time_per_spell;
-            return Some(result);
-        }
-        self.with_owned_player_mut_like_cpp(|player| {
-            f(&mut player.unit_mut().subsystems_mut().spells.execution)
-        })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn active_spell_cast_snapshot_like_cpp(&self) -> Option<SpellCastState> {
-        self.with_cast_execution_like_cpp(|state| state.active.clone())
-            .flatten()
-    }
-
-    pub(crate) fn set_active_spell_cast_like_cpp(&mut self, cast: Option<SpellCastState>) -> bool {
-        self.mutate_cast_execution_like_cpp(|state| state.active = cast)
-            .is_some()
-    }
-
-    pub(crate) fn last_spell_cast_time_like_cpp(&self) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(|state| state.last_cast_time)
-    }
-
-    pub(crate) fn spell_last_cast_time_like_cpp(&self, spell_id: i32) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(|state| {
-            state.last_cast_time_per_spell.get(&spell_id).copied()
-        })
-    }
-
-    pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
-        let Some(request) = self
-            .mutate_pending_spell_cast_like_cpp(Option::take)
-            .flatten()
-        else {
-            return false;
-        };
-
-        self.send_packet(&wow_packet::packets::spell::CastFailed {
-            cast_id: request.cast_id,
-            spell_id: request.spell_id,
-            visual: crate::spell_cast_adapter::present_visual(request.spell_visual),
-            reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
-            fail_arg1: 0,
-            fail_arg2: 0,
-        });
-        true
-    }
-
-    fn pending_spell_cast_snapshot_like_cpp(
-        &self,
-    ) -> Option<Option<RepresentedPendingSpellCastRequestLikeCpp>> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_pending_spell_cast_request_like_cpp.clone());
-        }
-        self.with_owned_player_like_cpp(|player| player.gameplay_state().pending_spell_cast.clone())
-    }
-
-    fn mutate_pending_spell_cast_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(f(&mut self.represented_pending_spell_cast_request_like_cpp));
-        }
-        self.with_owned_player_mut_like_cpp(|player| {
-            f(&mut player.gameplay_state_mut().pending_spell_cast)
-        })
-    }
-
-    pub(crate) fn remaining_global_cooldown_ms_like_cpp(
-        &self,
-        spell_info: &wow_data::SpellInfo,
-    ) -> Option<u32> {
-        self.with_cast_execution_like_cpp(|state| {
-            state.remaining_global_cooldown_ms(spell_info.cooldown_ms)
-        })
-    }
-
-    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> Option<u32> {
-        self.with_cast_execution_like_cpp(
-            wow_entities::CastExecutionStateLikeCpp::remaining_cast_ms,
-        )
-    }
-
-    pub(crate) fn can_request_represented_spell_cast_like_cpp(
-        &self,
-        spell_info: &wow_data::SpellInfo,
-    ) -> bool {
-        self.remaining_global_cooldown_ms_like_cpp(spell_info)
-            .zip(self.remaining_active_spell_cast_ms_like_cpp())
-            .is_some_and(|(gcd, cast)| {
-                gcd <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
-                    && cast <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
-            })
-    }
-
-    pub(crate) fn request_represented_spell_cast_like_cpp(
-        &mut self,
-        request: RepresentedPendingSpellCastRequestLikeCpp,
-    ) {
-        self.cancel_pending_spell_cast_request_like_cpp();
-        let _ = self.mutate_pending_spell_cast_like_cpp(|pending| *pending = Some(request));
-    }
-
-    pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-    ) {
-        let Some(request) = self.pending_spell_cast_snapshot_like_cpp().flatten() else {
-            return;
-        };
-        if Some(request.casting_unit_guid) != self.player_guid() {
-            self.cancel_pending_spell_cast_request_like_cpp();
-            return;
-        }
-        let Some(spell_info) = self
-            .spell_store()
-            .and_then(|store| store.get(request.spell_id))
-            .cloned()
-        else {
-            self.cancel_pending_spell_cast_request_like_cpp();
-            return;
-        };
-
-        if self.remaining_global_cooldown_ms_like_cpp(&spell_info) != Some(0) {
-            return;
-        }
-        if self.remaining_active_spell_cast_ms_like_cpp() != Some(0) {
-            return;
-        }
-
-        let Some(request) = self
-            .mutate_pending_spell_cast_like_cpp(|pending| {
-                if pending.as_ref().is_some_and(|current| {
-                    current.cast_id == request.cast_id
-                        && current.spell_id == request.spell_id
-                        && current.casting_unit_guid == request.casting_unit_guid
-                }) {
-                    pending.take()
-                } else {
-                    None
-                }
-            })
-            .flatten()
-        else {
-            return;
-        };
-        if let Err(error) = self
-            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
-                item_guid_generator,
-                creature_spawn_catalogs,
-                request.spell_id,
-                request.target_guid,
-                request.cast_id,
-                crate::spell_cast_adapter::present_visual(request.spell_visual.clone()),
-                crate::spell_cast_adapter::present_targets(request.target_data),
-                request.metadata,
-            )
-            .await
-        {
-            warn!(
-                account = self.account_id,
-                spell_id = request.spell_id,
-                "Pending spell execution failed: {error}"
-            );
-            self.send_packet(&wow_packet::packets::spell::CastFailed {
-                cast_id: request.cast_id,
-                spell_id: request.spell_id,
-                visual: crate::spell_cast_adapter::present_visual(request.spell_visual),
-                reason: SpellCastResult::NotKnown as i32,
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.tick_pending_spell_cast_request_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-        )
-        .await;
-    }
-
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
-        let session_cast_interrupted = self
-            .mutate_cast_execution_like_cpp(|state| state.interrupt_active_cast(None))
-            .unwrap_or(false);
+        let session_cast_interrupted = self.interrupt_player_cast_like_cpp(None);
         let canonical_spells_interrupted = self
             .mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
@@ -61516,9 +61298,7 @@ impl WorldSession {
             .unwrap_or(false);
 
         if interrupted {
-            let _ = self.mutate_cast_execution_like_cpp(|state| {
-                state.interrupt_active_cast(Some(spell_id as i32))
-            });
+            let _ = self.interrupt_player_cast_like_cpp(Some(spell_id as i32));
         }
 
         interrupted
@@ -66211,6 +65991,7 @@ fn resolve_creature_spell_hit_profile_like_cpp(
 fn append_committed_creature_spell_packets_like_cpp(
     plan: &mut RuntimePlan,
     command: &CreatureSpellCastPlanLikeCpp,
+    cast_id: ObjectGuid,
     hit_result: CreatureSpellTargetHitResultLikeCpp,
     source_position: Position,
     visibility_range: f32,
@@ -66222,11 +66003,6 @@ fn append_committed_creature_spell_packets_like_cpp(
         SpellTargetData,
     };
 
-    let cast_id = next_represented_spell_cast_guid_for_map_like_cpp(
-        command.caster_guid.realm_id(),
-        command.map_id,
-        command.spell_id,
-    );
     let visual = SpellCastVisual {
         spell_visual_id: command.spell_x_spell_visual_id,
         script_visual_id: 0,
@@ -66238,6 +66014,7 @@ fn append_committed_creature_spell_packets_like_cpp(
         ..Default::default()
     };
     let start = SpellStartPkt {
+        cast_data: Default::default(),
         caster: command.caster_guid,
         cast_id,
         original_cast_id: ObjectGuid::EMPTY,
@@ -66259,6 +66036,7 @@ fn append_committed_creature_spell_packets_like_cpp(
         ),
     };
     let go = SpellGoPkt {
+        cast_data: Default::default(),
         caster: command.caster_guid,
         cast_id,
         original_cast_id: ObjectGuid::EMPTY,
@@ -67771,9 +67549,24 @@ fn validate_and_append_creature_spell_cast_like_cpp(
                 false,
             );
     }
+    // Validation and allocation share the already-held canonical manager guard.
+    // Player and creature casts use one Map sequence, never process-local IDs.
+    let counter = manager
+        .find_map_mut(u32::from(command.map_id), command.instance_id)
+        .expect("validated map remains present under its manager guard")
+        .map_mut()
+        .generate_low_guid_like_cpp(HighGuid::Cast)
+        .expect("Cast is a supported map GUID sequence");
+    let cast_id = represented_spell_cast_guid_for_map_like_cpp(
+        command.caster_guid.realm_id(),
+        command.map_id,
+        command.spell_id,
+        counter,
+    );
     append_committed_creature_spell_packets_like_cpp(
         plan,
         command,
+        cast_id,
         hit_result,
         source_position,
         visibility_range,
@@ -69845,70 +69638,6 @@ impl WorldSession {
         self.flush_runtime_output(out);
     }
 
-    /// Called every ~100ms. Checks if an in-progress spell cast has completed.
-    ///
-    /// If `active_spell_cast` is set and its cast time has elapsed, this method
-    /// executes the spell (applies effects, cooldowns, etc.) and clears the cast state.
-    pub(crate) async fn tick_active_spell_cast_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-    ) {
-        let Some(cast_state) = self
-            .mutate_cast_execution_like_cpp(
-                wow_entities::CastExecutionStateLikeCpp::take_ready_cast,
-            )
-            .flatten()
-        else {
-            return;
-        };
-
-        let spell_id = cast_state.spell_id;
-        let target = cast_state.target_guid;
-        let target_data = crate::spell_cast_adapter::present_targets(cast_state.target_data);
-        let cast_id = cast_state.cast_id;
-        let spell_visual = crate::spell_cast_adapter::present_visual(cast_state.spell_visual);
-        let metadata = cast_state.metadata;
-
-        // The owner guard is released before effect execution and failure publication.
-        if let Err(e) = self
-            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
-                item_guid_generator,
-                creature_spawn_catalogs,
-                spell_id,
-                target,
-                cast_id,
-                spell_visual.clone(),
-                target_data,
-                metadata,
-            )
-            .await
-        {
-            warn!(account = self.account_id, "Spell execution failed: {}", e);
-            // Send CastFailed so client cancels cast animation
-            use wow_packet::packets::spell::CastFailed;
-            self.send_packet(&CastFailed {
-                cast_id,
-                spell_id,
-                visual: spell_visual,
-                reason: 2, // SpellCastResult::NotKnown
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn tick_active_spell_cast(&mut self) {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.tick_active_spell_cast_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-        )
-        .await;
-    }
-
     /// Called every ~100ms. Handles auto-attack swing timer (player → creature).
     /// Extract of the combat tick body. Returns all bytes that must be sent to
     /// the session channel. Callers must flush via `flush_runtime_output`.
@@ -70421,6 +70150,46 @@ impl WorldSession {
         .await
     }
 
+    /// Server-triggered cast with an explicit C++ trigger contract.
+    ///
+    /// C++ `Unit::CastSpell` always constructs a `Spell`, so `m_castId` is a
+    /// real `Map::GenerateLowGuid<HighGuid::Cast>` value even when no client
+    /// requested the cast. Publishing an empty CastID leaves the client unable
+    /// to correlate the resulting `SMSG_SPELL_GO`, so this entry point
+    /// allocates from the admitted Map's shared Cast sequence just like the
+    /// normal request path and the represented creature consumer.
+    ///
+    /// `metadata` carries the caller's own contract; normal client defaults are
+    /// never imposed on these consumers.
+    pub(crate) async fn execute_server_triggered_spell_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        metadata: SpellCastMetadata,
+    ) -> Result<(), &'static str> {
+        use wow_packet::packets::spell::SpellCastVisual;
+
+        let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+            return Err("canonical Map cast identity unavailable for a triggered cast");
+        };
+        self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            spell_id,
+            target_guid,
+            cast_id,
+            SpellCastVisual {
+                spell_visual_id: 0,
+                script_visual_id: 0,
+            },
+            Default::default(),
+            metadata,
+        )
+        .await
+    }
+
     #[cfg(test)]
     pub async fn execute_spell(
         &mut self,
@@ -70533,20 +70302,6 @@ impl WorldSession {
         .await
     }
 
-    /// Represented `Spell::m_castId` generation.
-    ///
-    /// C++ creates a `HighGuid::Cast` with `SPELL_CAST_SOURCE_NORMAL`, map id,
-    /// spell id, and `Map::GenerateLowGuid<HighGuid::Cast>()`. Rust does not
-    /// yet expose the map low-guid allocator for casts, so this uses a process
-    /// local monotonic counter while preserving the visible GUID shape.
-    pub(crate) fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> ObjectGuid {
-        next_represented_spell_cast_guid_for_map_like_cpp(
-            self.realm_id(),
-            self.player_map_id_like_cpp(),
-            spell_id,
-        )
-    }
-
     pub async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -70649,102 +70404,21 @@ impl WorldSession {
             "Executing spell effect"
         );
 
-        let has_represented_gameobject_summon_effect = spell_info.effects().iter().any(|effect| {
-            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
-                || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
-        });
-        let represented_spell_focus_aura_satisfies_check_cast =
-            if spell_info.requires_spell_focus_like_cpp() {
-                self.resolved_has_represented_aura_effect_with_misc_value_like_cpp(
-                    RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
-                    i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
-                )
-                .ok_or("Canonical Player aura owner unavailable")?
-            } else {
-                false
-            };
-        let represented_focus_object = if spell_info.requires_spell_focus_like_cpp()
-            && has_represented_gameobject_summon_effect
-            && !represented_spell_focus_aura_satisfies_check_cast
-        {
-            self.search_spell_focus_like_cpp(spell_info.requires_spell_focus)
-        } else {
-            None
+        let Some(represented_focus_object) = self.check_represented_cast_preparation_like_cpp(
+            &spell_info,
+            cast_id,
+            &spell_visual,
+            metadata,
+        )?
+        else {
+            self.publish_player_cast_interrupted_frames_like_cpp(
+                metadata,
+                cast_id,
+                spell_id,
+                &spell_visual,
+            );
+            return Ok(());
         };
-        if spell_info.requires_spell_focus_like_cpp()
-            && has_represented_gameobject_summon_effect
-            && !represented_spell_focus_aura_satisfies_check_cast
-            && represented_focus_object.is_none()
-        {
-            // C++ `Spell::CheckCast` fails before `SMSG_SPELL_GO` when no
-            // matching `SPELL_AURA_PROVIDE_SPELL_FOCUS` aura or focus object
-            // exists. `Spell::SendCastResult` carries the SpellFocusObject id
-            // in FailedArg1 for this failure reason.
-            self.send_packet(&wow_packet::packets::spell::CastFailed {
-                cast_id,
-                spell_id,
-                visual: spell_visual.clone(),
-                reason: SpellCastResult::RequiresSpellFocus as i32,
-                fail_arg1: i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
-                fail_arg2: 0,
-            });
-            debug!(
-                account = self.account_id,
-                spell_id = spell_id,
-                requires_spell_focus = spell_info.requires_spell_focus,
-                "Failing live GameObject summon because C++ SearchSpellFocus found no represented focusObject"
-            );
-            return Ok(());
-        }
-
-        if let Some(reason) =
-            self.check_represented_battle_pet_spell_like_cpp(&spell_info, metadata)
-        {
-            self.send_packet(&wow_packet::packets::spell::CastFailed {
-                cast_id,
-                spell_id,
-                visual: spell_visual.clone(),
-                reason: reason as i32,
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-            debug!(
-                account = self.account_id,
-                spell_id = spell_id,
-                reason = reason as i32,
-                "Failing represented battle-pet spell because C++ Spell::CheckCast rejected it"
-            );
-            return Ok(());
-        }
-
-        if let Some(outcome) = self.check_represented_mount_spell_like_cpp(&spell_info) {
-            match outcome {
-                RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(reason) => {
-                    self.send_packet(&wow_packet::packets::spell::CastFailed {
-                        cast_id,
-                        spell_id,
-                        visual: spell_visual.clone(),
-                        reason: reason as i32,
-                        fail_arg1: 0,
-                        fail_arg2: 0,
-                    });
-                    debug!(
-                        account = self.account_id,
-                        spell_id = spell_id,
-                        reason = reason as i32,
-                        "Failing represented mount spell because C++ Spell::CheckCast rejected it"
-                    );
-                }
-                RepresentedMountSpellCheckOutcomeLikeCpp::DontReport => {
-                    debug!(
-                        account = self.account_id,
-                        spell_id = spell_id,
-                        "Failing represented mount spell with C++ SPELL_FAILED_DONT_REPORT"
-                    );
-                }
-            }
-            return Ok(());
-        }
 
         if self.represented_gameobject_summon_missing_nearby_entry_destination_like_cpp(
             spell_id,
@@ -70769,6 +70443,12 @@ impl WorldSession {
                 spell_id = spell_id,
                 "Failing represented GameObject summon because C++ nearby-entry destination search found no target"
             );
+            self.publish_player_cast_interrupted_frames_like_cpp(
+                metadata,
+                cast_id,
+                spell_id,
+                &spell_visual,
+            );
             return Ok(());
         }
 
@@ -70780,6 +70460,12 @@ impl WorldSession {
                     state.last_cast_time = metadata.previous_last_spell_cast_time_on_power_failure;
                 });
             }
+            self.publish_player_cast_interrupted_frames_like_cpp(
+                metadata,
+                cast_id,
+                spell_id,
+                &spell_visual,
+            );
             return Ok(());
         }
 
@@ -70866,20 +70552,37 @@ impl WorldSession {
         use wow_packet::packets::spell::SpellGoPkt;
 
         let spell_visual_id = spell_visual.spell_visual_id;
+        // C++ `SendSpellGo` samples the power that remains after the debit
+        // above. Triggered consumers keep their own explicit metadata flags;
+        // normal client defaults are never imposed on them.
+        let go_phase = player_cast::wire::PlayerCastPublicationPhaseLikeCpp::Go;
+        let (cast_data, cast_flags) = if metadata.client_cast_id.is_some() {
+            self.player_cast_publication_like_cpp(&spell_info, &metadata, go_phase)
+        } else {
+            (Default::default(), metadata.cast_flags)
+        };
         let go_pkt = SpellGoPkt {
+            cast_data,
             caster: caster_guid,
             cast_id,
             original_cast_id: metadata.original_cast_id_or(cast_id),
             spell_id,
             visual: spell_visual,
-            cast_flags: metadata.cast_flags,
+            cast_flags,
             cast_flags_ex: metadata.cast_flags_ex,
             cast_time_ms: Self::game_time_ms_like_cpp(),
             target: spell_go_target_data,
             hit_targets: vec![target_guid],
             miss_targets: Vec::new(),
         };
-        self.send_packet(&go_pkt);
+        if metadata.client_cast_id.is_some() {
+            self.publish_player_cast_frame_like_cpp(
+                metadata,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        } else {
+            self.send_packet(&go_pkt);
+        }
         if caster_guid != player_guid && caster_guid.is_any_type_creature() {
             self.broadcast_creature_packet_to_visible_set_like_cpp(
                 caster_guid,
@@ -71724,7 +71427,15 @@ impl WorldSession {
             // 3286) must not start or advertise a player cooldown.
             if self
                 .mutate_cast_execution_like_cpp(|state| {
-                    state.last_cast_time = Some(Instant::now());
+                    // A prepared client cast already started its global
+                    // cooldown in `Spell::prepare`; a `TRIGGERED_FULL_MASK`
+                    // server cast carries `TRIGGERED_IGNORE_GCD` and never
+                    // starts one.
+                    if metadata.client_cast_id.is_none()
+                        && !metadata.triggered_ignores_global_cooldown_like_cpp
+                    {
+                        state.last_cast_time = Some(Instant::now());
+                    }
                     state
                         .last_cast_time_per_spell
                         .insert(spell_id, Instant::now());
@@ -74300,461 +74011,6 @@ impl WorldSession {
             self.send_packet(&packet);
         }
         outcome.applied
-    }
-
-    /// C++ `Spell::EffectLearnSpell`.
-    ///
-    /// Represented boundary: current player target and `effectInfo->TriggerSpell`
-    /// only. C++ also has item `ITEM_SPELLTRIGGER_ON_LEARN`, battle-pet and pet
-    /// spell branches; those require cast-item/pet runtime that is outside this
-    /// bounded spell-effect slice.
-    async fn apply_learn_spell_effect_like_cpp(
-        &mut self,
-        trigger_spell: i32,
-        target_guid: ObjectGuid,
-    ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        if target_guid != player_guid || trigger_spell <= 0 {
-            return false;
-        }
-        // C++ `Player::AddSpell` rejects a missing `SpellInfo` or a spell whose
-        // recursive `SPELL_EFFECT_LEARN_SPELL` target is missing before it
-        // mutates or publishes the player's spell map. Richer acquisition
-        // metadata may fall back below, but this base authority may not.
-        if !self.represented_spell_valid_for_learning_like_cpp(trigger_spell) {
-            return false;
-        }
-        let Ok(trigger_spell_id) = u32::try_from(trigger_spell) else {
-            return false;
-        };
-        // C++ reaches `CollectionMgr::AddMount` after `Player::AddSpell` for a
-        // Mount.db2 source spell. The shallow fallback cannot atomically
-        // update the account collection or learn a faction counterpart, so it
-        // needs complete mount authority and must leave mount acquisition to
-        // its richer owner instead of persisting only the character spell.
-        let Some(mounts) = self.mount_store() else {
-            return false;
-        };
-        if mounts
-            .get_by_source_spell_id_like_cpp(trigger_spell_id)
-            .is_some()
-        {
-            return false;
-        }
-        let plan = match self.project_effect_learn_spell_acquisition_like_cpp(trigger_spell_id) {
-            crate::spell_acquisition::SpellAcquisitionOutcomeLikeCpp::Deterministic(plan) => plan,
-            crate::spell_acquisition::SpellAcquisitionOutcomeLikeCpp::Indeterminate(_) => {
-                return self.apply_base_learn_spell_effect_like_cpp(trigger_spell);
-            }
-        };
-        let Ok(current_snapshot) = self.spell_acquisition_snapshot_like_cpp(
-            crate::spell_acquisition::PlayerAcquisitionLifecycleLikeCpp::InWorld,
-            Vec::new(),
-            BTreeMap::new(),
-        ) else {
-            return self.apply_base_learn_spell_effect_like_cpp(trigger_spell);
-        };
-        let profession_plan = match self.plan_primary_profession_capacity_like_cpp(
-            plan.root_primary_profession_skill_ids.iter().copied(),
-        ) {
-            Ok(plan) => plan,
-            Err(error)
-                if Self::may_shallow_fallback_after_profession_plan_error_like_cpp(error) =>
-            {
-                return self.apply_base_learn_spell_effect_like_cpp(trigger_spell);
-            }
-            Err(_) => return false,
-        };
-        let prepared = match crate::spell_acquisition::prepare_player_spell_acquisition_like_cpp(
-            &plan,
-            &profession_plan,
-            &current_snapshot,
-        ) {
-            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(
-                prepared,
-            )) => prepared,
-            Ok(
-                crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::AlreadyApplied
-                | crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::NoChange,
-            )
-            | Err(_) => return self.apply_base_learn_spell_effect_like_cpp(trigger_spell),
-            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::ActionsOnly(
-                actions,
-            )) => {
-                return if crate::spell_acquisition::apply_prepared_player_spell_acquisition_actions_like_cpp(
-                    self,
-                    &actions,
-                )
-                .is_ok()
-                {
-                    true
-                } else {
-                    self.apply_base_learn_spell_effect_like_cpp(trigger_spell)
-                };
-            }
-        };
-        // C++ `EffectLearnSpell` mutates `PlayerSpellMap` synchronously and
-        // leaves `_SaveSpells`/`_SaveSkills` dirty-state persistence to the
-        // ordinary `Player::SaveToDB` lifecycle. Reuse the same validated plan
-        // without making a cast depend on Character DB availability or making
-        // unrelated pending player state durable early.
-        if crate::spell_acquisition::apply_prepared_player_spell_acquisition_before_save_like_cpp(
-            self, &prepared,
-        )
-        .is_ok()
-        {
-            true
-        } else {
-            self.apply_base_learn_spell_effect_like_cpp(trigger_spell)
-        }
-    }
-
-    const fn may_shallow_fallback_after_profession_plan_error_like_cpp(
-        error: crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp,
-    ) -> bool {
-        matches!(
-            error,
-            crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp::MissingSkillLineStore
-                | crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot
-        )
-    }
-
-    /// Minimum C++ `Player::LearnSpell` behavior retained when the richer
-    /// immutable acquisition projection cannot prove ancillary skills or
-    /// triggered casts. The low-level runtime helper is intentionally shallow
-    /// and requires the complete in-world spell map before mutating it. This
-    /// retains the base gameplay grant performed by C++ `EffectLearnSpell`
-    /// whenever no previous-rank insertion is required.
-    fn apply_base_learn_spell_effect_like_cpp(&mut self, trigger_spell: i32) -> bool {
-        let Some(trigger_spell_id) = u32::try_from(trigger_spell).ok() else {
-            return false;
-        };
-        // An in-world C++ Player always owns the complete PlayerSpellMap.
-        // Without that authority a targeted UPSERT cannot distinguish a new
-        // spell from a disabled durable row whose active bit must be
-        // preserved, so publication must wait for hydration.
-        let Some(spell_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
-            return false;
-        };
-        if !spell_runtime.rows_complete {
-            return false;
-        }
-        let Some(spell_chains) = self.spell_chain_store.as_ref() else {
-            return false;
-        };
-        let previous = spell_runtime
-            .rows
-            .get(&trigger_spell)
-            .or_else(|| spell_runtime.fallback_rows.get(&trigger_spell));
-        match spell_chains.spell_chain_lookup_like_cpp(trigger_spell_id) {
-            wow_data::SpellChainLookupLikeCpp::Indeterminate(_) => return false,
-            wow_data::SpellChainLookupLikeCpp::Node(node)
-                if node.prev_spell_id.is_some()
-                    && previous.is_none_or(|row| {
-                        matches!(
-                            row.state,
-                            RepresentedPlayerSpellStateLikeCpp::Removed
-                                | RepresentedPlayerSpellStateLikeCpp::Temporary
-                        )
-                    }) =>
-            {
-                // Inserting a ranked row makes C++ recursively learn its
-                // previous rank and reconcile every active rank, including
-                // `SMSG_SUPERCEDED_SPELL` publication. The narrow fallback
-                // has no immutable plan for that multi-row mutation, so it
-                // must stop before exposing a partial grant.
-                return false;
-            }
-            wow_data::SpellChainLookupLikeCpp::Unranked
-            | wow_data::SpellChainLookupLikeCpp::Node(_) => {}
-        }
-        if !self.validate_base_learn_spell_fallback_like_cpp(trigger_spell, &mut BTreeSet::new()) {
-            return false;
-        }
-        self.begin_spell_acquisition_post_commit_action_batch_like_cpp();
-        self.apply_base_learn_spell_effect_recursive_like_cpp(trigger_spell, &mut BTreeSet::new())
-    }
-
-    fn validate_base_learn_spell_fallback_like_cpp(
-        &self,
-        trigger_spell: i32,
-        visiting: &mut BTreeSet<i32>,
-    ) -> bool {
-        if !visiting.insert(trigger_spell) {
-            return true;
-        }
-        let Some(spell_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
-            visiting.remove(&trigger_spell);
-            return false;
-        };
-        let Some(previous) = spell_runtime.rows.get(&trigger_spell).copied() else {
-            visiting.remove(&trigger_spell);
-            return true;
-        };
-
-        // C++ clears an existing PlayerSpell::TraitDefinitionId and its
-        // OverridesSpell edge before reactivation. Require the two complete
-        // mirrors up front so a recursive disabled-spell closure cannot fail
-        // after an earlier row has already been exposed.
-        if !spell_runtime.trait_definition_ids_complete || !spell_runtime.override_spells_complete {
-            visiting.remove(&trigger_spell);
-            return false;
-        }
-        if let Some(&trait_definition_id) = spell_runtime.trait_definition_ids.get(&trigger_spell) {
-            let Some(definition) = u32::try_from(trait_definition_id).ok().and_then(|id| {
-                self.trait_definition_store()
-                    .and_then(|store| store.get(id))
-            }) else {
-                visiting.remove(&trigger_spell);
-                return false;
-            };
-            if definition.overrides_spell_id < 0 {
-                visiting.remove(&trigger_spell);
-                return false;
-            }
-        }
-
-        if previous.disabled {
-            if self.spell_chain_store.is_none() || self.spell_required_store.is_none() {
-                visiting.remove(&trigger_spell);
-                return false;
-            }
-            if let Some(next_spell) = u32::try_from(trigger_spell)
-                .ok()
-                .map(|spell_id| self.next_spell_in_chain_like_cpp(spell_id))
-                .filter(|spell_id| *spell_id != 0)
-                .and_then(|spell_id| i32::try_from(spell_id).ok())
-                && spell_runtime
-                    .rows
-                    .get(&next_spell)
-                    .is_some_and(|row| row.disabled)
-                && !self.validate_base_learn_spell_fallback_like_cpp(next_spell, visiting)
-            {
-                visiting.remove(&trigger_spell);
-                return false;
-            }
-            if let Ok(trigger_spell_id) = u32::try_from(trigger_spell) {
-                for requiring_spell in self
-                    .spells_requiring_spell_like_cpp(trigger_spell_id)
-                    .iter()
-                    .filter_map(|spell_id| i32::try_from(*spell_id).ok())
-                {
-                    if spell_runtime
-                        .rows
-                        .get(&requiring_spell)
-                        .is_some_and(|row| row.disabled)
-                        && !self
-                            .validate_base_learn_spell_fallback_like_cpp(requiring_spell, visiting)
-                    {
-                        visiting.remove(&trigger_spell);
-                        return false;
-                    }
-                }
-            }
-        }
-
-        visiting.remove(&trigger_spell);
-        true
-    }
-
-    fn apply_base_learn_spell_effect_recursive_like_cpp(
-        &mut self,
-        trigger_spell: i32,
-        visiting: &mut BTreeSet<i32>,
-    ) -> bool {
-        if !visiting.insert(trigger_spell) {
-            return true;
-        }
-        let Some(spell_runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
-            visiting.remove(&trigger_spell);
-            return false;
-        };
-        let previous = spell_runtime
-            .rows
-            .get(&trigger_spell)
-            .or_else(|| spell_runtime.fallback_rows.get(&trigger_spell))
-            .copied();
-        let was_disabled = previous.is_some_and(|row| row.disabled);
-        if was_disabled
-            && (!spell_runtime.rows_complete
-                || self.spell_chain_store.is_none()
-                || self.spell_required_store.is_none())
-        {
-            visiting.remove(&trigger_spell);
-            return false;
-        }
-        // C++ `Player::LearnSpell` preserves the active bit while clearing a
-        // disabled row. Otherwise it requests active=true, after which
-        // `Player::AddSpell` keeps an already-known lower rank inactive.
-        let next_spell = u32::try_from(trigger_spell)
-            .ok()
-            .map(|spell_id| self.next_spell_in_chain_like_cpp(spell_id))
-            .filter(|spell_id| *spell_id != 0)
-            .and_then(|spell_id| i32::try_from(spell_id).ok());
-        let desired_active = previous.filter(|row| row.disabled).map_or_else(
-            || !next_spell.is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id)),
-            |row| row.active,
-        );
-        let requires_learn = previous.map_or_else(
-            || !self.known_spells_like_cpp().contains(&trigger_spell),
-            |row| {
-                // C++ `AddSpell` handles `PLAYERSPELL_TEMPORARY` before its
-                // existing-row early returns: it erases the temporary entry
-                // with `RemoveTemporarySpell`, then inserts a durable row.
-                matches!(
-                    row.state,
-                    RepresentedPlayerSpellStateLikeCpp::Removed
-                        | RepresentedPlayerSpellStateLikeCpp::Temporary
-                ) || row.disabled
-                    || row.active != desired_active
-            },
-        );
-        let reaches_add_spell_tail = previous.map_or(requires_learn, |row| {
-            row.disabled
-                || matches!(
-                    row.state,
-                    RepresentedPlayerSpellStateLikeCpp::Removed
-                        | RepresentedPlayerSpellStateLikeCpp::Temporary
-                )
-        });
-        if reaches_add_spell_tail {
-            self.record_spell_acquisition_post_commit_action_like_cpp(
-                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
-                    spell_id: trigger_spell as u32,
-                },
-            );
-        }
-        if requires_learn {
-            if let Some(trait_definition_id) = self
-                .mutate_player_spell_runtime_like_cpp(|runtime| {
-                    runtime.trait_definition_ids.remove(&trigger_spell)
-                })
-                .flatten()
-                && let Some(overridden_spell_id) = u32::try_from(trait_definition_id)
-                    .ok()
-                    .and_then(|id| {
-                        self.trait_definition_store()
-                            .and_then(|store| store.get(id))
-                    })
-                    .map(|definition| definition.overrides_spell_id)
-                    .filter(|spell_id| *spell_id > 0)
-            {
-                self.remove_represented_override_spell_like_cpp(overridden_spell_id, trigger_spell);
-            }
-            let complete_spell_rows = spell_runtime
-                .rows_complete
-                .then(|| spell_runtime.rows.clone());
-            let favorite = previous.is_some_and(|row| row.favorite);
-            let dirty_row = RepresentedPlayerSpellLikeCpp {
-                spell_id: trigger_spell,
-                active: desired_active,
-                disabled: false,
-                dependent: previous.is_some_and(|row| row.dependent),
-                favorite,
-                state: match previous.map(|row| row.state) {
-                    None | Some(RepresentedPlayerSpellStateLikeCpp::Temporary) => {
-                        RepresentedPlayerSpellStateLikeCpp::New
-                    }
-                    Some(RepresentedPlayerSpellStateLikeCpp::New) => {
-                        RepresentedPlayerSpellStateLikeCpp::New
-                    }
-                    Some(_) => RepresentedPlayerSpellStateLikeCpp::Changed,
-                },
-            };
-            self.learn_known_spell_like_cpp(trigger_spell);
-            let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                if let Some(mut rows) = complete_spell_rows {
-                    rows.insert(trigger_spell, dirty_row);
-                    runtime.rows = rows
-                        .into_iter()
-                        .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
-                        .collect();
-                    runtime.rows_loaded = true;
-                    runtime.rows_complete = true;
-                } else {
-                    runtime.fallback_rows.insert(
-                        trigger_spell,
-                        canonical_player_spell_record_like_cpp(dirty_row),
-                    );
-                }
-            });
-            self.sync_player_registry_state_like_cpp();
-            if desired_active {
-                self.record_spell_acquisition_post_commit_action_like_cpp(
-                    crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
-                        spell_id: trigger_spell as u32,
-                        favorite,
-                        suppress_messaging: false,
-                    },
-                );
-                self.send_packet(&wow_packet::packets::trainer::LearnedSpells {
-                    spells: vec![wow_packet::packets::trainer::LearnedSpellEntry {
-                        spell_id: trigger_spell,
-                        is_favorite: favorite,
-                        field_8: None,
-                        superceded: None,
-                        trait_definition_id: None,
-                    }],
-                    suppress_messaging: false,
-                });
-            }
-        }
-
-        if was_disabled {
-            let mut disabled_dependents = Vec::new();
-            let spell_runtime = self.player_spell_runtime_snapshot_like_cpp();
-            if let Some(next_spell) = next_spell
-                && spell_runtime
-                    .as_ref()
-                    .and_then(|runtime| {
-                        runtime
-                            .rows
-                            .get(&next_spell)
-                            .or_else(|| runtime.fallback_rows.get(&next_spell))
-                    })
-                    .is_some_and(|row| row.disabled)
-            {
-                disabled_dependents.push(next_spell);
-            }
-            if let Ok(trigger_spell_id) = u32::try_from(trigger_spell) {
-                for requiring_spell in self
-                    .spells_requiring_spell_like_cpp(trigger_spell_id)
-                    .iter()
-                    .filter_map(|spell_id| i32::try_from(*spell_id).ok())
-                {
-                    if spell_runtime
-                        .as_ref()
-                        .and_then(|runtime| {
-                            runtime
-                                .rows
-                                .get(&requiring_spell)
-                                .or_else(|| runtime.fallback_rows.get(&requiring_spell))
-                        })
-                        .is_some_and(|row| row.disabled)
-                        && !disabled_dependents.contains(&requiring_spell)
-                    {
-                        disabled_dependents.push(requiring_spell);
-                    }
-                }
-            }
-            for dependent_spell in disabled_dependents {
-                if !self.apply_base_learn_spell_effect_recursive_like_cpp(dependent_spell, visiting)
-                {
-                    visiting.remove(&trigger_spell);
-                    return false;
-                }
-            }
-        } else {
-            self.record_spell_acquisition_post_commit_action_like_cpp(
-                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
-                    spell_id: trigger_spell as u32,
-                },
-            );
-        }
-        visiting.remove(&trigger_spell);
-        true
     }
 
     /// C++ `Spell::EffectDismissPet`.

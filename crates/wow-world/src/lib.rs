@@ -21,6 +21,7 @@ pub mod handlers;
 pub mod loot_persistence;
 pub mod map_manager;
 pub mod phasing;
+mod player_cast;
 #[path = "session/directory.rs"]
 pub mod player_directory;
 mod player_directory_canonical_queries;

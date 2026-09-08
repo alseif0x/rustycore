@@ -14,9 +14,29 @@ checkbox or an old percentage is not proof that the current server implements th
 | How should responsibilities and files be organized? | [Module design](architecture/module-design-guidelines.md) and [dependency/ownership boundaries](architecture/ownership-and-boundaries.md) |
 | What reported defects need current verification? | [EXISTING-CODE-DEFECTS.md](migration/EXISTING-CODE-DEFECTS.md) |
 
-Base-server behavior is established by the legacy C++ source or appropriate real captures,
-not by a Rust comment or a planning document. An architecture plan can be approved while its
+Base-server behavior is established by versioned C++ references and appropriate target-build
+captures, not by a Rust comment or a planning document. AGENTS.md owns the comparison and
+adaptation rules; neither upstream is assumed complete or correct. An architecture plan can be
+approved while its
 implementation and acceptance remain open. Keep those statuses separate.
+
+## Versioned behavioral references
+
+On 2026-09-08 the user requested a complementary 3.3.5 source for gameplay missing or
+suspect in the Classic fork. AzerothCore was selected for its WotLK focus, shared
+TrinityCore/SunwellCore lineage, and combined core/scripts/world SQL. This is a practical
+source choice, not a measured claim that it is more complete than CMaNGOS in every system.
+
+| Reference | Local checkout and observed SHA | Use and limits |
+| --- | --- | --- |
+| Existing Classic 3.4.3 fork | `/home/server/woltk-trinity-legacy`, `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` | Target-version code. Existing captures retain their own exact source/binary identities; this SHA does not relabel older QA. |
+| [AzerothCore WotLK](https://github.com/azerothcore/azerothcore-wotlk) | `/home/server/azerothcore-wotlk-reference`, `a5e0e6b8f2bf878cb45cb1dc2251eb1448b9bbc3` | Detached shallow 3.3.5a reference, with `src`, world SQL base/updates and project metadata checked out. No build, database import or runtime is implied. |
+
+The AzerothCore checkout is outside RustyCore and is not a dependency or submodule.
+Its source/license/author information remains intact; record provenance when adapting
+logic or data. Sparse/shallow history is not an absence-of-implementation proof: inspect
+the exact upstream path/history when the active operation needs more context. Protocol,
+data and gameplay differences must be resolved for 3.4.3 before production adaptation.
 
 ## Development, operations and extensions
 
