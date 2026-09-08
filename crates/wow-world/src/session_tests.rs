@@ -28435,6 +28435,17 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
         80,
         0,
     ));
+    // C++ always casts from a Player that is resident on the canonical map,
+    // and login adopts its handle. The cast identity allocator fails closed
+    // without both, so the fixture installs them like production does.
+    add_canonical_test_player_on_map(
+        &canonical,
+        player_guid,
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        0,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.client_visible_guids_like_cpp.insert(creature_guid);
     session.set_map_manager(manager.clone());
     session.register_world_creature(
@@ -28557,6 +28568,17 @@ async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
         80,
         0,
     ));
+    // C++ always casts from a Player that is resident on the canonical map,
+    // and login adopts its handle. The cast identity allocator fails closed
+    // without both, so the fixture installs them like production does.
+    add_canonical_test_player_on_map(
+        &canonical,
+        player_guid,
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        0,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.client_visible_guids_like_cpp.insert(creature_guid);
     session.set_map_manager(manager.clone());
     session.register_world_creature(
@@ -28797,6 +28819,17 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
         80,
         0,
     ));
+    // C++ always casts from a Player that is resident on the canonical map,
+    // and login adopts its handle. The cast identity allocator fails closed
+    // without both, so the fixture installs them like production does.
+    add_canonical_test_player_on_map(
+        &canonical,
+        player_guid,
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        0,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.client_visible_guids_like_cpp.insert(creature_guid);
     session.set_map_manager(manager.clone());
     session.register_world_creature(

@@ -112,9 +112,10 @@ impl WorldSession {
                 )
                 .into_iter()
                 .any(|difficulty_id| {
-                    store
-                        .attributes_for_spell_difficulty_like_cpp(spell_id, u32::from(difficulty_id))
-                        & SPELL_ATTR0_CU_NEEDS_AMMO_DATA_LIKE_CPP
+                    store.attributes_for_spell_difficulty_like_cpp(
+                        spell_id,
+                        u32::from(difficulty_id),
+                    ) & SPELL_ATTR0_CU_NEEDS_AMMO_DATA_LIKE_CPP
                         != 0
                 })
             })

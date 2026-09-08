@@ -14,15 +14,20 @@ Session delivery, with exact incarnation/residence admission and the actual
 client visibility ledger. No new clock or whole-map rewrite is selected.
 Implementation and acceptance are tracked in
 [the #588 checkpoint](../architecture/deferred-visibility-588-checkpoint.md).
-#588 and #587 now have local scoped acceptance; neither is published or merged.
-The user approved #589, the represented Player cast-request lifecycle, described in
-[the existing architecture plan](../architecture/modularity-and-ecs-plan.md#next-core-candidate--2026-09-08).
-Implementation is in progress on its own branch, locally based on `cc8a8e97`.
-The [#589 checkpoint](../architecture/player-cast-589.md) records focused evidence:
-19 Player-cast tests and the corrected 81-test handler suite pass. The user asked
-to stop after that correction; work is paused. Complete local and paired runtime
-acceptance remain pending, including later untested bot evaluator changes.
-Required #584 core still precedes #583, then #153 and #133 closure.
+#588 and #587 have local scoped acceptance. Their content is carried in full by
+the #589 branch, which stacks on both, so a single PR integrates the three
+deliveries; the user authorised that integration on 2026-09-08.
+#589, the represented Player cast-request lifecycle, is **implemented and
+locally accepted**, described in
+[the existing architecture plan](../architecture/modularity-and-ecs-plan.md#next-core-candidate--2026-09-08)
+and recorded in [its checkpoint](../architecture/player-cast-589.md), which owns
+the executed evidence, the represented value limits of the publication payload
+and the deviations deliberately left open. Its six sub-issues #590-#595 cover the
+functional contract and consumers, the 3.4.3 payload and publication, ownership
+and physical organization, the acceptance bot, the integral regression campaign,
+and closure. The earlier "paused, uncommitted working tree" state is superseded.
+Required #584 core still precedes #583, then #153 and #133 closure; #589 does not
+complete #133 or all spell gameplay.
 The dated pre-merge account below remains historical
 evidence, not an instruction to reopen #585.
 

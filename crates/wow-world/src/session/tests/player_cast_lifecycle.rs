@@ -398,7 +398,7 @@ fn player_cast_publication_fences_visibility_generation_and_map_like_cpp() {
     let visible_durable = Arc::new(Mutex::new(DurableCreatureRuntimeCommandsLikeCpp::default()));
     let hidden_durable = Arc::new(Mutex::new(DurableCreatureRuntimeCommandsLikeCpp::default()));
     let other_map_durable = Arc::new(Mutex::new(DurableCreatureRuntimeCommandsLikeCpp::default()));
-    let mut visible_set = SharedClientVisibleGuidsLikeCpp::default();
+    let visible_set = SharedClientVisibleGuidsLikeCpp::default();
     visible_set.insert(source_guid);
     let visible_registration = registry.register_or_replace(
         visible_guid,
@@ -666,4 +666,140 @@ fn normal_visual_uses_server_relation_id_and_cpp_equal_condition_order() {
         "SpellMgr lower_bound reverses equal-condition relation IDs"
     );
     assert_eq!(visual.script_visual_id, 0);
+}
+
+/// C++ `Spell::SendSpellStart` and `Spell::SendSpellGo` assemble different
+/// flags and different optional sections for the same cast. Start carries
+/// `CAST_FLAG_HAS_TRAJECTORY` and samples power before the debit; Go carries
+/// `CAST_FLAG_UNKNOWN_9`, adds `CAST_FLAG_NO_GCD` when the spell has no
+/// `StartRecoveryTime`, and samples what remains after it.
+#[tokio::test]
+async fn normal_start_and_go_carry_cpp_cast_flags_like_cpp() {
+    const CAST_FLAG_HAS_TRAJECTORY_LIKE_CPP: u32 = 0x0000_0002;
+    const CAST_FLAG_UNKNOWN_9_LIKE_CPP: u32 = 0x0000_0100;
+    const CAST_FLAG_POWER_LEFT_SELF_LIKE_CPP: u32 = 0x0000_0800;
+    const CAST_FLAG_NO_GCD_LIKE_CPP: u32 = 0x0004_0000;
+
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let guid = ObjectGuid::create_player(1, 58_931);
+    install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
+    assert!(
+        crate::canonical_player_access::configure_canonical_player_vitals_for_test(
+            &canonical,
+            guid,
+            (100, 100, PowerType::Mana, 500, 500, 500),
+        )
+    );
+
+    let mut spell = minimal_spell();
+    spell.cast_time_ms = 1_500;
+    // A non-health cost is exactly the C++ gate for CAST_FLAG_POWER_LEFT_SELF.
+    spell.power_costs = vec![wow_data::spell::SpellPowerCostInfoLikeCpp {
+        order_index: 0,
+        power_type: PowerType::Mana as i8,
+        mana_cost: 10,
+        mana_cost_per_level: 0,
+        mana_per_second: 0,
+        power_cost_pct: 0.0,
+        power_cost_max_pct: 0.0,
+        power_pct_per_second: 0.0,
+        required_aura_spell_id: 0,
+        optional_cost: 0,
+    }];
+    let mut spells = SpellStore::new();
+    spells.insert(TEST_SPELL_ID, spell);
+    session.set_spell_store(Arc::new(spells));
+    session.set_known_spells_like_cpp(vec![TEST_SPELL_ID]);
+    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [],
+        ))),
+        ..Default::default()
+    });
+
+    assert!(crate::player_cast::request(&mut session, request(guid, 71)));
+    session.tick_pending_spell_cast_request_like_cpp().await;
+
+    let _prepare = send_rx.try_recv().expect("SpellPrepare mapping");
+    let start = send_rx.try_recv().expect("SpellStart");
+    assert_eq!(
+        &start[..2],
+        &(ServerOpcodes::SpellStart as u16).to_le_bytes(),
+        "admission must publish Start, not a CastFailed"
+    );
+    assert_eq!(
+        cast_flags_of(&start),
+        CAST_FLAG_HAS_TRAJECTORY_LIKE_CPP | CAST_FLAG_POWER_LEFT_SELF_LIKE_CPP,
+        "Start assembles HAS_TRAJECTORY plus the non-health power section"
+    );
+
+    // `SendSpellGo` assembles a different set from the same cast: no
+    // HAS_TRAJECTORY, UNKNOWN_9 instead, and NO_GCD because this spell has no
+    // StartRecoveryTime. Driving the launch here would run the whole effect
+    // path, so the flag assembly itself is exercised directly.
+    let spell = session
+        .spell_store()
+        .and_then(|store| store.get(TEST_SPELL_ID))
+        .cloned()
+        .expect("the fixture spell");
+    let (go_data, go_flags) = session.player_cast_publication_like_cpp(
+        &spell,
+        &SpellCastMetadata::default(),
+        crate::session::player_cast::wire::PlayerCastPublicationPhaseLikeCpp::Go,
+    );
+    assert_eq!(
+        go_flags,
+        CAST_FLAG_UNKNOWN_9_LIKE_CPP
+            | CAST_FLAG_POWER_LEFT_SELF_LIKE_CPP
+            | CAST_FLAG_NO_GCD_LIKE_CPP,
+        "Go assembles UNKNOWN_9 and NO_GCD, never HAS_TRAJECTORY"
+    );
+    assert_eq!(
+        go_data.remaining_power.len(),
+        1,
+        "the non-health cost produces exactly one RemainingPower row"
+    );
+    assert!(
+        go_data.remaining_runes.is_none() && go_data.ammo_display_id.is_none(),
+        "a plain mana spell selects neither the rune nor the ammo section"
+    );
+}
+
+/// Read `SpellCastData::CastFlags` out of a serialized Start/Go frame.
+fn cast_flags_of(bytes: &[u8]) -> u32 {
+    let mut pkt = wow_packet::WorldPacket::from_bytes(&bytes[2..]);
+    for field in ["CasterGUID", "CasterUnit", "CastID", "OriginalCastID"] {
+        pkt.read_packed_guid().unwrap_or_else(|_| panic!("{field}"));
+    }
+    pkt.read_int32().expect("SpellID");
+    wow_packet::packets::spell::SpellCastVisual::read(&mut pkt).expect("Visual");
+    pkt.read_uint32().expect("CastFlags")
+}
+
+/// The residence fence covers any prepared cast that carries a residence
+/// stamp, not only a normal client request: a server-triggered timed cast
+/// prepared before a transfer must not launch after reentry either.
+#[test]
+fn reentry_denies_a_residence_stamped_server_triggered_cast_like_cpp() {
+    let (mut session, _, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let guid = ObjectGuid::create_player(1, 58_932);
+    install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
+
+    let mut cast = prepared_cast(guid, 1);
+    // A toy or other server-triggered cast has no client request identity.
+    cast.metadata.client_cast_id = None;
+    cast.metadata.from_client = false;
+    cast.metadata.prepared_residence_revision = Some(0);
+    assert!(session.set_active_spell_cast_like_cpp(Some(cast)));
+
+    assert!(
+        session.take_ready_player_cast_like_cpp().is_none(),
+        "a cast stamped with a previous residence cannot launch after reentry"
+    );
+    assert!(
+        session.active_spell_cast_snapshot_like_cpp().is_none(),
+        "the stale prepared cast is dropped rather than retained"
+    );
 }

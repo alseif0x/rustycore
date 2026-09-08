@@ -13,11 +13,19 @@ Storage/module choices and the full #133 outcome are unchanged.
 ## Next core candidate — 2026-09-08
 
 The user approved **#589 — represented Player cast-request lifecycle** on
-2026-09-08 after localized source review at `cc8a8e97`. Implementation proceeds
-under #584; this does not complete all spell gameplay. The
-[#589 checkpoint](player-cast-589.md) records working implementation and acceptance.
-#588/#587 have local scoped acceptance; publication and integration remain pending.
+2026-09-08 after localized source review at `cc8a8e97`. It is now **implemented
+and locally accepted** under #584, split for execution into #590-#595; this does
+not complete all spell gameplay. The [#589 checkpoint](player-cast-589.md) owns
+the executed evidence, the publication payload's represented value limits and the
+deviations deliberately left open, and supersedes the earlier paused state.
+#588/#587 have local scoped acceptance and their content is carried in full by the
+#589 branch, so one PR integrates the three deliveries.
 Their checkpoints retain exact tested source identities and capture limitations.
+The design described below is the delivered design; where the implementation
+departed from it, the checkpoint records the departure and its reason. In
+particular, an intermediate iteration that refused projectile, rune,
+heal-prediction and trajectory casts outright was withdrawn as a functional
+regression C++ does not have.
 
 The operation is client request → immediate/queued admission → preparation →
 instant/timed launch or cancellation → ordered publication and effect execution.

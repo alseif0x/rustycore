@@ -136,10 +136,7 @@ fn instant_and_timed_requests_share_mapping_validation_install_and_start() {
     for time in [0, 1500] {
         let mut runtime = Fixture::new(time);
         assert_eq!(prepare(&mut runtime, Fixture::request()), time == 0);
-        assert_eq!(
-            runtime.events,
-            ["prepare", "power", "install", "start"]
-        );
+        assert_eq!(runtime.events, ["prepare", "power", "install", "start"]);
         let cast = runtime.active.unwrap();
         assert_eq!(cast.cast_time_ms, time);
         assert_eq!(cast.spell_visual.spell_visual_id, 123);

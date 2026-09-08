@@ -1,132 +1,42 @@
 # Represented Player cast-request lifecycle — #589
 
-## Traspaso solicitado — 2026-09-08
+Status, 2026-09-08: **implemented and locally accepted**, delivered as one
+macro on `589-archcore-complete-represented-player-cast-request-lifecycle`.
+The earlier "paused, uncommitted" state is superseded: the inherited working
+tree is committed, the six sub-issues #590–#595 are executed, and the evidence
+below was actually run at the recorded SHA. Earlier #587/#588 acceptance does
+not validate these changed inputs; this branch carries all three deliveries.
 
-El usuario ha autorizado analizar y documentar lo pendiente para otra IA;
-**no ha reanudado el desarrollo**. Esta revisión consultó #589 en GitHub
-(OPEN), Git, el código de los adaptadores y las pruebas, y los tres logs
-focalizados citados abajo. No ejecutó compilaciones, tests ni QA nuevos.
-La conclusión es **implementación parcial con aceptación incompleta**:
-no está demostrado que sólo falten pruebas, ni hay base para un porcentaje.
-
-### Dónde está el trabajo
-
-- Checkout de implementación: `/home/server/rustycore-cast-589`.
-- Rama: `589-archcore-complete-represented-player-cast-request-lifecycle`.
-- HEAD: `cc8a8e97c562aa07c8c85185b8764dc40a8f9c0e`; los cambios de #589
-  siguen sin commit, incluidos archivos nuevos sin seguimiento. Clonar la rama
-  remota o copiar sólo `git diff` **no recupera estos archivos nuevos**.
-- `/home/server/rustycore` sigue en #587, con dos documentos modificados y
-  `docs/architecture/lfg-343-audit.md` no relacionado: conservarlos.
-  Este checkpoint vive en el checkout de #589; no confundir ambos árboles.
-- La rama contiene antecedentes locales de #587/#588. Antes de publicar,
-  verificar su integración real para que el PR de #589 no arrastre entregas
-  pendientes inadvertidamente. Esta revisión no publica ni integra nada.
-- Las instrucciones compartidas todavía dicen que no se eligió familia tras
-  #587; ese dato está desactualizado frente a la aprobación explícita de #589
-  y su issue abierta. No reiniciar la selección ni reabrir #585.
-
-### Qué falta realmente para aceptar #589
-
-| Frente | Estado observado | Condición de cierre |
-| --- | --- | --- |
-| Admisión y preparación | Aplicación privada y adaptadores presentes; pruebas focalizadas verdes en sus ejecuciones registradas | Verificar operación completa instantánea y temporizada, cola dentro/fuera de 400 ms, reemplazo y revalidación con composición real |
-| Identidad y vida del cast | Asignación Map, revisión de residencia y pruebas de exclusión presentes | Acreditar secuencia compartida con el consumidor criatura real, continuidad al reingresar y cancelación pendiente sin consumir identidad; no sustituir integración por un test directo del generador |
-| Publicación y efectos | Prepare/Start/Go e interrupciones conectados; observadores usan el rail de #588 | Capturas nuevas pareadas de emisor y observador que prueben bytes, identidad, visual, targets, conexión, orden y ejecución única |
-| Consumidores compartidos | Cambios en toy, binder, spell-click y adaptadores de interrupción; executor compartido conservado | Regresión explícita de first-login, item acquisition, self-resurrection, loot, transferencia, stance, canal y stuck; preservar owners, registro de opcodes y driver |
-| Payload y condiciones | Serializadores tipados presentes; productor Player rellena RemainingPower y deja otras secciones por defecto | Resolver cualquier sección, selección de targets o condición visual requerida por los escenarios aprobados; serializar un campo no demuestra que producción lo calcule |
-| Bot integrado | Modo cast/cancel/wait y recogida de observador presentes | Formato y pruebas del estado actual, incluidas las últimas restricciones de IDs y eventos inesperados; validar el evaluador antes de usar su PASS como evidencia |
-| Arquitectura | Métodos movidos y nuevo comando; política de ownership sin cambios correspondientes | Revisar delta semántico, actualizar sólo referencias justificadas y ejecutar checks de ownership, persistencia/snapshots aplicables y política física |
-| Regresión final | Sólo campañas focalizadas acreditadas | Suites afectadas de packet/entities/map/world, consumidores y composición world-server; QA aplicable al conjunto final |
-| Publicación | No hay commit de #589 ni aceptación terminal | Registrar candidato y evidencia exactos; commit/push/PR/merge únicamente con autorización correspondiente |
-
-Hay una corrección local concreta pendiente de política física:
-`session_tests.rs` mide **95.705 líneas**, frente al techo **95.703** en
-`tools/architecture/physical-file-policy.json`. Resolver por una separación
-coherente de responsabilidades o delta expresamente justificado; no regenerar
-la política a ciegas. `handlers/spell.rs` mide **6.272 líneas** en esta revisión:
-su cierre necesita revisar la organización de la responsabilidad afectada,
-no declarar modularidad porque se haya reducido el archivo o pase un techo legacy.
-Estos conteos son inspección; no se ha ejecutado el validador de arquitectura.
-
-### Incertidumbres que pueden exigir más implementación
-
-El resolver visual no acredita evaluación general de UnitCondition. El productor
-Player de `session/player_cast/publication.rs` construye RemainingPower y usa
-valores por defecto para las demás secciones. El checkpoint conserva pendientes
-la autoridad de estadísticas del combat log avanzado y comportamiento completo
-de runas/proyectiles. Hay que decidir su necesidad a partir de los casos de #589
-y datos efectivos, no excluirlos automáticamente para hacer pasar una fixture.
-El motor completo de efectos, SpellHistory, pets/vehicles y todas las reglas de
-targets no pertenecen íntegramente a #589, pero cualquier dependencia necesaria
-para sus casos de aceptación sí debe resolverse. El resto continúa bajo #30/#584.
-
-La QA de observador en modo `observe_only` recoge evidencia pero no acredita
-aceptación por sí sola: requiere correlación con el emisor. La fixture sintética
-30798→6197 heredada de #587 no demuestra gameplay stock ni cubre la matriz
-instantáneo/temporizado/cola/cancelación/fallo tardío completa.
-
-### Evidencia que se puede conservar y límites
-
-Los logs existentes confirman **19/19** del filtro `player_cast`, **81/81** de
-`handlers::spell::tests` tras reparar fixtures y **11/11** del bot en su ejecución
-anterior. No sumar esos filtros como cobertura total ni atribuirlos a HEAD limpio:
-se ejecutaron sobre cambios sin commit y no existe aquí un manifiesto que fije
-el contenido exacto de cada archivo probado. Las últimas modificaciones del bot
-son posteriores a sus once pruebas. No se volvió a ejecutar ninguna en esta revisión.
-
-Los cuatro fallos corregidos eran fixtures de aura/mover; ese arreglo no acredita
-por sí mismo paridad de casts. Tampoco la aceptación previa de #587/#588 valida
-los consumidores modificados por #589. No hay capturas live nuevas de #589.
-
-### Cómo continuar sin perder contexto
-
-La siguiente IA debe leer este checkpoint y #589, inspeccionar ambos worktrees
-y preservar todos los cambios tracked/untracked. Primero cerrar las incertidumbres
-y ajustes de implementación dentro de la macro; después una campaña final
-secuencial con un job Cargo, incluida la composición de producción. Usar el
-checker construido desde el checkout correcto, no un binario antiguo que tenga
-otra raíz incorporada. Leer las guías del bot antes de preparar QA real; servicios
-y bases de datos requieren autoridad concreta. No hay permiso nuevo para ello.
-
-Las referencias son el Classic 3.4.3 versionado citado abajo y AzerothCore como
-fuente complementaria de gameplay; no copiar formatos wire/SQL 3.3.5. No es
-necesario reiniciar una auditoría global ni crear micro-issues. El orden global
-sigue siendo núcleo requerido de #584 → #583 → #153 → cierre de #133.
-
-
-Status, 2026-09-08: approved and implemented **in progress**, based locally on
-`cc8a8e97c562aa07c8c85185b8764dc40a8f9c0e`. The working changes are uncommitted.
-The user requested a stop after correcting and verifying the four handler-suite
-failures. That correction is finished; work is paused. Focused evidence is below.
-Architecture checks, complete regression acceptance and live QA remain pending.
-Earlier #587/#588 acceptance does not validate these changed inputs.
-
-The approved scope and acceptance remain in
-[#589](https://github.com/alseif0x/rustycore/issues/589) and the
-[architecture plan](modularity-and-ecs-plan.md#next-core-candidate--2026-09-08).
-This checkpoint records implementation and evidence, without creating a new plan.
+Sub-issue map: #590 functional contract, identity and consumers; #591 payload
+and publication; #592 ownership and physical organization; #593 acceptance bot;
+#594 integral regression and paired QA; #595 evidence, publication and closure.
 
 ## Ownership and consumers
 
 `wow-world::player_cast` coordinates normal request admission and preparation.
-Its private Session adapters resolve canonical state, catalogs, power and packet
-publication. Pending state stays in Player gameplay state; active execution and
-cooldowns stay in Unit spell execution. The existing Session driver completes
-active casts before admitting pending casts. There is no new timer, task or
-mutable state mirror in production.
+Its private Session adapters resolve canonical state, catalogs, power, wire
+payload and packet publication. Pending state stays in Player gameplay state;
+active execution and cooldowns stay in Unit spell execution. The existing
+Session driver completes active casts before admitting pending casts. There is
+no new timer, task or mutable state mirror in production.
 
 Normal immediate and queued requests use the same preparation path, retain the
 client request ID until SpellPrepare maps it to a map-allocated server Cast GUID,
 and stamp active preparation with the canonical residence revision. Instance-local
 Map allocation is shared with represented creature casts. Stale or detached Player
-handles cannot allocate; a prepared cast cannot execute after residence reentry.
+handles cannot allocate; a prepared cast cannot execute after residence reentry,
+and that fence now covers any residence-stamped prepared cast rather than only
+client requests, so a timed toy cast is fenced too.
 
-Toy, binder and spell-click consumers adapt to fallible canonical GUID allocation.
-Existing server-triggered shared-executor consumers retain their explicit metadata
-contracts, including first-login, item acquisition and self-resurrection. Normal
-client defaults are not imposed on those callers. Loot, movement/stance, channel
-and transfer interruption reach the same active state owner.
+Toy, binder, both spell-click consumers, first-login create-mode spells,
+item-obtain spells and self-resurrection all adapt to fallible canonical GUID
+allocation. The last three previously reached the shared executor with an EMPTY
+cast id and a default metadata; they now allocate from the admitted Map's shared
+`HighGuid::Cast` sequence through `execute_server_triggered_spell_like_cpp` and
+carry explicit metadata for their own C++ trigger contract. Normal client
+defaults are not imposed on any of them. Loot, movement/stance, channel and
+transfer interruption reach the same active state owner, and loot now also
+reaches the canonical Unit current-spell slots.
 
 Start/Go and interruption frames use the existing bounded durable directory rail
 for observers, after recipient visibility and map selection. Session delivery
@@ -143,85 +53,144 @@ These are #589 repairs, not claims of behavior-preserving movement:
   flags and power sections replace the former client-derived metadata.
 - Preparation starts the represented GCD once; launch does not restart it.
   Active cancellation clears that preparation GCD. A late power failure retains it.
+- A `TRIGGERED_FULL_MASK` server cast now carries `TRIGGERED_IGNORE_GCD` and no
+  longer starts the player's global cooldown at launch. `TRIGGERED_NONE` server
+  casts still start it, matching `Spell::prepare`.
 - Cancellation uses SpellFailure then SpellFailedOther before Interrupted result.
   Late launch rejection uses its specific CastFailed before those interruption
   frames. Mismatched CancelCast still cancels pending requests when a cast is active.
+- Every abandoned request reports. C++ `Player::CancelPendingCastRequest` exists
+  precisely so the cast button cannot stay highlighted; a lost spell, cooldown
+  owner, visual, allocation or residence install previously published nothing and
+  now sends `SPELL_FAILED_DONT_REPORT`, with the client id before construction and
+  the consumed server id after the SpellPrepare mapping.
 - Power consumption rechecks resources under the same canonical guard as the
   debit, and cannot report success after losing the owner before deduction.
+- `CanExecutePendingSpellCastRequest` also cancels when the casting unit is not in
+  world or is no longer `GetUnitBeingMoved()`.
+- Loot interruption reaches the canonical Unit slots, not only the represented
+  cast execution state.
 
-Exact Classic source at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
-`Entities/Player/Player.cpp` RequestSpellCast/CancelPendingCastRequest/
-ExecutePendingSpellCastRequest/CanExecutePendingSpellCastRequest;
-`Handlers/SpellHandler.cpp` HandleCastSpellOpcode/HandleCancelCastOpcode;
-`Spells/Spell.cpp` constructor, prepare, cancel, _cast cleanupSpell,
-SendSpellStart, SendSpellGo and SendInterrupted;
-`Server/Packets/SpellPackets.cpp` SpellCastData and interruption writers;
-`Maps/Map.h` GenerateLowGuid and ObjectGuid construction.
-These source anchors motivate the contract; fresh paired captures remain required
-and source code itself is not proof of correctness.
+## Publication contract and represented value limits
 
-## Focused evidence and requested pause
+`SendSpellStart` and `SendSpellGo` flags are assembled in
+`session/player_cast/wire.rs` and the optional sections are filled exactly where
+the flag selected them. Start carries `HAS_TRAJECTORY`, conditional
+`POWER_LEFT_SELF` and, while the cast is timed, `IMMUNITY`. Go carries
+`UNKNOWN_9`, conditional `POWER_LEFT_SELF`, `PROJECTILE`, the Death Knight
+`NO_GCD | RUNE_LIST` pair, `RUNE_LIST` for `SPELL_EFFECT_ACTIVATE_RUNE`,
+`ADJUST_MISSILE` for a trajectory request and `NO_GCD` when the spell has no
+`StartRecoveryTime`. `CAST_FLAG_PENDING` stays triggered-only. Start samples
+power before the debit, Go after it. The presence bits are serialized from the
+sections, never inferred from the flags.
 
-All commands ran locally on aarch64 at the uncommitted working changes above
-`cc8a8e97`; none establishes that committed base as containing #589. Cargo used
-one job and existing target caches, sequentially; the standalone bot has its own
-manifest. Workspace builds used `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`.
+Four values degrade because their subsystem is unported, each the way C++ also
+degrades for a caster with nothing to report. They are limits of value, not of
+wire structure:
 
-- `cargo test --locked --offline -p wow-world --lib player_cast`: **19 passed**,
-  zero failures. Log: `/tmp/rustycore-589-player-cast-tests.log`.
-- `cargo test --manifest-path tools/wow-test-bot/Cargo.toml --locked --offline
-  --bin wow-test-bot cast_lifecycle`: **11 passed**, zero failures at that run.
-  Log: `/tmp/rustycore-589-bot-cast-tests.log`. Subsequent evaluator hardening
-  rejects all unexpected plan-bound cast events and reused client request IDs;
-  its additional plan test has **not been run**. Do not label the latest bot
-  changes as validated by the earlier eleven-test result.
-- `cargo test --locked --offline -p wow-world --lib handlers::spell::tests`:
-  first **77 passed, four failed**. Canonical fixture adoption exposed three
-  mount aura setups still writing the obsolete Session-only test field, and a
-  fixture missing the Player's self-mover initialization. The aura setups now
-  use `insert_player_visible_aura_like_cpp`; the common canonical fixture sets
-  the moved-unit GUID explicitly. Production mount/totem behavior was not
-  changed to accommodate these fixtures. The corrected suite **81 passed,
-  zero failed**, including all four prior failures.
-  Logs: `/tmp/rustycore-589-spell-handler-tests.log` and
-  `/tmp/rustycore-589-spell-handler-tests-fixed.log`.
-- Workspace format was applied before the final corrected handler run. Bot
-  format was applied before its later evaluator/plan edits; recheck that surface
-  on resumption. No services, DB operations, commits, push or merge occurred.
+| Section | Represented value | C++ input not ported |
+| --- | --- | --- |
+| `RemainingRunes` | `Start`/`Count` zero, empty cooldowns | `m_runesState`, `Player::GetRunesState`; the C++ cooldown loop is itself commented out |
+| `AmmoDisplayID` | zero, `AmmoInventoryType` absent | `GetSpellCastDataAmmo` thrown-weapon and "Requires No Ammo" branches; C++ also discards the inventory type it computes |
+| `MissileTrajectory` | request pitch, zero `TravelTime` | `Spell::m_delayMoment` missile simulation |
+| `Immunities.Value` | zero | `SpellInfo::GetMechanicImmunityMask` |
 
-Resume only after the user's stop is lifted. Remaining local acceptance includes
-the latest standalone bot tests, packet/domain suites, shared consumers and
-production composition, plus reviewed ownership/persistence-reference and
-physical-policy consistency. In particular, the new Session test registration
-adds two lines above its existing physical ceiling; resolve this coherently
-instead of blindly raising the ceiling. The syntax ownership baseline has not
-yet been updated for the moved methods or new command. Full #589 acceptance and
-fresh paired runtime scenarios remain outstanding.
+An earlier iteration of this work rejected projectile, rune, heal-prediction and
+trajectory casts outright. That was withdrawn: refusing every Death Knight and
+every ranged-slot spell is a functional regression C++ does not have, and the
+sections are structurally representable.
 
-## Remaining acceptance and limits
+A spell visual gated by a `CasterUnitConditionID` is still rejected explicitly,
+because visual zero is not a valid silent substitute for an unevaluated
+condition. The rejection now reports instead of dropping the request.
 
-Tests have been authored for application phases, the inclusive 400 ms boundary,
-replacement/revalidation, canonical allocation and reentry, recipient fences,
-cancellation and late failure order. Typed payload serialization tests cover power,
-runes, trajectory, immunities, prediction, target points and ammunition. The
-packet crate's own tests remain **unexecuted**; serializer capability alone does not establish integrated
-production behavior for every optional section.
+## Deviations deliberately left open
 
-The integrated bot now supports scripted cast/cancel/wait actions and observer
-collection; [its guide](../../tools/wow-test-bot/CAST_LIFECYCLE.md) distinguishes
-packet acceptance from unproven collection. The shared human/JSON report assembly
-was moved to `src/run_report.rs`, keeping that responsibility together and
-reducing the oversized main file. No live scenario has been executed. Final acceptance
-must exercise these actions, verify packet fields/order/connections, run affected
-shared-consumer and #587/#588 regressions, and review the ownership/physical policy
-delta before recording results and the actual candidate identity.
+Recorded rather than silently closed, with the reason each is out of this
+contract:
 
-The Player producer currently supplies the represented power section. Complete
-rune/projectile behavior, Player advanced combat-log stat authority and general
-UnitCondition-dependent visual evaluation are not established by this work.
-Neither full target/effect execution parity nor the entire SpellHistory model is
-claimed. Any such dependency needed by the approved acceptance cases must be
-resolved before scoped acceptance, not waived by this list.
+- `CanRequestSpellCast` consults one GCD value and the single active execution
+  slot. C++ iterates `CURRENT_MELEE_SPELL` and `CURRENT_GENERIC_SPELL`. Two cast
+  representations still coexist and their convergence belongs to #584, not here.
+- `CanExecutePendingSpellCastRequest` blocks on any non-zero remaining cast time,
+  where C++ allows immediate execution behind a channeled spell. Channels are
+  explicitly outside #589.
+- An instant cast re-runs `CheckCast` and takes power at launch, where C++ passes
+  `skipCheck` to `_cast` for `willCastDirectly`. Both calls occur in the same tick;
+  the recheck also resolves the spell focus object, so skipping it would change
+  target selection. Left as a recorded ordering deviation.
+- `record_cast_character_spell_cooldown_like_cpp` persists
+  `recovery_time_ms.max(cooldown_ms)`, so a spell with only a `StartRecoveryTime`
+  writes a persisted cooldown row C++ would not. Pre-existing, not introduced
+  here; the runtime cooldown check short-circuits on `recovery_time_ms == 0`.
 
-No publication, integration or runtime operations are recorded for #589.
-Required #584 core continues before #583, then #153 and closure of #133.
+The full effects engine, SpellHistory, projectile simulation, channels and
+autorepeat, pets and vehicles, and the complete target-selection rules remain
+port work under #30 and #584.
+
+## Executed local acceptance
+
+Every command below was run in `/home/server/rustycore-cast-589` on aarch64,
+sequentially, with `CARGO_BUILD_JOBS=1`, `--locked --offline`, and
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc` for workspace builds. The
+standalone QA bot uses its own manifest. No command below is reported from an
+earlier run against different inputs.
+
+| Command | Result |
+| --- | --- |
+| `cargo test -p wow-packet --lib` | 728 passed, 0 failed |
+| `cargo test -p wow-entities --lib` | 725 passed, 0 failed |
+| `cargo test -p wow-map --lib` | 727 passed, 0 failed, 1 ignored |
+| `cargo test -p wow-world --lib` | 3822 passed, 0 failed |
+| `cargo test -p world-server` | 570 passed, 0 failed (plus two empty targets) |
+| `cargo test -p capture-diff` | 157 passed across 17 targets, 0 failed |
+| `cargo test --manifest-path tools/wow-test-bot/Cargo.toml --bin wow-test-bot` | 179 passed, 0 failed |
+| `session-ownership-check check --syntax-only` | PASS: 55 impl owners, 3761 exact associated items, 40 SessionCommand variants, 594 registry rows |
+| `check_architecture.py check` | PASS: physical ratchet, dependencies, ownership, hotspot ratchet |
+| `check_architecture.py self-test` | PASS: 20 fixtures |
+| `cargo fmt --all -- --check` and `git diff --check` | clean |
+
+The `wow-map`, `capture-diff` and QA-bot results were produced earlier in the
+same campaign and are reused only because their inputs did not change
+afterwards; every later edit was confined to `wow-packet`, `wow-world` and the
+architecture policies, which were rerun in full. The ownership checker was
+built from this checkout, not from a previously installed binary.
+
+### Defects the campaign found
+
+The packet, character and session suites had never been executed against the
+inherited working tree; running them surfaced six real problems, all fixed
+here rather than accommodated:
+
+1. `spell_cast_data_writes_nonempty_fields_in_cpp_order` asserted the payload
+   was fully consumed without reading the trailing byte that
+   `SpellGo::Write` produces from `WriteLogDataBit` and `FlushBits`. The
+   production writer was correct; the test now asserts the combat-log bit is
+   clear and only then that the buffer is empty.
+2. and 3. Both binder scenarios installed a canonical Player but never adopted
+   its handle, so the cast identity allocator failed closed and the handler
+   returned before the bind effect and before closing gossip. Adopting the
+   handle then exposed two further fixture gaps that login provides in
+   production: the canonical Player had no vitals, so the alive gate rejected
+   the caster, and no faction template, so the interaction reaction check
+   failed closed. The fixture now installs all three.
+4. to 6. The three spell-click scenarios set a canonical map manager but never
+   placed a canonical Player on it, so the same allocator failed closed and
+   every planned cast was reported as failed. They now install and adopt a
+   canonical Player the way login does.
+
+None of these six required a production change; each was a fixture that
+predated the migration to fallible canonical allocation. That migration is
+what made the gaps observable, which is the point of the fence.
+
+### Scenario coverage added
+
+`session/tests/player_cast_lifecycle.rs` gains two scenarios:
+`normal_start_and_go_carry_cpp_cast_flags_like_cpp` proves Start assembles
+`HAS_TRAJECTORY | POWER_LEFT_SELF` while Go assembles
+`UNKNOWN_9 | POWER_LEFT_SELF | NO_GCD` from the same cast and selects neither
+the rune nor the ammo section for a plain mana spell, and
+`reentry_denies_a_residence_stamped_server_triggered_cast_like_cpp` proves the
+widened residence fence drops a server-triggered prepared cast after reentry.
+`player_cast/tests.rs` gains
+`unresolvable_visual_reports_a_cancellation_instead_of_dropping_the_request`.

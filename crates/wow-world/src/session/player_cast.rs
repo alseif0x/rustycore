@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::player_cast::Runtime;
-use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wire::PlayerCastPublicationPhaseLikeCpp;
+use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
 mod checks;
 mod identity;

@@ -196,6 +196,15 @@ fn spell_cast_data_writes_nonempty_fields_in_cpp_order() {
     assert_eq!(pkt.read_float().expect("TargetPoints[0].Z"), 30.75);
     assert_eq!(pkt.read_int32().expect("AmmoDisplayID"), -1234);
     assert_eq!(pkt.read_int32().expect("AmmoInventoryType"), 4567);
+
+    // C++ `SpellGo::Write` appends `WriteLogDataBit` and `FlushBits` after the
+    // shared payload, so a packet without advanced combat-log data still ends
+    // in one flushed byte carrying a clear bit.
+    pkt.reset_bits();
+    assert!(
+        !pkt.has_bit().expect("combat-log data bit"),
+        "SMSG_SPELL_GO without log data must clear the combat-log bit"
+    );
     assert!(
         pkt.is_empty(),
         "all C++ SpellCastData bytes must be consumed"

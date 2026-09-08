@@ -489,9 +489,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12393,
-      "ceiling_lines": 12393,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains.",
+      "observed_lines": 12421,
+      "ceiling_lines": 12421,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains. #589 adds 28 inseparable fixture lines: the two binder scenarios now adopt the canonical Player handle, set its vitals and set its faction template, because login installs all three and the cast identity allocator, the alive gate and the interaction reaction check each fail closed without them.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 94691,
-      "ceiling_lines": 94691,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains.",
+      "observed_lines": 94724,
+      "ceiling_lines": 94724,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts.",
       "review_checkpoint": "584:C4"
     },
     {

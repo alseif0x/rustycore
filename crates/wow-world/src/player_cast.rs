@@ -68,7 +68,12 @@ pub(crate) fn request(runtime: &mut impl Runtime, request: PendingSpellCastReque
         return false;
     };
     let Some((gcd, active)) = runtime.remaining(&spell) else {
-        return cancel_like_cpp(runtime, request.cast_id, request.spell_id, Default::default());
+        return cancel_like_cpp(
+            runtime,
+            request.cast_id,
+            request.spell_id,
+            Default::default(),
+        );
     };
     if gcd > 400 || active > 400 {
         runtime.failure(
@@ -89,7 +94,12 @@ pub(crate) fn request(runtime: &mut impl Runtime, request: PendingSpellCastReque
 /// timed casts. Returns true only when the installed active cast is ready now.
 pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastRequestLikeCpp) -> bool {
     let Some(original) = runtime.spell(request.spell_id) else {
-        return cancel_like_cpp(runtime, request.cast_id, request.spell_id, Default::default());
+        return cancel_like_cpp(
+            runtime,
+            request.cast_id,
+            request.spell_id,
+            Default::default(),
+        );
     };
     if !runtime.known(request.spell_id) {
         runtime.failure(
@@ -114,7 +124,12 @@ pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastReque
     // an unrepresented selection input, so the request is rejected explicitly
     // instead of leaving the client waiting on a cast that never publishes.
     let Some(visual) = runtime.visual(&spell) else {
-        return cancel_like_cpp(runtime, request.cast_id, request.spell_id, Default::default());
+        return cancel_like_cpp(
+            runtime,
+            request.cast_id,
+            request.spell_id,
+            Default::default(),
+        );
     };
     let Some((server_id, revision)) = runtime.allocate(spell.spell_id) else {
         return cancel_like_cpp(runtime, request.cast_id, request.spell_id, visual);

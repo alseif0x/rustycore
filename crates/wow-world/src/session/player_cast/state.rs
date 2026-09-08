@@ -19,7 +19,9 @@ impl WorldSession {
                 if !unit.is_non_melee_spell_cast_like_cpp(false, false, false, true) {
                     return false;
                 }
-                !unit.interrupt_non_melee_spells(None, false, true).is_empty()
+                !unit
+                    .interrupt_non_melee_spells(None, false, true)
+                    .is_empty()
             })
             .unwrap_or(false);
 
