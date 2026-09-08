@@ -22,6 +22,11 @@ under #584 precede #583; #153 audits the integrated result before #133 closes.
 #587 is implemented locally with local validation recorded; live acceptance and
 publication remain pending:
 [spell acquisition](../architecture/spell-acquisition-587.md).
+2026-09-08 live update: derived C++ trainer purchase/rejection/save/relogin passes;
+Rust fails before purchase because deferred NPC visibility after the mover ACK
+is not published. This inherited map-to-Session responsibility is proposed as a
+separate #584 delivery, not yet selected or implemented. Ordinary-effect live
+fixture acceptance also remains unresolved. Original services remain intact.
 #585's scoped acceptance and retained parity limits
 are recorded below and in its checkpoint; do not reopen it from pre-merge status text.
 The following dated candidate narrative is historical, not an instruction to repeat

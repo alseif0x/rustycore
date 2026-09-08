@@ -1,5 +1,98 @@
 # Represented spell-acquisition application boundary — #587
 
+## Current live result and dependency — 2026-09-08
+
+At QA-driver commit `f13fd26c`, the derived C++ trainer acquisition/repeated-buy/
+logout/fresh-login scenario **passes**; Rust's identical fixture **fails before
+purchase**, because the stationary client never receives the trainer CREATE_OBJECT.
+This supersedes the earlier preparation-only status below. #587 remains open;
+neither paired trainer parity nor ordinary-effect live acceptance is established.
+
+The private fixture is existing TESTBOT1, account 8 / character 14, race 10,
+class 3, level 20, beside entry 16673 / SQL spawn 57663 on map 530. Trainer 7,
+menu 6652, signed wire option -1702912 offers spell 6197 for 1,140 copper.
+The original level-3 snapshot first caused expected level-dependent skill maxima
+to change during login; its failed preservation check was retained. After that
+normalization, only the purchased 6197 row was removed and money restored to
+1,000,000 in the disposable, offline fixture. Both accepted C++ and failing Rust
+runs started from this same normalized auth/characters snapshot:
+`normalized-trainer.sql`, SHA-256
+`ff2737c5802a50c81805ee7fce965dffc3d626726d27823196489dd19042daae`.
+No preservation assertion was weakened.
+
+C++ receipt: observed live trainer counter 130 (not SQL spawn 57663), learning
+on instance, repeated purchase rejected, saved money 998,860, spell active and
+enabled after confirmed logout, retained after fresh authentication, and all six
+existing preservation projections pass. Intermediate DB money remained 1,000,000
+until normal SaveToDB; it was not required to change during the action.
+Private command driver: `run_plan.py cpp-trainer-normalized`, which invokes the
+maintained `run_spell_acquisition_relog.sh` with disabled provisioning and pinned
+private socket/loopback endpoints. Artifacts under
+`/tmp/rustycore-587-runtime.MYPSPW/`:
+
+- `cpp-trainer-normalized-report.json`: SHA-256
+  `1e46c54e8635afb3c0c24701ec22dd6c82e4f389ed559113a0a479ef1090fc7e`.
+- `cpp-trainer-normalized-report.json.acquisition.json`: SHA-256
+  `35a5685d46751b201d371789b26898c164c4c39877592aa6aa0b3ed537c5cc61`.
+- `cpp-trainer-normalized.pkt`: SHA-256
+  `347766bbd37bc8d8bcebaa289863967af0fab463e9fc4d5af8d453eabf31c488`.
+- `rust-trainer-report.json.first.json`, `rust-trainer-dump/`: failed admission
+  evidence, not a successful acquisition capture. World executable SHA-256 is
+  `baba7e609c345cf6fc6088fcd7471643149ca36273344ea41077d69efbb5880b`;
+  the core source identity recorded below is unchanged.
+
+The reference is the already disclosed four-file C++ derivation from #585,
+source `8fe8fbf57b84f880651662a5cc503ebd1bde3e33`, executable SHA-256
+`1901259f3b83377029d05e046c0495c1a37f9030e603a862c656f733a93ff9d5`.
+It is not an unmodified or infallible reference. Original world/BNet services
+were never replaced or stopped. All #587 isolated world/BNet/database units
+were stopped afterward; both original services were verified active. The private
+database retains disposable QA state. No push, PR or merge was performed.
+
+### Blocking visibility responsibility and proposed next core delivery
+
+Fresh Rust evidence records the active-mover ACK and 215 loaded creature records,
+but no trainer publication. `session/mod.rs::apply_move_init_active_mover_complete_like_cpp`
+intentionally omits the deferred notify. This predates #587 (`b53204122`). C++
+`Player.cpp:23045,23322` and `MovementHandler.cpp:808` gate visibility before ACK
+and queue its notification afterward; the fresh reference capture confirms NPC
+publication. The old Rust comment's blanket suppression rationale is insufficient.
+
+Astra specialist (`gpt-6-astra`, high) independently inspected the current owners,
+without edits or validation. `ManagedMap::update` already runs relocation notifies
+after move-list drains, but its plans are evidence-only, use empty prior client
+membership and have no production publication consumer. Calling a full refresh
+directly from the ACK would bypass the deferred phase.
+
+Proposed separate #584 macro: **complete deferred player visibility publication**.
+The existing canonical map phase selects owned notification intents; after map
+guards are released, world-server routes them to the matching live Session/Player
+incarnation and residence. Session retains its single client-membership ledger and
+ordered publication. Consumers are wow-entities notification state, wow-map's
+existing phase, world-server's tick/delivery bridge and wow-world's directory and
+visibility adapter. No new scheduler, clock, Player mirror or map-lock delivery.
+Admission must cover seer/detection, reciprocal visibility and initial visible-unit
+packets within the represented scope; empty-ledger plans are not a faithful substitute.
+
+Acceptance: stationary login publishes no NPC before ACK and eligible objects after
+the map phase without movement; repeated ACK gives no duplicate CREATE; inactive or
+nonexpired grids retain work; mailbox saturation, logout, transfer and stale
+incarnations cannot lose or misapply delivery. Exercise the actual production
+map-loop/directory/Session path, then repeat paired captures and #587 trainer QA.
+This is a new responsibility proposal, not a selected implementation or a blanket
+wow-map extraction. #587's failing acceptance is retained while its dependency is
+resolved; the order remains required #584 core → #583 → #153 → #133.
+
+### Ordinary-effect fixture still unresolved
+
+The exploratory stored-source fixture 30798 → 674 was rejected by the driver:
+the target was already known at login, before any cast. Besides dependent learning,
+the source has `SPELL_ATTR1_CAST_WHEN_LEARNED` (`0x80000000`), which C++ AddSpell
+casts even while loading. The temporary DB2 inspection and failed `cpp-cast`
+report are retained privately. This is not a successful ordinary-effect action;
+the current known-source cast driver still needs a valid fixture or a separately
+bounded action entry. No gameplay or talent behavior was changed to manufacture one.
+
 Current QA update, 2026-09-08: publication `final` passed at `9cf85e51`
 (`/tmp/rustycore-587-final-manifest.json`, verified green): 13 commands,
 3,793 wow-world tests passed, zero failed, one ignored. The manifest's dirty
