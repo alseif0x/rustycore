@@ -302,9 +302,7 @@ impl ServerPacket for PlaySpellVisualKit {
     const OPCODE: ServerOpcodes = ServerOpcodes::PlaySpellVisualKit;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        for byte in self.unit.to_raw_bytes() {
-            pkt.write_uint8(byte);
-        }
+        pkt.write_packed_guid(&self.unit);
         pkt.write_int32(self.kit_record_id);
         pkt.write_int32(self.kit_type);
         pkt.write_uint32(self.duration);
@@ -1516,32 +1514,24 @@ mod tests {
     }
 
     #[test]
-    fn play_spell_visual_kit_writes_cpp_field_order() {
-        let unit = ObjectGuid::create_player(1, 77);
+    fn player_trainer_visual_matches_fresh_cpp_capture() {
+        // cpp-trainer-fixed.pkt: SpellPackets.cpp PlaySpellVisualKit::Write,
+        // player counter14, realm1, kit362/type1. Includes the opcode prefix.
         let bytes = PlaySpellVisualKit {
-            unit,
+            unit: ObjectGuid::create_player(1, 14),
             kit_record_id: 362,
             kit_type: 1,
-            duration: 250,
-            mounted_visual: true,
+            duration: 0,
+            mounted_visual: false,
         }
         .to_bytes();
-        let mut pkt = WorldPacket::from_bytes(&bytes);
-
         assert_eq!(
-            pkt.read_uint16().expect("opcode"),
-            ServerOpcodes::PlaySpellVisualKit as u16
+            bytes,
+            [
+                0x46, 0x2c, 0x01, 0xa0, 0x0e, 0x04, 0x08, 0x6a, 0x01, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+                0
+            ]
         );
-        let mut raw_unit = [0u8; 16];
-        for byte in &mut raw_unit {
-            *byte = pkt.read_uint8().expect("unit byte");
-        }
-        assert_eq!(ObjectGuid::from_raw_bytes(&raw_unit), unit);
-        assert_eq!(pkt.read_int32().expect("kit record"), 362);
-        assert_eq!(pkt.read_int32().expect("kit type"), 1);
-        assert_eq!(pkt.read_uint32().expect("duration"), 250);
-        assert!(pkt.read_bit().expect("mounted visual"));
-        assert!(pkt.is_empty());
     }
 
     #[test]
