@@ -5,7 +5,9 @@
 on its own branch (original `43c4e801`, subsequent QA/evidence through `c88603ee`).
 The branch is now rebased onto #588 commit `328b721f`; paired trainer and controlled
 ordinary-effect acquisition/save/relogin pass on runtime source `3a634630`.
-Combined final validation remains pending. The earlier stationary-login failure remains recorded.
+Combined final at `b48a1cfb` passes 14 commands, 5,824 Rust tests (two ignored) and
+20 physical-policy tests, with zero failures. Local scoped acceptance is complete;
+publication is pending. The earlier stationary-login failure remains recorded.
 The user approved **#588 — deferred player visibility publication** as that
 concrete prerequisite. It connects the existing map notify phase to retained
 Session delivery, with exact incarnation/residence admission and the actual

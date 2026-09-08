@@ -6,7 +6,16 @@ The represented application boundary, its #588 visibility prerequisite and the
 bounded trainer visual codec repair are implemented locally. Both paired trainer
 and controlled ordinary-effect scenarios now **PASS** acquisition, normal logout,
 fresh authentication and all six retained persistence projections. Combined final
-validation is the remaining local acceptance step; no publication/merge is implied.
+validation **PASS** at `b48a1cfb47888cc1a63581816bc57136d74c8602`: 14 commands,
+5,824 Rust tests passed/two ignored, plus 20 physical-policy tests, zero failures.
+The manifest `/tmp/rustycore-587-combined-final-manifest.json` was independently
+verified green; log `/tmp/rustycore-587-combined-final.log`. Duration 1255.967s,
+one Cargo job, aarch64, peak child RSS 4,893,940KiB. Its truthful `dirty:true`
+records only unrelated `docs/architecture/lfg-343-audit.md`, preserved at SHA-256
+`1a9155fbc06617201dc65ace2170e5885532e55c9dcb389e95a0a31b1de285dc`.
+Tracked files still matched the tested HEAD when final finished. Subsequent
+evidence wording is a documentation delta, not a relabeling of the tested SHA.
+Local scoped acceptance is complete; publication/merge retain their separate gate.
 
 Runtime source: `3a6346300ac912209b45258870315dfcc76d9c65`; Rust world executable
 SHA-256 `57267b35b7a8ad686e277301d7bcc91e93fdf602d3efcf819c546c7d72d0e866`,
@@ -16,6 +25,9 @@ Cargo job. The C++ derivation retains its source/binary identity documented belo
 The later generator/reference-document changes do not alter either executable.
 
 Artifacts under `/tmp/rustycore-587-runtime.MYPSPW/`:
+
+`final-acquisition-qa-evidence.json` consolidates executable identities, all four
+verified paired reports and their file/capture hashes.
 
 - `cpp-trainer-candidate` / `rust-trainer-candidate`: observed NPC purchase6197,
   one fee1140, repeated purchase rejected, saved/relogged money998860 and direct
@@ -395,9 +407,11 @@ Full talents, combat, pet/item/mount learning, unimplemented passive/criteria
 effects, map scheduling/storage and SDK work are outside this represented cut.
 These exclusions do not establish full gameplay parity or remove #584 debt.
 
-## Acceptance and evidence
+## Earlier structural acceptance and evidence
 
-Implementation and test integration are complete locally; live acceptance is pending.
+The initial structural slice completed implementation and test integration before
+live acceptance. The following record retains its original SHA and evidence limits;
+the current acceptance result is at the top of this checkpoint.
 Parent is the sole validation executor. Astra high settled the bounded
 runtime contract; Luna owns common application/runtime adaptation and tests;
 parent owns trainer/effect consumers, fallback, checkpoint and policy integration.
@@ -477,22 +491,25 @@ sorted; SHA-256 over each path + NUL + file bytes + NUL):
 The path manifest is `/tmp/rustycore-587-source-identity.txt`. HEAD remains
 `8c47af95`; this identifies a dirty candidate, not a committed/tested new SHA.
 
-Local acceptance is complete with the explicit terminal/live limits above and
+At that stage local acceptance was complete with the explicit terminal/live limits above and
 below. No previously green functional suite was rerun merely for test relocation,
 import cleanup or the final documentation-only evidence update. Publication final
-waits for an authorized committed candidate.
+then awaited an authorized committed candidate.
 
 Live trainer/learn/save/relogin and fresh action captures require separately scoped
 runtime authority. Existing regressions or mocks do not establish fresh capture
-parity or live durability. No commit, push, merge or runtime operation is authorized.
-The current integrated bot can inspect trainer lists and run save/relogin, but has
+parity or live durability. The initial slice had no commit, push, merge or runtime
+authority. Later scoped commit/runtime authorization and completed bot actions,
+recorded above, supersede that preparation-only boundary; publication remains gated.
+At that initial stage the integrated bot could inspect trainer lists and run save/relogin, but had
 no trainer-purchase or this EffectLearnSpell action scenario. Fresh acceptance must
 use a real client or first add the missing bot actions; a trainer-list smoke is not
 acquisition QA. Do not assume the historical PM2 capture wrappers fit current systemd.
 
-## Pending live acceptance protocol
+## Live acceptance protocol and initial preparation
 
-Rechecked on 2026-09-08. The executable preparation is read-only with respect to
+Initial preparation on 2026-09-08, before the paired executions recorded above.
+The executable preparation is read-only with respect to
 runtime and databases; building it does not authorize installation. Before live
 execution, record a committed candidate/source identity and executable hash.
 `CARGO_BUILD_JOBS=1 PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo build
@@ -500,7 +517,7 @@ execution, record a committed candidate/source identity and executable hash.
 Artifact: `target/release/world-server`; SHA-256:
 `baba7e609c345cf6fc6088fcd7471643149ca36273344ea41077d69efbb5880b`.
 Log: `/tmp/rustycore-587-release.log`. The Rust source digest above was recomputed
-and matched after the build. This executable has not been installed or run live.
+and matched after that build. It had not yet been installed or run live at that point.
 `tools/qa-runtime.sh:302` rejects a dirty source checkout, even for its dry run.
 Use an isolated checkout of the authorized committed candidate; preserve the
 unrelated LFG document and orchestration work in the original checkout. Do not
