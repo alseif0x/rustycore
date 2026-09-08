@@ -100,6 +100,13 @@ impl WorldSession {
                 )
                 .await;
             }
+            SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(intent) => {
+                self.apply_deferred_player_visibility_refresh_like_cpp(
+                    catalogs.creature_spawns.as_ref(),
+                    intent,
+                )
+                .await;
+            }
             SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command) => {
                 self.handle_send_creature_loot_release_values_update_command_like_cpp(command);
             }

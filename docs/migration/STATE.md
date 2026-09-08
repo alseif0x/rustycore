@@ -1,5 +1,19 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Current delivery — 2026-09-08, integration `8c47af95`:** #586 is merged and
+#585 closed. #587's represented spell-acquisition boundary is implemented locally
+on its own branch (`43c4e801`, subsequent QA/evidence through `c88603ee`), with
+trainer live acceptance blocked by inherited missing stationary-login visibility.
+The user approved **#588 — deferred player visibility publication** as that
+concrete prerequisite. It connects the existing map notify phase to retained
+Session delivery, with exact incarnation/residence admission and the actual
+client visibility ledger. No new clock or whole-map rewrite is selected.
+Implementation and acceptance are tracked in
+[the #588 checkpoint](../architecture/deferred-visibility-588-checkpoint.md).
+After this prerequisite, resume #587; required #584 core still precedes #583,
+then #153 and #133 closure. The dated pre-merge account below remains historical
+evidence, not an instruction to reopen #585.
+
 **Current delivery — 2026-09-07, integration `59f5bced`:** #579 merged and #578 closed.
 #585 is the selected implementation: represented session finalization outcomes,
 cancellation and exact-incarnation retirement, including its consumers. #133/#584

@@ -1192,13 +1192,13 @@
         "variant_count": 38,
         "count_kind": "baseline observation; AST is authoritative"
       },
-      "expected_variant_count": 38,
+      "expected_variant_count": 39,
       "coverage_rule": {
         "mode": "exact_variant_membership",
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_variant_count": 38,
+        "expected_variant_count": 39,
         "validation": "Compare sorted AST variant names with the sorted concatenation of every entry.variants; reject gaps, duplicates, stale variants, entry count drift, or total count drift."
       },
       "entries": [
@@ -1218,7 +1218,7 @@
         },
         {
           "id": "map_runtime_and_visibility_delivery",
-          "expected_variant_count": 16,
+          "expected_variant_count": 17,
           "variants": [
             "ApplyCreatureMeleeDamageLikeCpp",
             "ApplyPlayerMeleeResultLikeCpp",
@@ -1227,6 +1227,7 @@
             "ReconcilePvpCombatExpiryLikeCpp",
             "SendVisibleObjectValuesUpdate",
             "RefreshVisibleWorldCreaturesLikeCpp",
+            "RefreshDeferredPlayerVisibilityLikeCpp",
             "SendCreatureLootReleaseValuesUpdateLikeCpp",
             "RefreshVisibleGameobjectsOrSpellClicksLikeCpp",
             "SyncGatheringNodeGameobjectStateAndRefreshLikeCpp",
@@ -1447,11 +1448,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 83402,
-          "test_lines": 107693,
-          "total_lines": 191095,
+          "production_lines": 83530,
+          "test_lines": 108261,
+          "total_lines": 191791,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "PR #586 writer-order repair: +25 production/+111 test lines for interruptible far-transfer publication (immediate and delayed), instance-to-realm logout fencing and cancellation/failure coverage. Four existing update methods become async; no added field/task/lock/mirror. Tests use bounded existing modules; root +16 physical lines retains its #584:C4 split exit. 2026-09-07 final QA: +7 production lines preserve loaded canonical reputation on repeated same-race/class identity hydration; no field, API, lock or owner added. 2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines for finalization extraction, then +9 production/+28 fixture lines for canonical far-destination orientation normalization. Fresh paired logout capture then requires realm publication: +1 production separator/+60 test lines in lifecycle/finalization.rs for the two-route backpressure/closed-realm regression, with unchanged send_async semantics and no new method, field, clock, lock or recovery owner. Account/offline/buyback adapters moved from character into private lifecycle modules; finite policy lives outside Session in crate::finalization. One task-owned ledger retains progress and recovery input. Physical new modules remain below 500 lines; root physical ceiling unchanged. Remaining Session authority stays under #584. See session-finalization-585.md.",
+          "latest_growth_review": "2026-09-08 #588: +128 production/+568 test lines for the map-selected visibility adapter, retained mailbox slot/order and directory delivery; no WorldSession field, Player mirror or new lock/task. Ten bounded Session tests cover ACK, current client ledger, backpressure, committed-prefix order and stale consumers. Session root shrinks 24 physical lines. This is necessary protocol/lifecycle adaptation, not retirement of remaining gameplay ownership; #584 C2/C4 exits remain. PR #586 writer-order repair: +25 production/+111 test lines for interruptible far-transfer publication (immediate and delayed), instance-to-realm logout fencing and cancellation/failure coverage. Four existing update methods become async; no added field/task/lock/mirror. Tests use bounded existing modules; root +16 physical lines retains its #584:C4 split exit. 2026-09-07 final QA: +7 production lines preserve loaded canonical reputation on repeated same-race/class identity hydration; no field, API, lock or owner added. 2026-09-07 #585 above integrated 59f5bced: +563 production/+1 fixture lines for finalization extraction, then +9 production/+28 fixture lines for canonical far-destination orientation normalization. Fresh paired logout capture then requires realm publication: +1 production separator/+60 test lines in lifecycle/finalization.rs for the two-route backpressure/closed-realm regression, with unchanged send_async semantics and no new method, field, clock, lock or recovery owner. Account/offline/buyback adapters moved from character into private lifecycle modules; finite policy lives outside Session in crate::finalization. One task-owned ledger retains progress and recovery input. Physical new modules remain below 500 lines; root physical ceiling unchanged. Remaining Session authority stays under #584. See session-finalization-585.md.",
           "open_retirement_issues": [
             584
           ],
@@ -1496,11 +1497,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28980,
-          "test_lines": 27108,
-          "total_lines": 56088,
+          "production_lines": 28960,
+          "test_lines": 27236,
+          "total_lines": 56196,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "2026-09-07 paired portal capture: +14 test lines in area_trigger_world_catalog.rs verify the actual composition converts SQL Facing=180 degrees to pi radians while retaining destination/script/tavern order and dormant-read exclusion; no production LOC growth. 2026-09-06 post-add cancellation above e8a3fb1f: +10 production/+0 tests. After existing rename-commit draining, factory completes retained native transfer work before ordinary save/cleanup. Unavailable completion selects the existing fatal exit and refuses normal cleanup; no new clock or timeout. This is not a durable-save receipt or full shutdown acceptance. session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-08 #588: -20 production/+128 test lines in the logical composition owner. Existing map tick exports visibility independently of respawn cadence and delivers outside the map guard; owned summary/delivery and the focused production-composition test live in private modules. No new clock, persistence writer or global owner. Remaining composition separation retains #584 C4. 2026-09-07 paired portal capture: +14 test lines in area_trigger_world_catalog.rs verify the actual composition converts SQL Facing=180 degrees to pi radians while retaining destination/script/tavern order and dormant-read exclusion; no production LOC growth. 2026-09-06 post-add cancellation above e8a3fb1f: +10 production/+0 tests. After existing rename-commit draining, factory completes retained native transfer work before ordinary save/cleanup. Unavailable completion selects the existing fatal exit and refuses normal cleanup; no new clock or timeout. This is not a durable-save receipt or full shutdown acceptance. session-578-checkpoint.md.",
           "open_retirement_issues": [
             584
           ],

@@ -146,6 +146,18 @@ impl std::fmt::Debug for SharedClientVisibleGuidsLikeCpp {
     }
 }
 
+impl SessionCommand {
+    pub(super) fn is_visibility_gated_like_cpp(&self) -> bool {
+        matches!(
+            self,
+            Self::SendIfVisibleLikeCpp(_)
+                | Self::SendCreatureSpellCastIfVisibleLikeCpp(_)
+                | Self::SendRealmIfVisibleLikeCpp(_)
+                | Self::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
     KickLikeCpp(KickLikeCppCommand),
@@ -164,6 +176,7 @@ pub enum SessionCommand {
     ResetSeasonalQuestStatus(ResetSeasonalQuestStatusCommand),
     SendVisibleObjectValuesUpdate(SendVisibleObjectValuesUpdateCommand),
     RefreshVisibleWorldCreaturesLikeCpp(RefreshVisibleWorldCreaturesLikeCppCommand),
+    RefreshDeferredPlayerVisibilityLikeCpp(wow_map::PlayerVisibilityRefreshIntentLikeCpp),
     SendCreatureLootReleaseValuesUpdateLikeCpp(SendCreatureLootReleaseValuesUpdateLikeCppCommand),
     RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(

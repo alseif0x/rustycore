@@ -36,6 +36,7 @@ pub use manager::{
     CreateMapSideEffect, ExistingInstanceMapContext, InstanceIdAllocator, MIN_GRID_DELAY_MS,
     MIN_MAP_UPDATE_DELAY_MS, ManagedMap, ManagedMapInnerLikeCpp, ManagedMapKind, MapManager,
     MapUnloadBlockedLikeCpp, MapUpdater, PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp,
+    PlayerVisibilityRefreshIntentLikeCpp,
 };
 pub use map::{
     AIRelocationPlan, ActiveObjectKind, AddToMapError, AddToMapOutcome,

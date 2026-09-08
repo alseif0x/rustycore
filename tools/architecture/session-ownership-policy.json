@@ -55594,6 +55594,19 @@
             "external_impl",
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_deferred_player_visibility_refresh_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn apply_deferred_player_visibility_refresh_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , intent : PlayerVisibilityRefreshIntentLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         }
       ]
     },
@@ -55929,6 +55942,16 @@
         },
         {
           "module": "crate::spell_acquisition::application::tests",
+          "callee": "WorldSession::new",
+          "argument_count": 10,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
+          "module": "crate::session::deferred_visibility::tests",
           "callee": "WorldSession::new",
           "argument_count": 10,
           "cfg": [
@@ -56367,6 +56390,21 @@
             {
               "name": "0",
               "type": "ReconcilePvpCombatExpiryLikeCppCommand",
+              "visibility": "private",
+              "cfg": [],
+              "source_class": "production"
+            }
+          ],
+          "discriminant": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "RefreshDeferredPlayerVisibilityLikeCpp",
+          "fields": [
+            {
+              "name": "0",
+              "type": "wow_map :: PlayerVisibilityRefreshIntentLikeCpp",
               "visibility": "private",
               "cfg": [],
               "source_class": "production"
@@ -59512,6 +59550,19 @@
         },
         {
           "package": "world-server",
+          "module": "crate::runtime::deferred_visibility",
+          "source": "crates/world-server/src/runtime/deferred_visibility.rs",
+          "enclosing": "fn deliver_deferred_player_visibility_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
           "module": "crate::runtime::delivery",
           "source": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn build_tap_group_index_like_cpp",
@@ -60457,6 +60508,19 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "Some (player_registry . as_ref ())",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map",
+          "source": "crates/world-server/src/runtime/map.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_deferred_player_visibility_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& player_registry",
           "count": 1
         },
         {
@@ -68185,8 +68249,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:3157af3d909b7290a752fa79f461dce3:len=146",
-              "multiplicity": 3
+              "fingerprint": "fnv1a64x2:8a0bc1d0e706e1384444128697cc1d93:len=195",
+              "multiplicity": 4
             },
             {
               "side": "canonical",
@@ -68194,6 +68258,13 @@
               "symbol": "do_for_all_maps_mut",
               "fingerprint": "fnv1a64x2:3aa70f2c7ffedb4036eca739891384d3:len=103",
               "multiplicity": 2
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "take_player_visibility_refresh_intents_like_cpp",
+              "fingerprint": "fnv1a64x2:6eda464cb7ec5abbe468499b1509bbcc:len=49",
+              "multiplicity": 1
             },
             {
               "side": "canonical",
@@ -68217,7 +68288,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn canonical_map_update_tick_set_inactive_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , diff_ms : u32 , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:95885face21490a63aeaaa3bb981d94d:len=9650|evidence=fnv1a64x2:38767a7467fa61ab3567087d811684cc:len=995",
+          "fingerprint": "signature=fn canonical_map_update_tick_set_inactive_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , diff_ms : u32 , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:d7e7920e2bffb6d340ef54b14600f86c:len=9827|evidence=fnv1a64x2:9c52b92839db6482214dc1f17d7fdabd:len=1196",
           "cfg": [],
           "multiplicity": 1
         },
@@ -68273,7 +68344,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:0b3fb4c9de31f37edba771cf86ba2ab5:len=19257|evidence=fnv1a64x2:c37b0b36becd8dbf167ef9e941316818:len=1023",
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:b785ae2015cfbc07aa1d5b750ea131de:len=19458|evidence=fnv1a64x2:c37b0b36becd8dbf167ef9e941316818:len=1023",
           "cfg": [],
           "multiplicity": 1
         },

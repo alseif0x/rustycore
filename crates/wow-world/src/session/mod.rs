@@ -9,6 +9,7 @@
 mod admission;
 mod appearance;
 mod connection;
+mod deferred_visibility;
 pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
@@ -52285,31 +52286,6 @@ impl WorldSession {
                 victim_guid: creature_guid,
             },
         );
-    }
-
-    pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
-        let transport_server_time = Self::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
-        if self
-            .mutate_active_player_update_state_like_cpp(|state| {
-                state.active_local_flags |=
-                    PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
-                state.active_transport_server_time = transport_server_time;
-            })
-            .is_none()
-        {
-            return;
-        }
-        self.sync_current_player_session_visibility_detection_like_cpp();
-        // C++ `HandleMoveInitActiveMoverComplete` calls
-        // `Player::UpdateObjectVisibility(false)`, which only queues
-        // `NOTIFY_VISIBILITY_CHANGED`. The represented Rust visibility scanner
-        // is broader than C++ `VisibleNotifier` today; materializing it here
-        // creates creatures/gameobjects that the captured C++ login stream does
-        // not send and corrupts the client during world load. Keep the packet
-        // side effect below, but do not turn the deferred notify into an
-        // immediate object-create batch until the map-owned notify pass is
-        // ported method-for-method.
-        self.send_active_player_transport_server_time_update_like_cpp();
     }
 
     pub(crate) fn player_moved_unit_guid_like_cpp(&self) -> Option<ObjectGuid> {
