@@ -89,8 +89,9 @@ complete operations and their dependency/bridge retirement, not a mandatory mech
 Keep restructuring and intentional behavior changes distinguishable; do not silently expand or
 reduce accepted scope.
 
-Use focused positive/negative tests during iteration and affected integration/failure cases at
-owner boundaries. Retain `AGENTS.md` and explicit issue acceptance gates for capture, live QA, and
+Define focused positive/negative and affected integration/failure coverage for the boundary;
+execute it at completed-delivery acceptance under `AGENTS.md`'s cadence, not per internal slice.
+Retain `AGENTS.md` and explicit issue acceptance gates for capture, live QA, and
 final validation; do not repeat exhaustive audits after every helper or equate partial tests with
 terminal acceptance. Report the verdict, supporting anchors, tradeoffs, remaining risks, and next
 step concisely, with detail proportional to the decision.

@@ -99,6 +99,12 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 
 ## Architecture and skills
 
+Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
+coordination when useful bounded independent work can be delegated. This explicitly
+requests selective subagent work, with Luna as the usual bounded implementation
+collaborator, not delegation for every task. Project Codex defaults
+live in `.codex/config.toml` and `.codex/agents/`; they do not override runtime permissions.
+
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;
 they are not separate frozen architecture snapshots.
@@ -131,10 +137,19 @@ they are not separate frozen architecture snapshots.
 
 ## Validation
 
-The user's complete-delivery execution instruction supersedes routine iteration
-cadence below: implement the complete delivery first, then run its affected acceptance
-tests, applicable QA and publication validation. Do not run CI, builds or tests for
-each internal microchange. Do not claim unexecuted evidence as passing.
+Implement the complete authorized delivery first, including its tests and consumers;
+then run affected acceptance tests, applicable QA and publication validation. During
+implementation use inspection, not CI, builds or test runs per internal change or
+worker handoff. At final acceptance, fix findings and rerun affected evidence as needed.
+An explicit user request for an earlier diagnostic run remains authoritative.
+Do not claim unexecuted evidence as passing.
+
+The parent owns validation scheduling, or assigns one exclusive validation executor.
+Run heavyweight builds, tests, exhaustive scans and live QA sequentially, including
+across worktrees; no worker starts its own parallel campaign. Check for active work
+and available RAM/disk before launching. On this shared host start Cargo with one job
+(`VALIDATION_V2_CARGO_JOBS=1` for the runner); increase only with demonstrated headroom.
+Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
 
 Use [validation-v2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md) for the actual profiles.
@@ -151,7 +166,7 @@ Choose the real library/binary/integration target; do not assume every crate has
 Run affected production-linked integration targets explicitly when required; library tests
 alone do not establish production composition. Record evidence at the actual tested SHA.
 
-Ordinary ownership/module iteration:
+Ownership/module acceptance commands (select by affected scope, not per helper):
 
 ~~~bash
 PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo run --release --locked \
