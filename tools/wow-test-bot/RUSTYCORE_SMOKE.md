@@ -54,6 +54,34 @@ failure to investigate, not permission to repair the fixture.
 
 ## Transport disconnect/save/relogin (#585)
 
+### Spell acquisition / save / relogin (#587)
+
+`run_spell_acquisition_relog.sh` uses the same normal-save identity and logout
+guards, then verifies the action receipt and fresh known-spell packets. It requires
+`WOW_BOT_ACQUISITION_PLAN` pointing to an absolute private JSON file. A trainer plan
+has `action: "trainer"`, `expected_spell`, the observed live NPC `guid_low` and
+`guid_high`, `trainer_id`, `offer_spell`, and the discounted `fee`. A cast plan has
+`action: "cast"`, `expected_spell`, a known player `spell`, and the client cast token
+`cast_low`/`cast_high`. The explicit target is the logged-in player. The wrapper's
+second authentication uses `action: "verify"` and sends no acquisition request.
+
+Select a previously unknown, unranked spell whose acquisition does not replace
+existing skill/spell rows: this driver retains the existing six-family preservation
+contract. Ranked/disabled/profession transitions still require their separate
+scoped acceptance; this scenario does not pretend to cover them. Trainer mode
+first obtains the matching trainer list, buys the offer, requires learning on the
+instance connection and checks a repeated purchase is rejected without a second
+fee. Cast mode requires the source cast in the login spellbook. Both verify the
+learned spell and expected money after confirmed logout, then across fresh login.
+The intermediate database money value is observational only because C++ normally
+saves Player money during SaveToDB.
+
+The driver does not discover or seed fixture catalogs, relocate characters, grant
+spells, provision accounts or capture both servers by itself. Configure a verified
+isolated target and action-specific capture before use. Its `.acquisition.json`
+report supplements the ordinary save/relogin report; neither report proves fresh
+paired C++ packet parity. No fixture IDs from unit tests are live defaults.
+
 Under the same authorized runtime guard, select
 `QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_disconnect_relog.sh`.
 This uses only existing TESTBOT1@bot.local, with provisioning disabled and no SQL

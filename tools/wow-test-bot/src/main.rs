@@ -20,6 +20,7 @@ mod login_save;
 mod loot_race;
 mod packet_parser;
 mod protocol;
+mod spell_acquisition;
 mod srp6_auth;
 mod wow_crypto;
 
@@ -407,6 +408,7 @@ struct BotRunResult {
     player_login_verified: bool,
     login_stream_drained: bool,
     login_save: Option<login_save::Evidence>,
+    spell_acquisition: Option<spell_acquisition::Evidence>,
     login_only: bool,
     stand_state_smoke: bool,
     stand_state_smoke_passed: Option<bool>,
@@ -4882,6 +4884,7 @@ async fn run_bot_with_void_storage(
         player_login_verified: false,
         login_stream_drained: false,
         login_save: None,
+        spell_acquisition: None,
         login_only,
         stand_state_smoke: stand_state_options.is_some(),
         stand_state_smoke_passed: None,
@@ -5165,6 +5168,7 @@ async fn run_bot_with_void_storage(
         seen_opcodes: Vec::new(),
     };
 
+    let acquisition_plan = spell_acquisition::load()?;
     let login_save_before = if login_save::enabled() {
         if !login_only {
             bail!("login save check requires login-only mode");
@@ -6191,7 +6195,12 @@ async fn run_bot_with_void_storage(
     }
 
     if login_only {
-        drain_login_streams(
+        login_save::finish_login(
+            acquisition_plan.as_ref(),
+            bot_index,
+            &bot,
+            login_save_before,
+            saved_known_spells,
             &mut stream,
             &mut crypt,
             &mut server_inflater,
@@ -6199,22 +6208,6 @@ async fn run_bot_with_void_storage(
             &mut result,
         )
         .await?;
-        if let Some(before) = login_save_before {
-            let known = saved_known_spells.context("save check missing known-spell packet")?;
-            let evidence = login_save::complete(
-                bot_index,
-                &bot,
-                before,
-                known,
-                &mut stream,
-                &mut crypt,
-                &mut server_inflater,
-                &mut realm_connection,
-                &mut result,
-            )
-            .await?;
-            result.login_save = Some(evidence);
-        }
         info!(
             "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
             bot_index

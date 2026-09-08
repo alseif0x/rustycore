@@ -7,6 +7,25 @@ Earlier no-authorization statements below describe the evidence at that time,
 not a continuing request to reconfirm. Runtime work still requires identifying
 the concrete target and preserving unrelated data and services.
 
+Committed locally: orchestration `1a89df32`; acquisition boundary `43c4e801`.
+The unrelated LFG document remains untracked and untouched. The action driver is
+now implemented in `tools/wow-test-bot/src/spell_acquisition.rs`, with normal
+logout orchestration retained in `login_save.rs` and the paired wrapper
+`run_spell_acquisition_relog.sh`. It supplies trainer acquisition/repeated-purchase
+rejection, explicit self-target learning casts and fresh-login verification; it
+does not provision/clean fixtures or claim paired capture acceptance by itself.
+Scope and typed plan inputs are in `tools/wow-test-bot/RUSTYCORE_SMOKE.md`.
+
+Bot acceptance: first compile found a missing Clone derive for its report type,
+corrected without changing scenario behavior. The full bot suite then passed 149
+tests and rejected one permissive verify-plan decoder. Replacing the unit variant
+with an empty struct variant made the strict unknown-field test pass on focused
+recheck. The other 149 tests were not repeated for that correction. Report checks
+pass positive plus six negative acquisition cases and positive plus eleven retained
+login-save cases. Shell syntax, diff hygiene and physical migration policy pass.
+Logs: `/tmp/rustycore-587-bot-tests.log`, `/tmp/rustycore-587-bot-tests-final.log`,
+`/tmp/rustycore-587-bot-plan-recheck.log`. Live execution remains pending.
+
 Selected and authorized on 2026-09-07 against integration `8c47af95`, after #585
 closed through #586. Parent #584 retains all other core work and the gate before
 #583; #153 remains the terminal audit. This is the owning #587 checkpoint.
