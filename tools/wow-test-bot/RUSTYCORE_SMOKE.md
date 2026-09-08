@@ -52,7 +52,106 @@ module is private `src/login_save.rs`; `test_login_save_relog.sh` tests report
 acceptance without a server or database. Missing/mutated existing data is a
 failure to investigate, not permission to repair the fixture.
 
+Login draining retains `login_instance_object_update_seen` from the initial
+login loop, so consuming the required NPC CREATE there does not require a second
+`UPDATE_OBJECT` during the drain. Only an INSTANCE packet grants that evidence;
+a REALM packet does not. Both sockets must remain open and quiet for a full second
+within the drain's 30-second deadline; every received packet restarts that quiet
+period. The drain continues to select cancellation-safe socket peeks before reading
+complete encrypted frames.
+
 ## Transport disconnect/save/relogin (#585)
+
+### Player cast lifecycle (#589)
+
+The [cast lifecycle guide](CAST_LIFECYCLE.md) describes scripted instant/timed,
+queued/replaced and cancelled casts, typed packet acceptance and a second-session
+observer. The mode preserves ordinary login/transport and performs no fixture
+SQL or provisioning, and uses only pre-existing accounts. Its captured facts and
+normal logout are distinct from the acquisition/save/relogin persistence gate
+below. An `observe_only` observer session always reports `passed: false`: use the
+paired correlation procedure in the guide, never a hand-annotated pass.
+
+### Spell acquisition / save / relogin (#587)
+
+`run_spell_acquisition_relog.sh` uses the same normal-save identity and logout
+guards, then verifies the action receipt and fresh known-spell packets. It requires
+`WOW_BOT_ACQUISITION_PLAN` pointing to an absolute private JSON file. A trainer plan
+has `action: "trainer"`, `expected_spell`, the observed live NPC `guid_low` and
+`guid_high`, `trainer_id`, `offer_spell`, and the discounted `fee`. Optional
+`gossip_option` is the signed wire GossipOptionID (negative IDs are valid), not
+the SQL OptionID/order index; it opens the actual menu and selects that option;
+otherwise the driver sends TrainerList directly. A cast plan has
+`action: "cast"`, `expected_spell`, a known player `spell`, and the client cast token
+`cast_low`/`cast_high`. The explicit target is the logged-in player. The wrapper's
+second authentication uses `action: "verify"` and sends no acquisition request.
+For runtime GUID discovery, set both GUID numbers to zero and provide
+`spawn: {"entry": <NPC entry>, "map": <map ID>, "position": [x,y,z]}` from the
+isolated SQL spawn. The bot waits for a unique matching CREATE_OBJECT within three
+yards and uses that observed GUID; SQL spawn IDs are never substituted for live
+GUID counters. Ambiguous or missing candidates fail before any purchase.
+
+Select a previously unknown, unranked spell whose acquisition does not replace
+existing skill/spell rows: this driver retains the existing six-family preservation
+contract. Ranked/disabled/profession transitions still require their separate
+scoped acceptance; this scenario does not pretend to cover them. Trainer mode
+first obtains the matching trainer list, buys the offer, requires learning on the
+instance connection and checks a repeated purchase is rejected without a second
+fee. Cast mode requires the source cast in the login spellbook. Both verify the
+learned spell and expected money after confirmed logout, then across fresh login.
+The intermediate database money value is observational only because C++ normally
+saves Player money during SaveToDB.
+
+Persistence defaults to `{"kind":"direct_spell"}`: an active, non-disabled
+`character_spell` row for the target must survive both logouts. For a reviewed
+skill-rewarded target with stable values across login, set the plan's
+`persistence` explicitly as `{"kind":"skill","id":<skill>,"value":<value>,"max":<max>}`.
+This contract requires the selected skill to be absent before acquisition,
+its exact ID/value/max after each logout, no active target spell row, and the target
+in the fresh login spellbook. The wrapper carries the same contract into its
+verify plan and compares it across reports. `saved_spell` remains the literal
+direct-row observation (false here); `observed_skill_root` and
+`persistence_verified` record the alternative evidence. All six existing
+preservation checks remain required.
+
+The driver does not discover or seed fixture catalogs, relocate characters, grant
+spells, provision accounts or capture both servers by itself. Configure a verified
+isolated target and action-specific capture before use. Its `.acquisition.json`
+report supplements the ordinary save/relogin report; neither report proves fresh
+paired C++ packet parity. No fixture IDs from unit tests are live defaults.
+
+For controlled EffectLearnSpell conformance when stock sources auto-learn their
+target during login, `prepare_spell_acquisition_data.py --source-data <Data>
+--output-data <new-private-Data> --target-spell 6197` creates a separate version-2
+data tree. SpellMisc record 336029 / spell 30798 loses Attributes[1]
+CAST_WHEN_LEARNED (SQL column `Attributes2`), changing one reviewed byte per
+locale. SpellEffect record 705389 retains parent 30798, difficulty 0, effect index 0
+and LEARN_SPELL 36; only its `EffectTriggerSpell` changes from 674 to 6197. That
+20-bit field begins at record bit 145, and the change affects two bytes per locale.
+The generator validates the reviewed enUS/esES/ruRU assets before creating output.
+Other assets are read through symlinks; stock files are verified unchanged.
+Unknown hashes and an existing output directory are rejected. The manifest records
+the source and target spells, version, input/output hashes, record/parent locations
+and changed bits. This does not change skill 118 metadata or weaken preservation.
+
+Omitting `--target-spell` (or selecting 674) preserves the original version-1
+SpellMisc-only overlay. Keep its previous artifacts as diagnostic evidence:
+C++ explicitly learns 674 and the first logout saves skill 118=1/1 without a
+direct 674 row. At the next login, stock SkillRaceClassInfo 132 flags 0x92 and
+SkillLine 118 category 6 cause `_LoadSkills` → `UpdateSkillsForLevel` to normalize
+that skill to 100/100 at level 20. This is expected server behavior; version 1
+does not satisfy the driver's unchanged six-family retention contract.
+
+Point both isolated servers at the same overlay and verify effective SQL
+SpellMisc, SpellEffect, hotfix and dependency inputs before either run. Seed source
+30798 only in the authorized disposable, offline fixture. The existing cast driver
+must observe source 30798 known/active and target 6197 absent after login for version 2.
+Use `expected_spell: 6197` and the default direct-spell persistence contract;
+require explicit-cast learning and ordinary save/relogin retention. Only passing
+paired action captures and both retention reports establish conformance with
+this controlled metadata; the generator alone does **not** establish stock
+30798 gameplay. The generator changes no configuration, database or service;
+runtime and fixture authority remain with the caller.
 
 Under the same authorized runtime guard, select
 `QA_SMOKE=/home/server/rustycore/tools/wow-test-bot/run_login_disconnect_relog.sh`.

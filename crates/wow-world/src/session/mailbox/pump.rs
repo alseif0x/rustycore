@@ -49,15 +49,7 @@ impl WorldSession {
         // command and therefore cannot be split by this merge.
         let first_visible = durable_commands
             .iter()
-            .position(|command| {
-                matches!(
-                    command,
-                    SessionCommand::SendIfVisibleLikeCpp(_)
-                        | SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(_)
-                        | SessionCommand::SendRealmIfVisibleLikeCpp(_)
-                        | SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
-                )
-            })
+            .position(SessionCommand::is_visibility_gated_like_cpp)
             .unwrap_or(durable_commands.len());
         let mut commands = durable_commands;
         let deferred_durable_suffix = commands.split_off(first_visible);

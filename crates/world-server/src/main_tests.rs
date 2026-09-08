@@ -10444,6 +10444,7 @@ fn make_creature_spell_runtime_plan_like_cpp(
         ..Default::default()
     };
     let start_bytes = SpellStartPkt {
+        cast_data: Default::default(),
         caster: caster_guid,
         cast_id,
         original_cast_id: ObjectGuid::EMPTY,
@@ -10456,6 +10457,7 @@ fn make_creature_spell_runtime_plan_like_cpp(
     }
     .to_bytes();
     let go = SpellGoPkt {
+        cast_data: Default::default(),
         caster: caster_guid,
         cast_id,
         original_cast_id: ObjectGuid::EMPTY,

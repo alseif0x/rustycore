@@ -877,7 +877,11 @@ impl WorldSession {
         const BIND_SPELL_GO_CAST_FLAGS_LIKE_CPP: u32 =
             CAST_FLAG_UNKNOWN_9_LIKE_CPP | CAST_FLAG_PENDING_LIKE_CPP | CAST_FLAG_NO_GCD_LIKE_CPP;
         if let Some(player_guid) = self.player_guid() {
-            let cast_id = self.next_represented_spell_cast_guid_like_cpp(BIND_SPELL_ID_LIKE_CPP);
+            let Some(cast_id) =
+                self.next_represented_spell_cast_guid_like_cpp(BIND_SPELL_ID_LIKE_CPP)
+            else {
+                return;
+            };
             if let Err(error) = self
                 .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                     item_guid_generator,

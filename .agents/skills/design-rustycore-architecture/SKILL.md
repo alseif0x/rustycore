@@ -23,7 +23,9 @@ manifests, and tests before relying on their claims. A bounded question does not
 whole-workspace inventory or a complete historical-log read.
 
 For affected base-server behavior, locate exact C++ owners and call paths under
-`/home/server/woltk-trinity-legacy`; use real captures when C++ is incomplete or ambiguous. Existing
+the versioned references in AGENTS.md; start with the 3.4.3 fork and use its
+complementary-source policy for missing or suspect gameplay. Use target-build
+captures to resolve incomplete, ambiguous or version-dependent behavior. Existing
 Rust and old tests are not parity proof. Distinguish implemented, integrated, and parity-proven.
 Keep architecture snapshots and campaign plans in project documents with a date, audited commit,
 and coverage limits, not embedded in this skill.
@@ -89,8 +91,9 @@ complete operations and their dependency/bridge retirement, not a mandatory mech
 Keep restructuring and intentional behavior changes distinguishable; do not silently expand or
 reduce accepted scope.
 
-Use focused positive/negative tests during iteration and affected integration/failure cases at
-owner boundaries. Retain `AGENTS.md` and explicit issue acceptance gates for capture, live QA, and
+Define focused positive/negative and affected integration/failure coverage for the boundary;
+execute it at completed-delivery acceptance under `AGENTS.md`'s cadence, not per internal slice.
+Retain `AGENTS.md` and explicit issue acceptance gates for capture, live QA, and
 final validation; do not repeat exhaustive audits after every helper or equate partial tests with
 terminal acceptance. Report the verdict, supporting anchors, tradeoffs, remaining risks, and next
 step concisely, with detail proportional to the decision.

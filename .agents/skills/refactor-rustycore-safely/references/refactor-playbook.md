@@ -41,10 +41,11 @@ Use for `handlers/misc.rs`, packet families, QA scenarios, or a cohesive impl bl
    affected tuples; add/update coverage only for a demonstrated gap. Assert metadata, handler
    names and uniqueness, not counts alone. For other surfaces, preserve their actual call/test
    registration contract instead; do not add unrelated opcode tests.
-7. During iteration, run focused evidence, affected checks and routed `validation-v2 quick`.
-   Run complete affected suites at responsibility/macro acceptance or when the change's risk
-   requires them, not automatically after every helper. Preserve explicit issue requirements;
-   after committing to a clean HEAD, run `validation-v2 final` before an authorized push.
+7. Author focused coverage during implementation. At completed-delivery acceptance, run the
+   affected checks and suites under AGENTS.md's cadence, not per helper or worker handoff.
+   Resolve final findings and rerun affected evidence. Preserve explicit issue requirements;
+   validate the committed publication candidate under AGENTS.md's evidence rules before
+   an authorized push; unrelated untracked documents do not require a new checkout.
 
 Keeping `impl WorldSession` across private modules can preserve the handler API during a
 mechanical split. It does not complete a semantic extraction of gameplay from Session; record

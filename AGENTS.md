@@ -1,14 +1,16 @@
 # AGENTS.md
 
 Shared operating guide for agents working in RustyCore. CLAUDE.md imports this file.
-Use current code to establish implementation state and the legacy C++/capture evidence
+Use current code to establish implementation state and versioned C++/capture evidence
 to establish required base-server behavior. Neither old documentation nor existing Rust
 is correctness proof. This guide does not override explicit user scope or approval gates.
 
 ## Project and sources of truth
 
 - Repository: /home/server/rustycore; remote: https://github.com/alseif0x/rustycore.git.
-- Behavioral reference: /home/server/woltk-trinity-legacy.
+- Target-version reference: /home/server/woltk-trinity-legacy (3.4.3).
+- Complementary gameplay reference: /home/server/azerothcore-wotlk-reference (3.3.5a).
+  The pinned source checkout and its coverage are recorded in docs/README.md.
 - Target: full functional parity with the TrinityCore-derived WoW 3.4.3 server, not a
   smaller compatible subset. A bounded milestone never silently reduces the full port.
 - Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
@@ -87,8 +89,15 @@ For protocol, gameplay, database, lifetime, persistence and runtime behavior:
 6. Validate proportionally and commit coherent validated changes on the issue branch.
    Continue remaining authorized work; publication retains its own gate.
 
-The behavioral audit is against C++ exclusively, supplemented by appropriate real captures where
-that source is incomplete. If an affected comment/test relies on an unsupported earlier analysis,
+Audit behavior against the relevant versioned C++ paths and appropriate real captures.
+The user approved AzerothCore as a complementary source for missing or suspect gameplay in
+the Classic fork; neither core is complete or infallible, and shared ancestry is not independent
+proof. Compare the complete operation, scripts and effective data before adapting its logic.
+Keep 3.4.3 packet layouts, IDs/data schemas, admission and lifecycle contracts explicit: 3.3.5
+wire formats or SQL are not drop-in replacements. Resolve version differences using target-build
+evidence and an explicit behavior contract; record source SHA/functions and retained uncertainty.
+Use secondary references selectively for the active responsibility, not as a new whole-port audit.
+If an affected comment/test relies on an unsupported earlier analysis,
 locate the C++ equivalent and correct the evidence before approving the behavior. Pause an
 unresolved mutation while continuing safe inspection; resume from evidence within scope, or ask
 for a material choice/new authority that evidence cannot settle. An intentional departure requires
@@ -98,6 +107,12 @@ Do not bulk-close inventory rows or report planning/test-debt work as gameplay p
 Use implemented, production-integrated and parity-proven as distinct evidence levels.
 
 ## Architecture and skills
+
+Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
+coordination when useful bounded independent work can be delegated. This explicitly
+requests selective subagent work, with Luna as the usual bounded implementation
+collaborator, not delegation for every task. Project Codex defaults
+live in `.codex/config.toml` and `.codex/agents/`; they do not override runtime permissions.
 
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;
@@ -118,10 +133,11 @@ they are not separate frozen architecture snapshots.
   crates/wow-world/src/session/registry.rs and actual registrations for the current thunk
   signature; do not copy an outdated snippet or reintroduce a dispatcher opcode match.
   Keep exact-set metadata/registration tests for changes to that boundary.
-- #579 is merged and #578 closed. Implement #585's represented session finalization now,
-  then the remaining core macrodeliverables under #584, #583 and #153 before #133 closes.
+- #579/#586 are merged and #578/#585 closed. #588's approved deferred visibility
+  bridge is the current prerequisite for #587's remaining live acquisition acceptance.
+  Then complete required core macrodeliverables under #584, #583 and #153 before #133 closes.
   #133/#584 are umbrellas, not prerequisite implementations. #584 retains unfinished C0–C4;
-  closing #585 does not open #583 immediately. The family after #585 is not selected.
+  closing #585 does not open #583 immediately. No family after #587 is selected.
   Analyze each responsibility before defining its implementation macro,
   include cross-crate consumers and preserve scoped regression/live acceptance. These
   evidence reviews do not add routine approvals or authorize merge/runtime operations.
@@ -130,10 +146,19 @@ they are not separate frozen architecture snapshots.
 
 ## Validation
 
-For #585, the user's 2026-09-07 execution instruction supersedes routine iteration
-cadence below: implement the complete delivery first, then run its affected acceptance
-tests, applicable QA and publication validation. Do not run CI, builds or tests for
-each internal microchange. Do not claim unexecuted evidence as passing.
+Implement the complete authorized delivery first, including its tests and consumers;
+then run affected acceptance tests, applicable QA and publication validation. During
+implementation use inspection, not CI, builds or test runs per internal change or
+worker handoff. At final acceptance, fix findings and rerun affected evidence as needed.
+An explicit user request for an earlier diagnostic run remains authoritative.
+Do not claim unexecuted evidence as passing.
+
+The parent owns validation scheduling, or assigns one exclusive validation executor.
+Run heavyweight builds, tests, exhaustive scans and live QA sequentially, including
+across worktrees; no worker starts its own parallel campaign. Check for active work
+and available RAM/disk before launching. On this shared host start Cargo with one job
+(`VALIDATION_V2_CARGO_JOBS=1` for the runner); increase only with demonstrated headroom.
+Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
 
 Use [validation-v2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md) for the actual profiles.
@@ -150,7 +175,7 @@ Choose the real library/binary/integration target; do not assume every crate has
 Run affected production-linked integration targets explicitly when required; library tests
 alone do not establish production composition. Record evidence at the actual tested SHA.
 
-Ordinary ownership/module iteration:
+Ownership/module acceptance commands (select by affected scope, not per helper):
 
 ~~~bash
 PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo run --release --locked \

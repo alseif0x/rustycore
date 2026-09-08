@@ -176,6 +176,8 @@
     378,
     578,
     585,
+    588,
+    587,
     583,
     153
   ],
@@ -2299,11 +2301,27 @@
     },
     {
       "number": 585,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.CORE.FINALIZATION] Complete represented session finalization outcomes and retirement supervision",
       "kind": "slice",
       "parents": [133, 584],
       "depends_on": [578]
+    },
+    {
+      "number": 588,
+      "state": "open",
+      "title": "[ARCH.CORE] Complete deferred player visibility publication",
+      "kind": "slice",
+      "parents": [133, 584],
+      "depends_on": [585]
+    },
+    {
+      "number": 587,
+      "state": "open",
+      "title": "[ARCH.CORE] Complete represented spell-acquisition application boundary",
+      "kind": "slice",
+      "parents": [133, 584],
+      "depends_on": [585, 588]
     }
   ]
 }

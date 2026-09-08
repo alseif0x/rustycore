@@ -8,6 +8,25 @@
 use super::{MapKey, MapManager, PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp};
 
 impl MapManager {
+    /// Observe a checked active residence and its revision under the caller's
+    /// existing manager guard. Cast preparation uses this stamp to reject an
+    /// away-and-back transfer before consuming the canonical active cast.
+    pub fn player_active_residence_revision_like_cpp(
+        &self,
+        handle: PlayerHandle,
+    ) -> Option<(MapKey, u64)> {
+        let PlayerResidenceLikeCpp::Active(key) =
+            self.checked_player_residence_like_cpp(handle).ok()?
+        else {
+            return None;
+        };
+        Some((
+            key,
+            self.current_player_owner_like_cpp(handle)?
+                .residence_revision,
+        ))
+    }
+
     /// Resolve a current incarnation's actual residence without guessing defaults.
     ///
     /// No owner, stale generation and inconsistent backing state are distinct.

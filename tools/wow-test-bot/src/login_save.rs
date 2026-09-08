@@ -284,3 +284,42 @@ mod tests {
         ));
     }
 }
+
+pub(super) async fn finish_login(
+    plan: Option<&spell_acquisition::Plan>,
+    bot_index: usize,
+    bot: &config::BotConfig,
+    before: Option<Before>,
+    known: Option<LoginKnownSpellsLikeCpp>,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    drain_login_streams(stream, crypt, inflater, realm, result).await?;
+    if let Some(before) = before {
+        let mut known = known.context("save check missing known-spell packet")?;
+        let mut acquisition = if let Some(plan) = plan {
+            Some(
+                spell_acquisition::execute(plan, bot, &mut known, stream, crypt, inflater, realm)
+                    .await?,
+            )
+        } else {
+            None
+        };
+        result.login_save = Some(
+            complete(
+                bot_index, bot, before, known, stream, crypt, inflater, realm, result,
+            )
+            .await?,
+        );
+        if let Some(receipt) = acquisition.as_mut() {
+            spell_acquisition::verify_saved(bot, receipt).await?;
+        }
+        result.spell_acquisition = acquisition;
+    } else if plan.is_some() {
+        bail!("acquisition has no save preflight");
+    }
+    Ok(())
+}

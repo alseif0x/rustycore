@@ -17,11 +17,11 @@ use super::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyPlayerMeleeResultLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
     ReconcilePvpCombatExpiryLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SessionCommand,
+    SendIfVisibleLikeCppCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
 };
 
-/// Durable FIFO handoff for map-owned creature transitions that have
-/// already committed authoritative state.
+/// Retained FIFO handoff for committed map-owned creature transitions and
+/// Player cast publication decisions. Retention is in memory, not database durability.
 ///
 /// The bounded general-purpose session queue may legitimately reject visual
 /// fanout under backpressure. These commands cannot be dropped, but the global
@@ -36,9 +36,17 @@ pub const MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP: usize = 4_096;
 pub struct DurableCreatureRuntimeCommandsLikeCpp {
     commands: VecDeque<SessionCommand>,
     overflowed: bool,
+    deferred_visibility: Option<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
 }
 
 impl DurableCreatureRuntimeCommandsLikeCpp {
+    pub fn publish_player_spell_if_visible_like_cpp(
+        &mut self,
+        command: SendPlayerSpellIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::SendPlayerSpellIfVisibleLikeCpp(command))
+    }
+
     fn publish_like_cpp(&mut self, command: SessionCommand) -> bool {
         if self.commands.len() >= MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP {
             self.overflowed = true;
@@ -106,14 +114,44 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         ))
     }
 
+    /// One map-selected obligation, independent of the bounded general queue.
+    /// The directory validates incarnation before publishing; residence ordering
+    /// additionally prevents a delayed producer from replacing newer work.
+    pub(crate) fn retain_deferred_visibility_like_cpp(
+        &mut self,
+        intent: wow_map::PlayerVisibilityRefreshIntentLikeCpp,
+    ) {
+        if self.deferred_visibility.is_some_and(|pending| {
+            pending.handle() == intent.handle()
+                && pending.residence_revision() > intent.residence_revision()
+        }) {
+            return;
+        }
+        self.deferred_visibility = Some(intent);
+    }
+
     pub fn drain_like_cpp(&mut self) -> Vec<SessionCommand> {
-        self.commands.drain(..).collect()
+        let mut commands: Vec<_> = self.commands.drain(..).collect();
+        if let Some(intent) = self.deferred_visibility.take() {
+            // Preserve the committed transition prefix. Visibility must run
+            // before presentation packets, not before their state application.
+            let first_visible = commands
+                .iter()
+                .position(SessionCommand::is_visibility_gated_like_cpp)
+                .unwrap_or(commands.len());
+            commands.insert(
+                first_visible,
+                SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(intent),
+            );
+        }
+        commands
     }
 
     pub fn take_overflowed_and_discard_like_cpp(&mut self) -> bool {
         let overflowed = std::mem::take(&mut self.overflowed);
         if overflowed {
             self.commands.clear();
+            self.deferred_visibility = None;
         }
         overflowed
     }

@@ -15,14 +15,16 @@ before implementation. Architecture/tooling work uses its explicit, proportional
 
 ## Current execution agreement — #133 / #578
 
-**Active delivery, 2026-09-07:** #579 merged as `59f5bced`; #578 is closed.
-Implement #585 now (represented session finalization and retirement supervision),
-then select the next complete core responsibility under #584 just in time.
-#133/#584 are umbrellas, not two implementations before #585. Complete the required
-core deliveries before #583; #153 audits afterward, then #133 may close. No fixed
-maps/combat/spells sequence is approved. For #585, develop the complete boundary
-before running its acceptance tests/QA; do not run CI for internal microchanges.
-This current allocation supersedes older open-#578 and iteration-cadence text below.
+**Active delivery, 2026-09-08:** #586 merged as `8c47af95`; #585 and #578 are closed.
+#587's acquisition boundary is implemented locally. Its live trainer acceptance
+exposed the missing deferred player visibility bridge; the user approved #588 as
+the concrete prerequisite, followed by resumption of #587. The
+[visibility checkpoint](../architecture/deferred-visibility-588-checkpoint.md)
+owns that finite contract and evidence. #133/#584 remain umbrellas. Complete the
+required core deliveries before #583, then #153 and #133 closure. No later family
+or fixed crate sequence is selected. Complete each implementation and its consumers
+before tests/QA; do not run CI for internal microchanges. This allocation supersedes
+older open-#578/#585 and iteration-cadence text below.
 
 **Superseding delivery agreement, 2026-09-06:** the user replaced the single
 all-core implementation PR with crate-focused macrodeliverables, each preceded by
