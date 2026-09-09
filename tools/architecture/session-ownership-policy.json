@@ -6008,7 +6008,19 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::group::ops_3",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
@@ -6146,13 +6158,19 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::talent",
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::talent::state",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
@@ -9944,35 +9962,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_change_sub_group",
-          "visibility": "pub",
-          "signature": "async fn handle_change_sub_group (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_clear_raid_marker",
-          "visibility": "pub",
-          "signature": "async fn handle_clear_raid_marker (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_convert_raid",
@@ -9986,35 +9976,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_do_ready_check",
-          "visibility": "pub",
-          "signature": "async fn handle_do_ready_check (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_initiate_role_poll",
-          "visibility": "pub",
-          "signature": "async fn handle_initiate_role_poll (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_leave_group",
@@ -10028,63 +9990,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_low_level_raid1",
-          "visibility": "pub",
-          "signature": "async fn handle_low_level_raid1 (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_low_level_raid2",
-          "visibility": "pub",
-          "signature": "async fn handle_low_level_raid2 (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_minimap_ping",
-          "visibility": "pub",
-          "signature": "async fn handle_minimap_ping (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_opt_out_of_loot",
-          "visibility": "pub",
-          "signature": "async fn handle_opt_out_of_loot (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_invite",
@@ -10100,7 +10006,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_invite_response",
@@ -10114,7 +10020,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_invite_with_policy_like_cpp",
@@ -10128,7 +10034,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_uninvite",
@@ -10142,12 +10048,12 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_random_roll",
-          "visibility": "pub",
-          "signature": "async fn handle_random_roll (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "name": "persist_group_intents_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn persist_group_intents_like_cpp (& self , group_guid : u64 , intents : Vec < GroupPersistenceIntentLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10156,7 +10062,105 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_change_sub_group",
+          "visibility": "pub",
+          "signature": "async fn handle_change_sub_group (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_clear_raid_marker",
+          "visibility": "pub",
+          "signature": "async fn handle_clear_raid_marker (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_do_ready_check",
+          "visibility": "pub",
+          "signature": "async fn handle_do_ready_check (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_initiate_role_poll",
+          "visibility": "pub",
+          "signature": "async fn handle_initiate_role_poll (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_low_level_raid1",
+          "visibility": "pub",
+          "signature": "async fn handle_low_level_raid1 (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_low_level_raid2",
+          "visibility": "pub",
+          "signature": "async fn handle_low_level_raid2 (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_opt_out_of_loot",
+          "visibility": "pub",
+          "signature": "async fn handle_opt_out_of_loot (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_ready_check_response",
@@ -10170,7 +10174,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_party_join_updates",
@@ -10184,7 +10188,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_party_member_stats",
@@ -10198,7 +10202,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_assistant_leader",
@@ -10212,7 +10216,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_everyone_is_assistant",
@@ -10226,7 +10230,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_loot_method",
@@ -10240,7 +10244,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_party_assignment",
@@ -10254,7 +10258,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_party_leader",
@@ -10268,7 +10272,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_role",
@@ -10282,7 +10286,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_silence_party_talker",
@@ -10296,7 +10300,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_swap_sub_groups",
@@ -10310,7 +10314,7 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_update_raid_target",
@@ -10324,16 +10328,31 @@
           ]
         },
         {
-          "module": "crate::handlers::group",
+          "module": "crate::handlers::group::ops_3",
           "trait_path": null,
           "kind": "method",
-          "name": "persist_group_intents_like_cpp",
-          "visibility": "private",
-          "signature": "async fn persist_group_intents_like_cpp (& self , group_guid : u64 , intents : Vec < GroupPersistenceIntentLikeCpp > ,)",
+          "name": "handle_minimap_ping",
+          "visibility": "pub",
+          "signature": "async fn handle_minimap_ping (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::ops_3",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_random_roll",
+          "visibility": "pub",
+          "signature": "async fn handle_random_roll (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -19167,7 +19186,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "apply_wrapped_gift_row_to_runtime_item_like_cpp",
@@ -19181,157 +19200,35 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "destroy_stale_wrapped_gift_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "async fn destroy_stale_wrapped_gift_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "direct_inventory_item_count_like_cpp_representable",
-          "visibility": "private",
-          "signature": "fn direct_inventory_item_count_like_cpp_representable (& self , item_id : u32) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "evaluate_loot_condition_like_cpp_representable",
-          "visibility": "private",
-          "signature": "fn evaluate_loot_condition_like_cpp_representable (& self , condition : & LootConditionRowLikeCpp ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "generate_item_loot_template_entries_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "async fn generate_item_loot_template_entries_like_cpp (& mut self , item_entry : u32 ,) -> Vec < LootEntry >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_aura",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_auto_repeat_spell",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_auto_repeat_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_cast",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_cast (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_channelling",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_channelling (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_growth_aura",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_growth_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_mount_aura",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_mount_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_queued_spell",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_queued_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_cast_spell",
@@ -19347,7 +19244,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_cast_spell_with_catalogs_like_cpp",
@@ -19361,7 +19258,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "handle_open_item",
@@ -19375,7 +19272,245 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_item_template_addon_loot_metadata_for_rows_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_item_template_addon_loot_metadata_for_rows_like_cpp (& self , rows : & [LootTemplateRow] ,) -> HashMap < u32 , ItemTemplateAddonLootMetadataLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_item_template_addon_loot_metadata_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_item_template_addon_loot_metadata_like_cpp (& self , item_entry : u32 ,) -> ItemTemplateAddonLootMetadataLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_item_template_addon_money_loot_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_item_template_addon_money_loot_like_cpp (& self , item_entry : u32 ,) -> (u32 , u32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_loot_template_rows_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_loot_template_rows_like_cpp (& self , table : LootTemplateTable , entry : u32 ,) -> Vec < LootTemplateRow >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_wrapped_gift_row_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_wrapped_gift_row_like_cpp (& self , item_guid : ObjectGuid ,) -> WrappedGiftLoad",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "open_active_item_loot_view_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn open_active_item_loot_view_like_cpp (& mut self , player_guid : ObjectGuid , item_guid : ObjectGuid ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "open_wrapped_gift_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn open_wrapped_gift_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_1",
+          "trait_path": null,
+          "kind": "method",
+          "name": "persist_wrapped_gift_open_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn persist_wrapped_gift_open_like_cpp (& self , item_guid : ObjectGuid , entry : u32 , flags : u32 , durability : u32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "direct_inventory_item_count_like_cpp_representable",
+          "visibility": "pub (super)",
+          "signature": "fn direct_inventory_item_count_like_cpp_representable (& self , item_id : u32 ,) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "evaluate_loot_condition_like_cpp_representable",
+          "visibility": "pub (super)",
+          "signature": "fn evaluate_loot_condition_like_cpp_representable (& self , condition : & LootConditionRowLikeCpp ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_aura",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_auto_repeat_spell",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_auto_repeat_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_cast",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_cast (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_channelling",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_channelling (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_growth_aura",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_growth_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_mount_aura",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_mount_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_queued_spell",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_queued_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_pet_cancel_aura",
@@ -19389,7 +19524,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_self_res",
@@ -19405,7 +19540,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_self_res_with_generator_like_cpp",
@@ -19419,7 +19554,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_spell_click",
@@ -19435,7 +19570,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_spell_click_with_generator_like_cpp",
@@ -19449,7 +19584,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "handle_totem_destroyed",
@@ -19463,46 +19598,49 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "has_incomplete_quest_item_drop_for_item_like_cpp_representable",
-          "visibility": "private",
-          "signature": "fn has_incomplete_quest_item_drop_for_item_like_cpp_representable (& self , item_id : u32) -> bool",
+          "visibility": "pub (super)",
+          "signature": "fn has_incomplete_quest_item_drop_for_item_like_cpp_representable (& self , item_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "has_incomplete_quest_objective_for_item_like_cpp_representable",
-          "visibility": "private",
-          "signature": "fn has_incomplete_quest_objective_for_item_like_cpp_representable (& self , item_id : u32) -> bool",
+          "visibility": "pub (super)",
+          "signature": "fn has_incomplete_quest_objective_for_item_like_cpp_representable (& self , item_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "has_incomplete_quest_objective_for_object_id_like_cpp_representable",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "fn has_incomplete_quest_objective_for_object_id_like_cpp_representable (& self , item_object_id : i32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "is_spell_disabled_for_player_like_cpp",
@@ -19516,181 +19654,12 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "item_loot_allowed_for_player_like_cpp_representable",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "fn item_loot_allowed_for_player_like_cpp_representable (& self , item_id : u32 , needs_quest : bool , addon_metadata : ItemTemplateAddonLootMetadataLikeCpp , conditions : & [LootConditionRowLikeCpp] , condition_references : & HashMap < u32 , Vec < LootConditionRowLikeCpp > > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_item_template_addon_loot_metadata_for_rows_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_item_template_addon_loot_metadata_for_rows_like_cpp (& self , rows : & [LootTemplateRow] ,) -> HashMap < u32 , ItemTemplateAddonLootMetadataLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_item_template_addon_loot_metadata_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_item_template_addon_loot_metadata_like_cpp (& self , item_entry : u32 ,) -> ItemTemplateAddonLootMetadataLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_item_template_addon_money_loot_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_item_template_addon_money_loot_like_cpp (& self , item_entry : u32) -> (u32 , u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_loot_template_condition_reference_rows_for_id_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_loot_template_condition_reference_rows_for_id_like_cpp (& self , reference_id : u32 ,) -> Vec < LootConditionRowLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_loot_template_condition_reference_rows_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_loot_template_condition_reference_rows_like_cpp (& self , rows : & [LootTemplateRow] ,) -> HashMap < u32 , Vec < LootConditionRowLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_loot_template_condition_rows_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_loot_template_condition_rows_like_cpp (& self , source_type : i32 , source_group : u32 , source_entry : u32 ,) -> Vec < LootConditionRowLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_loot_template_rows_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_loot_template_rows_like_cpp (& self , table : LootTemplateTable , entry : u32 ,) -> Vec < LootTemplateRow >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_stored_item_items_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_stored_item_items_like_cpp (& self , item_guid : wow_core :: ObjectGuid ,) -> Option < Vec < LootEntry > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_stored_item_money_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_stored_item_money_like_cpp (& self , item_guid : wow_core :: ObjectGuid ,) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_wrapped_gift_row_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_wrapped_gift_row_like_cpp (& self , item_guid : ObjectGuid) -> WrappedGiftLoad",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "loot_conditions_allow_player_with_references_like_cpp_representable",
-          "visibility": "private",
-          "signature": "fn loot_conditions_allow_player_with_references_like_cpp_representable (& self , conditions : & [LootConditionRowLikeCpp] , condition_references : & HashMap < u32 , Vec < LootConditionRowLikeCpp > > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "loot_entry_flags_for_row_like_cpp",
-          "visibility": "private",
-          "signature": "fn loot_entry_flags_for_row_like_cpp (& self , row : & LootTemplateRow , addon_metadata : ItemTemplateAddonLootMetadataLikeCpp ,) -> LootEntryFlags",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell",
-          "trait_path": null,
-          "kind": "method",
-          "name": "open_active_item_loot_view_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn open_active_item_loot_view_like_cpp (& mut self , player_guid : ObjectGuid , item_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19699,59 +19668,133 @@
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
-          "name": "open_wrapped_gift_like_cpp",
-          "visibility": "private",
-          "signature": "async fn open_wrapped_gift_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid)",
+          "name": "load_loot_template_condition_reference_rows_for_id_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_loot_template_condition_reference_rows_for_id_like_cpp (& self , reference_id : u32 ,) -> Vec < LootConditionRowLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
-          "name": "persist_wrapped_gift_open_like_cpp",
-          "visibility": "private",
-          "signature": "async fn persist_wrapped_gift_open_like_cpp (& self , item_guid : ObjectGuid , entry : u32 , flags : u32 , durability : u32 ,)",
+          "name": "load_loot_template_condition_reference_rows_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_loot_template_condition_reference_rows_like_cpp (& self , rows : & [LootTemplateRow] ,) -> HashMap < u32 , Vec < LootConditionRowLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_loot_template_condition_rows_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_loot_template_condition_rows_like_cpp (& self , source_type : i32 , source_group : u32 , source_entry : u32 ,) -> Vec < LootConditionRowLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_stored_item_items_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_stored_item_items_like_cpp (& self , item_guid : wow_core :: ObjectGuid ,) -> Option < Vec < LootEntry > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_stored_item_money_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn load_stored_item_money_like_cpp (& self , item_guid : wow_core :: ObjectGuid ,) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "loot_conditions_allow_player_with_references_like_cpp_representable",
+          "visibility": "pub (super)",
+          "signature": "fn loot_conditions_allow_player_with_references_like_cpp_representable (& self , conditions : & [LootConditionRowLikeCpp] , condition_references : & HashMap < u32 , Vec < LootConditionRowLikeCpp > > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "loot_entry_flags_for_row_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn loot_entry_flags_for_row_like_cpp (& self , row : & LootTemplateRow , addon_metadata : ItemTemplateAddonLootMetadataLikeCpp ,) -> LootEntryFlags",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "player_quest_objective_progress_like_cpp_representable",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "fn player_quest_objective_progress_like_cpp_representable (& self , objective_id : u32 ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "save_new_stored_item_loot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "async fn save_new_stored_item_loot_like_cpp (& self , item_guid : wow_core :: ObjectGuid , money : u32 , items : & [LootEntry] ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::handlers::spell",
+          "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
           "name": "try_handle_cancel_mod_speed_no_control_auras_like_cpp",
@@ -19765,7 +19808,7 @@
           ]
         },
         {
-          "module": "crate::handlers::talent",
+          "module": "crate::handlers::talent::state",
           "trait_path": null,
           "kind": "method",
           "name": "handle_confirm_respec_wipe",
@@ -19781,7 +19824,7 @@
           ]
         },
         {
-          "module": "crate::handlers::talent",
+          "module": "crate::handlers::talent::state",
           "trait_path": null,
           "kind": "method",
           "name": "handle_confirm_respec_wipe_with_generator_like_cpp",
@@ -19795,7 +19838,7 @@
           ]
         },
         {
-          "module": "crate::handlers::talent",
+          "module": "crate::handlers::talent::state",
           "trait_path": null,
           "kind": "method",
           "name": "handle_learn_talent",
@@ -19809,7 +19852,7 @@
           ]
         },
         {
-          "module": "crate::handlers::talent",
+          "module": "crate::handlers::talent::state",
           "trait_path": null,
           "kind": "method",
           "name": "handle_learn_talents",
@@ -19823,16 +19866,17 @@
           ]
         },
         {
-          "module": "crate::handlers::talent",
+          "module": "crate::handlers::talent::state",
           "trait_path": null,
           "kind": "method",
           "name": "represented_can_confirm_respec_wipe_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "fn represented_can_confirm_respec_wipe_like_cpp (& mut self , respec_master : wow_core :: ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -57494,7 +57538,7 @@
           "count": 1
         },
         {
-          "module": "crate::handlers::character::tests",
+          "module": "crate::handlers::character::tests::fixtures_2",
           "callee": "WorldSession::new",
           "argument_count": 10,
           "cfg": [
@@ -63162,1553 +63206,6 @@
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn connected_group_member_txs_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn connected_group_members_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn current_group_guid_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "type_reference",
-          "symbol": "group_reg",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn current_group_guid_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "get(& gid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn first_connected_group_member_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn party_member_full_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "Option < & PlayerRegistry >",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn party_member_full_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "entry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "entry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn party_player_info_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_group_new_leader_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_group_new_leader_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "send_realm_packet_to_player_like_cpp",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_group_packet_bytes_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_party_update",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_party_update",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "Some",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_party_update",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "party_member_full_state_like_cpp",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "Some (registry)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_party_update",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "party_player_info_like_cpp",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_ready_check_events_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_realm_packet_to_player_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn send_realm_party_invite_to_player_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_change_sub_group",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_change_sub_group",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_change_sub_group",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_change_sub_group",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_clear_raid_marker",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_clear_raid_marker",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_clear_raid_marker",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_clear_raid_marker",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_convert_raid",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_convert_raid",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_convert_raid",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_convert_raid",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_do_ready_check",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_do_ready_check",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_do_ready_check",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_do_ready_check",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_initiate_role_poll",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_initiate_role_poll",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_initiate_role_poll",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_initiate_role_poll",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "r",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "r",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PendingInvites",
-          "operation": "accessor",
-          "symbol": "pending_invites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PendingInvites",
-          "operation": "local_alias",
-          "symbol": "pending_invite",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invite:PendingInvites",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PendingInvites",
-          "operation": "local_alias",
-          "symbol": "pending_invites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites:PendingInvites",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PendingInvites",
-          "operation": "argument_escape",
-          "symbol": "cancel_pending_group_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "invite",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PendingInvites",
-          "operation": "argument_escape",
-          "symbol": "cancel_pending_group_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_leave_group",
-          "registry": "PendingInvites",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "get(& my_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_minimap_ping",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_minimap_ping",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_minimap_ping",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_minimap_ping",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_response",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_response",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "r",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_response",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_response",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "r",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_response",
-          "registry": "PendingInvites",
-          "operation": "accessor",
-          "symbol": "pending_invites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_response",
-          "registry": "PendingInvites",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "p",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
-          "registry": "PendingInvites",
-          "operation": "accessor",
-          "symbol": "pending_invites",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "pending_invites()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PendingInvites",
-          "operation": "accessor",
-          "symbol": "pending_invites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PendingInvites",
-          "operation": "local_alias",
-          "symbol": "pending_invites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites:PendingInvites",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PendingInvites",
-          "operation": "argument_escape",
-          "symbol": "cancel_invite_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "pending_invites",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PendingInvites",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "get(& uninvite . target_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_random_roll",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_random_roll",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_random_roll",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_random_roll",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_reg",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_reg:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_random_roll",
-          "registry": "GroupRegistry",
-          "operation": "argument_escape",
-          "symbol": "current_group_guid_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "& group_reg",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_random_roll",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_ready_check_response",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_ready_check_response",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_ready_check_response",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_ready_check_response",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_request_party_join_updates",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_request_party_join_updates",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_request_party_member_stats",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_request_party_member_stats",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_request_party_member_stats",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "party_member_full_state_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry . as_deref ()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_assistant_leader",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_assistant_leader",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_assistant_leader",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_assistant_leader",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_assignment",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_assignment",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_assignment",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_assignment",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_leader",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_leader",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_leader",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_party_leader",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_role",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_role",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_role",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "connected_group_member_txs_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_role",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "send_group_packet_bytes_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_role",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "send_party_update",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_role",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_set_role",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_silence_party_talker",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_silence_party_talker",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_swap_sub_groups",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_swap_sub_groups",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_swap_sub_groups",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_swap_sub_groups",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_update_raid_target",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_update_raid_target",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_update_raid_target",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_update_raid_target",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
@@ -64729,6 +63226,1553 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "wow_social::group::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupPersistenceIntentLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,ReadyCheckEventLikeCpp}",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_convert_raid",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_convert_raid",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_convert_raid",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_convert_raid",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "r",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "r",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PendingInvites",
+          "operation": "accessor",
+          "symbol": "pending_invites",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PendingInvites",
+          "operation": "local_alias",
+          "symbol": "pending_invite",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invite:PendingInvites",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PendingInvites",
+          "operation": "local_alias",
+          "symbol": "pending_invites",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites:PendingInvites",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PendingInvites",
+          "operation": "argument_escape",
+          "symbol": "cancel_pending_group_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "invite",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PendingInvites",
+          "operation": "argument_escape",
+          "symbol": "cancel_pending_group_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_leave_group",
+          "registry": "PendingInvites",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& my_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_response",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_response",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "r",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_response",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_response",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "r",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_response",
+          "registry": "PendingInvites",
+          "operation": "accessor",
+          "symbol": "pending_invites",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_response",
+          "registry": "PendingInvites",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "p",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
+          "registry": "PendingInvites",
+          "operation": "accessor",
+          "symbol": "pending_invites",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "pending_invites()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "PendingInvites",
+          "operation": "accessor",
+          "symbol": "pending_invites",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "PendingInvites",
+          "operation": "local_alias",
+          "symbol": "pending_invites",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites:PendingInvites",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "PendingInvites",
+          "operation": "argument_escape",
+          "symbol": "cancel_invite_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_1",
+          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
+          "enclosing": "impl WorldSession::handle_party_uninvite",
+          "registry": "PendingInvites",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& uninvite . target_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_change_sub_group",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_change_sub_group",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_change_sub_group",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_change_sub_group",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_clear_raid_marker",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_clear_raid_marker",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_clear_raid_marker",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_clear_raid_marker",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_do_ready_check",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_do_ready_check",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_do_ready_check",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_do_ready_check",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_initiate_role_poll",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_initiate_role_poll",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_initiate_role_poll",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_initiate_role_poll",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_ready_check_response",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_ready_check_response",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_ready_check_response",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_ready_check_response",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_request_party_join_updates",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_request_party_join_updates",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_request_party_member_stats",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_request_party_member_stats",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_request_party_member_stats",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "party_member_full_state_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry . as_deref ()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_assistant_leader",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_assistant_leader",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_assistant_leader",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_assistant_leader",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_everyone_is_assistant",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_assignment",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_assignment",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_assignment",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_assignment",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_leader",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_leader",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_leader",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_party_leader",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_role",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_role",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_role",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "connected_group_member_txs_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_role",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "send_group_packet_bytes_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_role",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "send_party_update",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_role",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_set_role",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_silence_party_talker",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_silence_party_talker",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_swap_sub_groups",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_swap_sub_groups",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_swap_sub_groups",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_swap_sub_groups",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_update_raid_target",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_update_raid_target",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_update_raid_target",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_2",
+          "source": "crates/wow-world/src/handlers/group/ops_2.rs",
+          "enclosing": "impl WorldSession::handle_update_raid_target",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_minimap_ping",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_minimap_ping",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_minimap_ping",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_minimap_ping",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_random_roll",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_random_roll",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_random_roll",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_random_roll",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_reg",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_reg:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_random_roll",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "current_group_guid_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "& group_reg",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::ops_3",
+          "source": "crates/wow-world/src/handlers/group/ops_3.rs",
+          "enclosing": "impl WorldSession::handle_random_roll",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn connected_group_member_txs_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn connected_group_members_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn current_group_guid_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_reg",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn current_group_guid_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "get(& gid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn first_connected_group_member_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn party_member_full_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "Option < & PlayerRegistry >",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn party_member_full_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "entry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "entry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn party_player_info_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_group_new_leader_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_group_new_leader_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "send_realm_packet_to_player_like_cpp",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_group_packet_bytes_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_party_update",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_party_update",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "Some",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_party_update",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "party_member_full_state_like_cpp",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "Some (registry)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_party_update",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "party_player_info_like_cpp",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_ready_check_events_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_realm_packet_to_player_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group::state",
+          "source": "crates/wow-world/src/handlers/group/state.rs",
+          "enclosing": "fn send_realm_party_invite_to_player_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
           "count": 1
         },
         {
