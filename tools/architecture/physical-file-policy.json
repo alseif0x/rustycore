@@ -140,29 +140,29 @@
     {
       "path": "crates/wow-data/src/spell/mod.rs",
       "observed_lines": 2093,
-      "ceiling_lines": 2093,
-      "split": "Keep spell data facade; separate immutable spell metadata/query families and construction rules.",
+      "ceiling_lines": 121,
+      "split": "Separate the spell metadata and proc rules from the module root. #646 moves the `spell_effect_types` and `aura_types` constant modules to their own files and the remaining definitions into two state modules, dropping the root from 2,093 to 121 lines and tightening the ceiling to that figure; the root keeps the imports, the small inline constant modules and the composition. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell/stores.rs",
       "observed_lines": 3123,
-      "ceiling_lines": 3123,
-      "split": "Separate spell store loading/index construction from family-specific query/test helpers.",
+      "ceiling_lines": 22,
+      "split": "Separate the C++-shaped pet-aura, threat, linked, totem-model, required and chain stores. #646 decomposes the 3,123-line module into three state modules plus two ops modules that divide the 1,150-line inherent `impl SpellStore` by responsibility, dropping it to 22 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell_acquisition.rs",
       "observed_lines": 2837,
-      "ceiling_lines": 2837,
-      "split": "Separate acquisition catalog rules and indexes by skill/talent/trait dependency.",
+      "ceiling_lines": 36,
+      "split": "Separate the acquisition table, coverage seed, value domain, effect, dependency and misc models. #646 decomposes the 2,837-line module into three state modules plus two ops modules that divide the 1,122-line inherent `impl SpellAcquisitionCatalogLikeCpp`, dropping it to 36 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/spell_db2.rs",
       "observed_lines": 3124,
-      "ceiling_lines": 3124,
-      "split": "Separate DB2 spell record readers and cross-store assembly with exact schema/field tests.",
+      "ceiling_lines": 229,
+      "split": "Separate the DB2 spell entry structs and their per-table stores from their regressions. #646 decomposes the 3,124-line root into three state modules and one regression module, dropping it to 229 lines and tightening the ceiling to that figure; the root keeps the imports, the `db2_store!` macro and its per-table invocations, which are one cohesive declaration. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
