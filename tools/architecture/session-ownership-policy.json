@@ -20922,11 +20922,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "add_honor_xp_to_current_player_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn add_honor_xp_to_current_player_like_cpp (& mut self , xp : i32 ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21328,11 +21330,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_add_extra_attacks_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_add_extra_attacks_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21402,22 +21406,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_block_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_block_effect_like_cpp (& mut self) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_change_raid_marker_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_change_raid_marker_effect_like_cpp (& mut self , damage : i32 , target_data : & SpellTargetData ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21528,35 +21536,41 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_damage",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_damage (& mut self , spell_id : Option < i32 > , target_guid : ObjectGuid , damage_amount : u32 ,) -> Result < () , & 'static str >",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_damage_from_caster_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_damage_from_caster_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : Option < i32 > , caster_guid : ObjectGuid , target_guid : ObjectGuid , damage_amount : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_damage_with_generator_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_damage_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : Option < i32 > , target_guid : ObjectGuid , damage_amount : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21576,33 +21590,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_dismiss_pet_effect_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_dismiss_pet_effect_like_cpp (& mut self , target_guid : ObjectGuid) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_dismiss_pet_effect_like_cpp (& mut self , target_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_distract_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_distract_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid , target_data : & SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_dual_wield_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_dual_wield_effect_like_cpp (& mut self , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21635,22 +21655,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_effect_bind_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_effect_bind_like_cpp (& mut self , effect : & wow_data :: SpellEffectInfo , caster_guid : ObjectGuid , target_guid : ObjectGuid , target_data : & SpellTargetData ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_effect_environmental_damage_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_effect_environmental_damage_like_cpp (& mut self , effect : & wow_data :: SpellEffectInfo , target_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21696,11 +21720,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_effect_teleport_units_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_effect_teleport_units_like_cpp (& mut self , effect : & wow_data :: SpellEffectInfo , target_guid : ObjectGuid , target_data : & SpellTargetData ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21746,11 +21772,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_energize_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_energize_effect_like_cpp (& mut self , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , percent : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21770,44 +21798,52 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_force_deselect_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_force_deselect_effect_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_give_honor_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_give_honor_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_grant_battle_pet_experience_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_grant_battle_pet_experience_effect_like_cpp (& mut self , metadata : SpellCastMetadata , xp : u16 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_grant_battle_pet_level_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_grant_battle_pet_level_effect_like_cpp (& mut self , metadata : SpellCastMetadata , granted_levels : u16 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21853,66 +21889,78 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_heal",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_heal (& mut self , spell_id : Option < i32 > , target_guid : ObjectGuid , heal_amount : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_heal_from_caster_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_heal_from_caster_like_cpp (& mut self , spell_id : Option < i32 > , healer_guid : ObjectGuid , target_guid : ObjectGuid , heal_amount : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_heal_max_health_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_heal_max_health_like_cpp (& mut self , spell_id : i32 , damage : i32 , healer_guid : ObjectGuid , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_heal_pct_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_heal_pct_like_cpp (& mut self , spell_id : i32 , damage : i32 , healer_guid : ObjectGuid , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_health_leech_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_health_leech_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , damage : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_inebriate_effect_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_inebriate_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_inebriate_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -21984,11 +22032,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_instakill_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_instakill_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22060,11 +22110,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_kill_credit_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_kill_credit_effect_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , target_guid : ObjectGuid , creature_entry : i32 , group_reward_like_cpp : bool ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22097,11 +22149,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_learn_transmog_set_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_learn_transmog_set_effect_like_cpp (& mut self , target_guid : ObjectGuid , transmog_set_id : i32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22277,33 +22331,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_modify_cooldown_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_modify_cooldown_effect_like_cpp (& mut self , damage : i32 , effect_trigger_spell : i32 , target_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_modify_spell_charges_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_modify_spell_charges_effect_like_cpp (& mut self , damage : i32 , charge_category_id : i32 , target_guid : ObjectGuid ,) -> u32",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_modify_threat_percent_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_modify_threat_percent_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22401,22 +22461,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_parry_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_parry_effect_like_cpp (& mut self) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_play_movie_effect_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_play_movie_effect_like_cpp (& mut self , target_guid : ObjectGuid , movie_id : i32)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_play_movie_effect_like_cpp (& mut self , target_guid : ObjectGuid , movie_id : i32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22475,33 +22539,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_power_drain_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_power_drain_effect_like_cpp (& mut self , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , burn_damage : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_proficiency_effect_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_proficiency_effect_like_cpp (& mut self , spell_id : i32) -> Result < () , & 'static str >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_proficiency_effect_like_cpp (& mut self , spell_id : i32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_quest_complete_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_quest_complete_effect_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , target_guid : ObjectGuid , quest_id : i32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23087,33 +23157,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_reputation_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_reputation_effect_like_cpp (& mut self , damage : i32 , misc_value : i32 , target_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_sanctuary_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_sanctuary_effect_like_cpp (& mut self , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_self_resurrect_effect_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_self_resurrect_effect_like_cpp (& mut self , damage : i32 , misc_value : i32)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_self_resurrect_effect_like_cpp (& mut self , damage : i32 , misc_value : i32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23157,11 +23233,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_stuck_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_stuck_effect_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23179,33 +23257,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_taunt_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_taunt_effect_like_cpp (& mut self , spell_id : i32 , target_guid : ObjectGuid , enforce_effect_taunt_current_victim_gate : bool ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_threat_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_threat_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_titan_grip_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_titan_grip_effect_like_cpp (& mut self , penalty_spell_id : i32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23238,22 +23322,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_uncage_battle_pet_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_uncage_battle_pet_effect_like_cpp (& mut self , spell_id : i32 , cast_id : ObjectGuid , metadata : SpellCastMetadata ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_upgrade_heirloom_effect_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_upgrade_heirloom_effect_like_cpp (& mut self , metadata : SpellCastMetadata)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_upgrade_heirloom_effect_like_cpp (& mut self , metadata : SpellCastMetadata ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24168,11 +24256,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "bind_area_id_like_cpp",
-          "visibility": "private",
-          "signature": "fn bind_area_id_like_cpp (effect_misc_value : i32 , current_area_id : u32) -> u32",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn bind_area_id_like_cpp (effect_misc_value : i32 , current_area_id : u32 ,) -> u32",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25003,11 +25093,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "canonical_threatened_by_me_owner_guids_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn canonical_threatened_by_me_owner_guids_like_cpp (& self , target_guid : ObjectGuid ,) -> Vec < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25260,11 +25352,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "check_represented_battle_pet_spell_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn check_represented_battle_pet_spell_like_cpp (& self , spell_info : & wow_data :: SpellInfo , metadata : SpellCastMetadata ,) -> Option < SpellCastResult >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25284,11 +25378,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "check_represented_mount_spell_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn check_represented_mount_spell_like_cpp (& self , spell_info : & wow_data :: SpellInfo ,) -> Option < RepresentedMountSpellCheckOutcomeLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26064,11 +26160,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "consume_add_farsight_set_seer_outcome_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn consume_add_farsight_set_seer_outcome_like_cpp (& mut self , outcome : & wow_map :: map :: FarsightDynamicObjectCreateOutcomeLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28071,11 +28169,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "forward_heal_threat_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn forward_heal_threat_like_cpp (& mut self , spell_id : Option < i32 > , healer_guid : ObjectGuid , target_guid : ObjectGuid , effective_heal : u32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28742,11 +28842,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "has_implicit_target_conditions_like_cpp",
-          "visibility": "private",
-          "signature": "fn has_implicit_target_conditions_like_cpp (& self , spell_id : i32 , effect_index : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn has_implicit_target_conditions_like_cpp (& self , spell_id : i32 , effect_index : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28937,11 +29039,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "implicit_target_conditions_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn implicit_target_conditions_like_cpp (& self , spell_id : i32 , effect_index : u32 ,) -> Option < Arc < wow_data :: ConditionContainer > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32919,11 +33023,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "persist_player_homebind_like_cpp",
-          "visibility": "private",
-          "signature": "fn persist_player_homebind_like_cpp (& mut self , homebind : RepresentedHomebindLikeCpp)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn persist_player_homebind_like_cpp (& mut self , homebind : RepresentedHomebindLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33675,11 +33781,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_homebind_update_request_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_homebind_update_request_like_cpp (homebind : RepresentedHomebindLikeCpp , guid_counter : u64 ,) -> wow_persistence :: PlayerHomebindPersistenceRequestLikeCpp",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39124,11 +39232,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_db_caster_destination_target_data_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_db_caster_destination_target_data_like_cpp (& self , caster_guid : ObjectGuid , spell_info : & wow_data :: SpellInfo , effect : & wow_data :: SpellEffectInfo , target_data : & SpellTargetData ,) -> Option < SpellTargetData >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39219,11 +39329,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_disallowed_mount_form_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_disallowed_mount_form_like_cpp (& self) -> Option < Option < u32 > >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_disallowed_mount_form_like_cpp (& self ,) -> Option < Option < u32 > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39535,11 +39647,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_focus_destination_target_data_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_focus_destination_target_data_like_cpp (& self , spell_id : i32 , effect : & wow_data :: SpellEffectInfo , target_data : & SpellTargetData , focus_object : Option < RepresentedSpellFocusObjectLikeCpp > ,) -> Option < SpellTargetData >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39744,11 +39858,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_gameobject_summon_missing_nearby_entry_destination_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_gameobject_summon_missing_nearby_entry_destination_like_cpp (& mut self , spell_id : i32 , spell_info : & wow_data :: SpellInfo , target_data : & SpellTargetData , focus_object : Option < RepresentedSpellFocusObjectLikeCpp > ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40098,11 +40214,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_home_destination_target_data_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_home_destination_target_data_like_cpp (& self , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo , target_data : & SpellTargetData ,) -> Option < SpellTargetData >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40643,33 +40761,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_nearby_candidate_meets_implicit_conditions_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_nearby_candidate_meets_implicit_conditions_like_cpp (& self , candidate : & WorldObject , candidate_unit_snapshot : Option < crate :: conditions :: ConditionUnitSnapshot > , implicit_conditions : Option < & [wow_data :: Condition] > , caster_object : Option < & WorldObject > , player_unit_snapshot : crate :: conditions :: ConditionUnitSnapshot , player_snapshot : crate :: conditions :: ConditionPlayerSnapshot , player_condition_store : Option < & wow_data :: PlayerConditionStore > , player_condition_context : Option < & RepresentedPlayerConditionContextLikeCpp > , area_table_store : Option < & wow_data :: AreaTableStore > ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_nearby_entry_destination_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_nearby_entry_destination_like_cpp (& self , effect : & wow_data :: SpellEffectInfo , caster_position : & Position , range : f32 , implicit_conditions : Option < & [wow_data :: Condition] > ,) -> Option < Position >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_nearby_entry_destination_target_data_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_nearby_entry_destination_target_data_like_cpp (& mut self , spell_id : i32 , effect : & wow_data :: SpellEffectInfo , target_data : & SpellTargetData ,) -> Option < SpellTargetData >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40726,11 +40850,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_object_target_position_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_object_target_position_like_cpp (& self , target_data : & SpellTargetData ,) -> Option < Position >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42702,11 +42828,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_transport_destination_world_position_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_transport_destination_world_position_like_cpp (& self , transport_guid : ObjectGuid , transport_offset : Position ,) -> Option < Position >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45092,11 +45220,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "scale_canonical_owner_threat_to_target_zero_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn scale_canonical_owner_threat_to_target_zero_like_cpp (& mut self , owner_guid : ObjectGuid , target_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -46205,11 +46335,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_set_viewpoint_target_visibility_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_set_viewpoint_target_visibility_like_cpp (& mut self , dynamic_object_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -47996,12 +48128,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_homebind_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn set_homebind_like_cpp (& mut self , binder_id : ObjectGuid , homebind : RepresentedHomebindLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -53562,11 +53695,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "stop_represented_player_pve_combat_like_cpp",
-          "visibility": "private",
-          "signature": "fn stop_represented_player_pve_combat_like_cpp (& mut self , target_guid : ObjectGuid)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn stop_represented_player_pve_combat_like_cpp (& mut self , target_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -53861,11 +53996,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "sync_represented_creature_threat_to_canonical_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn sync_represented_creature_threat_to_canonical_like_cpp (& mut self , creature_guid : ObjectGuid , attacker_guid : ObjectGuid , threat_value : f32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -66069,71 +66206,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "cloned",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "cloned()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "clone",
-          "symbol": "cloned",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "cloned()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::battlemaster_join_arena_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -66278,32 +66350,6 @@
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
           "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::notify_other_players_visibility_changed_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::notify_other_players_visibility_changed_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
           "count": 1
         },
         {
@@ -68241,6 +68287,97 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::effects_player",
+          "source": "crates/wow-world/src/session/spell_effects/effects_player.rs",
+          "enclosing": "impl WorldSession::notify_other_players_visibility_changed_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::effects_player",
+          "source": "crates/wow-world/src/session/spell_effects/effects_player.rs",
+          "enclosing": "impl WorldSession::notify_other_players_visibility_changed_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::effects_progress",
+          "source": "crates/wow-world/src/session/spell_effects/effects_progress.rs",
+          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::effects_progress",
+          "source": "crates/wow-world/src/session/spell_effects/effects_progress.rs",
+          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "cloned()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::effects_progress",
+          "source": "crates/wow-world/src/session/spell_effects/effects_progress.rs",
+          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::effects_progress",
+          "source": "crates/wow-world/src/session/spell_effects/effects_progress.rs",
+          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::effects_progress",
+          "source": "crates/wow-world/src/session/spell_effects/effects_progress.rs",
+          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "cloned()",
           "count": 1
         },
         {
@@ -74587,90 +74724,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "path": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "WorldSession::represented_effective_caster_destination_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "canonical_destination",
-              "fingerprint": "fnv1a64x2:3406f70aa67ff9dd0f60c173d350f596:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "position",
-              "fingerprint": "fnv1a64x2:6b28663eda38e127a6f6cae9d85a4256:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "transport",
-              "fingerprint": "fnv1a64x2:48a70f894d0e64a14d1a241eb6f777bc:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "and_then",
-              "fingerprint": "fnv1a64x2:f84e2429926f7a464c24b85adec50a25:len=51",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "or_else",
-              "fingerprint": "fnv1a64x2:ebbea171e97d01b32d92ddbebca13b82:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "and_then",
-              "fingerprint": "fnv1a64x2:1db7c8bf021403894aa41e34ac28ff2c:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=impl:WorldSession::fn represented_effective_caster_destination_like_cpp (& self , caster_guid : ObjectGuid ,) -> Option < (u32 , ObjectGuid , Position) >|body=fnv1a64x2:4f8b5cf43d758a18d276d15c2b29bd13:len=2160|evidence=fnv1a64x2:6c56a51a4608223f7cecb7b5f939e198:len=831",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "path": "crates/wow-world/src/session/mod.rs",
           "enclosing": "fn::apply_turret_rejected_cast_attempt_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -77282,6 +77335,90 @@
             }
           ],
           "fingerprint": "signature=fn run_legacy_player_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , attackers : & [PlayerMeleeAttackerSnapshotLikeCpp] , diff_ms : u32 , phase_state : & mut PlayerMeleePhaseStateLikeCpp ,) -> LegacyPlayerMeleeTickOutcomeLikeCpp|body=fnv1a64x2:00a4a249ab84777414278fc8cbcc4def:len=8412|evidence=fnv1a64x2:e6ecca4d58afdf1214536eef24be6e01:len=9033",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_effects::destinations",
+          "path": "crates/wow-world/src/session/spell_effects/destinations.rs",
+          "enclosing": "WorldSession::represented_effective_caster_destination_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical_destination",
+              "fingerprint": "fnv1a64x2:3406f70aa67ff9dd0f60c173d350f596:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "position",
+              "fingerprint": "fnv1a64x2:6b28663eda38e127a6f6cae9d85a4256:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "transport",
+              "fingerprint": "fnv1a64x2:48a70f894d0e64a14d1a241eb6f777bc:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "field_access",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "and_then",
+              "fingerprint": "fnv1a64x2:f84e2429926f7a464c24b85adec50a25:len=51",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "as_ref",
+              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "or_else",
+              "fingerprint": "fnv1a64x2:ebbea171e97d01b32d92ddbebca13b82:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "field_access",
+              "symbol": "map_manager",
+              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "and_then",
+              "fingerprint": "fnv1a64x2:1db7c8bf021403894aa41e34ac28ff2c:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "as_ref",
+              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=impl:WorldSession::fn represented_effective_caster_destination_like_cpp (& self , caster_guid : ObjectGuid ,) -> Option < (u32 , ObjectGuid , Position) >|body=fnv1a64x2:4f8b5cf43d758a18d276d15c2b29bd13:len=2160|evidence=fnv1a64x2:6c56a51a4608223f7cecb7b5f939e198:len=831",
           "cfg": [],
           "multiplicity": 1
         },
