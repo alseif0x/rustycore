@@ -1139,7 +1139,7 @@ pub struct LfgBlackList {
 }
 
 impl LfgBlackList {
-    pub(super) fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+    pub(in crate::packets::misc) fn write_like_cpp(&self, pkt: &mut WorldPacket) {
         pkt.write_bit(self.player_guid.is_some());
         pkt.write_uint32(self.slots.len() as u32);
         if let Some(player_guid) = self.player_guid {

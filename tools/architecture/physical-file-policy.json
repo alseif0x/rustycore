@@ -357,8 +357,8 @@
     {
       "path": "crates/wow-packet/src/packets/misc/social.rs",
       "observed_lines": 2045,
-      "ceiling_lines": 2045,
-      "split": "Separate social packet families into cohesive modules with unchanged field order, masks, bytes and test coverage.",
+      "ceiling_lines": 46,
+      "split": "Separate the duel, social and auction packets. #650 decomposes the 2,045-line root into three state modules, dropping it to 46 lines and tightening the ceiling to that figure; each trait impl stays beside its type and whole. Item-for-item with the crate's 728 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -371,29 +371,29 @@
     {
       "path": "crates/wow-packet/src/packets/movement.rs",
       "observed_lines": 2240,
-      "ceiling_lines": 2240,
-      "split": "Separate movement packet families into cohesive modules with unchanged field order, masks, bytes and test coverage.",
+      "ceiling_lines": 59,
+      "split": "Separate the movement info model from the client/ack packets and their regressions. #650 decomposes the 2,240-line root into two state modules and one regression module, dropping it to 59 lines and tightening the ceiling to that figure. Item-for-item with the crate's 728 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/party.rs",
       "observed_lines": 2152,
-      "ceiling_lines": 2152,
-      "split": "Separate party packet families into cohesive modules with unchanged field order, masks, bytes and test coverage.",
+      "ceiling_lines": 95,
+      "split": "Separate the party client/server packets from their regressions. #650 decomposes the 2,152-line root into two state modules and two regression modules, dropping it to 95 lines and tightening the ceiling to that figure; each `ClientPacket`/`ServerPacket` impl stays beside its type. Item-for-item with the crate's 728 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/update/block.rs",
       "observed_lines": 2352,
-      "ceiling_lines": 2352,
-      "split": "Separate update-block mask/payload construction into cohesive modules with unchanged field order, masks, bytes and test coverage.",
+      "ceiling_lines": 36,
+      "split": "Separate the update-object block builder, its masks and its value writers. #650 decomposes the 2,352-line root into two state modules and two ops modules that divide the 1,300-line inherent `impl UpdateObject`, dropping it to 36 lines and tightening the ceiling to that figure. `impl ServerPacket for UpdateObject` stays whole because a trait impl cannot be split. Item-for-item with the crate's 728 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-packet/src/packets/update/player.rs",
       "observed_lines": 3466,
-      "ceiling_lines": 3466,
-      "split": "Separate Player/ActivePlayer update fields into cohesive modules with unchanged field order, masks, bytes and test coverage.",
+      "ceiling_lines": 37,
+      "split": "Separate the player/active-player update-value structs, their `Default` impls and the delta writers. #650 decomposes the 3,466-line root into five state modules, dropping it to 37 lines and tightening the ceiling to that figure. No field, order or bit changes; item-for-item with the crate's 728 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
