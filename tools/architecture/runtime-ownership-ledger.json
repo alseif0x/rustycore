@@ -1523,10 +1523,10 @@
         {
           "path": "crates/wow-entities/src/player/mod.rs",
           "production_lines": 11374,
-          "test_lines": 10184,
-          "total_lines": 21558,
+          "test_lines": 10190,
+          "total_lines": 21564,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "2026-09-06 deferred-save intent above bc3bdd2f: +46 production/+45 tests. Private deferred_save.rs owns a checked revision and pending bit on the same Player. The existing full-save receipt captures that revision and clears only matching confirmed intent; overflow is rejected. Three root lines declare/initialize the private owner. No timer, DB, packet or Session mirror is added; whole-lifetime and C4 remain open; session-578-checkpoint.md.",
+          "latest_growth_review": "2026-09-09 #628: +6 test lines. player_tests.rs splits into 20 bounded scenario modules beside it, and each new file carries a module header and a use super::* line; the 176 test functions and their assertions are unchanged, the file drops from 9,497 to 501 lines and its ceiling is tightened to that figure. Production ownership is untouched. | 2026-09-06 deferred-save intent above bc3bdd2f: +46 production/+45 tests. Private deferred_save.rs owns a checked revision and pending bit on the same Player. The existing full-save receipt captures that revision and clears only matching confirmed intent; overflow is rejected. Three root lines declare/initialize the private owner. No timer, DB, packet or Session mirror is added; whole-lifetime and C4 remain open; session-578-checkpoint.md.",
           "open_retirement_issues": [
             584
           ],
