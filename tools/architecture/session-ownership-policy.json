@@ -20835,11 +20835,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "add_account_mount_with_faction_counterpart_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn add_account_mount_with_faction_counterpart_like_cpp (& mut self , spell_id : i32 , flags : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22450,11 +22452,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_owned_player_heal_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_owned_player_heal_like_cpp (& mut self , requested_heal : u32 ,) -> Option < (u32 , u32 , u32 , u32) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23246,11 +23250,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_target_visibility_context_for_current_player_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_target_visibility_context_for_current_player_like_cpp (& self , target_unit : & mut wow_entities :: Unit , seer_unit : & mut wow_entities :: Unit , moved_unit_guid : Option < ObjectGuid > , current_group_guid : Option < u64 > ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24943,11 +24949,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "canonical_player_display_ids_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn canonical_player_display_ids_like_cpp (& self) -> Option < (u32 , u32) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24967,11 +24975,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "canonical_player_has_player_flag_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn canonical_player_has_player_flag_like_cpp (& self , guid : ObjectGuid , flag : u32 ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25069,11 +25079,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "canonical_player_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_player_snapshot_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn canonical_player_snapshot_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26110,11 +26122,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "completed_achievement_ids_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn completed_achievement_ids_snapshot_like_cpp (& self) -> Option < HashSet < u32 > >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn completed_achievement_ids_snapshot_like_cpp (& self ,) -> Option < HashSet < u32 > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26288,11 +26302,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "create_player_mount_vehicle_kit_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn create_player_mount_vehicle_kit_like_cpp (& mut self , vehicle_id : u32 , creature_entry : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26532,11 +26548,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "current_canonical_farsight_object_like_cpp",
-          "visibility": "private",
-          "signature": "fn current_canonical_farsight_object_like_cpp (& self) -> Option < ObjectGuid >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn current_canonical_farsight_object_like_cpp (& self ,) -> Option < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27262,11 +27280,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "ensure_canonical_player_owner_exists_like_cpp",
-          "visibility": "private",
-          "signature": "fn ensure_canonical_player_owner_exists_like_cpp (& mut self , key : wow_map :: MapKey) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn ensure_canonical_player_owner_exists_like_cpp (& mut self , key : wow_map :: MapKey ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27556,11 +27576,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "expand_account_mount_faction_definitions_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn expand_account_mount_faction_definitions_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27812,13 +27834,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_apply_offline_xp_rest_bonus_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_apply_offline_xp_rest_bonus_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28035,39 +28059,45 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_set_xp_rest_bonus_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_set_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "fixture_take_xp_rest_bonus_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_take_xp_rest_bonus_like_cpp (& mut self , xp : u32 , victim : wow_core :: ObjectGuid ,) -> (u32 , u8)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "fixture_update_online_xp_rest_bonus_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_update_online_xp_rest_bonus_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29102,13 +29132,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "initial_player_fixture_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn initial_player_fixture_like_cpp (& self) -> Option < Player >",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29245,11 +29277,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "install_detached_canonical_player_from_session_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn install_detached_canonical_player_from_session_like_cpp (& mut self , bootstrap_position : Position ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32214,22 +32248,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_battleground_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_battleground_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerBattlegroundState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_cinematic_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_cinematic_state_like_cpp < R > (& mut self , mut mutate : impl FnMut (& mut wow_entities :: PlayerCinematicStateLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32299,11 +32337,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_mount_vehicle_kit_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_mount_vehicle_kit_like_cpp < R > (& mut self , update : impl FnOnce (& mut Option < Vehicle >) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32336,11 +32376,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_rest_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_rest_state_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerRestState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32386,11 +32428,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_taxi_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_taxi_state_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerTaxiState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32410,22 +32454,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_unit_presentation_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_unit_presentation_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_world_local_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_world_local_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerWorldLocalState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33378,11 +33426,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_bootstrap_attached_for_test_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_bootstrap_attached_for_test_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33878,11 +33928,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_is_at_configured_max_level_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_is_at_configured_max_level_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34138,11 +34190,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_mount_vehicle_kit_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_mount_vehicle_kit_snapshot_like_cpp (& self) -> Option < Option < Vehicle > >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_mount_vehicle_kit_snapshot_like_cpp (& self ,) -> Option < Option < Vehicle > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34289,11 +34343,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_on_transport_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_on_transport_state_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34812,11 +34868,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_transport_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_transport_state_like_cpp (& self ,) -> Option < Option < wow_entities :: PlayerTransportState > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34834,11 +34892,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_values_update_snapshot",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_values_update_snapshot (& self) -> Option < Player >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34856,11 +34916,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_vehicle_seat_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_vehicle_seat_state_like_cpp (& self) -> Option < (Option < i32 > , Option < u32 >) >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_vehicle_seat_state_like_cpp (& self ,) -> Option < (Option < i32 > , Option < u32 >) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -35725,11 +35787,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "reconcile_durable_loot_money_before_save_like_cpp",
-          "visibility": "private",
-          "signature": "async fn reconcile_durable_loot_money_before_save_like_cpp (& mut self) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "async fn reconcile_durable_loot_money_before_save_like_cpp (& mut self ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36732,11 +36796,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "record_represented_vehicle_seat_action_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn record_represented_vehicle_seat_action_like_cpp (& mut self , action : crate :: handlers :: vehicle :: VehicleHandlerAction ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37694,11 +37760,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "replace_completed_achievement_ids_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn replace_completed_achievement_ids_like_cpp (& mut self , achievement_ids : impl IntoIterator < Item = u32 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37809,13 +37877,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "replace_player_taxi_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn replace_player_taxi_state_like_cpp (& mut self , state : wow_entities :: PlayerTaxiState) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn replace_player_taxi_state_like_cpp (& mut self , state : wow_entities :: PlayerTaxiState ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38441,11 +38511,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_battle_pet_login_spell_source_is_empty_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_battle_pet_login_spell_source_is_empty_like_cpp (& self) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_battle_pet_login_spell_source_is_empty_like_cpp (& self ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39095,11 +39167,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_creature_has_loot_recipient_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_creature_has_loot_recipient_like_cpp (& self , creature_guid : wow_core :: ObjectGuid ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39454,11 +39528,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_dynamic_object_values_update_delivery_fingerprint_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_dynamic_object_values_update_delivery_fingerprint_like_cpp (guid : ObjectGuid , bytes : & [u8] ,) -> u64",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39712,11 +39788,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_gameobject_chest_loot_ids_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_gameobject_chest_loot_ids_like_cpp (source : wow_entities :: GameObjectLootSource ,) -> [u32 ; 3]",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39799,22 +39877,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp (& self , loot_ids : impl IntoIterator < Item = u32 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_gameobject_loot_ids_have_quest_loot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_gameobject_loot_ids_have_quest_loot_like_cpp (& self , loot_ids : impl IntoIterator < Item = u32 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41127,11 +41209,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_player_has_active_vehicle_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_player_has_active_vehicle_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41895,11 +41979,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_seer_kinds_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_seer_kinds_like_cpp () -> & 'static [AccessorObjectKind]",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42936,11 +43022,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_vehicle_base_guid_for_switch_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_vehicle_base_guid_for_switch_like_cpp (& self) -> Option < ObjectGuid >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_vehicle_base_guid_for_switch_like_cpp (& self ,) -> Option < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44213,11 +44301,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_player_emote_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_player_emote_state_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44975,11 +45065,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "revalidate_represented_tavern_resting_with_catalog_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn revalidate_represented_tavern_resting_with_catalog_like_cpp (& mut self , area_trigger_db2_store : & AreaTriggerDb2Store ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45425,33 +45517,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_active_player_farsight_object_values_update_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_active_player_farsight_object_values_update_like_cpp (& self , player_guid : ObjectGuid , farsight_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "send_active_player_multi_action_bars_update_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_active_player_multi_action_bars_update_like_cpp (& self , guid : ObjectGuid)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn send_active_player_multi_action_bars_update_like_cpp (& self , guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "send_active_player_transport_server_time_update_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_active_player_transport_server_time_update_like_cpp (& self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45805,11 +45903,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_notification_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_notification_like_cpp (& self , text : String)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -46161,11 +46261,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_represented_mount_unit_update_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_represented_mount_unit_update_like_cpp (& mut self , display_id : i32)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn send_represented_mount_unit_update_like_cpp (& mut self , display_id : i32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -46324,11 +46426,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_set_vehicle_rec_id_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_set_vehicle_rec_id_like_cpp (& mut self , vehicle_id : u32)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -46359,11 +46463,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_system_message_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_system_message_like_cpp (& self , text : & str)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -50387,12 +50493,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_vehicle_seat_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn set_player_vehicle_seat_state_like_cpp (& mut self , flags : Option < i32 > , seat_id : Option < u32 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -54437,22 +54544,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "tick_represented_online_xp_rest_bonus_with_policy_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn tick_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 , update_roll_passed : bool ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -54786,11 +54897,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "try_send_connected_player_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn try_send_connected_player_command_like_cpp (& self , target_guid : ObjectGuid , command : SessionCommand ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -55203,11 +55316,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_represented_online_xp_rest_bonus_with_policy_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn update_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -55806,11 +55921,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "visibility_distance_allows_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn visibility_distance_allows_like_cpp (source_position : & Position , source_combat_reach : f32 , target_position : & Position , target_combat_reach : f32 , sight_range : f32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -56092,22 +56209,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_player_for_rest_like_cpp",
-          "visibility": "private",
-          "signature": "fn with_owned_player_for_rest_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn with_owned_player_for_rest_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_player_like_cpp",
-          "visibility": "private",
-          "signature": "fn with_owned_player_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn with_owned_player_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -56127,22 +56248,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_player_mut_for_rest_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn with_owned_player_mut_for_rest_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_player_mut_like_cpp",
-          "visibility": "private",
-          "signature": "fn with_owned_player_mut_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R) -> Option < R >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn with_owned_player_mut_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -66187,45 +66312,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::access_requirement_leader_has_achievement_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::access_requirement_leader_has_achievement_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::access_requirement_leader_has_achievement_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::battlemaster_join_arena_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -66519,32 +66605,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::represented_ride_vehicle_interact_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::represented_ride_vehicle_interact_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::set_player_registry",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -66584,58 +66644,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "viewer_fanout . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "delivery",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "delivery:PlayerRegistry",
-          "count": 2
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "push",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "(delivery , SessionCommand :: NotifyLootMoneyRemovedLikeCpp (NotifyLootMoneyRemovedLikeCppCommand { recipient : viewer , loot_owner : viewer_fanout . loot_owner , loot_obj : viewer_fanout . loot_obj , authority : viewer_fanout . authority . clone () , authority_generation : viewer_fanout . authority_generation , authority_committed : Arc :: clone (& authority_committed) , } ,) ,)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::sync_player_registry_state_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -66663,45 +66671,6 @@
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::try_send_connected_player_command_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::visible_other_players_from_registry_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::visible_other_players_from_registry_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "registry",
@@ -66838,6 +66807,45 @@
           "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::collections::operations",
+          "source": "crates/wow-world/src/session/collections/operations.rs",
+          "enclosing": "impl WorldSession::access_requirement_leader_has_achievement_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::collections::operations",
+          "source": "crates/wow-world/src/session/collections/operations.rs",
+          "enclosing": "impl WorldSession::access_requirement_leader_has_achievement_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::collections::operations",
+          "source": "crates/wow-world/src/session/collections/operations.rs",
+          "enclosing": "impl WorldSession::access_requirement_leader_has_achievement_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         },
         {
@@ -67046,6 +67054,58 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "reg:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::money::operations",
+          "source": "crates/wow-world/src/session/money/operations.rs",
+          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "viewer_fanout . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::money::operations",
+          "source": "crates/wow-world/src/session/money/operations.rs",
+          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "delivery",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "delivery:PlayerRegistry",
+          "count": 2
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::money::operations",
+          "source": "crates/wow-world/src/session/money/operations.rs",
+          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::money::operations",
+          "source": "crates/wow-world/src/session/money/operations.rs",
+          "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "push",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "(delivery , SessionCommand :: NotifyLootMoneyRemovedLikeCpp (NotifyLootMoneyRemovedLikeCppCommand { recipient : viewer , loot_owner : viewer_fanout . loot_owner , loot_obj : viewer_fanout . loot_obj , authority : viewer_fanout . authority . clone () , authority_generation : viewer_fanout . authority_generation , authority_committed : Arc :: clone (& authority_committed) , } ,) ,)",
           "count": 1
         },
         {
@@ -67462,6 +67522,19 @@
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::publication::operations",
+          "source": "crates/wow-world/src/session/publication/operations.rs",
+          "enclosing": "impl WorldSession::try_send_connected_player_command_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
           "count": 1
         },
         {
@@ -68461,6 +68534,58 @@
           "operation": "local_alias",
           "symbol": "registry",
           "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::taxi::operations",
+          "source": "crates/wow-world/src/session/taxi/operations.rs",
+          "enclosing": "impl WorldSession::represented_ride_vehicle_interact_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::taxi::operations",
+          "source": "crates/wow-world/src/session/taxi/operations.rs",
+          "enclosing": "impl WorldSession::represented_ride_vehicle_interact_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::visibility::operations",
+          "source": "crates/wow-world/src/session/visibility/operations.rs",
+          "enclosing": "impl WorldSession::visible_other_players_from_registry_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::visibility::operations",
+          "source": "crates/wow-world/src/session/visibility/operations.rs",
+          "enclosing": "impl WorldSession::visible_other_players_from_registry_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
           "count": 1
@@ -74660,90 +74785,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "path": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "WorldSession::represented_creature_has_loot_recipient_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "find_map",
-              "fingerprint": "fnv1a64x2:0c93a865c39e4d159c77660d5e1a40e6:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "lock",
-              "fingerprint": "fnv1a64x2:04f1a5574662b6232608be497dd0ec00:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "map",
-              "fingerprint": "fnv1a64x2:ac723824e5749655229d407a9e29ad8a:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "ok",
-              "fingerprint": "fnv1a64x2:748b710864d1bd34aa8f5ec726eb4117:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "with_creature_like_cpp",
-              "fingerprint": "fnv1a64x2:dcf99b032a937c21afdf633e81785c38:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=impl:WorldSession::fn represented_creature_has_loot_recipient_like_cpp (& self , creature_guid : wow_core :: ObjectGuid ,) -> Option < bool >|body=fnv1a64x2:914b54a0f7d39f251be9dc8d06e38e20:len=712|evidence=fnv1a64x2:1da3505b92d36017508811cfcb14e37c:len=809",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "path": "crates/wow-world/src/session/mod.rs",
           "enclosing": "fn::apply_turret_rejected_cast_attempt_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -77355,6 +77396,90 @@
             }
           ],
           "fingerprint": "signature=fn run_legacy_player_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , attackers : & [PlayerMeleeAttackerSnapshotLikeCpp] , diff_ms : u32 , phase_state : & mut PlayerMeleePhaseStateLikeCpp ,) -> LegacyPlayerMeleeTickOutcomeLikeCpp|body=fnv1a64x2:00a4a249ab84777414278fc8cbcc4def:len=8412|evidence=fnv1a64x2:e6ecca4d58afdf1214536eef24be6e01:len=9033",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::loot::operations",
+          "path": "crates/wow-world/src/session/loot/operations.rs",
+          "enclosing": "WorldSession::represented_creature_has_loot_recipient_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "field_access",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "as_ref",
+              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "find_map",
+              "fingerprint": "fnv1a64x2:0c93a865c39e4d159c77660d5e1a40e6:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "lock",
+              "fingerprint": "fnv1a64x2:04f1a5574662b6232608be497dd0ec00:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "map",
+              "fingerprint": "fnv1a64x2:ac723824e5749655229d407a9e29ad8a:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "ok",
+              "fingerprint": "fnv1a64x2:748b710864d1bd34aa8f5ec726eb4117:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "with_creature_like_cpp",
+              "fingerprint": "fnv1a64x2:dcf99b032a937c21afdf633e81785c38:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "field_access",
+              "symbol": "map_manager",
+              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "as_ref",
+              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=impl:WorldSession::fn represented_creature_has_loot_recipient_like_cpp (& self , creature_guid : wow_core :: ObjectGuid ,) -> Option < bool >|body=fnv1a64x2:914b54a0f7d39f251be9dc8d06e38e20:len=712|evidence=fnv1a64x2:1da3505b92d36017508811cfcb14e37c:len=809",
           "cfg": [],
           "multiplicity": 1
         },
