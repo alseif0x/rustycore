@@ -1,35 +1,56 @@
-# Development and contributing
+# Help build RustyCore
 
-RustyCore is a behavioral port, not a greenfield reinterpretation. Gameplay, protocol,
-database, map, and persistence changes must be contrasted with the legacy C++ server under
-`/home/server/woltk-trinity-legacy` or with real packet evidence when the C++ source is
-ambiguous.
+There is more than one way to contribute. You can write Rust, reproduce a bug,
+investigate protocol behavior or make the documentation easier to follow.
 
-The normal contribution flow is:
+## Pick a starting point
 
-1. Start from an issue-linked feature branch based on `3.4.3`.
-2. Locate and record the relevant C++ behavior before editing Rust.
-3. Implement a bounded, faithful change with positive and negative tests.
-4. Run focused crate checks during development.
-5. Commit validated work, then run `./tools/validation-v2 final --base origin/3.4.3`
-   on that clean HEAD before an authorized push. Run issue-specific acceptance checks too;
-   site changes additionally require the local VitePress build described in this site's README.
-6. After an authorized push, open or update the pull request into `3.4.3` with its issue
-   closing keyword and remaining boundary. External authors also require remote checks and
-   review. Publication does not itself authorize merge.
+| If you enjoy… | Try this |
+| --- | --- |
+| Writing and explaining | Improve a setup step or clarify a confusing guide |
+| Testing and investigation | Reproduce an issue with the server revision and client build recorded |
+| Rust development | Coordinate an open issue and implement its complete agreed scope |
+| WoW internals | Compare a specific behavior with versioned reference source and captures |
 
-Useful project references:
+Browse [open issues](https://github.com/alseif0x/rustycore/issues), or ask where you
+can help on [Discussions](https://github.com/alseif0x/rustycore/discussions) and
+[Discord](https://discord.gg/mH6ACpGPb2). Check the
+[port plan](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/migration/PORT_PLAN.md)
+before starting substantial work so dependencies and overlapping contributions are clear.
 
-- [Documentation map](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/README.md)
-- [Shared operating guide](https://github.com/alseif0x/rustycore/blob/3.4.3/AGENTS.md)
-- [Current migration state](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/migration/STATE.md)
-- [Port plan](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/migration/PORT_PLAN.md)
-- [Ownership and boundaries](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/architecture/ownership-and-boundaries.md)
-- [Module design and responsibility separation](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/architecture/module-design-guidelines.md)
-- [Delivered module tooling](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/architecture/modules.md)
-- [Approved modularity/ECS plan](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/architecture/modularity-and-ecs-plan.md)
-- [Local-first development](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/operations/local-first-development.md)
+## Your first pull request
 
-Do not mark represented code as live-runtime complete without exercising the actual runtime.
-The delivered module tooling is not the complete planned native/Wasm product; the owning
-plan and #578/#583 acceptance distinguish implemented behavior from pending integration.
+1. Follow [server setup](../server/setup) to build the project.
+2. Read the [contributor guide](https://github.com/alseif0x/rustycore/blob/3.4.3/CONTRIBUTING.md)
+   and coordinate the scope on an issue.
+3. Work on a feature branch based on **3.4.3**. Include affected consumers, tests and docs.
+4. Validate the complete change and record the results. Website changes also need
+   the [VitePress build](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/wiki/README.md).
+5. Open a PR into **3.4.3**, explaining the problem, resulting behavior and verification.
+
+Human and AI-assisted changes follow the same review requirements. The maintained
+[contributor guide](https://github.com/alseif0x/rustycore/blob/3.4.3/CONTRIBUTING.md)
+owns the detailed workflow and validation links.
+
+## Understanding the port
+
+Our goal is full behavior parity with the TrinityCore-derived 3.4.3 server.
+For protocol, gameplay, persistence and runtime work, compare the complete operation
+with the exact versioned reference functions. Relevant client/server evidence fills
+gaps where the source is ambiguous.
+
+Code being present, connected to production and verified against the reference
+are distinct milestones. Record what your change actually proves.
+
+- [Current state and evidence](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/migration/STATE.md)
+- [Versioned references](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/README.md#versioned-behavioral-references)
+- [Shared engineering guide](https://github.com/alseif0x/rustycore/blob/3.4.3/AGENTS.md)
+- [Architecture and ownership](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/architecture/ownership-and-boundaries.md)
+- [Module development](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/architecture/modules.md)
+
+## Reporting problems
+
+Use the [issue forms](https://github.com/alseif0x/rustycore/issues/new/choose).
+Include reproduction steps, expected and actual behavior, server commit and client
+build. Share only sanitized logs; keep credentials, private configuration and
+session data out of reports.
