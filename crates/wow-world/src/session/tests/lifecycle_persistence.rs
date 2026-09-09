@@ -444,14 +444,16 @@ async fn uncage_item_state_read_routes_typed_ids_and_preserves_failure_distincti
 
 #[test]
 fn uncage_item_state_seam_no_longer_names_statement_or_driver_errors() {
-    let session_source = include_str!("../mod.rs");
+    // #597 moved the uncage seam into the player item family; the seam's
+    // contract is unchanged, so the scan follows the code.
+    let session_source = include_str!("../player_items/items.rs");
     let item_source = include_str!("../../handlers/character/items.rs");
     let (_, helper_and_tail) = session_source
         .split_once("pub(crate) async fn uncage_item_state_like_cpp")
         .expect("uncage state helper starts");
     let (helper, _) = helper_and_tail
-        .split_once("async fn destroy_uncaged_battle_pet_item_durable_like_cpp")
-        .expect("uncage state helper ends before durable destruction");
+        .split_once("fn use_represented_gameobject_item_forge_like_cpp")
+        .expect("uncage state helper ends before the next item operation");
 
     assert!(helper.contains("load_uncage_item_state_like_cpp"));
     for concrete in ["CharStatements", "DatabaseError", "SEL_UNCAGE_ITEM_STATE"] {
