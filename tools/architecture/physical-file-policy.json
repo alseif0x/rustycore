@@ -294,8 +294,8 @@
     {
       "path": "crates/wow-map/src/manager.rs",
       "observed_lines": 4594,
-      "ceiling_lines": 4594,
-      "split": "Separate map creation, lifetime/instance coordination, update barriers and tests around one manager authority. #588 adds nine inseparable lines to record actually updated maps and export selected player notifiers after updater wait and before delayed removal. Intent ownership and new tests live in bounded private modules; the existing manager lifetime/update split remains at #584 C4.",
+      "ceiling_lines": 47,
+      "split": "Separate the managed-map kinds, the instance-id allocator, the interval timer and the updater from their regressions. #644 decomposes the 4,594-line root into two state modules and four regression modules, dropping it to 47 lines and tightening the ceiling to that figure; only the imports and the module composition remain. Item-for-item with the crate's 727 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -336,15 +336,15 @@
     {
       "path": "crates/wow-map/src/pool.rs",
       "observed_lines": 2699,
-      "ceiling_lines": 2699,
-      "split": "Separate pool selection, activation/lifetime and deterministic selection tests.",
+      "ceiling_lines": 24,
+      "split": "Separate the C++-shaped pool template/object model and group selection from their regressions. #644 decomposes the 2,699-line root into two state modules and two regression modules, dropping it to 24 lines and tightening the ceiling to that figure. Item-for-item with the crate's 727 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/spawn.rs",
       "observed_lines": 2021,
-      "ceiling_lines": 2021,
-      "split": "Separate spawn identity/metadata, spawn policy and respawn scheduling tests.",
+      "ceiling_lines": 22,
+      "split": "Separate the spawn object/group model and the linked-respawn store from their regressions. #644 decomposes the 2,021-line root into two state modules and one regression module, dropping it to 22 lines and tightening the ceiling to that figure. Item-for-item with the crate's 727 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
