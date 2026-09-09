@@ -434,15 +434,15 @@
     {
       "path": "crates/wow-world/src/battle_pet_purchase.rs",
       "observed_lines": 5206,
-      "ceiling_lines": 5206,
-      "split": "Separate purchase admission/domain plan, persistence coordination, publication and failure scenarios.",
+      "ceiling_lines": 92,
+      "split": "Separate the battle-pet purchase saga, its status/store state and the executor fixtures. #656 decomposes the 5,206-line file into one state module, two ops modules dividing the `impl WorldSession` block by purchase phase, and two regression trees whose fixtures live in their own module, dropping it to 92 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/conditions.rs",
       "observed_lines": 3359,
-      "ceiling_lines": 3359,
-      "split": "Separate condition source/target adapters and evaluator families with their tests.",
+      "ceiling_lines": 38,
+      "split": "Separate the condition snapshot borrows - map reference, quest, progression and map-state - from their regressions. #656 decomposes the 3,359-line file into three state modules and two regression modules, dropping it to 38 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
