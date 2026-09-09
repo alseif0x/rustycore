@@ -15,6 +15,7 @@ mod dispatch;
 mod driver;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
+mod combat;
 mod effect_learning;
 mod instances;
 pub mod mailbox;
@@ -9998,21 +9999,6 @@ impl WorldSession {
         self.with_owned_player_like_cpp(|player| player.gameplay_state().mails.clone())
     }
 
-    /// Test fixtures created before #578 may inject a typed Player directly
-    /// into a synthetic MapManager without installing its owner handle. Keep
-    /// that compatibility outside production; an existing stale handle never
-    /// falls back to GUID lookup.
-    fn with_owned_player_mut_for_power_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&mut Player) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self.mutate_canonical_player_like_cpp(f);
-        }
-        self.with_owned_player_mut_like_cpp(f)
-    }
-
     fn with_owned_player_for_rest_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
@@ -10030,161 +10016,6 @@ impl WorldSession {
             return self.mutate_canonical_player_like_cpp(f);
         }
         self.with_owned_player_mut_like_cpp(f)
-    }
-
-    pub(crate) fn sync_canonical_player_primary_power_like_cpp(
-        &mut self,
-        power_type: PowerType,
-        current: i32,
-        max: i32,
-        base_mana: i32,
-    ) -> bool {
-        let synced = self
-            .with_owned_player_mut_for_power_like_cpp(|player| {
-                for raw_power in 0..=25 {
-                    player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
-                }
-                player.set_power_index(power_type, Some(0));
-                player.unit_mut().set_display_power(power_type);
-                player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
-                player.unit_mut().set_max_power(power_type, max.max(0));
-                player.unit_mut().set_power(power_type, current.max(0));
-            })
-            .is_some();
-        #[cfg(test)]
-        if synced || self.player_handle_like_cpp.is_none() {
-            self.represented_player_base_mana_like_cpp = base_mana.max(0);
-            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
-        }
-        synced
-    }
-
-    pub(crate) fn sync_canonical_player_primary_power_max_like_cpp(
-        &mut self,
-        power_type: PowerType,
-        max: i32,
-        base_mana: i32,
-    ) -> Option<(i32, i32)> {
-        let result = self.with_owned_player_mut_for_power_like_cpp(|player| {
-            if player.unit().get_power_index(power_type).is_none() {
-                player.set_power_index(power_type, Some(0));
-            }
-            player.unit_mut().set_display_power(power_type);
-            player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
-            // C++ `Unit::SetMaxPower` updates max and clamps current if needed.
-            player.unit_mut().set_max_power(power_type, max.max(0));
-            (
-                player.unit().get_power(power_type),
-                player.unit().get_max_power(power_type),
-            )
-        });
-        #[cfg(test)]
-        if let Some((current, max)) = result.or_else(|| {
-            (self.player_handle_like_cpp.is_none()).then_some((
-                self.represented_player_powers_like_cpp[0].unwrap_or(0),
-                max.max(0),
-            ))
-        }) {
-            self.represented_player_base_mana_like_cpp = base_mana.max(0);
-            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
-        }
-        result
-    }
-
-    pub(crate) fn sync_canonical_player_max_health_like_cpp(
-        &mut self,
-        max_health: u32,
-    ) -> Option<(u32, u32)> {
-        let max_health = max_health.max(1);
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            // C++ `Unit::SetMaxHealth` updates max and clamps current only if needed.
-            player.unit_mut().set_max_health(u64::from(max_health));
-            (
-                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-            )
-        });
-        #[cfg(test)]
-        let result = canonical.or_else(|| {
-            if self.player_handle_like_cpp.is_some() {
-                return None;
-            }
-            self.mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().set_max_health(u64::from(max_health));
-                (
-                    player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                    player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-                )
-            })
-            .or_else(|| Some((self.player_health_like_cpp.min(max_health), max_health)))
-        });
-        #[cfg(not(test))]
-        let result = canonical;
-        #[cfg(test)]
-        if let Some((current, max)) = result {
-            self.player_health_like_cpp = current;
-            self.player_max_health_like_cpp = max;
-            self.player_alive_like_cpp = current > 0;
-        }
-        result
-    }
-
-    pub(crate) fn sync_canonical_player_health_like_cpp(
-        &mut self,
-        health: u32,
-        max_health: u32,
-    ) -> Option<(u32, u32)> {
-        let max_health = max_health.max(1);
-        let health = health.min(max_health);
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            if health == 0 {
-                player
-                    .unit_mut()
-                    .set_death_state(wow_constants::DeathState::Corpse);
-            } else if matches!(
-                player.unit().death_state(),
-                wow_constants::DeathState::JustDied | wow_constants::DeathState::Corpse
-            ) {
-                player
-                    .unit_mut()
-                    .set_death_state(wow_constants::DeathState::Alive);
-            }
-            player.unit_mut().set_max_health(u64::from(max_health));
-            player.unit_mut().set_health(u64::from(health));
-            (
-                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-            )
-        });
-        #[cfg(test)]
-        let result = canonical.or_else(|| {
-            if self.player_handle_like_cpp.is_some() {
-                return None;
-            }
-            self.mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().set_death_state(if health == 0 {
-                    wow_constants::DeathState::Corpse
-                } else {
-                    wow_constants::DeathState::Alive
-                });
-                player.unit_mut().set_max_health(u64::from(max_health));
-                player.unit_mut().set_health(u64::from(health));
-                (
-                    player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                    player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-                )
-            })
-        });
-        #[cfg(not(test))]
-        let result = canonical;
-        #[cfg(test)]
-        {
-            let (current, max) = result.unwrap_or((health, max_health));
-            self.player_health_like_cpp = current;
-            self.player_max_health_like_cpp = max;
-            self.player_alive_like_cpp = current > 0;
-        }
-        result
     }
 
     pub(crate) fn set_canonical_chosen_title_like_cpp(
@@ -10367,240 +10198,9 @@ impl WorldSession {
         canonical
     }
 
-    fn player_is_pvp_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
-        if self.player_guid() != Some(guid) {
-            return None;
-        }
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .unit()
-                .pvp_flags_like_cpp()
-                .contains(UnitPvpFlags::PVP)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            if let Some(flags) = self.canonical_player_pvp_flags_like_cpp(guid) {
-                return Some(flags.contains(UnitPvpFlags::PVP));
-            }
-            return Some(self.player_pvp_enabled_like_cpp);
-        }
-        canonical
-    }
-
-    #[cfg(test)]
-    fn canonical_player_pvp_flags_like_cpp(&self, guid: ObjectGuid) -> Option<UnitPvpFlags> {
-        if self.player_guid() == Some(guid)
-            && let Some(flags) =
-                self.with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp())
-        {
-            return Some(flags);
-        }
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let manager = manager.lock().ok()?;
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_none() {
-                result = managed
-                    .map()
-                    .get_typed_player(guid)
-                    .map(|player| player.unit().pvp_flags_like_cpp());
-            }
-        });
-        result
-    }
-
-    fn player_has_in_pvp_flag_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
-        if self.player_guid() != Some(guid) {
-            return None;
-        }
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            if let Some(value) =
-                self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_IN_PVP_LIKE_CPP)
-            {
-                return Some(value);
-            }
-            return Some(self.player_in_pvp_flag_like_cpp);
-        }
-        canonical
-    }
-
     fn player_war_mode_local_active_like_cpp(&self) -> bool {
         self.active_player_update_state_like_cpp()
             .is_some_and(|(flags, _, _)| flags & PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP != 0)
-    }
-
-    fn update_player_pvp_like_cpp(&mut self, state: bool, override_state: bool) {
-        let end_timer = if !state || override_state {
-            None
-        } else {
-            Some(wow_entities::game_time_secs_like_cpp())
-        };
-        #[cfg_attr(not(test), allow(unused_mut))]
-        let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-            player.gameplay_state_mut().world_local.pvp_end_timer = end_timer;
-            if state {
-                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-            } else {
-                player
-                    .unit_mut()
-                    .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-            }
-        });
-        #[cfg(test)]
-        if mutated.is_none()
-            && self.player_handle_like_cpp.is_none()
-            && let Some(guid) = self.player_guid()
-        {
-            mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                player.gameplay_state_mut().world_local.pvp_end_timer = end_timer;
-                if state {
-                    player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-                } else {
-                    player
-                        .unit_mut()
-                        .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-                }
-            });
-        }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_pvp_end_timer_like_cpp = end_timer;
-            self.player_pvp_enabled_like_cpp = state;
-        }
-        let _ = mutated;
-    }
-
-    pub(crate) fn update_pvp_flag_like_cpp(&mut self, curr_time: i64) {
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-
-        if self.player_is_pvp_like_cpp(guid) != Some(true) {
-            return;
-        }
-
-        let Some(state) = self.player_world_local_state_like_cpp() else {
-            return;
-        };
-        let Some(end_timer) = state.pvp_end_timer else {
-            return;
-        };
-
-        if curr_time < end_timer.saturating_add(300) || state.pvp_hostile {
-            return;
-        }
-
-        if end_timer <= curr_time {
-            #[cfg_attr(not(test), allow(unused_mut))]
-            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().world_local.pvp_end_timer = None;
-                player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-            });
-            #[cfg(test)]
-            if mutated.is_none() && self.player_handle_like_cpp.is_none() {
-                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.gameplay_state_mut().world_local.pvp_end_timer = None;
-                    player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-                });
-            }
-            #[cfg(test)]
-            if self.player_handle_like_cpp.is_none() {
-                self.player_pvp_end_timer_like_cpp = None;
-            }
-            let _ = mutated;
-        }
-
-        self.update_player_pvp_like_cpp(false, false);
-        self.sync_player_registry_state_like_cpp();
-    }
-
-    pub(crate) fn apply_toggle_pvp_like_cpp(&mut self) {
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-        let Some(in_pvp) = self.player_has_in_pvp_flag_like_cpp(guid) else {
-            return;
-        };
-        self.apply_set_pvp_like_cpp(!in_pvp);
-    }
-
-    pub(crate) fn apply_set_pvp_like_cpp(&mut self, enable_pvp: bool) {
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-
-        if enable_pvp {
-            #[cfg_attr(not(test), allow(unused_mut))]
-            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-                player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-            });
-            #[cfg(test)]
-            if mutated.is_none() && self.player_handle_like_cpp.is_none() {
-                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                    player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-                });
-                self.player_in_pvp_flag_like_cpp = true;
-            }
-            let _ = mutated;
-
-            if self.player_is_pvp_like_cpp(guid) == Some(false)
-                || self
-                    .player_world_local_state_like_cpp()
-                    .is_some_and(|state| state.pvp_end_timer.is_some())
-            {
-                self.update_player_pvp_like_cpp(true, true);
-            }
-        } else if !self.player_war_mode_local_active_like_cpp() {
-            #[cfg_attr(not(test), allow(unused_mut))]
-            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-                player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-            });
-            #[cfg(test)]
-            if mutated.is_none() && self.player_handle_like_cpp.is_none() {
-                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                    player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-                });
-                self.player_in_pvp_flag_like_cpp = false;
-            }
-            let _ = mutated;
-
-            let Some(state) = self.player_world_local_state_like_cpp() else {
-                return;
-            };
-            if !state.pvp_hostile && self.player_is_pvp_like_cpp(guid) == Some(true) {
-                let now = wow_entities::game_time_secs_like_cpp();
-                let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-                    state.pvp_end_timer = Some(now);
-                });
-            }
-        }
-
-        self.sync_player_registry_state_like_cpp();
-    }
-
-    fn canonical_player_attack_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
-        let guid = self.player_guid?;
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let manager = manager.lock().ok()?;
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_none()
-                && let Some(player) = managed.map().get_typed_player(guid)
-            {
-                result = Some(player.unit().attacking());
-            }
-        });
-        result
     }
 
     pub(crate) fn player_is_possessing_like_cpp(&self) -> bool {
@@ -10682,37 +10282,6 @@ impl WorldSession {
         });
 
         result.unwrap_or(ObjectGuid::EMPTY)
-    }
-
-    pub(crate) fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
-        use wow_packet::ServerPacket;
-        use wow_packet::packets::combat::AttackSwingError;
-
-        if let Some(reason) = error {
-            if self.player_swing_error_msg_like_cpp != Some(reason) {
-                let _ = self.send_tx().send(AttackSwingError { reason }.to_bytes());
-            }
-        }
-        self.player_swing_error_msg_like_cpp = error;
-    }
-
-    fn take_canonical_player_attack_swings_like_cpp(
-        &mut self,
-        diff_ms: u32,
-        in_melee_range: bool,
-        facing_target: bool,
-        within_los: bool,
-    ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
-        self.mutate_canonical_player_like_cpp(|player| {
-            take_canonical_player_attack_swings_like_cpp(
-                player,
-                diff_ms,
-                in_melee_range,
-                facing_target,
-                within_los,
-            )
-        })
-        .flatten()
     }
 
     pub(crate) fn canonical_gameobject_is_fully_looted_like_cpp(
@@ -10978,155 +10547,6 @@ impl WorldSession {
         target_unit.set_target_owner_group_visible_for_seer_like_cpp(owner_group_visible);
     }
 
-    fn canonical_unit_attack_target_state_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> (bool, bool, wow_entities::UnitAttackContextLikeCpp) {
-        // Resolve the Player-owned control state before taking the map lock;
-        // visibility checks below run while that same manager is borrowed.
-        let moved_unit_guid = self.player_moved_unit_guid_like_cpp();
-        let current_group_guid = self.resolved_group_guid_like_cpp();
-        let player_phase_shift = self.represented_player_phase_shift_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return (
-                true,
-                true,
-                wow_entities::UnitAttackContextLikeCpp::default(),
-            );
-        };
-        let Ok(manager) = manager.lock() else {
-            return (
-                true,
-                true,
-                wow_entities::UnitAttackContextLikeCpp::default(),
-            );
-        };
-        let Some(map) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0) else {
-            return (
-                true,
-                true,
-                wow_entities::UnitAttackContextLikeCpp::default(),
-            );
-        };
-        if let Some(player) = map.map().get_typed_player(guid) {
-            let pvp_flags = player.unit().pvp_flags_like_cpp();
-            let attacker_can_see_or_detect_target = player_phase_shift
-                .as_ref()
-                .is_some_and(|phase| phase.can_see(player.unit().world().phase_shift()))
-                && self
-                    .player_guid()
-                    .and_then(|attacker_guid| map.map().get_typed_player(attacker_guid))
-                    .map(|attacker| {
-                        let mut target_unit = player.unit().clone();
-                        let mut seer_unit = attacker.unit().clone();
-                        self.apply_target_visibility_context_for_current_player_like_cpp(
-                            &mut target_unit,
-                            &mut seer_unit,
-                            moved_unit_guid,
-                            current_group_guid,
-                        );
-                        seer_unit.can_see_or_detect_unit_like_cpp(&target_unit, false, true, false)
-                    })
-                    .unwrap_or(true);
-            return (
-                player.unit().is_alive(),
-                player.unit().world().object().is_in_world(),
-                wow_entities::UnitAttackContextLikeCpp {
-                    victim_is_game_master_player: player.is_game_master_like_cpp(),
-                    victim_unit_state: player.unit().unit_state(),
-                    victim_unit_flags: player.unit().unit_flags_like_cpp().bits(),
-                    victim_has_affecting_player: true,
-                    visibility_represented: true,
-                    attacker_can_see_or_detect_target,
-                    victim_in_sanctuary: pvp_flags.contains(UnitPvpFlags::SANCTUARY),
-                    victim_is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
-                    victim_is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
-                    victim_has_pvp_unk1_flag: pvp_flags.contains(UnitPvpFlags::UNK1),
-                    ..Default::default()
-                },
-            );
-        }
-        if let Some(result) = map.map().with_creature_like_cpp(guid, |creature| {
-            let attacker_can_see_or_detect_target = player_phase_shift
-                .as_ref()
-                .is_some_and(|phase| phase.can_see(creature.unit().world().phase_shift()))
-                && self
-                    .player_guid()
-                    .and_then(|attacker_guid| map.map().get_typed_player(attacker_guid))
-                    .map(|attacker| {
-                        let mut target_unit = creature.unit().clone();
-                        let mut seer_unit = attacker.unit().clone();
-                        self.apply_target_visibility_context_for_current_player_like_cpp(
-                            &mut target_unit,
-                            &mut seer_unit,
-                            moved_unit_guid,
-                            current_group_guid,
-                        );
-                        seer_unit.can_see_or_detect_unit_like_cpp(&target_unit, false, true, false)
-                    })
-                    .unwrap_or(true);
-            let mut context = wow_entities::UnitAttackContextLikeCpp {
-                victim_is_evading_creature: creature.is_evading_attacks_like_cpp(),
-                victim_unit_state: creature.unit().unit_state(),
-                victim_unit_flags: creature.unit().unit_flags_like_cpp().bits(),
-                visibility_represented: true,
-                attacker_can_see_or_detect_target,
-                ..Default::default()
-            };
-            if let Some(reputation_snapshot) =
-                self.attack_reputation_faction_snapshot_like_cpp(creature)
-                && let Some(attacker_guid) = self.player_guid()
-                && let Some(attacker) = map.map().get_typed_player(attacker_guid)
-            {
-                let player_has_contested_pvp_flag =
-                    attacker.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
-                let creature_has_forced_reputation_rank =
-                    attacker.has_forced_reputation_rank_like_cpp(reputation_snapshot.faction_id);
-                let player_has_reputation_state = match reputation_snapshot.can_have_reputation {
-                    Some(false) => false,
-                    Some(true) => {
-                        attacker.has_reputation_state_like_cpp(reputation_snapshot.faction_id)
-                    }
-                    None => true,
-                };
-                if (reputation_snapshot.contested_guard && player_has_contested_pvp_flag)
-                    || creature_has_forced_reputation_rank
-                    || player_has_reputation_state
-                {
-                    context.player_creature_reputation_represented = true;
-                    context.creature_is_contested_guard = reputation_snapshot.contested_guard;
-                    context.player_has_contested_pvp_flag = player_has_contested_pvp_flag;
-                    context.creature_has_forced_reputation_rank =
-                        creature_has_forced_reputation_rank;
-                    context.player_at_war_with_creature_faction = player_has_reputation_state
-                        && attacker.is_at_war_with_faction_like_cpp(reputation_snapshot.faction_id);
-                }
-            }
-            (
-                creature.is_alive(),
-                creature.unit().world().object().is_in_world(),
-                context,
-            )
-        }) {
-            return result;
-        }
-        (
-            true,
-            true,
-            wow_entities::UnitAttackContextLikeCpp::default(),
-        )
-    }
-
-    fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {
-        let Some((seat_flags, _)) = self.player_vehicle_seat_state_like_cpp() else {
-            return false;
-        };
-        match seat_flags {
-            Some(flags) => flags & VEHICLE_SEAT_FLAG_CAN_ATTACK != 0,
-            None => true,
-        }
-    }
-
     fn player_vehicle_seat_state_like_cpp(&self) -> Option<(Option<i32>, Option<u32>)> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             let state = player.gameplay_state();
@@ -11190,338 +10610,6 @@ impl WorldSession {
             ));
         }
         canonical
-    }
-
-    fn add_canonical_attacker_like_cpp(&mut self, victim: ObjectGuid, attacker: ObjectGuid) {
-        if self
-            .mutate_canonical_player_by_guid_like_cpp(victim, |victim| {
-                victim.unit_mut().add_attacker_like_cpp(attacker)
-            })
-            .is_some()
-        {
-            return;
-        }
-        let _ = self.mutate_canonical_creature_by_guid_like_cpp(victim, |victim| {
-            victim.unit_mut().add_attacker_like_cpp(attacker)
-        });
-    }
-
-    fn begin_canonical_player_combat_ref_like_cpp(
-        &mut self,
-        attacker_guid: ObjectGuid,
-        victim_guid: ObjectGuid,
-        relation_represented: bool,
-        attacker_is_friendly_to_victim: bool,
-        victim_is_friendly_to_attacker: bool,
-    ) -> bool {
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return false;
-        };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
-            return false;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return false;
-        };
-        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return false;
-        };
-        begin_combat_ref_on_map_like_cpp(
-            managed.map_mut(),
-            attacker_guid,
-            victim_guid,
-            relation_represented,
-            attacker_is_friendly_to_victim,
-            victim_is_friendly_to_attacker,
-        )
-    }
-
-    fn revalidate_canonical_player_combat_refs_like_cpp(&mut self, player_guid: ObjectGuid) {
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return;
-        };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
-            return;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return;
-        };
-        if managed.map().get_typed_player(player_guid).is_some() {
-            managed.map_mut().revalidate_all_combat_refs_like_cpp();
-        }
-    }
-
-    pub(crate) fn start_player_attack_like_cpp(
-        &mut self,
-        victim: ObjectGuid,
-    ) -> PlayerAttackStartLikeCppResult {
-        let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
-        let player_guid = self.player_guid();
-        let Some((attacker_unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp()
-        else {
-            return PlayerAttackStartLikeCppResult::Rejected;
-        };
-        let attacker_is_mounted_player = attacker_unit_flags.contains(UnitFlags::MOUNT);
-        let (victim_alive, victim_in_world, mut attack_context) =
-            self.canonical_unit_attack_target_state_like_cpp(victim);
-        if !self.player_vehicle_seat_allows_attack_like_cpp() {
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
-            if self.selection_guid_like_cpp() == Some(victim) {
-                self.set_selection_guid_like_cpp(None);
-            }
-            return PlayerAttackStartLikeCppResult::Rejected;
-        }
-        attack_context.attacker_is_mounted_player = attacker_is_mounted_player;
-        attack_context.attacker_unit_flags = attacker_unit_flags.bits();
-        attack_context.attacker_has_affecting_player = true;
-        #[cfg_attr(not(test), allow(unused_mut))]
-        let mut attacker_pvp_flags =
-            self.with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp());
-        #[cfg(test)]
-        if attacker_pvp_flags.is_none() && self.player_handle_like_cpp.is_none() {
-            attacker_pvp_flags =
-                player_guid.and_then(|guid| self.canonical_player_pvp_flags_like_cpp(guid));
-        }
-        let attacker_pvp_flags = attacker_pvp_flags.unwrap_or_default();
-        attack_context.attacker_in_sanctuary = attacker_pvp_flags.contains(UnitPvpFlags::SANCTUARY);
-        attack_context.attacker_is_ffa_pvp = attacker_pvp_flags.contains(UnitPvpFlags::FFA_PVP);
-        attack_context.attacker_has_pvp_unk1_flag = attacker_pvp_flags.contains(UnitPvpFlags::UNK1);
-        if attack_context.victim_has_affecting_player {
-            attack_context.sanctuary_represented = true;
-            attack_context.pvp_represented = true;
-            attack_context.player_player_duel_in_progress = player_guid
-                .and_then(|guid| self.canonical_player_duel_in_progress_like_cpp(guid, victim))
-                .unwrap_or(false);
-        }
-        attack_context.attacker_is_player_uber = player_guid
-            .and_then(|guid| {
-                self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_UBER_LIKE_CPP)
-            })
-            .unwrap_or(false);
-        let combat_relation_represented = attack_context.relation_represented;
-        let combat_attacker_is_friendly_to_victim = attack_context.attacker_is_friendly_to_victim;
-        let combat_victim_is_friendly_to_attacker = attack_context.victim_is_friendly_to_attacker;
-        self.set_selection_guid_like_cpp(Some(victim));
-        let outcome = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().attack_with_context_like_cpp(
-                victim,
-                victim_alive,
-                victim_in_world,
-                true,
-                attack_context,
-            )
-        });
-        let previous = match outcome {
-            Some(wow_entities::UnitAttackStartOutcome::NewTarget { previous }) => previous,
-            Some(
-                wow_entities::UnitAttackStartOutcome::MeleeStartedSameTarget
-                | wow_entities::UnitAttackStartOutcome::MeleeStoppedSameTarget
-                | wow_entities::UnitAttackStartOutcome::NoChangeSameTarget,
-            ) => None,
-            Some(
-                wow_entities::UnitAttackStartOutcome::InvalidSelfTarget
-                | wow_entities::UnitAttackStartOutcome::InvalidDeadAttacker
-                | wow_entities::UnitAttackStartOutcome::InvalidDeadVictim
-                | wow_entities::UnitAttackStartOutcome::InvalidVictimNotInWorld
-                | wow_entities::UnitAttackStartOutcome::InvalidMountedAttacker
-                | wow_entities::UnitAttackStartOutcome::InvalidAttackerEvading
-                | wow_entities::UnitAttackStartOutcome::InvalidVictimGameMaster
-                | wow_entities::UnitAttackStartOutcome::InvalidVictimEvading
-                | wow_entities::UnitAttackStartOutcome::InvalidAttackTarget,
-            )
-            | None => {
-                self.set_combat_target_like_cpp(None);
-                self.set_in_combat_like_cpp(false);
-                if self.selection_guid_like_cpp() == Some(victim) {
-                    self.set_selection_guid_like_cpp(None);
-                }
-                return PlayerAttackStartLikeCppResult::Rejected;
-            }
-        };
-        if let Some(player_guid) = player_guid {
-            if let Some(previous) = previous {
-                self.remove_canonical_attacker_like_cpp(previous, player_guid);
-            }
-            self.add_canonical_attacker_like_cpp(victim, player_guid);
-            let _ = self.mutate_world_creature(victim, |victim| {
-                victim
-                    .creature
-                    .unit_mut()
-                    .add_attacker_like_cpp(player_guid);
-            });
-            let _ = self.begin_canonical_player_combat_ref_like_cpp(
-                player_guid,
-                victim,
-                combat_relation_represented,
-                combat_attacker_is_friendly_to_victim,
-                combat_victim_is_friendly_to_attacker,
-            );
-        }
-        self.set_in_combat_like_cpp(true);
-        let send_attack_start = matches!(
-            outcome,
-            Some(
-                wow_entities::UnitAttackStartOutcome::NewTarget { .. }
-                    | wow_entities::UnitAttackStartOutcome::MeleeStartedSameTarget
-            )
-        );
-        PlayerAttackStartLikeCppResult::Accepted { send_attack_start }
-    }
-
-    pub(crate) fn stop_player_attack_like_cpp(&mut self) -> Option<ObjectGuid> {
-        let player_guid = self.player_guid()?;
-        let target = match self.mutate_canonical_player_like_cpp(|player| {
-            match player.unit_mut().attack_stop_like_cpp() {
-                wow_entities::UnitAttackStopOutcome::Stopped { victim } => Some(victim),
-                wow_entities::UnitAttackStopOutcome::NoVictim => None,
-            }
-        }) {
-            Some(Some(victim)) => victim,
-            // C++ Unit::AttackStop returns false when m_attacking is null; a
-            // stale session mirror must not invent a victim when canonical
-            // player state exists and says there is none.
-            Some(None) => {
-                self.set_combat_target_like_cpp(None);
-                self.set_in_combat_like_cpp(false);
-                return None;
-            }
-            None => self.resolved_combat_target_like_cpp().flatten()?,
-        };
-        self.set_combat_target_like_cpp(None);
-        self.set_in_combat_like_cpp(false);
-        if self.selection_guid_like_cpp() == Some(target) {
-            self.set_selection_guid_like_cpp(None);
-        }
-        self.remove_canonical_attacker_like_cpp(target, player_guid);
-        let _ = self.mutate_world_creature(target, |victim| {
-            victim
-                .creature
-                .unit_mut()
-                .remove_attacker_like_cpp(player_guid);
-        });
-        Some(target)
-    }
-
-    fn combat_stop_like_cpp(&mut self) {
-        let Some(player_guid) = self.player_guid() else {
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
-            return;
-        };
-
-        let stopped_target = self.stop_player_attack_like_cpp();
-        let owner_guids = {
-            let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
-                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
-            };
-            let Ok(mut manager) = manager.lock() else {
-                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
-            };
-            let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
-            else {
-                drop(manager);
-                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
-            };
-            let map = managed.map_mut();
-            let Some(player) = map.get_typed_player_mut(player_guid) else {
-                drop(manager);
-                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
-            };
-
-            let mut owner_guids: Vec<ObjectGuid> = player
-                .unit()
-                .subsystems()
-                .combat
-                .pve_refs
-                .keys()
-                .chain(player.unit().subsystems().combat.pvp_refs.keys())
-                .chain(player.unit().subsystems().combat.attackers.iter())
-                .copied()
-                .collect();
-            owner_guids.sort_unstable();
-            owner_guids.dedup();
-
-            player.unit_mut().subsystems_mut().combat.end_all_combat();
-            player.unit_mut().subsystems_mut().combat.clear_attackers();
-
-            for owner_guid in &owner_guids {
-                if let Some(owner) = map.get_typed_player_mut(*owner_guid) {
-                    if owner.unit().attacking() == Some(player_guid) {
-                        let _ = owner.unit_mut().attack_stop_like_cpp();
-                    }
-                    owner
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .purge_combat_ref_like_cpp(player_guid);
-                    owner.unit_mut().remove_attacker_like_cpp(player_guid);
-                } else if let Some(owner) = map.get_typed_creature_mut(*owner_guid) {
-                    if owner.unit().attacking() == Some(player_guid) {
-                        let _ = owner.unit_mut().attack_stop_like_cpp();
-                    }
-                    owner
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .purge_combat_ref_like_cpp(player_guid);
-                    owner.unit_mut().remove_attacker_like_cpp(player_guid);
-                }
-            }
-
-            owner_guids
-        };
-
-        self.finish_combat_stop_like_cpp(player_guid, stopped_target, owner_guids);
-    }
-
-    fn finish_combat_stop_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-        stopped_target: Option<ObjectGuid>,
-        owner_guids: Vec<ObjectGuid>,
-    ) {
-        self.set_combat_target_like_cpp(None);
-        self.set_in_combat_like_cpp(false);
-        for owner_guid in owner_guids {
-            let _ = self.mutate_world_creature(owner_guid, |owner| {
-                if owner.creature.unit().attacking() == Some(player_guid) {
-                    let _ = owner.creature.unit_mut().attack_stop_like_cpp();
-                }
-                owner
-                    .creature
-                    .unit_mut()
-                    .subsystems_mut()
-                    .combat
-                    .purge_combat_ref_like_cpp(player_guid);
-                owner
-                    .creature
-                    .unit_mut()
-                    .subsystems_mut()
-                    .combat
-                    .scale_threat(player_guid, 0.0);
-                owner
-                    .creature
-                    .unit_mut()
-                    .remove_attacker_like_cpp(player_guid);
-                if owner.creature.ai_ownership().combat_target == Some(player_guid) {
-                    owner.creature.ai_ownership_mut().combat_target = None;
-                }
-            });
-        }
-
-        if let Some(target) = stopped_target {
-            self.send_packet(&wow_packet::packets::combat::SAttackStop {
-                attacker: player_guid,
-                victim: target,
-                now_dead: false,
-            });
-        }
-        self.send_packet(&wow_packet::packets::combat::CancelCombat);
-        self.sync_player_registry_state_like_cpp();
     }
 
     /// Resolve or construct the single canonical Player without transferring
@@ -13234,22 +12322,11 @@ impl WorldSession {
         self.toy_store.as_ref()
     }
 
-    pub fn set_combat_ratings_game_table(&mut self, table: Arc<CombatRatingsGameTableLikeCpp>) {
-        self.combat_ratings_game_table = Some(table);
-    }
-
     pub fn set_shield_block_regular_game_table(
         &mut self,
         table: Arc<ShieldBlockRegularGameTableLikeCpp>,
     ) {
         self.shield_block_regular_game_table = Some(table);
-    }
-
-    pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
-        self.combat_ratings_game_table
-            .as_ref()
-            .map(|table| table.rating_multiplier_like_cpp(u16::from(level), rating))
-            .unwrap_or(1.0)
     }
 
     pub(crate) fn player_collection_state_snapshot_like_cpp(
@@ -13719,11 +12796,6 @@ impl WorldSession {
         self.player_create_info_store_like_cpp = Some(store);
     }
 
-    fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
-        self.player_has_visible_aura_spell_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP)
-            .unwrap_or(false)
-    }
-
     fn apply_represented_unit_modifier_like_cpp(
         state: &mut RepresentedItemBonusStateLikeCpp,
         unit_mod: wow_entities::ApplyEnchantmentUnitMod,
@@ -13786,27 +12858,6 @@ impl WorldSession {
         }
     }
 
-    fn represented_weapon_damage_bounds_like_cpp(
-        &self,
-        item_entry: u32,
-        weapon: &wow_data::ItemWeaponTemplateEntry,
-    ) -> (f32, f32) {
-        let mut min_damage = f32::from(weapon.min_damage[0]);
-        let mut max_damage = f32::from(weapon.max_damage[0]);
-        let Some(context) = self.represented_scaling_stat_context_like_cpp(item_entry) else {
-            return (min_damage, max_damage);
-        };
-
-        if context.dps_mod != 0 {
-            let average = context.dps_mod as f32 * f32::from(weapon.item_delay) / 1000.0;
-            let modifier = if context.is_two_hand { 0.2 } else { 0.3 };
-            min_damage = (1.0 - modifier) * average;
-            max_damage = (1.0 + modifier) * average;
-        }
-
-        (min_damage, max_damage)
-    }
-
     fn represented_scaling_stat_context_like_cpp(
         &self,
         item_entry: u32,
@@ -13846,22 +12897,6 @@ impl WorldSession {
             (max_level, min_level)
         };
         u32::from(self.player_level_like_cpp()).clamp(min_level, max_level)
-    }
-
-    fn represented_resistances_with_scaling_armor_like_cpp(
-        &self,
-        resistances: &[i16; 7],
-        scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
-    ) -> [i16; 7] {
-        let mut adjusted = *resistances;
-        if let Some(context) = scaling_context {
-            if context.armor_mod > 0 {
-                adjusted[0] = i16::try_from(context.armor_mod).unwrap_or(i16::MAX);
-            } else if context.armor_mod < 0 {
-                adjusted[0] = i16::MIN;
-            }
-        }
-        adjusted
     }
 
     pub fn set_loot_drop_rates_like_cpp(&mut self, rates: LootDropRatesLikeCpp) {
@@ -14487,27 +13522,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn canonical_player_power_snapshot_like_cpp(
-        &self,
-        power_type: PowerType,
-    ) -> Option<(i32, i32)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            (
-                player.unit().get_power(power_type),
-                player.unit().get_max_power(power_type),
-            )
-        })
-    }
-
-    pub(crate) fn canonical_player_health_snapshot_like_cpp(&self) -> Option<(u32, u32)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            (
-                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-            )
-        })
-    }
-
     pub(crate) fn canonical_player_parry_block_snapshot_like_cpp(&self) -> (bool, bool) {
         self.canonical_player_snapshot_like_cpp(|player| {
             (
@@ -14516,34 +13530,6 @@ impl WorldSession {
             )
         })
         .unwrap_or((false, false))
-    }
-
-    fn reset_contested_pvp_like_cpp(&mut self) {
-        let Some(_guid) = self.player_guid() else {
-            return;
-        };
-
-        #[cfg_attr(not(test), allow(unused_mut))]
-        let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .clear_unit_state(UnitState::ATTACK_PLAYER.bits());
-            player.remove_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
-            player.gameplay_state_mut().world_local.contested_pvp_timer = 0;
-        });
-        #[cfg(test)]
-        if mutated.is_none() && self.player_handle_like_cpp.is_none() {
-            mutated = self.mutate_canonical_player_by_guid_like_cpp(_guid, |player| {
-                player
-                    .unit_mut()
-                    .clear_unit_state(UnitState::ATTACK_PLAYER.bits());
-                player.remove_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
-                player.gameplay_state_mut().world_local.contested_pvp_timer = 0;
-            });
-            self.player_contested_pvp_timer_like_cpp = 0;
-        }
-        let _ = mutated;
-        self.sync_player_registry_state_like_cpp();
     }
 
     pub(crate) fn select_buyback_slot_cpp(&self) -> Option<u8> {
@@ -14725,58 +13711,6 @@ impl WorldSession {
         {
             self.send_packet(&packet);
         }
-    }
-
-    fn send_player_health_values_update_like_cpp(&self, guid: ObjectGuid, health: u64) {
-        let mut mask = UpdateMask::new(UNIT_DATA_HEALTH_BIT + 1);
-        mask.set(UNIT_DATA_HEALTH_BIT);
-        let update = wow_entities::PlayerValuesUpdate {
-            changed_object_type_mask: 0,
-            object_data: None,
-            unit_data: Some(UnitDataUpdate {
-                mask,
-                values: UnitDataValues {
-                    health,
-                    ..Default::default()
-                },
-            }),
-            player_data: None,
-            active_player_data: None,
-        };
-
-        if let Some(packet) =
-            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
-        {
-            self.send_packet(&packet);
-        }
-    }
-
-    fn send_player_health_update_like_cpp(&self, guid: ObjectGuid, health: u64) {
-        self.send_packet(&wow_packet::packets::combat::HealthUpdate {
-            guid,
-            health: health.min(i64::MAX as u64) as i64,
-        });
-    }
-
-    fn send_environmental_damage_log_like_cpp(
-        &self,
-        victim: ObjectGuid,
-        damage_type: u8,
-        amount: u32,
-        resisted: u32,
-        absorbed: u32,
-    ) {
-        self.send_packet(&wow_packet::packets::combat::EnvironmentalDamageLog {
-            victim,
-            damage_type: if damage_type == DAMAGE_FALL_TO_VOID_LIKE_CPP {
-                DAMAGE_FALL_LIKE_CPP
-            } else {
-                damage_type
-            },
-            amount: amount.min(i32::MAX as u32) as i32,
-            resisted: resisted.min(i32::MAX as u32) as i32,
-            absorbed: absorbed.min(i32::MAX as u32) as i32,
-        });
     }
 
     pub(crate) fn set_active_loot_guid(&mut self, guid: ObjectGuid) {
@@ -15536,27 +14470,6 @@ impl WorldSession {
 
     pub fn set_chr_classes_store(&mut self, store: Arc<ChrClassesStore>) {
         self.chr_classes_store = Some(store);
-    }
-
-    #[cfg(test)]
-    pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
-        self.power_type_store = Some(store);
-    }
-
-    pub(crate) fn player_class_attack_power_coefficients_like_cpp(
-        &self,
-        class: u8,
-    ) -> Option<(u8, u8, u8)> {
-        self.chr_classes_store
-            .as_ref()?
-            .get(u32::from(class))
-            .map(|entry| {
-                (
-                    entry.attack_power_per_strength,
-                    entry.attack_power_per_agility,
-                    entry.ranged_attack_power_per_agility,
-                )
-            })
     }
 
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
@@ -17043,61 +15956,6 @@ impl WorldSession {
         }
     }
 
-    /// Mirror `Unit::SetPvpFlag` / `RemovePvpFlag` for the realm-wide FFA bit.
-    ///
-    /// The canonical player remains the runtime authority. The isolated delta
-    /// keeps this direct owner update limited to `UnitData::PvpFlags` without
-    /// clearing or leaking any other dirty canonical fields that the map tick
-    /// still owns.
-    fn set_represented_ffa_pvp_flag_like_cpp(&mut self, enabled: bool) -> bool {
-        let update = self
-            .mutate_canonical_player_like_cpp(|player| {
-                let before = player.unit().pvp_flags_like_cpp();
-                if before.contains(UnitPvpFlags::FFA_PVP) == enabled {
-                    return None;
-                }
-
-                if enabled {
-                    player
-                        .unit_mut()
-                        .set_pvp_flag_like_cpp(UnitPvpFlags::FFA_PVP);
-                } else {
-                    player
-                        .unit_mut()
-                        .remove_pvp_flag_like_cpp(UnitPvpFlags::FFA_PVP);
-                }
-                let after = player.unit().pvp_flags_like_cpp();
-
-                let mut delta = Player::new(None, false);
-                delta.unit_mut().replace_all_pvp_flags_like_cpp(before);
-                delta.clear_data_changes();
-                delta.unit_mut().replace_all_pvp_flags_like_cpp(after);
-                Some(delta.values_update(true))
-            })
-            .flatten();
-        let Some(update) = update else {
-            return false;
-        };
-
-        self.send_player_values_update_like_cpp(&update);
-        self.sync_player_registry_state_like_cpp();
-        true
-    }
-
-    /// C++ `HandlePlayerLogin`: realm-wide FFA is enabled after the player is
-    /// in the map, except for GMs and players whose loaded/zone-restored flags
-    /// already say they are resting.
-    fn apply_represented_ffa_pvp_login_state_like_cpp(&mut self) -> bool {
-        if !self.is_ffa_pvp_realm_like_cpp
-            || self.player_is_game_master_like_cpp() != Some(false)
-            || self.resolved_visible_resting_like_cpp() != Some(false)
-        {
-            return false;
-        }
-
-        self.set_represented_ffa_pvp_flag_like_cpp(true)
-    }
-
     pub(crate) fn handle_represented_tavern_area_trigger_with_catalog_like_cpp(
         &mut self,
         taverns: &TavernAreaTriggerStoreLikeCpp,
@@ -18124,14 +16982,6 @@ impl WorldSession {
         self.rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
         self.rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
         self.rest_ingame_rate_like_cpp = rest_ingame_rate;
-    }
-
-    pub fn set_pvp_realm_like_cpp(&mut self, is_pvp_realm: bool) {
-        self.is_pvp_realm_like_cpp = is_pvp_realm;
-    }
-
-    pub fn set_ffa_pvp_realm_like_cpp(&mut self, is_ffa_pvp_realm: bool) {
-        self.is_ffa_pvp_realm_like_cpp = is_ffa_pvp_realm;
     }
 
     #[cfg(test)]
@@ -19421,55 +18271,6 @@ impl WorldSession {
             self.player_faction_template_like_cpp =
                 (faction_template != 0).then_some(faction_template);
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_represented_player_power_slot_like_cpp(
-        &mut self,
-        slot: usize,
-        current: i32,
-        max: Option<i32>,
-    ) {
-        if slot >= MAX_POWERS_PER_CLASS {
-            return;
-        }
-        self.represented_player_powers_like_cpp[slot] = Some(current.max(0));
-        if let Some(max) = max {
-            self.represented_player_max_powers_like_cpp[slot] = Some(max.max(0));
-        }
-    }
-
-    pub(crate) fn represented_player_power_values_like_cpp(
-        &self,
-    ) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
-        let canonical = self.resolved_player_power_values_like_cpp();
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return character_power_snapshot_values_like_cpp(
-                &self.represented_player_powers_like_cpp,
-            );
-        }
-        canonical
-    }
-
-    fn resolved_player_power_values_like_cpp(&self) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().power);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.mutate_canonical_player_like_cpp(|player| player.unit().data().power);
-        }
-        canonical
-    }
-
-    fn resolved_player_power_snapshot_like_cpp(&self) -> Option<CharacterPowerSnapshotLikeCpp> {
-        let canonical = self
-            .resolved_player_power_values_like_cpp()
-            .map(loaded_character_power_snapshot_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_player_powers_like_cpp);
-        }
-        canonical
     }
 
     pub(crate) fn attach_player_controller_like_cpp(
@@ -20990,49 +19791,6 @@ impl WorldSession {
             .map(|(_, _, alive)| alive)
     }
 
-    /// Apply damage to the canonical Player owner and return
-    /// `(before, after, max, applied, killed)`.
-    fn apply_owned_player_damage_like_cpp(
-        &mut self,
-        requested_damage: u32,
-        lethal_death_state: wow_constants::DeathState,
-    ) -> Option<(u32, u32, u32, u32, bool)> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let max_health = player
-                .unit()
-                .data()
-                .max_health
-                .clamp(1, u64::from(u32::MAX)) as u32;
-            let before = player.unit().data().health.min(u64::from(max_health)) as u32;
-            if !player.unit().is_alive() || before == 0 {
-                return (before, before, max_health, 0, false);
-            }
-            let applied = requested_damage.min(before);
-            let after = before.saturating_sub(applied);
-            let killed = applied > 0 && after == 0;
-            if killed {
-                player.unit_mut().set_death_state(lethal_death_state);
-            }
-            player.unit_mut().set_health(u64::from(after));
-            (before, after, max_health, applied, killed)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let max_health = self.player_max_health_like_cpp.max(1);
-            let before = self.player_health_like_cpp.min(max_health);
-            if !self.player_alive_like_cpp || before == 0 {
-                return Some((before, before, max_health, 0, false));
-            }
-            let applied = requested_damage.min(before);
-            let after = before.saturating_sub(applied);
-            let killed = applied > 0 && after == 0;
-            self.player_health_like_cpp = after;
-            self.player_alive_like_cpp = !killed;
-            return Some((before, after, max_health, applied, killed));
-        }
-        canonical
-    }
-
     /// Apply a heal to the canonical Player owner and return
     /// `(before, after, max, effective)`.
     fn apply_owned_player_heal_like_cpp(
@@ -21173,67 +19931,6 @@ impl WorldSession {
     pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
         self.player_battleground_state_snapshot_like_cpp()
             .is_some_and(|state| state.represented_type_id.is_some())
-    }
-
-    pub(crate) fn resolved_combat_target_like_cpp(&self) -> Option<Option<ObjectGuid>> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.unit().attacking());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.combat_target);
-        }
-        canonical
-    }
-
-    pub(crate) fn set_combat_target_like_cpp(&mut self, target: Option<ObjectGuid>) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_attacking(target))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.combat_target = target;
-        }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
-    }
-
-    pub(crate) fn resolved_in_combat_like_cpp(&self) -> Option<bool> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.unit().subsystems().combat.has_combat());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.in_combat);
-        }
-        canonical
-    }
-
-    /// Publish C++ `CombatManager::HasCombat` from the canonical Player to the
-    /// bounded directory view. The argument remains only for pre-owner tests;
-    /// production never manufactures combat state outside `CombatSubsystem`.
-    pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.in_combat = in_combat;
-            if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) {
-                registry.publish_in_combat_for_control_channel(
-                    guid,
-                    &self.session_command_tx,
-                    in_combat,
-                );
-            }
-            return;
-        }
-        let canonical = self.resolved_in_combat_like_cpp();
-        #[cfg(not(test))]
-        let _ = in_combat;
-        let Some(in_combat) = canonical else {
-            return;
-        };
-        if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) {
-            registry.publish_in_combat_for_control_channel(
-                guid,
-                &self.session_command_tx,
-                in_combat,
-            );
-        }
     }
 
     pub(crate) fn represented_battleground_status_is_wait_leave_like_cpp(&self) -> bool {
@@ -21761,124 +20458,6 @@ impl WorldSession {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_player_normal_damage_immune_like_cpp(&mut self, immune: bool) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_normal_damage_immune_like_cpp(immune)
-            })
-            .is_some();
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_normal_damage_immune_like_cpp = immune;
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_environmental_damage_immune_like_cpp(immune)
-            })
-            .is_some();
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_environmental_damage_immune_like_cpp = immune;
-        }
-    }
-
-    fn resolved_player_damage_control_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.damage_control_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerDamageControlStateLikeCpp {
-                cheat_god: self.player_cheat_god_like_cpp,
-                normal_damage_immune: self.player_normal_damage_immune_like_cpp,
-                environmental_damage_immune: self.player_environmental_damage_immune_like_cpp,
-            });
-        }
-        canonical
-    }
-
-    pub(crate) fn set_player_health_like_cpp(&mut self, health: u32, max_health: u32) {
-        let _ = self.sync_canonical_player_health_like_cpp(health, max_health);
-        self.sync_player_registry_state_like_cpp();
-    }
-
-    pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
-        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
-            return;
-        };
-        let _ = self.sync_canonical_player_health_like_cpp(
-            health_after.min(u64::from(max_health)) as u32,
-            max_health,
-        );
-        self.sync_player_registry_state_like_cpp();
-    }
-
-    fn apply_represented_player_environmental_death_like_cpp(&mut self) {
-        // C++ `Player::EnvironmentalDamage` routes lethal damage through
-        // `Unit::Kill` -> `Player::setDeathState(JUST_DIED)` before the client
-        // proceeds into release/cemetery flows.
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .set_death_state(wow_constants::DeathState::JustDied);
-            player.unit_mut().set_health(0);
-        });
-        #[cfg(test)]
-        {
-            self.player_health_like_cpp = 0;
-            self.player_alive_like_cpp = false;
-        }
-        self.sync_player_registry_state_like_cpp();
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_health_like_cpp(&self) -> u32 {
-        self.resolved_player_vitals_like_cpp().unwrap().0
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_max_health_like_cpp(&self) -> u32 {
-        self.resolved_player_vitals_like_cpp().unwrap().1
-    }
-
-    pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
-        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
-            return;
-        };
-        let _ = self.sync_canonical_player_health_like_cpp(health, max_health);
-    }
-
-    pub(crate) fn apply_represented_resurrection_percent_like_cpp(&mut self, restore_percent: f32) {
-        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
-            return;
-        };
-        let health =
-            ((f64::from(max_health) * f64::from(restore_percent)).floor() as u32).min(max_health);
-        self.apply_represented_resurrection_health_like_cpp(health);
-    }
-
-    fn player_resurrection_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerResurrectionStateLikeCpp> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.resurrection_state_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(PlayerResurrectionStateLikeCpp {
-                request: self.represented_resurrection_request_like_cpp,
-                delayed_after_teleport: self
-                    .represented_delayed_resurrection_after_teleport_like_cpp,
-                self_res_spells: self.represented_self_res_spells_like_cpp.clone(),
-                death_timer_active: self.represented_death_timer_active_like_cpp,
-                area_spirit_healer_guid: self.area_spirit_healer_guid_like_cpp,
-            });
-        }
-        canonical
-    }
-
     fn resolved_represented_total_stat_multiplier_for_stat_like_cpp(
         &self,
         stat: usize,
@@ -22374,13 +20953,6 @@ impl WorldSession {
                     } if *effect_player_guid == player_guid && *stand_state == current_stand_state
                 )
             })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_combat_stat_recalculations_like_cpp(
-        &self,
-    ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
-        &self.represented_combat_stat_recalculations_like_cpp
     }
 
     #[cfg(test)]
@@ -23841,16 +22413,6 @@ impl WorldSession {
             .unwrap_or(false)
     }
 
-    pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
-        self.advanced_combat_logging_enabled_like_cpp
-            .store(enable, Ordering::Relaxed);
-    }
-
-    pub(crate) fn represented_advanced_combat_logging_enabled_like_cpp(&self) -> bool {
-        self.advanced_combat_logging_enabled_like_cpp
-            .load(Ordering::Relaxed)
-    }
-
     pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
             let state = player.gameplay_state_mut();
@@ -24072,13 +22634,6 @@ impl WorldSession {
             .expect("test Player taxi owner must resolve")
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_player_pvp_hostile_like_cpp(&mut self, hostile: bool) {
-        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.pvp_hostile = hostile;
-        });
-    }
-
     pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
         let changed = self
             .player_zone_area_like_cpp()
@@ -24113,31 +22668,6 @@ impl WorldSession {
     pub(crate) fn player_zone_area_like_cpp(&self) -> Option<(u32, u32)> {
         self.player_world_local_state_like_cpp()
             .map(|state| (state.zone_id, state.area_id))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_player_pvp_state_like_cpp(
-        &mut self,
-        hostile: bool,
-        pvp_enabled: bool,
-        in_pvp_flag: bool,
-    ) {
-        self.set_player_pvp_hostile_like_cpp(hostile);
-        self.update_player_pvp_like_cpp(pvp_enabled, true);
-        if let Some(guid) = self.player_guid() {
-            let _ = self.with_owned_player_mut_like_cpp(|player| {
-                if in_pvp_flag {
-                    player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                } else {
-                    player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                }
-            });
-            let _ = guid;
-        }
-        if self.player_handle_like_cpp.is_none() {
-            self.player_pvp_enabled_like_cpp = pvp_enabled;
-            self.player_in_pvp_flag_like_cpp = in_pvp_flag;
-        }
     }
 
     #[cfg(test)]
@@ -29963,7 +28493,7 @@ fn apply_creature_melee_victim_sync_to_legacy_like_cpp(
 /// closure over `&mut Player`, and the global legacy loop reaches the same
 /// player through the canonical map rather than through a session. Behaviour,
 /// argument order and C++ anchors are unchanged.
-fn take_canonical_player_attack_swings_like_cpp(
+pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     player: &mut wow_entities::Player,
     diff_ms: u32,
     in_melee_range: bool,

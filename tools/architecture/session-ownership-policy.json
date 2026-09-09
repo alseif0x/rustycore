@@ -22377,11 +22377,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_owned_player_damage_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_owned_player_damage_like_cpp (& mut self , requested_damage : u32 , lethal_death_state : wow_constants :: DeathState ,) -> Option < (u32 , u32 , u32 , u32 , bool) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22556,11 +22558,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_represented_ffa_pvp_login_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_ffa_pvp_login_state_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24034,11 +24038,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "begin_canonical_player_combat_ref_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn begin_canonical_player_combat_ref_like_cpp (& mut self , attacker_guid : ObjectGuid , victim_guid : ObjectGuid , relation_represented : bool , attacker_is_friendly_to_victim : bool , victim_is_friendly_to_attacker : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24821,11 +24827,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "canonical_player_attack_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_player_attack_state_like_cpp (& self) -> Option < Option < ObjectGuid > >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn canonical_player_attack_state_like_cpp (& self ,) -> Option < Option < ObjectGuid > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24943,13 +24951,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "canonical_player_pvp_flags_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_player_pvp_flags_like_cpp (& self , guid : ObjectGuid) -> Option < UnitPvpFlags >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn canonical_player_pvp_flags_like_cpp (& self , guid : ObjectGuid ,) -> Option < UnitPvpFlags >",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25768,11 +25778,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "combat_stop_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn combat_stop_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33609,11 +33621,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_has_in_pvp_flag_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_has_in_pvp_flag_like_cpp (& self , guid : ObjectGuid) -> Option < bool >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_has_in_pvp_flag_like_cpp (& self , guid : ObjectGuid ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33830,11 +33844,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_is_pvp_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_is_pvp_like_cpp (& self , guid : ObjectGuid) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34349,11 +34365,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_resurrection_state_snapshot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_resurrection_state_snapshot_like_cpp (& self ,) -> Option < PlayerResurrectionStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40030,11 +40048,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_has_pvp_rules_enabled_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_has_pvp_rules_enabled_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41595,11 +41615,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_resistances_with_scaling_armor_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_resistances_with_scaling_armor_like_cpp (& self , resistances : & [i16 ; 7] , scaling_context : Option < RepresentedScalingStatContextLikeCpp > ,) -> [i16 ; 7]",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -43058,11 +43080,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_weapon_damage_bounds_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_weapon_damage_bounds_like_cpp (& self , item_entry : u32 , weapon : & wow_data :: ItemWeaponTemplateEntry ,) -> (f32 , f32)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -43326,11 +43350,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "reset_contested_pvp_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn reset_contested_pvp_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44046,11 +44072,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_player_damage_control_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_player_damage_control_like_cpp (& self ,) -> Option < wow_entities :: PlayerDamageControlStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44244,11 +44272,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_player_power_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn resolved_player_power_snapshot_like_cpp (& self) -> Option < CharacterPowerSnapshotLikeCpp >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn resolved_player_power_snapshot_like_cpp (& self ,) -> Option < CharacterPowerSnapshotLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44791,11 +44821,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "revalidate_canonical_player_combat_refs_like_cpp",
-          "visibility": "private",
-          "signature": "fn revalidate_canonical_player_combat_refs_like_cpp (& mut self , player_guid : ObjectGuid)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn revalidate_canonical_player_combat_refs_like_cpp (& mut self , player_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45424,11 +45456,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_environmental_damage_log_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_environmental_damage_log_like_cpp (& self , victim : ObjectGuid , damage_type : u8 , amount : u32 , resisted : u32 , absorbed : u32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45717,22 +45751,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_player_health_update_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_player_health_update_like_cpp (& self , guid : ObjectGuid , health : u64)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn send_player_health_update_like_cpp (& self , guid : ObjectGuid , health : u64 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "send_player_health_values_update_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_player_health_values_update_like_cpp (& self , guid : ObjectGuid , health : u64)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn send_player_health_values_update_like_cpp (& self , guid : ObjectGuid , health : u64 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -50910,12 +50948,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_represented_ffa_pvp_flag_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_represented_ffa_pvp_flag_like_cpp (& mut self , enabled : bool) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn set_represented_ffa_pvp_flag_like_cpp (& mut self , enabled : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -53872,11 +53911,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "take_canonical_player_attack_swings_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn take_canonical_player_attack_swings_like_cpp (& mut self , diff_ms : u32 , in_melee_range : bool , facing_target : bool , within_los : bool ,) -> Option < (Vec < u32 > , Option < Option < u8 > >) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -54875,11 +54916,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_player_pvp_like_cpp",
-          "visibility": "private",
-          "signature": "fn update_player_pvp_like_cpp (& mut self , state : bool , override_state : bool)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn update_player_pvp_like_cpp (& mut self , state : bool , override_state : bool ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -55934,11 +55977,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_player_mut_for_power_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn with_owned_player_mut_for_power_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -66434,19 +66479,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_in_combat_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::set_player_registry",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -66740,6 +66772,19 @@
           "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::combat::state",
+          "source": "crates/wow-world/src/session/combat/state.rs",
+          "enclosing": "impl WorldSession::set_in_combat_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
           "count": 1
         },
         {
