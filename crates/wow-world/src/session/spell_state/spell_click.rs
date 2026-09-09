@@ -86,7 +86,7 @@ impl WorldSession {
                 SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
                     let player_faction_template = self.player_faction_template_id_like_cpp();
                     if creature.is_summon
-                        || self.faction_template_store.is_none()
+                        || self.factions.template_store.is_none()
                         || player_faction_template.is_none()
                     {
                         plan.exact_context_unrepresented = true;

@@ -17,8 +17,8 @@ impl WorldSession {
         quality: u32,
         item_level: u32,
     ) -> Option<(u32, bool)> {
-        let basic = self.item_store.as_ref()?.get(item_id)?;
-        let sparse = self.item_stats_store.as_ref()?.sparse_template(item_id)?;
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
         let flags2 = sparse.flags[1];
         let standard_price = false;
 
@@ -134,8 +134,8 @@ impl WorldSession {
         quality: u32,
         item_level: u32,
     ) -> Option<u32> {
-        let basic = self.item_store.as_ref()?.get(item_id)?;
-        let sparse = self.item_stats_store.as_ref()?.sparse_template(item_id)?;
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
 
         if (sparse.flags[1] & ItemFlags2::OverrideGoldCost as u32) != 0 {
             return Some(sparse.sell_price);
@@ -458,7 +458,7 @@ impl WorldSession {
         let caps = self
             .player_item_modifier_runtime_snapshot_like_cpp()?
             .item_level_caps;
-        let item_stats_store = self.item_stats_store.as_ref()?;
+        let item_stats_store = self.items.stats_store.as_ref()?;
         let random_property_template = item_stats_store.random_property_template(entry_id)?;
         let sparse_template = item_stats_store.sparse_template(entry_id);
         let template_item_level = i64::from(random_property_template.item_level);
@@ -565,7 +565,7 @@ impl WorldSession {
         let Some(item) = runtime_item else {
             return 0;
         };
-        let Some(store) = self.item_bonus_db2_store.as_ref() else {
+        let Some(store) = self.items.bonus_db2_store.as_ref() else {
             return 0;
         };
 

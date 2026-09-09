@@ -65,7 +65,8 @@ impl WorldSession {
         // C++ Player.cpp:1239 validates the catalog map and all four coordinates
         // before movement, combat, pet, ownership or teleport state is changed.
         if self
-            .map_store
+            .maps
+            .store
             .as_ref()
             .is_none_or(|maps| maps.get(new_map).is_none())
             || !new_pos.is_valid_map_coord_like_cpp()
@@ -88,7 +89,8 @@ impl WorldSession {
         }
 
         if let Some(target_map) = self
-            .map_store
+            .maps
+            .store
             .as_ref()
             .and_then(|store| store.get(new_map).copied())
             && target_map.is_battleground_or_arena()
@@ -103,7 +105,8 @@ impl WorldSession {
         }
 
         if let Some(target_map) = self
-            .map_store
+            .maps
+            .store
             .as_ref()
             .and_then(|store| store.get(new_map).copied())
             && self.expansion < target_map.expansion_like_cpp()
@@ -336,7 +339,7 @@ impl WorldSession {
             return options;
         }
 
-        let Some(map_store) = self.map_store.as_ref() else {
+        let Some(map_store) = self.maps.store.as_ref() else {
             return options & !TELE_TO_SEAMLESS_LIKE_CPP;
         };
         let Some(old_map_entry) = map_store

@@ -509,7 +509,8 @@ fn loaded_condition_counts_persisted_gems_without_socket_template_like_cpp() {
 
     assert!(
         session
-            .item_stats_store
+            .items
+            .stats_store
             .as_ref()
             .and_then(|store| store.socket_template(700))
             .is_none(),

@@ -250,18 +250,20 @@ impl WorldSession {
         object_scale: f32,
         display_scale: f32,
     ) -> Option<CreatureCreateModelScalarsLikeCpp> {
-        let model = self.creature_model_info_store.as_ref()?.get(display_id)?;
+        let model = self.creatures.model_info_store.as_ref()?.get(display_id)?;
         let display_scale = if display_scale <= 0.0 {
             1.0
         } else {
             display_scale
         };
         let hover_height = self
-            .creature_display_info_store
+            .creatures
+            .display_info_store
             .as_ref()
             .and_then(|display_store| display_store.get(display_id))
             .and_then(|display| {
-                self.creature_model_data_store
+                self.creatures
+                    .model_data_store
                     .as_ref()
                     .and_then(|model_store| model_store.get(u32::from(display.model_id)))
                     .map(|model_data| {
@@ -299,12 +301,13 @@ impl WorldSession {
         }
 
         let template = self
-            .creature_template_lifecycle_store_like_cpp
+            .creatures
+            .template_lifecycle_store_like_cpp
             .as_ref()
             .and_then(|store| store.get(entry));
         let mut selected = template.and_then(|template| {
             if template_flags_extra & CreatureFlagsExtra::TRIGGER.bits() != 0 {
-                let model_info_store = self.creature_model_info_store.as_ref()?;
+                let model_info_store = self.creatures.model_info_store.as_ref()?;
                 template
                     .models
                     .iter()
@@ -359,7 +362,8 @@ impl WorldSession {
 
         let mut selected = selected?;
         if let Some(other_gender) = self
-            .creature_model_info_store
+            .creatures
+            .model_info_store
             .as_ref()
             .and_then(|store| store.get(selected.creature_display_id))
             .map(|info| info.display_id_other_gender)
@@ -408,7 +412,8 @@ impl WorldSession {
         )
     }
     pub(crate) fn creature_display_power_for_class_like_cpp(&self, unit_class: u8) -> u8 {
-        self.chr_classes_store
+        self.chr
+            .classes_store
             .as_ref()
             .and_then(|store| store.get(u32::from(unit_class)))
             .map(|entry| entry.display_power)

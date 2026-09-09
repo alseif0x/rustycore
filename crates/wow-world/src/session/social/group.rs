@@ -477,7 +477,8 @@ impl WorldSession {
             return false;
         }
         if self
-            .map_store
+            .maps
+            .store
             .as_ref()
             .and_then(|store| store.get(u32::from(player_map_id)))
             .is_some_and(|entry| entry.is_dungeon())

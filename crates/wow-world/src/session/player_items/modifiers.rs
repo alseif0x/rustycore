@@ -8,14 +8,14 @@ use super::*;
 impl WorldSession {
     /// Set the C++ ItemLimitCategory.db2 store for this session.
     pub fn set_item_limit_category_store(&mut self, store: Arc<ItemLimitCategoryStore>) {
-        self.item_limit_category_store = Some(store);
+        self.items.limit_category_store = Some(store);
     }
     /// Set the C++ ItemLimitCategoryCondition.db2 store for this session.
     pub fn set_item_limit_category_condition_store(
         &mut self,
         store: Arc<ItemLimitCategoryConditionStore>,
     ) {
-        self.item_limit_category_condition_store = Some(store);
+        self.items.limit_category_condition_store = Some(store);
     }
     /// C++ `sItemLimitCategoryStore.LookupEntry(limitCategory)`.
     pub(crate) fn item_limit_category_template_like_cpp(
@@ -27,12 +27,13 @@ impl WorldSession {
         }
 
         let entry = self
-            .item_limit_category_store
+            .items
+            .limit_category_store
             .as_ref()
             .and_then(|store| store.get(limit_category_id))?;
 
         let mut quantity = entry.quantity;
-        if let Some(condition_store) = self.item_limit_category_condition_store.as_ref() {
+        if let Some(condition_store) = self.items.limit_category_condition_store.as_ref() {
             let context_holder = self.represented_player_condition_context_like_cpp()?;
             let context = context_holder.as_context(self)?;
             for condition in condition_store.conditions_for_parent_like_cpp(entry.id) {
@@ -56,10 +57,10 @@ impl WorldSession {
     }
     /// Set the item stats store for this session.
     pub fn set_item_bonus_db2_store(&mut self, store: Arc<ItemBonusDb2Store>) {
-        self.item_bonus_db2_store = Some(store);
+        self.items.bonus_db2_store = Some(store);
     }
     pub fn set_item_set_store(&mut self, store: Arc<ItemSetStore>) {
-        self.item_set_store = Some(store);
+        self.items.set_store = Some(store);
     }
     pub fn set_item_set_spell_store(&mut self, store: Arc<ItemSetSpellStore>) {
         self.spell_catalogs.item_set_spell_store = Some(store);
@@ -68,7 +69,8 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> Option<&wow_data::ItemSetEntry> {
-        self.item_set_store
+        self.items
+            .set_store
             .as_ref()
             .and_then(|store| store.item_set_for_item_id_like_cpp(item_id))
     }
@@ -154,7 +156,7 @@ impl WorldSession {
         else {
             return 0;
         };
-        let Some(item_stats_store) = self.item_stats_store.as_ref().cloned() else {
+        let Some(item_stats_store) = self.items.stats_store.as_ref().cloned() else {
             return 0;
         };
         let mut planned_actions = Vec::new();
@@ -304,7 +306,8 @@ impl WorldSession {
         }
 
         let Some(template) = self
-            .item_stats_store
+            .items
+            .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item_entry))
         else {

@@ -11,7 +11,8 @@ impl WorldSession {
         creature: &wow_entities::Creature,
     ) -> Option<AttackReputationFactionSnapshotLikeCpp> {
         let faction_template_id = u32::try_from(creature.unit().data().faction_template).ok()?;
-        self.faction_template_store
+        self.factions
+            .template_store
             .as_ref()
             .and_then(|store| store.get(faction_template_id))
             .map(|entry| {
@@ -19,7 +20,7 @@ impl WorldSession {
                 AttackReputationFactionSnapshotLikeCpp {
                     faction_id,
                     contested_guard: entry.is_contested_guard_faction_like_cpp(),
-                    can_have_reputation: self.faction_store.as_ref().and_then(|store| {
+                    can_have_reputation: self.factions.store.as_ref().and_then(|store| {
                         store
                             .get(faction_id)
                             .map(|faction| faction.can_have_reputation_like_cpp())
@@ -53,7 +54,7 @@ impl WorldSession {
     ) -> f32 {
         use wow_data::reputation::ReputationRankLikeCpp;
 
-        let Some(faction_template_store) = self.faction_template_store.as_ref() else {
+        let Some(faction_template_store) = self.factions.template_store.as_ref() else {
             return 1.0;
         };
         let Some(faction_template) = faction_template_store.get(faction_template_id) else {
@@ -62,7 +63,7 @@ impl WorldSession {
         if faction_template.faction == 0 {
             return 1.0;
         }
-        let Some(faction_store) = self.faction_store.as_ref() else {
+        let Some(faction_store) = self.factions.store.as_ref() else {
             return 1.0;
         };
         let Some(faction_entry) = faction_store.get(u32::from(faction_template.faction)) else {
@@ -94,7 +95,8 @@ impl WorldSession {
         use wow_data::reputation::ReputationRankLikeCpp;
 
         let Some(faction_template) = self
-            .faction_template_store
+            .factions
+            .template_store
             .as_ref()
             .and_then(|store| store.get(faction_template_id))
         else {
@@ -104,7 +106,8 @@ impl WorldSession {
             return ReputationRankLikeCpp::Neutral;
         }
         let Some(faction_entry) = self
-            .faction_store
+            .factions
+            .store
             .as_ref()
             .and_then(|store| store.get(u32::from(faction_template.faction)))
         else {
@@ -210,7 +213,7 @@ impl WorldSession {
         self.paragon_reputation_store.as_ref()
     }
     pub(in crate::session) fn initialize_reputation_mgr_like_cpp(&mut self) {
-        let Some(faction_store) = self.faction_store.clone() else {
+        let Some(faction_store) = self.factions.store.clone() else {
             return;
         };
         let paragon_reputation_store = self.paragon_reputation_store.clone();
