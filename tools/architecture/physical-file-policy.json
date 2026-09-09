@@ -448,8 +448,8 @@
     {
       "path": "crates/wow-world/src/entity_update_bridge.rs",
       "observed_lines": 2107,
-      "ceiling_lines": 2107,
-      "split": "Separate typed entity update projections and delivery adapters; retire duplicate-state bridges under C3.",
+      "ceiling_lines": 35,
+      "split": "Separate the entity update bridge state from its operations and regressions. #662 decomposes the 2,107-line file into two state modules, one ops module and one regression module, dropping it to 35 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -490,8 +490,8 @@
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
       "observed_lines": 2473,
-      "ceiling_lines": 2473,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains. #589 adds 28 inseparable fixture lines: the two binder scenarios now adopt the canonical Player handle, set its vitals and set its faction template, because login installs all three and the cast identity allocator, the alive gate and the interaction reaction check each fail closed without them. #597 adds 23 inseparable lines: the committed-money publication-order scan now concatenates the 18 session/player_items sources so it still sees the whole family after the move, exactly as it followed the #224 character split. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 12444 to 2473 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "ceiling_lines": 134,
+      "split": "Character-handler regressions: the mounts already live in character_tests/. #662 moves the shared fixtures - the lifecycle/homebind/collection ports and their builders - into three fixture modules, dropping this root from 2,473 to 134 lines and tightening the ceiling to that figure; only the `#[path]` mounts, the shared imports and the fixture re-exports remain. All tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -504,8 +504,8 @@
     {
       "path": "crates/wow-world/src/handlers/group.rs",
       "observed_lines": 2995,
-      "ceiling_lines": 2995,
-      "split": "Separate group membership and party operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "ceiling_lines": 349,
+      "split": "Separate the group handler operations from their regressions. #662 decomposes the 2,995-line file into one state module, two ops modules dividing the `impl WorldSession` block by handler responsibility, and three regression modules, dropping it to 349 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -574,15 +574,15 @@
     {
       "path": "crates/wow-world/src/handlers/spell.rs",
       "observed_lines": 2375,
-      "ceiling_lines": 2375,
-      "split": "Separate spell admission/cast operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #589 moves normal request admission, preparation, identity, checks, power and publication into the private wow-world::player_cast application and its Session adapters, reducing this handler by 455 lines; the ceiling is tightened to the validated 6282. The remaining file still owns the broader spell handler responsibility and stays above the 2000-line budget, so its separation stays in #584 C4 rather than being declared closed by this reduction. #624 splits the inline 3,909-line test module into bounded scenario files under handlers/spell/tests - cast, mount, aura, loot_template, totem, stored_item, misc, plus shared fixtures, spell_stores and port_fixtures - following the handlers/trainer precedent. The file drops from 6,283 to 2375 lines and the ceiling is tightened to that figure; the test count is unchanged at 3,822 and no production line moved. The remaining file is production only, and the loot and stored-item methods it still holds are recorded in #624 as belonging to other responsibilities.",
+      "ceiling_lines": 242,
+      "split": "Separate the spell handler operations from their regressions. #662 decomposes the 2,375-line file into one state module, one ops module and two regression modules, dropping it to 242 lines and tightening the ceiling to that figure; the root keeps the handler registrations. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/talent.rs",
       "observed_lines": 2299,
-      "ceiling_lines": 2299,
-      "split": "Separate talent learning/reset operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "ceiling_lines": 58,
+      "split": "Separate the talent handler operations from their regressions. #662 decomposes the 2,299-line file into one state module, one ops module and two regression modules, dropping it to 58 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -596,14 +596,14 @@
       "path": "crates/wow-world/src/map_manager/mod.rs",
       "observed_lines": 2190,
       "ceiling_lines": 2190,
-      "split": "Separate legacy-map facade/lifetime from runtime capabilities; retire remaining authority bridges under C3.",
+      "split": "Separate the map manager's canonical/legacy bridge from its runtime state. #662 measured this module and deferred it: the bridge inventory pairs canonical-side and legacy-side evidence inside one enclosing module, so relocating a bridge function's context into a sibling module drops a row from the audit - `world_creature_from_pending_respawn_like_cpp` disappeared from the 65-row bridge inventory when it moved. That is a coverage narrowing, not a physical improvement, so this module needs the semantic separation owned by 584:C4.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/map_manager/movement.rs",
       "observed_lines": 2334,
       "ceiling_lines": 2334,
-      "split": "Separate legacy movement planning, canonical synchronization and delivery results; preserve the selected clock.",
+      "split": "Movement generators over the legacy map manager. #662 deferred this file with map_manager/mod.rs for the same reason: splitting the module breaks the bridge inventory's pairing of canonical and legacy evidence within one enclosing module, narrowing the audit. Its exit is the semantic separation owned by 584:C4.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -616,8 +616,8 @@
     {
       "path": "crates/wow-world/src/reputation/mgr.rs",
       "observed_lines": 2520,
-      "ceiling_lines": 2520,
-      "split": "Separate reputation rules/state projection, persistence receipt and publication adaptation without adding an owner mirror.",
+      "ceiling_lines": 39,
+      "split": "Separate the reputation manager state from its operations and regressions. #662 decomposes the 2,520-line file into two state modules plus two ops modules dividing the 1,058-line inherent `impl ReputationMgrLikeCpp`, and two regression modules, dropping it to 39 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
