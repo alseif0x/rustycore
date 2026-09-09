@@ -18,6 +18,7 @@ pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 mod effect_learning;
 pub mod mailbox;
 mod movement;
+mod persistence;
 mod pets;
 mod player_cast;
 mod player_items;
@@ -9356,64 +9357,6 @@ impl WorldSession {
         });
     }
 
-    pub(crate) fn mark_represented_void_storage_loaded_like_cpp(&mut self) {
-        let _ = self.with_owned_void_storage_mut_like_cpp(|_, loaded| *loaded = true);
-    }
-
-    /// Match C++ `Player::LoadFromDB`: locked characters do not consume the
-    /// prepared void-storage result, but still own a coherent empty vault that
-    /// can be unlocked and saved during this session.
-    pub(crate) fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
-        self.clear_represented_void_storage_like_cpp();
-        let should_load_rows = self.void_storage_is_unlocked_like_cpp();
-        if !should_load_rows {
-            self.mark_represented_void_storage_loaded_like_cpp();
-        }
-        should_load_rows
-    }
-
-    pub(crate) fn load_represented_void_storage_row_like_cpp(
-        &mut self,
-        slot: u8,
-        item: RepresentedVoidStorageItemLikeCpp,
-    ) -> bool {
-        let slot = usize::from(slot);
-        if item.item_id == 0
-            || slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
-            || self.item_storage_template(item.item_entry).is_none()
-        {
-            return false;
-        }
-        let item_entry = item.item_entry;
-        let inserted = self
-            .with_owned_void_storage_mut_like_cpp(|items, _| {
-                if items[slot].is_some()
-                    || items
-                        .iter()
-                        .flatten()
-                        .any(|loaded| loaded.item_id == item.item_id)
-                {
-                    return false;
-                }
-                items[slot] = Some(item.clone());
-                true
-            })
-            .unwrap_or(false);
-        if !inserted {
-            return false;
-        }
-        // C++ `_LoadVoidStorage` initializes `BonusData` from the void item
-        // instance and calls `CollectionMgr::AddItemAppearance`; this DB shape
-        // only carries the fixed-level modifier, so the effective appearance
-        // modifier remains the template default zero.
-        let _ = self.add_item_appearance_for_item_like_cpp(item_entry, 0);
-        true
-    }
-
-    pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> Option<bool> {
-        self.with_owned_void_storage_like_cpp(|_, loaded| loaded)
-    }
-
     pub(crate) fn represented_void_storage_free_slots_like_cpp(&self) -> Option<usize> {
         self.with_owned_void_storage_like_cpp(|items, _| {
             items.iter().filter(|item| item.is_none()).count()
@@ -10014,125 +9957,6 @@ impl WorldSession {
                 seer_can_never_see_target,
             );
         });
-    }
-
-    pub(crate) fn current_player_save_to_db_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self.fixture_player_save_to_db_snapshot_like_cpp();
-        }
-        let guid = self.player_guid()?;
-        let handle = self.player_handle_like_cpp?;
-        if handle.guid() != guid {
-            return None;
-        }
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
-        let residence = manager.player_residence_like_cpp(handle)?;
-        // C++ Player.cpp:19480-19514 reads one Player and selects a save-only
-        // teleport destination. Resolve every mutable input under this same guard.
-        // The existing residence-specific health projection remains explicit
-        // compatibility debt; map, instance and level come from the Player.
-        manager.with_player_like_cpp(handle, |player| {
-            self.player_save_header_from_owner_like_cpp(player, residence)
-        })
-    }
-
-    #[cfg(test)]
-    fn fixture_player_save_to_db_snapshot_like_cpp(&self) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
-        let guid = self.player_guid()?;
-        // C++ saves through this session's exact `Player*`. Resolve the raw
-        // power array through the generation-checked owner before any spatial
-        // lookup so a replacement with the same GUID cannot be persisted by a
-        // stale session incarnation.
-        let powers = self.resolved_player_power_snapshot_like_cpp()?;
-        let xp = self.resolved_player_xp_like_cpp()?;
-        let money = self.resolved_player_money_like_cpp()?;
-        let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
-        if let Some(manager) = self.canonical_map_manager.as_ref()
-            && let Ok(manager) = manager.lock()
-        {
-            let mut snapshot = None;
-            manager.do_for_all_maps(|managed| {
-                if snapshot.is_some() {
-                    return;
-                }
-                let Some(player) = managed.map().get_typed_player(guid) else {
-                    return;
-                };
-                // C++ has one live Player object, and Player::SaveToDB reads a
-                // coherent snapshot from that object. Accepted movement now
-                // relocates this canonical Player before persistence, so do not
-                // recursively resolve a Session mirror while MapManager is held.
-                let (map_id, instance_id, position) =
-                    if let Some((map_id, position)) = pending_teleport_destination {
-                        (map_id, 0, position)
-                    } else {
-                        (
-                            self.player_map_id_like_cpp(),
-                            managed.instance_id(),
-                            player.unit().world().position(),
-                        )
-                    };
-
-                let canonical_max_health = player
-                    .unit()
-                    .data()
-                    .max_health
-                    .max(1)
-                    .min(u64::from(u32::MAX)) as u32;
-                let canonical_health = player.unit().data().health.min(u64::from(u32::MAX)) as u32;
-                let health = if player.unit().is_alive() && canonical_health > 0 {
-                    canonical_health
-                } else {
-                    0
-                };
-
-                snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
-                    guid,
-                    map_id,
-                    instance_id,
-                    position,
-                    level: self.player_level_like_cpp(),
-                    xp,
-                    money,
-                    health,
-                    max_health: canonical_max_health,
-                    powers,
-                });
-            });
-            if snapshot.is_some() {
-                return snapshot;
-            }
-        }
-
-        let (map_id, instance_id, position) =
-            if let Some((map_id, position)) = pending_teleport_destination {
-                (map_id, 0, position)
-            } else {
-                (
-                    self.player_map_id_like_cpp(),
-                    self.current_canonical_player_map_key_like_cpp()
-                        .map(|key| key.instance_id)
-                        .unwrap_or(0),
-                    self.player_position_like_cpp()?,
-                )
-            };
-
-        let (health, max_health, _) = self.resolved_player_vitals_like_cpp()?;
-        Some(PlayerSaveToDbSnapshotLikeCpp {
-            guid,
-            map_id,
-            instance_id,
-            position,
-            level: self.player_level_like_cpp(),
-            xp,
-            money,
-            health,
-            max_health,
-            powers,
-        })
     }
 
     pub(crate) fn mutate_canonical_player_like_cpp<R>(
@@ -12016,24 +11840,6 @@ impl WorldSession {
             .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
     }
 
-    #[cfg(test)]
-    fn load_instance_time_restriction_rows_like_cpp(
-        &mut self,
-        rows: impl IntoIterator<Item = (u32, u64)>,
-    ) {
-        self.represented_instance_reset_times_like_cpp.clear();
-        for (instance_id, release_time) in rows {
-            self.represented_instance_reset_times_like_cpp
-                .entry(instance_id)
-                .or_insert(release_time);
-        }
-    }
-
-    #[cfg(test)]
-    fn load_completed_achievement_rows_like_cpp(&mut self, rows: impl IntoIterator<Item = u32>) {
-        let _ = self.replace_completed_achievement_ids_like_cpp(rows);
-    }
-
     fn completed_achievement_ids_snapshot_like_cpp(&self) -> Option<HashSet<u32>> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             player
@@ -12077,102 +11883,6 @@ impl WorldSession {
             return true;
         }
         canonical
-    }
-
-    pub async fn load_completed_achievements_like_cpp(&mut self) {
-        let _ = self.replace_completed_achievement_ids_like_cpp([]);
-
-        let Some(player_guid) = self.player_guid() else {
-            warn!(
-                account = self.account_id,
-                "LoadCompletedAchievements skipped: player guid unavailable"
-            );
-            return;
-        };
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
-            warn!(
-                account = self.account_id,
-                guid = player_guid.counter(),
-                "LoadCompletedAchievements skipped: Player lifecycle port unavailable"
-            );
-            return;
-        };
-
-        let rows = match port
-            .load_login_auxiliary_like_cpp(
-                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements {
-                    player_guid: player_guid.counter() as u64,
-                },
-            )
-            .await
-        {
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
-                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CompletedAchievements(rows),
-            ) => rows,
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.account_id,
-                    guid = player_guid.counter(),
-                    "LoadCompletedAchievements query failed: {reason}"
-                );
-                return;
-            }
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
-                warn!(
-                    account = self.account_id,
-                    guid = player_guid.counter(),
-                    "Player lifecycle port returned the wrong auxiliary login data for completed achievements"
-                );
-                return;
-            }
-        };
-
-        let _ = self.replace_completed_achievement_ids_like_cpp(rows);
-    }
-
-    pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
-        self.represented_instance_reset_times_like_cpp.clear();
-
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
-            warn!(
-                account = self.account_id,
-                "LoadInstanceTimeRestrictions skipped: Player lifecycle port unavailable"
-            );
-            return;
-        };
-
-        let rows = match port
-            .load_login_auxiliary_like_cpp(
-                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions {
-                    account_id: self.account_id,
-                },
-            )
-            .await
-        {
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
-                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(rows),
-            ) => rows,
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.account_id,
-                    "LoadInstanceTimeRestrictions query failed: {reason}"
-                );
-                return;
-            }
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
-                warn!(
-                    account = self.account_id,
-                    "Player lifecycle port returned the wrong auxiliary login data for instance time restrictions"
-                );
-                return;
-            }
-        };
-
-        for row in rows {
-            self.represented_instance_reset_times_like_cpp
-                .entry(row.instance_id)
-                .or_insert(row.release_time);
-        }
     }
 
     fn access_requirement_abort_like_cpp(
@@ -13937,24 +13647,6 @@ impl WorldSession {
             .as_ref()
     }
 
-    pub fn set_character_enumeration_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp
-            .admission
-            .character_enumeration = Some(port);
-    }
-
-    pub(crate) fn character_enumeration_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .admission
-            .character_enumeration
-            .clone()
-    }
-
     pub fn set_session_account_state_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
@@ -13962,52 +13654,6 @@ impl WorldSession {
         self.persistence_ports_like_cpp
             .admission
             .session_account_state = Some(port);
-    }
-
-    pub fn set_packet_spoof_ban_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.admission.packet_spoof_ban = Some(port);
-    }
-
-    pub fn set_void_storage_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.player.void_storage = Some(port);
-    }
-
-    pub(crate) fn void_storage_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.player.void_storage.clone()
-    }
-
-    pub fn set_social_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.player.social = Some(port);
-    }
-
-    pub(crate) fn social_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.player.social.clone()
-    }
-
-    pub fn set_map_corpse_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.world.map_corpse = Some(port);
-    }
-
-    pub(crate) fn map_corpse_persistence_port_like_cpp(
-        &self,
-    ) -> Option<&Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.world.map_corpse.as_ref()
     }
 
     pub fn set_group_loot_money_persistence_port_like_cpp(
@@ -14024,92 +13670,6 @@ impl WorldSession {
             .world
             .group_loot_money
             .clone()
-    }
-
-    pub fn set_represented_group_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.world.represented_group = Some(port);
-    }
-
-    pub(crate) fn represented_group_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .world
-            .represented_group
-            .clone()
-    }
-
-    pub fn set_support_bug_report_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.admission.support_bug_report = Some(port);
-    }
-
-    pub(crate) fn support_bug_report_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .admission
-            .support_bug_report
-            .clone()
-    }
-
-    pub fn set_gossip_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.catalogs.gossip_catalog = Some(port);
-    }
-
-    pub(crate) fn gossip_catalog_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .catalogs
-            .gossip_catalog
-            .clone()
-    }
-
-    pub fn set_player_name_query_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.admission.player_name_query = Some(port);
-    }
-
-    pub(crate) fn player_name_query_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .admission
-            .player_name_query
-            .clone()
-    }
-
-    pub fn set_instance_lock_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.player.instance_lock = Some(port);
-    }
-
-    pub(crate) fn instance_lock_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.player.instance_lock.clone()
-    }
-
-    /// Quarantine this session after an unreconcilable battle-pet purchase
-    /// COMMIT, mirroring the #159 money-persistence indeterminate boundary:
-    /// normal payout admission stays closed and the client must relog.
-    pub(crate) fn quarantine_player_money_persistence_like_cpp(&mut self, reason: &'static str) {
-        self.durable_loot_money_persistence_like_cpp
-            .mark_indeterminate_like_cpp();
-        self.kick(reason);
     }
 
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
@@ -14386,93 +13946,6 @@ impl WorldSession {
         true
     }
 
-    /// C++ `Player::AddCurrency(..., CurrencyGainSource::Vendor)` without aura gain bonuses.
-    pub(crate) fn plan_add_currency_vendor_like_cpp(
-        &self,
-        currencies: &mut HashMap<u32, PlayerCurrency>,
-        currency_id: u32,
-        amount: u32,
-    ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        if amount == 0 {
-            return Ok(None);
-        }
-
-        let Some(entry) = self
-            .currency_types_store
-            .as_ref()
-            .and_then(|store| store.get(currency_id))
-            .copied()
-        else {
-            return Err(());
-        };
-
-        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
-        if (entry.is_alliance() && player_team != Team::Alliance)
-            || (entry.is_horde() && player_team != Team::Horde)
-        {
-            return Err(());
-        }
-
-        if entry.award_condition_id != 0
-            || entry.faction_id != 0
-            || currency_id == CurrencyTypes::Azerite as u32
-        {
-            return Err(());
-        }
-
-        let currency = currencies.entry(currency_id).or_insert(PlayerCurrency {
-            state: PlayerCurrencyState::New,
-            quantity: 0,
-            weekly_quantity: 0,
-            tracked_quantity: 0,
-            increased_cap_quantity: 0,
-            earned_quantity: 0,
-            flags: 0,
-        });
-
-        let weekly_cap = entry.max_earnable_per_week;
-        let mut applied = amount;
-        if weekly_cap != 0 && currency.weekly_quantity.saturating_add(applied) > weekly_cap {
-            applied = weekly_cap.saturating_sub(currency.weekly_quantity);
-        }
-
-        let max_quantity = currency_max_quantity_cpp(&entry, currency);
-        if max_quantity != 0 && currency.quantity.saturating_add(applied) > max_quantity {
-            applied = max_quantity.saturating_sub(currency.quantity);
-        }
-
-        if applied == 0 {
-            return Ok(None);
-        }
-
-        if currency.state != PlayerCurrencyState::New {
-            currency.state = PlayerCurrencyState::Changed;
-        }
-        currency.quantity = currency.quantity.saturating_add(applied);
-        if weekly_cap != 0 {
-            currency.weekly_quantity = currency.weekly_quantity.saturating_add(applied);
-        }
-        if entry.is_tracking_quantity() {
-            currency.tracked_quantity = currency.tracked_quantity.saturating_add(applied);
-        }
-        if entry.has_total_earned() {
-            currency.earned_quantity = currency.earned_quantity.saturating_add(applied);
-        }
-
-        let scaler = entry.scaler().max(1) as u32;
-        let delta = PlayerCurrencyDelta {
-            currency_id,
-            quantity: currency.quantity,
-            amount: applied,
-            weekly_quantity: ((currency.weekly_quantity / scaler) > 0)
-                .then_some(currency.weekly_quantity),
-            max_quantity: (max_quantity != 0).then_some(max_quantity),
-            total_earned: entry.has_total_earned().then_some(currency.earned_quantity),
-            suppress_chat_log: entry.is_suppressing_chat_log(false),
-        };
-        Ok(Some(delta))
-    }
-
     /// Publish the C++ vendor gain immediately for callers that do not own a
     /// wider durable transaction. Persistence-sensitive vendor handlers use
     /// [`Self::plan_add_currency_vendor_like_cpp`] and publish only after
@@ -14555,96 +14028,6 @@ impl WorldSession {
             return Err(());
         }
         Ok(Some(delta))
-    }
-
-    /// C++ `Player::_SaveCurrency` plan for changed/new currency rows.
-    /// Gameplay owns filtering and state transitions; the persistence adapter
-    /// owns statement identity, bind order, and transaction execution.
-    pub(crate) fn plan_player_currency_save_like_cpp(
-        &self,
-        character_guid: u64,
-        currencies: &mut HashMap<u32, PlayerCurrency>,
-    ) -> wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-        let mut rows = Vec::new();
-        let Some(store) = self.currency_types_store.as_ref() else {
-            return wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-                player_guid: character_guid,
-                rows,
-            };
-        };
-        for (&currency_id, currency) in currencies.iter_mut() {
-            if !store.has_record(currency_id) {
-                continue;
-            }
-            let Ok(currency_db_id) = u16::try_from(currency_id) else {
-                continue;
-            };
-
-            match currency.state {
-                PlayerCurrencyState::New => {
-                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
-                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::New,
-                        currency_id: currency_db_id,
-                        quantity: currency.quantity,
-                        weekly_quantity: currency.weekly_quantity,
-                        tracked_quantity: currency.tracked_quantity,
-                        increased_cap_quantity: currency.increased_cap_quantity,
-                        earned_quantity: currency.earned_quantity,
-                        flags: currency.flags,
-                    });
-                    currency.state = PlayerCurrencyState::Unchanged;
-                }
-                PlayerCurrencyState::Changed => {
-                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
-                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::Changed,
-                        currency_id: currency_db_id,
-                        quantity: currency.quantity,
-                        weekly_quantity: currency.weekly_quantity,
-                        tracked_quantity: currency.tracked_quantity,
-                        increased_cap_quantity: currency.increased_cap_quantity,
-                        earned_quantity: currency.earned_quantity,
-                        flags: currency.flags,
-                    });
-                    currency.state = PlayerCurrencyState::Unchanged;
-                }
-                PlayerCurrencyState::Unchanged | PlayerCurrencyState::Removed => {}
-            }
-        }
-        wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-            player_guid: character_guid,
-            rows,
-        }
-    }
-
-    pub(crate) async fn persist_standalone_player_currency_save_like_cpp(
-        &mut self,
-        character_guid: u64,
-        pre_save_snapshot: HashMap<u32, PlayerCurrency>,
-    ) -> Result<(), wow_persistence::PersistenceOutcomeLikeCpp> {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
-            return Ok(());
-        };
-        let Some(mut currencies) = self.player_currencies_like_cpp() else {
-            return Err(wow_persistence::PersistenceOutcomeLikeCpp::Failed {
-                reason: "canonical Player currency owner is unavailable".to_string(),
-            });
-        };
-        let request = self.plan_player_currency_save_like_cpp(character_guid, &mut currencies);
-        if !self.set_player_currencies_like_cpp(currencies) {
-            return Err(wow_persistence::PersistenceOutcomeLikeCpp::Failed {
-                reason: "canonical Player currency owner became unavailable".to_string(),
-            });
-        }
-        let outcome = port.persist_currency_save_like_cpp(request).await;
-        if matches!(
-            outcome,
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. }
-        ) {
-            Ok(())
-        } else {
-            self.set_player_currencies_like_cpp(pre_save_snapshot);
-            Err(outcome)
-        }
     }
 
     pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
@@ -14756,29 +14139,6 @@ impl WorldSession {
             .then_some(result)
     }
 
-    /// C++ `CollectionMgr::LoadAccountHeirlooms`.
-    pub(crate) fn load_represented_account_heirlooms_like_cpp(
-        &mut self,
-        heirloom_rows: impl IntoIterator<Item = (u32, u32)>,
-    ) {
-        let mut heirlooms = BTreeMap::new();
-        for (item_id, flags) in heirloom_rows {
-            let bonus_id = match self.heirloom_store.as_ref() {
-                Some(store) => {
-                    let Some(heirloom) = store.get_by_item_id_like_cpp(item_id) else {
-                        continue;
-                    };
-                    heirloom_bonus_for_flags_like_cpp(heirloom, flags)
-                }
-                None => 0,
-            };
-            heirlooms.insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id });
-        }
-        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.heirlooms = heirlooms;
-        });
-    }
-
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
         self.player_collection_state_snapshot_like_cpp()
@@ -14790,24 +14150,6 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default()
-    }
-
-    /// C++ `CollectionMgr::SaveAccountHeirlooms`.
-    pub(crate) fn account_heirloom_save_rows_like_cpp(
-        &self,
-    ) -> Option<Vec<AccountHeirloomSaveRowLikeCpp>> {
-        let bnet_account_id = self.battlenet_account_id();
-        Some(
-            self.player_collection_state_snapshot_like_cpp()?
-                .heirlooms
-                .into_iter()
-                .map(|(item_id, data)| AccountHeirloomSaveRowLikeCpp {
-                    bnet_account_id,
-                    item_id,
-                    flags: data.flags,
-                })
-                .collect(),
-        )
     }
 
     /// C++ `CollectionMgr::GetHeirloomBonus`.
@@ -15012,27 +14354,6 @@ impl WorldSession {
         Some(update)
     }
 
-    /// C++ `CollectionMgr::LoadAccountToys`.
-    pub(crate) fn load_represented_account_toys_like_cpp(
-        &mut self,
-        toy_rows: impl IntoIterator<Item = (u32, bool, bool)>,
-    ) {
-        let mut toys = BTreeMap::new();
-        for (item_id, is_favorite, has_fanfare) in toy_rows {
-            let mut flags = 0_u32;
-            if is_favorite {
-                flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
-            }
-            if has_fanfare {
-                flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
-            }
-            toys.insert(item_id, flags);
-        }
-        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.toys = toys;
-        });
-    }
-
     /// C++ `CollectionMgr::SaveAccountToys`.
     pub(crate) fn account_toy_rows_like_cpp(&self) -> Vec<(u32, bool, bool)> {
         self.player_collection_state_snapshot_like_cpp()
@@ -15050,23 +14371,6 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default()
-    }
-
-    /// C++ `CollectionMgr::SaveAccountToys`.
-    pub(crate) fn account_toy_save_rows_like_cpp(&self) -> Option<Vec<AccountToySaveRowLikeCpp>> {
-        let bnet_account_id = self.battlenet_account_id();
-        Some(
-            self.player_collection_state_snapshot_like_cpp()?
-                .toys
-                .into_iter()
-                .map(|(item_id, flags)| AccountToySaveRowLikeCpp {
-                    bnet_account_id,
-                    item_id,
-                    is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                    has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
-                })
-                .collect(),
-        )
     }
 
     /// C++ `CollectionMgr::GetAccountToys` full update payload.
@@ -15567,31 +14871,6 @@ impl WorldSession {
         None
     }
 
-    pub(crate) fn load_character_reputation_rows_like_cpp(
-        &mut self,
-        rows: impl IntoIterator<Item = crate::reputation::mgr::CharacterReputationRowLikeCpp>,
-    ) -> bool {
-        let Some(faction_store) = self.faction_store().cloned() else {
-            return false;
-        };
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().cloned();
-        let paragon_reputation_store = self.paragon_reputation_store.as_ref().cloned();
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-
-        self.mutate_reputation_mgr_like_cpp(|mgr| {
-            mgr.load_from_db_like_cpp(
-                rows,
-                faction_store.as_ref(),
-                friendship_rep_reaction_store.as_deref(),
-                paragon_reputation_store.as_deref(),
-                race,
-                class,
-            );
-        })
-        .is_some()
-    }
-
     pub(crate) fn resolved_watched_faction_index_like_cpp(&self) -> Option<i32> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.watched_faction_index_like_cpp());
@@ -15877,29 +15156,6 @@ impl WorldSession {
 
     pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
         self.packet_spoof_config_like_cpp = config;
-    }
-
-    pub fn set_player_save_interval_ms_like_cpp(&mut self, interval_ms: u32) {
-        self.player_save_interval_ms_like_cpp = interval_ms;
-        self.reset_player_save_timer_like_cpp();
-    }
-
-    fn reset_player_save_timer_like_cpp(&mut self) {
-        self.next_player_save_ms_like_cpp = self.player_save_interval_ms_like_cpp;
-        self.pending_periodic_player_save_like_cpp = false;
-    }
-
-    fn update_player_save_timer_like_cpp(&mut self, diff_ms: u32) {
-        if self.player_save_interval_ms_like_cpp == 0 || self.next_player_save_ms_like_cpp == 0 {
-            return;
-        }
-
-        if diff_ms >= self.next_player_save_ms_like_cpp {
-            self.next_player_save_ms_like_cpp = 0;
-            self.pending_periodic_player_save_like_cpp = true;
-        } else {
-            self.next_player_save_ms_like_cpp -= diff_ms;
-        }
     }
 
     pub fn set_server_expansion_like_cpp(&mut self, expansion: u8) {
@@ -17080,65 +16336,6 @@ impl WorldSession {
         (entry.toggle_difficulty_id != 0).then_some(u32::from(entry.toggle_difficulty_id))
     }
 
-    /// C++ `Player::LoadFromDB` applies `CheckLoaded*DifficultyID` to the raw
-    /// `characters` columns before any login packets are sent.
-    pub(crate) fn load_represented_player_difficulties_like_cpp(
-        &mut self,
-        dungeon_difficulty_id: u32,
-        raid_difficulty_id: u32,
-        legacy_raid_difficulty_id: u32,
-    ) {
-        let Some(store) = self.difficulty_store() else {
-            let _ = self.replace_player_difficulty_preferences_like_cpp(
-                DIFFICULTY_NORMAL_LIKE_CPP,
-                DIFFICULTY_NORMAL_RAID_LIKE_CPP,
-                DIFFICULTY_10_N_LIKE_CPP,
-            );
-            return;
-        };
-
-        let dungeon_difficulty_id =
-            store.check_loaded_dungeon_difficulty_id_like_cpp(dungeon_difficulty_id);
-        let raid_difficulty_id = store.check_loaded_raid_difficulty_id_like_cpp(raid_difficulty_id);
-        let legacy_raid_difficulty_id =
-            store.check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id);
-
-        let _ = self.replace_player_difficulty_preferences_like_cpp(
-            dungeon_difficulty_id,
-            raid_difficulty_id,
-            legacy_raid_difficulty_id,
-        );
-    }
-
-    /// C++ `Player::_LoadGroup` overwrites the loaded player difficulties with
-    /// the current group values because the leader may change them while the
-    /// member is offline.
-    pub(crate) fn load_represented_group_difficulties_like_cpp(&mut self) -> bool {
-        let (Some(group_guid), Some(group_registry)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
-        ) else {
-            return false;
-        };
-
-        let preferences = {
-            let Some(group) = group_registry.get(&group_guid) else {
-                return false;
-            };
-            (
-                group.dungeon_difficulty_id,
-                group.raid_difficulty_id,
-                group.legacy_raid_difficulty_id,
-            )
-        };
-
-        self.replace_player_difficulty_preferences_like_cpp(
-            preferences.0,
-            preferences.1,
-            preferences.2,
-        )
-    }
-
     /// Resolve C++ `Player::m_group` through this session incarnation's
     /// generation-checked canonical Player handle. An unresolved owner never
     /// falls back in production.
@@ -17215,30 +16412,6 @@ impl WorldSession {
         .is_some()
     }
 
-    /// C++ `Player::SetGroup(group, subgroup)` stores the subgroup on the
-    /// player's `GroupReference`; `Player::GetSubGroup()` reads it from there.
-    pub(crate) fn load_represented_group_subgroup_like_cpp(&mut self) -> bool {
-        let (Some(group_guid), Some(player_guid), Some(group_registry)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.player_guid(),
-            self.group_registry.as_ref(),
-        ) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-
-        let Some(group) = group_registry.get(&group_guid) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        let Some(slot) = group.member_slot_like_cpp(player_guid) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-
-        self.set_owned_player_group_like_cpp(Some((group_guid, slot.subgroup)))
-    }
-
     pub(crate) fn apply_group_subgroup_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
         if self.resolved_group_guid_like_cpp() == Some(group_guid)
             && self.set_owned_player_group_like_cpp(Some((group_guid, subgroup)))
@@ -17268,43 +16441,6 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_subgroup_like_cpp(&self) -> Option<u8> {
         self.resolved_group_subgroup_like_cpp()
-    }
-
-    /// C++ `Player::_LoadGroup` resolves `CHAR_SEL_GROUP_MEMBER.guid` through
-    /// `sGroupMgr->GetGroupByDbStoreId` before attaching the player to the
-    /// already-loaded group.
-    pub(crate) fn load_represented_group_by_db_store_id_like_cpp(
-        &mut self,
-        db_store_id: u32,
-    ) -> bool {
-        let Some(group_registry) = self.group_registry.as_ref() else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        let Some(group_guid) = group_guid_by_db_store_id_like_cpp(db_store_id) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        if !group_registry.contains_key(&group_guid) {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        }
-
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        let Some(subgroup) = group_registry.get(&group_guid).and_then(|group| {
-            group
-                .member_slot_like_cpp(player_guid)
-                .map(|slot| slot.subgroup)
-        }) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        if !self.set_owned_player_group_like_cpp(Some((group_guid, subgroup))) {
-            return false;
-        }
-        self.load_represented_group_difficulties_like_cpp()
     }
 
     /// C++ `Player::ResetGroupUpdateSequenceIfNeeded` resets the per-player
@@ -18211,75 +17347,6 @@ impl WorldSession {
         self.num_talents_at_level_store.as_ref()
     }
 
-    pub(crate) fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
-        let _ = self.mutate_player_spell_runtime_like_cpp(
-            wow_entities::PlayerSpellRuntimeState::begin_trait_config_load_like_cpp,
-        );
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-    }
-
-    #[cfg(test)]
-    fn fixture_begin_trait_config_authority_load_like_cpp(&mut self) {
-        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_definition_ids.clear();
-            runtime.trait_definition_ids_complete = false;
-            runtime.trait_config_rows.clear();
-            runtime.trait_config_rows_complete = false;
-            runtime.trait_entry_rows_complete = false;
-            runtime.trait_entry_rows_empty = false;
-        });
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-    }
-
-    pub(crate) fn complete_represented_trait_config_authority_load_like_cpp(
-        &mut self,
-        configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
-        entries_empty: bool,
-    ) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let configs = configs.into_iter().collect();
-        let result = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.complete_trait_config_load_like_cpp(configs, entries_empty)
-        });
-        if result == Some(false) {
-            // Invalid input has reset the source proof. Keep the previous
-            // post-reset invalidation outside the exclusive Player access.
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
-        result.unwrap_or(false)
-    }
-
-    #[cfg(test)]
-    fn fixture_complete_trait_config_authority_load_like_cpp(
-        &mut self,
-        configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
-        entries_empty: bool,
-    ) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let mut exact_configs = BTreeMap::new();
-        for (config_id, config_type, specialization_id, combat_flags) in configs {
-            if config_id <= 0
-                || exact_configs
-                    .insert(
-                        config_id,
-                        (config_type, specialization_id, combat_flags).into(),
-                    )
-                    .is_some()
-            {
-                self.fixture_begin_trait_config_authority_load_like_cpp();
-                return false;
-            }
-        }
-
-        self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_config_rows = exact_configs;
-            runtime.trait_config_rows_complete = true;
-            runtime.trait_entry_rows_complete = true;
-            runtime.trait_entry_rows_empty = entries_empty;
-        })
-        .is_some()
-    }
-
     /// C++ can load/summon a `character_pet` during the Player lifetime and
     /// pet runtime can cast owner auras. Until those transitions are fully
     /// represented, admit only the complete empty-query state and revoke it
@@ -18947,161 +18014,6 @@ impl WorldSession {
         true
     }
 
-    /// Close detached-payout admission, wait for every previously admitted
-    /// worker, apply its exact-once durable deltas, then acquire the character
-    /// money mutation lock. Callers must derive old/new runtime values only
-    /// after this returns and retain the guard through their DB COMMIT.
-    pub(crate) async fn begin_exclusive_player_money_persistence_like_cpp(
-        &mut self,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        let tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
-        let save_fence = tracker.close_admission_for_save_like_cpp();
-        tracker.wait_until_idle_like_cpp().await;
-        if !self
-            .reconcile_durable_loot_money_before_save_like_cpp()
-            .await
-        {
-            return None;
-        }
-        let mutation_lock = tracker.lock_money_mutation_like_cpp().await;
-        Some(ExclusivePlayerMoneyPersistenceLikeCpp {
-            _save_fence: save_fence,
-            _mutation_lock: mutation_lock,
-        })
-    }
-
-    /// Derive one runtime money change only after the shared payout barrier,
-    /// persist it while admission and the mutation mutex remain held, then
-    /// publish the runtime value. Criteria must be queued/drained by the caller
-    /// after this returns so reward callbacks cannot re-enter under the fence.
-    pub(crate) async fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
-        &mut self,
-        mutation: F,
-    ) -> Option<(u64, u64)>
-    where
-        F: FnOnce(u64) -> u64,
-    {
-        let money_persistence = self
-            .begin_exclusive_player_money_persistence_like_cpp()
-            .await?;
-        let guid = self.player_guid()?.counter() as u64;
-        let old_money = self.resolved_player_money_like_cpp()?;
-        let new_money = mutation(old_money);
-
-        #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
-            if !success {
-                return None;
-            }
-            if !self.set_player_gold_like_cpp(new_money) {
-                return None;
-            }
-            drop(money_persistence);
-            return Some((old_money, new_money));
-        }
-
-        if old_money == new_money {
-            drop(money_persistence);
-            return Some((old_money, new_money));
-        }
-
-        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
-        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
-            player_guid: guid,
-            money_after: new_money,
-            durability_repairs: Vec::new(),
-        };
-        let money_persistence = self
-            .await_exclusive_player_money_transaction_outcome_like_cpp(
-                money_persistence,
-                port.persist_money_transaction_like_cpp(request),
-                old_money,
-                new_money,
-                "exclusive player-money mutation",
-            )
-            .await?;
-        if !self.set_player_gold_like_cpp(new_money) {
-            self.kick("canonical Player money owner became unavailable after durable COMMIT");
-            return None;
-        }
-        drop(money_persistence);
-        Some((old_money, new_money))
-    }
-
-    /// Commit a trainer fee when the represented cast has no durable
-    /// spell/skill mutation (for example, every acquisition effect was
-    /// suppressed by target immunity). C++ charges and publishes its trainer
-    /// visuals before that triggered cast resolves its hit effects.
-    pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
-        &mut self,
-        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        money_before: u64,
-        money_after: u64,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
-            return success.then_some(money_persistence);
-        }
-
-        if money_before == money_after {
-            return Some(money_persistence);
-        }
-        let guid = self.player_guid()?.counter() as u64;
-        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
-        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
-            player_guid: guid,
-            money_after,
-            durability_repairs: Vec::new(),
-        };
-        self.await_exclusive_player_money_transaction_outcome_like_cpp(
-            money_persistence,
-            port.persist_money_transaction_like_cpp(request),
-            money_before,
-            money_after,
-            "trainer fee without durable acquisition mutation",
-        )
-        .await
-    }
-
-    /// Persist an explicit player-money value and surface database failures to
-    /// callers that must not expose a loot payout before it is durable.
-    ///
-    /// Unlike [`Self::save_player_gold`], this helper fails closed when there is
-    /// no selected player or lifecycle port. Focused tests must opt into an
-    /// explicit persistence result through the test seam below.
-    pub(crate) async fn persist_player_gold_checked_like_cpp(
-        &self,
-        money: u64,
-    ) -> Result<(), LootMoneyPersistenceErrorLikeCpp> {
-        #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
-            return success
-                .then_some(())
-                .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase);
-        }
-
-        let guid = self
-            .player_guid()
-            .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingPlayer)?;
-        let port = self
-            .player_lifecycle_port_like_cpp()
-            .map(Arc::clone)
-            .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase)?;
-        match port
-            .persist_money_write_like_cpp(wow_persistence::PlayerMoneyWriteRequestLikeCpp {
-                player_guid: guid.counter() as u64,
-                money,
-            })
-            .await
-        {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => Ok(()),
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                Err(LootMoneyPersistenceErrorLikeCpp::Persistence(reason))
-            }
-        }
-    }
-
     /// Start the complete durable half of one shared money claim in a detached
     /// task.  The task owns the lease across `COMMIT`, commits the authority in
     /// the same task immediately after SQL success, then schedules the
@@ -19591,67 +18503,6 @@ impl WorldSession {
         self.with_owned_player_mut_like_cpp(|player| player.mutate_rest_state_like_cpp(f))
     }
 
-    pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
-        &mut self,
-        rest_state: u8,
-        rest_bonus: f32,
-    ) {
-        // C++ `RestMgr::LoadRestBonus` restores both DB values verbatim. It does
-        // not clamp or recompute the state until a later `AddRestBonus` reaches
-        // `SetRestBonus` (for example when offline time is applied).
-        // C++-created rows only contain the declared PlayerRestState values.
-        // Normalize legacy Rust rows that persisted the old invalid value 0,
-        // while preserving every valid DB state verbatim like LoadRestBonus.
-        let rest_state = if Self::valid_player_rest_state_like_cpp(rest_state) {
-            rest_state
-        } else {
-            REST_STATE_NORMAL_LIKE_CPP
-        };
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.clear_represented_rest_flags_for_character_load_like_cpp();
-            let _ = self.mutate_player_rest_state_like_cpp(|state| {
-                state.rest_state = rest_state;
-                state.rest_bonus = rest_bonus;
-            });
-            return;
-        }
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player.load_xp_rest_bonus_like_cpp(rest_state, rest_bonus);
-        });
-    }
-
-    #[cfg(test)]
-    fn clear_represented_rest_flags_for_character_load_like_cpp(&mut self) {
-        let loaded_resting = self
-            .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
-            .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
-        let _canonical = self.with_owned_player_mut_for_rest_like_cpp(|player| {
-            let mut state = player.rest_state_like_cpp().clone();
-            state.rest_flag_mask = 0;
-            state.location_initialized = false;
-            state.defer_flag_sync = false;
-            state.deferred_flag_update_dirty = false;
-            state.inn_area_trigger_id = 0;
-            state.rest_time_secs = 0;
-            player.replace_rest_state_like_cpp(state);
-            if loaded_resting {
-                player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-            } else {
-                player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-            }
-        });
-        #[cfg(test)]
-        if _canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            self.represented_rest_flag_mask_like_cpp = 0;
-            self.represented_rest_location_initialized_like_cpp = false;
-            self.represented_defer_rest_flag_sync_like_cpp = false;
-            self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
-            self.represented_inn_area_trigger_id_like_cpp = 0;
-            self.represented_rest_time_secs_like_cpp = 0;
-        }
-    }
-
     #[cfg(test)]
     fn set_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
         #[cfg(test)]
@@ -20011,34 +18862,6 @@ impl WorldSession {
 
     pub(crate) fn void_storage_is_unlocked_like_cpp(&self) -> bool {
         self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP)
-    }
-
-    /// Apply the already-committed void-storage unlock to runtime state and
-    /// emit the same PlayerData::Flags values delta that C++ SetPlayerFlag does.
-    pub(crate) fn apply_committed_void_storage_unlock_like_cpp(&mut self) {
-        let values_update = self.player_values_update_snapshot().and_then(|mut player| {
-            player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
-            Some(player.values_update(true))
-        });
-
-        let Some(_current_flags) = self.represented_player_flags_value_like_cpp() else {
-            return;
-        };
-        let _canonical = self
-            .mutate_canonical_player_like_cpp(|player| {
-                player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_loaded_player_flags_like_cpp =
-                Some(_current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
-            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
-        }
-
-        if let Some(update) = values_update {
-            self.send_player_values_update_like_cpp(&update);
-        }
     }
 
     fn represented_creature_has_loot_recipient_like_cpp(
@@ -20424,30 +19247,6 @@ impl WorldSession {
         }
     }
 
-    fn resolved_player_flags_for_rest_state_save_like_cpp(&self) -> Option<u32> {
-        let resolve = |mut player_flags: u32, rest: &wow_entities::PlayerRestState| {
-            if rest.location_initialized {
-                if rest.rest_flag_mask != 0 {
-                    player_flags |= PLAYER_FLAGS_RESTING_LIKE_CPP;
-                } else {
-                    player_flags &= !PLAYER_FLAGS_RESTING_LIKE_CPP;
-                }
-            }
-            player_flags
-        };
-        let canonical = self.with_owned_player_for_rest_like_cpp(|player| {
-            resolve(player.data().player_flags, player.rest_state_like_cpp())
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(resolve(
-                self.represented_loaded_player_flags_like_cpp.unwrap_or(0),
-                &self.player_rest_state_snapshot_like_cpp()?,
-            ));
-        }
-        canonical
-    }
-
     pub(crate) fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {
         let player_flags = self.resolved_player_flags_for_rest_state_save_like_cpp()?;
         let canonical_flags_ex =
@@ -20461,12 +19260,6 @@ impl WorldSession {
             };
         let player_flags_ex = canonical_flags_ex?;
         Some((player_flags, player_flags_ex))
-    }
-
-    #[cfg(test)]
-    fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {
-        self.resolved_player_flags_for_rest_state_save_like_cpp()
-            .unwrap_or_else(|| self.represented_loaded_player_flags_like_cpp.unwrap_or(0))
     }
 
     #[cfg(test)]
@@ -20502,28 +19295,6 @@ impl WorldSession {
             self.total_played_time.saturating_add(session_secs),
             self.level_played_time.saturating_add(session_secs),
         )
-    }
-
-    async fn process_pending_periodic_player_save_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) {
-        if !self.pending_periodic_player_save_like_cpp || self.state != SessionState::LoggedIn {
-            return;
-        }
-        if self.pending_teleport_save_destination_like_cpp().is_some() {
-            return;
-        }
-
-        self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
-            .await;
-    }
-
-    #[cfg(test)]
-    async fn process_pending_periodic_player_save_like_cpp(&mut self) {
-        let generators = self.id_generators_for_test_like_cpp();
-        self.process_pending_periodic_player_save_with_generator_like_cpp(generators.item.as_ref())
-            .await;
     }
 
     pub(crate) fn player_talent_runtime_snapshot_like_cpp(
@@ -20589,12 +19360,6 @@ impl WorldSession {
             runtime.glyph_groups = [[0; wow_entities::PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP];
                 wow_entities::PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP];
             runtime.glyphs_loaded = false;
-        });
-    }
-
-    pub(crate) fn mark_represented_glyphs_loaded_like_cpp(&mut self) {
-        let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.glyphs_loaded = true;
         });
     }
 
@@ -20714,34 +19479,6 @@ impl WorldSession {
         }
 
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_FIRST_LIKE_CPP, false)
-    }
-
-    pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
-        let blocks = parse_explored_zones_db_string_like_cpp(input);
-        let Some(previous) = self.player_explored_zones_snapshot_like_cpp() else {
-            return 0;
-        };
-        let changed = previous != blocks;
-
-        let canonical = self
-            .mutate_canonical_player_like_cpp(|player| {
-                let applied = player.set_explored_zones_blocks_like_cpp(&blocks);
-                (applied > 0).then(|| player.values_update(true))
-            })
-            .flatten();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_explored_zones_like_cpp = blocks;
-        }
-        if let Some(update) = canonical {
-            self.send_player_values_update_like_cpp(&update);
-        }
-
-        if changed {
-            blocks.iter().filter(|block| **block != 0).count()
-        } else {
-            0
-        }
     }
 
     pub(crate) fn player_explored_zones_snapshot_like_cpp(
@@ -21196,18 +19933,6 @@ impl WorldSession {
         self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(&player_bootstrap)
     }
 
-    pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
-        let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.talents_loaded = true;
-        });
-        self.refresh_represented_talent_points_like_cpp();
-    }
-
-    pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
-        self.player_talent_runtime_snapshot_like_cpp()
-            .is_some_and(|runtime| runtime.talents_loaded)
-    }
-
     pub(crate) fn learn_represented_talent_like_cpp(
         &mut self,
         talent_tabs: &TalentTabStore,
@@ -21416,60 +20141,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn load_represented_talent_row_like_cpp(
-        &mut self,
-        talent_tabs: &TalentTabStore,
-        talent_id: u32,
-        rank: u8,
-        talent_group: u8,
-    ) -> bool {
-        let talent_group_index = usize::from(talent_group);
-        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
-            return false;
-        }
-
-        let Some(talent) = self
-            .talent_store()
-            .and_then(|store| store.get(talent_id))
-            .cloned()
-        else {
-            return false;
-        };
-
-        let Some(talent_tab) = talent_tabs.get(u32::from(talent.tab_id)) else {
-            return false;
-        };
-
-        let Some(class_mask) = player_class_mask_for_talent_like_cpp(self.player_class_like_cpp())
-        else {
-            return false;
-        };
-
-        let Ok(talent_class_mask) = u32::try_from(talent_tab.class_mask) else {
-            return false;
-        };
-        if (class_mask & talent_class_mask) == 0 {
-            return false;
-        }
-
-        let rank_index = usize::from(rank);
-        let Some(spell_id) = talent.spell_rank.get(rank_index).copied() else {
-            return false;
-        };
-        if spell_id <= 0 {
-            return false;
-        }
-
-        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
-            return false;
-        }
-
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.talent_groups[talent_group_index].insert(talent_id, rank);
-        })
-        .is_some()
-    }
-
     fn represented_talent_info_like_cpp(
         &self,
         talent_id: u32,
@@ -21485,108 +20156,6 @@ impl WorldSession {
         }
 
         Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
-    }
-
-    fn represented_talent_reset_state_plan_like_cpp(
-        &self,
-    ) -> Option<RepresentedTalentResetStatePlanLikeCpp> {
-        let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-        if !runtime.talents_loaded {
-            return None;
-        }
-
-        let active_group = runtime.active_group;
-        let active_group_index = usize::from(active_group);
-        let active_talents = runtime.talent_groups.get(active_group_index)?.clone();
-        let mut post_talents = runtime.talent_groups;
-        post_talents[active_group_index].clear();
-
-        Some(RepresentedTalentResetStatePlanLikeCpp {
-            active_group,
-            active_talents,
-            post_talents,
-        })
-    }
-
-    /// Build the represented durable talent-reset request without mutating the
-    /// session. Statement identity, transaction construction and ambiguous
-    /// COMMIT reconciliation belong to the lifecycle adapter.
-    fn represented_talent_reset_persistence_plan_like_cpp(
-        &self,
-        guid_counter: u64,
-        old_money: u64,
-        new_money: u64,
-        cost: u32,
-        reset_time_secs: u64,
-    ) -> Option<(
-        RepresentedTalentResetStatePlanLikeCpp,
-        wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp,
-    )> {
-        let state_plan = self.represented_talent_reset_state_plan_like_cpp()?;
-        let mut retained_talents = Vec::new();
-
-        for (talent_group, talents) in state_plan.post_talents.iter().enumerate() {
-            for (talent_id, rank) in talents {
-                if self
-                    .represented_talent_info_like_cpp(*talent_id, *rank)
-                    .is_none()
-                {
-                    continue;
-                }
-                retained_talents.push(wow_persistence::PlayerTalentResetSaveRowLikeCpp {
-                    talent_id: *talent_id,
-                    rank: *rank,
-                    talent_group: talent_group as u8,
-                });
-            }
-        }
-
-        debug_assert_eq!(old_money.saturating_sub(new_money), u64::from(cost));
-        Some((
-            state_plan,
-            wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp {
-                player_guid: guid_counter,
-                money_before: old_money,
-                money_after: new_money,
-                reset_cost: cost,
-                reset_time_secs,
-                retained_talents,
-            },
-        ))
-    }
-
-    /// Borrow the required process catalog; tests supply explicit fixture data.
-    pub(crate) fn load_represented_glyph_row_like_cpp(
-        &mut self,
-        glyph_properties: &GlyphPropertiesStore,
-        talent_group: u8,
-        glyph_slot: u8,
-        glyph_id: u16,
-    ) -> bool {
-        let talent_group_index = usize::from(talent_group);
-        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
-            return false;
-        }
-
-        let glyph_slot_index = usize::from(glyph_slot);
-        if glyph_slot_index >= wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP {
-            return false;
-        }
-
-        if glyph_id != 0 && glyph_properties.get(u32::from(glyph_id)).is_none() {
-            return false;
-        }
-
-        let previous = self
-            .player_talent_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.glyph_groups[talent_group_index][glyph_slot_index]);
-        if previous != Some(glyph_id) {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.glyph_groups[talent_group_index][glyph_slot_index] = glyph_id;
-        })
-        .is_some()
     }
 
     pub(crate) fn resolved_update_talent_data_packet_like_cpp(
@@ -22392,189 +20961,6 @@ impl WorldSession {
         canonical
     }
 
-    pub(crate) async fn commit_represented_talent_reset_like_cpp(
-        &mut self,
-        no_reset_talent_cost: bool,
-    ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
-        let now_secs = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        self.commit_represented_talent_reset_at_like_cpp(now_secs, no_reset_talent_cost)
-            .await
-    }
-
-    async fn commit_represented_talent_reset_at_like_cpp(
-        &mut self,
-        now_secs: u64,
-        no_reset_talent_cost: bool,
-    ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
-        let cost = if no_reset_talent_cost {
-            0
-        } else {
-            u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs)?)
-        };
-
-        let money_persistence = self
-            .begin_exclusive_player_money_persistence_like_cpp()
-            .await?;
-        let old_money = self.resolved_player_money_like_cpp()?;
-        if old_money < cost {
-            self.send_buy_error(BuyResult::NotEnoughtMoney, None, 0);
-            return None;
-        }
-        let new_money = old_money - cost;
-        let player_guid = self.player_guid()?;
-        let (state_plan, persistence_request) = self
-            .represented_talent_reset_persistence_plan_like_cpp(
-                player_guid.counter() as u64,
-                old_money,
-                new_money,
-                cost as u32,
-                now_secs,
-            )?;
-        // Unit fixtures without a lifecycle port explicitly model a successful
-        // COMMIT. The failure seam proves that no covered runtime state is
-        // published on a definite rollback.
-        #[cfg(test)]
-        if self.loot_money_persistence_test_result_like_cpp == Some(false) {
-            return None;
-        }
-        #[cfg(test)]
-        let bypass_database_like_cpp = self.loot_money_persistence_test_result_like_cpp
-            == Some(true)
-            || self.player_lifecycle_port_like_cpp().is_none();
-        #[cfg(not(test))]
-        let bypass_database_like_cpp = false;
-
-        let money_persistence = if bypass_database_like_cpp {
-            money_persistence
-        } else {
-            let port = self.player_lifecycle_port_like_cpp().cloned()?;
-            let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(
-                Arc::clone(&self.durable_loot_money_persistence_like_cpp),
-            );
-            match port
-                .persist_talent_reset_like_cpp(persistence_request)
-                .await
-            {
-                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
-                    cancellation_fence.disarm_like_cpp();
-                    money_persistence
-                }
-                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
-                    cancellation_fence.disarm_like_cpp();
-                    warn!(%reason, operation = "talent reset", "player-money transaction definitely rolled back");
-                    return None;
-                }
-                wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                    self.durable_loot_money_persistence_like_cpp
-                        .mark_indeterminate_like_cpp();
-                    cancellation_fence.disarm_like_cpp();
-                    self.kick(
-                        "player-money COMMIT outcome is unknown; relog required before another money mutation",
-                    );
-                    warn!(
-                        %reason,
-                        operation = "talent reset",
-                        money_before = old_money,
-                        money_after = new_money,
-                        "player-money COMMIT outcome remains indeterminate; quarantined the session"
-                    );
-                    return None;
-                }
-            }
-        };
-
-        Some(CommittedRepresentedTalentResetLikeCpp {
-            money_persistence,
-            old_money,
-            new_money,
-            cost: cost as u32,
-            reset_time_secs: now_secs,
-            state_plan,
-        })
-    }
-
-    /// Publish every runtime effect covered by the committed reset before the
-    /// shared money guard is released. There is deliberately no `.await`
-    /// between entry and `drop(money_persistence)`: cancellation cannot expose
-    /// a durable fee/talent reset with the old session state still live.
-    pub(crate) async fn publish_committed_represented_talent_reset_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        committed: CommittedRepresentedTalentResetLikeCpp,
-        request: RepresentedConfirmRespecWipeLikeCpp,
-        visual_spell_id: u32,
-    ) {
-        let CommittedRepresentedTalentResetLikeCpp {
-            money_persistence,
-            old_money,
-            new_money,
-            cost,
-            reset_time_secs,
-            state_plan,
-        } = committed;
-
-        self.remove_represented_pet_not_in_slot_like_cpp();
-        self.record_represented_confirm_respec_wipe_like_cpp(request);
-
-        debug_assert_eq!(
-            self.represented_active_talent_group_like_cpp(),
-            Some(state_plan.active_group)
-        );
-        for (talent_id, rank) in &state_plan.active_talents {
-            self.remove_represented_active_talent_side_effects_like_cpp(*talent_id, *rank);
-        }
-        if self
-            .mutate_player_talent_runtime_like_cpp(|runtime| {
-                runtime.talent_groups = state_plan.post_talents.clone();
-            })
-            .is_none()
-        {
-            self.kick("canonical Player talent owner became unavailable after talent-reset COMMIT");
-            return;
-        }
-        self.refresh_represented_talent_points_like_cpp();
-
-        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
-            self.kick("canonical Player money owner became unavailable after talent-reset COMMIT");
-            return;
-        }
-        if self
-            .mutate_player_talent_runtime_like_cpp(|runtime| {
-                runtime.reset_talents_cost = cost;
-                runtime.reset_talents_time_secs = reset_time_secs;
-            })
-            .is_none()
-        {
-            self.kick("canonical Player specialization owner became unavailable after talent-reset COMMIT");
-            return;
-        }
-        self.record_represented_talent_respec_criteria_like_cpp(cost);
-
-        if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
-            self.send_packet(&talent_data);
-        }
-        if let Some(player_guid) = self.player_guid() {
-            self.record_represented_talent_respec_visual_spell_cast_like_cpp(
-                RepresentedTalentRespecVisualSpellCastLikeCpp {
-                    caster_guid: request.respec_master,
-                    target_guid: player_guid,
-                    spell_id: visual_spell_id,
-                    triggered: true,
-                    spell_runtime_unrepresented: true,
-                },
-            );
-        }
-
-        drop(money_persistence);
-        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-            item_guid_generator,
-        )
-        .await;
-    }
-
     fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
         #[cfg(test)]
         self.represented_talent_respec_criteria_events_like_cpp
@@ -22724,20 +21110,6 @@ impl WorldSession {
     pub(crate) fn refresh_next_level_xp(&mut self) {
         let catalogs = self.progression_catalogs_for_test_like_cpp();
         self.refresh_next_level_xp_with_catalogs_like_cpp(&catalogs);
-    }
-
-    /// C++ `Player::InitStatsForLevel` repairs an invalid persisted XP value
-    /// after deriving `ActivePlayerData::NextLevelXP` for the loaded level.
-    pub(crate) fn clamp_loaded_player_xp_to_next_level_like_cpp(&mut self) {
-        let (Some(player_xp), Some(next_level_xp)) = (
-            self.resolved_player_xp_like_cpp(),
-            self.resolved_player_next_level_xp_like_cpp(),
-        ) else {
-            return;
-        };
-        if player_xp >= next_level_xp {
-            self.set_player_xp_like_cpp(next_level_xp.saturating_sub(1));
-        }
     }
 
     /// C++ `Player::SetXP` updates this field every time XP changes. It uses
@@ -23056,17 +21428,6 @@ impl WorldSession {
     /// Get the session manager reference.
     pub fn session_mgr(&self) -> Option<&Arc<SessionManager>> {
         self.session_mgr.as_ref()
-    }
-
-    /// Set the player loading GUID (ConnectTo flow).
-    pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
-        self.player_loading = guid;
-        self.sync_current_player_session_visibility_detection_like_cpp();
-    }
-
-    /// Get the player loading GUID.
-    pub fn player_loading(&self) -> Option<ObjectGuid> {
-        self.player_loading
     }
 
     /// Get a clone of the send channel.
@@ -24134,45 +22495,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn load_tutorials_data_values_like_cpp(&mut self, values: Option<[u32; 8]>) {
-        self.tutorials_like_cpp = values.unwrap_or([0; 8]);
-        self.tutorials_loaded_from_db_like_cpp = values.is_some();
-        self.tutorials_loaded_coherently_like_cpp = true;
-        self.tutorials_changed_like_cpp = false;
-    }
-
-    pub async fn load_tutorials_data_like_cpp(&mut self) {
-        self.tutorials_like_cpp = [0; 8];
-        self.tutorials_loaded_from_db_like_cpp = false;
-        self.tutorials_loaded_coherently_like_cpp = false;
-        self.tutorials_changed_like_cpp = false;
-
-        let Some(port) = self
-            .persistence_ports_like_cpp
-            .admission
-            .session_account_state
-            .clone()
-        else {
-            warn!(
-                account = self.account_id,
-                "LoadTutorialsData skipped: session account-state port unavailable"
-            );
-            return;
-        };
-
-        match port.load_tutorials_like_cpp(self.account_id).await {
-            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Loaded(values) => {
-                self.load_tutorials_data_values_like_cpp(values);
-            }
-            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.account_id,
-                    "LoadTutorialsData query failed: {reason}"
-                );
-            }
-        }
-    }
-
     pub(crate) fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
         let Some(current) = self.tutorials_like_cpp.get_mut(index) else {
             return false;
@@ -24218,184 +22540,6 @@ impl WorldSession {
         }
     }
 
-    pub async fn load_global_account_data_like_cpp(&mut self) {
-        self.load_account_data_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP)
-            .await;
-    }
-
-    pub async fn load_player_account_data_like_cpp(&mut self, guid: ObjectGuid) {
-        self.load_account_data_like_cpp(guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP)
-            .await;
-    }
-
-    async fn load_account_data_like_cpp(&mut self, guid: ObjectGuid, mask: u32) {
-        debug_assert_eq!(
-            GLOBAL_CACHE_MASK_LIKE_CPP | PER_CHARACTER_CACHE_MASK_LIKE_CPP,
-            ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP
-        );
-
-        for index in 0..NUM_ACCOUNT_DATA_TYPES {
-            if mask & (1u32 << index) != 0 {
-                self.account_data_like_cpp[index] = AccountDataLikeCpp::default();
-            }
-        }
-
-        let scope = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
-            wow_persistence::SessionAccountDataScopeLikeCpp::Global {
-                account_id: self.account_id,
-            }
-        } else {
-            wow_persistence::SessionAccountDataScopeLikeCpp::Character {
-                guid_low: guid.counter() as u64,
-            }
-        };
-
-        let Some(port) = self
-            .persistence_ports_like_cpp
-            .admission
-            .session_account_state
-            .clone()
-        else {
-            warn!(
-                account = self.account_id,
-                mask, "LoadAccountData skipped: session account-state port unavailable"
-            );
-            return;
-        };
-
-        let rows = match port.load_account_data_like_cpp(scope).await {
-            wow_persistence::SessionAccountDataLoadOutcomeLikeCpp::Loaded(rows) => rows,
-            wow_persistence::SessionAccountDataLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.account_id,
-                    mask, "LoadAccountData query failed: {reason}"
-                );
-                return;
-            }
-        };
-
-        let table_name = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
-            "account_data"
-        } else {
-            "character_account_data"
-        };
-        for row in rows {
-            let data_type = row.data_type;
-            if usize::from(data_type) >= NUM_ACCOUNT_DATA_TYPES {
-                warn!(
-                    table = table_name,
-                    data_type, "LoadAccountData ignored invalid account data type like C++"
-                );
-            } else if mask & (1u32 << data_type) == 0 {
-                warn!(
-                    table = table_name,
-                    data_type,
-                    "LoadAccountData ignored account data type inappropriate for table like C++"
-                );
-            } else {
-                self.account_data_like_cpp[usize::from(data_type)].time = row.time;
-                self.account_data_like_cpp[usize::from(data_type)].data = row.data;
-            }
-        }
-    }
-
-    pub async fn set_account_data_persisted_like_cpp(
-        &mut self,
-        data_type: u8,
-        time: i64,
-        data: String,
-    ) -> bool {
-        if usize::from(data_type) >= NUM_ACCOUNT_DATA_TYPES {
-            return false;
-        }
-
-        let is_global = (1u32 << data_type) & GLOBAL_CACHE_MASK_LIKE_CPP != 0;
-        let player_guid_low = self.recent_player_guid_low_like_cpp;
-
-        if !is_global && player_guid_low == 0 {
-            return false;
-        }
-
-        let scope = if is_global {
-            wow_persistence::SessionAccountDataScopeLikeCpp::Global {
-                account_id: self.account_id,
-            }
-        } else {
-            wow_persistence::SessionAccountDataScopeLikeCpp::Character {
-                guid_low: player_guid_low,
-            }
-        };
-
-        let Some(port) = self
-            .persistence_ports_like_cpp
-            .admission
-            .session_account_state
-            .clone()
-        else {
-            warn!(
-                account = self.account_id,
-                data_type, "SetAccountData persisted fallback: account-state port unavailable"
-            );
-            return self.set_account_data_like_cpp(data_type, time, data);
-        };
-
-        let save = wow_persistence::SessionAccountDataSaveLikeCpp {
-            scope,
-            data_type,
-            time,
-            data: data.clone(),
-        };
-        match port.save_account_data_like_cpp(save).await {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                warn!(
-                    account = self.account_id,
-                    data_type, "SetAccountData persistence failed: {reason}"
-                );
-                return false;
-            }
-        }
-
-        self.set_account_data_like_cpp(data_type, time, data)
-    }
-
-    pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
-        self.player_name = Some(name);
-    }
-
-    pub(crate) fn set_loaded_player_identity_like_cpp(
-        &mut self,
-        map_id: u16,
-        race: u8,
-        class: u8,
-        level: u8,
-        gender: u8,
-    ) {
-        let initialize_reputation = self.player_race_like_cpp() != race
-            || self.player_class_like_cpp() != class
-            || self
-                .with_owned_player_like_cpp(|player| player.gameplay_state().reputations.is_empty())
-                .unwrap_or(true);
-        if self.player_map_id_like_cpp() != map_id
-            || self.player_race_like_cpp() != race
-            || self.player_class_like_cpp() != class
-            || self.player_gender_like_cpp() != gender
-        {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
-        self.current_map_id = map_id;
-        self.player_race = race;
-        self.player_class = class;
-        self.player_level = level;
-        self.player_gender = gender;
-        self.set_player_faction_for_race_like_cpp(race);
-        if initialize_reputation {
-            self.initialize_reputation_mgr_like_cpp();
-        }
-        self.refresh_represented_talent_points_like_cpp();
-    }
-
     /// C++ `Player::SetFactionForRace`: `Player::LoadFromDB` resolves the
     /// player's live faction template from `ChrRacesEntry::FactionID` before
     /// the player is added to the map or published through ObjectAccessor.
@@ -24415,72 +22559,6 @@ impl WorldSession {
         if _canonical.is_some() || self.player_handle_like_cpp.is_none() {
             self.player_faction_template_like_cpp =
                 (faction_template != 0).then_some(faction_template);
-        }
-    }
-
-    pub(crate) fn set_loaded_player_flags_like_cpp(&mut self, player_flags: u32) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let _canonical = self
-            .mutate_canonical_player_like_cpp(|player| {
-                player.replace_all_player_flags(player_flags)
-            })
-            .is_some();
-        #[cfg(test)]
-        {
-            self.represented_loaded_player_flags_like_cpp = Some(player_flags);
-            self.represented_loaded_player_flags_ex_like_cpp
-                .get_or_insert(0);
-            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
-        }
-    }
-
-    pub(crate) fn set_loaded_player_flags_ex_like_cpp(&mut self, player_flags_ex: u32) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let _canonical = self
-            .mutate_canonical_player_like_cpp(|player| {
-                player.replace_all_player_flags_ex(player_flags_ex)
-            })
-            .is_some();
-        #[cfg(test)]
-        {
-            self.represented_loaded_player_flags_ex_like_cpp = Some(player_flags_ex);
-            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn apply_loaded_player_flags_to_canonical_like_cpp(&mut self) {
-        let Some(player_flags) = self.represented_loaded_player_flags_like_cpp else {
-            return;
-        };
-        let player_flags_ex = self
-            .represented_loaded_player_flags_ex_like_cpp
-            .unwrap_or(0);
-        if self
-            .mutate_canonical_player_like_cpp(|player| {
-                player.replace_all_player_flags(player_flags);
-                player.replace_all_player_flags_ex(player_flags_ex);
-            })
-            .is_some()
-        {
-            self.represented_loaded_player_flags_applied_like_cpp = true;
-        }
-    }
-
-    pub(crate) fn set_loaded_player_powers_like_cpp(
-        &mut self,
-        powers: [i32; MAX_POWERS_PER_CLASS],
-    ) {
-        let _canonical = self.with_owned_player_mut_for_power_like_cpp(|player| {
-            let max_power = player.unit().data().max_power;
-            player
-                .unit_mut()
-                .replace_create_power_arrays_like_cpp(powers.map(|value| value.max(0)), max_power);
-        });
-        #[cfg(test)]
-        if _canonical.is_some() || self.player_handle_like_cpp.is_none() {
-            self.represented_player_powers_like_cpp =
-                loaded_character_power_snapshot_like_cpp(powers);
         }
     }
 
@@ -25300,27 +23378,6 @@ impl WorldSession {
             .collect()
     }
 
-    /// C++ `CollectionMgr::SaveAccountMounts`.
-    pub(crate) fn account_mount_save_rows_like_cpp(
-        &self,
-    ) -> Option<Vec<AccountMountSaveRowLikeCpp>> {
-        let bnet_account_id = self.battlenet_account_id();
-        let mut rows = self
-            .player_collection_state_snapshot_like_cpp()?
-            .mounts
-            .into_iter()
-            .filter_map(|(spell_id, flags)| {
-                Some(AccountMountSaveRowLikeCpp {
-                    bnet_account_id,
-                    mount_spell_id: u32::try_from(spell_id).ok()?,
-                    flags,
-                })
-            })
-            .collect::<Vec<_>>();
-        rows.sort_by_key(|row| row.mount_spell_id);
-        Some(rows)
-    }
-
     pub(crate) fn mount_set_favorite_like_cpp(
         &mut self,
         mount_spell_id: u32,
@@ -25469,21 +23526,6 @@ impl WorldSession {
         _canonical
     }
 
-    pub(crate) fn resolved_player_skill_records_loaded_like_cpp(&self) -> Option<bool> {
-        let canonical = self.with_owned_player_like_cpp(Player::skill_records_loaded_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_skill_records_loaded_like_cpp);
-        }
-        canonical
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_skill_records_loaded_like_cpp(&self) -> bool {
-        self.resolved_player_skill_records_loaded_like_cpp()
-            .expect("test Player skill owner must resolve")
-    }
-
     #[cfg(test)]
     fn replace_player_skill_runtime_exact_like_cpp(
         &mut self,
@@ -25536,32 +23578,6 @@ impl WorldSession {
         let _ = self.with_owned_player_mut_like_cpp(
             Player::clear_skill_tombstones_for_identity_change_like_cpp,
         );
-    }
-
-    #[cfg(test)]
-    fn fixture_mark_player_skills_saved_like_cpp(&mut self) {
-        let Some(mut records) = self.resolved_player_skill_records_like_cpp() else {
-            return;
-        };
-        let Some(mut tombstones) = self.resolved_player_skill_non_durable_tombstones_like_cpp()
-        else {
-            return;
-        };
-        for skill in records.values_mut() {
-            if skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
-                tombstones.insert(skill.skill_id);
-            }
-            skill.state = RepresentedPlayerSkillStateLikeCpp::Unchanged;
-        }
-        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
-        let _ = self.replace_player_skill_runtime_exact_like_cpp(
-            records,
-            true,
-            occupied.is_some(),
-            occupied,
-            tombstones,
-        );
-        self.sync_player_registry_state_like_cpp();
     }
 
     #[cfg(test)]
@@ -25680,12 +23696,6 @@ impl WorldSession {
                 .then_some(self.player_skill_records_complete_like_cpp)
         });
         complete.unwrap_or(false).then_some(records)
-    }
-
-    fn has_complete_player_skill_save_authority_like_cpp(&self) -> bool {
-        self.complete_player_skill_records_like_cpp()
-            .zip(self.complete_player_skill_occupied_slots_like_cpp())
-            .is_some_and(|(skills, occupied_slots)| skills.len() == usize::from(occupied_slots))
     }
 
     fn set_represented_player_skill_like_cpp(
@@ -25813,19 +23823,6 @@ impl WorldSession {
                     .push(action);
             }
         }
-    }
-
-    #[cfg(test)]
-    fn is_non_durable_skill_tombstone_like_cpp(skill: &RepresentedPlayerSkillLikeCpp) -> bool {
-        skill.step == 0
-            && skill.value == 0
-            && skill.max == 0
-            && skill.profession_slot == -1
-            && matches!(
-                skill.state,
-                RepresentedPlayerSkillStateLikeCpp::Unchanged
-                    | RepresentedPlayerSkillStateLikeCpp::Deleted
-            )
     }
 
     pub(crate) fn set_player_currencies_like_cpp(
@@ -26154,19 +24151,6 @@ impl WorldSession {
         canonical
     }
 
-    pub(crate) fn resolved_player_skill_non_durable_tombstones_like_cpp(
-        &self,
-    ) -> Option<BTreeSet<u16>> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player.non_durable_skill_tombstones_like_cpp().clone()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_skill_non_durable_tombstones_like_cpp.clone());
-        }
-        canonical
-    }
-
     pub(crate) fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
         Some(
             self.resolved_player_skill_values_like_cpp()?
@@ -26187,12 +24171,6 @@ impl WorldSession {
         &self,
     ) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
         self.resolved_player_skill_records_like_cpp()
-            .expect("test Player skill owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> BTreeSet<u16> {
-        self.resolved_player_skill_non_durable_tombstones_like_cpp()
             .expect("test Player skill owner must resolve")
     }
 
@@ -30342,16 +28320,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn mark_represented_action_buttons_loaded_like_cpp(&mut self) {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(Player::mark_action_buttons_loaded_like_cpp)
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_action_buttons_loaded_like_cpp = true;
-        }
-    }
-
     pub(crate) fn represented_action_buttons_snapshot_like_cpp(
         &self,
     ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
@@ -30361,38 +28329,6 @@ impl WorldSession {
             return Some(self.represented_action_buttons_like_cpp);
         }
         canonical
-    }
-
-    pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
-        &self,
-    ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| {
-                player
-                    .action_buttons_loaded_like_cpp()
-                    .then(|| player.action_buttons_snapshot_like_cpp())
-            })
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none()
-            && self.player_handle_like_cpp.is_none()
-            && self.represented_action_buttons_loaded_like_cpp
-        {
-            return Some(self.represented_action_buttons_like_cpp);
-        }
-        canonical
-    }
-
-    pub(crate) fn record_loaded_action_button_like_cpp(
-        &mut self,
-        index: u8,
-        action: u32,
-        action_type: u8,
-    ) -> bool {
-        self.represented_set_action_button_like_cpp(
-            index,
-            make_action_button_like_cpp(action, action_type),
-        )
     }
 
     #[cfg(test)]
@@ -30499,43 +28435,6 @@ impl WorldSession {
             .load(Ordering::Relaxed)
     }
 
-    pub(crate) fn represented_save_cuf_profiles_like_cpp(
-        &mut self,
-        profiles: Vec<wow_packet::packets::misc::CufProfile>,
-    ) -> bool {
-        if profiles.len() > wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
-            return false;
-        }
-
-        #[cfg(test)]
-        let fixture_profiles = profiles.clone();
-        let profiles = profiles
-            .into_iter()
-            .map(player_cuf_profile_from_packet_like_cpp)
-            .collect::<Vec<_>>();
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            state.cuf_profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-            for (slot, profile) in profiles.into_iter().enumerate() {
-                state.cuf_profiles[slot] = Some(profile);
-            }
-        });
-        if canonical.is_some() {
-            return true;
-        }
-
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.cuf_profiles_like_cpp =
-                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-            for (slot, profile) in fixture_profiles.into_iter().enumerate() {
-                self.cuf_profiles_like_cpp[slot] = Some(profile);
-            }
-            return true;
-        }
-        false
-    }
-
     pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
             let state = player.gameplay_state_mut();
@@ -30551,88 +28450,6 @@ impl WorldSession {
                 vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
             self.cuf_profiles_loaded_like_cpp = false;
         }
-    }
-
-    pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.gameplay_state_mut().cuf_profiles_loaded = true;
-        });
-        if canonical.is_some() {
-            return;
-        }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.cuf_profiles_loaded_like_cpp = true;
-        }
-    }
-
-    pub(crate) fn load_represented_cuf_profile_like_cpp(
-        &mut self,
-        id: u8,
-        profile: wow_packet::packets::misc::CufProfile,
-    ) -> bool {
-        let index = usize::from(id);
-        if index >= wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
-            return false;
-        }
-
-        #[cfg(test)]
-        let fixture_profile = profile.clone();
-        let profile = player_cuf_profile_from_packet_like_cpp(profile);
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let profiles = &mut player.gameplay_state_mut().cuf_profiles;
-            if profiles.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
-                *profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-            }
-            profiles[index] = Some(profile);
-        });
-        if canonical.is_some() {
-            return true;
-        }
-
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            if self.cuf_profiles_like_cpp.len()
-                != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
-            {
-                self.cuf_profiles_like_cpp =
-                    vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-            }
-            self.cuf_profiles_like_cpp[index] = Some(fixture_profile);
-            return true;
-        }
-        false
-    }
-
-    pub(crate) fn represented_load_cuf_profiles_packet_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::misc::LoadCufProfiles> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| wow_packet::packets::misc::LoadCufProfiles {
-                profiles: player
-                    .gameplay_state()
-                    .cuf_profiles
-                    .iter()
-                    .filter_map(|profile| {
-                        profile.as_ref().map(player_cuf_profile_to_packet_like_cpp)
-                    })
-                    .collect(),
-            });
-        if canonical.is_some() {
-            return canonical;
-        }
-
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(wow_packet::packets::misc::LoadCufProfiles {
-                profiles: self
-                    .cuf_profiles_like_cpp
-                    .iter()
-                    .filter_map(Clone::clone)
-                    .collect(),
-            });
-        }
-        None
     }
 
     pub(crate) fn owned_player_cuf_profiles_like_cpp(
@@ -30772,43 +28589,6 @@ impl WorldSession {
         #[cfg(test)]
         self.represented_talent_reset_script_hooks_like_cpp
             .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
-    }
-
-    fn player_persistent_capability_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.gameplay_state().persistent_capabilities);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {
-                at_login_flags: self.represented_at_login_flags_like_cpp,
-                weapon_proficiency: self.represented_weapon_proficiency_like_cpp,
-                armor_proficiency: self.represented_armor_proficiency_like_cpp,
-            });
-        }
-        canonical
-    }
-
-    fn mutate_player_persistent_capability_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut wow_entities::PlayerPersistentCapabilityStateLikeCpp) -> R,
-    ) -> Option<R> {
-        let mut state = self.player_persistent_capability_state_snapshot_like_cpp()?;
-        let result = mutate(&mut state);
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().persistent_capabilities = state;
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_at_login_flags_like_cpp = state.at_login_flags;
-            self.represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
-            self.represented_armor_proficiency_like_cpp = state.armor_proficiency;
-            return Some(result);
-        }
-        canonical.then_some(result)
     }
 
     pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
@@ -31162,26 +28942,6 @@ impl WorldSession {
         self.with_owned_player_like_cpp(|player| player.gameplay_state().transport.is_some())
     }
 
-    pub(crate) fn set_loaded_player_customizations_like_cpp(
-        &mut self,
-        customizations: Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>,
-    ) {
-        let choices = customizations
-            .iter()
-            .map(|choice| wow_entities::PlayerCustomizationChoice {
-                option_id: choice.option_id,
-                choice_id: choice.choice_id,
-            })
-            .collect();
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.gameplay_state_mut().customizations = choices;
-        });
-        #[cfg(test)]
-        {
-            self.loaded_player_customizations_like_cpp = Box::new(customizations);
-        }
-    }
-
     pub(crate) fn should_send_init_transport_like_cpp(
         &self,
         transport_guid: ObjectGuid,
@@ -31358,42 +29118,6 @@ impl WorldSession {
         #[cfg(test)]
         if !_canonical && self.player_handle_like_cpp.is_none() {
             self.represented_known_titles_like_cpp.insert(title_id);
-        }
-    }
-
-    /// C++ `Player::LoadFromDB` parses `knownTitles` as 32-bit words and
-    /// validates `chosenTitle` against `Player::HasTitle` before setting it.
-    pub(crate) fn load_represented_character_titles_like_cpp(
-        &mut self,
-        known_titles: &str,
-        chosen_title: u32,
-    ) {
-        let mut known_title_ids = BTreeSet::new();
-        for (word_index, token) in known_titles.split_whitespace().enumerate() {
-            let word = token.parse::<u64>().unwrap_or(0) & u64::from(u32::MAX);
-            for bit_index in 0..32_u32 {
-                if (word & (1_u64 << bit_index)) != 0 {
-                    known_title_ids.insert((word_index as u32) * 32 + bit_index);
-                }
-            }
-        }
-
-        let chosen_title = if chosen_title != 0 && !known_title_ids.contains(&chosen_title) {
-            0
-        } else {
-            chosen_title
-        };
-        let chosen_title = i32::try_from(chosen_title).unwrap_or(0);
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_known_titles_like_cpp(known_title_ids.clone());
-                player.set_chosen_title_like_cpp(chosen_title);
-            })
-            .is_some();
-        #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.represented_known_titles_like_cpp = known_title_ids.into_iter().collect();
-            self.represented_chosen_title_like_cpp = chosen_title;
         }
     }
 
