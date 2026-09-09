@@ -24704,11 +24704,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "cannot_enter_existing_instance_lock_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn cannot_enter_existing_instance_lock_like_cpp (& self , map_id : u32 , difficulty_id : wow_map :: Difficulty , target_lock_context : wow_map :: CreateMapInstanceLockContext ,) -> Option < wow_instances :: TransferAbortReason >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24780,11 +24782,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "canonical_map_has_seer_like_object_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_map_has_seer_like_object_like_cpp (& self , target : ObjectGuid) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn canonical_map_has_seer_like_object_like_cpp (& self , target : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25203,33 +25207,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "check_instance_count_at_like_cpp",
-          "visibility": "private",
-          "signature": "fn check_instance_count_at_like_cpp (& mut self , instance_id : u32 , now_secs : u64) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn check_instance_count_at_like_cpp (& mut self , instance_id : u32 , now_secs : u64 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "check_instance_count_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn check_instance_count_like_cpp (& mut self , instance_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "check_instance_count_probe_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn check_instance_count_probe_like_cpp (& self , instance_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26086,11 +26096,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "create_instance_lock_for_new_instance_side_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn create_instance_lock_for_new_instance_side_effect_like_cpp (& self , map_id : u32 , difficulty_id : wow_map :: Difficulty , owner_guid : ObjectGuid , instance_id : u32 ,) -> Option < () >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26136,11 +26148,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "create_map_instance_owner_guid_like_cpp",
-          "visibility": "private",
-          "signature": "fn create_map_instance_owner_guid_like_cpp (& self , map_id : u32) -> Option < ObjectGuid >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn create_map_instance_owner_guid_like_cpp (& self , map_id : u32 ,) -> Option < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26526,11 +26540,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "current_map_instanceable_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn current_map_instanceable_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27135,11 +27151,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "ensure_canonical_player_owner_for_map_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn ensure_canonical_player_owner_for_map_like_cpp (& mut self , key : wow_map :: MapKey , position : Position ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29536,11 +29554,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "is_map_disabled_for_player_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn is_map_disabled_for_player_like_cpp (& self , map_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32097,11 +32117,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_difficulty_preferences_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_difficulty_preferences_like_cpp < R > (& mut self , f : impl FnOnce (& mut u32 , & mut u32 , & mut u32) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33257,11 +33279,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_cannot_enter_target_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_cannot_enter_target_map_like_cpp (& self , map_id : u32) -> Option < (u32 , u8 , i32) >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_cannot_enter_target_map_like_cpp (& self , map_id : u32 ,) -> Option < (u32 , u8 , i32) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -35065,11 +35089,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "prune_expired_instance_reset_times_like_cpp",
-          "visibility": "private",
-          "signature": "fn prune_expired_instance_reset_times_like_cpp (& mut self , now_secs : u64)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn prune_expired_instance_reset_times_like_cpp (& mut self , now_secs : u64 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37570,11 +37596,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "replace_player_difficulty_preferences_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn replace_player_difficulty_preferences_like_cpp (& mut self , dungeon : u32 , raid : u32 , legacy_raid : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39715,11 +39743,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_group_difficulty_id_for_map_entry_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_group_difficulty_id_for_map_entry_like_cpp (& self , map_id : u32 , map_entry : wow_data :: map :: MapEntry , group : & GroupInfo ,) -> wow_map :: Difficulty",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40860,11 +40890,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_player_difficulty_id_for_map_entry_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_player_difficulty_id_for_map_entry_like_cpp (& self , map_id : u32 , map_entry : wow_data :: map :: MapEntry ,) -> Option < wow_map :: Difficulty >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -46343,12 +46375,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_active_instance_lock_instance_id_side_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn set_active_instance_lock_instance_id_side_effect_like_cpp (& self , map_id : u32 , difficulty_id : wow_map :: Difficulty , instance_id : u32 ,) -> Option < () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -66026,19 +66059,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_create_map_side_effects_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::apply_represented_group_leader_flag_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -66208,58 +66228,6 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::create_map_instance_owner_guid_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::create_map_instance_owner_guid_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::create_map_player_context_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::create_map_player_context_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (crate)",
-          "cfg": [],
           "fingerprint": "get(& group_guid)",
           "count": 1
         },
@@ -67047,32 +67015,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::represented_set_difficulty_reset_owner_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::represented_set_difficulty_reset_owner_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::reset_group_update_sequence_if_needed_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -67119,19 +67061,6 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_canonical_map_manager",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
           "count": 1
         },
         {
@@ -67301,58 +67230,6 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:GroupRegistry",
           "count": 1
         },
         {
@@ -67652,6 +67529,162 @@
           "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::difficulty",
+          "source": "crates/wow-world/src/session/instances/difficulty.rs",
+          "enclosing": "impl WorldSession::represented_set_difficulty_reset_owner_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::difficulty",
+          "source": "crates/wow-world/src/session/instances/difficulty.rs",
+          "enclosing": "impl WorldSession::represented_set_difficulty_reset_owner_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::difficulty",
+          "source": "crates/wow-world/src/session/instances/difficulty.rs",
+          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::difficulty",
+          "source": "crates/wow-world/src/session/instances/difficulty.rs",
+          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::difficulty",
+          "source": "crates/wow-world/src/session/instances/difficulty.rs",
+          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::difficulty",
+          "source": "crates/wow-world/src/session/instances/difficulty.rs",
+          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::instance",
+          "source": "crates/wow-world/src/session/instances/instance.rs",
+          "enclosing": "impl WorldSession::create_map_instance_owner_guid_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::instance",
+          "source": "crates/wow-world/src/session/instances/instance.rs",
+          "enclosing": "impl WorldSession::create_map_instance_owner_guid_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::map_key",
+          "source": "crates/wow-world/src/session/instances/map_key.rs",
+          "enclosing": "impl WorldSession::apply_create_map_side_effects_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::map_key",
+          "source": "crates/wow-world/src/session/instances/map_key.rs",
+          "enclosing": "impl WorldSession::create_map_player_context_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::map_key",
+          "source": "crates/wow-world/src/session/instances/map_key.rs",
+          "enclosing": "impl WorldSession::create_map_player_context_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instances::map_resolution",
+          "source": "crates/wow-world/src/session/instances/map_resolution.rs",
+          "enclosing": "impl WorldSession::set_canonical_map_manager",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
           "count": 1
         },
         {

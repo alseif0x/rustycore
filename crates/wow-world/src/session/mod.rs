@@ -16,6 +16,7 @@ mod driver;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 mod effect_learning;
+mod instances;
 pub mod mailbox;
 mod movement;
 mod persistence;
@@ -9524,18 +9525,6 @@ impl WorldSession {
         )
     }
 
-    /// Inject the shared map manager. Call once at session creation, before login.
-    pub fn set_map_manager(&mut self, mgr: crate::map_manager::SharedMapManager) {
-        self.map_manager = Some(mgr);
-    }
-
-    pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {
-        if let Some(registry) = &self.player_registry {
-            let _ = registry.bind_canonical_map_manager(Arc::clone(&mgr));
-        }
-        self.canonical_map_manager = Some(mgr);
-    }
-
     pub(crate) fn auto_reply_msg_like_cpp(&self) -> Option<String> {
         self.canonical_player_snapshot_like_cpp(|player| {
             player
@@ -11646,44 +11635,6 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
-    /// Resolve the one canonical Player identity and move that exact value to
-    /// the selected map. Existing map records predate Player handles, so the
-    /// transition must adopt them before considering a new initial value.
-    fn ensure_canonical_player_owner_for_map_like_cpp(
-        &mut self,
-        key: wow_map::MapKey,
-        position: Position,
-    ) -> bool {
-        if !self.ensure_canonical_player_owner_exists_like_cpp(key) {
-            return false;
-        }
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
-            return false;
-        };
-
-        let Some(handle) = self.player_handle_like_cpp else {
-            return false;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return false;
-        };
-        match manager.player_residence_like_cpp(handle) {
-            Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => manager
-                .relocate_player_like_cpp(handle, position)
-                .is_ok_and(|outcome| outcome.relocated),
-            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
-                manager.detach_player_like_cpp(handle).is_ok()
-                    && manager
-                        .attach_player_like_cpp(handle, key, position)
-                        .is_ok()
-            }
-            Some(wow_map::PlayerResidenceLikeCpp::Detached) => manager
-                .attach_player_like_cpp(handle, key, position)
-                .is_ok(),
-            None => false,
-        }
-    }
-
     /// Resolve or construct the single canonical Player without transferring
     /// it between maps. This is the Rust equivalent of the live `Player*`
     /// passed through C++ `MapManager::CreateMap` while instance side effects
@@ -11764,50 +11715,6 @@ impl WorldSession {
         Some(Box::new(
             self.build_initial_player_for_owner_like_cpp(key, None)?,
         ))
-    }
-
-    fn prune_expired_instance_reset_times_like_cpp(&mut self, now_secs: u64) {
-        self.represented_instance_reset_times_like_cpp
-            .retain(|_, release_time| *release_time > now_secs);
-    }
-
-    fn check_instance_count_like_cpp(&mut self, instance_id: u32) -> bool {
-        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
-        self.check_instance_count_at_like_cpp(instance_id, now_secs)
-    }
-
-    fn check_instance_count_probe_like_cpp(&self, instance_id: u32) -> bool {
-        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
-        let active_count = self
-            .represented_instance_reset_times_like_cpp
-            .values()
-            .filter(|release_time| **release_time > now_secs)
-            .count();
-        if active_count < self.max_instances_per_hour_like_cpp as usize {
-            return true;
-        }
-
-        self.represented_instance_reset_times_like_cpp
-            .get(&instance_id)
-            .is_some_and(|release_time| *release_time > now_secs)
-    }
-
-    fn check_instance_count_at_like_cpp(&mut self, instance_id: u32, now_secs: u64) -> bool {
-        self.prune_expired_instance_reset_times_like_cpp(now_secs);
-        if self.represented_instance_reset_times_like_cpp.len()
-            < self.max_instances_per_hour_like_cpp as usize
-        {
-            return true;
-        }
-
-        self.represented_instance_reset_times_like_cpp
-            .contains_key(&instance_id)
-    }
-
-    pub(crate) fn add_instance_enter_time_like_cpp(&mut self, instance_id: u32, enter_time: u64) {
-        self.represented_instance_reset_times_like_cpp
-            .entry(instance_id)
-            .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
     }
 
     fn completed_achievement_ids_snapshot_like_cpp(&self) -> Option<HashSet<u32>> {
@@ -12049,350 +11956,6 @@ impl WorldSession {
         })
     }
 
-    fn cannot_enter_existing_instance_lock_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-        target_lock_context: wow_map::CreateMapInstanceLockContext,
-    ) -> Option<wow_instances::TransferAbortReason> {
-        let player_guid = self.player_guid?;
-        let owner_guid_counter = i64::try_from(target_lock_context.owner_guid_counter).ok()?;
-        let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-        let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
-        let mgr = mgr.read().ok()?;
-        let target_lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
-        Some(mgr.can_join_instance_lock_at(player_guid, &entries, target_lock, now))
-    }
-
-    pub(crate) fn apply_create_map_side_effects_like_cpp(
-        &mut self,
-        map_id: u32,
-        decision: &wow_map::CreateMapDecision,
-    ) -> CreateMapSideEffectApplySummaryLikeCpp {
-        let side_effects = match decision {
-            wow_map::CreateMapDecision::Existing { side_effects, .. }
-            | wow_map::CreateMapDecision::Create { side_effects, .. }
-            | wow_map::CreateMapDecision::Reject { side_effects } => side_effects,
-        };
-        let decision_difficulty_id = match decision {
-            wow_map::CreateMapDecision::Existing { difficulty_id, .. }
-            | wow_map::CreateMapDecision::Create { difficulty_id, .. } => Some(*difficulty_id),
-            wow_map::CreateMapDecision::Reject { .. } => None,
-        };
-
-        let mut summary = CreateMapSideEffectApplySummaryLikeCpp::default();
-        for side_effect in side_effects {
-            match *side_effect {
-                wow_map::CreateMapSideEffect::SetPlayerRecentInstance { instance_id } => {
-                    if self.set_represented_player_recent_instance_like_cpp(map_id, instance_id) {
-                        summary.player_recent_instance_sets += 1;
-                    }
-                }
-                wow_map::CreateMapSideEffect::SetGroupRecentInstance {
-                    owner_guid_counter,
-                    instance_id,
-                } => {
-                    let owner_guid = i64::try_from(owner_guid_counter)
-                        .ok()
-                        .map(|counter| ObjectGuid::create_player(1, counter));
-                    let updated = self
-                        .resolved_group_guid_like_cpp()
-                        .zip(owner_guid)
-                        .and_then(|(group_guid, owner_guid)| {
-                            self.group_registry
-                                .as_ref()?
-                                .set_recent_instance_transition_like_cpp(
-                                    group_guid,
-                                    map_id,
-                                    owner_guid,
-                                    instance_id,
-                                )
-                                .ok()
-                        })
-                        .is_some();
-                    if updated {
-                        summary.group_recent_instance_sets += 1;
-                    } else {
-                        summary.skipped_group_recent_instance_sets += 1;
-                    }
-                }
-                wow_map::CreateMapSideEffect::CreateInstanceLockForNewInstance {
-                    owner_guid_counter,
-                    instance_id,
-                } => {
-                    let owner_guid = i64::try_from(owner_guid_counter)
-                        .ok()
-                        .map(|counter| ObjectGuid::create_player(1, counter));
-                    let created = decision_difficulty_id
-                        .zip(owner_guid)
-                        .and_then(|(difficulty_id, owner_guid)| {
-                            self.create_instance_lock_for_new_instance_side_effect_like_cpp(
-                                map_id,
-                                difficulty_id,
-                                owner_guid,
-                                instance_id,
-                            )
-                        })
-                        .is_some();
-                    if created {
-                        summary.instance_lock_creates += 1;
-                    } else {
-                        summary.skipped_instance_lock_creates += 1;
-                    }
-                }
-                wow_map::CreateMapSideEffect::SetInstanceLockInstanceId { instance_id } => {
-                    let updated = decision_difficulty_id
-                        .and_then(|difficulty_id| {
-                            self.set_active_instance_lock_instance_id_side_effect_like_cpp(
-                                map_id,
-                                difficulty_id,
-                                instance_id,
-                            )
-                        })
-                        .is_some();
-                    if updated {
-                        summary.instance_lock_instance_id_updates += 1;
-                    } else {
-                        summary.skipped_instance_lock_instance_id_updates += 1;
-                    }
-                }
-                wow_map::CreateMapSideEffect::TeleportToBattlegroundEntryPoint => {
-                    summary.pending_battleground_entry_teleports += 1;
-                }
-            }
-        }
-
-        summary
-    }
-
-    fn create_instance_lock_for_new_instance_side_effect_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-        owner_guid: ObjectGuid,
-        instance_id: u32,
-    ) -> Option<()> {
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-        let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
-        let mut mgr = mgr.write().ok()?;
-        mgr.create_instance_lock_for_new_instance_at(
-            owner_guid,
-            &entries,
-            instance_id,
-            self.reset_schedule_like_cpp,
-            now,
-        )?;
-        Some(())
-    }
-
-    fn set_active_instance_lock_instance_id_side_effect_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-        instance_id: u32,
-    ) -> Option<()> {
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-        let owner_guid = self.create_map_instance_owner_guid_like_cpp(map_id)?;
-        let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
-        let mut mgr = mgr.write().ok()?;
-        mgr.set_active_instance_lock_instance_id_at(owner_guid, &entries, now, instance_id)
-            .then_some(())
-    }
-
-    pub(crate) fn create_map_player_context_like_cpp(
-        &self,
-        map_id: u32,
-        map_entry: wow_data::map::MapEntry,
-        player_guid: ObjectGuid,
-    ) -> Option<wow_map::CreateMapPlayerContext> {
-        let player_difficulty_id =
-            self.represented_player_difficulty_id_for_map_entry_like_cpp(map_id, map_entry)?;
-
-        let group = self
-            .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
-            .map(|group| {
-                let difficulty_id = self.represented_group_difficulty_id_for_map_entry_like_cpp(
-                    map_id, map_entry, &group,
-                );
-                wow_map::CreateMapGroupContext {
-                    difficulty_id,
-                    recent_instance_owner_guid_counter: group
-                        .recent_instance_owner_like_cpp(map_id)
-                        .counter() as u64,
-                    recent_instance_id: group.recent_instance_id_like_cpp(map_id),
-                }
-            });
-
-        Some(wow_map::CreateMapPlayerContext {
-            guid_counter: player_guid.counter() as u64,
-            team_id: player_team_id_for_race_cpp(self.player_race_like_cpp()),
-            battleground_id: 0,
-            has_battleground: false,
-            player_difficulty_id,
-            player_recent_instance_id: self.resolved_player_recent_instance_id_like_cpp(map_id)?,
-            group,
-        })
-    }
-
-    pub(crate) fn create_map_difficulty_context_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> Option<wow_map::CreateMapDifficultyContext> {
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-
-        Some(wow_map::CreateMapDifficultyContext {
-            difficulty_id: entries.difficulty_id,
-            has_reset_schedule: entries.has_reset_schedule(),
-            is_instance_id_bound: entries.is_instance_id_bound(),
-        })
-    }
-
-    pub(crate) fn create_map_active_instance_lock_context_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> Option<wow_map::CreateMapInstanceLockContext> {
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-        let owner_guid = self.create_map_instance_owner_guid_like_cpp(map_id)?;
-        let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
-        let mgr = mgr.read().ok()?;
-        let lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
-
-        Some(wow_map::CreateMapInstanceLockContext {
-            instance_id: lock.instance_id,
-            difficulty_id: lock.difficulty_id,
-            token: create_map_instance_lock_token_like_cpp(owner_guid, &entries, lock),
-            owner_guid_counter: owner_guid.counter() as u64,
-        })
-    }
-
-    pub(crate) fn create_map_db2_entries_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> Option<wow_instances::MapDb2Entries> {
-        wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
-            self.map_store()?.as_ref(),
-            self.map_difficulty_store()?.as_ref(),
-            self.difficulty_store()?.as_ref(),
-            map_id,
-            difficulty_id,
-        )
-    }
-
-    pub(crate) fn lfg_has_active_instance_lock_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> bool {
-        let Some(player_guid) = self.player_guid else {
-            return false;
-        };
-        let Some(entries) = self.create_map_db2_entries_like_cpp(map_id, difficulty_id) else {
-            return false;
-        };
-        let Some(mgr) = self.instance_lock_mgr.as_ref() else {
-            return false;
-        };
-        let Ok(mgr) = mgr.read() else {
-            return false;
-        };
-        let now = u64::try_from(unix_now()).unwrap_or(0);
-        mgr.find_active_instance_lock_at(player_guid, &entries, now)
-            .is_some()
-    }
-
-    fn create_map_instance_owner_guid_like_cpp(&self, map_id: u32) -> Option<ObjectGuid> {
-        self.resolved_group_guid_like_cpp()
-            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
-            .map(|group| group.recent_instance_owner_like_cpp(map_id))
-            .or(self.player_guid)
-    }
-
-    fn represented_player_difficulty_id_for_map_entry_like_cpp(
-        &self,
-        map_id: u32,
-        map_entry: wow_data::map::MapEntry,
-    ) -> Option<wow_map::Difficulty> {
-        let (dungeon, raid, legacy_raid) =
-            self.player_difficulty_preferences_snapshot_like_cpp()?;
-        Some(
-            (match map_entry.instance_type {
-                wow_data::map::MAP_INSTANCE => dungeon,
-                wow_data::map::MAP_RAID => {
-                    if self.map_uses_legacy_raid_difficulty_like_cpp(map_id) {
-                        legacy_raid
-                    } else {
-                        raid
-                    }
-                }
-                _ => 0,
-            }) as wow_map::Difficulty,
-        )
-    }
-
-    fn represented_group_difficulty_id_for_map_entry_like_cpp(
-        &self,
-        map_id: u32,
-        map_entry: wow_data::map::MapEntry,
-        group: &GroupInfo,
-    ) -> wow_map::Difficulty {
-        (match map_entry.instance_type {
-            wow_data::map::MAP_INSTANCE => group.dungeon_difficulty_id,
-            wow_data::map::MAP_RAID => {
-                if self.map_uses_legacy_raid_difficulty_like_cpp(map_id) {
-                    group.legacy_raid_difficulty_id
-                } else {
-                    group.raid_difficulty_id
-                }
-            }
-            _ => 0,
-        }) as wow_map::Difficulty
-    }
-
-    fn map_uses_legacy_raid_difficulty_like_cpp(&self, map_id: u32) -> bool {
-        let Some(default_difficulty) = self.map_difficulty_store().and_then(|store| {
-            self.difficulty_store().and_then(|difficulty_store| {
-                store.default_for_map_like_cpp(map_id, difficulty_store)
-            })
-        }) else {
-            return true;
-        };
-
-        let Some(difficulty) = self
-            .difficulty_store()
-            .and_then(|store| store.get(u32::from(default_difficulty.difficulty_id)))
-        else {
-            return true;
-        };
-
-        DifficultyFlags::from_bits_truncate(difficulty.flags).contains(DifficultyFlags::LEGACY)
-    }
-
-    /// Inject the dedicated Detour worker handle. The session only sends
-    /// path requests; it never owns raw mmap/navmesh state.
-    pub fn set_mmap_pathfinder_like_cpp(
-        &mut self,
-        pathfinder: Arc<WorldMMapPathfinderWorkerLikeCpp>,
-    ) {
-        self.mmap_pathfinder_like_cpp = Some(pathfinder);
-    }
-
-    /// Inject the shared C++ `InstanceLockMgr` analogue.
-    pub fn set_instance_lock_mgr(
-        &mut self,
-        mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
-    ) {
-        self.instance_lock_mgr = Some(mgr);
-    }
-
     pub(crate) fn represented_gameobject_questgiver_can_interact_with_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -12420,10 +11983,6 @@ impl WorldSession {
             .position
             .is_within_dist(&player_position, interaction_distance)
             .then_some(access)
-    }
-
-    pub(crate) fn has_canonical_map_manager_like_cpp(&self) -> bool {
-        self.canonical_map_manager.is_some()
     }
 
     pub(crate) fn represented_unit_values_update_to_update_object_like_cpp(
@@ -13214,15 +12773,6 @@ impl WorldSession {
         Some(result)
     }
 
-    pub(crate) fn has_world_map_manager_like_cpp(&self) -> bool {
-        self.map_manager.is_some()
-    }
-
-    pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
-        self.legacy_creature_aggro_config_like_cpp
-            .map_visibility_range_like_cpp(map_id)
-    }
-
     fn dynamic_object_create_data_from_canonical_like_cpp(
         guid: ObjectGuid,
         dynamic_object: &wow_entities::DynamicObject,
@@ -13243,230 +12793,6 @@ impl WorldSession {
             radius: data.radius,
             cast_time_ms: data.cast_time_ms,
         }
-    }
-
-    pub(crate) fn visible_dynamic_objects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &wow_core::Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<wow_packet::packets::update::DynamicObjectCreateData>> {
-        let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = match player_map_key {
-            Some(key) if key.map_id == requested_map_id => {
-                manager.find_map(key.map_id, key.instance_id)?
-            }
-            Some(_) => return None,
-            None => manager.find_map(requested_map_id, 0)?,
-        };
-        let nearby = map.map().nearby_cell_guids_like_cpp(
-            position.x,
-            position.y,
-            visibility_radius + source_combat_reach,
-        );
-        let mut dynamic_objects = Vec::new();
-
-        for guid in nearby
-            .world
-            .dynamic_objects
-            .into_iter()
-            .chain(nearby.grid.dynamic_objects)
-        {
-            let Some(dynamic_object) = map.map().get_typed_dynamic_object(guid) else {
-                continue;
-            };
-            let object = dynamic_object.world();
-            if !object.object().is_in_world()
-                || object.map_id() != u32::from(map_id)
-                || !Self::visibility_distance_allows_like_cpp(
-                    position,
-                    source_combat_reach,
-                    &object.position(),
-                    object.combat_reach(),
-                    visibility_radius,
-                )
-            {
-                continue;
-            }
-            dynamic_objects.push(Self::dynamic_object_create_data_from_canonical_like_cpp(
-                guid,
-                dynamic_object,
-            ));
-        }
-
-        Some(dynamic_objects)
-    }
-
-    pub(crate) fn visible_area_triggers_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &wow_core::Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<wow_packet::packets::update::AreaTriggerCreateData>> {
-        let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
-        let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = match player_map_key {
-            Some(key) if key.map_id == requested_map_id => {
-                manager.find_map(key.map_id, key.instance_id)?
-            }
-            Some(_) => return None,
-            None => manager.find_map(requested_map_id, 0)?,
-        };
-        let nearby = map.map().nearby_cell_guids_like_cpp(
-            position.x,
-            position.y,
-            visibility_radius + source_combat_reach,
-        );
-        let mut area_triggers = Vec::new();
-
-        for guid in nearby.grid.area_triggers {
-            let Some(create_data) = map
-                .map()
-                .with_area_trigger_like_cpp(guid, |area_trigger| {
-                    let object = area_trigger.world();
-                    if !object.object().is_in_world()
-                        || object.map_id() != u32::from(map_id)
-                        || !Self::visibility_distance_allows_like_cpp(
-                            position,
-                            source_combat_reach,
-                            &object.position(),
-                            object.combat_reach(),
-                            visibility_radius,
-                        )
-                        || !viewer_phase_shift
-                            .as_ref()
-                            .is_some_and(|viewer| viewer.can_see(object.phase_shift()))
-                        || area_trigger.is_server_side()
-                        || area_trigger.is_removed()
-                    {
-                        return None;
-                    }
-                    Some(
-                        crate::entity_update_bridge::area_trigger_create_data_from_entity_like_cpp(
-                            area_trigger,
-                        ),
-                    )
-                })
-                .flatten()
-            else {
-                continue;
-            };
-            area_triggers.push(create_data);
-        }
-
-        Some(area_triggers)
-    }
-
-    pub(crate) fn visible_misc_objects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &wow_core::Position,
-        visibility_radius: f32,
-    ) -> Option<(
-        Vec<wow_packet::packets::update::CorpseCreateData>,
-        Vec<wow_packet::packets::update::SceneObjectCreateData>,
-        Vec<wow_packet::packets::update::ConversationCreateData>,
-    )> {
-        let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
-        let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = match player_map_key {
-            Some(key) if key.map_id == requested_map_id => {
-                manager.find_map(key.map_id, key.instance_id)?
-            }
-            Some(_) => return None,
-            None => manager.find_map(requested_map_id, 0)?,
-        };
-        let nearby = map.map().nearby_cell_guids_like_cpp(
-            position.x,
-            position.y,
-            visibility_radius + source_combat_reach,
-        );
-
-        let allows_world_object = |world: &wow_entities::WorldObject| {
-            world.object().is_in_world()
-                && world.map_id() == requested_map_id
-                && viewer_phase_shift
-                    .as_ref()
-                    .is_some_and(|viewer| viewer.can_see(world.phase_shift()))
-                && Self::visibility_distance_allows_like_cpp(
-                    position,
-                    source_combat_reach,
-                    &world.position(),
-                    world.combat_reach(),
-                    visibility_radius,
-                )
-        };
-
-        let mut corpses = Vec::new();
-        for guid in nearby.world.corpses.into_iter().chain(nearby.grid.corpses) {
-            let Some(corpse) = map.map().get_typed_corpse(guid) else {
-                continue;
-            };
-            if allows_world_object(corpse.world()) {
-                corpses.push(
-                    crate::entity_update_bridge::corpse_create_data_from_entity_like_cpp(corpse),
-                );
-            }
-        }
-
-        let mut scene_objects = Vec::new();
-        for guid in nearby.grid.scene_objects {
-            let Some(create_data) = map
-                .map()
-                .with_scene_object_like_cpp(guid, |scene_object| {
-                    allows_world_object(scene_object.world()).then(|| {
-                        crate::entity_update_bridge::scene_object_create_data_from_entity_like_cpp(
-                            scene_object,
-                        )
-                    })
-                })
-                .flatten()
-            else {
-                continue;
-            };
-            scene_objects.push(create_data);
-        }
-
-        let mut conversations = Vec::new();
-        for guid in nearby.grid.conversations {
-            let Some(create_data) = map
-                .map()
-                .with_conversation_like_cpp(guid, |conversation| {
-                    (!conversation.is_removed() && allows_world_object(conversation.world())).then(
-                    || {
-                        crate::entity_update_bridge::conversation_create_data_from_entity_like_cpp(
-                            conversation,
-                            &self.locale,
-                        )
-                    },
-                )
-                })
-                .flatten()
-            else {
-                continue;
-            };
-            conversations.push(create_data);
-        }
-
-        Some((corpses, scene_objects, conversations))
     }
 
     pub(crate) fn visible_other_players_from_registry_like_cpp(
@@ -14666,10 +13992,6 @@ impl WorldSession {
         self.reset_schedule_like_cpp = schedule;
     }
 
-    pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
-        self.vmap_indoor_check_like_cpp = enabled;
-    }
-
     pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
             state.is_outdoors = Some(is_outdoors);
@@ -14993,24 +14315,8 @@ impl WorldSession {
         self.feature_system_character_undelete_enabled_like_cpp = enabled;
     }
 
-    pub fn set_instance_ignore_raid_like_cpp(&mut self, ignore: bool) {
-        self.instance_ignore_raid_like_cpp = ignore;
-    }
-
-    pub fn set_instance_ignore_level_like_cpp(&mut self, ignore: bool) {
-        self.instance_ignore_level_like_cpp = ignore;
-    }
-
-    pub fn set_max_instances_per_hour_like_cpp(&mut self, max_instances: u32) {
-        self.max_instances_per_hour_like_cpp = max_instances;
-    }
-
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
         self.remote_address_like_cpp = address;
-    }
-
-    pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
-        self.mmap_runtime_config_like_cpp = config;
     }
 
     pub fn set_waypoint_path_resolver_like_cpp(&mut self, resolver: WaypointPathResolverLikeCpp) {
@@ -15201,10 +14507,6 @@ impl WorldSession {
             return true;
         }
         canonical
-    }
-
-    pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
-        &self.mmap_runtime_config_like_cpp
     }
 
     pub fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
@@ -15754,17 +15056,6 @@ impl WorldSession {
         self.player_condition_store = Some(store);
     }
 
-    /// Set the C++ AdventureMapPOI.db2 store for this session.
-    #[cfg(test)]
-    pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
-        self.adventure_map_poi_store = Some(store);
-    }
-
-    #[cfg(test)]
-    pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
-        self.adventure_map_poi_store.as_ref()
-    }
-
     pub fn set_content_tuning_store(&mut self, store: Arc<ContentTuningStore>) {
         self.content_tuning_store = Some(store);
     }
@@ -15803,120 +15094,6 @@ impl WorldSession {
         self.disable_mgr.as_ref()
     }
 
-    /// Set the C++ Difficulty.db2 store used by `sDifficultyStore`.
-    pub fn set_difficulty_store(&mut self, store: Arc<DifficultyStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.difficulty_store = Some(store);
-    }
-
-    pub(crate) fn difficulty_store(&self) -> Option<&Arc<DifficultyStore>> {
-        self.difficulty_store.as_ref()
-    }
-
-    pub(crate) fn player_difficulty_preferences_snapshot_like_cpp(
-        &self,
-    ) -> Option<(u32, u32, u32)> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.difficulty_preferences_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some((
-                self.represented_dungeon_difficulty_id_like_cpp,
-                self.represented_raid_difficulty_id_like_cpp,
-                self.represented_legacy_raid_difficulty_id_like_cpp,
-            ));
-        }
-        canonical
-    }
-
-    fn replace_player_difficulty_preferences_like_cpp(
-        &mut self,
-        dungeon: u32,
-        raid: u32,
-        legacy_raid: u32,
-    ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_difficulty_preferences_like_cpp(dungeon, raid, legacy_raid);
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_dungeon_difficulty_id_like_cpp = dungeon;
-            self.represented_raid_difficulty_id_like_cpp = raid;
-            self.represented_legacy_raid_difficulty_id_like_cpp = legacy_raid;
-            return true;
-        }
-        canonical
-    }
-
-    fn mutate_player_difficulty_preferences_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut u32, &mut u32, &mut u32) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(f(
-                &mut self.represented_dungeon_difficulty_id_like_cpp,
-                &mut self.represented_raid_difficulty_id_like_cpp,
-                &mut self.represented_legacy_raid_difficulty_id_like_cpp,
-            ));
-        }
-        // Player.h:1965-1967: mutate this Player's preferences, not a copied tuple.
-        // Callbacks are synchronous field updates; no owner re-entry or publication.
-        self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            f(
-                &mut state.dungeon_difficulty_id,
-                &mut state.raid_difficulty_id,
-                &mut state.legacy_raid_difficulty_id,
-            )
-        })
-    }
-
-    pub(crate) fn resolved_dungeon_difficulty_id_like_cpp(&self) -> Option<u32> {
-        self.player_difficulty_preferences_snapshot_like_cpp()
-            .map(|preferences| preferences.0)
-    }
-
-    pub(crate) fn resolved_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
-        self.player_difficulty_preferences_snapshot_like_cpp()
-            .map(|preferences| preferences.1)
-    }
-
-    pub(crate) fn resolved_legacy_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
-        self.player_difficulty_preferences_snapshot_like_cpp()
-            .map(|preferences| preferences.2)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_dungeon_difficulty_id_like_cpp(&self) -> u32 {
-        self.resolved_dungeon_difficulty_id_like_cpp()
-            .expect("test Player difficulty owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_represented_dungeon_difficulty_id_for_test_like_cpp(
-        &mut self,
-        difficulty_id: u32,
-    ) {
-        let _ = self.mutate_player_difficulty_preferences_like_cpp(|dungeon, _, _| {
-            *dungeon = difficulty_id;
-        });
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_raid_difficulty_id_like_cpp(&self) -> u32 {
-        self.resolved_raid_difficulty_id_like_cpp()
-            .expect("test Player raid difficulty owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_legacy_raid_difficulty_id_like_cpp(&self) -> u32 {
-        self.resolved_legacy_raid_difficulty_id_like_cpp()
-            .expect("test Player legacy raid difficulty owner must resolve")
-    }
-
     pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.pass_on_group_loot_like_cpp());
@@ -15943,111 +15120,6 @@ impl WorldSession {
     pub(crate) fn pass_on_group_loot_like_cpp(&self) -> bool {
         self.resolved_pass_on_group_loot_like_cpp()
             .expect("test Player loot preference owner must resolve")
-    }
-
-    /// C++ `Player::GetRecentInstanceId`.
-    pub(crate) fn resolved_player_recent_instance_id_like_cpp(&self, map_id: u32) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .recent_instances
-                .get(&map_id)
-                .copied()
-                .unwrap_or(0)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(
-                self.represented_player_recent_instances_like_cpp
-                    .get(&map_id)
-                    .copied()
-                    .unwrap_or(0),
-            );
-        }
-        canonical
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_player_recent_instance_id_like_cpp(&self, map_id: u32) -> u32 {
-        self.resolved_player_recent_instance_id_like_cpp(map_id)
-            .expect("test Player recent-instance owner must resolve")
-    }
-
-    /// C++ `Player::SetRecentInstance`.
-    pub(crate) fn set_represented_player_recent_instance_like_cpp(
-        &mut self,
-        map_id: u32,
-        instance_id: u32,
-    ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player
-                    .gameplay_state_mut()
-                    .recent_instances
-                    .insert(map_id, instance_id);
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_player_recent_instances_like_cpp
-                .insert(map_id, instance_id);
-            return true;
-        }
-        canonical
-    }
-
-    pub(crate) fn forget_represented_player_recent_instance_like_cpp(
-        &mut self,
-        map_id: u32,
-    ) -> bool {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .gameplay_state_mut()
-                .recent_instances
-                .remove(&map_id)
-                .is_some()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self
-                .represented_player_recent_instances_like_cpp
-                .remove(&map_id)
-                .is_some();
-        }
-        canonical.unwrap_or(false)
-    }
-
-    pub(crate) fn apply_represented_player_instance_reset_result_like_cpp(
-        &mut self,
-        map_id: u32,
-        result: GroupInstanceResetResultLikeCpp,
-        method: GroupInstanceResetMethodLikeCpp,
-    ) -> bool {
-        match result {
-            GroupInstanceResetResultLikeCpp::Success => {
-                self.forget_represented_player_recent_instance_like_cpp(map_id)
-            }
-            GroupInstanceResetResultLikeCpp::NotEmpty
-                if method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty =>
-            {
-                self.forget_represented_player_recent_instance_like_cpp(map_id)
-            }
-            GroupInstanceResetResultLikeCpp::NotEmpty
-            | GroupInstanceResetResultLikeCpp::CannotReset
-            | GroupInstanceResetResultLikeCpp::Other => false,
-        }
-    }
-
-    pub(crate) fn represented_toggle_difficulty_target_like_cpp(&self) -> Option<u32> {
-        let store = self.difficulty_store()?;
-        let (dungeon, raid, _) = self.player_difficulty_preferences_snapshot_like_cpp()?;
-        let raid_entry = store.get(raid);
-        let entry = match raid_entry {
-            Some(entry) if entry.toggle_difficulty_id != 0 => entry,
-            _ => store.get(dungeon)?,
-        };
-
-        (entry.toggle_difficulty_id != 0).then_some(u32::from(entry.toggle_difficulty_id))
     }
 
     /// Resolve C++ `Player::m_group` through this session incarnation's
@@ -16288,273 +15360,6 @@ impl WorldSession {
         updated
     }
 
-    pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(
-        &self,
-    ) -> Option<DungeonDifficultySet> {
-        Some(DungeonDifficultySet {
-            difficulty_id: i32::try_from(self.resolved_dungeon_difficulty_id_like_cpp()?)
-                .unwrap_or(i32::MAX),
-        })
-    }
-
-    pub(crate) fn apply_group_difficulty_like_cpp(
-        &mut self,
-        group_guid: u64,
-        difficulty_id: u32,
-        kind: wow_social::group::GroupDifficultyKindLikeCpp,
-    ) {
-        if self.resolved_group_guid_like_cpp() != Some(group_guid) {
-            return;
-        }
-
-        if self
-            .mutate_player_difficulty_preferences_like_cpp(
-                |dungeon, raid, legacy_raid| match kind {
-                    wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
-                        *dungeon = difficulty_id;
-                    }
-                    wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
-                        *raid = difficulty_id;
-                    }
-                    wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                        *legacy_raid = difficulty_id;
-                    }
-                },
-            )
-            .is_none()
-        {
-            return;
-        }
-
-        match kind {
-            wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
-                self.send_packet(&DungeonDifficultySet {
-                    difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
-                });
-            }
-            wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
-                self.send_packet(&RaidDifficultySet {
-                    difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
-                    legacy: false,
-                });
-            }
-            wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                self.send_packet(&RaidDifficultySet {
-                    difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
-                    legacy: true,
-                });
-            }
-        }
-    }
-
-    fn current_map_instanceable_like_cpp(&self) -> bool {
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        self.map_store()
-            .and_then(|store| store.get(map_id))
-            .is_some_and(|entry| {
-                matches!(
-                    entry.instance_type,
-                    wow_data::map::MAP_INSTANCE
-                        | wow_data::map::MAP_RAID
-                        | wow_data::map::MAP_BATTLEGROUND
-                        | wow_data::map::MAP_ARENA
-                        | wow_data::map::MAP_SCENARIO
-                )
-            })
-    }
-
-    pub(crate) fn represented_set_difficulty_id_like_cpp(
-        &mut self,
-        difficulty_id: u32,
-    ) -> Vec<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
-        let Some((current_dungeon, current_raid, current_legacy_raid)) =
-            self.player_difficulty_preferences_snapshot_like_cpp()
-        else {
-            return Vec::new();
-        };
-        let Some(entry) = self
-            .difficulty_store()
-            .and_then(|store| store.get(difficulty_id))
-            .copied()
-        else {
-            return Vec::new();
-        };
-
-        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
-        if !flags.contains(DifficultyFlags::CAN_SELECT) {
-            return Vec::new();
-        }
-
-        if self.current_map_instanceable_like_cpp() {
-            return Vec::new();
-        }
-
-        if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
-            if let Some(statement) = self.set_represented_group_difficulty_like_cpp(
-                difficulty_id,
-                wow_social::group::GroupDifficultyKindLikeCpp::Dungeon,
-            ) {
-                return vec![statement];
-            }
-            if self.resolved_group_guid_like_cpp().is_some() || difficulty_id == current_dungeon {
-                return Vec::new();
-            }
-
-            if self
-                .mutate_player_difficulty_preferences_like_cpp(|dungeon, _, _| {
-                    *dungeon = difficulty_id;
-                })
-                .is_none()
-            {
-                return Vec::new();
-            }
-            self.send_packet(&DungeonDifficultySet {
-                difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
-            });
-            Vec::new()
-        } else if entry.instance_type == MAP_RAID_LIKE_CPP {
-            let legacy = flags.contains(DifficultyFlags::LEGACY);
-            let kind = if legacy {
-                wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid
-            } else {
-                wow_social::group::GroupDifficultyKindLikeCpp::Raid
-            };
-            if let Some(statement) =
-                self.set_represented_group_difficulty_like_cpp(difficulty_id, kind)
-            {
-                return vec![statement];
-            }
-            if self.resolved_group_guid_like_cpp().is_some() {
-                return Vec::new();
-            }
-            let current = if legacy {
-                current_legacy_raid
-            } else {
-                current_raid
-            };
-            if difficulty_id == current {
-                return Vec::new();
-            }
-
-            if self
-                .mutate_player_difficulty_preferences_like_cpp(|_, raid, legacy_raid| {
-                    if legacy {
-                        *legacy_raid = difficulty_id;
-                    } else {
-                        *raid = difficulty_id;
-                    }
-                })
-                .is_none()
-            {
-                return Vec::new();
-            }
-
-            self.send_packet(&RaidDifficultySet {
-                difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
-                legacy,
-            });
-            Vec::new()
-        } else {
-            Vec::new()
-        }
-    }
-
-    fn set_represented_group_difficulty_like_cpp(
-        &mut self,
-        difficulty_id: u32,
-        kind: wow_social::group::GroupDifficultyKindLikeCpp,
-    ) -> Option<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
-        let group_guid = self.resolved_group_guid_like_cpp()?;
-        let player_guid = self.player_guid()?;
-        let registry = self.group_registry.as_ref()?;
-        let outcome = registry
-            .set_difficulty_transition_like_cpp(group_guid, player_guid, difficulty_id, kind)
-            .ok()?;
-        let persistence = outcome.persistence;
-        let members = outcome.group.members;
-
-        for member_guid in members {
-            if member_guid == player_guid {
-                self.apply_group_difficulty_like_cpp(group_guid, difficulty_id, kind);
-                continue;
-            }
-            let Some(player_registry) = self.player_registry.as_ref() else {
-                continue;
-            };
-            if let Some(member) = player_registry.group_presence(member_guid) {
-                let _ = player_registry.try_send_current_command(
-                    member.registration,
-                    SessionCommand::ApplyGroupDifficultyLikeCpp(
-                        crate::session::mailbox::ApplyGroupDifficultyLikeCppCommand {
-                            group_guid,
-                            difficulty_id,
-                            kind,
-                        },
-                    ),
-                );
-            }
-        }
-
-        persistence
-            .into_iter()
-            .next()
-            .map(crate::handlers::group::group_persistence_command_like_cpp)
-    }
-
-    pub(crate) fn represented_set_difficulty_reset_owner_like_cpp(
-        &self,
-        difficulty_id: u32,
-    ) -> Option<ObjectGuid> {
-        let entry = self
-            .difficulty_store()
-            .and_then(|store| store.get(difficulty_id))
-            .copied()?;
-
-        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
-        if !flags.contains(DifficultyFlags::CAN_SELECT) || self.current_map_instanceable_like_cpp()
-        {
-            return None;
-        }
-
-        let player_guid = self.player_guid()?;
-        if let Some(group_guid) = self.resolved_group_guid_like_cpp() {
-            let group = self.group_registry.as_ref()?.get(&group_guid)?;
-            if !group.is_leader_like_cpp(player_guid) || group.is_lfg_group_like_cpp() {
-                return None;
-            }
-
-            let current = if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
-                group.dungeon_difficulty_id
-            } else if entry.instance_type == MAP_RAID_LIKE_CPP {
-                if flags.contains(DifficultyFlags::LEGACY) {
-                    group.legacy_raid_difficulty_id
-                } else {
-                    group.raid_difficulty_id
-                }
-            } else {
-                return None;
-            };
-
-            return (current != difficulty_id).then_some(group.leader_guid);
-        }
-
-        let (dungeon, raid, legacy_raid) =
-            self.player_difficulty_preferences_snapshot_like_cpp()?;
-        let current = if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
-            dungeon
-        } else if entry.instance_type == MAP_RAID_LIKE_CPP {
-            if flags.contains(DifficultyFlags::LEGACY) {
-                legacy_raid
-            } else {
-                raid
-            }
-        } else {
-            return None;
-        };
-
-        (current != difficulty_id).then_some(player_guid)
-    }
-
     /// Set the lock store for this session.
     pub fn set_lock_store(&mut self, store: Arc<LockStore>) {
         self.lock_store = Some(store);
@@ -16735,32 +15540,12 @@ impl WorldSession {
         self.chr_specialization_store.as_ref()
     }
 
-    pub fn set_map_store(&mut self, store: Arc<MapStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.map_store = Some(store);
-    }
-
-    pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
-        self.map_store.as_ref()
-    }
-
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
         self.world_safe_loc_store_like_cpp = Some(store);
     }
 
     pub(crate) fn world_safe_loc_store_like_cpp(&self) -> Option<&Arc<WorldSafeLocStore>> {
         self.world_safe_loc_store_like_cpp.as_ref()
-    }
-
-    pub fn set_map_difficulty_store(&mut self, store: Arc<MapDifficultyStore>) {
-        self.map_difficulty_store = Some(store);
-    }
-
-    pub fn set_map_difficulty_x_condition_store(
-        &mut self,
-        store: Arc<MapDifficultyXConditionStore>,
-    ) {
-        self.map_difficulty_x_condition_store = Some(store);
     }
 
     pub fn set_access_requirement_store(&mut self, store: Arc<AccessRequirementStoreLikeCpp>) {
@@ -16952,10 +15737,6 @@ impl WorldSession {
     pub(crate) fn can_see_phase_shift_like_cpp(&self, other: &PhaseShift) -> bool {
         self.represented_player_phase_shift_like_cpp()
             .is_some_and(|phase_shift| phase_shift.can_see(other))
-    }
-
-    pub(crate) fn map_difficulty_store(&self) -> Option<&Arc<MapDifficultyStore>> {
-        self.map_difficulty_store.as_ref()
     }
 
     pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
@@ -19262,11 +18043,6 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
-        &self.represented_reveal_world_map_overlay_criteria_like_cpp
-    }
-
-    #[cfg(test)]
     pub(crate) fn represented_area_zone_criteria_like_cpp(
         &self,
     ) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
@@ -19706,40 +18482,6 @@ impl WorldSession {
         }
 
         false
-    }
-
-    pub(crate) fn current_map_difficulty_id_like_cpp(&self) -> u8 {
-        if let Some(difficulty_id) = self.current_canonical_player_map_difficulty_id_like_cpp() {
-            return difficulty_id;
-        }
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        self.canonical_map_manager
-            .as_ref()
-            .and_then(|manager| manager.lock().ok())
-            .and_then(|manager| {
-                manager
-                    .find_map(map_id, 0)
-                    .map(|managed| managed.map().spawn_mode())
-            })
-            .unwrap_or(0)
-    }
-
-    /// C++ `Map::GetDifficultyID` for the map that actually owns this Player.
-    ///
-    /// The same map id can have multiple live instances. Do not infer spell
-    /// metadata from the instance-zero map when the canonical player belongs
-    /// to a difficulty-specific `ManagedMap`.
-    pub(crate) fn current_canonical_player_map_difficulty_id_like_cpp(&self) -> Option<u8> {
-        let player_guid = self.player_guid()?;
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
-        let mut difficulty_id = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if difficulty_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
-                difficulty_id = Some(managed.difficulty());
-            }
-        });
-        difficulty_id
     }
 
     fn represented_championing_faction_for_kill_like_cpp(&self) -> Option<u32> {
@@ -20793,177 +19535,6 @@ impl WorldSession {
         let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         self.check_area_triggers_with_catalogs_like_cpp(&catalogs)
             .await;
-    }
-
-    fn player_cannot_enter_target_map_like_cpp(&self, map_id: u32) -> Option<(u32, u8, i32)> {
-        let Some(map_store) = self.map_store.as_ref() else {
-            return None;
-        };
-        let Some(map_entry) = map_store.get(map_id).copied() else {
-            return Some((TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP, 0, 0));
-        };
-        if !map_entry.is_dungeon() {
-            return None;
-        }
-
-        let player_guid = self.player_guid?;
-        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid)?;
-        let requested_difficulty = player
-            .group
-            .map(|group| group.difficulty_id)
-            .unwrap_or(player.player_difficulty_id);
-
-        if self
-            .create_map_db2_entries_like_cpp(map_id, requested_difficulty)
-            .is_none()
-        {
-            return Some((TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, 0, 0));
-        }
-
-        if self.player_is_game_master_like_cpp() == Some(true) {
-            return None;
-        }
-
-        if let Some(abort) =
-            self.access_requirement_abort_like_cpp(map_id, requested_difficulty as u8)
-        {
-            return Some(abort);
-        }
-
-        if map_entry.instance_type == wow_data::map::MAP_RAID
-            && map_entry.expansion_like_cpp() >= self.server_expansion_like_cpp
-            && !self.instance_ignore_raid_like_cpp
-            && !self.current_player_is_in_raid_group_like_cpp()
-        {
-            return Some((TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, 0, 0));
-        }
-
-        let Some(canonical_map_manager) = self.canonical_map_manager.as_ref() else {
-            return None;
-        };
-        let entry = wow_map::CreateMapEntryContext {
-            map_id,
-            kind: wow_map::CreateMapEntryKind::Dungeon,
-            split_by_faction: map_entry.is_split_by_faction(),
-            flex_locking: map_entry.is_flex_locking(),
-        };
-        let active_instance_lock =
-            self.create_map_active_instance_lock_context_like_cpp(map_id, requested_difficulty);
-        let mut manager = canonical_map_manager.lock().ok()?;
-        let decision = manager.create_map_decision_like_cpp(
-            Some(entry),
-            Some(player),
-            |candidate_map_id, difficulty_id| {
-                self.create_map_difficulty_context_like_cpp(candidate_map_id, difficulty_id)
-            },
-            active_instance_lock,
-            |_, _| None,
-        );
-
-        let existing_instance_lock_context = match &decision {
-            wow_map::CreateMapDecision::Existing { key, .. } => manager
-                .find_map(key.map_id, key.instance_id)
-                .and_then(|map| map.instance_lock_context()),
-            _ => None,
-        };
-        let existing_instance_player_count = match &decision {
-            wow_map::CreateMapDecision::Existing { key, .. } => manager
-                .find_map(key.map_id, key.instance_id)
-                .map(|map| map.players_count_except_gms_like_cpp()),
-            _ => None,
-        };
-        let existing_instance_encounter_in_progress = match &decision {
-            wow_map::CreateMapDecision::Existing { key, .. } => manager
-                .find_map(key.map_id, key.instance_id)
-                .map(|map| map.instance_encounter_in_progress_like_cpp()),
-            _ => None,
-        };
-        let decision_key = create_map_decision_key_like_cpp(&decision);
-        drop(manager);
-
-        if let wow_map::CreateMapDecision::Existing {
-            key, difficulty_id, ..
-        } = &decision
-        {
-            if let Some(player_count) = existing_instance_player_count
-                && let Some(entries) =
-                    self.create_map_db2_entries_like_cpp(key.map_id, *difficulty_id)
-                && player_count >= entries.max_players
-            {
-                return Some((TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP, 0, 0));
-            }
-
-            if map_entry.instance_type == wow_data::map::MAP_RAID
-                && self.player_loading() != Some(player_guid)
-                && existing_instance_encounter_in_progress == Some(true)
-            {
-                return Some((TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP, 0, 0));
-            }
-
-            if let Some(lock_context) = existing_instance_lock_context {
-                let deny_reason = self
-                    .cannot_enter_existing_instance_lock_like_cpp(
-                        key.map_id,
-                        *difficulty_id,
-                        lock_context,
-                    )
-                    .unwrap_or(wow_instances::TransferAbortReason::None);
-                if deny_reason != wow_instances::TransferAbortReason::None {
-                    return Some((deny_reason as u32, 0, 0));
-                }
-            }
-        }
-
-        if !map_entry.ignores_instance_farm_limit_like_cpp()
-            && let Some(key) = decision_key
-            && !self.check_instance_count_probe_like_cpp(key.instance_id)
-            && self.resolved_player_is_alive_like_cpp() == Some(true)
-        {
-            return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
-        }
-
-        None
-    }
-
-    pub(crate) fn is_disabled_map_type_for_player_like_cpp(
-        &self,
-        disable_type: u32,
-        map_id: u32,
-    ) -> bool {
-        let Some(disable_mgr) = self.disable_mgr() else {
-            return false;
-        };
-        let Some(map_store) = self.map_store() else {
-            return false;
-        };
-
-        let current_map_id = u32::from(self.player_map_id_like_cpp());
-        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
-            return true;
-        };
-        let current_map_instance_type = map_store
-            .get(current_map_id)
-            .map(|entry| entry.instance_type);
-
-        disable_mgr.is_disabled_for_like_cpp(
-            disable_type,
-            map_id,
-            Some(DisableWorldObjectRefLikeCpp {
-                type_id: TypeId::Player,
-                map_id: current_map_id,
-                area_id,
-                is_pet: false,
-                is_battle_arena: current_map_instance_type == Some(MAP_ARENA_LIKE_CPP),
-                is_battleground: current_map_instance_type == Some(MAP_BATTLEGROUND_LIKE_CPP),
-                player_map_difficulty: None,
-            }),
-            0,
-            Some(map_store.as_ref()),
-        )
-    }
-
-    fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
-        self.is_disabled_map_type_for_player_like_cpp(DISABLE_TYPE_MAP, map_id)
     }
 
     /// Send a server packet back to the client via the instance (default) channel.
@@ -22361,10 +20932,6 @@ impl WorldSession {
         self.player_name.as_deref()
     }
 
-    pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
-        self.current_map_id
-    }
-
     pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             u32::try_from(player.unit().data().faction_template)
@@ -22931,21 +21498,6 @@ impl WorldSession {
         let is_in_water =
             liquid_status & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP) != 0;
         Some((is_submerged, is_in_water))
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn represented_failed_map_difficulty_x_condition_like_cpp(
-        &self,
-        map_difficulty_id: u32,
-    ) -> Option<u32> {
-        let store = self.map_difficulty_x_condition_store.as_ref()?;
-        let player_conditions = self.player_condition_store.as_ref()?;
-        let context = self.represented_player_condition_context_like_cpp()?;
-        store.failed_condition_like_cpp(map_difficulty_id, player_conditions, |condition| {
-            context
-                .as_context(self)
-                .is_some_and(|context| is_player_meeting_condition_like_cpp(condition, &context))
-        })
     }
 
     pub(crate) fn resolved_buyback_price_like_cpp(&self) -> Option<[u32; BUYBACK_SLOT_COUNT]> {
@@ -24046,70 +22598,6 @@ impl WorldSession {
                     .map(|manager| manager.min_height_like_cpp(map_id, 0, position.x, position.y))
             })
             .unwrap_or(crate::map_manager::DEFAULT_MIN_HEIGHT_LIKE_CPP)
-    }
-
-    pub(crate) fn handle_under_map_like_cpp(
-        &mut self,
-        movement_info: &wow_packet::packets::movement::MovementInfo,
-    ) -> Option<MovementUnderMapDamageEvent> {
-        let min_height = self.player_min_height_like_cpp(movement_info.position);
-        if movement_info.position.z >= min_height {
-            #[cfg(test)]
-            {
-                self.player_out_of_bounds_like_cpp = false;
-            }
-            return None;
-        }
-
-        let (original_health, max_health, player_is_alive) =
-            self.resolved_player_vitals_like_cpp()?;
-        if !player_is_alive {
-            return None;
-        }
-
-        #[cfg(test)]
-        {
-            self.player_out_of_bounds_like_cpp = true;
-        }
-        let damage = max_health;
-        let (_, health_after, _, _, killed_player) =
-            self.apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)?;
-        if health_after != original_health
-            && let Some(player_guid) = self.player_guid()
-        {
-            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
-            self.send_environmental_damage_log_like_cpp(
-                player_guid,
-                DAMAGE_FALL_TO_VOID_LIKE_CPP,
-                damage,
-                0,
-                0,
-            );
-            if killed_player {
-                self.send_player_health_values_update_like_cpp(player_guid, 0);
-            }
-        }
-
-        // C++ calls KillPlayer if EnvironmentalDamage did not kill due to GM/immunity.
-        if self.resolved_player_is_alive_like_cpp() == Some(true) {
-            self.set_player_alive_like_cpp(false);
-        } else {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        let event = MovementUnderMapDamageEvent {
-            z: movement_info.position.z,
-            min_height,
-            damage,
-        };
-        #[cfg(test)]
-        self.under_map_damage_events_like_cpp.push(event);
-        Some(event)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn under_map_damage_events_like_cpp(&self) -> &[MovementUnderMapDamageEvent] {
-        &self.under_map_damage_events_like_cpp
     }
 
     #[cfg(test)]
@@ -27024,11 +25512,6 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {
-        self.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
-    }
-
-    #[cfg(test)]
     pub(crate) fn set_taxi_flight_state_like_cpp(
         &mut self,
         current_node: RepresentedTaxiFlightNodeLikeCpp,
@@ -27542,84 +26025,6 @@ impl WorldSession {
         self.represented_seer_guid_like_cpp
     }
 
-    pub(crate) fn current_canonical_player_map_key_like_cpp(&self) -> Option<wow_map::MapKey> {
-        let guid = self.player_guid()?;
-        let manager = self.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        if let Some(handle) = self.player_handle_like_cpp
-            && handle.guid() == guid
-        {
-            return match manager.player_residence_like_cpp(handle)? {
-                wow_map::PlayerResidenceLikeCpp::Active(key) => Some(key),
-                wow_map::PlayerResidenceLikeCpp::Detached => None,
-            };
-        }
-        let mut key = None;
-        let mut ambiguous = false;
-        manager.do_for_all_maps(|managed| {
-            if managed.map().get_typed_player(guid).is_none() {
-                return;
-            }
-            if key.is_some() {
-                ambiguous = true;
-            } else {
-                key = Some(wow_map::MapKey::new(
-                    managed.map_id(),
-                    managed.instance_id(),
-                ));
-            }
-        });
-        (!ambiguous).then_some(key).flatten()
-    }
-
-    /// Resolve object access through the player's exact canonical `Map`, as
-    /// C++ `ObjectAccessor::GetCreature/GetGameObject(WorldObject const&, ...)`
-    /// does through `world_object.GetMap()`. During pre-player bootstrap and
-    /// focused represented tests, accept a sole map for the expected map id;
-    /// multiple instances without a canonical Player fail closed.
-    pub(crate) fn canonical_object_lookup_map_key_like_cpp(
-        &self,
-        fallback_map_id: u32,
-    ) -> Option<wow_map::MapKey> {
-        if let Some(map_key) = self.current_canonical_player_map_key_like_cpp() {
-            return Some(map_key);
-        }
-
-        let manager = self.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        if let Some(player_guid) = self.player_guid() {
-            let mut player_map_count = 0usize;
-            manager.do_for_all_maps(|managed| {
-                if managed.map().get_typed_player(player_guid).is_some() {
-                    player_map_count = player_map_count.saturating_add(1);
-                }
-            });
-            // A player temporarily visible in two canonical maps is a
-            // transfer boundary, not permission to choose one by iteration
-            // order. Object-owned mutations fail closed until ownership is
-            // unambiguous.
-            if player_map_count != 0 || self.state == SessionState::LoggedIn {
-                return None;
-            }
-        }
-        let mut fallback_key = None;
-        let mut ambiguous = false;
-        manager.do_for_all_maps(|managed| {
-            if managed.map_id() != fallback_map_id {
-                return;
-            }
-            if fallback_key.is_some() {
-                ambiguous = true;
-            } else {
-                fallback_key = Some(wow_map::MapKey::new(
-                    managed.map_id(),
-                    managed.instance_id(),
-                ));
-            }
-        });
-        (!ambiguous).then_some(fallback_key).flatten()
-    }
-
     /// Revalidates the exact map ownership captured before a multi-lock loot
     /// authority reconciliation. If a canonical Player existed at capture
     /// time, fallback lookup is forbidden: disappearing or moving during the
@@ -27639,20 +26044,6 @@ impl WorldSession {
         u32::from(map_id) == map_key.map_id && instance_id == map_key.instance_id
     }
 
-    /// The legacy map facade must follow the same map instance that owns the
-    /// canonical Player. Instance `0` remains only the bootstrap fallback for
-    /// tests/runtime phases where no canonical Player has been materialized.
-    pub(crate) fn current_legacy_runtime_map_key_like_cpp(&self) -> (u16, u32) {
-        let fallback_map_id = self.player_map_id_like_cpp();
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return (fallback_map_id, 0);
-        };
-        let Ok(map_id) = u16::try_from(map_key.map_id) else {
-            return (fallback_map_id, 0);
-        };
-        (map_id, map_key.instance_id)
-    }
-
     fn represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
         guid: ObjectGuid,
         bytes: &[u8],
@@ -27663,196 +26054,6 @@ impl WorldSession {
         guid.hash(&mut hasher);
         bytes.hash(&mut hasher);
         hasher.finish()
-    }
-
-    /// Consume the last map-owned represented `Map::SendObjectUpdates` stable
-    /// DynamicObject VALUES snapshot into this session's outbound packet stream.
-    ///
-    /// Source of truth remains canonical `Map::map_objects` as snapshotted by
-    /// `ManagedMap::last_send_object_updates_summary_like_cpp()`. This helper
-    /// gates snapshot delivery through represented direct Player,
-    /// PlayerMapType/CreatureMapType shared-vision, or DynamicObjectMapType
-    /// receiver-source evidence before the final session `HaveAtClient`
-    /// visibility check, and never reads live DynamicObject changed masks or
-    /// mutates canonical map state.
-    pub(crate) fn send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(
-        &mut self,
-    ) -> usize {
-        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
-            return 0;
-        };
-        let Ok(packet_map_id) = u16::try_from(key.map_id) else {
-            return 0;
-        };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return 0;
-        };
-        let Some(player_guid) = self.player_guid() else {
-            return 0;
-        };
-        let represented_seer_guid = self.represented_seer_guid_like_cpp;
-        let (update_generation, updates) = {
-            let Ok(manager) = manager.lock() else {
-                return 0;
-            };
-            let Some(managed_map) = manager.find_map(key.map_id, key.instance_id) else {
-                return 0;
-            };
-            let map = managed_map.map();
-            let Some(player) = map.get_typed_player(player_guid) else {
-                return 0;
-            };
-            if !player.unit().world().object().is_in_world() {
-                return 0;
-            }
-            let player_world = player.unit().world();
-            let player_phase_shift = player_world.phase_shift().clone();
-            let player_position = player_world.position();
-            let visibility_range = map.visibility_range();
-            let shared_vision_source_guids = map
-                .typed_combat_unit_guids_like_cpp()
-                .into_iter()
-                .filter(|source_guid| *source_guid != player_guid)
-                .filter(|source_guid| {
-                    map.get_typed_player(*source_guid).is_some_and(|source| {
-                        source.unit().world().object().is_in_world()
-                            && source
-                                .unit()
-                                .subsystems()
-                                .control
-                                .shared_vision_guids
-                                .contains(&player_guid)
-                    }) || map
-                        .with_creature_like_cpp(*source_guid, |source| {
-                            source.unit().world().object().is_in_world()
-                                && source
-                                    .unit()
-                                    .subsystems()
-                                    .control
-                                    .shared_vision_guids
-                                    .contains(&player_guid)
-                        })
-                        .unwrap_or(false)
-                })
-                .collect::<Vec<_>>();
-            let dynamic_object_seer_guid = represented_seer_guid.filter(|seer_guid| {
-                if !seer_guid.is_dynamic_object() {
-                    return false;
-                }
-                let Some(seer) = map.get_typed_dynamic_object(*seer_guid) else {
-                    return false;
-                };
-                if !seer.world().object().is_in_world() {
-                    return false;
-                }
-                let caster_guid = seer.bound_caster().unwrap_or_else(|| seer.caster_guid());
-                caster_guid == player_guid && caster_guid.is_player()
-            });
-
-            let updates = managed_map
-                .last_send_object_updates_summary_like_cpp()
-                .dynamic_object_values_updates
-                .into_iter()
-                .filter(|represented_update| {
-                    let guid = represented_update.guid;
-                    if !guid.is_dynamic_object() {
-                        return false;
-                    }
-                    let Some(updated) = map.get_typed_dynamic_object(guid) else {
-                        return false;
-                    };
-                    if !updated.world().object().is_in_world() {
-                        return false;
-                    }
-                    // C++ visibility distance is 2D (CanSeeOrDetect -> GetSightRange ->
-                    // IsWithinDist(obj, range, is3D=false); Object.cpp:1587-1609). Mirror the
-                    // already-2D entry filters and the creature/GameObject values fanout.
-                    let updated_world = updated.world();
-                    let direct_player_allows = player_phase_shift
-                        .can_see(updated_world.phase_shift())
-                        && updated_world
-                            .position()
-                            .is_within_dist_2d(&player_position, visibility_range);
-                    if direct_player_allows {
-                        return true;
-                    }
-                    if shared_vision_source_guids.iter().any(|source_guid| {
-                        if let Some(source) = map.get_typed_player(*source_guid) {
-                            let source_world = source.unit().world();
-                            source_world
-                                .phase_shift()
-                                .can_see(updated_world.phase_shift())
-                                && updated_world
-                                    .position()
-                                    .is_within_dist_2d(&source_world.position(), visibility_range)
-                        } else {
-                            map.with_creature_like_cpp(*source_guid, |source| {
-                                let source_world = source.unit().world();
-                                source_world
-                                    .phase_shift()
-                                    .can_see(updated_world.phase_shift())
-                                    && updated_world.position().is_within_dist_2d(
-                                        &source_world.position(),
-                                        visibility_range,
-                                    )
-                            })
-                            .unwrap_or(false)
-                        }
-                    }) {
-                        return true;
-                    }
-                    dynamic_object_seer_guid.is_some_and(|seer_guid| {
-                        map.get_typed_dynamic_object(seer_guid).is_some_and(|seer| {
-                            let seer_world = seer.world();
-                            seer_world
-                                .phase_shift()
-                                .can_see(updated_world.phase_shift())
-                                && updated_world
-                                    .position()
-                                    .is_within_dist_2d(&seer_world.position(), visibility_range)
-                        })
-                    })
-                })
-                .collect::<Vec<_>>();
-            (managed_map.update_calls().len() as u64, updates)
-        };
-
-        use wow_packet::ServerPacket;
-
-        let mut sent = 0;
-        for represented_update in updates {
-            let guid = represented_update.guid;
-            if !self.client_visible_guids_like_cpp.contains(&guid) {
-                continue;
-            }
-            let Some(update) = dynamic_object_values_update_to_update_object(
-                guid,
-                packet_map_id,
-                &represented_update.values_update,
-            ) else {
-                continue;
-            };
-            let bytes = update.to_bytes();
-            let fingerprint =
-                Self::represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
-                    guid, &bytes,
-                );
-            if !self
-                .represented_dynamic_object_values_updates_delivered_like_cpp
-                .insert((
-                    key.map_id,
-                    key.instance_id,
-                    update_generation,
-                    guid,
-                    fingerprint,
-                ))
-            {
-                continue;
-            }
-            self.send_packet(&update);
-            sent += 1;
-        }
-        sent
     }
 
     fn represented_player_has_active_vehicle_like_cpp(&self) -> bool {
@@ -27918,31 +26119,6 @@ impl WorldSession {
         );
         self.last_visibility_pos = None;
         true
-    }
-
-    fn canonical_map_has_seer_like_object_like_cpp(&self, target: ObjectGuid) -> bool {
-        if target.is_empty() {
-            return false;
-        }
-        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
-            return false;
-        };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-        manager
-            .find_map(key.map_id, key.instance_id)
-            .and_then(|managed| {
-                managed.map().with_world_object_by_kinds_like_cpp(
-                    target,
-                    Self::represented_seer_kinds_like_cpp(),
-                    |_| (),
-                )
-            })
-            .is_some()
     }
 
     fn represented_seer_kinds_like_cpp() -> &'static [AccessorObjectKind] {
