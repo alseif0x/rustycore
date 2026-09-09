@@ -95,7 +95,7 @@ and live server changes retain their separate authorization gates.
 ## License
 
 RustyCore uses **GPL-3.0-or-later**, as declared in [Cargo.toml](Cargo.toml).
-Read the project notice and full terms in [LICENSE](LICENSE). Contributions must be
+Read the [project notice](NOTICE) and [full license terms](LICENSE). Contributions must be
 compatible with those terms. Preserve upstream authorship, license notices and provenance
 when adapting code or data.
 
