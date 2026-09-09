@@ -699,9 +699,9 @@
     },
     {
       "path": "tools/wow-test-bot/src/main.rs",
-      "observed_lines": 20952,
-      "ceiling_lines": 20952,
-      "split": "Separate protocol connection/authentication, scenario orchestration and scenario-specific tests; keep shared wire primitives narrow.",
+      "observed_lines": 799,
+      "ceiling_lines": 799,
+      "split": "Separate protocol connection/authentication, scenario orchestration and scenario-specific tests; keep shared wire primitives narrow. #630 decomposes this file into 28 bounded src/bot modules by responsibility plus 3 test modules, dropping it from 20,452 to 799 lines with the ceiling tightened to that figure. Only the binary entry point and the module composition remain. One justified exception: src/bot/void_storage_2.rs is 1,573 lines because its single run_bot_with_void_storage function is 1,567 on its own and dividing it would change behaviour; its exit is the semantic extraction of that scenario. Item-for-item with the 179 bot tests unchanged and no production crate touched.",
       "review_checkpoint": "584:C4"
     }
   ],
