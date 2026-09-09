@@ -21937,22 +21937,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_initial_item_equip_auras_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_initial_item_equip_auras_like_cpp (& mut self , item_guid : ObjectGuid) -> usize",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_initial_item_equip_auras_like_cpp (& mut self , item_guid : ObjectGuid ,) -> usize",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_initial_item_set_auras_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_initial_item_set_auras_like_cpp (& mut self , item_guid : ObjectGuid) -> usize",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_initial_item_set_auras_like_cpp (& mut self , item_guid : ObjectGuid ,) -> usize",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22096,11 +22100,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_loaded_enchantment_spell_action_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_loaded_enchantment_spell_action_like_cpp (& mut self , action : ApplyEnchantmentEffectAction ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22733,11 +22739,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_represented_item_bonus_action_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_item_bonus_action_state_like_cpp (& mut self , action : ApplyEnchantmentEffectAction ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24192,11 +24200,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "broadcast_item_push_result_to_group",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn broadcast_item_push_result_to_group (& self , bytes : Vec < u8 >) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24591,11 +24601,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "can_use_inventory_item_represented_with_loading_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn can_use_inventory_item_represented_with_loading_like_cpp (& self , item : & InventoryItem , runtime_item : Option < & Item > , not_loading : bool ,) -> InventoryResult",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26743,11 +26755,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "direct_inventory_player_snapshot",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn direct_inventory_player_snapshot (& self) -> Option < Player >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28806,11 +28820,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "initial_loaded_item_mods_can_apply_like_cpp",
-          "visibility": "private",
-          "signature": "fn initial_loaded_item_mods_can_apply_like_cpp (& self , item_guid : ObjectGuid) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn initial_loaded_item_mods_can_apply_like_cpp (& self , item_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29184,11 +29200,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "inventory_equip_capabilities_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn inventory_equip_capabilities_like_cpp (& self) -> Option < (bool , bool) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29799,22 +29817,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_price_base_with_catalogs_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn item_price_base_with_catalogs_like_cpp (catalogs : & ItemValuationCatalogsLikeCpp , item_level : u32 ,) -> Option < (f32 , f32) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "item_push_result_from_send_new_item_plan",
-          "visibility": "private",
-          "signature": "fn item_push_result_from_send_new_item_plan (plan : & SendNewItemPlan) -> ItemPushResult",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn item_push_result_from_send_new_item_plan (plan : & SendNewItemPlan ,) -> ItemPushResult",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29901,11 +29923,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_sell_price_with_catalogs_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn item_sell_price_with_catalogs_like_cpp (& self , catalogs : & ItemValuationCatalogsLikeCpp , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29938,22 +29962,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_shield_block_value_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn item_shield_block_value_like_cpp (& self , item_id : u32) -> Option < i16 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "item_spec_class_mask_from_overrides_like_cpp",
-          "visibility": "private",
-          "signature": "fn item_spec_class_mask_from_overrides_like_cpp (& self , item_id : u32) -> Option < u32 >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn item_spec_class_mask_from_overrides_like_cpp (& self , item_id : u32 ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -30129,11 +30157,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_name_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn item_template_name_like_cpp (& self , item_id : u32) -> & str",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -30978,11 +31008,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "loaded_enchantment_effect_action_is_unrepresented_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn loaded_enchantment_effect_action_is_unrepresented_like_cpp (action : ApplyEnchantmentEffectAction ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31002,11 +31034,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "loaded_inventory_item_visible_update_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn loaded_inventory_item_visible_update_like_cpp (& self , item_guid : ObjectGuid ,) -> Option < (u8 , i32 , u16 , u16) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31243,13 +31277,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "mark_equipment_sets_saved_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mark_equipment_sets_saved_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31952,11 +31988,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_item_modifier_runtime_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_item_modifier_runtime_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerItemModifierRuntimeStateLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33623,11 +33661,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_item_modifier_runtime_snapshot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_item_modifier_runtime_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerItemModifierRuntimeStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -35594,11 +35634,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "record_represented_all_item_mods_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn record_represented_all_item_mods_like_cpp (& mut self , targets : & [(u8 , ObjectGuid)] , apply : bool ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36015,22 +36057,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "record_represented_item_mods_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn record_represented_item_mods_like_cpp (& mut self , item_guid : ObjectGuid , slot : u8 , apply : bool ,) -> usize",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "record_represented_items_set_item_events_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn record_represented_items_set_item_events_like_cpp (& mut self , item_guid : ObjectGuid , apply : bool ,) -> Vec < RepresentedItemSetSpellEventLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36050,11 +36096,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "record_represented_offhand_item_mod_remove_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn record_represented_offhand_item_mod_remove_like_cpp (& mut self , item_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37202,11 +37250,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "repairable_inventory_item_costs_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn repairable_inventory_item_costs_like_cpp (& self , discount : f32 , repair_cost_rate : f32 ,) -> Option < Vec < (ObjectGuid , u64) > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37684,11 +37734,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_auto_unequip_offhand_if_need_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_auto_unequip_offhand_if_need_like_cpp (& mut self , force : bool) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_auto_unequip_offhand_if_need_like_cpp (& mut self , force : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37764,11 +37816,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_avg_total_item_level_can_equip_item_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_avg_total_item_level_can_equip_item_like_cpp (& self , entry_id : u32 , runtime_item : & Item , can_dual_wield : bool , can_titan_grip : bool ,) -> InventoryResult",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37786,11 +37840,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_avg_total_item_level_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_avg_total_item_level_like_cpp (& self) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38249,11 +38305,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_can_equip_unique_item_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_can_equip_unique_item_like_cpp (& self , entry_id : u32 , runtime_item : & Item , except_slot : u8 ,) -> InventoryResult",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38811,11 +38869,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_direct_inventory_slot_by_guid_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_direct_inventory_slot_by_guid_like_cpp (& self , guid : ObjectGuid ,) -> Option < (u8 , InventoryItem) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39004,11 +39064,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_equip_spell_fits_shapeshift_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_equip_spell_fits_shapeshift_like_cpp (& self , spell_id : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_equip_spell_fits_shapeshift_like_cpp (& self , spell_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39030,11 +39092,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_equipped_item_in_slot_fits_spell_requirements_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_equipped_item_in_slot_fits_spell_requirements_like_cpp (& self , slot : u8 , equipped : & SpellEquippedItemsEntry ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39631,11 +39695,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_has_item_fit_to_spell_requirements_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_has_item_fit_to_spell_requirements_like_cpp (& self , equipped : & SpellEquippedItemsEntry ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39677,11 +39743,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_heirloom_item_set_bonus_over_level_cap_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp (& self , item_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39779,11 +39847,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_item_bonus_action_updates_stats_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_item_bonus_action_updates_stats_like_cpp (action : ApplyEnchantmentEffectAction ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39831,22 +39901,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_item_fits_spell_requirements_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_item_fits_spell_requirements_like_cpp (& self , item_id : u32 , equipped : & SpellEquippedItemsEntry ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_item_inventory_type_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_item_inventory_type_like_cpp (& self , item_entry : u32 , item_guid : ObjectGuid ,) -> Option < InventoryType >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39864,11 +39938,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_item_level_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_item_level_like_cpp (& self , entry_id : u32 , runtime_item : Option < & Item > ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39935,11 +40011,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_item_set_spell_exists_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_item_set_spell_exists_like_cpp (& self , spell_id : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_item_set_spell_exists_like_cpp (& self , spell_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40578,11 +40656,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_player_has_default_item_entry_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_player_has_default_item_entry_like_cpp (& self , item_id : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_player_has_default_item_entry_like_cpp (& self , item_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40602,11 +40682,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_player_has_quest_for_loot_item_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_player_has_quest_for_loot_item_like_cpp (& self , item_id : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_player_has_quest_for_loot_item_like_cpp (& self , item_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42030,22 +42112,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_top_level_item_mod_targets_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_top_level_item_mod_targets_like_cpp (& self) -> Option < Vec < (u8 , ObjectGuid) > >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_top_level_item_mod_targets_like_cpp (& self ,) -> Option < Vec < (u8 , ObjectGuid) > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_total_avg_equipment_slot_candidates_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_total_avg_equipment_slot_candidates_like_cpp (inventory_type : InventoryType , can_dual_wield : bool , can_titan_grip : bool ,) -> Vec < (u8 , bool) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -43027,11 +43113,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "reset_represented_item_bonus_runtime_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn reset_represented_item_bonus_runtime_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -43628,11 +43716,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_player_inventory_runtime_like_cpp",
-          "visibility": "private",
-          "signature": "fn resolved_player_inventory_runtime_like_cpp (& self) -> Option < PlayerInventoryRuntime >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn resolved_player_inventory_runtime_like_cpp (& self ,) -> Option < PlayerInventoryRuntime >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44092,11 +44182,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_using_pvp_item_levels_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_using_pvp_item_levels_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44205,11 +44297,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "restore_represented_health_pct_after_item_mod_scaling_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn restore_represented_health_pct_after_item_mod_scaling_like_cpp (& mut self , health_before : u32 , max_health_before : u32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -53117,22 +53211,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "sync_canonical_direct_inventory_move_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn sync_canonical_direct_inventory_move_like_cpp (& mut self , src : u8 , dst_bag : u8 , dst_slot : u8 , item_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "sync_canonical_direct_inventory_remove_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn sync_canonical_direct_inventory_remove_like_cpp (& mut self , src : u8)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -54100,11 +54198,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "uncage_cast_item_still_matches_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn uncage_cast_item_still_matches_like_cpp (& self , cast_item_entry : u32 , modifiers : SpellCastBattlePetItemModifiersLikeCpp ,) -> Option < (u8 , u8 , InventoryItem) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -55291,22 +55391,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_equipment_sets_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn with_owned_equipment_sets_like_cpp < R > (& self , mut f : impl FnMut (& BTreeMap < u64 , RepresentedEquipmentSetLikeCpp > , bool) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_equipment_sets_mut_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn with_owned_equipment_sets_mut_like_cpp < R > (& mut self , mut f : impl FnMut (& mut BTreeMap < u64 , RepresentedEquipmentSetLikeCpp > , & mut bool) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -65701,123 +65805,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "group_guid",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "group_guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "group_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_guid",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "group_guid:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::broadcast_to_movement_set_in_range_and_connection_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
@@ -67814,6 +67801,123 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "group_guid",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "group_guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "group_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_guid",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "group_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "player_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::player_items::publication",
+          "source": "crates/wow-world/src/session/player_items/publication.rs",
+          "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         }
       ]

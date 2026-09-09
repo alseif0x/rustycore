@@ -7545,7 +7545,30 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
     // #236 split the former `session.rs`; the committed-money callers stayed
     // in `mod.rs`. If they move again this scan must follow them - the
     // assertions below fail loudly on a missing marker rather than passing.
-    let session = include_str!("../session/mod.rs");
+    // #597 moved the item and inventory family into `session/player_items`,
+    // so the scan follows it there exactly as it followed the #224 character
+    // split above.
+    let session = concat!(
+        include_str!("../session/mod.rs"),
+        include_str!("../session/player_items/appearance.rs"),
+        include_str!("../session/player_items/bank.rs"),
+        include_str!("../session/player_items/catalog.rs"),
+        include_str!("../session/player_items/durability.rs"),
+        include_str!("../session/player_items/enchantment.rs"),
+        include_str!("../session/player_items/equipment.rs"),
+        include_str!("../session/player_items/equipment_sets.rs"),
+        include_str!("../session/player_items/equipment_slots.rs"),
+        include_str!("../session/player_items/items.rs"),
+        include_str!("../session/player_items/modifiers.rs"),
+        include_str!("../session/player_items/offhand.rs"),
+        include_str!("../session/player_items/persistence.rs"),
+        include_str!("../session/player_items/persistence_load.rs"),
+        include_str!("../session/player_items/publication.rs"),
+        include_str!("../session/player_items/storage.rs"),
+        include_str!("../session/player_items/storage_bags.rs"),
+        include_str!("../session/player_items/storage_slots.rs"),
+        include_str!("../session/player_items/valuation.rs"),
+    );
     assert_publication_segment(
         character,
         "bank-slot purchase",
