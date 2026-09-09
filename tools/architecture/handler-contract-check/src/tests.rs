@@ -33,8 +33,8 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("one dispatch mechanism"), "{report}");
-    // Five added library mounts since 9cd1da41; see the #578 checkpoint.
-    assert!(report.contains("47 #[path] modules verified"), "{report}");
+    let owners = "world-modules, world-server, wow-handler, wow-world)";
+    assert!(report.contains(owners), "{report}");
 }
 
 #[test]

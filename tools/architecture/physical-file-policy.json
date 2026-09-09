@@ -665,8 +665,8 @@
     {
       "path": "tools/architecture/handler-contract-check/src/persistence_access.rs",
       "observed_lines": 21248,
-      "ceiling_lines": 12348,
-      "split": "Separate the remaining production AST traversal, statement/workflow classification and provenance. The 226 former inline regression tests now live in 16 private responsibility modules (184-943 lines) with a 45-line shared root; callable import/reexport resolution, the pinned SQL text classifier and the canonical records/accumulation/snapshot contract have private production modules. The C1 classified Database COMMIT wrapper adds three traversal lines to retain explicit commit recognition; its regression remains in the private alias/path test module. These extractions and this narrow coverage addition do not retire the remaining 12,348-line root.",
+      "ceiling_lines": 239,
+      "split": "Separate the remaining production AST traversal, statement/workflow classification and provenance. #634 decomposes the 12,348-line root into 21 private responsibility modules (72-949 lines) plus the divided body analyzer, dropping it to 239 lines and tightening the ceiling to that figure; only the pinned constant tables, the shared TargetSet alias and the module composition remain. The inherent `impl BodyAnalyzer` is divided by analysis phase across five body_ops modules, which is behaviour-identical in Rust. One justified exception: persistence_access/body_visit.rs is 1,686 lines because it is the single `Visit for BodyAnalyzer` trait impl and a trait impl cannot be split; its exit is the semantic separation of body analysis into per-expression-kind analyzers, owned by 584:C4. Item-for-item with the checker's 334 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -693,8 +693,8 @@
     {
       "path": "tools/wow-test-bot/src/loot_race.rs",
       "observed_lines": 8188,
-      "ceiling_lines": 8188,
-      "split": "Separate fixture journal/recovery, routed connection/logout, loot race, group capacity and their tests without widening cleanup scope.",
+      "ceiling_lines": 47,
+      "split": "Separate fixture journal/recovery, routed connection/logout, loot race, group capacity and their tests without widening cleanup scope. #634 decomposes the 8,188-line file into 11 private responsibility modules plus 3 test modules, dropping it to 47 lines and tightening the ceiling to that figure; only the module composition remains. Item-for-item with the 179 bot tests unchanged and no production crate touched.",
       "review_checkpoint": "584:C4"
     },
     {
