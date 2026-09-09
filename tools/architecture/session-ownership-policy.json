@@ -5892,7 +5892,13 @@
       ],
       "impls": [
         {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::battle_pet_purchase::ops_2",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
@@ -6240,46 +6246,35 @@
       ],
       "impl_items": [
         {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "battle_pet_trainer_selection_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "fn battle_pet_trainer_selection_like_cpp (& self , store : & wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp , species_entry : & wow_data :: BattlePetSpeciesEntry ,) -> Option < BattlePetTrainerSelectionLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::battle_pet_purchase",
-          "trait_path": null,
-          "kind": "method",
-          "name": "compensate_battle_pet_purchase_like_cpp",
-          "visibility": "private",
-          "signature": "async fn compensate_battle_pet_purchase_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , owner : & Arc < BattlePetAccountOwnerLikeCpp > , lease_id : BattlePetLeaseIdLikeCpp , player_guid : ObjectGuid , store : & Arc < dyn BattlePetPurchaseStoreLikeCpp > , command : & BattlePetPurchaseCommandLikeCpp , refund_publication : BattlePetPurchaseRefundPublicationLikeCpp ,) -> BattlePetPurchaseExecutionLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "complete_battle_pet_purchase_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "async fn complete_battle_pet_purchase_like_cpp (& mut self , store : & Arc < dyn BattlePetPurchaseStoreLikeCpp > , request_key : [u8 ; 16] ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "execute_battle_pet_trainer_purchase_like_cpp",
@@ -6295,7 +6290,7 @@
           ]
         },
         {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "execute_battle_pet_trainer_purchase_with_generator_like_cpp",
@@ -6309,33 +6304,21 @@
           ]
         },
         {
-          "module": "crate::battle_pet_purchase",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_battle_pet_trainer_purchase_like_cpp",
-          "visibility": "private",
-          "signature": "fn publish_battle_pet_trainer_purchase_like_cpp (& mut self , pet : BattlePetJournalPet , spell_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "record_battle_pet_purchase_publication_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "async fn record_battle_pet_purchase_publication_like_cpp (& mut self , store : & Arc < dyn BattlePetPurchaseStoreLikeCpp > , request_key : [u8 ; 16] ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "recover_battle_pet_trainer_purchases_like_cpp",
@@ -6351,12 +6334,40 @@
           ]
         },
         {
-          "module": "crate::battle_pet_purchase",
+          "module": "crate::battle_pet_purchase::ops_1",
           "trait_path": null,
           "kind": "method",
           "name": "recover_battle_pet_trainer_purchases_with_generator_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn recover_battle_pet_trainer_purchases_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> Option < BattlePetPurchaseRecoveryLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::battle_pet_purchase::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "compensate_battle_pet_purchase_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn compensate_battle_pet_purchase_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , owner : & Arc < BattlePetAccountOwnerLikeCpp > , lease_id : BattlePetLeaseIdLikeCpp , player_guid : ObjectGuid , store : & Arc < dyn BattlePetPurchaseStoreLikeCpp > , command : & BattlePetPurchaseCommandLikeCpp , refund_publication : BattlePetPurchaseRefundPublicationLikeCpp ,) -> BattlePetPurchaseExecutionLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::battle_pet_purchase::ops_2",
+          "trait_path": null,
+          "kind": "method",
+          "name": "publish_battle_pet_trainer_purchase_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn publish_battle_pet_trainer_purchase_like_cpp (& mut self , pet : BattlePetJournalPet , spell_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -57453,7 +57464,7 @@
       ],
       "world_session_new_sites": [
         {
-          "module": "crate::battle_pet_purchase::executor_tests",
+          "module": "crate::battle_pet_purchase::executor_tests::fixtures",
           "callee": "WorldSession::new",
           "argument_count": 10,
           "cfg": [
