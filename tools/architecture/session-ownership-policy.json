@@ -21389,11 +21389,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_battle_pet_calculated_stats_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_battle_pet_calculated_stats_like_cpp (pet : & mut RepresentedBattlePetDataLikeCpp , calculated_stats : Option < RepresentedBattlePetCalculatedStatsLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23817,11 +23819,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "battle_pet_species_has_flag_like_cpp",
-          "visibility": "private",
-          "signature": "fn battle_pet_species_has_flag_like_cpp (& self , species : u32 , flag : i32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn battle_pet_species_has_flag_like_cpp (& self , species : u32 , flag : i32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23895,11 +23899,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "battle_pet_xp_per_level_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn battle_pet_xp_per_level_like_cpp (& self , level : u16) -> Option < u16 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26848,11 +26854,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "disable_pet_controls_on_mount_like_cpp",
-          "visibility": "private",
-          "signature": "fn disable_pet_controls_on_mount_like_cpp (& mut self , react_state : u8 , command_state : u8)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn disable_pet_controls_on_mount_like_cpp (& mut self , react_state : u8 , command_state : u8 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27071,11 +27079,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "enable_pet_controls_on_dismount_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn enable_pet_controls_on_dismount_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29245,11 +29255,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "invalidate_represented_character_pet_empty_authority_like_cpp",
-          "visibility": "private",
-          "signature": "fn invalidate_represented_character_pet_empty_authority_like_cpp (& mut self)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn invalidate_represented_character_pet_empty_authority_like_cpp (& mut self ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31170,11 +31182,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "log_battle_pet_mutation_failure_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn log_battle_pet_mutation_failure_like_cpp (& self , operation : & 'static str , pet_guid : ObjectGuid , error : & BattlePetMutationFailureLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34108,22 +34122,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_pet_guid_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_pet_guid_state_like_cpp (& self) -> Option < Option < ObjectGuid > >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "player_pet_lifecycle_state_snapshot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_pet_lifecycle_state_snapshot_like_cpp (& self ,) -> Option < PlayerPetLifecycleStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34986,11 +35004,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "propagate_represented_player_speed_to_pet_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn propagate_represented_player_speed_to_pet_like_cpp (& mut self , move_type : UnitMoveTypeLikeCpp , rate : f32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36436,13 +36456,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "record_represented_tapper_pet_killed_unit_hooks_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn record_represented_tapper_pet_killed_unit_hooks_like_cpp (& mut self , creature_guid : ObjectGuid ,)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -49853,12 +49875,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_pet_guid_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_player_pet_guid_like_cpp (& mut self , pet_guid : Option < ObjectGuid >) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn set_player_pet_guid_like_cpp (& mut self , pet_guid : Option < ObjectGuid > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -51135,12 +51158,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_represented_summoned_battle_pet_guid_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn set_represented_summoned_battle_pet_guid_like_cpp (& mut self , pet_guid : Option < ObjectGuid > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -54584,22 +54608,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp (& mut self , destination : wow_core :: Position , options : TeleportToOptionsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "unsummon_represented_pet_temporary_if_any_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn unsummon_represented_pet_temporary_if_any_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -54706,11 +54734,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_player_pet_lifecycle_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn update_player_pet_lifecycle_state_like_cpp (& mut self , update : impl FnOnce (& mut PlayerPetLifecycleStateLikeCpp) ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -55414,11 +55444,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "validate_represented_pet_action_bar_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn validate_represented_pet_action_bar_like_cpp (& self , charm_info : & mut wow_entities :: CharmInfoState ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -55698,11 +55730,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "with_canonical_pet_mut_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn with_canonical_pet_mut_like_cpp < R > (& self , pet_guid : ObjectGuid , mutate : impl FnOnce (& mut Pet) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -67178,45 +67212,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::send_represented_pet_spline_speed_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::send_represented_pet_spline_speed_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_guid",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::send_represented_pet_spline_speed_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::set_canonical_map_manager",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -67855,6 +67850,45 @@
           "module": "crate::session::movement::transfer",
           "source": "crates/wow-world/src/session/movement/transfer.rs",
           "enclosing": "impl WorldSession::send_same_map_move_update_teleport_to_visible_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::pets::pet",
+          "source": "crates/wow-world/src/session/pets/pet.rs",
+          "enclosing": "impl WorldSession::send_represented_pet_spline_speed_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::pets::pet",
+          "source": "crates/wow-world/src/session/pets/pet.rs",
+          "enclosing": "impl WorldSession::send_represented_pet_spline_speed_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::pets::pet",
+          "source": "crates/wow-world/src/session/pets/pet.rs",
+          "enclosing": "impl WorldSession::send_represented_pet_spline_speed_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "registry",
