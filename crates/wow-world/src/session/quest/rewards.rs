@@ -162,7 +162,7 @@ impl WorldSession {
     }
     /// Set the QuestFactionReward store used by C++ quest reputation reward lookup.
     pub fn set_quest_faction_reward_store(&mut self, store: Arc<QuestFactionRewardStore>) {
-        self.quest_faction_reward_store = Some(store);
+        self.quests.faction_reward_store = Some(store);
     }
     /// Represented C++ `Player::LearnQuestRewardedSpells`.
     ///
@@ -173,7 +173,7 @@ impl WorldSession {
     /// learned-spell side effect; full `CastSpell` runtime semantics remain in
     /// the spell-system roadmap.
     pub(crate) fn apply_represented_quest_rewarded_spells_like_cpp(&mut self) -> usize {
-        let Some(quest_store) = self.quest_store.clone() else {
+        let Some(quest_store) = self.quests.store.clone() else {
             return 0;
         };
 
@@ -309,7 +309,7 @@ impl WorldSession {
     }
     /// Set the QuestMoneyReward store (loaded from QuestMoneyReward.db2).
     pub fn set_quest_money_reward_store(&mut self, store: Arc<QuestMoneyRewardStore>) {
-        self.quest_money_reward_store = Some(store);
+        self.quests.money_reward_store = Some(store);
     }
     pub(in crate::session) fn set_loaded_quest_completed_bit_like_cpp(
         &mut self,
@@ -384,7 +384,7 @@ impl WorldSession {
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> u32 {
-        let Some(store) = &self.quest_money_reward_store else {
+        let Some(store) = &self.quests.money_reward_store else {
             return 0;
         };
         let quest_level = self.player_quest_level_like_cpp(quest).max(0) as u32;

@@ -171,10 +171,9 @@ impl WorldSession {
             .statuses
             .keys()
             .filter(|quest_id| {
+                let store = self.quests.store.as_ref();
                 state.rewarded_quest_ids.contains(quest_id)
-                    && self
-                        .quest_store
-                        .as_ref()
+                    && store
                         .and_then(|store| store.get(**quest_id))
                         .is_some_and(|quest| !quest.is_repeatable())
             })
@@ -222,7 +221,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(quest_store) = &self.quest_store else {
+        let Some(quest_store) = &self.quests.store else {
             debug!(
                 account = self.account_id,
                 quest_id, "QuestGiverCloseQuest: missing represented quest store"
@@ -385,10 +384,8 @@ impl WorldSession {
                     return (0, 0, 0, [0; 24]);
                 };
 
-                let quest = self
-                    .quest_store
-                    .as_ref()
-                    .and_then(|store| store.get(qs.quest_id));
+                let store = self.quests.store.as_ref();
+                let quest = store.and_then(|store| store.get(qs.quest_id));
                 let mut state_flags: u32 = match qs.status {
                     QUEST_STATUS_COMPLETE_LIKE_CPP => QUEST_STATE_COMPLETE_LIKE_CPP,
                     QUEST_STATUS_FAILED_LIKE_CPP => QUEST_STATE_FAIL_LIKE_CPP,

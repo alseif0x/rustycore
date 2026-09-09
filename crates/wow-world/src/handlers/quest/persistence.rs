@@ -65,10 +65,9 @@ impl WorldSession {
             .statuses
             .iter()
             .filter_map(|(quest_id, status)| {
+                let store = self.quests.store.as_ref();
                 if state.rewarded_quest_ids.contains(quest_id)
-                    && self
-                        .quest_store
-                        .as_ref()
+                    && store
                         .and_then(|store| store.get(*quest_id))
                         .is_some_and(|quest| !quest.is_repeatable())
                 {
@@ -92,7 +91,7 @@ impl WorldSession {
         post_move_non_bank_count: u32,
         added_count: u32,
     ) -> Vec<PlayerQuestStatus> {
-        let Some(quest_store) = self.quest_store.as_ref() else {
+        let Some(quest_store) = self.quests.store.as_ref() else {
             return Vec::new();
         };
         let Ok(entry_object_id) = i32::try_from(entry_id) else {
@@ -272,7 +271,7 @@ impl WorldSession {
                 .unwrap_or_default(),
             changed_quest_ids: Vec::new(),
         };
-        let Some(quest_store) = self.quest_store.as_ref() else {
+        let Some(quest_store) = self.quests.store.as_ref() else {
             return plan;
         };
         let post_removal_counts = post_removal_non_bank_counts
@@ -301,7 +300,7 @@ impl WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> bool {
-        let Some(quest_store) = self.quest_store.as_ref() else {
+        let Some(quest_store) = self.quests.store.as_ref() else {
             return false;
         };
         let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -350,9 +349,8 @@ impl WorldSession {
         statuses
             .iter()
             .map(|status| {
-                let objectives = self
-                    .quest_store
-                    .as_ref()
+                let store = self.quests.store.as_ref();
+                let objectives = store
                     .and_then(|store| store.get(status.quest_id))
                     .into_iter()
                     .flat_map(|quest| quest.objectives.iter())
@@ -418,7 +416,7 @@ impl WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> Option<QuestSourceItemBoundPersistencePlanLikeCpp> {
-        let quest_store = self.quest_store.as_ref()?;
+        let quest_store = self.quests.store.as_ref()?;
         let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);
         let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
         let quest_log_object_id = i32::try_from(quest_log_item_id).unwrap_or(i32::MAX);
@@ -675,9 +673,8 @@ impl WorldSession {
                 // because the character DB status row has no persisted quest-log slot.
                 let slot = next_active_slot;
                 next_active_slot = next_active_slot.saturating_add(1);
-                let obj_count = self
-                    .quest_store
-                    .as_ref()
+                let store = self.quests.store.as_ref();
+                let obj_count = store
                     .and_then(|s| s.get(quest_id))
                     .map_or(0, |q| q.objectives.len());
                 if loaded_quests.statuses.contains_key(&quest_id) {
@@ -706,7 +703,8 @@ impl WorldSession {
                     let data = row.count.unwrap_or(0);
                     if let (Some(status), Some(quest)) = (
                         loaded_quests.statuses.get_mut(&quest_id),
-                        self.quest_store
+                        self.quests
+                            .store
                             .as_ref()
                             .and_then(|store| store.get(quest_id)),
                     ) {
@@ -803,11 +801,8 @@ impl WorldSession {
                 for row in daily_rows {
                     let quest_id = row.quest_id.unwrap_or(0);
                     let completed_time = row.completed_time.unwrap_or(0);
-                    if let Some(quest) = self
-                        .quest_store
-                        .as_ref()
-                        .and_then(|store| store.get(quest_id))
-                    {
+                    let store = self.quests.store.as_ref();
+                    if let Some(quest) = store.and_then(|store| store.get(quest_id)) {
                         loaded_last_daily_time = completed_time;
                         if quest.is_df_quest_like_cpp() {
                             loaded_df.insert(quest_id);
@@ -837,7 +832,8 @@ impl WorldSession {
                 for row in weekly_rows {
                     let quest_id = row.quest_id.unwrap_or(0);
                     if self
-                        .quest_store
+                        .quests
+                        .store
                         .as_ref()
                         .and_then(|store| store.get(quest_id))
                         .is_some()
@@ -864,7 +860,8 @@ impl WorldSession {
                 for row in monthly_rows {
                     let quest_id = row.quest_id.unwrap_or(0);
                     if self
-                        .quest_store
+                        .quests
+                        .store
                         .as_ref()
                         .and_then(|store| store.get(quest_id))
                         .is_some()
@@ -927,8 +924,8 @@ impl WorldSession {
             }
         };
 
-        let quest_store = self.quest_store.as_ref().map(Arc::clone);
-        let quest_v2_store = self.quest_v2_store.as_ref().map(Arc::clone);
+        let quest_store = self.quests.store.as_ref().map(Arc::clone);
+        let quest_v2_store = self.quests.v2_store.as_ref().map(Arc::clone);
         let seasonal_outcome = self.load_seasonal_quest_status_like_cpp(
             seasonal_rows,
             quest_store.as_deref(),

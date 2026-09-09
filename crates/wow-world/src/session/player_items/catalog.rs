@@ -242,7 +242,7 @@ impl WorldSession {
     }
     /// Set the QuestPackageItem store used by C++ quest package reward selection.
     pub fn set_quest_package_item_store(&mut self, store: Arc<QuestPackageItemStore>) {
-        self.quest_package_item_store = Some(store);
+        self.quests.package_item_store = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn set_loot_item_store_test_seam_like_cpp(

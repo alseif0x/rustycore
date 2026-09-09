@@ -50,7 +50,7 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> bool {
-        let Some(quest_store) = self.quest_store.as_ref() else {
+        let Some(quest_store) = self.quests.store.as_ref() else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {

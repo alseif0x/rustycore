@@ -12,7 +12,7 @@ async fn quest_giver_reward_daily_flag_is_not_auto_complete_like_cpp() {
     session.set_player_guid(Some(player_guid));
     let mut quest = test_quest_template(9_219);
     quest.flags = 0x0000_1000;
-    session.quest_store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
     session.player_quests.insert(
@@ -48,7 +48,7 @@ async fn quest_giver_complete_daily_flag_requires_involved_source_like_cpp() {
     session.set_player_guid(Some(player_guid));
     let mut quest = test_quest_template(9_220);
     quest.flags = 0x0000_1000;
-    session.quest_store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
     session.player_quests.insert(
@@ -86,7 +86,7 @@ async fn quest_giver_complete_auto_complete_requires_player_guid_like_cpp() {
     session.set_player_guid(Some(player_guid));
     let mut quest = test_quest_template(9_218);
     quest.flags = crate::handlers::quest::QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
-    session.quest_store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
     session.player_quests.insert(
@@ -153,7 +153,7 @@ fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_li
     let mut quest_store =
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_204)]);
     quest_store.ender_quests.insert(778, vec![9_204]);
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|quests| {
@@ -191,7 +191,7 @@ fn quest_giver_query_unsupported_or_missing_source_sends_no_packet_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     session.set_canonical_map_manager(canonical);
-    session.quest_store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [test_quest_template(9_207)],
     )));
     let missing_guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 781, 28);

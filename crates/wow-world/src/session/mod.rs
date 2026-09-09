@@ -6733,14 +6733,8 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_glyphs_loaded_like_cpp: bool,
 
-    pub(crate) quest_faction_reward_store: Option<Arc<QuestFactionRewardStore>>,
-    pub(crate) quest_info_store: Option<Arc<QuestInfoStore>>,
-    pub(crate) quest_money_reward_store: Option<Arc<QuestMoneyRewardStore>>,
-    pub(crate) quest_package_item_store: Option<Arc<QuestPackageItemStore>>,
-    pub(crate) quest_pool_store: Option<Arc<wow_data::quest::QuestPoolStoreLikeCpp>>,
-    pub(crate) quest_store: Option<Arc<wow_data::quest::QuestStore>>,
-    pub(crate) quest_v2_store: Option<Arc<QuestV2Store>>,
-    pub(crate) quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
+    /// Quest template and quest-rule catalogs, owned by one type (#674).
+    pub(crate) quests: crate::quest_catalogs::QuestCatalogsLikeCpp,
     /// C++ `ObjectMgr::_questPOIStore`, loaded from `quest_poi` / `quest_poi_points`.
     pub(crate) quest_poi_store_like_cpp:
         Option<Arc<HashMap<i32, wow_packet::packets::query::QuestPoiData>>>,
@@ -7777,20 +7771,13 @@ impl WorldSession {
         connection.set_instance_endpoint([127, 0, 0, 1], 8086);
 
         Self {
+            quests: crate::quest_catalogs::QuestCatalogsLikeCpp::default(),
             chr: crate::chr_catalogs::ChrCatalogsLikeCpp::default(),
             creatures: crate::creature_catalogs::CreatureCatalogsLikeCpp::default(),
             factions: crate::faction_catalogs::FactionCatalogsLikeCpp::default(),
             gameobjects: crate::gameobject_catalogs::GameObjectCatalogsLikeCpp::default(),
             items: crate::item_catalogs::ItemCatalogsLikeCpp::default(),
             maps: crate::map_catalogs::MapCatalogsLikeCpp::default(),
-            quest_faction_reward_store: None,
-            quest_info_store: None,
-            quest_money_reward_store: None,
-            quest_package_item_store: None,
-            quest_pool_store: None,
-            quest_store: None,
-            quest_v2_store: None,
-            quest_xp_store: None,
             spell_catalogs: crate::spell_catalogs::SpellCatalogsLikeCpp::default(),
             account_id,
             battlenet_account_id: account_id,
@@ -9853,7 +9840,7 @@ impl WorldSession {
     }
 
     fn represented_has_quest_for_gameobject_like_cpp(&self, gameobject_entry: u32) -> bool {
-        let Some(store) = self.quest_store.as_ref() else {
+        let Some(store) = self.quests.store.as_ref() else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -15923,7 +15910,7 @@ impl WorldSession {
         creature_guid: ObjectGuid,
         creature_entry: u32,
     ) -> bool {
-        let Some(quest_store) = self.quest_store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
             return false;
         };
 
@@ -16002,7 +15989,7 @@ impl WorldSession {
                 gossip_id: source.gossip_id,
             });
 
-        let Some(quest_store) = self.quest_store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
             return true;
         };
 

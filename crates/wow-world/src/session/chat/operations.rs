@@ -228,7 +228,7 @@ impl WorldSession {
         &self,
         creature_entry: u32,
     ) -> Vec<ClientGossipText> {
-        let Some(quest_store) = self.quest_store.as_ref() else {
+        let Some(quest_store) = self.quests.store.as_ref() else {
             return Vec::new();
         };
 

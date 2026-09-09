@@ -357,7 +357,8 @@ impl WorldSession {
         let player_class_mask =
             player_class_mask_for_transmog_like_cpp(self.player_class_like_cpp());
         let package_item_ids = self
-            .quest_package_item_store
+            .quests
+            .package_item_store
             .as_ref()
             .map(|store| {
                 store

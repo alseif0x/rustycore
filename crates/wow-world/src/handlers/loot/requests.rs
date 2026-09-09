@@ -693,7 +693,7 @@ impl WorldSession {
     }
 
     fn has_incomplete_quest_objective_for_object_id_like_cpp(&self, item_object_id: i32) -> bool {
-        let Some(quest_store) = &self.quest_store else {
+        let Some(quest_store) = &self.quests.store else {
             return false;
         };
 
@@ -765,7 +765,7 @@ impl WorldSession {
         item_object_id: i32,
         player_context: &RepresentedLootPlayerContext,
     ) -> bool {
-        let Some(quest_store) = &self.quest_store else {
+        let Some(quest_store) = &self.quests.store else {
             return false;
         };
 
@@ -812,7 +812,7 @@ impl WorldSession {
         &self,
         objective_id: u32,
     ) -> Option<i32> {
-        let quest_store = self.quest_store.as_ref()?;
+        let quest_store = self.quests.store.as_ref()?;
 
         for status in self
             .player_quest_gameplay_snapshot_like_cpp()?
@@ -848,7 +848,7 @@ impl WorldSession {
         objective_id: u32,
         player_context: &RepresentedLootPlayerContext,
     ) -> Option<i32> {
-        let quest_store = self.quest_store.as_ref()?;
+        let quest_store = self.quests.store.as_ref()?;
 
         for (quest_id, objective_counts) in &player_context.active_quest_objective_counts {
             let Some(quest) = quest_store.get(*quest_id) else {

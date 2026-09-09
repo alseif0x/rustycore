@@ -135,7 +135,7 @@ impl WorldSession {
         if !state.status_authority_complete {
             return false;
         }
-        let Some(quests) = self.quest_store.as_ref() else {
+        let Some(quests) = self.quests.store.as_ref() else {
             return state.rewarded_quest_rows.is_empty() && state.statuses.is_empty();
         };
 
@@ -170,7 +170,7 @@ impl WorldSession {
         &self,
     ) -> bool {
         const QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP: u32 = 0x0400_0000;
-        self.quest_store.as_ref().is_some_and(|quests| {
+        self.quests.store.as_ref().is_some_and(|quests| {
             quests
                 .quests_like_cpp()
                 .all(|quest| quest.flags_ex & QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP == 0)
@@ -199,15 +199,15 @@ impl WorldSession {
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.quest_store = Some(store);
+        self.quests.store = Some(store);
     }
     /// Set the QuestV2 store shared reference used for C++ quest unique-bit lookups.
     pub fn set_quest_v2_store(&mut self, store: Arc<QuestV2Store>) {
-        self.quest_v2_store = Some(store);
+        self.quests.v2_store = Some(store);
     }
     /// Set the QuestInfo store used by C++ Quest::GetQuestTag/IsImportant.
     pub fn set_quest_info_store(&mut self, store: Arc<QuestInfoStore>) {
-        self.quest_info_store = Some(store);
+        self.quests.info_store = Some(store);
     }
     /// Set C++ `CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF`.
     pub fn set_quest_low_level_hide_diff_like_cpp(&mut self, value: u32) {
@@ -219,7 +219,7 @@ impl WorldSession {
     }
     /// Set the QuestXP store (loaded from QuestXP.db2).
     pub fn set_quest_xp_store(&mut self, store: Arc<wow_data::quest_xp::QuestXpStore>) {
-        self.quest_xp_store = Some(store);
+        self.quests.xp_store = Some(store);
     }
     pub fn set_min_quest_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
         self.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
@@ -243,7 +243,7 @@ impl WorldSession {
         quest_level: i32,
         xp_multiplier: f32,
     ) -> u32 {
-        if let Some(store) = &self.quest_xp_store {
+        if let Some(store) = &self.quests.xp_store {
             store.calculate_xp(
                 quest_level,
                 self.player_level_like_cpp(),
