@@ -209,10 +209,10 @@ impl WorldSession {
             return Some(None);
         }
 
-        let Some(display_store) = self.creature_display_info_store.as_ref() else {
+        let Some(display_store) = self.creatures.display_info_store.as_ref() else {
             return Some(None);
         };
-        let Some(display_extra_store) = self.creature_display_info_extra_store.as_ref() else {
+        let Some(display_extra_store) = self.creatures.display_info_extra_store.as_ref() else {
             return Some(None);
         };
         let Some(display) = display_store.get(display_id) else {
@@ -226,8 +226,8 @@ impl WorldSession {
         };
 
         if let (Some(model_store), Some(chr_races_store)) = (
-            self.creature_model_data_store.as_ref(),
-            self.chr_races_store.as_ref(),
+            self.creatures.model_data_store.as_ref(),
+            self.chr.races_store.as_ref(),
         ) {
             let model_cannot_mount =
                 model_store
@@ -775,7 +775,8 @@ impl WorldSession {
     /// Resolve the current map's C++ `MapEntry::IsDungeon` classification
     /// without conflating missing Map.db2 metadata with an overworld map.
     pub(crate) fn current_map_dungeon_state_like_cpp(&self) -> Option<bool> {
-        self.map_store
+        self.maps
+            .store
             .as_ref()
             .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
             .map(|entry| entry.is_dungeon())

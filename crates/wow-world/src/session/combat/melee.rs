@@ -366,7 +366,8 @@ impl WorldSession {
         &self,
         class: u8,
     ) -> Option<(u8, u8, u8)> {
-        self.chr_classes_store
+        self.chr
+            .classes_store
             .as_ref()?
             .get(u32::from(class))
             .map(|entry| {

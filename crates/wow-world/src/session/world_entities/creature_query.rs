@@ -10,7 +10,7 @@ impl WorldSession {
         &self,
         faction_template_id: u32,
     ) -> bool {
-        let Some(faction_template_store) = self.faction_template_store.as_ref() else {
+        let Some(faction_template_store) = self.factions.template_store.as_ref() else {
             // Transitional compatibility for legacy DB-only creature loading.
             // C++ uses FactionTemplate.db2; when the store is absent, keep the
             // previous Rust no-aggro behavior for the canonical neutral faction.
@@ -24,7 +24,7 @@ impl WorldSession {
             return true;
         }
 
-        if let Some(faction_store) = self.faction_store.as_ref()
+        if let Some(faction_store) = self.factions.store.as_ref()
             && let Some(raw_faction) = faction_store.get(u32::from(faction_template.faction))
             && raw_faction.can_have_reputation_like_cpp()
         {
@@ -220,44 +220,44 @@ impl WorldSession {
         &mut self,
         store: Arc<CreatureOnKillReputationStoreLikeCpp>,
     ) {
-        self.creature_onkill_reputation_store = Some(store);
+        self.creatures.onkill_reputation_store = Some(store);
     }
     pub(crate) fn creature_onkill_reputation_store(
         &self,
     ) -> Option<&Arc<CreatureOnKillReputationStoreLikeCpp>> {
-        self.creature_onkill_reputation_store.as_ref()
+        self.creatures.onkill_reputation_store.as_ref()
     }
     pub fn set_creature_template_mount_store(
         &mut self,
         store: Arc<CreatureTemplateMountStoreLikeCpp>,
     ) {
-        self.creature_template_mount_store = Some(store);
+        self.creatures.template_mount_store = Some(store);
     }
     pub fn set_creature_template_lifecycle_store_like_cpp(
         &mut self,
         store: Arc<CreatureTemplateLifecycleStoreLikeCpp>,
     ) {
-        self.creature_template_lifecycle_store_like_cpp = Some(store);
+        self.creatures.template_lifecycle_store_like_cpp = Some(store);
     }
     pub(crate) fn creature_template_lifecycle_store_like_cpp(
         &self,
     ) -> Option<&Arc<CreatureTemplateLifecycleStoreLikeCpp>> {
-        self.creature_template_lifecycle_store_like_cpp.as_ref()
+        self.creatures.template_lifecycle_store_like_cpp.as_ref()
     }
     pub fn set_creature_display_info_store(&mut self, store: Arc<CreatureDisplayInfoStore>) {
-        self.creature_display_info_store = Some(store);
+        self.creatures.display_info_store = Some(store);
     }
     pub fn set_creature_display_info_extra_store(
         &mut self,
         store: Arc<CreatureDisplayInfoExtraStore>,
     ) {
-        self.creature_display_info_extra_store = Some(store);
+        self.creatures.display_info_extra_store = Some(store);
     }
     pub fn set_creature_model_info_store(
         &mut self,
         store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
     ) {
-        self.creature_model_info_store = Some(store);
+        self.creatures.model_info_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_creature_addon_store_like_cpp(&mut self, store: Arc<CreatureAddonStoreLikeCpp>) {
@@ -336,7 +336,7 @@ impl WorldSession {
         }
     }
     pub fn set_creature_model_data_store(&mut self, store: Arc<CreatureModelDataStore>) {
-        self.creature_model_data_store = Some(store);
+        self.creatures.model_data_store = Some(store);
     }
     #[allow(dead_code)]
     pub(crate) fn represented_mount_creature_template_fallback_like_cpp(
@@ -344,7 +344,8 @@ impl WorldSession {
         creature_entry: u32,
     ) -> Option<(i32, u32)> {
         let template = self
-            .creature_template_mount_store
+            .creatures
+            .template_mount_store
             .as_ref()?
             .get(creature_entry)?;
         let display_id =

@@ -122,7 +122,8 @@ impl WorldSession {
                     .unwrap_or(0);
                 self.player_faction_template_id_like_cpp()
                     .and_then(|id| {
-                        self.faction_template_store
+                        self.factions
+                            .template_store
                             .as_ref()
                             .and_then(|store| store.get(id))
                     })

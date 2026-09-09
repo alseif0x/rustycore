@@ -91,7 +91,7 @@ impl WorldSession {
         map_id: u32,
         publish: bool,
     ) -> Option<wow_map::CreateMapDecision> {
-        let map_entry = self.map_store.as_ref()?.get(map_id).copied()?;
+        let map_entry = self.maps.store.as_ref()?.get(map_id).copied()?;
         if map_entry.is_battleground_or_arena() {
             return None;
         }

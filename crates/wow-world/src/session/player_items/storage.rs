@@ -189,7 +189,8 @@ impl WorldSession {
             .and_then(|item| item.inventory_type)
             .and_then(<InventoryType as num_traits::FromPrimitive>::from_u8)
             .or_else(|| {
-                self.item_store
+                self.items
+                    .store
                     .as_ref()
                     .and_then(|store| store.get(item_entry))
                     .and_then(|record| {
@@ -486,7 +487,8 @@ impl WorldSession {
             return Vec::new();
         }
         let spell_ids = self
-            .item_effect_store
+            .items
+            .effect_store
             .as_ref()
             .map(|store| {
                 store
