@@ -57413,7 +57413,7 @@
           "count": 1
         },
         {
-          "module": "crate::handlers::spell::tests",
+          "module": "crate::handlers::spell::tests::fixtures",
           "callee": "WorldSession::new",
           "argument_count": 10,
           "cfg": [

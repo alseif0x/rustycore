@@ -573,9 +573,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/spell.rs",
-      "observed_lines": 6282,
-      "ceiling_lines": 6282,
-      "split": "Separate spell admission/cast operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #589 moves normal request admission, preparation, identity, checks, power and publication into the private wow-world::player_cast application and its Session adapters, reducing this handler by 455 lines; the ceiling is tightened to the validated 6282. The remaining file still owns the broader spell handler responsibility and stays above the 2000-line budget, so its separation stays in #584 C4 rather than being declared closed by this reduction.",
+      "observed_lines": 2375,
+      "ceiling_lines": 2375,
+      "split": "Separate spell admission/cast operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #589 moves normal request admission, preparation, identity, checks, power and publication into the private wow-world::player_cast application and its Session adapters, reducing this handler by 455 lines; the ceiling is tightened to the validated 6282. The remaining file still owns the broader spell handler responsibility and stays above the 2000-line budget, so its separation stays in #584 C4 rather than being declared closed by this reduction. #624 splits the inline 3,909-line test module into bounded scenario files under handlers/spell/tests - cast, mount, aura, loot_template, totem, stored_item, misc, plus shared fixtures, spell_stores and port_fixtures - following the handlers/trainer precedent. The file drops from 6,283 to 2375 lines and the ceiling is tightened to that figure; the test count is unchanged at 3,822 and no production line moved. The remaining file is production only, and the loot and stored-item methods it still holds are recorded in #624 as belonging to other responsibilities.",
       "review_checkpoint": "584:C4"
     },
     {
