@@ -22,6 +22,7 @@ mod persistence;
 mod pets;
 mod player_cast;
 mod player_items;
+mod progression;
 mod quest;
 pub mod registry;
 mod spell_state;
@@ -10713,37 +10714,6 @@ impl WorldSession {
         result.unwrap_or(ObjectGuid::EMPTY)
     }
 
-    fn attack_reputation_faction_snapshot_like_cpp(
-        &self,
-        creature: &wow_entities::Creature,
-    ) -> Option<AttackReputationFactionSnapshotLikeCpp> {
-        let faction_template_id = u32::try_from(creature.unit().data().faction_template).ok()?;
-        self.faction_template_store
-            .as_ref()
-            .and_then(|store| store.get(faction_template_id))
-            .map(|entry| {
-                let faction_id = u32::from(entry.faction);
-                AttackReputationFactionSnapshotLikeCpp {
-                    faction_id,
-                    contested_guard: entry.is_contested_guard_faction_like_cpp(),
-                    can_have_reputation: self.faction_store.as_ref().and_then(|store| {
-                        store
-                            .get(faction_id)
-                            .map(|faction| faction.can_have_reputation_like_cpp())
-                    }),
-                }
-            })
-            .or_else(|| {
-                creature
-                    .attack_reputation_faction_id_like_cpp()
-                    .map(|faction_id| AttackReputationFactionSnapshotLikeCpp {
-                        faction_id,
-                        contested_guard: creature.is_contested_guard_like_cpp(),
-                        can_have_reputation: None,
-                    })
-            })
-    }
-
     pub(crate) fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::AttackSwingError;
@@ -14692,10 +14662,6 @@ impl WorldSession {
         self.loot_drop_rates = rates;
     }
 
-    pub fn set_reputation_rates_like_cpp(&mut self, rates: ReputationRatesLikeCpp) {
-        self.reputation_rates = rates;
-    }
-
     pub fn set_reset_schedule_like_cpp(&mut self, schedule: wow_instances::ResetSchedule) {
         self.reset_schedule_like_cpp = schedule;
     }
@@ -14716,159 +14682,12 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
-        self.start_all_reputation_like_cpp = enabled;
-    }
-
-    #[cfg(test)]
     pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
         self.start_all_explored_like_cpp
     }
 
-    #[cfg(test)]
-    pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
-        self.start_all_reputation_like_cpp
-    }
-
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
         self.reset_schedule_like_cpp
-    }
-
-    pub(crate) fn reputation_price_discount_for_faction_template_like_cpp(
-        &self,
-        faction_template_id: u32,
-    ) -> f32 {
-        use wow_data::reputation::ReputationRankLikeCpp;
-
-        let Some(faction_template_store) = self.faction_template_store.as_ref() else {
-            return 1.0;
-        };
-        let Some(faction_template) = faction_template_store.get(faction_template_id) else {
-            return 1.0;
-        };
-        if faction_template.faction == 0 {
-            return 1.0;
-        }
-        let Some(faction_store) = self.faction_store.as_ref() else {
-            return 1.0;
-        };
-        let Some(faction_entry) = faction_store.get(u32::from(faction_template.faction)) else {
-            return 1.0;
-        };
-
-        let Some(rank) = self.with_reputation_mgr_like_cpp(|mgr| {
-            mgr.rank_for_faction_entry_like_cpp(
-                faction_entry,
-                self.friendship_rep_reaction_store.as_deref(),
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
-            )
-        }) else {
-            return 1.0;
-        };
-        if rank <= ReputationRankLikeCpp::Neutral {
-            return 1.0;
-        }
-
-        1.0 - 0.05 * f32::from(rank.as_u8() - ReputationRankLikeCpp::Neutral.as_u8())
-    }
-
-    /// Reputation rank used by deterministic trainer pricing. Missing/zero
-    /// faction references retain C++'s full-price fallback (`Neutral`).
-    pub(crate) fn trainer_price_reputation_rank_like_cpp(
-        &self,
-        faction_template_id: u32,
-    ) -> wow_data::reputation::ReputationRankLikeCpp {
-        use wow_data::reputation::ReputationRankLikeCpp;
-
-        let Some(faction_template) = self
-            .faction_template_store
-            .as_ref()
-            .and_then(|store| store.get(faction_template_id))
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        if faction_template.faction == 0 {
-            return ReputationRankLikeCpp::Neutral;
-        }
-        let Some(faction_entry) = self
-            .faction_store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(faction_template.faction)))
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        self.with_reputation_mgr_like_cpp(|mgr| {
-            mgr.rank_for_faction_entry_like_cpp(
-                faction_entry,
-                self.friendship_rep_reaction_store.as_deref(),
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
-            )
-        })
-        .unwrap_or(ReputationRankLikeCpp::Neutral)
-    }
-
-    pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
-        self.reputation_rates
-    }
-
-    #[cfg(test)]
-    pub(crate) fn reputation_mgr_like_cpp(&self) -> &ReputationMgrLikeCpp {
-        &self.reputation_mgr_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> &mut ReputationMgrLikeCpp {
-        &mut self.reputation_mgr_like_cpp
-    }
-
-    pub(crate) fn with_reputation_mgr_like_cpp<R>(
-        &self,
-        operation: impl FnOnce(&ReputationMgrLikeCpp) -> R,
-    ) -> Option<R> {
-        let mut operation = Some(operation);
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            let manager =
-                ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp(player.gameplay_state());
-            operation.take().expect("reputation operation runs once")(&manager)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(
-                operation.take().expect("reputation operation is available")(
-                    &self.reputation_mgr_like_cpp,
-                ),
-            );
-        }
-        None
-    }
-
-    pub(crate) fn mutate_reputation_mgr_like_cpp<R>(
-        &mut self,
-        operation: impl FnOnce(&mut ReputationMgrLikeCpp) -> R,
-    ) -> Option<R> {
-        let mut operation = Some(operation);
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let mut manager =
-                ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp(player.gameplay_state());
-            let result = operation.take().expect("reputation mutation runs once")(&mut manager);
-            manager.write_to_player_gameplay_state_like_cpp(player.gameplay_state_mut());
-            result
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(operation.take().expect("reputation mutation is available")(
-                &mut self.reputation_mgr_like_cpp,
-            ));
-        }
-        None
     }
 
     pub(crate) fn resolved_watched_faction_index_like_cpp(&self) -> Option<i32> {
@@ -14897,19 +14716,6 @@ impl WorldSession {
         if !_canonical && self.player_handle_like_cpp.is_none() {
             self.watched_faction_index_like_cpp = index;
         }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn reputation_rank_like_cpp(
-        &self,
-        faction_entry: &FactionEntry,
-        standing: i32,
-    ) -> wow_data::reputation::ReputationRankLikeCpp {
-        reputation_to_rank_like_cpp(
-            faction_entry,
-            standing,
-            self.friendship_rep_reaction_store.as_deref(),
-        )
     }
 
     pub(crate) fn represented_faction_reaction_to_like_cpp(
@@ -15610,20 +15416,6 @@ impl WorldSession {
         })
     }
 
-    pub(crate) fn canonical_player_reputation_standing_like_cpp(
-        &self,
-        faction_id: u32,
-    ) -> Option<i32> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .reputations
-                .iter()
-                .find_map(|record| (record.faction_id == faction_id).then_some(record.standing))
-                .unwrap_or(0)
-        })
-    }
-
     pub(crate) fn select_buyback_slot_cpp(&self) -> Option<u8> {
         let buyback_items = self.resolved_buyback_items_like_cpp()?;
         let buyback_timestamp = self.resolved_buyback_timestamp_like_cpp()?;
@@ -15814,84 +15606,6 @@ impl WorldSession {
             return self.send_packet(&packet);
         }
         false
-    }
-
-    /// Publish the canonical `ActivePlayerData::Skill` image after a durable
-    /// acquisition commit. The current entity bridge does not yet own these
-    /// 256 complex update-field slots, so serialize their complete coherent
-    /// image instead of leaving the client on its pre-purchase ranks.
-    pub(crate) fn send_complete_player_skill_values_update_like_cpp(&self) {
-        use wow_packet::packets::update::{
-            ActivePlayerDataValuesUpdate, SkillInfoValuesUpdate, UpdateObject,
-        };
-
-        let (Some(guid), Some(skill_store), Some(skill_lines), Some(skill_tiers)) = (
-            self.player_guid(),
-            self.skill_store(),
-            self.skill_line_store(),
-            self.skill_tiers_store(),
-        ) else {
-            return;
-        };
-        let Some(player_skill_records) = self.resolved_player_skill_records_like_cpp() else {
-            return;
-        };
-        let mut records = player_skill_records.values().collect::<Vec<_>>();
-        records.sort_by_key(|record| record.skill_id);
-        if records.len() > 256 {
-            return;
-        }
-
-        let mut skill = SkillInfoValuesUpdate::default();
-        let mut set_skill_bit = |bit: usize| {
-            skill.skill_info_mask[bit / 32] |= 1 << (bit % 32);
-        };
-        set_skill_bit(0);
-        for index in 0..256 {
-            for bit in [
-                1 + index,
-                257 + index,
-                513 + index,
-                769 + index,
-                1025 + index,
-                1281 + index,
-                1537 + index,
-            ] {
-                set_skill_bit(bit);
-            }
-        }
-        for (index, record) in records.into_iter().enumerate() {
-            if let Some(entry) = skill_store.loaded_skill_info_like_cpp(
-                record.skill_id,
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
-                self.player_level_like_cpp(),
-                record.value,
-                record.max,
-                skill_lines,
-                skill_tiers,
-            ) {
-                skill.skill_line_id[index] = entry.skill_id;
-                skill.skill_step[index] = record.step.max(entry.step);
-                skill.skill_rank[index] = entry.rank;
-                skill.skill_starting_rank[index] = entry.starting_rank;
-                skill.skill_max_rank[index] = entry.max_rank;
-                skill.skill_temp_bonus[index] = entry.temp_bonus;
-                skill.skill_perm_bonus[index] = entry.perm_bonus;
-            }
-        }
-
-        let mut data = ActivePlayerDataValuesUpdate {
-            skill,
-            ..Default::default()
-        };
-        data.active_player_data_mask[0] |= 1;
-        data.active_player_data_mask[1] |= 1;
-        self.send_packet(&UpdateObject::full_active_player_values_update(
-            guid,
-            self.player_map_id_like_cpp(),
-            data,
-        ));
     }
 
     pub(crate) fn send_player_values_update_like_cpp(
@@ -17104,45 +16818,6 @@ impl WorldSession {
         self.friendship_rep_reaction_store.as_ref()
     }
 
-    pub fn set_paragon_reputation_store(&mut self, store: Arc<ParagonReputationStore>) {
-        self.paragon_reputation_store = Some(store);
-        self.initialize_reputation_mgr_like_cpp();
-    }
-
-    pub(crate) fn paragon_reputation_store(&self) -> Option<&Arc<ParagonReputationStore>> {
-        self.paragon_reputation_store.as_ref()
-    }
-
-    fn initialize_reputation_mgr_like_cpp(&mut self) {
-        let Some(faction_store) = self.faction_store.clone() else {
-            return;
-        };
-        let paragon_reputation_store = self.paragon_reputation_store.clone();
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
-            mgr.initialize_like_cpp(
-                faction_store.as_ref(),
-                paragon_reputation_store.as_deref(),
-                race,
-                class,
-            );
-        });
-    }
-
-    pub fn set_reputation_reward_rate_store(
-        &mut self,
-        store: Arc<ReputationRewardRateStoreLikeCpp>,
-    ) {
-        self.reputation_reward_rate_store = Some(store);
-    }
-
-    pub(crate) fn reputation_reward_rate_store(
-        &self,
-    ) -> Option<&Arc<ReputationRewardRateStoreLikeCpp>> {
-        self.reputation_reward_rate_store.as_ref()
-    }
-
     pub(crate) fn set_championing_faction_like_cpp(&mut self, faction_id: u32) {
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
@@ -17163,19 +16838,6 @@ impl WorldSession {
             return Some(self.championing_faction_like_cpp);
         }
         canonical
-    }
-
-    pub fn set_reputation_spillover_template_store(
-        &mut self,
-        store: Arc<RepSpilloverTemplateStoreLikeCpp>,
-    ) {
-        self.reputation_spillover_template_store = Some(store);
-    }
-
-    pub(crate) fn reputation_spillover_template_store(
-        &self,
-    ) -> Option<&Arc<RepSpilloverTemplateStoreLikeCpp>> {
-        self.reputation_spillover_template_store.as_ref()
     }
 
     pub fn set_faction_template_store(&mut self, store: Arc<FactionTemplateStore>) {
@@ -17296,55 +16958,12 @@ impl WorldSession {
         self.map_difficulty_store.as_ref()
     }
 
-    /// Set the skill store for this session.
-    pub fn set_skill_store(&mut self, store: Arc<SkillStore>) {
-        self.skill_store = Some(store);
-    }
-
-    /// Get the skill store reference.
-    pub fn skill_store(&self) -> Option<&Arc<SkillStore>> {
-        self.skill_store.as_ref()
-    }
-
     pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
         self.trait_definition_store = Some(store);
     }
 
     pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
         self.trait_definition_store.as_ref()
-    }
-
-    pub fn set_skill_line_store(&mut self, store: Arc<SkillLineStore>) {
-        self.skill_line_store = Some(store);
-    }
-
-    pub(crate) fn skill_line_store(&self) -> Option<&Arc<SkillLineStore>> {
-        self.skill_line_store.as_ref()
-    }
-
-    pub fn set_skill_tiers_store(&mut self, store: Arc<SkillTiersStoreLikeCpp>) {
-        self.skill_tiers_store = Some(store);
-    }
-
-    pub(crate) fn skill_tiers_store(&self) -> Option<&Arc<SkillTiersStoreLikeCpp>> {
-        self.skill_tiers_store.as_ref()
-    }
-
-    pub fn set_talent_store(&mut self, store: Arc<TalentStore>) {
-        self.talent_store = Some(store);
-    }
-
-    pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
-        self.talent_store.as_ref()
-    }
-
-    pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
-        self.num_talents_at_level_store = Some(store);
-        self.refresh_represented_talent_points_like_cpp();
-    }
-
-    pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
-        self.num_talents_at_level_store.as_ref()
     }
 
     /// C++ can load/summon a `character_pet` during the Player lifetime and
@@ -17953,14 +17572,6 @@ impl WorldSession {
 
     pub(crate) fn area_table_store(&self) -> Option<&Arc<AreaTableStore>> {
         self.area_table_store.as_ref()
-    }
-
-    pub fn set_fishing_base_skill_store(&mut self, store: Arc<FishingBaseSkillStoreLikeCpp>) {
-        self.fishing_base_skill_store = Some(store);
-    }
-
-    pub(crate) fn fishing_base_skill_store(&self) -> Option<&Arc<FishingBaseSkillStoreLikeCpp>> {
-        self.fishing_base_skill_store.as_ref()
     }
 
     async fn reconcile_durable_loot_money_before_save_like_cpp(&mut self) -> bool {
@@ -19297,175 +18908,10 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn player_talent_runtime_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerTalentRuntimeState> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.talent_runtime_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerTalentRuntimeState {
-                talent_groups: self.represented_talents_like_cpp.clone(),
-                talents_loaded: self.represented_talents_loaded_like_cpp,
-                glyph_groups: self.represented_glyphs_like_cpp,
-                glyphs_loaded: self.represented_glyphs_loaded_like_cpp,
-                active_group: self.represented_active_talent_group_like_cpp,
-                bonus_groups: self.represented_bonus_talent_groups_like_cpp,
-                reset_talents_cost: self.represented_talent_reset_cost_like_cpp,
-                reset_talents_time_secs: self.represented_talent_reset_time_secs_like_cpp,
-            });
-        }
-        canonical
-    }
-
-    #[cfg(test)]
-    fn store_player_talent_fixture_like_cpp(
-        &mut self,
-        runtime: wow_entities::PlayerTalentRuntimeState,
-    ) -> bool {
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_talents_like_cpp = runtime.talent_groups;
-            self.represented_talents_loaded_like_cpp = runtime.talents_loaded;
-            self.represented_glyphs_like_cpp = runtime.glyph_groups;
-            self.represented_glyphs_loaded_like_cpp = runtime.glyphs_loaded;
-            self.represented_active_talent_group_like_cpp = runtime.active_group;
-            self.represented_bonus_talent_groups_like_cpp = runtime.bonus_groups;
-            self.represented_talent_reset_cost_like_cpp = runtime.reset_talents_cost;
-            self.represented_talent_reset_time_secs_like_cpp = runtime.reset_talents_time_secs;
-            return true;
-        }
-        false
-    }
-
-    fn mutate_player_talent_runtime_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let mut runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-            let result = f(&mut runtime);
-            return self
-                .store_player_talent_fixture_like_cpp(runtime)
-                .then_some(result);
-        }
-        // C++ Player::AddTalent / SetGlyph mutate the Player-owned containers
-        // (Player.cpp:2644-2695,25477-25481), not a Session write-back copy.
-        self.with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().talents))
-    }
-
-    pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.glyph_groups = [[0; wow_entities::PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP];
-                wow_entities::PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP];
-            runtime.glyphs_loaded = false;
-        });
-    }
-
-    pub(crate) fn set_represented_active_talent_group_like_cpp(
-        &mut self,
-        active_group: u8,
-    ) -> bool {
-        let active_group = active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
-        if self.represented_active_talent_group_like_cpp() != Some(active_group) {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
-        self.mutate_player_talent_runtime_like_cpp(|runtime| runtime.active_group = active_group)
-            .is_some()
-    }
-
-    pub(crate) fn represented_active_talent_group_like_cpp(&self) -> Option<u8> {
-        self.player_talent_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.active_group)
-    }
-
     pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
         // Trait-config-specific action bars are not represented yet. Both load and save must use
         // the same C++ fallback context so an autosave cannot mutate rows it never loaded.
         Some((self.represented_active_talent_group_like_cpp()?, 0))
-    }
-
-    pub(crate) fn set_represented_bonus_talent_groups_like_cpp(
-        &mut self,
-        bonus_groups: u8,
-    ) -> bool {
-        let bonus_groups = bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
-        self.mutate_player_talent_runtime_like_cpp(|runtime| runtime.bonus_groups = bonus_groups)
-            .is_some()
-    }
-
-    pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
-        let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            for talents in &mut runtime.talent_groups {
-                talents.clear();
-            }
-            runtime.talents_loaded = false;
-        });
-        // Login reconstructs a fresh C++ Player after this reset. Retaining the
-        // previous character's runtime edges would affect GetCastSpellInfo, and
-        // retaining per-spell traits could contaminate a coincident spell ID.
-        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.override_spells.clear();
-            runtime.trait_definition_ids.clear();
-            runtime.trait_config_rows.clear();
-            runtime.trait_config_rows_complete = false;
-            runtime.trait_entry_rows_complete = false;
-            runtime.trait_entry_rows_empty = false;
-        });
-        self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
-    }
-
-    pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
-        let Some(talent_group) = self.represented_active_talent_group_like_cpp() else {
-            return false;
-        };
-        let talent_group_index = usize::from(talent_group);
-        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
-            return false;
-        }
-
-        let Some(active_talents) = self
-            .mutate_player_talent_runtime_like_cpp(|runtime| {
-                runtime
-                    .talents_loaded
-                    .then(|| std::mem::take(&mut runtime.talent_groups[talent_group_index]))
-            })
-            .flatten()
-        else {
-            return false;
-        };
-        for (talent_id, rank) in active_talents {
-            self.remove_represented_active_talent_side_effects_like_cpp(talent_id, rank);
-        }
-        self.refresh_represented_talent_points_like_cpp();
-        true
-    }
-
-    pub(crate) fn apply_represented_login_talent_reset_if_needed_like_cpp(&mut self) -> bool {
-        const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
-
-        if !self
-            .resolved_represented_at_login_flags_like_cpp()
-            .is_some_and(|flags| (flags & AT_LOGIN_RESET_TALENTS_LIKE_CPP) != 0)
-        {
-            return false;
-        }
-
-        self.record_represented_talent_reset_script_hook_like_cpp(true);
-        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
-        self.remove_represented_pet_not_in_slot_like_cpp();
-
-        if self.reset_represented_active_talents_like_cpp() {
-            let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
-                return false;
-            };
-            self.send_packet(&talent_data);
-            self.send_notification_like_cpp(self.reset_talents_notification_text_like_cpp());
-            return true;
-        }
-
-        false
     }
 
     pub(crate) fn apply_represented_first_login_flag_if_needed_like_cpp(&mut self) -> bool {
@@ -19827,72 +19273,6 @@ impl WorldSession {
         &self.represented_area_zone_criteria_like_cpp
     }
 
-    pub(crate) fn apply_represented_first_login_reputation_with_catalogs_like_cpp(
-        &mut self,
-        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
-    ) -> usize {
-        if !player_bootstrap.start_all_reputation {
-            return 0;
-        }
-
-        let Some(faction_store) = self.faction_store().map(Arc::clone) else {
-            return 0;
-        };
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
-        let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
-        let currency_types_store = self.currency_types_store().map(Arc::clone);
-        let player_race = self.player_race_like_cpp();
-        let player_class = self.player_class_like_cpp();
-        let team_factions = match player_team_for_race_cpp(player_race) {
-            Team::Horde => FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
-            _ => FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
-        };
-
-        let Some((applied, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
-            let mut applied = 0usize;
-            for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
-                .iter()
-                .chain(team_factions.iter())
-            {
-                let Some(faction_entry) = faction_store.get(*faction_id).cloned() else {
-                    continue;
-                };
-                let outcome = mgr.set_one_faction_reputation_like_cpp(
-                    &faction_entry,
-                    FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP,
-                    false,
-                    1.0,
-                    friendship_rep_reaction_store.as_deref(),
-                    paragon_reputation_store.as_deref(),
-                    true,
-                    currency_types_store.as_deref(),
-                    0,
-                    0,
-                    player_race,
-                    player_class,
-                );
-                if outcome.applied {
-                    applied += 1;
-                }
-            }
-            let packet = (applied > 0).then(|| mgr.set_faction_standing_packet_like_cpp(None));
-            (applied, packet)
-        }) else {
-            return 0;
-        };
-        if let Some(packet) = packet {
-            self.send_packet(&packet);
-        }
-
-        applied
-    }
-
-    #[cfg(test)]
-    pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
-        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
-        self.apply_represented_first_login_reputation_with_catalogs_like_cpp(&player_bootstrap)
-    }
-
     /// C++ `Player::AddExploredZones` loop for `CONFIG_START_ALL_EXPLORED` on first login.
     pub(crate) fn apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
         &mut self,
@@ -19931,294 +19311,6 @@ impl WorldSession {
     pub(crate) fn apply_represented_first_login_explored_zones_like_cpp(&mut self) -> usize {
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
         self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(&player_bootstrap)
-    }
-
-    pub(crate) fn learn_represented_talent_like_cpp(
-        &mut self,
-        talent_tabs: &TalentTabStore,
-        talent_id: u32,
-        requested_rank: u16,
-    ) -> bool {
-        if !self.represented_talents_loaded_like_cpp() {
-            return false;
-        }
-
-        let Ok(rank) = u8::try_from(requested_rank) else {
-            return false;
-        };
-
-        if !self.validate_represented_talent_learn_like_cpp(talent_id, rank) {
-            return false;
-        }
-
-        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
-            return false;
-        };
-        let talent_group = runtime.active_group;
-        let previous_rank = runtime
-            .talent_groups
-            .get(usize::from(talent_group))
-            .and_then(|talents| talents.get(&talent_id).copied());
-        let learned =
-            self.load_represented_talent_row_like_cpp(talent_tabs, talent_id, rank, talent_group);
-        if learned {
-            self.apply_represented_active_talent_spell_side_effects_like_cpp(
-                talent_id,
-                previous_rank,
-                rank,
-                talent_group,
-            );
-            self.refresh_represented_talent_points_like_cpp();
-        }
-        learned
-    }
-
-    fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
-        let Some(available_points) = self.resolved_player_character_points_like_cpp() else {
-            return false;
-        };
-        let available_points = available_points.max(0) as u32;
-        if available_points == 0 {
-            return false;
-        }
-
-        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
-            return false;
-        };
-        let talent_group_index = usize::from(runtime.active_group);
-        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
-            return false;
-        }
-
-        let Some(talent) = self.talent_store().and_then(|store| store.get(talent_id)) else {
-            return false;
-        };
-
-        let talents = &runtime.talent_groups[talent_group_index];
-        if let Some(current_rank) = talents.get(&talent_id) {
-            if *current_rank >= rank {
-                return false;
-            }
-        }
-
-        let needed_talent_points =
-            self.represented_needed_talent_points_for_learn_like_cpp(talent_id, rank);
-        if needed_talent_points > available_points {
-            return false;
-        }
-
-        for (prereq_talent, prereq_rank) in talent.prereq_talent.iter().zip(talent.prereq_rank) {
-            let Ok(prereq_talent_id) = u32::try_from(*prereq_talent) else {
-                return false;
-            };
-            if prereq_talent_id == 0 {
-                continue;
-            }
-
-            let Ok(required_rank) = u8::try_from(prereq_rank) else {
-                return false;
-            };
-            if talents
-                .get(&prereq_talent_id)
-                .is_none_or(|known_rank| *known_rank < required_rank)
-            {
-                return false;
-            }
-        }
-
-        if talent.tier_id > 0 {
-            let Some(talent_store) = self.talent_store() else {
-                return false;
-            };
-            let spent_points = talent_store
-                .iter()
-                .filter(|entry| entry.tab_id == talent.tab_id)
-                .filter_map(|entry| {
-                    talents
-                        .get(&entry.id)
-                        .map(|rank| {
-                            entry
-                                .spell_rank
-                                .get(usize::from(*rank))
-                                .copied()
-                                .unwrap_or(0)
-                        })
-                        .filter(|spell_id| *spell_id != 0)
-                        .map(|_| u32::from(talents[&entry.id]) + 1)
-                })
-                .sum::<u32>();
-
-            if spent_points < u32::from(talent.tier_id) * NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP {
-                return false;
-            }
-        }
-
-        true
-    }
-
-    fn represented_needed_talent_points_for_learn_like_cpp(&self, talent_id: u32, rank: u8) -> u32 {
-        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
-            return u32::from(rank) + 1;
-        };
-        let talent_group_index = usize::from(runtime.active_group);
-        let Some(talents) = runtime.talent_groups.get(talent_group_index) else {
-            return u32::from(rank) + 1;
-        };
-        if let Some(current_rank) = talents.get(&talent_id) {
-            (i32::from(*current_rank) - i32::from(rank) + 1).max(0) as u32
-        } else {
-            u32::from(rank) + 1
-        }
-    }
-
-    #[cfg(test)]
-    fn represented_spent_talent_points_count_like_cpp(&self) -> Option<u32> {
-        let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-        let talent_group_index = usize::from(runtime.active_group);
-        Some(
-            runtime
-                .talent_groups
-                .get(talent_group_index)
-                .into_iter()
-                .flat_map(|talents| talents.iter())
-                .filter(|(talent_id, rank)| {
-                    self.represented_talent_info_like_cpp(**talent_id, **rank)
-                        .is_some()
-                })
-                .map(|(_, rank)| u32::from(*rank) + 1)
-                .sum(),
-        )
-    }
-
-    #[cfg(test)]
-    fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
-        let base_points = self
-            .num_talents_at_level_store()
-            .map(|store| {
-                store.num_talents_at_level_like_cpp(
-                    u32::from(self.player_level_like_cpp()),
-                    self.player_class_like_cpp(),
-                )
-            })
-            .unwrap_or(0);
-        Some(base_points + self.represented_quest_rewarded_talent_points_like_cpp()?)
-    }
-
-    pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let Some(spent) = self.represented_spent_talent_points_count_like_cpp() else {
-                return;
-            };
-            let Some(available) = self
-                .represented_calculate_talents_points_like_cpp()
-                .map(|points| points.saturating_sub(spent))
-            else {
-                return;
-            };
-            self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
-            return;
-        }
-        let base_points = self
-            .num_talents_at_level_store()
-            .map(|store| {
-                store.num_talents_at_level_like_cpp(
-                    u32::from(self.player_level_like_cpp()),
-                    self.player_class_like_cpp(),
-                )
-            })
-            .unwrap_or(0);
-        // Borrow immutable catalog policy; Player owns counting and field mutation.
-        let _points = self.with_owned_player_mut_like_cpp(|player| {
-            player.refresh_represented_talent_points_like_cpp(base_points, |talent_id, rank| {
-                self.represented_talent_info_like_cpp(talent_id, rank)
-                    .is_some()
-            })
-        });
-        #[cfg(test)]
-        if let Some(points) = _points {
-            self.player_character_points_like_cpp = points;
-        }
-    }
-
-    fn represented_talent_info_like_cpp(
-        &self,
-        talent_id: u32,
-        rank: u8,
-    ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
-        let talent = self.talent_store()?.get(talent_id)?;
-        let spell_id = talent.spell_rank.get(usize::from(rank)).copied()?;
-        if spell_id <= 0 {
-            return None;
-        }
-        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
-            return None;
-        }
-
-        Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
-    }
-
-    pub(crate) fn resolved_update_talent_data_packet_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
-        self.build_update_talent_data_packet_like_cpp(
-            self.resolved_player_character_points_like_cpp()?,
-        )
-    }
-
-    fn build_update_talent_data_packet_like_cpp(
-        &self,
-        character_points: i32,
-    ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
-        let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-        let group_count = (1 + usize::from(runtime.bonus_groups)).min(MAX_SPECIALIZATIONS_LIKE_CPP);
-        let mut groups = Vec::with_capacity(group_count);
-        for (group_index, glyph_ids) in runtime
-            .glyph_groups
-            .iter()
-            .take(group_count)
-            .copied()
-            .enumerate()
-        {
-            let talents = runtime.talent_groups[group_index]
-                .iter()
-                .filter_map(|(talent_id, rank)| {
-                    self.represented_talent_info_like_cpp(*talent_id, *rank)
-                })
-                .collect();
-            groups.push(wow_packet::packets::misc::TalentGroupInfoLikeCpp {
-                spec_id: MAX_SPECIALIZATIONS_LIKE_CPP as u8,
-                talents,
-                glyph_ids,
-            });
-        }
-
-        Some(wow_packet::packets::misc::UpdateTalentData {
-            unspent_talent_points: character_points.max(0) as u32,
-            active_group: runtime.active_group,
-            groups,
-            is_pet_talents: false,
-        })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_update_talent_data_packet_like_cpp(
-        &self,
-    ) -> wow_packet::packets::misc::UpdateTalentData {
-        self.build_update_talent_data_packet_like_cpp(self.player_character_points_like_cpp())
-            .expect("test Player talent owner must resolve")
-    }
-
-    pub(crate) fn represented_active_glyphs_packet_like_cpp(
-        &self,
-    ) -> wow_packet::packets::misc::ActiveGlyphs {
-        // C++ maps active glyphs to bindable spell ids through GlyphBindableSpell.db2.
-        // That store is not session-wired yet, so this remains an intentionally empty
-        // full update while UpdateTalentData carries the loaded glyph ids.
-        wow_packet::packets::misc::ActiveGlyphs {
-            glyphs: Vec::new(),
-            is_full_update: true,
-        }
     }
 
     /// Apply XP to the live session state, leveling up if threshold reached.
@@ -20526,134 +19618,6 @@ impl WorldSession {
         }
     }
 
-    fn calculate_kill_reputation_gain_like_cpp(
-        &self,
-        creature_level: u8,
-        rep: i32,
-        faction_id: u32,
-    ) -> i32 {
-        self.calculate_reputation_gain_like_cpp(
-            ReputationGainSourceLikeCpp::Kill,
-            u32::from(creature_level),
-            rep,
-            faction_id,
-            false,
-        )
-    }
-
-    pub(crate) fn reputation_gain_percent_before_reward_rate_like_cpp(
-        &self,
-        source: ReputationGainSourceLikeCpp,
-        creature_or_quest_level: u32,
-        rep: i32,
-        faction_id: u32,
-        no_quest_bonus: bool,
-    ) -> Option<f32> {
-        let mut percent = 100.0f32;
-        let mut rep_mod = if no_quest_bonus {
-            0.0
-        } else {
-            self.resolved_total_represented_aura_modifier_like_cpp(
-                RepresentedAuraEffectLikeCpp::ModReputationGain,
-            )? as f32
-        };
-
-        if source == ReputationGainSourceLikeCpp::Kill {
-            rep_mod += self.resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
-                RepresentedAuraEffectLikeCpp::ModFactionReputationGain,
-                faction_id as i32,
-            )? as f32;
-        }
-
-        percent += if rep > 0 { rep_mod } else { -rep_mod };
-
-        let reputation_rates = self.reputation_rates_like_cpp();
-        let low_level_rate = match source {
-            ReputationGainSourceLikeCpp::Kill => reputation_rates.low_level_kill,
-            ReputationGainSourceLikeCpp::Quest
-            | ReputationGainSourceLikeCpp::DailyQuest
-            | ReputationGainSourceLikeCpp::WeeklyQuest
-            | ReputationGainSourceLikeCpp::MonthlyQuest
-            | ReputationGainSourceLikeCpp::RepeatableQuest => reputation_rates.low_level_quest,
-            ReputationGainSourceLikeCpp::Spell => 1.0,
-        };
-        if low_level_rate != 1.0
-            && creature_or_quest_level < u32::from(self.gray_level(self.player_level_like_cpp()))
-        {
-            percent *= low_level_rate;
-        }
-
-        (percent > 0.0).then_some(percent)
-    }
-
-    pub(crate) fn reputation_reward_rate_for_source_like_cpp(
-        &self,
-        source: ReputationGainSourceLikeCpp,
-        faction_id: u32,
-    ) -> Option<f32> {
-        let rates = self
-            .reputation_reward_rate_store()
-            .and_then(|store| store.get(faction_id))?;
-        let rate = match source {
-            ReputationGainSourceLikeCpp::Kill => rates.creature_rate,
-            ReputationGainSourceLikeCpp::Quest => rates.quest_rate,
-            ReputationGainSourceLikeCpp::DailyQuest => rates.quest_daily_rate,
-            ReputationGainSourceLikeCpp::WeeklyQuest => rates.quest_weekly_rate,
-            ReputationGainSourceLikeCpp::MonthlyQuest => rates.quest_monthly_rate,
-            ReputationGainSourceLikeCpp::RepeatableQuest => rates.quest_repeatable_rate,
-            ReputationGainSourceLikeCpp::Spell => rates.spell_rate,
-        };
-        Some(rate)
-    }
-
-    pub(crate) fn calculate_reputation_gain_like_cpp(
-        &self,
-        source: ReputationGainSourceLikeCpp,
-        creature_or_quest_level: u32,
-        rep: i32,
-        faction_id: u32,
-        no_quest_bonus: bool,
-    ) -> i32 {
-        let Some(mut percent) = self.reputation_gain_percent_before_reward_rate_like_cpp(
-            source,
-            creature_or_quest_level,
-            rep,
-            faction_id,
-            no_quest_bonus,
-        ) else {
-            return 0;
-        };
-
-        if let Some(rep_rate) = self.reputation_reward_rate_for_source_like_cpp(source, faction_id)
-        {
-            if rep_rate <= 0.0 {
-                return 0;
-            }
-            percent *= rep_rate;
-        }
-
-        percent = self.apply_recruit_a_friend_reputation_bonus_like_cpp(source, percent);
-
-        (rep as f32 * percent / 100.0) as i32
-    }
-
-    pub(crate) fn apply_recruit_a_friend_reputation_bonus_like_cpp(
-        &self,
-        source: ReputationGainSourceLikeCpp,
-        mut percent: f32,
-    ) -> f32 {
-        if source != ReputationGainSourceLikeCpp::Spell
-            && self.gets_recruit_a_friend_reputation_bonus_like_cpp()
-        {
-            percent *= 1.0 + self.reputation_rates_like_cpp().recruit_a_friend_bonus;
-        }
-        percent
-    }
-
-    fn gets_recruit_a_friend_reputation_bonus_like_cpp(&self) -> bool {
-        self.gets_recruit_a_friend_bonus_like_cpp(false)
-    }
-
     fn gets_recruit_a_friend_xp_bonus_like_cpp(&self) -> bool {
         self.gets_recruit_a_friend_bonus_like_cpp(true)
     }
@@ -20943,37 +19907,6 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn represented_next_reset_talents_cost_like_cpp(
-        &self,
-        now_secs: u64,
-    ) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .talent_runtime_like_cpp()
-                .next_reset_talents_cost_like_cpp(now_secs)
-        });
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self
-                .player_talent_runtime_snapshot_like_cpp()
-                .map(|runtime| runtime.next_reset_talents_cost_like_cpp(now_secs));
-        }
-        canonical
-    }
-
-    fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
-        #[cfg(test)]
-        self.represented_talent_respec_criteria_events_like_cpp
-            .push(
-                RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: cost },
-            );
-        #[cfg(test)]
-        self.represented_talent_respec_criteria_events_like_cpp
-            .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
-        #[cfg(not(test))]
-        let _ = cost;
-    }
-
     #[cfg(test)]
     pub(crate) async fn currency_changed_like_cpp(&mut self, currency_id: u32, change: i32) {
         self.enqueue_represented_quest_objective_progress_like_cpp(
@@ -20981,15 +19914,6 @@ impl WorldSession {
                 currency_id,
                 change,
             },
-        );
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn reputation_changed_like_cpp(&mut self, faction_id: u32, change: i32) {
-        self.enqueue_represented_quest_objective_progress_like_cpp(
-            RepresentedQuestObjectiveProgressEventLikeCpp::ReputationChanged { faction_id, change },
         );
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
@@ -21031,19 +19955,6 @@ impl WorldSession {
         self.rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
         self.rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
         self.rest_ingame_rate_like_cpp = rest_ingame_rate;
-    }
-
-    pub fn set_max_primary_trade_skills_like_cpp(&mut self, configured: u8) {
-        self.max_primary_trade_skills_like_cpp =
-            if configured <= crate::profession::MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP {
-                configured
-            } else {
-                crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP
-            };
-    }
-
-    pub(crate) fn max_primary_trade_skills_like_cpp(&self) -> u8 {
-        self.max_primary_trade_skills_like_cpp
     }
 
     pub fn set_recruit_a_friend_xp_config_like_cpp(
@@ -22185,15 +21096,6 @@ impl WorldSession {
         self.send_packet(&PrintNotification { notify_text: text });
     }
 
-    fn reset_talents_notification_text_like_cpp(&self) -> String {
-        let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);
-        if text == "<error>" {
-            LANG_RESET_TALENTS_TEXT_LIKE_CPP.to_string()
-        } else {
-            text.to_string()
-        }
-    }
-
     fn trinity_string_like_cpp(&self, entry: u32) -> &str {
         self.trinity_string_store
             .as_ref()
@@ -22773,18 +21675,6 @@ impl WorldSession {
             self.player_gold = gold;
         }
         canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
-    }
-
-    pub(crate) fn set_represented_talent_reset_state_like_cpp(
-        &mut self,
-        reset_cost: u32,
-        reset_time_secs: u64,
-    ) -> bool {
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.reset_talents_cost = reset_cost;
-            runtime.reset_talents_time_secs = reset_time_secs;
-        })
-        .is_some()
     }
 
     #[cfg(test)]
@@ -23408,385 +22298,6 @@ impl WorldSession {
         true
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn set_player_skill_values_like_cpp(
-        &mut self,
-        skill_values: HashMap<u16, u16>,
-    ) -> bool {
-        let skill_records = represented_skill_records_from_values_like_cpp(&skill_values);
-        self.replace_player_skill_records_like_cpp(skill_records, true, false)
-    }
-
-    pub(crate) fn set_player_skill_records_like_cpp(
-        &mut self,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-    ) -> bool {
-        // This represented runtime map does not expose the exact occupied
-        // ActivePlayerData::Skill slots. Never infer that authority from the
-        // number of map rows.
-        self.replace_player_skill_records_like_cpp(skill_records, true, false)
-    }
-
-    pub(crate) fn set_complete_player_skill_records_like_cpp(
-        &mut self,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        occupied_slots: u16,
-    ) -> bool {
-        self.replace_player_skill_records_like_cpp(skill_records, true, true)
-            && self.set_player_skill_occupied_slots_like_cpp(occupied_slots)
-    }
-
-    pub(crate) fn replace_player_skill_records_like_cpp(
-        &mut self,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        loaded: bool,
-        complete: bool,
-    ) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self.fixture_replace_player_skill_records_like_cpp(
-                skill_records,
-                loaded,
-                complete,
-            );
-        }
-        let records = skill_records
-            .into_iter()
-            .map(|(key, skill)| (key, canonical_player_skill_record_like_cpp(skill)))
-            .collect();
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.replace_represented_skill_records_like_cpp(records, loaded, complete);
-        })
-        .is_some()
-    }
-
-    #[cfg(test)]
-    fn fixture_replace_player_skill_records_like_cpp(
-        &mut self,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        loaded: bool,
-        complete: bool,
-    ) -> bool {
-        let rows_are_structurally_complete = skill_records.iter().all(|(skill_id, skill)| {
-            *skill_id == skill.skill_id
-                && (skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
-                    || (skill.step == 0
-                        && skill.value == 0
-                        && skill.max == 0
-                        && skill.profession_slot == -1))
-        });
-        let Some(mut tombstones) = self.resolved_player_skill_non_durable_tombstones_like_cpp()
-        else {
-            return false;
-        };
-        tombstones.retain(|skill_id| {
-            skill_records
-                .get(skill_id)
-                .is_some_and(Self::is_non_durable_skill_tombstone_like_cpp)
-        });
-        tombstones.extend(
-            skill_records
-                .values()
-                .filter(|skill| skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted)
-                .map(|skill| skill.skill_id),
-        );
-        let complete = loaded && complete && rows_are_structurally_complete;
-        let canonical_records = skill_records
-            .values()
-            .copied()
-            .map(canonical_player_skill_record_like_cpp)
-            .collect();
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_skill_records_like_cpp(
-                    canonical_records,
-                    loaded,
-                    complete,
-                    None,
-                    tombstones.clone(),
-                );
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_skill_values_like_cpp =
-                represented_skill_values_from_records_like_cpp(&skill_records);
-            self.represented_enchanting_skill = skill_records
-                .get(&SKILL_ENCHANTING_LIKE_CPP)
-                .map(|skill| skill.value)
-                .unwrap_or(0);
-            self.player_skill_records_like_cpp = skill_records;
-            self.player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.player_skill_records_loaded_like_cpp = loaded;
-            self.player_skill_records_complete_like_cpp = complete;
-            self.player_skill_occupied_slots_like_cpp = None;
-            return true;
-        }
-        _canonical
-    }
-
-    #[cfg(test)]
-    fn replace_player_skill_runtime_exact_like_cpp(
-        &mut self,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        loaded: bool,
-        complete: bool,
-        occupied_slots: Option<u16>,
-        tombstones: BTreeSet<u16>,
-    ) -> bool {
-        let canonical_records = skill_records
-            .values()
-            .copied()
-            .map(canonical_player_skill_record_like_cpp)
-            .collect();
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_skill_records_like_cpp(
-                    canonical_records,
-                    loaded,
-                    complete,
-                    occupied_slots,
-                    tombstones.clone(),
-                );
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_skill_values_like_cpp =
-                represented_skill_values_from_records_like_cpp(&skill_records);
-            self.represented_enchanting_skill = skill_records
-                .get(&SKILL_ENCHANTING_LIKE_CPP)
-                .map(|skill| skill.value)
-                .unwrap_or(0);
-            self.player_skill_records_like_cpp = skill_records;
-            self.player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.player_skill_records_loaded_like_cpp = loaded;
-            self.player_skill_records_complete_like_cpp = loaded && complete;
-            self.player_skill_occupied_slots_like_cpp = occupied_slots;
-            return true;
-        }
-        canonical
-    }
-
-    fn clear_player_skill_tombstones_like_cpp(&mut self) {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.fixture_clear_player_skill_tombstones_like_cpp();
-            return;
-        }
-        let _ = self.with_owned_player_mut_like_cpp(
-            Player::clear_skill_tombstones_for_identity_change_like_cpp,
-        );
-    }
-
-    #[cfg(test)]
-    fn fixture_clear_player_skill_tombstones_like_cpp(&mut self) {
-        let Some(records) = self.resolved_player_skill_records_like_cpp() else {
-            return;
-        };
-        let Some(loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {
-            return;
-        };
-        let complete = self.complete_player_skill_records_like_cpp().is_some();
-        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
-        let _ = self.replace_player_skill_runtime_exact_like_cpp(
-            records,
-            loaded,
-            complete,
-            occupied,
-            BTreeSet::new(),
-        );
-    }
-
-    pub(crate) fn set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self.fixture_set_player_skill_occupied_slots_like_cpp(occupied_slots);
-        }
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.authorize_occupied_skill_slots_like_cpp(occupied_slots)
-        })
-        .unwrap_or(false)
-    }
-
-    // Frozen previous route for differential owner tests and handleless fixtures.
-    #[cfg(test)]
-    fn fixture_set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
-        // C++ `SetSkill(..., 0)` clears step/rank/max but retains the
-        // SkillLineID in its update-field slot until that slot is explicitly
-        // reused. A represented SKILL_DELETED row therefore still counts.
-        let Some(skill_records) = self.resolved_player_skill_records_like_cpp() else {
-            return false;
-        };
-        let canonical_complete =
-            self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
-        #[cfg(test)]
-        let canonical_complete = canonical_complete.or_else(|| {
-            self.player_handle_like_cpp
-                .is_none()
-                .then_some(self.player_skill_records_complete_like_cpp)
-        });
-        let complete = canonical_complete.unwrap_or(false);
-        let exact = skill_records.len();
-        if !complete || usize::from(occupied_slots) != exact || usize::from(occupied_slots) > 256 {
-            let _ = self.with_owned_player_mut_like_cpp(|player| {
-                let records = player.skill_records_like_cpp().to_vec();
-                let loaded = player.skill_records_loaded_like_cpp();
-                let complete = player.skill_records_complete_like_cpp();
-                let tombstones = player.non_durable_skill_tombstones_like_cpp().clone();
-                player.replace_skill_records_like_cpp(records, loaded, complete, None, tombstones);
-            });
-            #[cfg(test)]
-            if self.player_handle_like_cpp.is_none() {
-                self.player_skill_occupied_slots_like_cpp = None;
-            }
-            return false;
-        }
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                let records = player.skill_records_like_cpp().to_vec();
-                let loaded = player.skill_records_loaded_like_cpp();
-                let complete = player.skill_records_complete_like_cpp();
-                let tombstones = player.non_durable_skill_tombstones_like_cpp().clone();
-                player.replace_skill_records_like_cpp(
-                    records,
-                    loaded,
-                    complete,
-                    Some(occupied_slots),
-                    tombstones,
-                );
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_skill_occupied_slots_like_cpp = Some(occupied_slots);
-            return true;
-        }
-        canonical
-    }
-
-    pub(crate) fn complete_player_skill_occupied_slots_like_cpp(&self) -> Option<u16> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .skill_records_complete_like_cpp()
-                .then(|| player.occupied_skill_slots_like_cpp())
-                .flatten()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self
-                .player_skill_records_complete_like_cpp
-                .then_some(self.player_skill_occupied_slots_like_cpp)
-                .flatten();
-        }
-        canonical.flatten()
-    }
-
-    pub(crate) fn complete_player_skill_records_like_cpp(
-        &self,
-    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        let records = self.resolved_player_skill_records_like_cpp()?;
-        let complete = self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
-        #[cfg(test)]
-        let complete = complete.or_else(|| {
-            self.player_handle_like_cpp
-                .is_none()
-                .then_some(self.player_skill_records_complete_like_cpp)
-        });
-        complete.unwrap_or(false).then_some(records)
-    }
-
-    fn set_represented_player_skill_like_cpp(
-        &mut self,
-        skill_id: u16,
-        step: u16,
-        value: u16,
-        max: u16,
-    ) {
-        let step = if value == 0 { 0 } else { step };
-        let Some(mut skill_records) = self.resolved_player_skill_records_like_cpp() else {
-            return;
-        };
-        let previous = skill_records.get(&skill_id).copied();
-        let complete_occupied_slots = self.complete_player_skill_occupied_slots_like_cpp();
-        // Preserve the existing DB-facing profession association exactly as
-        // the former active-only representation did. Persistence still
-        // ignores the shadow lifecycle state in this projection-only PR.
-        let profession_slot = previous.map(|skill| skill.profession_slot).unwrap_or(-1);
-        let state = match previous {
-            None => RepresentedPlayerSkillStateLikeCpp::New,
-            Some(previous) if value == 0 && previous.value != 0 => {
-                if previous.state == RepresentedPlayerSkillStateLikeCpp::New {
-                    RepresentedPlayerSkillStateLikeCpp::Unchanged
-                } else {
-                    RepresentedPlayerSkillStateLikeCpp::Deleted
-                }
-            }
-            Some(previous) if value == 0 => previous.state,
-            Some(previous)
-                if matches!(
-                    previous.state,
-                    RepresentedPlayerSkillStateLikeCpp::Unchanged
-                        | RepresentedPlayerSkillStateLikeCpp::Deleted
-                ) =>
-            {
-                if previous.value == 0 {
-                    if previous.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
-                        RepresentedPlayerSkillStateLikeCpp::Changed
-                    } else {
-                        RepresentedPlayerSkillStateLikeCpp::New
-                    }
-                } else {
-                    RepresentedPlayerSkillStateLikeCpp::Changed
-                }
-            }
-            Some(previous) => previous.state,
-        };
-        skill_records.insert(
-            skill_id,
-            RepresentedPlayerSkillLikeCpp {
-                skill_id,
-                step,
-                value,
-                max,
-                profession_slot,
-                state,
-            },
-        );
-        // A mutation of an already-authoritative map preserves exact slot
-        // ownership: existing/tombstone rows retain their slot and a genuinely
-        // new row consumes one. Incomplete sources remain fail-closed.
-        let preserve_complete = complete_occupied_slots.is_some();
-        if !self.replace_player_skill_records_like_cpp(skill_records, true, preserve_complete) {
-            return;
-        }
-        if let Some(occupied_slots) = complete_occupied_slots {
-            let occupied_slots = occupied_slots.saturating_add(u16::from(previous.is_none()));
-            let _ = self.set_player_skill_occupied_slots_like_cpp(occupied_slots);
-        }
-    }
-
-    fn resolved_player_skill_max_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
-        Some(
-            self.resolved_player_skill_records_like_cpp()?
-                .get(&skill_id)
-                .map(|skill| skill.max)
-                .unwrap_or(0),
-        )
-    }
-
-    #[cfg(test)]
-    fn player_skill_max_value_like_cpp(&self, skill_id: u16) -> u16 {
-        self.resolved_player_skill_max_value_like_cpp(skill_id)
-            .expect("test Player skill owner must resolve")
-    }
-
-    fn max_skill_value_for_level_like_cpp(&self) -> u16 {
-        u16::from(self.player_level_like_cpp()).saturating_mul(5)
-    }
-
     pub(crate) fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
         #[cfg(test)]
         {
@@ -24017,28 +22528,6 @@ impl WorldSession {
             .expect("test Player money owner must resolve")
     }
 
-    pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player.talent_runtime_like_cpp().reset_talents_cost
-        });
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_talent_reset_cost_like_cpp);
-        }
-        canonical
-    }
-
-    pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> Option<u64> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player.talent_runtime_like_cpp().reset_talents_time_secs
-        });
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_talent_reset_time_secs_like_cpp);
-        }
-        canonical
-    }
-
     pub(crate) fn resolved_player_character_points_like_cpp(&self) -> Option<i32> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.active_data().character_points);
@@ -24125,59 +22614,6 @@ impl WorldSession {
             return self.selection_guid;
         }
         canonical.filter(|guid| !guid.is_empty())
-    }
-
-    pub(crate) fn resolved_player_skill_values_like_cpp(&self) -> Option<HashMap<u16, u16>> {
-        Some(represented_skill_values_from_records_like_cpp(
-            &self.resolved_player_skill_records_like_cpp()?,
-        ))
-    }
-
-    pub(crate) fn resolved_player_skill_records_like_cpp(
-        &self,
-    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .skill_records_like_cpp()
-                .iter()
-                .filter_map(represented_player_skill_record_like_cpp)
-                .map(|skill| (skill.skill_id, skill))
-                .collect()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_skill_records_like_cpp.clone());
-        }
-        canonical
-    }
-
-    pub(crate) fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
-        Some(
-            self.resolved_player_skill_values_like_cpp()?
-                .get(&skill_id)
-                .copied()
-                .unwrap_or(0),
-        )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
-        self.resolved_player_skill_values_like_cpp()
-            .expect("test Player skill owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_skill_records_like_cpp(
-        &self,
-    ) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
-        self.resolved_player_skill_records_like_cpp()
-            .expect("test Player skill owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
-        self.resolved_player_skill_value_like_cpp(skill_id)
-            .expect("test Player skill owner must resolve")
     }
 
     pub(crate) fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
@@ -27737,39 +26173,6 @@ impl WorldSession {
         nearest.map(|(guid, _)| guid)
     }
 
-    fn represented_fishing_base_skill_level_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<i32> {
-        let area_id = self
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
-            .and_then(|state| state.area_id)?;
-        let area_store = self.area_table_store()?;
-        let fishing_store = self.fishing_base_skill_store()?;
-        Some(fishing_store.base_skill_level_like_cpp(area_store, area_id))
-    }
-
-    fn player_profession_skill_value_for_exp_like_cpp(
-        &self,
-        parent_skill_id: u16,
-        expansion: i32,
-    ) -> i32 {
-        let Some(skill_line_store) = self.skill_line_store() else {
-            return 0;
-        };
-        let resolved_skill_id = skill_line_store
-            .profession_skill_for_exp_like_cpp(u32::from(parent_skill_id), expansion);
-        if resolved_skill_id == 0 {
-            return 0;
-        }
-        u16::try_from(resolved_skill_id)
-            .ok()
-            .and_then(|skill_id| self.resolved_player_skill_value_like_cpp(skill_id))
-            .map(i32::from)
-            .unwrap_or(0)
-    }
-
     pub(crate) fn use_represented_creature_questgiver_like_cpp(
         &mut self,
         creature_guid: ObjectGuid,
@@ -28584,13 +26987,6 @@ impl WorldSession {
             .push(request);
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
-        #[cfg(test)]
-        self.represented_talent_reset_script_hooks_like_cpp
-            .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
-    }
-
     pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
         self.mutate_player_persistent_capability_state_like_cpp(|state| {
             state.at_login_flags = flags;
@@ -28610,24 +27006,10 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn represented_talent_reset_script_hooks_like_cpp(
-        &self,
-    ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
-        &self.represented_talent_reset_script_hooks_like_cpp
-    }
-
-    #[cfg(test)]
     pub(crate) fn represented_at_login_flag_removals_like_cpp(
         &self,
     ) -> &[RepresentedAtLoginFlagRemovalLikeCpp] {
         &self.represented_at_login_flag_removals_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_talent_respec_criteria_events_like_cpp(
-        &self,
-    ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
-        &self.represented_talent_respec_criteria_events_like_cpp
     }
 
     pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {

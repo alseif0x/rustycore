@@ -23321,11 +23321,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "attack_reputation_faction_snapshot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn attack_reputation_faction_snapshot_like_cpp (& self , creature : & wow_entities :: Creature ,) -> Option < AttackReputationFactionSnapshotLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24386,11 +24388,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "calculate_kill_reputation_gain_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn calculate_kill_reputation_gain_like_cpp (& self , creature_level : u8 , rep : i32 , faction_id : u32 ,) -> i32",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25572,11 +25576,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "clear_player_skill_tombstones_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn clear_player_skill_tombstones_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27694,13 +27700,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_clear_player_skill_tombstones_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_clear_player_skill_tombstones_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27827,13 +27835,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_replace_player_skill_records_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_replace_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27870,13 +27880,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_set_player_skill_occupied_slots_like_cpp",
-          "visibility": "private",
-          "signature": "fn fixture_set_player_skill_occupied_slots_like_cpp (& mut self , occupied_slots : u16) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn fixture_set_player_skill_occupied_slots_like_cpp (& mut self , occupied_slots : u16 ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28953,11 +28965,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "initialize_reputation_mgr_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn initialize_reputation_mgr_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31605,11 +31619,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "max_skill_value_for_level_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn max_skill_value_for_level_like_cpp (& self) -> u16",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32203,11 +32219,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_talent_runtime_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_talent_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerTalentRuntimeState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34183,11 +34201,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_profession_skill_value_for_exp_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_profession_skill_value_for_exp_like_cpp (& self , parent_skill_id : u16 , expansion : i32 ,) -> i32",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34337,13 +34357,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_skill_max_value_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_skill_max_value_like_cpp (& self , skill_id : u16) -> u16",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36456,11 +36478,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "record_represented_talent_respec_criteria_like_cpp",
-          "visibility": "private",
-          "signature": "fn record_represented_talent_respec_criteria_like_cpp (& mut self , cost : u32)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn record_represented_talent_respec_criteria_like_cpp (& mut self , cost : u32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37596,13 +37620,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "replace_player_skill_runtime_exact_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn replace_player_skill_runtime_exact_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool , occupied_slots : Option < u16 > , tombstones : BTreeSet < u16 > ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39419,11 +39445,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_fishing_base_skill_level_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_fishing_base_skill_level_like_cpp (& self , gameobject_guid : ObjectGuid ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42137,11 +42165,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_talent_info_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_talent_info_like_cpp (& self , talent_id : u32 , rank : u8 ,) -> Option < wow_packet :: packets :: misc :: TalentInfoLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44213,11 +44243,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_player_skill_max_value_like_cpp",
-          "visibility": "private",
-          "signature": "fn resolved_player_skill_max_value_like_cpp (& self , skill_id : u16) -> Option < u16 >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn resolved_player_skill_max_value_like_cpp (& self , skill_id : u16 ,) -> Option < u16 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -51107,12 +51139,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_represented_player_skill_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn set_represented_player_skill_like_cpp (& mut self , skill_id : u16 , step : u16 , value : u16 , max : u16 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
