@@ -153,6 +153,92 @@ broader #99 language/ecosystem roadmap still has an M6 re-audit; this bounded de
 waits for M6. No new micro-issues, production dependency, deployment or code publication follows from
 this plan update. C0–C4 and all existing durability/operator acceptance remain intact.
 
+## Physical decomposition track closed — 2026-09-09
+
+Sixteen deliveries between #634 and #664, following the Session-root separations
+of #603-#632, completed the physical half of rule 5 (manageable production/test/
+fixture files). Those sixteen reduced 184,295 lines of oversized roots to 4,972.
+At `df94f231` the reviewed physical ceilings are met and no file outside the four
+categories below exceeds the 2,000-line terminal limit.
+
+| Delivery | Scope | Before | After |
+| --- | --- | --- | --- |
+| #634 | architecture checker analyzer, QA bot loot race | 20,536 | 286 |
+| #636 | four `wow-entities` state roots | 17,609 | 136 |
+| #638 | `wow-data` condition/skill roots | 8,520 | 75 |
+| #640 | `wow-packet` regression roots | 8,604 | 302 |
+| #642 | `wow-loot` crate root and authority | 7,350 | 69 |
+| #644 | `wow-map` manager/pool/spawn | 9,314 | 93 |
+| #646 | `wow-data` spell roots | 11,177 | 408 |
+| #648 | remaining `wow-entities` files | 10,977 | 270 |
+| #650 | `wow-packet` production roots | 12,255 | 273 |
+| #652 | `wow-database` statement files | 8,748 | 147 |
+| #654 | `wow-world` chat/movement handlers | 7,427 | 651 |
+| #656 | battle-pet purchase, world conditions | 8,565 | 130 |
+| #658 | `capture-diff` roots, four crate roots | 20,339 | 576 |
+| #660 | remaining checker sources | 10,479 | 248 |
+| #662 | last non-curated `wow-world` files | 14,769 | 857 |
+| #664 | checker entry point, creature template, misc DB2 | 7,626 | 451 |
+
+Every delivery proved its top-level item surface identical before and after by
+comparing the parsed item multiset, kept its crate's test count unchanged, and
+passed `./tools/validation-v2 final --base origin/3.4.3` at the committed SHA.
+Ceilings were tightened to the validated figures rather than left slack, and a
+file replaced by a directory had its policy row moved to the successor path,
+because the ratchet refuses a missing audited path precisely so a rename cannot
+evade a ceiling.
+
+### What relocation cannot do — three findings that bound the track
+
+**A curated hotspot cannot be reduced by relocation.** The runtime-ownership
+ratchet measures the module aggregate, and all eight owners sit at their
+baseline. Splitting a file inside one adds module headers and re-export wiring,
+so the aggregate grows and the ratchet correctly rejects the change. #636
+recorded this for `wow-entities/src/player`, #644 for `wow-map/src/map` and #654
+for `handlers/{character,loot,quest}`; each file keeps its ceiling with the
+reason in its policy row.
+
+**Splitting a bridge function's context narrows the audit.** The bridge
+inventory pairs canonical-side and legacy-side evidence *within one enclosing
+module*. Moving `world_creature_from_pending_respawn_like_cpp` out of
+`crate::map_manager` dropped it from the 65-row inventory while the build and
+all 3,822 `wow-world` tests stayed green (#662). Only the ownership baseline
+diff caught it, so the split was reverted. A green build is not evidence that a
+scanner still sees what it saw.
+
+**Visibility must be derived from the item's original reach, not from a rule.**
+`pub(super)` denotes a different scope at each depth; a glob re-export silently
+skips items that are too private; and at a crate root a private item is already
+crate-visible. So each moved item took the qualifier matching what it already
+had - `pub(crate)` out of a crate root, `pub(super)` out of a submodule, an
+explicit `pub(in path)` when the move went two levels down - with the compiler
+as the check. #650 needed 28 explicit restricted re-exports for exactly this
+reason, and #664 hit the same trap in Python, where `from x import *` skips
+underscore-prefixed names.
+
+### Semantic track entry conditions
+
+116,693 lines remain above 2,000 lines in 33 files, all in four categories:
+
+| Owner | Lines | What it needs |
+| --- | --- | --- |
+| `crates/world-server/` | 22,803 | Startup composition phases extracted from one 5,652-line `run_inner`; 586 top-level locals make relocation meaningless |
+| `crates/wow-world/src/session/` | 21,271 | Session responsibility families with their own owners; the root is now struct plus infrastructure |
+| `crates/wow-world/src/handlers/character/` | 14,745 | Per-operation handler owners |
+| `crates/wow-map/src/map/` | 12,186 | Map responsibility split with the grid/visibility owners named |
+| `crates/wow-entities/src/player/` | 8,202 | Login/gameplay load plans as their own owner |
+| `crates/wow-world/src/handlers/loot/` | 8,096 | Loot source/authority owners |
+| `crates/wow-world/src/handlers/quest/` | 4,948 | Quest operation owners |
+| `crates/wow-world/src/map_manager/` | 4,524 | Canonical/legacy bridge separation that keeps both sides in one auditable module |
+| `crates/wow-social/src/group/` | 2,508 | Group state owner |
+| `crates/wow-world/src/session_tests.rs` | 5,755 | Follows its production owner |
+| capture fixture shell scripts | 7,992 | Runtime swap, dump provenance and recovery orchestration, with the existing capture safeguards and runtime authorization preserved |
+| vendored `DetourNavMeshQuery.cpp` | 3,663 | Out of scope: third-party C++ carried verbatim |
+
+Each of the first ten needs a responsibility to *leave* its owner, which is
+#584's C0-C4 work and requires the ownership ledger and the hotspot baseline to
+move together. The physical track deliberately did not attempt it.
+
 ## 1. Outcome and current evidence
 
 RustyCore should support useful gameplay extensions in independent repositories without

@@ -1,5 +1,29 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Physical decomposition track closed — 2026-09-09, integration `df94f231`:**
+#589 and its sub-issues #590-#595 are merged. Sixteen deliveries between #634 and
+#664, following the Session-root separations of #603-#632, then completed the
+physical half of the module-design policy: 184,295 lines of oversized roots
+reduced to 4,972 across the QA bot, the architecture checker, `wow-entities`,
+`wow-data`, `wow-packet`, `wow-loot`, `wow-map`, `wow-database`, `wow-world`,
+`capture-diff`, `wow-instances`, `wow-ai`, `wow-network` and `wow-recastdetour`. Every delivery proved its top-level item
+surface identical before and after, kept its crate's test count unchanged, and
+passed `./tools/validation-v2 final --base origin/3.4.3` at the committed SHA;
+sixty-seven of the hundred reviewed ceilings are now at or below 2,000 lines.
+
+116,693 lines remain above 2,000 lines in 33 files, and relocation is exhausted
+for all of them: 29 sit inside the eight curated runtime-ownership hotspots or
+the `map_manager` pair, one is a vendored C++ translation unit and three are
+capture fixture shell scripts with their own runtime-authorization gates. The
+hotspot ratchet measures the module aggregate, so splitting a file inside an
+owner at its baseline makes the aggregate grow; and splitting a bridge
+function's context removed a row from the 65-row bridge inventory while the
+build and all 3,822 `wow-world` tests stayed green (#662, reverted). What
+remains is the semantic extraction owned by #584 C0-C4, with the per-owner entry
+conditions recorded in
+[the modularity plan](../architecture/modularity-and-ecs-plan.md#physical-decomposition-track-closed--2026-09-09).
+This closes neither #133 nor #584.
+
 **Current delivery — 2026-09-08, integration `8c47af95`:** #586 is merged and
 #585 closed. #587's represented spell-acquisition boundary is implemented locally
 on its own branch (original `43c4e801`, subsequent QA/evidence through `c88603ee`).
