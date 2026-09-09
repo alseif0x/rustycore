@@ -62,9 +62,9 @@
     },
     {
       "path": "crates/world-server/src/main_tests.rs",
-      "observed_lines": 13042,
-      "ceiling_lines": 13042,
-      "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders. #589 adds two inseparable lines: SpellStartPkt and SpellGoPkt now carry the typed SpellCastData payload, so both creature-plan fixtures name the field explicitly instead of relying on the former hardcoded empty sections. No new scenario is added here.",
+      "observed_lines": 1532,
+      "ceiling_lines": 1532,
+      "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders. #589 adds two inseparable lines: SpellStartPkt and SpellGoPkt now carry the typed SpellCastData payload, so both creature-plan fixtures name the field explicitly instead of relying on the former hardcoded empty sections. No new scenario is added here. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 13042 to 984 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -90,9 +90,9 @@
     },
     {
       "path": "crates/world-server/src/spawn_store_loader_tests.rs",
-      "observed_lines": 5632,
-      "ceiling_lines": 5632,
-      "split": "Move catalog-specific loader fixtures and negative cases beside their loader responsibilities.",
+      "observed_lines": 1007,
+      "ceiling_lines": 1007,
+      "split": "Move catalog-specific loader fixtures and negative cases beside their loader responsibilities. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5632 to 1007 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -167,9 +167,9 @@
     },
     {
       "path": "crates/wow-data/src/spell_tests.rs",
-      "observed_lines": 6136,
-      "ceiling_lines": 6136,
-      "split": "Split spell store/reader/acquisition fixtures and test registration by catalog responsibility.",
+      "observed_lines": 522,
+      "ceiling_lines": 522,
+      "split": "Split spell store/reader/acquisition fixtures and test registration by catalog responsibility. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6136 to 522 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -244,9 +244,9 @@
     },
     {
       "path": "crates/wow-entities/src/player_tests.rs",
-      "observed_lines": 9497,
-      "ceiling_lines": 9497,
-      "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures. Above 2fdbd962 +3 formatting lines adapt existing tuple-header expectations to the native trait value; no new scenario bodies here. C4 retirement remains.",
+      "observed_lines": 501,
+      "ceiling_lines": 501,
+      "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures. Above 2fdbd962 +3 formatting lines adapt existing tuple-header expectations to the native trait value; no new scenario bodies here. C4 retirement remains. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 9497 to 501 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -328,9 +328,9 @@
     },
     {
       "path": "crates/wow-map/src/map_tests.rs",
-      "observed_lines": 18288,
-      "ceiling_lines": 18288,
-      "split": "Separate map lifetime/transfer, grids, respawn, movement, visibility and update-phase suites.",
+      "observed_lines": 918,
+      "ceiling_lines": 918,
+      "split": "Separate map lifetime/transfer, grids, respawn, movement, visibility and update-phase suites. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 18288 to 918 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -489,9 +489,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 12444,
-      "ceiling_lines": 12444,
-      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains. #589 adds 28 inseparable fixture lines: the two binder scenarios now adopt the canonical Player handle, set its vitals and set its faction template, because login installs all three and the cast identity allocator, the alive gate and the interaction reaction check each fail closed without them. #597 adds 23 inseparable lines: the committed-money publication-order scan now concatenates the 18 session/player_items sources so it still sees the whole family after the move, exactly as it followed the #224 character split.",
+      "observed_lines": 2473,
+      "ceiling_lines": 2473,
+      "split": "Separate character lifecycle and inventory scenarios by complete operation into narrow adapters, owner capabilities and scenario tests. Above c61903fc +1 line gives the existing loot-release logout fixture its explicit controlled save port instead of relying on unavailable persistence being silently ignored. New production-linked logout cases live in a small private integration module; C4 split exit remains. #589 adds 28 inseparable fixture lines: the two binder scenarios now adopt the canonical Player handle, set its vitals and set its faction template, because login installs all three and the cast identity allocator, the alive gate and the interaction reaction check each fail closed without them. #597 adds 23 inseparable lines: the committed-money publication-order scan now concatenates the 18 session/player_items sources so it still sees the whole family after the move, exactly as it followed the #224 character split. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 12444 to 2473 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -510,9 +510,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/group_tests.rs",
-      "observed_lines": 5964,
-      "ceiling_lines": 5964,
-      "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 782,
+      "ceiling_lines": 782,
+      "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5964 to 782 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -538,9 +538,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/loot_tests.rs",
-      "observed_lines": 16393,
-      "ceiling_lines": 16393,
-      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 1735,
+      "ceiling_lines": 1735,
+      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 16393 to 1735 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -566,9 +566,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/quest_tests.rs",
-      "observed_lines": 10679,
-      "ceiling_lines": 10679,
-      "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 1404,
+      "ceiling_lines": 1404,
+      "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 10679 to 1404 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -608,9 +608,9 @@
     },
     {
       "path": "crates/wow-world/src/map_manager_tests.rs",
-      "observed_lines": 6273,
-      "ceiling_lines": 6273,
-      "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios.",
+      "observed_lines": 339,
+      "ceiling_lines": 339,
+      "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6273 to 339 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
