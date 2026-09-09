@@ -16,8 +16,8 @@ impl WorldSession {
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return false;
         };
-        let Some(condition_id) = self
-            .spell_misc_store()
+        let misc = self.spell_catalogs.spell_misc_store();
+        let Some(condition_id) = misc
             .and_then(|store| store.entry_for_spell_difficulty_like_cpp(spell_id, 0))
             .map(|misc| misc.show_future_spell_player_condition_id)
             .filter(|condition_id| *condition_id > 0)
@@ -43,7 +43,7 @@ impl WorldSession {
             return wow_data::SkillRewardedSpellChangesLikeCpp::default();
         };
         let spell_store = self.spell_store().cloned();
-        let spell_levels_store = self.spell_levels_store().cloned();
+        let spell_levels_store = self.spell_catalogs.spell_levels_store().cloned();
 
         skill_store.skill_rewarded_spell_changes_like_cpp(
             skill_id,
@@ -1424,9 +1424,9 @@ impl WorldSession {
                 wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::SpellCharges(rows),
             ) => {
                 for row in rows {
-                    let category_known_to_store = self
-                        .spell_category_store()
-                        .is_none_or(|store| store.get(row.category_id).is_some());
+                    let categories = self.spell_catalogs.spell_category_store();
+                    let category_known_to_store =
+                        categories.is_none_or(|store| store.get(row.category_id).is_some());
                     if category_known_to_store && row.recharge_end > now {
                         self.record_loaded_character_spell_charge_like_cpp(
                             row.category_id,

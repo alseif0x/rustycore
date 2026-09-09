@@ -19,7 +19,8 @@ impl WorldSession {
         &self,
         group_id: u32,
     ) -> Option<&BTreeSet<i32>> {
-        self.spell_group_stack_rule_store
+        self.spell_catalogs
+            .spell_group_stack_rule_store
             .as_ref()
             .and_then(|store| store.same_effect_stack_rule_aura_types_like_cpp(group_id))
     }
@@ -279,6 +280,7 @@ impl WorldSession {
             }
 
             if let Some(equipped) = self
+                .spell_catalogs
                 .spell_equipped_items_store
                 .as_ref()
                 .and_then(|store| store.entry_for_spell_id_like_cpp(spell_id))
@@ -609,7 +611,7 @@ impl WorldSession {
         &mut self,
         attribute: u32,
     ) -> usize {
-        let Some(spell_store) = self.spell_store.as_ref() else {
+        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
             return 0;
         };
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
@@ -682,9 +684,14 @@ impl WorldSession {
                 // used for SPELL_AURA_MOD_SCALE in CancelGrowthAura. These
                 // represented effects model positive player-cancelable paths;
                 // SpellMisc attributes preserve the C++ no-player-cancel gate.
-                if self.spell_store.as_ref().is_some_and(|store| {
-                    store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
-                }) {
+                if self
+                    .spell_catalogs
+                    .spell_store
+                    .as_ref()
+                    .is_some_and(|store| {
+                        store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
+                    })
+                {
                     return None;
                 }
                 (aura.represented_effect == Some(represented_effect)).then_some(aura.slot)
@@ -702,7 +709,7 @@ impl WorldSession {
         spell_id: i32,
         caster_guid: ObjectGuid,
     ) -> usize {
-        let Some(spell_store) = self.spell_store.as_ref() else {
+        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
             return 0;
         };
         if spell_store.get(spell_id).is_none()

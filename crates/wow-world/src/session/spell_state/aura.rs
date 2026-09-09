@@ -50,15 +50,6 @@ impl WorldSession {
             }),
         }
     }
-    pub fn set_spell_aura_options_store(&mut self, store: Arc<SpellAuraOptionsStore>) {
-        self.spell_aura_options_store = Some(store);
-    }
-    pub fn set_spell_aura_restrictions_store(&mut self, store: Arc<SpellAuraRestrictionsStore>) {
-        self.spell_aura_restrictions_store = Some(store);
-    }
-    pub(crate) fn spell_aura_restrictions_store(&self) -> Option<&Arc<SpellAuraRestrictionsStore>> {
-        self.spell_aura_restrictions_store.as_ref()
-    }
     pub(in crate::session) fn player_aura_subsystem_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::AuraSubsystem> {
@@ -259,7 +250,7 @@ impl WorldSession {
         if known_spells.is_empty() {
             return true;
         }
-        let Some(spell_store) = self.spell_store.as_ref() else {
+        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
             return false;
         };
         known_spells.iter().copied().all(|spell_id| {
@@ -317,7 +308,8 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_area_store
+        self.spell_catalogs
+            .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_for_aura_map_bounds_like_cpp(spell_id))
             .unwrap_or_default()
@@ -373,8 +365,8 @@ impl WorldSession {
         };
         let spell_store = self.spell_store().cloned();
         let difficulty_store = self.difficulty_store().cloned();
-        let aura_options_store = self.spell_aura_options_store.clone();
-        let spell_misc_store = self.spell_misc_store().cloned();
+        let aura_options_store = self.spell_catalogs.spell_aura_options_store.clone();
+        let spell_misc_store = self.spell_catalogs.spell_misc_store().cloned();
 
         let effects: Vec<_> = effect_rows
             .into_iter()

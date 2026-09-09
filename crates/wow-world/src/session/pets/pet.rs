@@ -359,6 +359,7 @@ impl WorldSession {
             }
 
             if self
+                .spell_catalogs
                 .spell_misc_store()
                 .is_some_and(|store| !store.is_autocastable_like_cpp(action))
             {

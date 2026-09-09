@@ -315,31 +315,31 @@ impl WorldSession {
         self.trait_definition_store.as_ref()
     }
     pub fn set_spell_group_store(&mut self, store: Arc<SpellGroupStoreLikeCpp>) {
-        self.spell_group_store = Some(store);
+        self.spell_catalogs.spell_group_store = Some(store);
     }
     pub fn set_spell_group_stack_rule_store(
         &mut self,
         store: Arc<SpellGroupStackRuleStoreLikeCpp>,
     ) {
-        self.spell_group_stack_rule_store = Some(store);
+        self.spell_catalogs.spell_group_stack_rule_store = Some(store);
     }
     pub fn set_spell_pet_aura_store(&mut self, store: Arc<SpellPetAuraStoreLikeCpp>) {
-        self.spell_pet_aura_store = Some(store);
+        self.spell_catalogs.spell_pet_aura_store = Some(store);
     }
     pub(crate) fn spell_pet_aura_store_like_cpp(&self) -> Option<&SpellPetAuraStoreLikeCpp> {
-        self.spell_pet_aura_store.as_deref()
+        self.spell_catalogs.spell_pet_aura_store.as_deref()
     }
     #[cfg(test)]
     pub fn set_pet_levelup_spell_store(&mut self, store: Arc<PetLevelupSpellStoreLikeCpp>) {
-        self.pet_levelup_spell_store = Some(store);
+        self.spell_catalogs.pet_levelup_spell_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_pet_default_spell_store(&mut self, store: Arc<PetDefaultSpellStoreLikeCpp>) {
-        self.pet_default_spell_store = Some(store);
+        self.spell_catalogs.pet_default_spell_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_pet_family_spell_store(&mut self, store: Arc<PetFamilySpellStoreLikeCpp>) {
-        self.pet_family_spell_store = Some(store);
+        self.spell_catalogs.pet_family_spell_store = Some(store);
     }
     pub fn set_movie_store(&mut self, store: Arc<MovieStore>) {
         self.movie_store = Some(store);

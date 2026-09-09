@@ -43,7 +43,7 @@ impl WorldSession {
         &self,
         creature_guid: ObjectGuid,
     ) -> RepresentedCanSeeSpellClickOutcomeLikeCpp {
-        let Some(spell_click_store) = self.npc_spell_click_store.as_ref() else {
+        let Some(spell_click_store) = self.spell_catalogs.npc_spell_click_store.as_ref() else {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
         let Some(condition_store) = self.condition_store.as_ref() else {

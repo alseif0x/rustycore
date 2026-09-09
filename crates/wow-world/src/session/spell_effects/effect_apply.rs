@@ -271,16 +271,19 @@ impl WorldSession {
         let spell_id_u32 = u32::try_from(spell_id).ok()?;
         let spell_visual_id_i32 = i32::try_from(spell_visual_id).ok()?;
         let duration_index = self
+            .spell_catalogs
             .spell_misc_store
             .as_deref()
             .and_then(|store| store.get_by_spell_id(spell_id_u32))
             .map(|entry| u32::from(entry.duration_index))
             .unwrap_or(0);
-        let duration_ms =
-            spell_duration_ms_like_cpp(duration_index, self.spell_duration_store.as_deref());
+        let duration_ms = spell_duration_ms_like_cpp(
+            duration_index,
+            self.spell_catalogs.spell_duration_store.as_deref(),
+        );
         let radius = spell_effect_radius_like_cpp(
             effect.effect_radius_index_1,
-            self.spell_radius_store.as_deref(),
+            self.spell_catalogs.spell_radius_store.as_deref(),
         );
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
@@ -361,6 +364,7 @@ impl WorldSession {
         }
 
         let Some(hearthstone_cooldown_ms) = self
+            .spell_catalogs
             .spell_store
             .as_deref()
             .and_then(|store| store.get(HEARTHSTONE_SPELL_ID_LIKE_CPP))

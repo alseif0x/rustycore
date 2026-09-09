@@ -5543,7 +5543,8 @@ pub struct WorldSession {
     item_bonus_db2_store: Option<Arc<ItemBonusDb2Store>>,
     pvp_item_store: Option<Arc<PvpItemStore>>,
     item_set_store: Option<Arc<ItemSetStore>>,
-    item_set_spell_store: Option<Arc<ItemSetSpellStore>>,
+    /// Every spell and aura catalog slot, owned by one type (#668).
+    pub(crate) spell_catalogs: crate::spell_catalogs::SpellCatalogsLikeCpp,
     item_stats_store: Option<Arc<ItemStatsStore>>,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
@@ -5598,12 +5599,7 @@ pub struct WorldSession {
     // Lock store (Lock.db2 data)
     lock_store: Option<Arc<LockStore>>,
 
-    // Spell item enchantment store (SpellItemEnchantment.db2 data)
-    spell_item_enchantment_store: Option<Arc<SpellItemEnchantmentStore>>,
-    spell_item_enchantment_condition_store: Option<Arc<SpellItemEnchantmentConditionStore>>,
     gem_properties_store: Option<Arc<GemPropertiesStore>>,
-    #[cfg(test)]
-    spell_enchant_proc_store: Option<Arc<SpellEnchantProcStoreLikeCpp>>,
 
     #[cfg(test)]
     tact_key_store: Option<Arc<TactKeyStore>>,
@@ -5703,7 +5699,6 @@ pub struct WorldSession {
     mount_capability_store: Option<Arc<MountCapabilityStore>>,
     mount_type_x_capability_store: Option<Arc<MountTypeXCapabilityStore>>,
     mount_x_display_store: Option<Arc<MountXDisplayStore>>,
-    spell_shapeshift_form_store: Option<Arc<SpellShapeshiftFormStore>>,
     vehicle_store: Option<Arc<VehicleStore>>,
     vehicle_seat_store: Option<Arc<VehicleSeatStore>>,
     #[cfg(test)]
@@ -6697,10 +6692,6 @@ pub struct WorldSession {
     #[cfg(test)]
     canonical_threat_aura_snapshots_like_cpp: HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
-    // ── Spell casting ──────────────────────────────────────────────
-    /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
-    pub spell_store: Option<Arc<SpellStore>>,
-    spell_acquisition_catalog: Option<Arc<SpellAcquisitionCatalogLikeCpp>>,
     pub(crate) spell_acquisition_cast_authority_like_cpp:
         Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
     pub(crate) spell_acquisition_craft_authority_like_cpp:
@@ -6711,42 +6702,8 @@ pub struct WorldSession {
     spell_script_all_rank_root_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    spell_levels_store: Option<Arc<SpellLevelsStore>>,
     talent_store: Option<Arc<TalentStore>>,
     num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
-    spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
-    spell_category_store: Option<Arc<SpellCategoryStore>>,
-    npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
-    spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
-    spell_aura_restrictions_store: Option<Arc<SpellAuraRestrictionsStore>>,
-    spell_target_restrictions_store: Option<Arc<SpellTargetRestrictionsStore>>,
-    spell_equipped_items_store: Option<Arc<SpellEquippedItemsStore>>,
-    spell_misc_store: Option<Arc<SpellMiscStore>>,
-    spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
-    spell_group_stack_rule_store: Option<Arc<SpellGroupStackRuleStoreLikeCpp>>,
-    spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
-    spell_pet_aura_store: Option<Arc<SpellPetAuraStoreLikeCpp>>,
-    spell_area_store: Option<Arc<SpellAreaStoreLikeCpp>>,
-    spell_custom_attribute_store: Option<Arc<SpellCustomAttributeStoreLikeCpp>>,
-    #[cfg(test)]
-    serverside_spell_store: Option<Arc<ServersideSpellStoreLikeCpp>>,
-    spell_learn_skill_store: Option<Arc<SpellLearnSkillStoreLikeCpp>>,
-    spell_learn_spell_store: Option<Arc<SpellLearnSpellStoreLikeCpp>>,
-    #[cfg(test)]
-    pet_levelup_spell_store: Option<Arc<PetLevelupSpellStoreLikeCpp>>,
-    #[cfg(test)]
-    pet_default_spell_store: Option<Arc<PetDefaultSpellStoreLikeCpp>>,
-    #[cfg(test)]
-    pet_family_spell_store: Option<Arc<PetFamilySpellStoreLikeCpp>>,
-    spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
-    spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
-    spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
-    spell_duration_store: Option<Arc<SpellDurationStore>>,
-    spell_radius_store: Option<Arc<SpellRadiusStore>>,
-    spell_range_store: Option<Arc<SpellRangeStore>>,
-    spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
-    #[cfg(test)]
-    spell_totem_model_store: Option<Arc<SpellTotemModelStoreLikeCpp>>,
     chr_classes_store: Option<Arc<ChrClassesStore>>,
     #[cfg(test)]
     power_type_store: Option<Arc<PowerTypeStore>>,
@@ -7869,6 +7826,7 @@ impl WorldSession {
         connection.set_instance_endpoint([127, 0, 0, 1], 8086);
 
         Self {
+            spell_catalogs: crate::spell_catalogs::SpellCatalogsLikeCpp::default(),
             account_id,
             battlenet_account_id: account_id,
             realm_list_secret_like_cpp: [0; 32],
@@ -7977,7 +7935,6 @@ impl WorldSession {
             item_bonus_db2_store: None,
             pvp_item_store: None,
             item_set_store: None,
-            item_set_spell_store: None,
             item_stats_store: None,
             durability_costs_store: None,
             durability_quality_store: None,
@@ -8003,11 +7960,7 @@ impl WorldSession {
             disable_mgr: None,
             difficulty_store: None,
             lock_store: None,
-            spell_item_enchantment_store: None,
-            spell_item_enchantment_condition_store: None,
             gem_properties_store: None,
-            #[cfg(test)]
-            spell_enchant_proc_store: None,
             #[cfg(test)]
             tact_key_store: None,
             skill_store: None,
@@ -8082,7 +8035,6 @@ impl WorldSession {
             mount_capability_store: None,
             mount_type_x_capability_store: None,
             mount_x_display_store: None,
-            spell_shapeshift_form_store: None,
             vehicle_store: None,
             vehicle_seat_store: None,
             #[cfg(test)]
@@ -8706,50 +8658,14 @@ impl WorldSession {
             player_equipment_inventory_authority_complete_like_cpp: false,
             #[cfg(test)]
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
-            spell_store: None,
-            spell_acquisition_catalog: None,
             spell_acquisition_cast_authority_like_cpp: None,
             spell_acquisition_craft_authority_like_cpp: None,
             spell_script_exact_spell_ids_like_cpp: None,
             spell_script_all_rank_root_spell_ids_like_cpp: None,
             legacy_spell_script_spell_ids_like_cpp: None,
             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
-            spell_levels_store: None,
             talent_store: None,
             num_talents_at_level_store: None,
-            spell_chain_store: None,
-            spell_category_store: None,
-            npc_spell_click_store: None,
-            spell_aura_options_store: None,
-            spell_aura_restrictions_store: None,
-            spell_target_restrictions_store: None,
-            spell_equipped_items_store: None,
-            spell_misc_store: None,
-            spell_group_store: None,
-            spell_group_stack_rule_store: None,
-            spell_linked_store: None,
-            spell_pet_aura_store: None,
-            spell_area_store: None,
-            spell_custom_attribute_store: None,
-            #[cfg(test)]
-            serverside_spell_store: None,
-            spell_learn_skill_store: None,
-            spell_learn_spell_store: None,
-            #[cfg(test)]
-            pet_levelup_spell_store: None,
-            #[cfg(test)]
-            pet_default_spell_store: None,
-            #[cfg(test)]
-            pet_family_spell_store: None,
-            spell_proc_store: None,
-            spell_required_store: None,
-            spell_threat_store: None,
-            spell_duration_store: None,
-            spell_radius_store: None,
-            spell_range_store: None,
-            spell_target_position_store: None,
-            #[cfg(test)]
-            spell_totem_model_store: None,
             chr_classes_store: None,
             #[cfg(test)]
             power_type_store: None,
@@ -11377,11 +11293,13 @@ impl WorldSession {
     }
 
     pub(crate) fn spell_spell_group_map_bounds_like_cpp(&self, spell_id: u32) -> &[u32] {
-        self.spell_group_store
+        self.spell_catalogs
+            .spell_group_store
             .as_ref()
             .map(|store| {
                 store.spell_spell_group_map_bounds_like_cpp(spell_id, |lookup_spell_id| {
-                    self.spell_chain_store
+                    self.spell_catalogs
+                        .spell_chain_store
                         .as_ref()
                         .map(|spell_chains| {
                             spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id)
@@ -11393,7 +11311,8 @@ impl WorldSession {
     }
 
     pub(crate) fn spell_group_spell_map_bounds_like_cpp(&self, group_id: u32) -> &[i32] {
-        self.spell_group_store
+        self.spell_catalogs
+            .spell_group_store
             .as_ref()
             .map(|store| store.spell_group_spell_map_bounds_like_cpp(group_id))
             .unwrap_or(&[])
@@ -11404,14 +11323,16 @@ impl WorldSession {
         spell_id: u32,
         group_id: u32,
     ) -> bool {
-        self.spell_group_store
+        self.spell_catalogs
+            .spell_group_store
             .as_ref()
             .map(|store| {
                 store.is_spell_member_of_spell_group_like_cpp(
                     spell_id,
                     group_id,
                     |lookup_spell_id| {
-                        self.spell_chain_store
+                        self.spell_catalogs
+                            .spell_chain_store
                             .as_ref()
                             .map(|spell_chains| {
                                 spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id)
@@ -11424,7 +11345,8 @@ impl WorldSession {
     }
 
     pub(crate) fn set_of_spells_in_spell_group_like_cpp(&self, group_id: u32) -> BTreeSet<u32> {
-        self.spell_group_store
+        self.spell_catalogs
+            .spell_group_store
             .as_ref()
             .map(|store| store.set_of_spells_in_spell_group_like_cpp(group_id))
             .unwrap_or_default()
@@ -11434,7 +11356,8 @@ impl WorldSession {
         &self,
         group_id: u32,
     ) -> SpellGroupStackRuleLikeCpp {
-        self.spell_group_stack_rule_store
+        self.spell_catalogs
+            .spell_group_stack_rule_store
             .as_ref()
             .map(|store| store.spell_group_stack_rule_like_cpp(group_id))
             .unwrap_or(SpellGroupStackRuleLikeCpp::Default)
@@ -11445,10 +11368,10 @@ impl WorldSession {
         first_rank_spell_id_1: u32,
         first_rank_spell_id_2: u32,
     ) -> SpellGroupStackRuleLikeCpp {
-        let Some(stack_rules) = self.spell_group_stack_rule_store.as_ref() else {
+        let Some(stack_rules) = self.spell_catalogs.spell_group_stack_rule_store.as_ref() else {
             return SpellGroupStackRuleLikeCpp::Default;
         };
-        let Some(spell_groups) = self.spell_group_store.as_ref() else {
+        let Some(spell_groups) = self.spell_catalogs.spell_group_store.as_ref() else {
             return SpellGroupStackRuleLikeCpp::Default;
         };
         stack_rules.check_spell_group_stack_rules_like_cpp(
@@ -11463,7 +11386,8 @@ impl WorldSession {
         spell_id: u32,
         effect_index: u8,
     ) -> Option<&PetAuraLikeCpp> {
-        self.spell_pet_aura_store
+        self.spell_catalogs
+            .spell_pet_aura_store
             .as_ref()
             .and_then(|store| store.get_pet_aura_like_cpp(spell_id, effect_index))
     }
@@ -11473,7 +11397,8 @@ impl WorldSession {
         &self,
         pet_family: u32,
     ) -> Option<&PetLevelupSpellSetLikeCpp> {
-        self.pet_levelup_spell_store
+        self.spell_catalogs
+            .pet_levelup_spell_store
             .as_ref()
             .and_then(|store| store.get_pet_levelup_spell_list_like_cpp(pet_family))
     }
@@ -11483,21 +11408,24 @@ impl WorldSession {
         &self,
         id: i32,
     ) -> Option<&PetDefaultSpellsEntryLikeCpp> {
-        self.pet_default_spell_store
+        self.spell_catalogs
+            .pet_default_spell_store
             .as_ref()
             .and_then(|store| store.get_pet_default_spells_entry_like_cpp(id))
     }
 
     #[cfg(test)]
     pub(crate) fn pet_family_spells_like_cpp(&self, pet_family: u32) -> Option<Vec<u32>> {
-        self.pet_family_spell_store
+        self.spell_catalogs
+            .pet_family_spell_store
             .as_ref()
             .and_then(|store| store.get_pet_family_spells_like_cpp(pet_family))
     }
 
     #[cfg(test)]
     pub(crate) fn model_for_totem_like_cpp(&self, spell_id: u32, race_id: u8) -> u32 {
-        self.spell_totem_model_store
+        self.spell_catalogs
+            .spell_totem_model_store
             .as_ref()
             .map(|store| store.get_model_for_totem_like_cpp(spell_id, race_id))
             .unwrap_or(0)
@@ -13506,7 +13434,7 @@ impl WorldSession {
         rows: impl IntoIterator<Item = CharacterPetSpellChargeRowLikeCpp>,
     ) -> usize {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let spell_category_store = self.spell_category_store().cloned();
+        let spell_category_store = self.spell_catalogs.spell_category_store().cloned();
         let charges: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -13546,8 +13474,8 @@ impl WorldSession {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         let spell_store = self.spell_store().cloned();
         let difficulty_store = self.difficulty_store().cloned();
-        let aura_options_store = self.spell_aura_options_store.clone();
-        let spell_misc_store = self.spell_misc_store().cloned();
+        let aura_options_store = self.spell_catalogs.spell_aura_options_store.clone();
+        let spell_misc_store = self.spell_catalogs.spell_misc_store().cloned();
         let auras: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -15059,7 +14987,7 @@ impl WorldSession {
         };
 
         let state = change.state;
-        let spell_store = self.spell_store.as_ref().map(Arc::clone);
+        let spell_store = self.spell_catalogs.spell_store.as_ref().map(Arc::clone);
         let difficulty_store = self.difficulty_store.as_ref().map(Arc::clone);
         let Some(represented_visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
             return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;

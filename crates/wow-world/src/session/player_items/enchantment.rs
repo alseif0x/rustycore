@@ -121,17 +121,17 @@ impl WorldSession {
     }
     /// Set the spell item enchantment store for this session.
     pub fn set_spell_item_enchantment_store(&mut self, store: Arc<SpellItemEnchantmentStore>) {
-        self.spell_item_enchantment_store = Some(store);
+        self.spell_catalogs.spell_item_enchantment_store = Some(store);
     }
     pub fn set_spell_item_enchantment_condition_store(
         &mut self,
         store: Arc<SpellItemEnchantmentConditionStore>,
     ) {
-        self.spell_item_enchantment_condition_store = Some(store);
+        self.spell_catalogs.spell_item_enchantment_condition_store = Some(store);
     }
     /// Get the spell item enchantment store reference.
     pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
-        self.spell_item_enchantment_store.as_ref()
+        self.spell_catalogs.spell_item_enchantment_store.as_ref()
     }
     /// C++ `Player::EnchantmentFitsRequirements` for the currently equipped gems.
     fn enchantment_fits_requirements_like_cpp(
@@ -143,6 +143,7 @@ impl WorldSession {
             return true;
         }
         let Some(condition) = self
+            .spell_catalogs
             .spell_item_enchantment_condition_store
             .as_ref()
             .and_then(|store| store.get(enchantment_condition))
@@ -222,20 +223,22 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
-        self.spell_enchant_proc_store = Some(store);
+        self.spell_catalogs.spell_enchant_proc_store = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn spell_enchant_proc_event_like_cpp(
         &self,
         enchantment_id: u32,
     ) -> Option<&SpellEnchantProcEntryLikeCpp> {
-        self.spell_enchant_proc_store
+        self.spell_catalogs
+            .spell_enchant_proc_store
             .as_ref()
             .and_then(|store| store.get_spell_enchant_proc_event_like_cpp(enchantment_id))
     }
     /// C++ `SpellMgr::IsArenaAllowedEnchancment`.
     pub fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
-        self.spell_item_enchantment_store
+        self.spell_catalogs
+            .spell_item_enchantment_store
             .as_ref()
             .is_some_and(|store| store.is_arena_allowed_enchantment(enchantment_id))
     }
@@ -247,7 +250,8 @@ impl WorldSession {
         condition_fits: bool,
     ) -> Option<ApplyEnchantmentTemplateRef> {
         let id = u32::try_from(enchantment_id).ok()?;
-        self.spell_item_enchantment_store
+        self.spell_catalogs
+            .spell_item_enchantment_store
             .as_ref()
             .and_then(|store| store.get(id))
             .map(|entry| {
@@ -266,7 +270,8 @@ impl WorldSession {
         &self,
         enchantment_id: u32,
     ) -> Option<[ApplyEnchantmentEffectRef; 3]> {
-        self.spell_item_enchantment_store
+        self.spell_catalogs
+            .spell_item_enchantment_store
             .as_ref()
             .and_then(|store| store.get(enchantment_id))
             .map(|entry| {
@@ -363,7 +368,12 @@ impl WorldSession {
             .id;
         let condition_fits = u32::try_from(enchantment_id)
             .ok()
-            .and_then(|id| self.spell_item_enchantment_store.as_ref()?.get(id))
+            .and_then(|id| {
+                self.spell_catalogs
+                    .spell_item_enchantment_store
+                    .as_ref()?
+                    .get(id)
+            })
             .is_none_or(|entry| {
                 self.enchantment_fits_requirements_like_cpp(u32::from(entry.condition_id), None)
             });
@@ -530,7 +540,12 @@ impl WorldSession {
             };
             let enchantment_entry = u32::try_from(enchantment.id)
                 .ok()
-                .and_then(|id| self.spell_item_enchantment_store.as_ref()?.get(id))
+                .and_then(|id| {
+                    self.spell_catalogs
+                        .spell_item_enchantment_store
+                        .as_ref()?
+                        .get(id)
+                })
                 .copied();
             let clear_mainhand = clear_mainhand_only
                 && enchantment_entry.is_some_and(|entry| {

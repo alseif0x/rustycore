@@ -20,7 +20,7 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> bool {
-        let Some(spell_store) = self.spell_store.as_ref() else {
+        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
             return true;
         };
         let Ok(spell_id) = i32::try_from(spell_id) else {
@@ -32,7 +32,8 @@ impl WorldSession {
         };
         spell_store
             .check_shapeshift_like_cpp(spell_id, form_id, |form| {
-                self.spell_shapeshift_form_store
+                self.spell_catalogs
+                    .spell_shapeshift_form_store
                     .as_ref()
                     .and_then(|store| store.get(form))
             })

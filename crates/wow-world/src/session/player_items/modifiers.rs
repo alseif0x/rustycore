@@ -62,7 +62,7 @@ impl WorldSession {
         self.item_set_store = Some(store);
     }
     pub fn set_item_set_spell_store(&mut self, store: Arc<ItemSetSpellStore>) {
-        self.item_set_spell_store = Some(store);
+        self.spell_catalogs.item_set_spell_store = Some(store);
     }
     pub(crate) fn item_set_for_item_id_like_cpp(
         &self,
@@ -76,7 +76,8 @@ impl WorldSession {
         &self,
         item_set_id: u32,
     ) -> Vec<&wow_data::ItemSetSpellEntry> {
-        self.item_set_spell_store
+        self.spell_catalogs
+            .item_set_spell_store
             .as_ref()
             .map(|store| store.item_set_spells_like_cpp(item_set_id))
             .unwrap_or_default()
@@ -279,7 +280,8 @@ impl WorldSession {
         let Ok(spell_id) = i32::try_from(spell_id) else {
             return false;
         };
-        self.spell_store
+        self.spell_catalogs
+            .spell_store
             .as_ref()
             .is_none_or(|store| store.get(spell_id).is_some())
     }

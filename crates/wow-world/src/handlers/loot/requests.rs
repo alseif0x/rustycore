@@ -926,8 +926,8 @@ impl WorldSession {
 
     pub(super) fn represented_spell_max_range_like_cpp(&self, spell_id: i32) -> Option<f32> {
         let spell_store = self.spell_store()?;
-        let spell_misc_store = self.spell_misc_store()?;
-        let spell_range_store = self.spell_range_store()?;
+        let spell_misc_store = self.spell_catalogs.spell_misc_store()?;
+        let spell_range_store = self.spell_catalogs.spell_range_store()?;
         spell_store.get(spell_id)?;
         let spell_id = u32::try_from(spell_id).ok()?;
         let range_index = spell_misc_store.get(spell_id)?.range_index;

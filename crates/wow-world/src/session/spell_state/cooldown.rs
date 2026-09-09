@@ -207,7 +207,7 @@ impl WorldSession {
         }
 
         // Per-spell cooldown (if exists in SpellStore)
-        if let Some(store) = &self.spell_store {
+        if let Some(store) = &self.spell_catalogs.spell_store {
             if let Some(spell_info) = store.get(spell_id) {
                 if elapsed_ms < spell_info.cooldown_ms {
                     return true;
