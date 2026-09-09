@@ -77456,6 +77456,50 @@
           "package": "wow-world",
           "module": "crate::session::tests",
           "path": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "fn::register_test_creature_mirrored_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical",
+              "fingerprint": "fnv1a64x2:81400c5ad53aa446f7f79ef63abba475:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn register_test_creature_mirrored_like_cpp (session : & mut WorldSession , manager : crate :: map_manager :: SharedMapManager , canonical : & SharedCanonicalMapManager , guid : ObjectGuid , hp : u32 ,)|body=fnv1a64x2:55b301451ccbbda5f78cc9a38a0dc97e:len=125|evidence=fnv1a64x2:7527927851752487ad9d7ac36541294e:len=350",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::tests::scenarios_world_entities_21",
+          "path": "crates/wow-world/src/session/mod.rs",
           "enclosing": "fn::legacy_creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -77561,50 +77605,6 @@
             }
           ],
           "fingerprint": "signature=fn legacy_creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp ()|body=fnv1a64x2:010e5baafebb8aa770364d4cd740053a:len=4112|evidence=fnv1a64x2:4320975be7e259eee23fc3074fc6ff01:len=1915",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "multiplicity": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::tests",
-          "path": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "fn::register_test_creature_mirrored_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "SharedCanonicalMapManager",
-              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "canonical",
-              "fingerprint": "fnv1a64x2:81400c5ad53aa446f7f79ef63abba475:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=fn register_test_creature_mirrored_like_cpp (session : & mut WorldSession , manager : crate :: map_manager :: SharedMapManager , canonical : & SharedCanonicalMapManager , guid : ObjectGuid , hp : u32 ,)|body=fnv1a64x2:55b301451ccbbda5f78cc9a38a0dc97e:len=125|evidence=fnv1a64x2:7527927851752487ad9d7ac36541294e:len=350",
           "cfg": [
             "cfg (test)"
           ],

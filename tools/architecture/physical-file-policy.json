@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 94724,
-      "ceiling_lines": 94724,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts.",
+      "observed_lines": 5755,
+      "ceiling_lines": 5755,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts. #626 completes this entry's original instruction: the 1,496 test functions move into 114 bounded session/tests/scenarios_* files grouped by the responsibility they exercise, each within the 1,000-line review budget, and the file drops from 94,725 to 5755 lines with the ceiling tightened to that figure. The 197 shared helpers stay here deliberately: a child module already sees its parent's private items, so relocating them would need re-export plumbing for no boundary, the same conclusion #623 recorded for types. The test count is unchanged at 3,822 and no production line moved.",
       "review_checkpoint": "584:C4"
     },
     {
