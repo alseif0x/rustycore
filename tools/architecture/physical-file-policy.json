@@ -119,15 +119,15 @@
     {
       "path": "crates/wow-data/src/creature_template.rs",
       "observed_lines": 2458,
-      "ceiling_lines": 2458,
-      "split": "Separate creature template row decoding, validation and difficulty/scaling catalog rules.",
+      "ceiling_lines": 29,
+      "split": "Separate the creature template model from its loader and regressions. #664 decomposes the 2,458-line file into two state modules and two regression modules, dropping it to 29 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-data/src/misc_generated.rs",
       "observed_lines": 2062,
-      "ceiling_lines": 2062,
-      "split": "Separate handwritten DB2 row/readers by store family; generated-style naming is not generator provenance.",
+      "ceiling_lines": 220,
+      "split": "Separate the miscellaneous DB2 entry structs from their readers. Despite the name no generator owns this file - it is hand-written in a generated style - so #664 decomposes it like any other module, into two state modules and one regression module, dropping the 2,062-line file to 220 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -651,8 +651,8 @@
     {
       "path": "tools/architecture/check_architecture.py",
       "observed_lines": 3858,
-      "ceiling_lines": 3106,
-      "split": "Extract dependency/runtime-policy validation and their fixture suites from CLI orchestration; the Rust size scanner is already a private module.",
+      "ceiling_lines": 202,
+      "split": "Separate the checker's command families. #664 decomposes the 3,106-line entry point into five sibling modules - policy validation, runtime ownership, dependencies, fixtures/self-tests and issue state - over a shared module holding the imports, paths and constants, dropping it to 202 lines and tightening the ceiling to that figure; the root keeps the argument parsing and dispatch. The module graph is a DAG: two private helpers moved into the policy module to remove the only cycle, and the underscore-prefixed helpers a glob import skips are named explicitly. Every command and the self-test report identical counts.",
       "review_checkpoint": "584:C4"
     },
     {
