@@ -658,8 +658,8 @@
     {
       "path": "tools/architecture/handler-contract-check/src/bridge_access.rs",
       "observed_lines": 2128,
-      "ceiling_lines": 2128,
-      "split": "Separate bridge AST collection, classification and adversarial tests without narrowing the scanner's Rust/cfg coverage.",
+      "ceiling_lines": 52,
+      "split": "Separate the bridge access record, accumulator and symbol table from their regressions. #660 decomposes the 2,128-line root into three state modules and one regression module, dropping it to 52 lines and tightening the ceiling to that figure. Item-for-item with the checker's 334 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -672,22 +672,22 @@
     {
       "path": "tools/architecture/handler-contract-check/src/registry_access.rs",
       "observed_lines": 3066,
-      "ceiling_lines": 3066,
-      "split": "Separate registry access AST traversal, policy classification and tests without narrowing the scanner's Rust/cfg coverage.",
+      "ceiling_lines": 52,
+      "split": "Separate the registry kind/operation model, the access record and accumulator, and the AST scan. #660 decomposes the 3,066-line root into four state modules and one regression module, dropping it to 52 lines and tightening the ceiling to that figure. Item-for-item with the checker's 334 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/handler-contract-check/src/session_ownership.rs",
       "observed_lines": 2996,
-      "ceiling_lines": 2996,
-      "split": "Separate Session ownership AST inventory, exact membership validation and fixtures without narrowing the scanner's Rust/cfg coverage.",
+      "ceiling_lines": 54,
+      "split": "Separate the package roles, the expression-surface collector and the baseline builder. #660 decomposes the 2,996-line root into three state modules and one regression module, dropping it to 54 lines and tightening the ceiling to that figure. Item-for-item with the checker's 334 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/architecture/handler-contract-check/src/tests.rs",
-      "observed_lines": 2289,
-      "ceiling_lines": 2289,
-      "split": "Separate handler dispatch/metadata and syntax adversarial fixtures without narrowing the scanner's Rust/cfg coverage.",
+      "path": "tools/architecture/handler-contract-check/src/tests/mod.rs",
+      "observed_lines": 90,
+      "ceiling_lines": 90,
+      "split": "Retires the 2,289-line handler-contract regression file: #660 replaces it with this module root, which keeps the shared imports and mounts three scenario modules (480-882 lines) holding all its tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
