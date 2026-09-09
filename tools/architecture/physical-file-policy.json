@@ -196,8 +196,8 @@
     {
       "path": "crates/wow-entities/src/creature.rs",
       "observed_lines": 3850,
-      "ceiling_lines": 3850,
-      "split": "Separate creature identity/lifecycle, template/stat initialization and gameplay capabilities.",
+      "ceiling_lines": 44,
+      "split": "Separate creature lifecycle plans, runtime state and the AI/loot operations. #636 decomposes the 3,850-line root into two state modules and three creature/ops modules that divide the inherent `impl Creature` by responsibility, dropping it to 44 lines and tightening the ceiling to that figure; only the imports and the module composition remain. Item-for-item with the crate's 725 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -210,8 +210,8 @@
     {
       "path": "crates/wow-entities/src/game_object.rs",
       "observed_lines": 4369,
-      "ceiling_lines": 4369,
-      "split": "Separate GameObject lifecycle, interaction/state transitions and associated tests.",
+      "ceiling_lines": 31,
+      "split": "Separate GameObject template, loot and runtime state from the object operations and their regressions. #636 decomposes the 4,369-line root into two state modules, two game_object/ops modules dividing the inherent `impl GameObject`, and three regression modules, dropping it to 31 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -224,8 +224,8 @@
     {
       "path": "crates/wow-entities/src/pet.rs",
       "observed_lines": 5082,
-      "ceiling_lines": 5082,
-      "split": "Separate pet identity/lifetime, progression, commands and save-state projections.",
+      "ceiling_lines": 27,
+      "split": "Separate pet lifecycle, aura and persistence state from the pet operations and their regressions. #636 decomposes the 5,082-line root into one state module, two pet/ops modules dividing the inherent `impl Pet`, and four regression modules, dropping it to 27 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -239,7 +239,7 @@
       "path": "crates/wow-entities/src/player/mod.rs",
       "observed_lines": 4904,
       "ceiling_lines": 4904,
-      "split": "Keep Player identity/state facade; move progression, inventory, spells, social and lifecycle operations into cohesive private modules. Above bc3bdd2f +3 lines declare/initialize the private deferred-save intent and its cohesive module; no Session mirror. The operation and tests live in deferred_save.rs. C4 retirement remains.",
+      "split": "Separate the player login/gameplay load plans from the state definitions they own; 17 responsibility submodules already exist. #636 measured this root and deferred it: the runtime-ownership hotspot ratchet forbids growth in the player module aggregate, and relocating the plans into sibling modules adds module headers and re-export wiring without reducing the hotspot, so this root needs the semantic extraction owned by 584:C4 rather than a physical move.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -252,8 +252,8 @@
     {
       "path": "crates/wow-entities/src/unit.rs",
       "observed_lines": 4308,
-      "ceiling_lines": 4308,
-      "split": "Separate Unit identity/state facade, vitals, combat, spell/aura and update-field capabilities.",
+      "ceiling_lines": 34,
+      "split": "Separate unit values, visibility and health-revision state from the unit operations and their regressions. #636 decomposes the 4,308-line root into one state module, three unit/ops modules dividing the inherent `impl Unit`, and three regression modules, dropping it to 34 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
