@@ -439,7 +439,8 @@ fn resummon_pet_validates_action_bar_spells_like_cpp() {
         no_autocast_misc,
         autocastable_misc,
     ])));
-    let spell_misc_store = session
+    let catalogs = &session.spell_catalogs;
+    let spell_misc_store = catalogs
         .spell_misc_store()
         .expect("spell misc store should be installed");
     assert!(!spell_misc_store.is_autocastable_like_cpp(1_111));

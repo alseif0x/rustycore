@@ -527,12 +527,17 @@ impl WorldSession {
                 )
             }
             class if class == ItemClass::Armor as i8 => {
-                if self.spell_store.as_ref().is_some_and(|store| {
-                    store.has_attribute8_like_cpp(
-                        equipped.spell_id,
-                        SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP,
-                    )
-                }) {
+                if self
+                    .spell_catalogs
+                    .spell_store
+                    .as_ref()
+                    .is_some_and(|store| {
+                        store.has_attribute8_like_cpp(
+                            equipped.spell_id,
+                            SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP,
+                        )
+                    })
+                {
                     [
                         EQUIPMENT_SLOT_HEAD,
                         EQUIPMENT_SLOT_SHOULDERS,

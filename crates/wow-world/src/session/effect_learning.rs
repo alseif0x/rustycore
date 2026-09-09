@@ -63,11 +63,11 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
     }
 
     fn fallback_chains(&self) -> Option<&SpellChainStoreLikeCpp> {
-        self.spell_chain_store.as_deref()
+        self.spell_catalogs.spell_chain_store.as_deref()
     }
 
     fn fallback_requirements(&self) -> Option<&SpellRequiredStoreLikeCpp> {
-        self.spell_required_store.as_deref()
+        self.spell_catalogs.spell_required_store.as_deref()
     }
 
     fn fallback_traits(&self) -> Option<&wow_data::trait_tree::TraitDefinitionStore> {

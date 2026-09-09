@@ -9,14 +9,6 @@ impl WorldSession {
     pub fn set_offhand_check_at_spell_unlearn_like_cpp(&mut self, enabled: bool) {
         self.represented_offhand_check_at_spell_unlearn_like_cpp = enabled;
     }
-    pub fn set_spell_learn_skill_store(&mut self, store: Arc<SpellLearnSkillStoreLikeCpp>) {
-        self.spell_learn_skill_store = Some(store);
-    }
-    pub(crate) fn spell_learn_skill_store_like_cpp(
-        &self,
-    ) -> Option<&Arc<SpellLearnSkillStoreLikeCpp>> {
-        self.spell_learn_skill_store.as_ref()
-    }
     pub(crate) fn spell_learn_skill_like_cpp(
         &self,
         spell_id: u32,
@@ -32,35 +24,31 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> SpellLearnSkillLookupLikeCpp<'_> {
-        self.spell_learn_skill_store
+        self.spell_catalogs
+            .spell_learn_skill_store
             .as_ref()
             .map(|store| store.spell_learn_skill_lookup_like_cpp(spell_id))
             .unwrap_or(SpellLearnSkillLookupLikeCpp::MissingCoverage)
-    }
-    pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
-        self.spell_learn_spell_store = Some(store);
-    }
-    pub(crate) fn spell_learn_spell_store_like_cpp(
-        &self,
-    ) -> Option<&Arc<SpellLearnSpellStoreLikeCpp>> {
-        self.spell_learn_spell_store.as_ref()
     }
     pub(crate) fn spell_learn_spell_map_bounds_like_cpp(
         &self,
         spell_id: u32,
     ) -> &[SpellLearnSpellNodeLikeCpp] {
-        self.spell_learn_spell_store
+        self.spell_catalogs
+            .spell_learn_spell_store
             .as_ref()
             .map(|store| store.get_spell_learn_spell_map_bounds_like_cpp(spell_id))
             .unwrap_or(&[])
     }
     pub(crate) fn is_spell_learn_spell_like_cpp(&self, spell_id: u32) -> bool {
-        self.spell_learn_spell_store
+        self.spell_catalogs
+            .spell_learn_spell_store
             .as_ref()
             .is_some_and(|store| store.is_spell_learn_spell_like_cpp(spell_id))
     }
     pub(crate) fn is_spell_learn_to_spell_like_cpp(&self, spell_id1: u32, spell_id2: u32) -> bool {
-        self.spell_learn_spell_store
+        self.spell_catalogs
+            .spell_learn_spell_store
             .as_ref()
             .is_some_and(|store| store.is_spell_learn_to_spell_like_cpp(spell_id1, spell_id2))
     }
@@ -104,7 +92,7 @@ impl WorldSession {
         &self,
         known_spells: &mut Vec<i32>,
     ) -> usize {
-        let Some(spell_chains) = self.spell_chain_store() else {
+        let Some(spell_chains) = self.spell_catalogs.spell_chain_store() else {
             return 0;
         };
 
@@ -639,6 +627,7 @@ impl WorldSession {
                 if prev_spell_id != 0 {
                     if let Ok(prev_known_spell_id) = i32::try_from(prev_spell_id) {
                         let current_spell_is_ranked = self
+                            .spell_catalogs
                             .spell_chain_store()
                             .and_then(|store| store.spell_chain_node_like_cpp(current_spell_id))
                             .is_some();

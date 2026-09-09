@@ -45,6 +45,7 @@ impl WorldSession {
         mut position: Position,
     ) -> Position {
         if self
+            .spell_catalogs
             .spell_misc_store
             .as_deref()
             .and_then(|store| store.get_by_spell_id(u32::try_from(spell_id).ok()?))
@@ -204,6 +205,7 @@ impl WorldSession {
 
         let spell_id_u32 = u32::try_from(spell_info.spell_id).ok()?;
         let target_position = self
+            .spell_catalogs
             .spell_target_position_store
             .as_deref()
             .and_then(|store| store.get(spell_id_u32, effect.effect_index));
@@ -279,7 +281,8 @@ impl WorldSession {
             .as_ref()
             .is_some_and(|conditions| !conditions.is_empty());
         let target_position = if is_or_db && !has_implicit_conditions {
-            self.spell_target_position_store
+            self.spell_catalogs
+                .spell_target_position_store
                 .as_deref()
                 .and_then(|store| store.get(spell_id_u32, effect.effect_index))
         } else {
@@ -287,18 +290,20 @@ impl WorldSession {
         };
         let caster_position = self.player_position_like_cpp()?;
         let range = self
+            .spell_catalogs
             .spell_misc_store
             .as_deref()
             .and_then(|store| store.get_by_spell_id(spell_id_u32))
             .and_then(|misc| {
-                self.spell_range_store
+                self.spell_catalogs
+                    .spell_range_store
                     .as_deref()
                     .and_then(|store| store.get(u32::from(misc.range_index)))
             })
             .map(|range| range.range_max[0].max(range.range_max[1]))?;
         let radius = spell_effect_radius_like_cpp(
             effect.effect_radius_index_1,
-            self.spell_radius_store.as_deref(),
+            self.spell_catalogs.spell_radius_store.as_deref(),
         );
         let position = if let Some(target_position) = target_position {
             if target_position.target_map_id == self.player_map_id_like_cpp()

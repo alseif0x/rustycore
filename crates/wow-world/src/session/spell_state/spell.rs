@@ -130,8 +130,8 @@ impl WorldSession {
             self.legacy_spell_script_spell_ids_like_cpp.as_deref(),
             self.spell_linked_rejected_trigger_spell_ids_like_cpp
                 .as_deref(),
-            self.spell_chain_store.as_deref(),
-            self.spell_linked_store.as_deref(),
+            self.spell_catalogs.spell_chain_store.as_deref(),
+            self.spell_catalogs.spell_linked_store.as_deref(),
         )
     }
     /// Prove that every effective effect and every world-table hook for one
@@ -147,7 +147,7 @@ impl WorldSession {
         if !self.spell_has_no_unrepresented_runtime_hooks_like_cpp(spell_id) {
             return false;
         }
-        let Some(spell_store) = self.spell_store.as_ref() else {
+        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
             return false;
         };
         if spell_store.get(spell_id_i32).is_none() {
@@ -166,19 +166,22 @@ impl WorldSession {
             })
     }
     pub(crate) fn next_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.spell_chain_store
+        self.spell_catalogs
+            .spell_chain_store
             .as_ref()
             .map(|store| store.next_spell_in_chain_like_cpp(spell_id))
             .unwrap_or(0)
     }
     pub(crate) fn first_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.spell_chain_store
+        self.spell_catalogs
+            .spell_chain_store
             .as_ref()
             .map(|store| store.first_spell_in_chain_like_cpp(spell_id))
             .unwrap_or(spell_id)
     }
     pub(crate) fn prev_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.spell_chain_store
+        self.spell_catalogs
+            .spell_chain_store
             .as_ref()
             .map(|store| store.prev_spell_in_chain_like_cpp(spell_id))
             .unwrap_or(0)
@@ -196,13 +199,15 @@ impl WorldSession {
         link_type: SpellLinkedTypeLikeCpp,
         spell_id: u32,
     ) -> &[i32] {
-        self.spell_linked_store
+        self.spell_catalogs
+            .spell_linked_store
             .as_ref()
             .and_then(|store| store.get_spell_linked_like_cpp(link_type, spell_id))
             .unwrap_or(&[])
     }
     pub(crate) fn spell_area_map_bounds_like_cpp(&self, spell_id: u32) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_area_store
+        self.spell_catalogs
+            .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_map_bounds_like_cpp(spell_id))
             .unwrap_or_default()
@@ -211,7 +216,8 @@ impl WorldSession {
         &self,
         area_id: u32,
     ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_area_store
+        self.spell_catalogs
+            .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_for_area_map_bounds_like_cpp(area_id))
             .unwrap_or_default()
@@ -221,7 +227,8 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u32,
     ) -> u32 {
-        self.spell_custom_attribute_store
+        self.spell_catalogs
+            .spell_custom_attribute_store
             .as_ref()
             .map(|store| store.attributes_for_spell_difficulty_like_cpp(spell_id, difficulty))
             .unwrap_or(0)
@@ -232,7 +239,8 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u32,
     ) -> Option<&ServersideSpellInfoLikeCpp> {
-        self.serverside_spell_store
+        self.spell_catalogs
+            .serverside_spell_store
             .as_ref()
             .and_then(|store| store.get_serverside_spell_like_cpp(spell_id, difficulty))
     }
@@ -241,7 +249,7 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u32,
     ) -> Option<&SpellProcEntryLikeCpp> {
-        let store = self.spell_proc_store.as_ref()?;
+        let store = self.spell_catalogs.spell_proc_store.as_ref()?;
         store.spell_proc_entry_with_fallback_like_cpp(spell_id, difficulty, |current_difficulty| {
             self.difficulty_store
                 .as_ref()
@@ -250,19 +258,22 @@ impl WorldSession {
         })
     }
     pub(crate) fn spells_required_for_spell_like_cpp(&self, spell_id: u32) -> &[u32] {
-        self.spell_required_store
+        self.spell_catalogs
+            .spell_required_store
             .as_ref()
             .map(|store| store.spells_required_for_spell_like_cpp(spell_id))
             .unwrap_or(&[])
     }
     pub(crate) fn spells_requiring_spell_like_cpp(&self, req_spell: u32) -> &[u32] {
-        self.spell_required_store
+        self.spell_catalogs
+            .spell_required_store
             .as_ref()
             .map(|store| store.spells_requiring_spell_like_cpp(req_spell))
             .unwrap_or(&[])
     }
     pub(crate) fn is_spell_requiring_spell_like_cpp(&self, spell_id: u32, req_spell: u32) -> bool {
-        self.spell_required_store
+        self.spell_catalogs
+            .spell_required_store
             .as_ref()
             .map(|store| store.is_spell_requiring_spell_like_cpp(spell_id, req_spell))
             .unwrap_or(false)
@@ -272,7 +283,8 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u8,
     ) -> u32 {
-        self.spell_misc_store()
+        self.spell_catalogs
+            .spell_misc_store()
             .and_then(|store| {
                 store.entry_for_spell_difficulty_with_fallback_like_cpp(
                     spell_id,

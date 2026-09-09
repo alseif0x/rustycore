@@ -208,12 +208,16 @@ impl WorldSession {
     pub(in crate::session) fn represented_spell_area_autocast_source_is_empty_like_cpp(
         &self,
     ) -> bool {
-        self.spell_area_store.as_ref().is_some_and(|store| {
-            store.areas_like_cpp().iter().all(|spell_area| {
-                spell_area.flags & SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP == 0
-                    || !self.represented_spell_area_could_autocast_for_player_like_cpp(spell_area)
+        self.spell_catalogs
+            .spell_area_store
+            .as_ref()
+            .is_some_and(|store| {
+                store.areas_like_cpp().iter().all(|spell_area| {
+                    spell_area.flags & SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP == 0
+                        || !self
+                            .represented_spell_area_could_autocast_for_player_like_cpp(spell_area)
+                })
             })
-        })
     }
     /// Represented C++ first-login `PlayerInfo::castSpells[GetCreateMode()]`.
     ///
@@ -343,7 +347,7 @@ impl WorldSession {
         &self,
         spell_id: i32,
     ) -> bool {
-        let Some(spell_store) = self.spell_store.as_ref() else {
+        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
             return false;
         };
         let (stances, _) = spell_store.shapeshift_masks_like_cpp(spell_id);
@@ -370,6 +374,7 @@ impl WorldSession {
             return false;
         };
         let caster_aura_state = self
+            .spell_catalogs
             .spell_aura_restrictions_store
             .as_ref()
             .and_then(|store| {
