@@ -159,7 +159,8 @@ support the time needed to keep the project moving.
 ## License
 
 RustyCore is licensed under **GPL-3.0-or-later** (GNU GPL version 3 or any later version).
-See [LICENSE](LICENSE) for the project notice and complete license text.
+See [LICENSE](LICENSE) for the complete license text and [NOTICE](NOTICE) for the
+project's license grant and attribution notices.
 
 WoW protocol research and server behavior are based on the public work of the TrinityCore
 and MaNGOS communities.
