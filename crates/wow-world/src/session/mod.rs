@@ -26,6 +26,7 @@ mod player_items;
 mod progression;
 mod quest;
 pub mod registry;
+mod social;
 mod spell_state;
 mod trainer_acquisition;
 mod trait_configs;
@@ -10586,26 +10587,6 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
-    fn canonical_player_duel_in_progress_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        opponent: ObjectGuid,
-    ) -> Option<bool> {
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let manager = manager.lock().ok()?;
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_none() {
-                result = managed
-                    .map()
-                    .get_typed_player(guid)
-                    .map(|player| player.is_dueling_opponent_in_progress_like_cpp(opponent));
-            }
-        });
-        result
-    }
-
     fn canonical_player_attack_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
         let guid = self.player_guid?;
         let map_id = u32::from(self.player_map_id_like_cpp());
@@ -10928,98 +10909,6 @@ impl WorldSession {
                 .unwrap_or(false)
             },
         )
-    }
-
-    fn current_player_is_in_group_guid_like_cpp(
-        &self,
-        current_group_guid: Option<u64>,
-        group_owner: ObjectGuid,
-    ) -> bool {
-        let Some(group_guid) = current_group_guid else {
-            return false;
-        };
-        if ObjectGuid::create_group(group_guid) != group_owner {
-            return false;
-        }
-        let Some(group_registry) = self.group_registry.as_ref() else {
-            return false;
-        };
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        group_registry
-            .get(&group_guid)
-            .is_some_and(|group| group.members.contains(&player_guid))
-    }
-
-    fn current_player_is_group_visible_for_owner_like_cpp(
-        &self,
-        current_group_guid: Option<u64>,
-        owner_guid: ObjectGuid,
-    ) -> bool {
-        let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
-            current_group_guid,
-            self.group_registry.as_ref(),
-            self.player_guid(),
-        ) else {
-            return false;
-        };
-        group_registry.get(&group_guid).is_some_and(|group| {
-            group.members.contains(&player_guid) && group.members.contains(&owner_guid)
-        })
-    }
-
-    fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
-        let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
-            self.player_guid(),
-        ) else {
-            return false;
-        };
-
-        group_registry
-            .get(&group_guid)
-            .is_some_and(|group| group.is_raid_group() && group.members.contains(&player_guid))
-    }
-
-    fn represented_player_is_same_raid_with_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-        owner_guid: ObjectGuid,
-    ) -> bool {
-        let (Some(group_guid), Some(group_registry)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
-        ) else {
-            return false;
-        };
-        group_registry.get(&group_guid).is_some_and(|group| {
-            group.members.contains(&player_guid) && group.members.contains(&owner_guid)
-        })
-    }
-
-    fn current_group_member_guids_for_tap_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-    ) -> Vec<ObjectGuid> {
-        let (Some(group_guid), Some(group_registry)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
-        ) else {
-            return Vec::new();
-        };
-        group_registry
-            .get(&group_guid)
-            .map(|group| {
-                group
-                    .members
-                    .iter()
-                    .copied()
-                    .filter(|member| *member != player_guid)
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     pub fn summon_private_object_owner_like_cpp(
@@ -13115,15 +13004,6 @@ impl WorldSession {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn group_invite_policy_for_test_like_cpp(&self) -> GroupInvitePolicyLikeCpp {
-        GroupInvitePolicyLikeCpp {
-            allow_gm_group: self.allow_gm_group_like_cpp,
-            allow_two_side_interaction: self.allow_two_side_interaction_group_like_cpp,
-            minimum_level: self.party_level_req_like_cpp,
-        }
-    }
-
     /// Set the item currency cost store for this session.
     #[cfg(test)]
     pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
@@ -14235,26 +14115,6 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn set_party_raid_warnings_like_cpp(&mut self, enabled: bool) {
-        self.party_raid_warnings_like_cpp = enabled;
-    }
-
-    #[cfg(test)]
-    pub fn set_allow_gm_group_like_cpp(&mut self, enabled: bool) {
-        self.allow_gm_group_like_cpp = enabled;
-    }
-
-    #[cfg(test)]
-    pub fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
-        self.allow_two_side_interaction_group_like_cpp = enabled;
-    }
-
-    #[cfg(test)]
-    pub fn set_party_level_req_like_cpp(&mut self, level: u32) {
-        self.party_level_req_like_cpp = level;
-    }
-
-    #[cfg(test)]
     pub fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
         self.chat_strict_link_checking_kick_like_cpp = enabled;
     }
@@ -14335,26 +14195,6 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
         self.chat_fake_message_preventing_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
-        self.party_raid_warnings_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn allow_gm_group_like_cpp(&self) -> bool {
-        self.allow_gm_group_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn allow_two_side_interaction_group_like_cpp(&self) -> bool {
-        self.allow_two_side_interaction_group_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
-        self.party_level_req_like_cpp
     }
 
     #[cfg(test)]
@@ -14706,18 +14546,6 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
-    pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            let power_type = player.unit().data().display_power;
-            let power = party_member_power_kind_from_u8_like_cpp(power_type);
-            (
-                power_type,
-                party_member_power_to_u16_like_cpp(player.get_power(power)),
-                party_member_power_to_u16_like_cpp(player.get_max_power(power)),
-            )
-        })
-    }
-
     pub(crate) fn select_buyback_slot_cpp(&self) -> Option<u8> {
         let buyback_items = self.resolved_buyback_items_like_cpp()?;
         let buyback_timestamp = self.resolved_buyback_timestamp_like_cpp()?;
@@ -14798,31 +14626,6 @@ impl WorldSession {
 
         player.clear_data_changes();
         Some(player)
-    }
-
-    pub(crate) fn send_player_party_type_update_like_cpp(&self, category: u8, party_type: u8) {
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-        if category >= wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP {
-            return;
-        }
-
-        let mut data = wow_packet::packets::update::PlayerDataValuesDeltaUpdate::default();
-        let category_index = usize::from(category);
-        data.player_data_mask[wow_entities::PLAYER_DATA_PARTY_TYPE_PARENT_BIT / 32] |=
-            1 << (wow_entities::PLAYER_DATA_PARTY_TYPE_PARENT_BIT % 32);
-        data.player_data_mask
-            [(wow_entities::PLAYER_DATA_PARTY_TYPE_FIRST_BIT + category_index) / 32] |=
-            1 << ((wow_entities::PLAYER_DATA_PARTY_TYPE_FIRST_BIT + category_index) % 32);
-        data.party_type[category_index] = party_type;
-        self.send_packet(
-            &wow_packet::packets::update::UpdateObject::full_player_values_update(
-                guid,
-                self.player_map_id_like_cpp(),
-                data,
-            ),
-        );
     }
 
     pub(crate) fn send_player_values_update_from_entity_bridge(
@@ -15122,244 +14925,6 @@ impl WorldSession {
             .expect("test Player loot preference owner must resolve")
     }
 
-    /// Resolve C++ `Player::m_group` through this session incarnation's
-    /// generation-checked canonical Player handle. An unresolved owner never
-    /// falls back in production.
-    pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .group
-                .as_ref()
-                .map(|group| group.group_guid.counter() as u64)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.group_guid;
-        }
-        canonical.flatten()
-    }
-
-    fn resolved_group_subgroup_like_cpp(&self) -> Option<u8> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .group
-                .as_ref()
-                .map(|group| group.subgroup)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.represented_subgroup_like_cpp;
-        }
-        canonical.flatten()
-    }
-
-    /// C++ `Player::SetGroup`: replace the Player-owned `GroupReference`
-    /// snapshot. Group membership itself remains authoritative in GroupRegistry.
-    pub(crate) fn set_owned_player_group_like_cpp(
-        &mut self,
-        membership: Option<(u64, u8)>,
-    ) -> bool {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.group_guid = membership.map(|(group_guid, _)| group_guid);
-            self.represented_subgroup_like_cpp = membership.map(|(_, subgroup)| subgroup);
-            return true;
-        }
-
-        let state = match membership {
-            None => None,
-            Some((group_guid, subgroup)) => {
-                let Some(player_guid) = self.player_guid() else {
-                    return false;
-                };
-                let Some(group_registry) = self.group_registry.as_ref() else {
-                    return false;
-                };
-                let Some(group) = group_registry.get(&group_guid) else {
-                    return false;
-                };
-                let Some(slot) = group.member_slot_like_cpp(player_guid) else {
-                    return false;
-                };
-                Some(wow_entities::PlayerGroupState {
-                    group_guid: ObjectGuid::create_group(group_guid),
-                    leader_guid: group.leader_guid,
-                    role_mask: slot.roles,
-                    subgroup,
-                })
-            }
-        };
-
-        self.with_owned_player_mut_like_cpp(move |player| {
-            player.gameplay_state_mut().group = state;
-        })
-        .is_some()
-    }
-
-    pub(crate) fn apply_group_subgroup_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
-        if self.resolved_group_guid_like_cpp() == Some(group_guid)
-            && self.set_owned_player_group_like_cpp(Some((group_guid, subgroup)))
-        {
-            self.sync_player_registry_state_like_cpp();
-        }
-    }
-
-    pub(crate) fn apply_group_join_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
-        if self.set_owned_player_group_like_cpp(Some((group_guid, subgroup))) {
-            self.sync_player_registry_party_member_party_type_like_cpp();
-        }
-    }
-
-    pub(crate) fn sync_player_registry_party_member_party_type_like_cpp(&self) {
-        let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
-            return;
-        };
-        let party_type = self.party_member_party_type_like_cpp();
-        registry.publish_party_type_for_control_channel(guid, &self.session_command_tx, party_type);
-    }
-
-    pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
-        let _ = self.set_owned_player_group_like_cpp(None);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_subgroup_like_cpp(&self) -> Option<u8> {
-        self.resolved_group_subgroup_like_cpp()
-    }
-
-    /// C++ `Player::ResetGroupUpdateSequenceIfNeeded` resets the per-player
-    /// sequence for a group category only when the loaded group guid changed.
-    pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
-        let (Some(group_guid), Some(group_registry)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
-        ) else {
-            return false;
-        };
-
-        let Some(group) = group_registry.get(&group_guid) else {
-            return false;
-        };
-        let category = group.group_category_like_cpp();
-        if category >= wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP {
-            return false;
-        }
-
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let sequence =
-                &mut player.gameplay_state_mut().group_update_sequences[usize::from(category)];
-            if sequence.group_guid == Some(group_guid) {
-                return false;
-            }
-            sequence.group_guid = Some(group_guid);
-            sequence.update_sequence_number = 1;
-            true
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let sequence =
-                &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
-            if sequence.group_guid == Some(group_guid) {
-                return false;
-            }
-            sequence.group_guid = Some(group_guid);
-            sequence.update_sequence_number = 1;
-            return true;
-        }
-        canonical.unwrap_or(false)
-    }
-
-    /// C++ `Player::NextGroupUpdateSequenceNumber` returns the current
-    /// per-player category sequence and then increments it.
-    pub(crate) fn next_group_update_sequence_number_like_cpp(
-        &mut self,
-        category: u8,
-    ) -> Option<i32> {
-        if category >= wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP {
-            return None;
-        }
-
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let sequence =
-                &mut player.gameplay_state_mut().group_update_sequences[usize::from(category)];
-            let current = sequence.update_sequence_number;
-            sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
-            current
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let sequence =
-                &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
-            let current = sequence.update_sequence_number;
-            sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
-            return Some(current);
-        }
-        canonical
-    }
-
-    /// C++ `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`): the
-    /// removed member tears down its party frames from a destroyed
-    /// `PartyUpdate` that carries no members. `Group::RemoveMember` sends it
-    /// after the kick when the group survives (`Group.cpp:654-655`) and
-    /// `Group::Disband` sends it to every member (`Group.cpp:746`).
-    pub(crate) fn send_destroyed_group_party_update_like_cpp(
-        &mut self,
-        group_guid: u64,
-        category: u8,
-    ) {
-        let Some(sequence_num) = self.next_group_update_sequence_number_like_cpp(category) else {
-            return;
-        };
-        self.send_packet_realm(&wow_packet::packets::party::PartyUpdate {
-            party_flags: wow_social::group::GROUP_FLAG_DESTROYED_LIKE_CPP,
-            party_index: category,
-            party_type: wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
-            my_index: -1,
-            party_guid: group_guid,
-            sequence_num,
-            leader_guid: ObjectGuid::EMPTY,
-            leader_faction_group: 0,
-            player_list: Vec::new(),
-            loot_settings: None,
-            difficulty_settings: None,
-        });
-    }
-
-    /// C++ `Player::_LoadGroup` sets `PLAYER_FLAGS_GROUP_LEADER` when the
-    /// loaded group leader matches the player, and removes it otherwise.
-    pub(crate) fn apply_represented_group_leader_flag_like_cpp(&mut self) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-
-        let is_group_leader = self
-            .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| {
-                self.group_registry
-                    .as_ref()
-                    .and_then(|registry| registry.get(&group_guid).map(|group| group.leader_guid))
-            })
-            .is_some_and(|leader_guid| leader_guid == player_guid);
-
-        let updated = self
-            .mutate_canonical_player_like_cpp(|player| {
-                if is_group_leader {
-                    player.set_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
-                } else {
-                    player.remove_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
-                }
-            })
-            .is_some();
-
-        if updated {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        updated
-    }
-
     /// Set the lock store for this session.
     pub fn set_lock_store(&mut self, store: Arc<LockStore>) {
         self.lock_store = Some(store);
@@ -15595,14 +15160,6 @@ impl WorldSession {
         self.faction_store.as_ref()
     }
 
-    pub fn set_friendship_rep_reaction_store(&mut self, store: Arc<FriendshipRepReactionStore>) {
-        self.friendship_rep_reaction_store = Some(store);
-    }
-
-    pub(crate) fn friendship_rep_reaction_store(&self) -> Option<&Arc<FriendshipRepReactionStore>> {
-        self.friendship_rep_reaction_store.as_ref()
-    }
-
     pub(crate) fn set_championing_faction_like_cpp(&mut self, faction_id: u32) {
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
@@ -15695,10 +15252,6 @@ impl WorldSession {
 
     pub fn set_phase_store(&mut self, store: Arc<PhaseStore>) {
         self.phase_store = Some(store);
-    }
-
-    pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
-        self.phase_group_store = Some(store);
     }
 
     pub(crate) fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift> {
@@ -16817,10 +16370,6 @@ impl WorldSession {
             self.resolved_player_next_level_xp_like_cpp()? as f32
                 * REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP,
         )
-    }
-
-    fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool {
-        self.gets_recruit_a_friend_xp_bonus_like_cpp()
     }
 
     pub(crate) fn player_rest_state_snapshot_like_cpp(
@@ -18394,96 +17943,6 @@ impl WorldSession {
         }
     }
 
-    fn gets_recruit_a_friend_xp_bonus_like_cpp(&self) -> bool {
-        self.gets_recruit_a_friend_bonus_like_cpp(true)
-    }
-
-    fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool {
-        // C++ `WorldObject::IsInMap` requires both players to be in world.
-        // In particular, offline rest accrual runs during LoadFromDB before
-        // `AddPlayerToMap` and must not normalize the state as RAF-linked.
-        if self.state != SessionState::LoggedIn {
-            return false;
-        }
-        let player_level = u32::from(self.player_level_like_cpp());
-        if for_xp && player_level > self.max_recruit_a_friend_bonus_player_level_like_cpp {
-            return false;
-        }
-        let (Some(player_guid), Some(group_guid), Some(group_registry), Some(player_registry)) = (
-            self.player_guid(),
-            self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
-            self.player_registry.as_ref(),
-        ) else {
-            return false;
-        };
-        let Some(group) = group_registry.get(&group_guid) else {
-            return false;
-        };
-        if !group.members.contains(&player_guid) {
-            return false;
-        }
-        let group_members = group.members.clone();
-        drop(group);
-
-        let Some(player_position) = self.player_position_like_cpp() else {
-            return false;
-        };
-        let player_map_id = self.player_map_id_like_cpp();
-        let player_instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let max_distance = self.reputation_rates_like_cpp().recruit_a_friend_distance;
-
-        for member_guid in group_members {
-            if member_guid == player_guid {
-                continue;
-            }
-            let Some(member) = player_registry.group_presence(member_guid) else {
-                continue;
-            };
-            if member.map_id != player_map_id {
-                continue;
-            }
-            if member.instance_id != player_instance_id {
-                continue;
-            }
-            if !member.is_in_world {
-                continue;
-            }
-            // C++ measures a dead member from their corpse. The shared registry
-            // does not yet publish corpse location, so fail closed instead of
-            // granting RAF from a stale live-player position.
-            if !member.is_alive {
-                continue;
-            }
-            if member.position.distance(&player_position) > max_distance {
-                continue;
-            }
-            if for_xp {
-                let member_level = u32::from(member.level);
-                if member_level > self.max_recruit_a_friend_bonus_player_level_like_cpp {
-                    continue;
-                }
-                if member_level < player_level
-                    && player_level - member_level
-                        > self.max_recruit_a_friend_bonus_player_level_difference_like_cpp
-                {
-                    continue;
-                }
-            }
-
-            let member_recruited_self = member.recruiter_id == self.account_id;
-            let self_recruited_member = self.recruiter_id_like_cpp() == member.account_id;
-            if member_recruited_self || self_recruited_member {
-                return true;
-            }
-        }
-
-        false
-    }
-
     fn represented_championing_faction_for_kill_like_cpp(&self) -> Option<u32> {
         let championing_faction = self.resolved_championing_faction_like_cpp()?;
         if championing_faction == 0 {
@@ -18506,38 +17965,6 @@ impl WorldSession {
                 dungeon.target_level == WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
             });
         is_wrath_max_level_lfg.then_some(championing_faction)
-    }
-
-    fn xp_in_group_rate_like_cpp(count: u32, is_raid: bool) -> f32 {
-        if is_raid {
-            0.99
-        } else {
-            match count {
-                0..=2 => 1.0,
-                3 => 1.166,
-                4 => 1.3,
-                _ => 1.4,
-            }
-        }
-    }
-
-    fn represented_player_group_reward_state_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-    ) -> Option<(u8, u16, Position, bool)> {
-        if self.player_guid() == Some(player_guid) {
-            return Some((
-                self.player_level_like_cpp(),
-                self.player_map_id_like_cpp(),
-                self.player_position_like_cpp()?,
-                self.resolved_player_is_alive_like_cpp()?,
-            ));
-        }
-        self.player_registry.as_ref().and_then(|registry| {
-            registry
-                .group_reward_snapshot(player_guid)
-                .map(|entry| (entry.level, entry.map_id, entry.position, entry.is_alive))
-        })
     }
 
     pub(crate) async fn killed_player_credit_with_generator_like_cpp(
@@ -18699,15 +18126,6 @@ impl WorldSession {
         self.rest_ingame_rate_like_cpp = rest_ingame_rate;
     }
 
-    pub fn set_recruit_a_friend_xp_config_like_cpp(
-        &mut self,
-        max_bonus_level: u32,
-        max_level_difference: u32,
-    ) {
-        self.max_recruit_a_friend_bonus_player_level_like_cpp = max_bonus_level;
-        self.max_recruit_a_friend_bonus_player_level_difference_like_cpp = max_level_difference;
-    }
-
     pub fn set_pvp_realm_like_cpp(&mut self, is_pvp_realm: bool) {
         self.is_pvp_realm_like_cpp = is_pvp_realm;
     }
@@ -18805,17 +18223,6 @@ impl WorldSession {
     /// Get a reference to the shared player registry.
     pub fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
         self.player_registry.as_ref()
-    }
-
-    /// Set the shared group registry and pending invites.
-    pub fn set_group_registry(&mut self, reg: Arc<GroupRegistry>, invites: Arc<PendingInvites>) {
-        self.group_registry = Some(reg);
-        self.pending_invites = Some(invites);
-    }
-
-    /// Get a reference to the shared group registry.
-    pub fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
-        self.group_registry.as_ref()
     }
 
     /// Get a reference to the shared pending invites map.
@@ -18942,25 +18349,6 @@ impl WorldSession {
             active_player_data: None,
         };
         player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
-    }
-
-    pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
-        let mut party_type = [wow_social::group::GROUP_TYPE_NONE_LIKE_CPP; 2];
-        let (Some(group_registry), Some(player_guid)) = (&self.group_registry, self.player_guid())
-        else {
-            return party_type;
-        };
-
-        for group in group_registry.snapshots() {
-            let category = group.group_category_like_cpp();
-            if category < wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP
-                && group.members.contains(&player_guid)
-            {
-                party_type[usize::from(category)] = wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP;
-            }
-        }
-
-        party_type
     }
 
     /// Register this session in the player registry.
@@ -22988,39 +22376,6 @@ impl WorldSession {
             })
     }
 
-    fn represented_player_at_group_reward_distance_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-        reward_map_id: u16,
-        reward_position: Position,
-    ) -> bool {
-        let player_state = if self.player_guid() == Some(player_guid) {
-            self.player_position_like_cpp()
-                .map(|position| (self.player_map_id_like_cpp(), position))
-        } else {
-            self.player_registry.as_ref().and_then(|registry| {
-                registry
-                    .loot_presence(player_guid)
-                    .map(|entry| (entry.map_id, entry.position))
-            })
-        };
-        let Some((player_map_id, player_position)) = player_state else {
-            return self.player_guid() == Some(player_guid);
-        };
-        if player_map_id != reward_map_id {
-            return false;
-        }
-        if self
-            .map_store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(player_map_id)))
-            .is_some_and(|entry| entry.is_dungeon())
-        {
-            return true;
-        }
-        player_position.distance(&reward_position) <= GROUP_XP_DISTANCE_LIKE_CPP
-    }
-
     #[cfg(test)]
     pub(crate) fn represented_combat_stat_recalculations_like_cpp(
         &self,
@@ -23033,66 +22388,6 @@ impl WorldSession {
         &self,
     ) -> &[TitanGripPenaltyAction] {
         &self.represented_titan_grip_penalty_actions_like_cpp
-    }
-
-    fn player_guild_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerGuildState> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().guild.clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerGuildState {
-                guild_id: (self.represented_guild_id_like_cpp != 0)
-                    .then_some(self.represented_guild_id_like_cpp),
-                invited_guild_id: (self.represented_guild_id_invited_like_cpp != 0)
-                    .then_some(self.represented_guild_id_invited_like_cpp),
-                rank_id: None,
-                authority_complete: self.represented_guild_id_authority_complete_like_cpp,
-            });
-        }
-        canonical
-    }
-
-    fn mutate_player_guild_state_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut wow_entities::PlayerGuildState) -> R,
-    ) -> Option<R> {
-        let mut state = self.player_guild_state_snapshot_like_cpp()?;
-        let result = f(&mut state);
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().guild = state.clone()
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
-            self.represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
-            self.represented_guild_id_authority_complete_like_cpp = state.authority_complete;
-            return Some(result);
-        }
-        canonical.then_some(result)
-    }
-
-    pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.mutate_player_guild_state_like_cpp(|state| {
-            state.guild_id = (guild_id != 0).then_some(guild_id);
-            state.authority_complete = true;
-        })
-        .is_some()
-    }
-
-    pub(crate) fn resolved_represented_guild_id_like_cpp(&self) -> Option<u64> {
-        let state = self.player_guild_state_snapshot_like_cpp()?;
-        state
-            .authority_complete
-            .then_some(state.guild_id.unwrap_or(0))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_guild_id_like_cpp(&self) -> u64 {
-        self.resolved_represented_guild_id_like_cpp()
-            .expect("test Player guild owner must resolve")
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -23183,21 +22478,6 @@ impl WorldSession {
         &self.represented_calendar_add_events_like_cpp
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_represented_guild_id_invited_like_cpp(&mut self, guild_id: u64) -> bool {
-        self.mutate_player_guild_state_like_cpp(|state| {
-            state.invited_guild_id = (guild_id != 0).then_some(guild_id);
-        })
-        .is_some()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_guild_id_invited_like_cpp(&self) -> u64 {
-        self.player_guild_state_snapshot_like_cpp()
-            .and_then(|state| state.invited_guild_id)
-            .unwrap_or(0)
-    }
-
     pub(crate) fn set_represented_arena_team_id_invited_like_cpp(
         &mut self,
         arena_team_id: u32,
@@ -23213,158 +22493,6 @@ impl WorldSession {
         self.player_battleground_state_snapshot_like_cpp()
             .expect("test Player battleground owner must resolve")
             .arena_team_id_invited
-    }
-
-    pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
-        #[cfg(test)]
-        self.represented_trade_cancel_statuses_like_cpp.push(status);
-        #[cfg(not(test))]
-        let _ = status;
-    }
-
-    fn player_trade_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<Option<wow_entities::PlayerTradeStateLikeCpp>> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().trade.clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(
-                self.represented_active_trade_partner_like_cpp
-                    .map(|partner_guid| wow_entities::PlayerTradeStateLikeCpp {
-                        partner_guid,
-                        accepted: self.represented_trade_accepted_like_cpp,
-                        partner_server_state_index: self
-                            .represented_partner_trade_server_state_index_like_cpp,
-                        client_state_index: self.represented_trade_client_state_index_like_cpp,
-                        server_state_index: self.represented_trade_server_state_index_like_cpp,
-                        items: self.represented_trade_items_like_cpp,
-                        money: self.represented_trade_money_like_cpp,
-                        spell_id: self.represented_trade_spell_like_cpp,
-                        spell_cast_item_guid: self.represented_trade_spell_cast_item_like_cpp,
-                    }),
-            );
-        }
-        canonical
-    }
-
-    fn mutate_player_trade_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut Option<wow_entities::PlayerTradeStateLikeCpp>) -> R,
-    ) -> Option<R> {
-        let mut state = self.player_trade_state_snapshot_like_cpp()?;
-        let result = mutate(&mut state);
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().trade = state.clone()
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            if let Some(state) = state {
-                self.represented_active_trade_partner_like_cpp = Some(state.partner_guid);
-                self.represented_trade_accepted_like_cpp = state.accepted;
-                self.represented_partner_trade_server_state_index_like_cpp =
-                    state.partner_server_state_index;
-                self.represented_trade_client_state_index_like_cpp = state.client_state_index;
-                self.represented_trade_server_state_index_like_cpp = state.server_state_index;
-                self.represented_trade_items_like_cpp = state.items;
-                self.represented_trade_money_like_cpp = state.money;
-                self.represented_trade_spell_like_cpp = state.spell_id;
-                self.represented_trade_spell_cast_item_like_cpp = state.spell_cast_item_guid;
-            } else {
-                self.represented_active_trade_partner_like_cpp = None;
-                self.represented_trade_accepted_like_cpp = false;
-                self.represented_partner_trade_server_state_index_like_cpp = 0;
-                self.represented_trade_client_state_index_like_cpp = 1;
-                self.represented_trade_server_state_index_like_cpp = 1;
-                self.represented_trade_items_like_cpp = [None; TRADE_SLOT_COUNT_LIKE_CPP as usize];
-                self.represented_trade_money_like_cpp = 0;
-                self.represented_trade_spell_like_cpp = 0;
-                self.represented_trade_spell_cast_item_like_cpp = None;
-            }
-            return Some(result);
-        }
-        canonical.then_some(result)
-    }
-
-    pub(crate) fn set_represented_active_trade_partner_like_cpp(
-        &mut self,
-        partner_guid: Option<ObjectGuid>,
-    ) -> bool {
-        self.mutate_player_trade_state_like_cpp(|state| {
-            *state = partner_guid.map(wow_entities::PlayerTradeStateLikeCpp::new);
-        })
-        .is_some()
-    }
-
-    pub(crate) fn clear_represented_active_trade_partner_like_cpp(&mut self) -> bool {
-        self.mutate_player_trade_state_like_cpp(|state| *state = None)
-            .is_some()
-    }
-
-    pub(crate) fn resolved_represented_active_trade_partner_like_cpp(
-        &self,
-    ) -> Option<Option<ObjectGuid>> {
-        self.player_trade_state_snapshot_like_cpp()
-            .map(|state| state.map(|state| state.partner_guid))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_active_trade_partner_like_cpp(&self) -> Option<ObjectGuid> {
-        self.resolved_represented_active_trade_partner_like_cpp()
-            .expect("test Player trade owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_represented_partner_trade_server_state_index_like_cpp(
-        &mut self,
-        state_index: u32,
-    ) -> bool {
-        self.mutate_player_trade_state_like_cpp(|state| {
-            if let Some(state) = state {
-                state.partner_server_state_index = state_index;
-            }
-        })
-        .is_some()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_accepted_like_cpp(&self) -> bool {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .is_some_and(|state| state.accepted)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_represented_trade_accepted_like_cpp_for_test(&mut self, accepted: bool) {
-        let _ = self.set_represented_trade_accepted_like_cpp_for_command(accepted);
-    }
-
-    pub(crate) fn set_represented_trade_accepted_like_cpp_for_command(
-        &mut self,
-        accepted: bool,
-    ) -> bool {
-        self.mutate_player_trade_state_like_cpp(|state| {
-            if let Some(state) = state {
-                state.accepted = accepted;
-            }
-        })
-        .is_some()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_client_state_index_like_cpp(&self) -> u32 {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .map_or(1, |state| state.client_state_index)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_server_state_index_like_cpp(&self) -> u32 {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .map_or(1, |state| state.server_state_index)
     }
 
     #[cfg(test)]
@@ -23393,32 +22521,6 @@ impl WorldSession {
             .flatten()
     }
 
-    #[cfg(test)]
-    pub(crate) fn represented_trade_money_like_cpp(&self) -> u64 {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .map_or(0, |state| state.money)
-    }
-
-    pub(crate) fn record_represented_silence_party_talker_like_cpp(
-        &mut self,
-        target: ObjectGuid,
-        silent: bool,
-    ) {
-        #[cfg(test)]
-        self.represented_silence_party_talker_like_cpp
-            .push(RepresentedSilencePartyTalkerLikeCpp { target, silent });
-        #[cfg(not(test))]
-        let _ = (target, silent);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_silence_party_talker_like_cpp(
-        &self,
-    ) -> &[RepresentedSilencePartyTalkerLikeCpp] {
-        &self.represented_silence_party_talker_like_cpp
-    }
-
     fn try_send_connected_player_command_like_cpp(
         &self,
         target_guid: ObjectGuid,
@@ -23430,35 +22532,6 @@ impl WorldSession {
         {
             let _ = address.try_send(command);
         }
-    }
-
-    pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        let packet_bytes = TradeStatus::cancel_like_cpp(status).to_bytes();
-        self.record_represented_trade_cancel_like_cpp(status);
-        if !self.clear_represented_active_trade_partner_like_cpp() {
-            return;
-        }
-
-        if sendback {
-            self.send_raw_packet(&packet_bytes);
-        }
-
-        self.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::CancelRepresentedTradeLikeCpp(
-                crate::session::mailbox::CancelRepresentedTradeLikeCppCommand {
-                    status,
-                    packet_bytes,
-                },
-            ),
-        );
     }
 
     pub(crate) fn clear_represented_trade_item_like_cpp(&mut self, trade_slot: u8) {
@@ -23561,516 +22634,11 @@ impl WorldSession {
         );
     }
 
-    pub(crate) fn set_represented_trade_gold_like_cpp(&mut self, coinage: u64) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(mut trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        trade.client_state_index = trade.client_state_index.wrapping_add(1);
-
-        if trade.money == coinage {
-            let _ = self.mutate_player_trade_state_like_cpp(|state| *state = Some(trade));
-            return;
-        }
-
-        if !self
-            .resolved_player_money_like_cpp()
-            .is_some_and(|player_money| player_money >= coinage)
-        {
-            if self
-                .mutate_player_trade_state_like_cpp(|state| *state = Some(trade))
-                .is_none()
-            {
-                return;
-            }
-            let packet_bytes =
-                TradeStatus::failed_like_cpp(EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, 0).to_bytes();
-            self.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        trade.money = coinage;
-        trade.accepted = false;
-        trade.server_state_index = trade.server_state_index.wrapping_add(1);
-        if self
-            .mutate_player_trade_state_like_cpp(|state| *state = Some(trade))
-            .is_none()
-        {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.send_raw_packet(&packet_bytes);
-
-        self.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-
-    pub(crate) fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(mut trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        trade.accepted = true;
-
-        if trade.partner_server_state_index != state_index {
-            trade.accepted = false;
-            let _ = self.mutate_player_trade_state_like_cpp(|state| *state = Some(trade));
-            let packet_bytes =
-                TradeStatus::status_only_like_cpp(TRADE_STATUS_STATE_CHANGED_LIKE_CPP).to_bytes();
-            self.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        if self
-            .mutate_player_trade_state_like_cpp(|state| *state = Some(trade))
-            .is_none()
-        {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP).to_bytes();
-        self.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-
-    pub(crate) fn unaccept_represented_trade_like_cpp(&mut self) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(mut trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        trade.accepted = false;
-        if self
-            .mutate_player_trade_state_like_cpp(|state| *state = Some(trade))
-            .is_none()
-        {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-
-    pub(crate) fn begin_represented_trade_like_cpp(&mut self) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        let packet_bytes = TradeStatus::initiated_like_cpp(0).to_bytes();
-        self.send_raw_packet(&packet_bytes);
-
-        self.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_cancel_statuses_like_cpp(&self) -> &[u8] {
-        &self.represented_trade_cancel_statuses_like_cpp
-    }
-
-    fn represented_target_can_duel_like_cpp(&self, target_guid: ObjectGuid) -> Option<bool> {
-        let manager = self.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let mut result = None;
-        manager.do_for_all_maps(|managed| {
-            if result.is_none()
-                && let Some(player) = managed.map().get_typed_player(target_guid)
-            {
-                result = Some(player.duel_info_like_cpp().is_none());
-            }
-        });
-        result
-    }
-
-    pub(crate) fn handle_can_duel_like_cpp(&mut self, target_guid: ObjectGuid, to_the_death: bool) {
-        let Some(result) = self.represented_target_can_duel_like_cpp(target_guid) else {
-            return;
-        };
-
-        self.send_packet(&wow_packet::packets::misc::CanDuelResult {
-            target_guid,
-            result,
-        });
-
-        if result {
-            let Some(mounted) = self.resolved_player_mounted_like_cpp() else {
-                return;
-            };
-            let spell_id = if mounted {
-                SPELL_MOUNTED_DUEL_LIKE_CPP
-            } else {
-                SPELL_DUEL_LIKE_CPP
-            };
-            #[cfg(test)]
-            self.represented_can_duel_spell_casts_like_cpp.push(
-                RepresentedCanDuelSpellCastLikeCpp {
-                    target_guid,
-                    spell_id,
-                    to_the_death,
-                },
-            );
-            #[cfg(not(test))]
-            let _ = (spell_id, to_the_death);
-        }
-    }
-
     #[cfg(test)]
     pub(crate) fn represented_force_deselects_like_cpp(
         &self,
     ) -> &[RepresentedForceDeselectLikeCpp] {
         &self.represented_force_deselects_like_cpp
-    }
-
-    pub(crate) fn set_represented_duel_arbiter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_duel_arbiter_like_cpp(guid))
-            .is_some();
-        #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
-            self.represented_duel_arbiter_guid_like_cpp = guid;
-        }
-        #[cfg(not(test))]
-        let _ = canonical;
-    }
-
-    pub(crate) fn resolved_represented_duel_arbiter_guid_like_cpp(
-        &self,
-    ) -> Option<Option<ObjectGuid>> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.duel_arbiter_like_cpp());
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_duel_arbiter_guid_like_cpp);
-        }
-        None
-    }
-
-    fn represented_current_duel_info_like_cpp(
-        &mut self,
-    ) -> Option<wow_entities::PlayerDuelInfoLikeCpp> {
-        self.mutate_canonical_player_like_cpp(|player| player.duel_info_like_cpp())
-            .flatten()
-    }
-
-    fn represented_duel_opponent_info_like_cpp(
-        &mut self,
-        opponent_guid: ObjectGuid,
-    ) -> Option<wow_entities::PlayerDuelInfoLikeCpp> {
-        self.mutate_canonical_player_by_guid_like_cpp(opponent_guid, |player| {
-            player.duel_info_like_cpp()
-        })
-        .flatten()
-    }
-
-    fn set_represented_duel_state_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-        opponent_guid: ObjectGuid,
-        state: wow_entities::PlayerDuelStateLikeCpp,
-    ) {
-        let _ = self.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
-            player.set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
-                opponent: opponent_guid,
-                state,
-            }));
-        });
-    }
-
-    fn clear_represented_duel_like_cpp(&mut self, player_guid: ObjectGuid) {
-        let _ = self.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
-            player.clear_duel_like_cpp();
-        });
-    }
-
-    fn send_represented_duel_countdown_to_opponent_like_cpp(
-        &self,
-        opponent_guid: ObjectGuid,
-        packet_bytes: Vec<u8>,
-    ) {
-        self.try_send_connected_player_command_like_cpp(
-            opponent_guid,
-            SessionCommand::SendRepresentedDuelCountdownLikeCpp(
-                crate::session::mailbox::SendRepresentedDuelCountdownLikeCppCommand {
-                    packet_bytes,
-                },
-            ),
-        );
-    }
-
-    /// C++ `Spell::EffectDuel`.
-    ///
-    /// Represented boundary: canonical connected players only. This creates the
-    /// duel request packet, represented arbiter GUID and challenged duel state;
-    /// the actual duel-flag GameObject, area/social ignore checks, phasing,
-    /// script hook and full duel lifecycle remain outside this bounded slice.
-    fn apply_duel_effect_like_cpp(
-        &mut self,
-        spell_id: i32,
-        gameobject_entry: i32,
-        target_guid: ObjectGuid,
-    ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        if target_guid == player_guid {
-            return false;
-        }
-        if gameobject_entry <= 0 {
-            return false;
-        }
-        if self
-            .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
-                player.duel_info_like_cpp()
-            })
-            .flatten()
-            .is_some()
-        {
-            return false;
-        }
-        let Some(target_duel) = self
-            .mutate_canonical_player_by_guid_like_cpp(target_guid, |player| {
-                player.duel_info_like_cpp()
-            })
-        else {
-            return false;
-        };
-        if target_duel.is_some() {
-            return false;
-        }
-
-        let map_id = self.player_map_id_like_cpp();
-        let arbiter_guid = ObjectGuid::create_world_object(
-            HighGuid::GameObject,
-            0,
-            1,
-            map_id,
-            0,
-            gameobject_entry as u32,
-            i64::from(spell_id.max(0) as u32),
-        );
-        let requested_by_wow_account =
-            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64);
-
-        self.set_represented_duel_state_like_cpp(
-            player_guid,
-            target_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Challenged,
-        );
-        self.set_represented_duel_state_like_cpp(
-            target_guid,
-            player_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Challenged,
-        );
-        self.set_represented_duel_arbiter_guid_like_cpp(Some(arbiter_guid));
-
-        use wow_packet::ServerPacket;
-        let packet = wow_packet::packets::misc::DuelRequested {
-            arbiter_guid,
-            requested_by_guid: player_guid,
-            requested_by_wow_account,
-            to_the_death: false,
-        };
-        let packet_bytes = packet.to_bytes();
-        self.send_raw_packet(&packet_bytes);
-        self.send_represented_duel_requested_to_opponent_like_cpp(
-            target_guid,
-            arbiter_guid,
-            packet_bytes,
-        );
-
-        #[cfg(test)]
-        {
-            self.represented_duel_requests_like_cpp
-                .push(RepresentedDuelRequestedLikeCpp {
-                    target_guid,
-                    arbiter_guid,
-                    gameobject_entry: gameobject_entry as u32,
-                    to_the_death: false,
-                });
-        }
-        true
-    }
-
-    fn handle_duel_accepted_like_cpp(&mut self, arbiter_guid: ObjectGuid) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        if self.resolved_represented_duel_arbiter_guid_like_cpp() != Some(Some(arbiter_guid)) {
-            return false;
-        }
-
-        let Some(duel) = self.represented_current_duel_info_like_cpp() else {
-            return false;
-        };
-        if duel.state != wow_entities::PlayerDuelStateLikeCpp::Challenged {
-            return false;
-        }
-
-        let opponent_guid = duel.opponent;
-        let Some(opponent_duel) = self.represented_duel_opponent_info_like_cpp(opponent_guid)
-        else {
-            return false;
-        };
-        if opponent_duel.opponent != player_guid {
-            return false;
-        }
-
-        self.set_represented_duel_state_like_cpp(
-            player_guid,
-            opponent_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-        self.set_represented_duel_state_like_cpp(
-            opponent_guid,
-            player_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-
-        use wow_packet::ServerPacket;
-        let packet = wow_packet::packets::misc::DuelCountdown {
-            countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-        };
-        let packet_bytes = packet.to_bytes();
-        self.send_raw_packet(&packet_bytes);
-        self.send_represented_duel_countdown_to_opponent_like_cpp(opponent_guid, packet_bytes);
-        #[cfg(test)]
-        self.represented_duel_accepts_like_cpp
-            .push(RepresentedDuelAcceptedLikeCpp {
-                opponent_guid,
-                arbiter_guid,
-                countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-            });
-        true
-    }
-
-    fn handle_duel_cancelled_like_cpp(&mut self) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        let Some(duel) = self.represented_current_duel_info_like_cpp() else {
-            return false;
-        };
-        if duel.state == wow_entities::PlayerDuelStateLikeCpp::Completed {
-            return false;
-        }
-
-        let opponent_guid = duel.opponent;
-        #[cfg(test)]
-        let outcome = if duel.state == wow_entities::PlayerDuelStateLikeCpp::InProgress {
-            RepresentedDuelCancelOutcomeLikeCpp::Surrendered
-        } else {
-            RepresentedDuelCancelOutcomeLikeCpp::Interrupted
-        };
-        #[cfg(test)]
-        let beg_spell_id = (outcome == RepresentedDuelCancelOutcomeLikeCpp::Surrendered)
-            .then_some(SPELL_DUEL_BEG_LIKE_CPP);
-
-        self.clear_represented_duel_like_cpp(player_guid);
-        self.clear_represented_duel_like_cpp(opponent_guid);
-        #[cfg(test)]
-        self.represented_duel_cancels_like_cpp
-            .push(RepresentedDuelCancelledLikeCpp {
-                opponent_guid,
-                outcome,
-                beg_spell_id,
-            });
-        true
-    }
-
-    pub(crate) fn handle_duel_response_like_cpp(
-        &mut self,
-        arbiter_guid: ObjectGuid,
-        accepted: bool,
-        forfeited: bool,
-    ) -> bool {
-        if accepted && !forfeited {
-            self.handle_duel_accepted_like_cpp(arbiter_guid)
-        } else {
-            self.handle_duel_cancelled_like_cpp()
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_duel_accepts_like_cpp(&self) -> &[RepresentedDuelAcceptedLikeCpp] {
-        &self.represented_duel_accepts_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_duel_cancels_like_cpp(&self) -> &[RepresentedDuelCancelledLikeCpp] {
-        &self.represented_duel_cancels_like_cpp
-    }
-
-    pub(crate) fn accept_guild_invitation_like_cpp(&mut self) -> bool {
-        let Some(state) = self.player_guild_state_snapshot_like_cpp() else {
-            return false;
-        };
-        if !state.authority_complete || state.guild_id.is_some() {
-            return false;
-        }
-
-        let Some(guild_id) = state.invited_guild_id else {
-            return false;
-        };
-        #[cfg(not(test))]
-        let _ = guild_id;
-
-        #[cfg(test)]
-        self.represented_guild_accept_invites_like_cpp
-            .push(guild_id);
-        true
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_guild_accept_invites_like_cpp(&self) -> &[u64] {
-        &self.represented_guild_accept_invites_like_cpp
-    }
-
-    pub(crate) fn decline_guild_invitation_like_cpp(&mut self) -> bool {
-        let Some(state) = self.player_guild_state_snapshot_like_cpp() else {
-            return false;
-        };
-        if !state.authority_complete || state.guild_id.is_some() {
-            return false;
-        }
-
-        self.mutate_player_guild_state_like_cpp(|state| state.invited_guild_id = None)
-            .is_some()
     }
 
     pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
@@ -25271,49 +23839,6 @@ impl WorldSession {
 
         self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP)
             .unwrap_or(false)
-    }
-
-    pub(crate) fn represented_set_auto_decline_guild_invites_like_cpp(
-        &mut self,
-        allow: bool,
-    ) -> bool {
-        let Some(guid) = self.player_guid() else {
-            return false;
-        };
-
-        let changed = self
-            .mutate_canonical_player_like_cpp(|player| {
-                if allow {
-                    player.set_player_flag(PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
-                } else {
-                    player.remove_player_flag(PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
-                }
-            })
-            .is_some();
-
-        if changed {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        self.canonical_player_has_player_flag_like_cpp(
-            guid,
-            PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
-        )
-        .unwrap_or(false)
-            == allow
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_auto_decline_guild_invites_like_cpp(&self) -> bool {
-        let Some(guid) = self.player_guid() else {
-            return false;
-        };
-
-        self.canonical_player_has_player_flag_like_cpp(
-            guid,
-            PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
-        )
-        .unwrap_or(false)
     }
 
     pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
