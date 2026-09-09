@@ -284,7 +284,7 @@ impl WorldSession {
             return;
         };
 
-        let Some(quest_store) = self.quest_store.clone() else {
+        let Some(quest_store) = self.quests.store.clone() else {
             return;
         };
         let Some(quest) = quest_store.get(quest_id) else {
@@ -495,7 +495,7 @@ impl WorldSession {
         // Validate represented C++ source/relation before any quest-log mutation or DB save.
         // C++ HandleQuestgiverAcceptQuestOpcode closes gossip and clears sharing info on
         // failure; this represented slice intentionally models that as no packet/no mutation.
-        let quest_store = match &self.quest_store {
+        let quest_store = match &self.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };
@@ -681,7 +681,7 @@ impl WorldSession {
 
         self.clear_represented_pending_quest_sharing_like_cpp();
 
-        let Some(quest_store) = &self.quest_store else {
+        let Some(quest_store) = &self.quests.store else {
             debug!(
                 account = self.account_id,
                 parsed_quest_id,
@@ -1060,7 +1060,7 @@ impl WorldSession {
             }
         };
 
-        let Some(quest_store) = self.quest_store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
             debug!(
                 account = self.account_id,
                 quest_id = packet.quest_id,
@@ -1098,7 +1098,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(quest_pool_store) = self.quest_pool_store.as_ref().map(Arc::clone) else {
+        let Some(quest_pool_store) = self.quests.pool_store.as_ref().map(Arc::clone) else {
             self.record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
@@ -2111,7 +2111,7 @@ impl WorldSession {
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
         let _guid = pkt.read_packed_guid(); // requester GUID (usually player)
 
-        let quest_store = match &self.quest_store {
+        let quest_store = match &self.quests.store {
             Some(s) => Arc::clone(s),
             None => {
                 self.send_packet(&QueryQuestInfoResponse {
@@ -2189,12 +2189,10 @@ impl WorldSession {
     /// - `WorldSession::HandleQueryQuestCompletionNPCs`, QueryHandler.cpp:252-278.
     /// - `QuestCompletionNPCResponse::Write`, QueryPackets.cpp:451-462.
     pub async fn handle_query_quest_completion_npcs(&mut self, query: QueryQuestCompletionNpcs) {
-        let quests = self
-            .quest_store
-            .as_deref()
-            .map_or_else(Vec::new, |quest_store| {
-                represented_quest_completion_npc_response_like_cpp(quest_store, &query.quest_ids)
-            });
+        let store = self.quests.store.as_deref();
+        let quests = store.map_or_else(Vec::new, |quest_store| {
+            represented_quest_completion_npc_response_like_cpp(quest_store, &query.quest_ids)
+        });
 
         self.send_packet(&QuestCompletionNpcResponse { quests });
     }
@@ -2274,7 +2272,7 @@ impl WorldSession {
             "Received QuestGiverRequestReward like C++"
         );
 
-        let quest_store = match &self.quest_store {
+        let quest_store = match &self.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };
@@ -2410,7 +2408,7 @@ impl WorldSession {
             "Received QuestGiverCompleteQuest like C++"
         );
 
-        let quest_store = match &self.quest_store {
+        let quest_store = match &self.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };
@@ -2579,7 +2577,7 @@ impl WorldSession {
             "Received QuestGiverChooseReward like C++"
         );
 
-        let quest_store = match &self.quest_store {
+        let quest_store = match &self.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };

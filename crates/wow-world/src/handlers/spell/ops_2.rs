@@ -168,7 +168,7 @@ impl WorldSession {
         &self,
         item_object_id: i32,
     ) -> bool {
-        let Some(quest_store) = &self.quest_store else {
+        let Some(quest_store) = &self.quests.store else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -209,7 +209,7 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> bool {
-        let Some(quest_store) = &self.quest_store else {
+        let Some(quest_store) = &self.quests.store else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -359,7 +359,7 @@ impl WorldSession {
         &self,
         objective_id: u32,
     ) -> Option<i32> {
-        let quest_store = self.quest_store.as_ref()?;
+        let quest_store = self.quests.store.as_ref()?;
         let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
 
         for status in quests.statuses.values() {

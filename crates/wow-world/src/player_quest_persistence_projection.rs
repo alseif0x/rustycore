@@ -13,7 +13,8 @@ impl WorldSession {
         status: &PlayerQuestStatus,
     ) -> wow_persistence::QuestStatusPersistenceLikeCpp {
         let objectives = self
-            .quest_store
+            .quests
+            .store
             .as_ref()
             .and_then(|store| store.get(status.quest_id))
             .map(|quest| {

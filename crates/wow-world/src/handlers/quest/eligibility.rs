@@ -45,7 +45,7 @@ impl WorldSession {
         source: RepresentedQuestGiverStatusSourceLikeCpp,
     ) -> u64 {
         self.get_represented_quest_giver_status_with_catalog_like_cpp(
-            self.quest_info_store.as_deref(),
+            self.quests.info_store.as_deref(),
             source,
         )
     }
@@ -55,7 +55,7 @@ impl WorldSession {
         quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
         source: RepresentedQuestGiverStatusSourceLikeCpp,
     ) -> u64 {
-        let Some(store) = &self.quest_store else {
+        let Some(store) = &self.quests.store else {
             return quest_giver_status::NONE;
         };
 
@@ -170,9 +170,8 @@ impl WorldSession {
                 },
             )
             .collect();
-        let quest_objective_progress: Vec<_> = self
-            .quest_store
-            .as_ref()
+        let store = self.quests.store.as_ref();
+        let quest_objective_progress: Vec<_> = store
             .map(|store| {
                 recurrence
                     .statuses
@@ -351,7 +350,7 @@ impl WorldSession {
             return true;
         }
 
-        let Some(quest_store) = &self.quest_store else {
+        let Some(quest_store) = &self.quests.store else {
             return true;
         };
         let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -434,7 +433,7 @@ impl WorldSession {
     ) -> bool {
         Self::represented_quest_dialog_classification_like_cpp(
             quest,
-            self.quest_info_store.as_deref(),
+            self.quests.info_store.as_deref(),
         )
         .is_important()
     }
@@ -642,7 +641,7 @@ impl WorldSession {
         // Blocks acceptance if the scalar dependent-previous list is not satisfied.
         // Per C++ SatisfyQuestDependentQuests (Player.cpp:15088-15092), this cluster runs
         // after SatisfyQuestReputation, not before Race/Class/Level.
-        if let Some(quest_store) = &self.quest_store {
+        if let Some(quest_store) = &self.quests.store {
             if represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
                 quest_store,
                 quest,

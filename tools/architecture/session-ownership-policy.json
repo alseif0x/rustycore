@@ -2524,22 +2524,8 @@
           "source_class": "production"
         },
         {
-          "name": "quest_faction_reward_store",
-          "type": "Option < Arc < QuestFactionRewardStore > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "quest_high_level_hide_diff_like_cpp",
           "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_info_store",
-          "type": "Option < Arc < QuestInfoStore > >",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
@@ -2552,20 +2538,6 @@
           "source_class": "production"
         },
         {
-          "name": "quest_money_reward_store",
-          "type": "Option < Arc < QuestMoneyRewardStore > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_package_item_store",
-          "type": "Option < Arc < QuestPackageItemStore > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "quest_poi_store_like_cpp",
           "type": "Option < Arc < HashMap < i32 , wow_packet :: packets :: query :: QuestPoiData > > >",
           "visibility": "pub (crate)",
@@ -2573,29 +2545,8 @@
           "source_class": "production"
         },
         {
-          "name": "quest_pool_store",
-          "type": "Option < Arc < wow_data :: quest :: QuestPoolStoreLikeCpp > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_store",
-          "type": "Option < Arc < wow_data :: quest :: QuestStore > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_v2_store",
-          "type": "Option < Arc < QuestV2Store > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_xp_store",
-          "type": "Option < Arc < wow_data :: quest_xp :: QuestXpStore > >",
+          "name": "quests",
+          "type": "crate :: quest_catalogs :: QuestCatalogsLikeCpp",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
@@ -74535,7 +74486,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:871a192d435ff020ffb64bdd10e17dfb:len=92442|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c4a35f6a685d1bf886ea343b62a9dfbb:len=91951|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

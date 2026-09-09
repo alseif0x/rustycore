@@ -873,7 +873,7 @@ impl WorldSession {
             return true;
         }
 
-        let Some(store) = &self.quest_package_item_store else {
+        let Some(store) = &self.quests.package_item_store else {
             return true;
         };
         let Ok(choice_item_id) = i32::try_from(choice.item_id) else {
@@ -1413,7 +1413,7 @@ impl WorldSession {
             }
         };
         let faction_store = self.faction_store().map(Arc::clone);
-        let quest_faction_reward_store = self.quest_faction_reward_store.as_ref().map(Arc::clone);
+        let quest_faction_reward_store = self.quests.faction_reward_store.as_ref().map(Arc::clone);
         let reputation_reward_rate_store = self.reputation_reward_rate_store().map(Arc::clone);
         let reputation_spillover_template_store =
             self.reputation_spillover_template_store().map(Arc::clone);
@@ -1854,7 +1854,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(store) = &self.quest_package_item_store else {
+        let Some(store) = &self.quests.package_item_store else {
             return false;
         };
         let Ok(choice_item_id) = i32::try_from(choice.item_id) else {
@@ -1954,7 +1954,7 @@ impl WorldSession {
             return true;
         }
 
-        let Some(store) = &self.quest_package_item_store else {
+        let Some(store) = &self.quests.package_item_store else {
             return true;
         };
         let Ok(choice_item_id) = i32::try_from(choice.item_id) else {
