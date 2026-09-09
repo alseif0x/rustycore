@@ -17,10 +17,9 @@ schemas; `rustycore-db` is the separate migration authority.
 ## Build
 
 ```bash
-git clone https://github.com/alseif0x/rustycore.git
+git clone --branch 3.4.3 https://github.com/alseif0x/rustycore.git
 cd rustycore
-git checkout 3.4.3
-PROTOC=/path/to/protoc cargo build --locked -p bnet-server -p world-server --release
+PROTOC=/path/to/protoc cargo build --locked -j 1 -p bnet-server -p world-server --release
 ```
 
 ## Configure and run

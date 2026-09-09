@@ -1,0 +1,72 @@
+:root {
+  --vp-c-brand-1: #16738a;
+  --vp-c-brand-2: #1b859d;
+  --vp-c-brand-3: #126a80;
+  --vp-c-brand-soft: rgba(37, 153, 179, .12);
+  --vp-font-family-base: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --vp-button-brand-bg: #16738a;
+  --vp-button-brand-hover-bg: #125e72;
+}
+
+.dark {
+  --vp-c-bg: #0a111b;
+  --vp-c-bg-alt: #080e17;
+  --vp-c-bg-elv: #111c2a;
+  --vp-c-bg-soft: #111c2a;
+  --vp-c-border: #26394a;
+  --vp-c-divider: #203040;
+  --vp-c-brand-1: #86d9ea;
+  --vp-c-brand-2: #a9ebf5;
+  --vp-c-brand-3: #57bfd5;
+  --vp-c-text-1: #e4edf4;
+  --vp-c-text-2: #afc0d0;
+  --vp-button-brand-text: #08121b;
+  --vp-button-brand-bg: #86d9ea;
+  --vp-button-brand-hover-text: #08121b;
+  --vp-button-brand-hover-bg: #a9ebf5;
+}
+
+.VPNavBarTitle .logo { height: 32px; width: 32px; }
+.VPNavBarTitle .title { letter-spacing: .025em; }
+.vp-doc h1, .vp-doc h2, .vp-doc h3 { letter-spacing: -.025em; }
+.VPFooter { border-top: 1px solid var(--vp-c-divider); }
+.rc-home { max-width: 1280px; margin: 0 auto; padding: 36px 32px 80px; }
+.rc-banner { overflow: hidden; border: 1px solid #26394a; border-radius: 14px; background: #0a111b; }
+.rc-banner img { display: block; width: 100%; height: auto; }
+.rc-intro { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: center; padding: 44px 0 40px; }
+.rc-eyebrow { color: var(--vp-c-brand-1); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 12px; }
+.rc-intro h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: clamp(32px, 4vw, 48px); line-height: 1.13; letter-spacing: -.035em; margin: 0; }
+.rc-intro p:not(.rc-eyebrow) { color: var(--vp-c-text-2); line-height: 1.8; font-size: 16px; margin: 0 0 20px; }
+.rc-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.rc-button { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 10px 20px; border: 1px solid var(--vp-c-divider); border-radius: 6px; font-weight: 600; font-size: 14px; transition: background .15s, border-color .15s; }
+.rc-button.primary { background: var(--vp-button-brand-bg); color: var(--vp-button-brand-text, #fff); border-color: transparent; }
+.rc-button.primary:hover { background: var(--vp-button-brand-hover-bg); }
+.rc-button:hover { border-color: var(--vp-c-brand-1); }
+.rc-status { display: flex; gap: 16px; align-items: baseline; padding: 18px 22px; border-left: 3px solid #c3895e; background: var(--vp-c-bg-soft); border-radius: 0 6px 6px 0; font-size: 14px; }
+.rc-status strong { white-space: nowrap; color: var(--vp-c-text-1); }
+.rc-status p { margin: 0; line-height: 1.7; color: var(--vp-c-text-2); }
+.rc-status a, .rc-community a, .rc-principles a { color: var(--vp-c-brand-1); text-decoration: underline; text-underline-offset: 4px; }
+.rc-section-title { font-size: 24px; letter-spacing: -.025em; font-weight: 600; margin: 44px 0 20px; }
+.rc-paths { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.rc-path { display: flex; flex-direction: column; padding: 26px; border: 1px solid var(--vp-c-divider); border-radius: 8px; transition: border-color .15s, background .15s; }
+.rc-path:hover { border-color: var(--vp-c-brand-1); background: var(--vp-c-bg-soft); }
+.rc-path .number { font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: .1em; color: var(--vp-c-brand-1); }
+.rc-path h3 { font-size: 20px; margin: 16px 0 10px; font-weight: 600; }
+.rc-path p { color: var(--vp-c-text-2); font-size: 14px; line-height: 1.8; margin: 0 0 24px; }
+.rc-path .link { margin-top: auto; color: var(--vp-c-brand-1); font-size: 14px; font-weight: 600; }
+.rc-principles { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; border-top: 1px solid var(--vp-c-divider); margin-top: 48px; padding-top: 32px; }
+.rc-principles h2, .rc-community h2 { font-size: 22px; font-weight: 600; margin: 0 0 12px; }
+.rc-principles p, .rc-community p { color: var(--vp-c-text-2); font-size: 15px; line-height: 1.8; margin: 0; }
+.rc-community { margin-top: 40px; padding: 30px; background: var(--vp-c-bg-soft); border-radius: 8px; }
+.rc-home a:focus-visible { outline: 3px solid var(--vp-c-brand-1); outline-offset: 5px; }
+@media (max-width: 760px) {
+  .rc-home { padding: 20px 20px 48px; }
+  .rc-intro { grid-template-columns: 1fr; gap: 20px; padding: 28px 0; }
+  .rc-paths, .rc-principles { grid-template-columns: 1fr; gap: 16px; }
+  .rc-status { flex-direction: column; gap: 6px; }
+  .rc-principles { gap: 28px; }
+  .rc-community { padding: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-home a { transition: none; }
+}
