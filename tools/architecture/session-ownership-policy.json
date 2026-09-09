@@ -23412,11 +23412,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "battle_pet_add_request_committed_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn battle_pet_add_request_committed_like_cpp (& self , request_key : BattlePetAddRequestKeyLikeCpp ,) -> Result < bool , BattlePetAddFailureLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25407,7 +25409,7 @@
           "kind": "method",
           "name": "clear_active_player_transport_server_time_override_for_far_teleport_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn clear_active_player_transport_server_time_override_for_far_teleport_like_cpp (& mut self)",
+          "signature": "fn clear_active_player_transport_server_time_override_for_far_teleport_like_cpp (& mut self ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25484,11 +25486,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "clear_loaded_quest_completed_bit_like_cpp",
-          "visibility": "private",
-          "signature": "fn clear_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn clear_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -26632,13 +26636,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "current_player_xp_persistence_request_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn current_player_xp_persistence_request_like_cpp (& self , level_changed : bool , rest_info_changed : bool , guid_counter : u64 ,) -> wow_persistence :: PlayerXpPersistenceRequestLikeCpp",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31579,7 +31585,7 @@
           "kind": "method",
           "name": "maybe_leave_represented_battleground_on_far_teleport_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn maybe_leave_represented_battleground_on_far_teleport_like_cpp (& mut self , new_map : u32)",
+          "signature": "fn maybe_leave_represented_battleground_on_far_teleport_like_cpp (& mut self , new_map : u32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37891,11 +37897,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_auto_push_quest_aura_source_is_empty_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_auto_push_quest_aura_source_is_empty_like_cpp (& self) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_auto_push_quest_aura_source_is_empty_like_cpp (& self ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38950,11 +38958,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_current_player_has_incomplete_quest_objective_for_object_id_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_current_player_has_incomplete_quest_objective_for_object_id_like_cpp (& self , object_id : i32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40961,22 +40971,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_player_quest_status_is_complete_or_incomplete_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_player_quest_status_is_complete_or_incomplete_like_cpp (& self , quest_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_player_quest_status_is_none_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_player_quest_status_is_none_like_cpp (& self , quest_id : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_player_quest_status_is_none_like_cpp (& self , quest_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41195,11 +41209,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_quest_login_aura_sources_are_hit_inert_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_quest_login_aura_sources_are_hit_inert_like_cpp (& self , difficulty_id : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41348,13 +41364,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_quest_rewarded_talent_points_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_rewarded_talent_points_like_cpp (& self) -> Option < u32 >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_quest_rewarded_talent_points_like_cpp (& self ,) -> Option < u32 >",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41801,11 +41819,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_spell_area_quest_status_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_spell_area_quest_status_like_cpp (& self , quest_id : u32) -> Option < u8 >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_spell_area_quest_status_like_cpp (& self , quest_id : u32 ,) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -43546,11 +43566,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_current_player_xp_persistence_request_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_current_player_xp_persistence_request_like_cpp (& self , level_changed : bool , rest_info_changed : bool , guid_counter : u64 ,) -> Option < wow_persistence :: PlayerXpPersistenceRequestLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45708,11 +45730,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_represented_duel_requested_to_opponent_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_represented_duel_requested_to_opponent_like_cpp (& self , opponent_guid : ObjectGuid , arbiter_guid : ObjectGuid , packet_bytes : Vec < u8 > ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45843,22 +45867,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_represented_prepared_quest_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_represented_prepared_quest_like_cpp (& mut self , source_guid : ObjectGuid , menu_items : Vec < RepresentedPreparedQuestMenuItemLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "send_represented_prepared_single_quest_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_represented_prepared_single_quest_like_cpp (& mut self , source_guid : ObjectGuid , menu_item : & RepresentedPreparedQuestMenuItemLikeCpp , auto_launched : bool ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -48424,12 +48452,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_loaded_quest_completed_bit_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn set_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -54867,22 +54896,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_represented_storing_flag_quest_objective_progress_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn update_represented_storing_flag_quest_objective_progress_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , objective_type : u8 , object_id : i32 , add_count : i32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "update_represented_storing_value_quest_objective_progress_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn update_represented_storing_value_quest_objective_progress_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , objective_type : u8 , object_id : i32 , add_count : i32 , credit_guid : wow_core :: ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -67561,32 +67594,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::update_represented_storing_value_quest_objective_progress_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::update_represented_storing_value_quest_objective_progress_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "victim_team",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "victim_team:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::visible_other_players_from_registry_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -67997,6 +68004,32 @@
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::quest::objectives",
+          "source": "crates/wow-world/src/session/quest/objectives.rs",
+          "enclosing": "impl WorldSession::update_represented_storing_value_quest_objective_progress_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::quest::objectives",
+          "source": "crates/wow-world/src/session/quest/objectives.rs",
+          "enclosing": "impl WorldSession::update_represented_storing_value_quest_objective_progress_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "victim_team",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "victim_team:PlayerRegistry",
           "count": 1
         },
         {
