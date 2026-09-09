@@ -497,8 +497,8 @@
     {
       "path": "crates/wow-world/src/handlers/chat.rs",
       "observed_lines": 4265,
-      "ceiling_lines": 4265,
-      "split": "Separate chat command/message adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "ceiling_lines": 311,
+      "split": "Separate the chat handler operations, the level/notification policy helpers and the regressions. #654 decomposes the 4,265-line file into one state module, two ops modules dividing the `impl WorldSession` blocks by handler responsibility, and three regression modules, dropping it to 311 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source and must stay together. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -546,8 +546,8 @@
     {
       "path": "crates/wow-world/src/handlers/movement.rs",
       "observed_lines": 3162,
-      "ceiling_lines": 3162,
-      "split": "Separate movement admission/acknowledgement by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "ceiling_lines": 340,
+      "split": "Separate the movement handler operations from the regressions. #654 decomposes the 3,162-line file into one state module, one ops module and three regression modules, dropping it to 340 lines and tightening the ceiling to that figure; the root keeps the imports and the handler registrations. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
