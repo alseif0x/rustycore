@@ -175,22 +175,22 @@
     {
       "path": "crates/wow-database/src/statements/character.rs",
       "observed_lines": 3429,
-      "ceiling_lines": 3429,
-      "split": "Split character prepared statements by lifecycle/transaction family, preserving identifiers, SQL text and registration.",
+      "ceiling_lines": 27,
+      "split": "Separate the character-database statement identities, their `StatementDef` impl and the generated-statement constructors. #652 decomposes the 3,429-line root into three modules, dropping it to 27 lines and tightening the ceiling to that figure. Two justified exceptions, both indivisible items: character/identities.rs is 1,788 lines because `enum CharStatements` is one variant list whose identities a persistence golden freezes, and character/statement_def.rs is 1,626 lines because a trait impl cannot be split. Their exit is the semantic separation of the statement catalogue by database operation, owned by 584:C4. Item-for-item with the crate's 358 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-database/src/statements/character_tests.rs",
-      "observed_lines": 3315,
-      "ceiling_lines": 3315,
-      "split": "Split exact SQL/registration tests by character transaction family without reducing the tested statement set.",
+      "path": "crates/wow-database/src/statements/character_tests/mod.rs",
+      "observed_lines": 104,
+      "ceiling_lines": 104,
+      "split": "Retires the 3,315-line character-statement regression file: #652 replaces it with this module root, which keeps the shared preamble and the C++ source readers and mounts four scenario modules (719-882 lines) holding all 58 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-database/src/statements/world.rs",
       "observed_lines": 2004,
-      "ceiling_lines": 2004,
-      "split": "Split world prepared-statement families with unchanged IDs, SQL and registration.",
+      "ceiling_lines": 16,
+      "split": "Separate the world-database statement identities, their `StatementDef` impl and the regressions. #652 decomposes the 2,004-line root into two modules plus one regression module, dropping it to 16 lines and tightening the ceiling to that figure; every new file is inside the review budget. Item-for-item with the crate's 358 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
