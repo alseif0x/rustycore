@@ -362,10 +362,10 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-packet/src/packets/misc/tests.rs",
-      "observed_lines": 4928,
-      "ceiling_lines": 4928,
-      "split": "Separate misc packet-family wire tests into cohesive modules with unchanged field order, masks, bytes and test coverage.",
+      "path": "crates/wow-packet/src/packets/misc/tests/mod.rs",
+      "observed_lines": 104,
+      "ceiling_lines": 104,
+      "split": "Retires the 4,928-line misc regression file: #640 replaces it with this module root, which keeps the shared preamble and the helpers that sat between tests, and mounts six scenario modules (482-885 lines) holding all 281 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -397,10 +397,10 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-packet/src/packets/update_tests.rs",
-      "observed_lines": 3676,
-      "ceiling_lines": 3676,
-      "split": "Separate entity update-field and mask wire tests into cohesive modules with unchanged field order, masks, bytes and test coverage.",
+      "path": "crates/wow-packet/src/packets/update_tests/mod.rs",
+      "observed_lines": 198,
+      "ceiling_lines": 198,
+      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
