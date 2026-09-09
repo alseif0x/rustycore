@@ -8,7 +8,7 @@ use super::*;
 impl WorldSession {
     /// Set the represented QuestPoolMgr active snapshot shared reference.
     pub fn set_quest_pool_store(&mut self, store: Arc<wow_data::quest::QuestPoolStoreLikeCpp>) {
-        self.quest_pool_store = Some(store);
+        self.quests.pool_store = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn seasonal_quest_bucket_like_cpp(

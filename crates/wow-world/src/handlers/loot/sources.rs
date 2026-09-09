@@ -801,8 +801,8 @@ impl WorldSession {
             return 0;
         }
 
-        self.quest_xp_store
-            .as_ref()
+        let xp_store = self.quests.xp_store.as_ref();
+        xp_store
             .map(|store| {
                 store.player_level_difficulty_xp_like_cpp(
                     self.player_level_like_cpp(),

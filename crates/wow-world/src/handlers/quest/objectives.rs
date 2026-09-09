@@ -333,7 +333,7 @@ impl WorldSession {
     ) -> Vec<u32> {
         use wow_packet::packets::quest::QuestUpdateComplete;
 
-        let Some(quest_store) = self.quest_store.clone() else {
+        let Some(quest_store) = self.quests.store.clone() else {
             return Vec::new();
         };
         let added_count = count;
@@ -751,7 +751,7 @@ impl WorldSession {
     /// move completed quests back to incomplete when the requirement is lost.
     pub(crate) fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Option<Vec<u32>> {
         self.invalidate_player_quest_status_authority_like_cpp();
-        let Some(quest_store) = self.quest_store.clone() else {
+        let Some(quest_store) = self.quests.store.clone() else {
             return Some(Vec::new());
         };
         let new_non_bank_item_count = self.represented_non_bank_item_count_like_cpp(entry_id)?;
@@ -790,7 +790,7 @@ impl WorldSession {
         count: u32,
     ) -> Vec<u32> {
         self.invalidate_player_quest_status_authority_like_cpp();
-        let Some(quest_store) = self.quest_store.clone() else {
+        let Some(quest_store) = self.quests.store.clone() else {
             return Vec::new();
         };
         self.mutate_player_quest_gameplay_like_cpp(|state| {
@@ -821,7 +821,7 @@ impl WorldSession {
         count: u32,
     ) -> Vec<u32> {
         self.invalidate_player_quest_status_authority_like_cpp();
-        let Some(quest_store) = self.quest_store.clone() else {
+        let Some(quest_store) = self.quests.store.clone() else {
             return Vec::new();
         };
         let Some(Some((quest_id, new_count))) =
@@ -1024,7 +1024,7 @@ impl WorldSession {
         let Some(_player_guid) = self.player_guid() else {
             return None;
         };
-        let Some(quest_store) = self.quest_store.clone() else {
+        let Some(quest_store) = self.quests.store.clone() else {
             return None;
         };
         let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);

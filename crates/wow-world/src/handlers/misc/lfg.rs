@@ -323,7 +323,7 @@ impl crate::session::WorldSession {
         dungeon_info: &mut LfgPlayerDungeonInfo,
         reward: &wow_data::LfgDungeonRewardLikeCpp,
     ) {
-        let Some(quest_store) = self.quest_store.as_ref() else {
+        let Some(quest_store) = self.quests.store.as_ref() else {
             return;
         };
         let Some(mut quest) = quest_store.get(reward.first_quest_id) else {

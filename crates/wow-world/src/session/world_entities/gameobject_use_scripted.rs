@@ -462,7 +462,8 @@ impl WorldSession {
 
         if source.quest_id != 0
             && self
-                .quest_store
+                .quests
+                .store
                 .as_ref()
                 .is_some_and(|store| store.get(source.quest_id).is_some())
             && self

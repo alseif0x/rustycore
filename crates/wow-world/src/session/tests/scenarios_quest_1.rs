@@ -633,7 +633,7 @@ fn questgiver_quest_list_leaves_level_fields_zero_like_cpp() {
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([first, second]);
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_001));
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_002));
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -737,7 +737,7 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     quest.reward_money_difficulty = 2;
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     quest_store.ender_quests.insert(792, vec![quest_id]);
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
     session.set_player_gold_like_cpp(MAX_MONEY_AMOUNT - 1);
     session
         .mutate_player_quest_gameplay_like_cpp(|quests| {
@@ -782,7 +782,7 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
     session.set_player_gold_like_cpp(5);
     let mut quest = test_quest_template(9_224);
     quest.reward_money_difficulty = 37;
-    session.quest_store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
     session.player_quests.insert(
@@ -825,7 +825,7 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
     let mut quest = test_quest_template(9_226);
     quest.flags = crate::handlers::quest::QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.reward_money_difficulty = 37;
-    session.quest_store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
     session.player_quests.insert(

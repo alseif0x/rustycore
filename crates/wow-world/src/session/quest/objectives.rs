@@ -10,7 +10,7 @@ impl WorldSession {
         &self,
         object_id: i32,
     ) -> bool {
-        let Some(quest_store) = self.quest_store.as_ref() else {
+        let Some(quest_store) = self.quests.store.as_ref() else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -49,7 +49,7 @@ impl WorldSession {
         &self,
         quest_id: u32,
     ) -> Option<bool> {
-        self.quest_store.as_ref()?.get(quest_id).map(|quest| {
+        self.quests.store.as_ref()?.get(quest_id).map(|quest| {
             !quest.is_df_quest_like_cpp()
                 && !quest.is_daily_like_cpp()
                 && (!quest.is_repeatable()
@@ -71,7 +71,7 @@ impl WorldSession {
             QuestUpdateAddCredit, QuestUpdateAddPvpCredit, QuestUpdateComplete,
         };
 
-        let Some(store) = self.quest_store.clone() else {
+        let Some(store) = self.quests.store.clone() else {
             return;
         };
 
@@ -222,7 +222,7 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::{QuestUpdateAddCreditSimple, QuestUpdateComplete};
 
-        let Some(store) = self.quest_store.clone() else {
+        let Some(store) = self.quests.store.clone() else {
             return;
         };
 
@@ -336,7 +336,7 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::QuestUpdateComplete;
 
-        let Some(store) = self.quest_store.clone() else {
+        let Some(store) = self.quests.store.clone() else {
             return;
         };
 
@@ -466,7 +466,7 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::QuestUpdateComplete;
 
-        let Some(store) = self.quest_store.clone() else {
+        let Some(store) = self.quests.store.clone() else {
             return;
         };
 
@@ -603,7 +603,7 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::QuestUpdateComplete;
 
-        let Some(store) = self.quest_store.clone() else {
+        let Some(store) = self.quests.store.clone() else {
             return;
         };
         let Some(faction_store) = self.factions.store.as_ref() else {

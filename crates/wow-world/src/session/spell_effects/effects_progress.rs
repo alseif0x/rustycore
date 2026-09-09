@@ -229,7 +229,8 @@ impl WorldSession {
         }
 
         let Some(quest) = self
-            .quest_store
+            .quests
+            .store
             .as_deref()
             .and_then(|store| store.get(quest_id))
             .cloned()
@@ -272,7 +273,8 @@ impl WorldSession {
                 return Ok(());
             }
             let quest_bit = self
-                .quest_v2_store
+                .quests
+                .v2_store
                 .as_deref()
                 .map(|store| store.get_quest_unique_bit_flag_like_cpp(quest_id))
                 .unwrap_or(0);

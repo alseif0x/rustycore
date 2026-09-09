@@ -221,7 +221,7 @@ impl WorldSession {
         let mut completed_bit_skipped_zero_unique_bit = 0;
         let mut completed_bit_no_change_or_noop = 0;
         for quest_id in &removed_quest_ids {
-            let Some(quest_v2_store) = self.quest_v2_store.as_ref().map(Arc::clone) else {
+            let Some(quest_v2_store) = self.quests.v2_store.as_ref().map(Arc::clone) else {
                 completed_bit_skipped_no_quest_v2_store += 1;
                 continue;
             };
@@ -377,7 +377,7 @@ impl WorldSession {
         source_guid: ObjectGuid,
         quest_id: u32,
     ) -> bool {
-        let Some(quest_store) = self.quest_store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
             debug!(
                 account = self.account_id,
                 ?source_guid,

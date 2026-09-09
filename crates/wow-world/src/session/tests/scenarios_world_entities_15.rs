@@ -667,7 +667,7 @@ fn gameobject_use_questgiver_single_gameobject_starter_auto_opens_quest_details_
     quest.log_title = "GO starter".into();
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_001));
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -706,7 +706,7 @@ fn gameobject_use_questgiver_ender_relation_precedes_starter_like_cpp() {
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([ender, starter]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(777, 9_001));
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_002));
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
     session.player_quests.insert(
         9_001,
         crate::handlers::quest::PlayerQuestStatus {
@@ -757,7 +757,7 @@ fn quest_giver_query_gameobject_inactive_ender_falls_through_to_same_starter_lik
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(778, 9_004));
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(778, 9_004));
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_004));
 
@@ -778,7 +778,7 @@ fn gameobject_use_questgiver_single_incomplete_ender_auto_opens_request_items_li
     ender.log_title = "GO incomplete ender".into();
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([ender]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(777, 9_003));
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
     session.player_quests.insert(
         9_003,
         crate::handlers::quest::PlayerQuestStatus {
@@ -824,7 +824,7 @@ fn gameobject_use_questgiver_without_gameobject_relations_keeps_only_gossip_like
     let mut quest_store =
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_001)]);
     quest_store.starter_quests.insert(777, vec![9_001]);
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -853,7 +853,7 @@ fn creature_questgiver_single_starter_auto_opens_quest_details_like_cpp() {
     quest.log_title = "Creature starter".into();
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     quest_store.starter_quests.insert(777, vec![9_101]);
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_creature_questgiver_like_cpp(creature_guid, 777));
 

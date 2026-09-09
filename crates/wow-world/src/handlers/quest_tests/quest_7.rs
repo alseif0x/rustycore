@@ -237,7 +237,7 @@ fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_l
         quest_template(active_rewarded_quest_id),
         quest_template(active_quest_id),
     ]);
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
     add_active_quest_in_slot_with_status(
         &mut session,
         active_rewarded_quest_id,
@@ -267,7 +267,7 @@ fn quest_load_removes_active_rewarded_duplicate_and_compacts_slots_like_cpp() {
         quest_template(duplicate_quest_id),
         quest_template(active_quest_id),
     ]);
-    session.quest_store = Some(Arc::new(quest_store));
+    session.quests.store = Some(Arc::new(quest_store));
     add_active_quest_in_slot_with_status(
         &mut session,
         duplicate_quest_id,
