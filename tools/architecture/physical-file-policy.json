@@ -28,15 +28,15 @@
     {
       "path": "crates/capture-diff/src/lineage.rs",
       "observed_lines": 3103,
-      "ceiling_lines": 3103,
-      "split": "Separate capture lineage/provenance validation and failure tests; preserve existing capture/fixture safeguards and explicit runtime authorization.",
+      "ceiling_lines": 42,
+      "split": "Separate the lineage boundaries, the import selection and the atomic flow import from their regressions. #658 decomposes the 3,103-line root into four state modules, dropping it to 42 lines and tightening the ceiling to that figure; the `Drop` impl stays whole. Item-for-item with the crate's 26 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/capture-diff/src/semantic.rs",
       "observed_lines": 4013,
-      "ceiling_lines": 4013,
-      "split": "Separate scenario-specific semantic comparators and golden tests; preserve existing capture/fixture safeguards and explicit runtime authorization.",
+      "ceiling_lines": 31,
+      "split": "Separate the wire-position model, the semantic body sides/diff and the per-opcode decoded bodies. #658 decomposes the 4,013-line root into five state modules, dropping it to 31 lines and tightening the ceiling to that figure. Item-for-item with the crate's 26 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -105,8 +105,8 @@
     {
       "path": "crates/wow-ai/src/lib.rs",
       "observed_lines": 2541,
-      "ceiling_lines": 2541,
-      "split": "Separate AI interfaces, scripted/default behavior capabilities and behavior tests.",
+      "ceiling_lines": 44,
+      "split": "Separate the creature AI kinds, the attack/target selector inputs and the evade reasons. #658 moves them into a private `ai` module with two state modules and two regression modules, dropping the crate root to 44 lines and tightening the ceiling to that figure. Item-for-item with the crate's 46 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -273,8 +273,8 @@
     {
       "path": "crates/wow-instances/src/lib.rs",
       "observed_lines": 3036,
-      "ceiling_lines": 3036,
-      "split": "Separate instance identity/binds, admission/reset rules and their tests.",
+      "ceiling_lines": 26,
+      "split": "Separate the instance lock, the DB2 entries, the reset schedule and the lock manager. #658 moves them into a private `instances` module with two state modules, one ops module dividing the inherent `impl InstanceLockMgr`, and two regression modules, dropping the crate root to 26 lines and tightening the ceiling to that figure; the root keeps the crate documentation, its imports and the public re-exports. Item-for-item with the crate's 49 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -350,8 +350,8 @@
     {
       "path": "crates/wow-network/src/world_socket.rs",
       "observed_lines": 2021,
-      "ceiling_lines": 2021,
-      "split": "Separate encrypted framing, socket state/admission and transport tests without changing wire boundaries.",
+      "ceiling_lines": 73,
+      "split": "Separate the socket write fences, the reader and the socket state from the read/write loop. #658 decomposes the 2,021-line file into one state module, one ops module and one regression module, dropping it to 73 lines and tightening the ceiling to that figure. No await point, lock scope or buffer boundary moves. Item-for-item with the crate's 32 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -406,15 +406,15 @@
     {
       "path": "crates/wow-recastdetour/src/lib.rs",
       "observed_lines": 3194,
-      "ceiling_lines": 3194,
-      "split": "Separate FFI boundary, mesh/query ownership and safe pathfinding adapters; preserve native lifetime contracts.",
+      "ceiling_lines": 218,
+      "split": "Separate the navmesh and query wrappers from the crate root. #658 moves them into a private `navmesh` module with four state modules, moves the deterministic fixtures to their own file and the regressions to three scenario modules, dropping the root from 3,194 to 218 lines and tightening the ceiling to that figure. The root keeps the two `bitflags!` declarations and the `unsafe extern \"C\"` FFI block, which is one indivisible declaration of the vendored Detour surface. Item-for-item with the crate's 55 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-recastdetour/src/lib_tests.rs",
-      "observed_lines": 2471,
-      "ceiling_lines": 2471,
-      "split": "Separate mesh loading, query/pathfinding and native-boundary failure scenarios.",
+      "path": "crates/wow-recastdetour/src/lib_tests/mod.rs",
+      "observed_lines": 142,
+      "ceiling_lines": 142,
+      "split": "Retires the 2,471-line navmesh regression file: #658 replaces it with this module root, which keeps the shared preamble and helpers and mounts three scenario modules (737-873 lines) holding all its tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
