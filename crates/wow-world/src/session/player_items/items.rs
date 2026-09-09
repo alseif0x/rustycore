@@ -137,10 +137,11 @@ impl WorldSession {
         item_id: u32,
     ) -> Option<u32> {
         let overrides = self
-            .item_spec_override_store
+            .items
+            .spec_override_store
             .as_ref()?
             .overrides_for_item_like_cpp(item_id)?;
-        let chr_specializations = self.chr_specialization_store.as_ref()?;
+        let chr_specializations = self.chr.specialization_store.as_ref()?;
 
         let mut mask = 0_u32;
         for item_spec_override in overrides {
@@ -156,11 +157,13 @@ impl WorldSession {
     /// C++ `DB2Manager::GetItemDisplayId`.
     pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
         let modified = self
-            .item_modified_appearance_store
+            .items
+            .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get_for_item(item_id, appearance_mod_id))?;
         let appearance_id = u32::try_from(modified.item_appearance_id).ok()?;
-        self.item_appearance_store
+        self.items
+            .appearance_store
             .as_ref()
             .and_then(|store| store.item_display_info_id(appearance_id))
     }
@@ -367,7 +370,8 @@ impl WorldSession {
         }
     }
     pub(crate) fn item_effect_count_like_cpp(&self, item_entry: u32) -> usize {
-        self.item_effect_store
+        self.items
+            .effect_store
             .as_ref()
             .map(|store| {
                 store
@@ -383,7 +387,7 @@ impl WorldSession {
             .is_some_and(|flags| flags.contains(ItemFlags::IS_BOUND_TO_ACCOUNT))
     }
     pub(in crate::session) fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
-        let basic = self.item_store.as_ref()?.get(item_id)?;
+        let basic = self.items.store.as_ref()?.get(item_id)?;
         if basic.class_id != ItemClass::Armor as u8
             || basic.subclass_id != ItemSubClassArmor::Shield as u8
         {
@@ -574,7 +578,8 @@ impl WorldSession {
         equipped: &SpellEquippedItemsEntry,
     ) -> bool {
         let Some(item) = self
-            .item_store
+            .items
+            .store
             .as_ref()
             .and_then(|store| store.get(item_id))
         else {

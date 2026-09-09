@@ -50,7 +50,8 @@ impl WorldSession {
         }
 
         let item = match self
-            .item_store
+            .items
+            .store
             .as_ref()
             .and_then(|store| store.get(item_id))
         {
@@ -58,7 +59,8 @@ impl WorldSession {
             None => return 0,
         };
         let stats = match self
-            .item_stats_store
+            .items
+            .stats_store
             .as_ref()
             .and_then(|store| store.random_property_template(item_id))
         {
@@ -492,7 +494,8 @@ impl WorldSession {
         Some(repair_items)
     }
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
-        self.item_stats_store
+        self.items
+            .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item_id))
             .map(|template| template.max_durability)

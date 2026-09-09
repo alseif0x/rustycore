@@ -606,7 +606,7 @@ impl WorldSession {
         let Some(store) = self.quest_store.clone() else {
             return;
         };
-        let Some(faction_store) = self.faction_store.as_ref() else {
+        let Some(faction_store) = self.factions.store.as_ref() else {
             return;
         };
         let Some(faction_entry) = faction_store.get(faction_id) else {

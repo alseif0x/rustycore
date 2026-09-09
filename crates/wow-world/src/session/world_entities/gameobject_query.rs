@@ -192,10 +192,10 @@ impl WorldSession {
         Some(gameobjects)
     }
     pub fn set_gameobject_display_info_store(&mut self, store: Arc<GameObjectDisplayInfoStore>) {
-        self.gameobject_display_info_store = Some(store);
+        self.gameobjects.display_info_store = Some(store);
     }
     pub(crate) fn gameobject_display_info_store(&self) -> Option<&Arc<GameObjectDisplayInfoStore>> {
-        self.gameobject_display_info_store.as_ref()
+        self.gameobjects.display_info_store.as_ref()
     }
     pub fn set_gameobject_template_lifecycle_store(
         &mut self,

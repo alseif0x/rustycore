@@ -436,16 +436,16 @@ impl WorldSession {
         (current != difficulty_id).then_some(player_guid)
     }
     pub fn set_map_difficulty_store(&mut self, store: Arc<MapDifficultyStore>) {
-        self.map_difficulty_store = Some(store);
+        self.maps.difficulty_store = Some(store);
     }
     pub fn set_map_difficulty_x_condition_store(
         &mut self,
         store: Arc<MapDifficultyXConditionStore>,
     ) {
-        self.map_difficulty_x_condition_store = Some(store);
+        self.maps.difficulty_x_condition_store = Some(store);
     }
     pub(crate) fn map_difficulty_store(&self) -> Option<&Arc<MapDifficultyStore>> {
-        self.map_difficulty_store.as_ref()
+        self.maps.difficulty_store.as_ref()
     }
     pub(crate) fn current_map_difficulty_id_like_cpp(&self) -> u8 {
         if let Some(difficulty_id) = self.current_canonical_player_map_difficulty_id_like_cpp() {
@@ -484,7 +484,7 @@ impl WorldSession {
         &self,
         map_difficulty_id: u32,
     ) -> Option<u32> {
-        let store = self.map_difficulty_x_condition_store.as_ref()?;
+        let store = self.maps.difficulty_x_condition_store.as_ref()?;
         let player_conditions = self.player_condition_store.as_ref()?;
         let context = self.represented_player_condition_context_like_cpp()?;
         store.failed_condition_like_cpp(map_difficulty_id, player_conditions, |condition| {

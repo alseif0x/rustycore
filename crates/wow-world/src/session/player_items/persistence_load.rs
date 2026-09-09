@@ -17,11 +17,13 @@ impl WorldSession {
         };
         let proto = self.item_storage_template(item.entry_id);
         let sparse = self
-            .item_stats_store
+            .items
+            .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item.entry_id));
         let search = self
-            .item_search_name_store
+            .items
+            .search_name_store
             .as_ref()
             .and_then(|store| store.get(item.entry_id));
 
@@ -76,7 +78,8 @@ impl WorldSession {
             0
         } else {
             match self
-                .faction_store
+                .factions
+                .store
                 .as_ref()
                 .and_then(|store| store.get(required_reputation_faction))
             {
@@ -103,7 +106,8 @@ impl WorldSession {
             }
         };
         let mut item_effect_spell_ids: Vec<(u8, i32)> = self
-            .item_effect_store
+            .items
+            .effect_store
             .as_ref()
             .map(|store| {
                 store

@@ -39,8 +39,14 @@ mod spell_cast_adapter;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 pub(crate) mod trainer_offer;
 
+mod chr_catalogs;
+mod creature_catalogs;
+mod faction_catalogs;
+mod gameobject_catalogs;
 #[cfg(test)]
 mod handler_contract_tests;
+mod item_catalogs;
+mod map_catalogs;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod player_directory_test_fixtures;
 #[cfg(test)]

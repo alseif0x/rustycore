@@ -444,23 +444,9 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "chr_classes_store",
-          "type": "Option < Arc < ChrClassesStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "chr_races_store",
-          "type": "Option < Arc < ChrRacesStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "chr_specialization_store",
-          "type": "Option < Arc < ChrSpecializationStore > >",
-          "visibility": "private",
+          "name": "chr",
+          "type": "crate :: chr_catalogs :: ChrCatalogsLikeCpp",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -557,20 +543,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "creature_display_info_extra_store",
-          "type": "Option < Arc < CreatureDisplayInfoExtraStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "creature_display_info_store",
-          "type": "Option < Arc < CreatureDisplayInfoStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "creature_equipment_store_like_cpp",
           "type": "Option < Arc < CreatureEquipmentStoreLikeCpp > >",
           "visibility": "private",
@@ -589,27 +561,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "creature_model_data_store",
-          "type": "Option < Arc < CreatureModelDataStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "creature_model_info_store",
-          "type": "Option < Arc < wow_data :: CreatureModelInfoStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "creature_onkill_reputation_store",
-          "type": "Option < Arc < CreatureOnKillReputationStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "creature_query_cache",
           "type": "std :: collections :: HashSet < u32 >",
           "visibility": "pub (crate)",
@@ -617,22 +568,15 @@
           "source_class": "production"
         },
         {
-          "name": "creature_template_lifecycle_store_like_cpp",
-          "type": "Option < Arc < CreatureTemplateLifecycleStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "creature_template_mount_store",
-          "type": "Option < Arc < CreatureTemplateMountStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "creature_tick",
           "type": "u32",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "creatures",
+          "type": "crate :: creature_catalogs :: CreatureCatalogsLikeCpp",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
@@ -853,16 +797,9 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "faction_store",
-          "type": "Option < Arc < FactionStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "faction_template_store",
-          "type": "Option < Arc < FactionTemplateStore > >",
-          "visibility": "private",
+          "name": "factions",
+          "type": "crate :: faction_catalogs :: FactionCatalogsLikeCpp",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -938,16 +875,16 @@
           "source_class": "production"
         },
         {
-          "name": "gameobject_display_info_store",
-          "type": "Option < Arc < GameObjectDisplayInfoStore > >",
+          "name": "gameobject_template_lifecycle_store_like_cpp",
+          "type": "Option < Arc < GameObjectTemplateLifecycleStoreLikeCpp > >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "gameobject_template_lifecycle_store_like_cpp",
-          "type": "Option < Arc < GameObjectTemplateLifecycleStoreLikeCpp > >",
-          "visibility": "private",
+          "name": "gameobjects",
+          "type": "crate :: gameobject_catalogs :: GameObjectCatalogsLikeCpp",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1103,27 +1040,6 @@
           "source_class": "production"
         },
         {
-          "name": "item_appearance_store",
-          "type": "Option < Arc < ItemAppearanceStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_bonus_db2_store",
-          "type": "Option < Arc < ItemBonusDb2Store > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_child_equipment_store",
-          "type": "Option < Arc < ItemChildEquipmentStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "item_class_store",
           "type": "Option < Arc < ItemClassStore > >",
           "visibility": "private",
@@ -1151,20 +1067,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "item_effect_store",
-          "type": "Option < Arc < ItemEffectStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_extended_cost_store",
-          "type": "Option < Arc < ItemExtendedCostStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "item_guid_generator_like_cpp",
           "type": "Option < Arc < ObjectGuidGenerator > >",
           "visibility": "private",
@@ -1172,27 +1074,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "item_limit_category_condition_store",
-          "type": "Option < Arc < ItemLimitCategoryConditionStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_limit_category_store",
-          "type": "Option < Arc < ItemLimitCategoryStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_modified_appearance_store",
-          "type": "Option < Arc < ItemModifiedAppearanceStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "item_price_base_store",
@@ -1204,65 +1085,16 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "item_random_enchantment_template_store",
-          "type": "Option < Arc < ItemRandomEnchantmentTemplateStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_random_properties_store",
-          "type": "Option < Arc < ItemRandomPropertiesStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_random_suffix_store",
-          "type": "Option < Arc < ItemRandomSuffixStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_search_name_store",
-          "type": "Option < Arc < ItemSearchNameStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_set_store",
-          "type": "Option < Arc < ItemSetStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_spec_override_store",
-          "type": "Option < Arc < ItemSpecOverrideStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_stats_store",
-          "type": "Option < Arc < ItemStatsStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "item_store",
-          "type": "Option < Arc < ItemStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "item_template_addon_quest_log_item_ids_like_cpp",
           "type": "HashMap < u32 , u32 >",
           "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "items",
+          "type": "crate :: item_catalogs :: ItemCatalogsLikeCpp",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1489,20 +1321,6 @@
           "source_class": "production"
         },
         {
-          "name": "map_difficulty_store",
-          "type": "Option < Arc < MapDifficultyStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "map_difficulty_x_condition_store",
-          "type": "Option < Arc < MapDifficultyXConditionStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "map_manager",
           "type": "Option < crate :: map_manager :: SharedMapManager >",
           "visibility": "pub (crate)",
@@ -1510,9 +1328,9 @@
           "source_class": "production"
         },
         {
-          "name": "map_store",
-          "type": "Option < Arc < MapStore > >",
-          "visibility": "private",
+          "name": "maps",
+          "type": "crate :: map_catalogs :: MapCatalogsLikeCpp",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -74717,7 +74535,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7cfdb90c2f2f5558f8ddd4ead7731f7b:len=93901|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:871a192d435ff020ffb64bdd10e17dfb:len=92442|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

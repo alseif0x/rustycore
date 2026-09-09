@@ -95,7 +95,7 @@ impl WorldSession {
 
         let mut validated_terrain_swap_map = -1;
         if let (Some(map_store), Some(terrain_swap_store)) =
-            (&self.map_store, &self.terrain_swap_store)
+            (&self.maps.store, &self.terrain_swap_store)
             && let Some(terrain_swap_map) = terrain_swap_store.validate_spawn_terrain_swap_like_cpp(
                 map_store,
                 u32::from(map_id),

@@ -22,8 +22,8 @@ impl WorldSession {
             return None;
         }
 
-        let basic = self.item_store.as_ref()?.get(item_id)?;
-        let sparse = self.item_stats_store.as_ref()?.sparse_template(item_id)?;
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
         let item_flags = sparse.item_flags();
 
         if item_flags.contains(ItemFlags::CONJURED)
@@ -80,13 +80,13 @@ impl WorldSession {
         &mut self,
         store: Arc<ItemRandomEnchantmentTemplateStore>,
     ) {
-        self.item_random_enchantment_template_store = Some(store);
+        self.items.random_enchantment_template_store = Some(store);
     }
     /// Get the item random enchantment template store reference.
     pub fn item_random_enchantment_template_store(
         &self,
     ) -> Option<&Arc<ItemRandomEnchantmentTemplateStore>> {
-        self.item_random_enchantment_template_store.as_ref()
+        self.items.random_enchantment_template_store.as_ref()
     }
     /// Set the item disenchant loot store for this session.
     #[cfg(test)]
@@ -108,7 +108,8 @@ impl WorldSession {
             return None;
         }
 
-        self.item_random_suffix_store
+        self.items
+            .random_suffix_store
             .as_ref()
             .and_then(|store| store.get(id))
             .map(|entry| {
@@ -171,7 +172,8 @@ impl WorldSession {
                     continue;
                 };
                 let Some(gem_properties_id) = self
-                    .item_stats_store
+                    .items
+                    .stats_store
                     .as_ref()
                     .and_then(|store| store.gem_properties(gem_item_id))
                     .map(u32::from)
@@ -306,7 +308,8 @@ impl WorldSession {
         };
         let item = self.resolved_inventory_item_object_like_cpp(item_guid)?;
         let socket_color = self
-            .item_stats_store
+            .items
+            .stats_store
             .as_ref()
             .and_then(|store| store.socket_template(item.object().entry()))
             .map(|template| u32::from(template.socket_types[socket_index]))
@@ -316,7 +319,12 @@ impl WorldSession {
             .gems
             .get(socket_index)
             .and_then(|gem| u32::try_from(gem.item_id).ok())
-            .and_then(|gem_item_id| self.item_stats_store.as_ref()?.socket_template(gem_item_id))
+            .and_then(|gem_item_id| {
+                self.items
+                    .stats_store
+                    .as_ref()?
+                    .socket_template(gem_item_id)
+            })
             .and_then(|gem_template| {
                 Some(ApplyEnchantmentGemRequirementRef::new(
                     u32::from(gem_template.required_skill_id),

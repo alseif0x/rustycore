@@ -178,10 +178,10 @@ impl WorldSession {
     }
     pub fn set_map_store(&mut self, store: Arc<MapStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.map_store = Some(store);
+        self.maps.store = Some(store);
     }
     pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
-        self.map_store.as_ref()
+        self.maps.store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
@@ -191,7 +191,7 @@ impl WorldSession {
         &self,
         map_id: u32,
     ) -> Option<(u32, u8, i32)> {
-        let Some(map_store) = self.map_store.as_ref() else {
+        let Some(map_store) = self.maps.store.as_ref() else {
             return None;
         };
         let Some(map_entry) = map_store.get(map_id).copied() else {

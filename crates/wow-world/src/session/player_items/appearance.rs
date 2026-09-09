@@ -45,19 +45,19 @@ impl WorldSession {
     }
     /// Set the item appearance store for this session.
     pub fn set_item_appearance_store(&mut self, store: Arc<ItemAppearanceStore>) {
-        self.item_appearance_store = Some(store);
+        self.items.appearance_store = Some(store);
     }
     /// Get the item appearance store reference.
     pub fn item_appearance_store(&self) -> Option<&Arc<ItemAppearanceStore>> {
-        self.item_appearance_store.as_ref()
+        self.items.appearance_store.as_ref()
     }
     /// Set the item modified appearance store for this session.
     pub fn set_item_modified_appearance_store(&mut self, store: Arc<ItemModifiedAppearanceStore>) {
-        self.item_modified_appearance_store = Some(store);
+        self.items.modified_appearance_store = Some(store);
     }
     /// Get the item modified appearance store reference.
     pub fn item_modified_appearance_store(&self) -> Option<&Arc<ItemModifiedAppearanceStore>> {
-        self.item_modified_appearance_store.as_ref()
+        self.items.modified_appearance_store.as_ref()
     }
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
@@ -95,7 +95,7 @@ impl WorldSession {
         let Some(items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
             return Vec::new();
         };
-        let Some(item_modified_appearance_store) = self.item_modified_appearance_store.as_ref()
+        let Some(item_modified_appearance_store) = self.items.modified_appearance_store.as_ref()
         else {
             return Vec::new();
         };
@@ -200,7 +200,8 @@ impl WorldSession {
         item_modified_appearance_id: u32,
     ) -> bool {
         let Some(item_modified_appearance) = self
-            .item_modified_appearance_store
+            .items
+            .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get(item_modified_appearance_id))
         else {
@@ -215,7 +216,8 @@ impl WorldSession {
             return false;
         };
         if self
-            .item_search_name_store
+            .items
+            .search_name_store
             .as_ref()
             .and_then(|store| store.get(item_id))
             .is_none()
@@ -224,14 +226,16 @@ impl WorldSession {
         }
 
         let Some(item_record) = self
-            .item_store
+            .items
+            .store
             .as_ref()
             .and_then(|store| store.get(item_id))
         else {
             return false;
         };
         let Some(sparse_template) = self
-            .item_stats_store
+            .items
+            .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item_id))
         else {
@@ -823,14 +827,16 @@ impl WorldSession {
     /// C++ `CollectionMgr::AddItemAppearance` criteria side effects.
     fn update_represented_transmog_criteria_like_cpp(&mut self, item_modified_appearance_id: u32) {
         let item_id = self
-            .item_modified_appearance_store
+            .items
+            .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get(item_modified_appearance_id))
             .and_then(|appearance| u32::try_from(appearance.item_id).ok());
 
         if let Some(_transmog_slot) = item_id
             .and_then(|item_id| {
-                self.item_store
+                self.items
+                    .store
                     .as_ref()
                     .and_then(|store| store.inventory_type(item_id))
             })
@@ -874,7 +880,8 @@ impl WorldSession {
         let mut known_pieces = [-1_i8; EQUIPMENT_SLOT_END as usize];
         for transmog_set_item in transmog_set_items {
             let Some(item_modified_appearance) = self
-                .item_modified_appearance_store
+                .items
+                .modified_appearance_store
                 .as_ref()
                 .and_then(|store| store.get(transmog_set_item.item_modified_appearance_id))
             else {
@@ -884,7 +891,8 @@ impl WorldSession {
                 continue;
             };
             let Some(inventory_type) = self
-                .item_store
+                .items
+                .store
                 .as_ref()
                 .and_then(|store| store.inventory_type(item_id))
             else {
@@ -932,7 +940,8 @@ impl WorldSession {
     /// Build the closure result expected by `Item::visible_entry` and
     /// `Item::visible_appearance_mod_id` from `ItemModifiedAppearance.db2`.
     pub fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
-        self.item_modified_appearance_store
+        self.items
+            .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get(id))
             .and_then(|entry| {
@@ -948,7 +957,8 @@ impl WorldSession {
         item_id: u32,
         appearance_mod_id: u32,
     ) -> Option<u32> {
-        self.item_modified_appearance_store
+        self.items
+            .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get_for_item(item_id, appearance_mod_id))
             .map(|entry| entry.id)

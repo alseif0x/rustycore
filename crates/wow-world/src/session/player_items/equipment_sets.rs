@@ -374,7 +374,7 @@ impl WorldSession {
     /// Set `ItemChildEquipment.db2`, used by C++ `CanEquipChildItem` and
     /// `EquipChildItem` to move a linked child into its visible equipment slot.
     pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
-        self.item_child_equipment_store = Some(store);
+        self.items.child_equipment_store = Some(store);
     }
     pub(crate) fn apply_initial_equipped_item_set_auras_like_cpp(&mut self) -> Option<usize> {
         let mut equipped: Vec<_> = self

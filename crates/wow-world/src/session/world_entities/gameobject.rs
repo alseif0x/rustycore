@@ -349,7 +349,7 @@ impl WorldSession {
             .get(&gameobject_guid)
             .and_then(|state| state.faction_template)?;
         let player_faction = self.player_faction_template_id_like_cpp()?;
-        let store = self.faction_template_store.as_ref()?;
+        let store = self.factions.template_store.as_ref()?;
         let gameobject_entry = store.get(gameobject_faction)?;
         let player_entry = store.get(player_faction)?;
         Some(gameobject_entry.is_friendly_to_like_cpp(player_entry))

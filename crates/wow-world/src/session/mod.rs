@@ -5472,23 +5472,8 @@ pub struct WorldSession {
     #[cfg(test)]
     item_currency_cost_store: Option<Arc<ItemCurrencyCostStore>>,
 
-    // Item extended cost store (ItemExtendedCost.db2 data)
-    item_extended_cost_store: Option<Arc<ItemExtendedCostStore>>,
-
-    // Item store (Item.db2 BasicData — class/subclass)
-    item_store: Option<Arc<ItemStore>>,
-
-    // Item child-equipment store (parent item -> child equipment slot)
-    item_child_equipment_store: Option<Arc<ItemChildEquipmentStore>>,
-
-    // Item appearance store (ItemAppearance.db2 data)
-    item_appearance_store: Option<Arc<ItemAppearanceStore>>,
-
-    // Item modified appearance store (ItemModifiedAppearance.db2 data)
-    item_modified_appearance_store: Option<Arc<ItemModifiedAppearanceStore>>,
-
-    // Item search-name store (ItemSearchName.db2 data)
-    item_search_name_store: Option<Arc<ItemSearchNameStore>>,
+    /// Item template and item-data catalogs a session reads. Owned by one type (#670).
+    pub(crate) items: crate::item_catalogs::ItemCatalogsLikeCpp,
 
     // Trinity strings loaded from world DB `trinity_string`.
     trinity_string_store: Option<Arc<TrinityStringStoreLikeCpp>>,
@@ -5524,12 +5509,6 @@ pub struct WorldSession {
     #[cfg(test)]
     item_price_base_store: Option<Arc<ItemPriceBaseStore>>,
 
-    // Item limit category store (ItemLimitCategory.db2 data)
-    item_limit_category_store: Option<Arc<ItemLimitCategoryStore>>,
-
-    // Item limit category condition store (ItemLimitCategoryCondition.db2 data)
-    item_limit_category_condition_store: Option<Arc<ItemLimitCategoryConditionStore>>,
-
     // Player level stats store (race/class/level → base stats)
     player_stats: Option<Arc<PlayerStatsStore>>,
     #[cfg(test)]
@@ -5539,32 +5518,15 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_using_pvp_item_levels_like_cpp: bool,
 
-    // Item stat modifiers store (item_id → stat bonuses from ItemSparse.db2)
-    item_bonus_db2_store: Option<Arc<ItemBonusDb2Store>>,
     pvp_item_store: Option<Arc<PvpItemStore>>,
-    item_set_store: Option<Arc<ItemSetStore>>,
     /// Every spell and aura catalog slot, owned by one type (#668).
     pub(crate) spell_catalogs: crate::spell_catalogs::SpellCatalogsLikeCpp,
-    item_stats_store: Option<Arc<ItemStatsStore>>,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
-    item_effect_store: Option<Arc<ItemEffectStore>>,
     item_template_addon_quest_log_item_ids_like_cpp: HashMap<u32, u32>,
-
-    // Item random suffix store (ItemRandomSuffix.db2 data)
-    item_random_suffix_store: Option<Arc<ItemRandomSuffixStore>>,
-
-    // Item random properties store (ItemRandomProperties.db2 data)
-    item_random_properties_store: Option<Arc<ItemRandomPropertiesStore>>,
 
     // RandPropPoints store (RandPropPoints.db2 data)
     rand_prop_points_store: Option<Arc<RandPropPointsStore>>,
-
-    // item_random_enchantment_template rows grouped like C++ ItemEnchantmentMgr.
-    item_random_enchantment_template_store: Option<Arc<ItemRandomEnchantmentTemplateStore>>,
-
-    // ItemSpecOverride.db2 rows grouped by item id like C++ DB2Manager.
-    item_spec_override_store: Option<Arc<ItemSpecOverrideStore>>,
 
     // ItemDisenchantLoot store (ItemDisenchantLoot.db2 data)
     #[cfg(test)]
@@ -5646,14 +5608,12 @@ pub struct WorldSession {
     #[cfg(test)]
     graveyard_store: Option<Arc<GraveyardStore>>,
 
-    // ChrSpecialization store (loot specialization validation)
-    chr_specialization_store: Option<Arc<ChrSpecializationStore>>,
+    /// Character race/class catalogs a session reads. Owned by one type (#670).
+    pub(crate) chr: crate::chr_catalogs::ChrCatalogsLikeCpp,
 
-    // Map stores (Map.db2 + MapDifficulty.db2)
-    map_store: Option<Arc<MapStore>>,
+    /// Map and map-difficulty catalogs a session reads. Owned by one type (#670).
+    pub(crate) maps: crate::map_catalogs::MapCatalogsLikeCpp,
     world_safe_loc_store_like_cpp: Option<Arc<WorldSafeLocStore>>,
-    map_difficulty_store: Option<Arc<MapDifficultyStore>>,
-    map_difficulty_x_condition_store: Option<Arc<MapDifficultyXConditionStore>>,
     access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
     #[cfg(test)]
@@ -5668,23 +5628,20 @@ pub struct WorldSession {
     represented_legacy_raid_difficulty_id_like_cpp: u32,
     #[cfg(test)]
     represented_player_recent_instances_like_cpp: HashMap<u32, u32>,
-    faction_store: Option<Arc<FactionStore>>,
+    /// Faction and reputation catalogs a session reads. Owned by one type (#670).
+    pub(crate) factions: crate::faction_catalogs::FactionCatalogsLikeCpp,
     friendship_rep_reaction_store: Option<Arc<FriendshipRepReactionStore>>,
     paragon_reputation_store: Option<Arc<ParagonReputationStore>>,
-    faction_template_store: Option<Arc<FactionTemplateStore>>,
     reputation_reward_rate_store: Option<Arc<ReputationRewardRateStoreLikeCpp>>,
-    creature_onkill_reputation_store: Option<Arc<CreatureOnKillReputationStoreLikeCpp>>,
+    /// Creature template and creature-data catalogs a session reads. Owned by one type (#670).
+    pub(crate) creatures: crate::creature_catalogs::CreatureCatalogsLikeCpp,
     reputation_spillover_template_store: Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
     #[cfg(test)]
     championing_faction_like_cpp: u32,
-    creature_template_lifecycle_store_like_cpp: Option<Arc<CreatureTemplateLifecycleStoreLikeCpp>>,
-    creature_template_mount_store: Option<Arc<CreatureTemplateMountStoreLikeCpp>>,
     #[cfg(test)]
     creature_equipment_store_like_cpp: Option<Arc<CreatureEquipmentStoreLikeCpp>>,
-    creature_display_info_store: Option<Arc<CreatureDisplayInfoStore>>,
-    creature_display_info_extra_store: Option<Arc<CreatureDisplayInfoExtraStore>>,
-    gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
-    creature_model_info_store: Option<Arc<wow_data::CreatureModelInfoStoreLikeCpp>>,
+    /// GameObject template catalogs a session reads. Owned by one type (#670).
+    pub(crate) gameobjects: crate::gameobject_catalogs::GameObjectCatalogsLikeCpp,
     #[cfg(test)]
     creature_addon_store_like_cpp: Option<Arc<CreatureAddonStoreLikeCpp>>,
     #[cfg(test)]
@@ -5693,7 +5650,6 @@ pub struct WorldSession {
     creature_base_stats_store_like_cpp: Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
     #[cfg(test)]
     creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp,
-    creature_model_data_store: Option<Arc<CreatureModelDataStore>>,
     mount_store: Option<Arc<MountStore>>,
     mount_definition_store_like_cpp: Option<Arc<MountDefinitionStoreLikeCpp>>,
     mount_capability_store: Option<Arc<MountCapabilityStore>>,
@@ -6704,10 +6660,8 @@ pub struct WorldSession {
     spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     talent_store: Option<Arc<TalentStore>>,
     num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
-    chr_classes_store: Option<Arc<ChrClassesStore>>,
     #[cfg(test)]
     power_type_store: Option<Arc<PowerTypeStore>>,
-    chr_races_store: Option<Arc<ChrRacesStore>>,
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     movie_store: Option<Arc<MovieStore>>,
     #[cfg(test)]
@@ -6779,20 +6733,17 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_glyphs_loaded_like_cpp: bool,
 
-    // ── Quest system ───────────────────────────────────────────────
-    /// Quest template store (loaded from world DB at startup).
+    pub(crate) quest_faction_reward_store: Option<Arc<QuestFactionRewardStore>>,
+    pub(crate) quest_info_store: Option<Arc<QuestInfoStore>>,
+    pub(crate) quest_money_reward_store: Option<Arc<QuestMoneyRewardStore>>,
+    pub(crate) quest_package_item_store: Option<Arc<QuestPackageItemStore>>,
+    pub(crate) quest_pool_store: Option<Arc<wow_data::quest::QuestPoolStoreLikeCpp>>,
     pub(crate) quest_store: Option<Arc<wow_data::quest::QuestStore>>,
+    pub(crate) quest_v2_store: Option<Arc<QuestV2Store>>,
+    pub(crate) quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
     /// C++ `ObjectMgr::_questPOIStore`, loaded from `quest_poi` / `quest_poi_points`.
     pub(crate) quest_poi_store_like_cpp:
         Option<Arc<HashMap<i32, wow_packet::packets::query::QuestPoiData>>>,
-    /// Read-only represented QuestPoolMgr active snapshot for C++ `IsQuestActive`.
-    pub(crate) quest_pool_store: Option<Arc<wow_data::quest::QuestPoolStoreLikeCpp>>,
-    pub(crate) quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
-    pub(crate) quest_money_reward_store: Option<Arc<QuestMoneyRewardStore>>,
-    pub(crate) quest_v2_store: Option<Arc<QuestV2Store>>,
-    pub(crate) quest_info_store: Option<Arc<QuestInfoStore>>,
-    pub(crate) quest_package_item_store: Option<Arc<QuestPackageItemStore>>,
-    pub(crate) quest_faction_reward_store: Option<Arc<QuestFactionRewardStore>>,
     #[cfg(test)]
     pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
     #[cfg(test)]
@@ -7409,7 +7360,7 @@ impl RepresentedPlayerConditionContextLikeCpp {
             avg_item_level: self.avg_item_level,
             avg_equipped_item_level: self.avg_equipped_item_level,
             modifier_tree_ids: &self.modifier_tree_ids,
-            chr_specializations: session.chr_specialization_store.as_deref(),
+            chr_specializations: session.chr_specialization_store().map(Arc::as_ref),
             world_state_expressions: None,
             world_state_expression_context: None,
         })
@@ -7826,6 +7777,20 @@ impl WorldSession {
         connection.set_instance_endpoint([127, 0, 0, 1], 8086);
 
         Self {
+            chr: crate::chr_catalogs::ChrCatalogsLikeCpp::default(),
+            creatures: crate::creature_catalogs::CreatureCatalogsLikeCpp::default(),
+            factions: crate::faction_catalogs::FactionCatalogsLikeCpp::default(),
+            gameobjects: crate::gameobject_catalogs::GameObjectCatalogsLikeCpp::default(),
+            items: crate::item_catalogs::ItemCatalogsLikeCpp::default(),
+            maps: crate::map_catalogs::MapCatalogsLikeCpp::default(),
+            quest_faction_reward_store: None,
+            quest_info_store: None,
+            quest_money_reward_store: None,
+            quest_package_item_store: None,
+            quest_pool_store: None,
+            quest_store: None,
+            quest_v2_store: None,
+            quest_xp_store: None,
             spell_catalogs: crate::spell_catalogs::SpellCatalogsLikeCpp::default(),
             account_id,
             battlenet_account_id: account_id,
@@ -7897,12 +7862,6 @@ impl WorldSession {
             item_class_store: None,
             #[cfg(test)]
             item_currency_cost_store: None,
-            item_extended_cost_store: None,
-            item_store: None,
-            item_child_equipment_store: None,
-            item_appearance_store: None,
-            item_modified_appearance_store: None,
-            item_search_name_store: None,
             trinity_string_store: None,
             heirloom_store: None,
             toy_store: None,
@@ -7925,26 +7884,16 @@ impl WorldSession {
             transmog_set_item_store: None,
             #[cfg(test)]
             item_price_base_store: None,
-            item_limit_category_store: None,
-            item_limit_category_condition_store: None,
             player_stats: None,
             #[cfg(test)]
             represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp::default(),
             #[cfg(test)]
             represented_using_pvp_item_levels_like_cpp: false,
-            item_bonus_db2_store: None,
             pvp_item_store: None,
-            item_set_store: None,
-            item_stats_store: None,
             durability_costs_store: None,
             durability_quality_store: None,
-            item_effect_store: None,
             item_template_addon_quest_log_item_ids_like_cpp: HashMap::new(),
-            item_random_suffix_store: None,
-            item_random_properties_store: None,
             rand_prop_points_store: None,
-            item_random_enchantment_template_store: None,
-            item_spec_override_store: None,
             #[cfg(test)]
             item_disenchant_loot_store: None,
             loot_stores: None,
@@ -7985,11 +7934,7 @@ impl WorldSession {
             tavern_area_trigger_store: None,
             #[cfg(test)]
             graveyard_store: None,
-            chr_specialization_store: None,
-            map_store: None,
             world_safe_loc_store_like_cpp: None,
-            map_difficulty_store: None,
-            map_difficulty_x_condition_store: None,
             access_requirement_store: None,
             lfg_dungeons_store: None,
             #[cfg(test)]
@@ -8004,23 +7949,14 @@ impl WorldSession {
             represented_legacy_raid_difficulty_id_like_cpp: DIFFICULTY_10_N_LIKE_CPP,
             #[cfg(test)]
             represented_player_recent_instances_like_cpp: HashMap::new(),
-            faction_store: None,
             friendship_rep_reaction_store: None,
             paragon_reputation_store: None,
-            faction_template_store: None,
             reputation_reward_rate_store: None,
-            creature_onkill_reputation_store: None,
             reputation_spillover_template_store: None,
             #[cfg(test)]
             championing_faction_like_cpp: 0,
-            creature_template_lifecycle_store_like_cpp: None,
-            creature_template_mount_store: None,
             #[cfg(test)]
             creature_equipment_store_like_cpp: None,
-            creature_display_info_store: None,
-            creature_display_info_extra_store: None,
-            gameobject_display_info_store: None,
-            creature_model_info_store: None,
             #[cfg(test)]
             creature_addon_store_like_cpp: None,
             #[cfg(test)]
@@ -8029,7 +7965,6 @@ impl WorldSession {
             creature_base_stats_store_like_cpp: None,
             #[cfg(test)]
             creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp::default(),
-            creature_model_data_store: None,
             mount_store: None,
             mount_definition_store_like_cpp: None,
             mount_capability_store: None,
@@ -8666,10 +8601,8 @@ impl WorldSession {
             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
             talent_store: None,
             num_talents_at_level_store: None,
-            chr_classes_store: None,
             #[cfg(test)]
             power_type_store: None,
-            chr_races_store: None,
             cinematic_sequences_store: None,
             movie_store: None,
             #[cfg(test)]
@@ -8700,15 +8633,7 @@ impl WorldSession {
             #[cfg(test)]
             object_mgr_catalogs_like_cpp: None,
             gameobject_template_lifecycle_store_like_cpp: None,
-            quest_store: None,
             quest_poi_store_like_cpp: None,
-            quest_pool_store: None,
-            quest_xp_store: None,
-            quest_money_reward_store: None,
-            quest_v2_store: None,
-            quest_info_store: None,
-            quest_package_item_store: None,
-            quest_faction_reward_store: None,
             #[cfg(test)]
             player_quests: HashMap::new(),
             #[cfg(test)]
@@ -9736,13 +9661,15 @@ impl WorldSession {
         let downscaled_entries = self
             .create_map_db2_entries_like_cpp(map_id, requested_difficulty as wow_map::Difficulty)?;
         let map_difficulty_id = self
-            .map_difficulty_store
+            .maps
+            .difficulty_store
             .as_ref()
             .and_then(|store| store.get(map_id, downscaled_entries.difficulty_id))
             .map(|entry| entry.id)
             .unwrap_or(0);
         let map_difficulty_has_message = self
-            .map_difficulty_store
+            .maps
+            .difficulty_store
             .as_ref()
             .and_then(|store| store.get(map_id, downscaled_entries.difficulty_id))
             .map(|entry| !entry.message.is_empty())
@@ -9752,7 +9679,8 @@ impl WorldSession {
             if self.instance_ignore_level_like_cpp || map_difficulty_id == 0 {
                 0
             } else {
-                self.map_difficulty_x_condition_store
+                self.maps
+                    .difficulty_x_condition_store
                     .as_ref()
                     .zip(self.player_condition_store.as_ref())
                     .and_then(|(difficulty_conditions, player_conditions)| {
@@ -10608,7 +10536,8 @@ impl WorldSession {
 
     /// C++ `std::find_if(item->Effects, spellId)` in `HandleUseToy`.
     pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
-        self.item_effect_store
+        self.items
+            .effect_store
             .as_ref()
             .and_then(|store| store.effect_for_item_spell_like_cpp(item_id, spell_id))
             .is_some()
@@ -10627,7 +10556,8 @@ impl WorldSession {
         spell_info: &wow_data::SpellInfo,
     ) -> u32 {
         if let Some(effect) = self
-            .item_effect_store
+            .items
+            .effect_store
             .as_ref()
             .and_then(|store| store.effect_for_item_spell_like_cpp(item_id, spell_id))
         {
@@ -10759,7 +10689,7 @@ impl WorldSession {
         &self,
         item_entry: u32,
     ) -> Option<RepresentedScalingStatContextLikeCpp> {
-        let item_store = self.item_store.as_ref()?;
+        let item_store = self.items.store.as_ref()?;
         let scaling_stat_distribution_id = item_store.scaling_stat_distribution_id(item_entry);
         let scaling_stat_value = item_store.scaling_stat_value(item_entry);
         if scaling_stat_distribution_id == 0 || scaling_stat_value == 0 {
@@ -10854,7 +10784,7 @@ impl WorldSession {
     ) -> wow_data::reputation::ReputationRankLikeCpp {
         use wow_data::reputation::ReputationRankLikeCpp;
 
-        let Some(faction_template_store) = self.faction_template_store.as_ref() else {
+        let Some(faction_template_store) = self.factions.template_store.as_ref() else {
             return ReputationRankLikeCpp::Neutral;
         };
         let Some(source_faction_template) =
@@ -10884,7 +10814,7 @@ impl WorldSession {
             }
             if input.target_is_unit
                 && !input.target_ignores_reputation
-                && let Some(faction_store) = self.faction_store.as_ref()
+                && let Some(faction_store) = self.factions.store.as_ref()
                 && let Some(source_faction_entry) =
                     faction_store.get(u32::from(source_faction_template.faction))
                 && source_faction_entry.can_have_reputation_like_cpp()
@@ -10939,7 +10869,7 @@ impl WorldSession {
         };
 
         if input.self_has_player_owner {
-            if let Some(faction_template_store) = self.faction_template_store.as_ref()
+            if let Some(faction_template_store) = self.factions.template_store.as_ref()
                 && let Some(target_faction_template) =
                     faction_template_store.get(input.target_faction_template_id)
                 && let Some(forced_rank) = reputation_mgr
@@ -10948,7 +10878,7 @@ impl WorldSession {
                 return forced_rank;
             }
         } else if input.target_has_player_owner
-            && let Some(faction_template_store) = self.faction_template_store.as_ref()
+            && let Some(faction_template_store) = self.factions.template_store.as_ref()
             && faction_template_store
                 .get(input.self_faction_template_id)
                 .is_some()
@@ -10975,7 +10905,7 @@ impl WorldSession {
             }
 
             if input.self_has_player_owner {
-                let Some(faction_template_store) = self.faction_template_store.as_ref() else {
+                let Some(faction_template_store) = self.factions.template_store.as_ref() else {
                     return self.represented_faction_reaction_to_like_cpp(
                         RepresentedFactionReactionInputLikeCpp {
                             source_faction_template_id: input.self_faction_template_id,
@@ -10998,7 +10928,7 @@ impl WorldSession {
                         return forced_rank;
                     }
                     if !input.self_ignores_reputation
-                        && let Some(faction_store) = self.faction_store.as_ref()
+                        && let Some(faction_store) = self.factions.store.as_ref()
                         && let Some(target_faction_entry) =
                             faction_store.get(u32::from(target_faction_template.faction))
                         && target_faction_entry.can_have_reputation_like_cpp()
@@ -11451,7 +11381,8 @@ impl WorldSession {
     }
 
     pub(crate) fn faction_template_for_race_like_cpp(&self, race: u8) -> Option<i32> {
-        self.chr_races_store
+        self.chr
+            .races_store
             .as_ref()?
             .get(u32::from(race))
             .map(|entry| i32::from(entry.faction_id))
@@ -11481,12 +11412,12 @@ impl WorldSession {
             return None;
         }
 
-        let class_store = self.chr_classes_store.as_ref()?;
+        let class_store = self.chr.classes_store.as_ref()?;
         let class_entry = class_store.get(u32::from(self.player_class_like_cpp()))?;
         let cinematic_id = if class_entry.cinematic_sequence_id != 0 {
             u32::from(class_entry.cinematic_sequence_id)
         } else {
-            let race_store = self.chr_races_store.as_ref()?;
+            let race_store = self.chr.races_store.as_ref()?;
             race_store
                 .get(u32::from(self.player_race_like_cpp()))
                 .map(|race_entry| race_entry.cinematic_sequence_id as u32)?
@@ -12782,8 +12713,8 @@ impl WorldSession {
             return;
         };
         let computed_height = if let (Some(display_store), Some(model_store)) = (
-            self.creature_display_info_store.as_ref(),
-            self.creature_model_data_store.as_ref(),
+            self.creatures.display_info_store.as_ref(),
+            self.creatures.model_data_store.as_ref(),
         ) {
             let native_display_id = crate::handlers::character::default_display_id(
                 self.player_race_like_cpp(),
@@ -13061,7 +12992,7 @@ impl WorldSession {
     /// player's live faction template from `ChrRacesEntry::FactionID` before
     /// the player is added to the map or published through ObjectAccessor.
     fn set_player_faction_for_race_like_cpp(&mut self, race: u8) {
-        let Some(chr_races_store) = self.chr_races_store.as_ref() else {
+        let Some(chr_races_store) = self.chr.races_store.as_ref() else {
             return;
         };
         let faction_template = chr_races_store
@@ -13955,7 +13886,8 @@ impl WorldSession {
         for (&slot, inventory_item) in &self.resolved_inventory_items_like_cpp()? {
             if slot == EQUIPMENT_SLOT_MAINHAND {
                 mainhand_weapon_subclass = self
-                    .item_store
+                    .items
+                    .store
                     .as_ref()
                     .and_then(|store| store.get(inventory_item.entry_id))
                     .map(|record| record.subclass_id);
@@ -14034,7 +13966,7 @@ impl WorldSession {
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
 
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let map = self.map_store.as_ref().and_then(|store| store.get(map_id));
+        let map = self.maps.store.as_ref().and_then(|store| store.get(map_id));
         let (_, area_id) = self
             .player_zone_area_like_cpp()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
@@ -15613,7 +15545,7 @@ impl WorldSession {
         if let (Some(player_faction), Some(gameobject_faction), Some(store)) = (
             self.player_faction_template_id_like_cpp(),
             gameobject_faction,
-            self.faction_template_store.as_ref(),
+            self.factions.template_store.as_ref(),
         ) && let (Some(player_entry), Some(gameobject_entry)) =
             (store.get(player_faction), store.get(gameobject_faction))
             && !player_entry.is_friendly_to_like_cpp(gameobject_entry)

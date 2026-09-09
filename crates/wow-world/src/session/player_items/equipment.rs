@@ -11,7 +11,8 @@ impl WorldSession {
         &self,
         parent_item_id: u32,
     ) -> Option<&ItemChildEquipmentEntry> {
-        self.item_child_equipment_store
+        self.items
+            .child_equipment_store
             .as_ref()?
             .values()
             .find(|entry| entry.parent_item_id == parent_item_id)
@@ -62,7 +63,7 @@ impl WorldSession {
         let Some(_player_guid) = self.player_guid() else {
             return 0;
         };
-        let Some(item_effect_store) = self.item_effect_store.as_ref().cloned() else {
+        let Some(item_effect_store) = self.items.effect_store.as_ref().cloned() else {
             return 0;
         };
         let Some(item_entry) = self
@@ -79,7 +80,8 @@ impl WorldSession {
         let primary_spec = self.represented_primary_specialization_id_like_cpp();
         let mut applied = 0usize;
         if self
-            .item_stats_store
+            .items
+            .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item_entry))
             .is_some_and(|template| template.item_flags().contains(ItemFlags::LEGACY))

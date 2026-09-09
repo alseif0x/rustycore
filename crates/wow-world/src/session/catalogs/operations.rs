@@ -225,11 +225,11 @@ impl WorldSession {
     /// Set the ChrSpecialization store for this session.
     pub fn set_chr_specialization_store(&mut self, store: Arc<ChrSpecializationStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.chr_specialization_store = Some(store);
+        self.chr.specialization_store = Some(store);
     }
     /// Get the ChrSpecialization store reference.
     pub fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
-        self.chr_specialization_store.as_ref()
+        self.chr.specialization_store.as_ref()
     }
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
         self.world_safe_loc_store_like_cpp = Some(store);
@@ -262,14 +262,14 @@ impl WorldSession {
         self.battlemaster_list_store = Some(store);
     }
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
-        self.faction_store = Some(store);
+        self.factions.store = Some(store);
         self.initialize_reputation_mgr_like_cpp();
     }
     pub(crate) fn faction_store(&self) -> Option<&Arc<FactionStore>> {
-        self.faction_store.as_ref()
+        self.factions.store.as_ref()
     }
     pub fn set_faction_template_store(&mut self, store: Arc<FactionTemplateStore>) {
-        self.faction_template_store = Some(store);
+        self.factions.template_store = Some(store);
     }
     pub fn set_mount_store(&mut self, store: Arc<MountStore>) {
         self.mount_store = Some(store);
@@ -345,10 +345,10 @@ impl WorldSession {
         self.movie_store = Some(store);
     }
     pub fn set_chr_classes_store(&mut self, store: Arc<ChrClassesStore>) {
-        self.chr_classes_store = Some(store);
+        self.chr.classes_store = Some(store);
     }
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
-        self.chr_races_store = Some(store);
+        self.chr.races_store = Some(store);
     }
     pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
         self.cinematic_sequences_store = Some(store);

@@ -153,7 +153,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(specializations) = self.chr_specialization_store.as_ref() else {
+        let Some(specializations) = self.chr.specialization_store.as_ref() else {
             return false;
         };
         let mut expected_specs = BTreeSet::new();
@@ -192,7 +192,8 @@ impl WorldSession {
     /// published. Those hooks are not represented, so only an exact ordinary
     /// world-map DB2 row excludes them.
     fn represented_add_player_to_map_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.map_store
+        self.maps
+            .store
             .as_ref()
             .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
             .is_some_and(|map| map.instance_type == wow_data::map::MAP_COMMON)
