@@ -201,10 +201,10 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-entities/src/creature_tests.rs",
-      "observed_lines": 3092,
-      "ceiling_lines": 3092,
-      "split": "Distribute creature lifecycle, stats, movement and combat scenarios to the corresponding capabilities.",
+      "path": "crates/wow-entities/src/creature_tests/mod.rs",
+      "observed_lines": 213,
+      "ceiling_lines": 213,
+      "split": "Retires the 3,092-line creature regression file: #648 replaces it with this module root, which keeps the shared preamble and helpers and mounts four scenario modules (353-884 lines) holding all 79 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -217,8 +217,8 @@
     {
       "path": "crates/wow-entities/src/object_accessor.rs",
       "observed_lines": 3174,
-      "ceiling_lines": 3174,
-      "split": "Separate object identity lookup and typed read capabilities from compatibility bridge/test code.",
+      "ceiling_lines": 21,
+      "split": "Separate the accessor object kinds, the map-object record and the lookup operations from their regressions. #648 decomposes the 3,174-line root into one state module, one ops module dividing the inherent `impl ObjectAccessor`, and three regression modules, dropping it to 21 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -257,17 +257,17 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-entities/src/unit_subsystems/tests.rs",
-      "observed_lines": 2260,
-      "ceiling_lines": 2260,
-      "split": "Separate unit-subsystem fixtures and tests by combat, movement and aura responsibility.",
+      "path": "crates/wow-entities/src/unit_subsystems/tests/mod.rs",
+      "observed_lines": 15,
+      "ceiling_lines": 15,
+      "split": "Retires the 2,260-line unit-subsystem regression file: #648 replaces it with this module root, which keeps the vestigial `unit_subsystems_tests` wrapper so every test path is unchanged and mounts three scenario modules holding all 59 tests. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-entities/src/world_object.rs",
       "observed_lines": 2451,
-      "ceiling_lines": 2451,
-      "split": "Separate spatial identity/location, map residence, visibility and update-field capabilities.",
+      "ceiling_lines": 21,
+      "split": "Separate the visibility-distance, height-query, line-of-sight and world-location model from its operations and regressions. #648 decomposes the 2,451-line root into one state module, one ops module and one regression module, dropping it to 21 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {

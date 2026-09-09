@@ -40,5 +40,5 @@ pub use state_1::*;
 pub use state_2::*;
 
 #[cfg(test)]
-#[path = "creature_tests.rs"]
+#[path = "creature_tests/mod.rs"]
 mod tests;
