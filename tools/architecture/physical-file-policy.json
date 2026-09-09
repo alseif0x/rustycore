@@ -112,8 +112,8 @@
     {
       "path": "crates/wow-data/src/conditions.rs",
       "observed_lines": 4759,
-      "ceiling_lines": 4759,
-      "split": "Separate condition metadata, catalog loading, validation and evaluator-specific fixtures.",
+      "ceiling_lines": 32,
+      "split": "Separate the condition entry model, the by-type entry store and the load report from their regressions. #638 decomposes the 4,759-line root into three state modules and four regression modules, dropping it to 32 lines and tightening the ceiling to that figure; only the imports and the module composition remain. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -133,8 +133,8 @@
     {
       "path": "crates/wow-data/src/skill.rs",
       "observed_lines": 3761,
-      "ceiling_lines": 3761,
-      "split": "Persisted skill hydration is now in private skill/loaded.rs, separately from acquisition; its regression tests are bounded there. The 33 skill tests pass after the reviewed 55-line root reduction. Remaining skill/race/class/ability stores and reader/query test splits stay under #584.",
+      "ceiling_lines": 43,
+      "split": "Separate the skill tier and pet levelup/family/default spell stores from the skill store operations and their regressions. #638 decomposes the 3,761-line root into two state modules, one skill/ops module dividing the inherent `impl SkillStore`, and two regression modules, dropping it to 43 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
