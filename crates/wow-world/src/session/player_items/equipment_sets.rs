@@ -399,7 +399,7 @@ impl WorldSession {
         self.creature_equipment_store_like_cpp = Some(store);
     }
     pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {
-        self.spell_equipped_items_store = Some(store);
+        self.spell_catalogs.spell_equipped_items_store = Some(store);
     }
     /// Builds the represented statement sequence for C++ `Player::_SaveSpells`.
     ///

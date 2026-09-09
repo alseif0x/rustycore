@@ -297,6 +297,7 @@ impl WorldSession {
         });
         let duration_ms = {
             let duration_index = self
+                .spell_catalogs
                 .spell_misc_store
                 .as_deref()
                 .and_then(|store| {
@@ -307,7 +308,10 @@ impl WorldSession {
                 })
                 .map(|entry| u32::from(entry.duration_index))
                 .unwrap_or(0);
-            spell_duration_ms_like_cpp(duration_index, self.spell_duration_store.as_deref())
+            spell_duration_ms_like_cpp(
+                duration_index,
+                self.spell_catalogs.spell_duration_store.as_deref(),
+            )
         };
 
         let Some((threat_value, taunt_slot)) = self

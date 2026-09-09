@@ -19,7 +19,7 @@ impl WorldSession {
     ) -> RepresentedSpellClickPlanLikeCpp {
         let mut plan = RepresentedSpellClickPlanLikeCpp::default();
 
-        let Some(spell_click_store) = self.npc_spell_click_store.as_ref() else {
+        let Some(spell_click_store) = self.spell_catalogs.npc_spell_click_store.as_ref() else {
             plan.exact_context_unrepresented = true;
             return plan;
         };
@@ -382,7 +382,7 @@ impl WorldSession {
         .await
     }
     pub(crate) fn update_visible_spell_clicks_like_cpp(&mut self) -> usize {
-        let Some(spell_click_store) = self.npc_spell_click_store.as_ref() else {
+        let Some(spell_click_store) = self.spell_catalogs.npc_spell_click_store.as_ref() else {
             return 0;
         };
         let Some(condition_store) = self.condition_store.as_ref() else {

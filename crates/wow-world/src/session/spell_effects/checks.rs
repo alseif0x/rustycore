@@ -167,11 +167,16 @@ impl WorldSession {
     ) -> Option<RepresentedMountSpellCheckOutcomeLikeCpp> {
         for effect in spell_info.effects() {
             if effect.is_mod_shapeshift_aura_like_cpp() {
-                if let Some(form) = self.spell_shapeshift_form_store.as_ref().and_then(|store| {
-                    u32::try_from(effect.effect_misc_value_1)
-                        .ok()
-                        .and_then(|form_id| store.get(form_id))
-                }) {
+                if let Some(form) = self
+                    .spell_catalogs
+                    .spell_shapeshift_form_store
+                    .as_ref()
+                    .and_then(|store| {
+                        u32::try_from(effect.effect_misc_value_1)
+                            .ok()
+                            .and_then(|form_id| store.get(form_id))
+                    })
+                {
                     let (is_submerged, is_in_water) =
                         self.represented_player_mount_liquid_state_like_cpp()?;
                     let riding_skill =

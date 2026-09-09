@@ -72,15 +72,16 @@ impl WorldSession {
         }
     }
     pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {
-        self.spell_threat_store = Some(store);
+        self.spell_catalogs.spell_threat_store = Some(store);
     }
     pub(crate) fn spell_threat_entry_like_cpp(
         &self,
         spell_id: u32,
     ) -> Option<&SpellThreatEntryLikeCpp> {
-        let store = self.spell_threat_store.as_ref()?;
+        let store = self.spell_catalogs.spell_threat_store.as_ref()?;
         store.get_spell_threat_entry_like_cpp(spell_id, |lookup_spell_id| {
-            self.spell_chain_store
+            self.spell_catalogs
+                .spell_chain_store
                 .as_ref()
                 .map(|spell_chains| spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id))
                 .unwrap_or(lookup_spell_id)
@@ -117,7 +118,8 @@ impl WorldSession {
         }
 
         Some(
-            self.spell_levels_store
+            self.spell_catalogs
+                .spell_levels_store
                 .as_deref()
                 .and_then(|store| {
                     let mut difficulty_id = difficulty;

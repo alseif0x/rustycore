@@ -188,12 +188,12 @@ impl crate::session::WorldSession {
             Some(skill_lines),
             Some(skill_tiers),
         ) = (
-            self.spell_acquisition_catalog(),
-            self.spell_chain_store(),
-            self.spell_learn_skill_store_like_cpp(),
-            self.spell_learn_spell_store_like_cpp(),
-            self.spell_required_store_like_cpp(),
-            self.spell_custom_attribute_store_like_cpp(),
+            self.spell_catalogs.spell_acquisition_catalog(),
+            self.spell_catalogs.spell_chain_store(),
+            self.spell_catalogs.spell_learn_skill_store_like_cpp(),
+            self.spell_catalogs.spell_learn_spell_store_like_cpp(),
+            self.spell_catalogs.spell_required_store_like_cpp(),
+            self.spell_catalogs.spell_custom_attribute_store_like_cpp(),
             self.trait_definition_store(),
             self.skill_store(),
             self.skill_line_store(),
@@ -247,7 +247,7 @@ impl crate::session::WorldSession {
         &self,
         spell_id: u32,
     ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
-        let catalog = self.spell_acquisition_catalog()?;
+        let catalog = self.spell_catalogs.spell_acquisition_catalog()?;
         let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp();
         let effective_effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
             spell_id,
@@ -292,7 +292,7 @@ impl crate::session::WorldSession {
         // HUMANOID mask. Do not combine sibling difficulty rows: a heroic
         // restriction cannot reject a normal cast (or vice versa).
         if !trainer_target_restriction_admits_player_like_cpp(
-            self.spell_target_restrictions_store()?,
+            self.spell_catalogs.spell_target_restrictions_store()?,
             spell_id,
             difficulty_chain.iter().copied(),
         ) {
@@ -312,6 +312,7 @@ impl crate::session::WorldSession {
         // state-based rows remain unavailable until Unit AuraState is owned.
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let aura_restriction_result = self
+            .spell_catalogs
             .spell_aura_restrictions_store()?
             .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
             .map_or(TrainerAuraRestrictionResultLikeCpp::Pass, |restriction| {
@@ -455,7 +456,7 @@ impl crate::session::WorldSession {
         trainer_effects: &[SpellAcquisitionEffectLikeCpp],
         no_immunities: bool,
     ) -> Option<u32> {
-        let linked = self.spell_linked_store_like_cpp()?;
+        let linked = self.spell_catalogs.spell_linked_store_like_cpp()?;
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let mut immunized_effect_mask = 0_u32;
         for aura in visible_auras.values() {

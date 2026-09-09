@@ -180,7 +180,8 @@ impl WorldSession {
         &self,
         quest_id: u32,
     ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_area_store
+        self.spell_catalogs
+            .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_for_quest_map_bounds_like_cpp(quest_id))
             .unwrap_or_default()
@@ -189,7 +190,8 @@ impl WorldSession {
         &self,
         quest_id: u32,
     ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_area_store
+        self.spell_catalogs
+            .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_for_quest_end_map_bounds_like_cpp(quest_id))
             .unwrap_or_default()

@@ -1232,13 +1232,6 @@
           "source_class": "production"
         },
         {
-          "name": "item_set_spell_store",
-          "type": "Option < Arc < ItemSetSpellStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "item_set_store",
           "type": "Option < Arc < ItemSetStore > >",
           "visibility": "private",
@@ -1841,13 +1834,6 @@
           "source_class": "production"
         },
         {
-          "name": "npc_spell_click_store",
-          "type": "Option < Arc < NpcSpellClickStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "num_talents_at_level_store",
           "type": "Option < Arc < NumTalentsAtLevelStore > >",
           "visibility": "private",
@@ -1982,33 +1968,6 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
-        },
-        {
-          "name": "pet_default_spell_store",
-          "type": "Option < Arc < PetDefaultSpellStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "pet_family_spell_store",
-          "type": "Option < Arc < PetFamilySpellStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "pet_levelup_spell_store",
-          "type": "Option < Arc < PetLevelupSpellStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
         },
         {
           "name": "pet_load_query_holder_rows_like_cpp",
@@ -5195,15 +5154,6 @@
           "source_class": "production"
         },
         {
-          "name": "serverside_spell_store",
-          "type": "Option < Arc < ServersideSpellStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
           "name": "session_command_rx",
           "type": "flume :: Receiver < SessionCommand >",
           "visibility": "private",
@@ -5281,13 +5231,6 @@
           "source_class": "production"
         },
         {
-          "name": "spell_acquisition_catalog",
-          "type": "Option < Arc < SpellAcquisitionCatalogLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "spell_acquisition_craft_authority_like_cpp",
           "type": "Option < Arc < crate :: spell_acquisition :: SpellAcquisitionCraftValidityAuthorityLikeCpp > >",
           "visibility": "pub (crate)",
@@ -5295,171 +5238,15 @@
           "source_class": "production"
         },
         {
-          "name": "spell_area_store",
-          "type": "Option < Arc < SpellAreaStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_aura_options_store",
-          "type": "Option < Arc < SpellAuraOptionsStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_aura_restrictions_store",
-          "type": "Option < Arc < SpellAuraRestrictionsStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_category_store",
-          "type": "Option < Arc < SpellCategoryStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_chain_store",
-          "type": "Option < Arc < SpellChainStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_custom_attribute_store",
-          "type": "Option < Arc < SpellCustomAttributeStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_duration_store",
-          "type": "Option < Arc < SpellDurationStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_enchant_proc_store",
-          "type": "Option < Arc < SpellEnchantProcStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "spell_equipped_items_store",
-          "type": "Option < Arc < SpellEquippedItemsStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_group_stack_rule_store",
-          "type": "Option < Arc < SpellGroupStackRuleStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_group_store",
-          "type": "Option < Arc < SpellGroupStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_item_enchantment_condition_store",
-          "type": "Option < Arc < SpellItemEnchantmentConditionStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_item_enchantment_store",
-          "type": "Option < Arc < SpellItemEnchantmentStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_learn_skill_store",
-          "type": "Option < Arc < SpellLearnSkillStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_learn_spell_store",
-          "type": "Option < Arc < SpellLearnSpellStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_levels_store",
-          "type": "Option < Arc < SpellLevelsStore > >",
-          "visibility": "private",
+          "name": "spell_catalogs",
+          "type": "crate :: spell_catalogs :: SpellCatalogsLikeCpp",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
           "name": "spell_linked_rejected_trigger_spell_ids_like_cpp",
           "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_linked_store",
-          "type": "Option < Arc < SpellLinkedStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_misc_store",
-          "type": "Option < Arc < SpellMiscStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_pet_aura_store",
-          "type": "Option < Arc < SpellPetAuraStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_proc_store",
-          "type": "Option < Arc < SpellProcStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_radius_store",
-          "type": "Option < Arc < SpellRadiusStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_range_store",
-          "type": "Option < Arc < SpellRangeStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_required_store",
-          "type": "Option < Arc < SpellRequiredStoreLikeCpp > >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -5477,50 +5264,6 @@
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
-        },
-        {
-          "name": "spell_shapeshift_form_store",
-          "type": "Option < Arc < SpellShapeshiftFormStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_store",
-          "type": "Option < Arc < SpellStore > >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_target_position_store",
-          "type": "Option < Arc < SpellTargetPositionStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_target_restrictions_store",
-          "type": "Option < Arc < SpellTargetRestrictionsStore > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_threat_store",
-          "type": "Option < Arc < SpellThreatStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_totem_model_store",
-          "type": "Option < Arc < SpellTotemModelStoreLikeCpp > >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
         },
         {
           "name": "start_all_explored_like_cpp",
@@ -32805,19 +32548,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "npc_spell_click_store",
-          "visibility": "pub (crate)",
-          "signature": "fn npc_spell_click_store (& self) -> Option < & Arc < NpcSpellClickStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "num_talents_at_level_store",
           "visibility": "pub (crate)",
           "signature": "fn num_talents_at_level_store (& self) -> Option < & Arc < NumTalentsAtLevelStore > >",
@@ -53237,19 +52967,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "spell_acquisition_catalog",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_acquisition_catalog (& self) -> Option < & Arc < SpellAcquisitionCatalogLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "spell_area_for_area_map_bounds_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_area_for_area_map_bounds_like_cpp (& self , area_id : u32 ,) -> Vec < & SpellAreaLikeCpp >",
@@ -53305,58 +53022,6 @@
           "name": "spell_area_map_bounds_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_area_map_bounds_like_cpp (& self , spell_id : u32) -> Vec < & SpellAreaLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_aura_restrictions_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_aura_restrictions_store (& self) -> Option < & Arc < SpellAuraRestrictionsStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_category_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_category_store (& self) -> Option < & Arc < SpellCategoryStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_chain_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_chain_store (& self) -> Option < & Arc < SpellChainStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_custom_attribute_store_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_custom_attribute_store_like_cpp (& self ,) -> Option < & Arc < SpellCustomAttributeStoreLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -53512,19 +53177,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "spell_learn_skill_store_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_learn_skill_store_like_cpp (& self ,) -> Option < & Arc < SpellLearnSkillStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "spell_learn_spell_map_bounds_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_learn_spell_map_bounds_like_cpp (& self , spell_id : u32 ,) -> & [SpellLearnSpellNodeLikeCpp]",
@@ -53538,61 +53190,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "spell_learn_spell_store_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_learn_spell_store_like_cpp (& self ,) -> Option < & Arc < SpellLearnSpellStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_levels_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_levels_store (& self) -> Option < & Arc < SpellLevelsStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "spell_linked_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_linked_like_cpp (& self , link_type : SpellLinkedTypeLikeCpp , spell_id : u32 ,) -> & [i32]",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_linked_store_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_linked_store_like_cpp (& self) -> Option < & SpellLinkedStoreLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_misc_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_misc_store (& self) -> Option < & Arc < SpellMiscStore > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -53640,61 +53240,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "spell_proc_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_proc_store (& self) -> Option < & Arc < SpellProcStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_range_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_range_store (& self) -> Option < & Arc < SpellRangeStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_required_store_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_required_store_like_cpp (& self) -> Option < & Arc < SpellRequiredStoreLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "spell_school_mask_for_difficulty_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn spell_school_mask_for_difficulty_like_cpp (& self , spell_id : u32 , difficulty : u8 ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_shapeshift_form_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_shapeshift_form_store (& self) -> Option < & Arc < SpellShapeshiftFormStore > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -53721,19 +53269,6 @@
           "name": "spell_store",
           "visibility": "pub",
           "signature": "fn spell_store (& self) -> Option < & Arc < SpellStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_target_restrictions_store",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_target_restrictions_store (& self ,) -> Option < & Arc < SpellTargetRestrictionsStore > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75182,7 +74717,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3d1b500c3d1d8e580537b29e59e42e43:len=96483|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7cfdb90c2f2f5558f8ddd4ead7731f7b:len=93901|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

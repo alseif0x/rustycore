@@ -163,6 +163,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         let _ = self.player_guid().ok_or("No player GUID")?;
         let Some(equipped) = self
+            .spell_catalogs
             .spell_equipped_items_store
             .as_ref()
             .and_then(|store| store.entry_for_spell_id_like_cpp(spell_id))

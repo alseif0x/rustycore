@@ -34,128 +34,22 @@ impl WorldSession {
     ) {
         self.player_create_custom_spell_store_like_cpp = Some(store);
     }
-    pub fn set_spell_shapeshift_form_store(&mut self, store: Arc<SpellShapeshiftFormStore>) {
-        self.spell_shapeshift_form_store = Some(store);
-    }
-    #[allow(dead_code)]
-    pub(crate) fn spell_shapeshift_form_store(&self) -> Option<&Arc<SpellShapeshiftFormStore>> {
-        self.spell_shapeshift_form_store.as_ref()
-    }
     /// Set the spell store for this session.
     pub fn set_spell_store(&mut self, store: Arc<SpellStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.spell_store = Some(store);
-    }
-    /// Get the spell store reference.
-    pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
-        self.spell_store.as_ref()
-    }
-    pub fn set_spell_acquisition_catalog(&mut self, catalog: Arc<SpellAcquisitionCatalogLikeCpp>) {
-        self.spell_acquisition_catalog = Some(catalog);
-    }
-    pub(crate) fn spell_acquisition_catalog(&self) -> Option<&Arc<SpellAcquisitionCatalogLikeCpp>> {
-        self.spell_acquisition_catalog.as_ref()
-    }
-    pub fn set_spell_levels_store(&mut self, store: Arc<SpellLevelsStore>) {
-        self.spell_levels_store = Some(store);
-    }
-    pub(crate) fn spell_levels_store(&self) -> Option<&Arc<SpellLevelsStore>> {
-        self.spell_levels_store.as_ref()
+        self.spell_catalogs.spell_store = Some(store);
     }
     pub fn set_spell_chain_store(&mut self, store: Arc<SpellChainStoreLikeCpp>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.spell_chain_store = Some(store);
-    }
-    pub(crate) fn spell_chain_store(&self) -> Option<&Arc<SpellChainStoreLikeCpp>> {
-        self.spell_chain_store.as_ref()
-    }
-    pub fn set_spell_category_store(&mut self, store: Arc<SpellCategoryStore>) {
-        self.spell_category_store = Some(store);
-    }
-    pub(crate) fn spell_category_store(&self) -> Option<&Arc<SpellCategoryStore>> {
-        self.spell_category_store.as_ref()
-    }
-    pub fn set_npc_spell_click_store(&mut self, store: Arc<NpcSpellClickStoreLikeCpp>) {
-        self.npc_spell_click_store = Some(store);
-    }
-    #[allow(dead_code)]
-    pub(crate) fn npc_spell_click_store(&self) -> Option<&Arc<NpcSpellClickStoreLikeCpp>> {
-        self.npc_spell_click_store.as_ref()
-    }
-    pub fn set_spell_target_restrictions_store(
-        &mut self,
-        store: Arc<SpellTargetRestrictionsStore>,
-    ) {
-        self.spell_target_restrictions_store = Some(store);
-    }
-    pub(crate) fn spell_target_restrictions_store(
-        &self,
-    ) -> Option<&Arc<SpellTargetRestrictionsStore>> {
-        self.spell_target_restrictions_store.as_ref()
-    }
-    pub fn set_spell_misc_store(&mut self, store: Arc<SpellMiscStore>) {
-        self.spell_misc_store = Some(store);
+        self.spell_catalogs.spell_chain_store = Some(store);
     }
     pub fn set_spell_linked_store(&mut self, store: Arc<SpellLinkedStoreLikeCpp>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.spell_linked_store = Some(store);
-    }
-    pub(crate) fn spell_linked_store_like_cpp(&self) -> Option<&SpellLinkedStoreLikeCpp> {
-        self.spell_linked_store.as_deref()
+        self.spell_catalogs.spell_linked_store = Some(store);
     }
     pub fn set_spell_area_store(&mut self, store: Arc<SpellAreaStoreLikeCpp>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.spell_area_store = Some(store);
-    }
-    pub fn set_spell_custom_attribute_store(
-        &mut self,
-        store: Arc<SpellCustomAttributeStoreLikeCpp>,
-    ) {
-        self.spell_custom_attribute_store = Some(store);
-    }
-    pub(crate) fn spell_custom_attribute_store_like_cpp(
-        &self,
-    ) -> Option<&Arc<SpellCustomAttributeStoreLikeCpp>> {
-        self.spell_custom_attribute_store.as_ref()
-    }
-    #[cfg(test)]
-    pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
-        self.serverside_spell_store = Some(store);
-    }
-    pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
-        self.spell_proc_store = Some(store);
-    }
-    #[allow(dead_code)]
-    pub(crate) fn spell_proc_store(&self) -> Option<&Arc<SpellProcStoreLikeCpp>> {
-        self.spell_proc_store.as_ref()
-    }
-    pub fn set_spell_required_store(&mut self, store: Arc<SpellRequiredStoreLikeCpp>) {
-        self.spell_required_store = Some(store);
-    }
-    pub(crate) fn spell_required_store_like_cpp(&self) -> Option<&Arc<SpellRequiredStoreLikeCpp>> {
-        self.spell_required_store.as_ref()
-    }
-    #[cfg(test)]
-    pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
-        self.spell_totem_model_store = Some(store);
-    }
-    pub fn set_spell_duration_store(&mut self, store: Arc<SpellDurationStore>) {
-        self.spell_duration_store = Some(store);
-    }
-    pub fn set_spell_radius_store(&mut self, store: Arc<SpellRadiusStore>) {
-        self.spell_radius_store = Some(store);
-    }
-    pub(crate) fn spell_misc_store(&self) -> Option<&Arc<SpellMiscStore>> {
-        self.spell_misc_store.as_ref()
-    }
-    pub fn set_spell_range_store(&mut self, store: Arc<SpellRangeStore>) {
-        self.spell_range_store = Some(store);
-    }
-    pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
-        self.spell_range_store.as_ref()
-    }
-    pub fn set_spell_target_position_store(&mut self, store: Arc<SpellTargetPositionStoreLikeCpp>) {
-        self.spell_target_position_store = Some(store);
+        self.spell_catalogs.spell_area_store = Some(store);
     }
     #[cfg(test)]
     pub(in crate::session) fn store_player_spell_runtime_fixture_like_cpp(
@@ -184,5 +78,81 @@ impl WorldSession {
             return true;
         }
         false
+    }
+}
+
+impl WorldSession {
+    pub fn set_spell_aura_restrictions_store(&mut self, store: Arc<SpellAuraRestrictionsStore>) {
+        self.spell_catalogs.set_spell_aura_restrictions_store(store);
+    }
+    pub fn set_spell_aura_options_store(&mut self, store: Arc<SpellAuraOptionsStore>) {
+        self.spell_catalogs.set_spell_aura_options_store(store);
+    }
+    pub fn set_spell_target_position_store(&mut self, store: Arc<SpellTargetPositionStoreLikeCpp>) {
+        self.spell_catalogs.set_spell_target_position_store(store);
+    }
+    pub fn set_spell_range_store(&mut self, store: Arc<SpellRangeStore>) {
+        self.spell_catalogs.set_spell_range_store(store);
+    }
+    pub fn set_spell_radius_store(&mut self, store: Arc<SpellRadiusStore>) {
+        self.spell_catalogs.set_spell_radius_store(store);
+    }
+    pub fn set_spell_duration_store(&mut self, store: Arc<SpellDurationStore>) {
+        self.spell_catalogs.set_spell_duration_store(store);
+    }
+    #[cfg(test)]
+    pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
+        self.spell_catalogs.set_spell_totem_model_store(store);
+    }
+    pub fn set_spell_required_store(&mut self, store: Arc<SpellRequiredStoreLikeCpp>) {
+        self.spell_catalogs.set_spell_required_store(store);
+    }
+    pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
+        self.spell_catalogs.set_spell_proc_store(store);
+    }
+    #[cfg(test)]
+    pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
+        self.spell_catalogs.set_serverside_spell_store(store);
+    }
+    pub fn set_spell_custom_attribute_store(
+        &mut self,
+        store: Arc<SpellCustomAttributeStoreLikeCpp>,
+    ) {
+        self.spell_catalogs.set_spell_custom_attribute_store(store);
+    }
+    pub fn set_spell_misc_store(&mut self, store: Arc<SpellMiscStore>) {
+        self.spell_catalogs.set_spell_misc_store(store);
+    }
+    pub fn set_spell_target_restrictions_store(
+        &mut self,
+        store: Arc<SpellTargetRestrictionsStore>,
+    ) {
+        self.spell_catalogs
+            .set_spell_target_restrictions_store(store);
+    }
+    pub fn set_npc_spell_click_store(&mut self, store: Arc<NpcSpellClickStoreLikeCpp>) {
+        self.spell_catalogs.set_npc_spell_click_store(store);
+    }
+    pub fn set_spell_category_store(&mut self, store: Arc<SpellCategoryStore>) {
+        self.spell_catalogs.set_spell_category_store(store);
+    }
+    pub fn set_spell_levels_store(&mut self, store: Arc<SpellLevelsStore>) {
+        self.spell_catalogs.set_spell_levels_store(store);
+    }
+    pub fn set_spell_acquisition_catalog(&mut self, catalog: Arc<SpellAcquisitionCatalogLikeCpp>) {
+        self.spell_catalogs.set_spell_acquisition_catalog(catalog);
+    }
+    /// Get the spell store reference.
+    pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
+        self.spell_catalogs.spell_store()
+    }
+    pub fn set_spell_shapeshift_form_store(&mut self, store: Arc<SpellShapeshiftFormStore>) {
+        self.spell_catalogs.set_spell_shapeshift_form_store(store);
+    }
+    pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
+        self.spell_catalogs.set_spell_learn_spell_store(store);
+    }
+    pub fn set_spell_learn_skill_store(&mut self, store: Arc<SpellLearnSkillStoreLikeCpp>) {
+        self.spell_catalogs.set_spell_learn_skill_store(store);
     }
 }

@@ -155,7 +155,7 @@ fn trainer_spell_class_race_fit_like_cpp(
 
 fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> TrainerProductLikeCpp {
     const SPELL_EFFECT_LEARN_SPELL_LIKE_CPP: u32 = 36;
-    let Some(catalog) = session.spell_acquisition_catalog() else {
+    let Some(catalog) = session.spell_catalogs.spell_acquisition_catalog() else {
         return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
     };
     let effects = match catalog.acquisition_effects_like_cpp(spell_id) {
@@ -351,8 +351,8 @@ impl WorldSession {
                 })
             })
         };
-        let battle_pet = match self
-            .spell_acquisition_catalog()
+        let acquisition = self.spell_catalogs.spell_acquisition_catalog();
+        let battle_pet = match acquisition
             .map(|catalog| catalog.battle_pet_classification_like_cpp(trainer_spell.spell_id))
         {
             Some(BattlePetClassificationLikeCpp::NotBattlePet) => {

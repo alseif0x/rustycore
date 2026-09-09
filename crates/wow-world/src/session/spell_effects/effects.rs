@@ -179,7 +179,7 @@ impl WorldSession {
 
         if let (Some(spell_store), Some(shapeshift_form_store)) = (
             self.spell_store(),
-            self.spell_shapeshift_form_store.as_ref(),
+            self.spell_catalogs.spell_shapeshift_form_store.as_ref(),
         ) {
             for aura in visible_auras.values() {
                 let Some(spell_info) = spell_store.get(aura.spell_id) else {
@@ -424,7 +424,8 @@ impl WorldSession {
         spell_id: i32,
         effect_index: u32,
     ) -> Option<Arc<wow_data::ConditionContainer>> {
-        self.spell_store
+        self.spell_catalogs
+            .spell_store
             .as_deref()
             .and_then(|store| store.implicit_target_conditions_like_cpp(spell_id, effect_index))
             .and_then(|conditions| conditions.upgrade())

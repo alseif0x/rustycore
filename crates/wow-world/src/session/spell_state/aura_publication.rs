@@ -52,7 +52,7 @@ impl WorldSession {
         {
             return false;
         }
-        let Some(effects) = self.spell_store.as_ref().and_then(|store| {
+        let Some(effects) = self.spell_catalogs.spell_store.as_ref().and_then(|store| {
             store.effects_for_difficulty_like_cpp(
                 aura.spell_id,
                 aura.difficulty_id,

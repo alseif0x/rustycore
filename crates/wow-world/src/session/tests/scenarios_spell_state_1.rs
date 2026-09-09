@@ -19,12 +19,11 @@ fn spell_acquisition_catalog_arc_is_shared_with_session() {
 
     session.set_spell_acquisition_catalog(Arc::clone(&catalog));
 
-    assert!(Arc::ptr_eq(
-        &catalog,
-        session
-            .spell_acquisition_catalog()
-            .expect("the process-wide catalog must be installed")
-    ));
+    let catalogs = &session.spell_catalogs;
+    let installed = catalogs
+        .spell_acquisition_catalog()
+        .expect("the process-wide catalog must be installed");
+    assert!(Arc::ptr_eq(&catalog, installed));
 }
 #[test]
 fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {

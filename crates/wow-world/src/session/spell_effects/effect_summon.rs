@@ -139,13 +139,16 @@ impl WorldSession {
         };
         let spell_id_u32 = u32::try_from(spell_id).unwrap_or(0);
         let duration_index = self
+            .spell_catalogs
             .spell_misc_store
             .as_deref()
             .and_then(|store| store.get_by_spell_id(spell_id_u32))
             .map(|entry| u32::from(entry.duration_index))
             .unwrap_or(0);
-        let duration_ms =
-            spell_duration_ms_like_cpp(duration_index, self.spell_duration_store.as_deref());
+        let duration_ms = spell_duration_ms_like_cpp(
+            duration_index,
+            self.spell_catalogs.spell_duration_store.as_deref(),
+        );
         let lifecycle_record = wow_data::gameobject_template_lifecycle_record_like_cpp(template);
         let Ok(mut manager) = manager.lock() else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
@@ -319,13 +322,16 @@ impl WorldSession {
         };
         let spell_id_u32 = u32::try_from(spell_id).unwrap_or(0);
         let duration_index = self
+            .spell_catalogs
             .spell_misc_store
             .as_deref()
             .and_then(|store| store.get_by_spell_id(spell_id_u32))
             .map(|entry| u32::from(entry.duration_index))
             .unwrap_or(0);
-        let duration_ms =
-            spell_duration_ms_like_cpp(duration_index, self.spell_duration_store.as_deref());
+        let duration_ms = spell_duration_ms_like_cpp(
+            duration_index,
+            self.spell_catalogs.spell_duration_store.as_deref(),
+        );
         let lifecycle_record = wow_data::gameobject_template_lifecycle_record_like_cpp(template);
         let Ok(mut manager) = manager.lock() else {
             return Some(ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
