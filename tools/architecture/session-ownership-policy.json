@@ -21363,22 +21363,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_aura_with_effect_mask_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_aura_with_effect_mask_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_aura_with_effect_mask_without_update_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_aura_with_effect_mask_without_update_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22511,22 +22515,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_represented_active_talent_spell_side_effects_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_active_talent_spell_side_effects_like_cpp (& mut self , talent_id : u32 , previous_rank : Option < u8 > , rank : u8 , talent_group : u8 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_represented_aura_modifier_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_aura_modifier_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo , represented_effect : RepresentedAuraEffectLikeCpp , duration_ms : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22856,11 +22864,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_represented_mounted_aura_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_mounted_aura_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -22941,11 +22951,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_represented_provide_spell_focus_aura_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_provide_spell_focus_aura_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -23318,11 +23330,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "aura_has_total_stat_percentage_effect_like_cpp",
-          "visibility": "private",
-          "signature": "fn aura_has_total_stat_percentage_effect_like_cpp (& self , aura : & AuraApplication) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn aura_has_total_stat_percentage_effect_like_cpp (& self , aura : & AuraApplication ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24388,11 +24402,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "calculate_represented_mounted_aura_amount_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn calculate_represented_mounted_aura_amount_like_cpp (& self , spell_id : i32 , effect : & wow_data :: SpellEffectInfo ,) -> i32",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -24470,11 +24486,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp (& self , difficulty_id : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -25306,22 +25324,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "cleanup_removed_spell_dual_wield_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn cleanup_removed_spell_dual_wield_like_cpp (& mut self , spell_id : i32)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "cleanup_removed_spell_titan_grip_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn cleanup_removed_spell_titan_grip_like_cpp (& mut self , spell_id : i32)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27159,11 +27181,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_represented_spell_click_clickee_caster_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "async fn execute_represented_spell_click_clickee_caster_like_cpp (& mut self , creature_guid : ObjectGuid , cast : & RepresentedSpellClickCastLikeCpp , player_guid : ObjectGuid , clickee_owner_guid : Option < ObjectGuid > ,) -> RepresentedSpellClickClickeeCasterOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27670,26 +27694,30 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_learn_dependent_known_spell_like_cpp",
-          "visibility": "private",
-          "signature": "fn fixture_learn_dependent_known_spell_like_cpp (& mut self , spell_id : i32)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn fixture_learn_dependent_known_spell_like_cpp (& mut self , spell_id : i32 ,)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "fixture_learn_known_spell_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_learn_known_spell_like_cpp (& mut self , spell_id : i32)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27737,26 +27765,30 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_replace_complete_spell_acquisition_runtime_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_replace_complete_spell_acquisition_runtime_like_cpp (& mut self , spell_rows : impl IntoIterator < Item = RepresentedPlayerSpellLikeCpp > , traits : impl IntoIterator < Item = (i32 , i32) > , overrides : impl IntoIterator < Item = (i32 , i32) > , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , occupied_skill_slots : u16 , non_durable_skill_tombstones : BTreeSet < u16 > ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "fixture_replace_loaded_spell_rows_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_replace_loaded_spell_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = RepresentedPlayerSpellLikeCpp > , complete : bool ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -27776,26 +27808,30 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_set_complete_spell_trait_definition_ids_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_set_complete_spell_trait_definition_ids_like_cpp (& mut self , traits : impl IntoIterator < Item = (i32 , i32) > ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "fixture_set_known_spells_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_set_known_spells_like_cpp (& mut self , spells : Vec < i32 >)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28677,13 +28713,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "has_represented_aura_effect_with_misc_value_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn has_represented_aura_effect_with_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29167,11 +29205,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "invalidate_canonical_player_spell_hit_aura_authority_like_cpp",
-          "visibility": "private",
-          "signature": "fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp (& mut self)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp (& mut self ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -29202,22 +29242,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "invalidate_represented_player_spell_rows_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn invalidate_represented_player_spell_rows_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp",
-          "visibility": "private",
-          "signature": "fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp (& mut self)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp (& mut self ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -30436,11 +30480,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "learn_account_mount_spells_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn learn_account_mount_spells_like_cpp (& mut self) -> usize",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31474,11 +31520,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "max_negative_represented_aura_amount_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn max_negative_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31498,11 +31546,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "max_represented_aura_amount_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn max_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -31933,11 +31983,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_aura_subsystem_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_aura_subsystem_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: AuraSubsystem) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32073,22 +32125,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_spell_history_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_spell_history_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: SpellHistory) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_spell_runtime_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_spell_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerSpellRuntimeState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -32267,11 +32323,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "next_player_visible_aura_slot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn next_player_visible_aura_slot_like_cpp (& self) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33038,22 +33096,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_aura_info_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_aura_info_like_cpp (aura : & AuraApplication , player_level : u8 , map_id : u16 ,) -> wow_packet :: packets :: misc :: AuraInfoLikeCpp",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "player_aura_subsystem_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_aura_subsystem_snapshot_like_cpp (& self) -> Option < wow_entities :: AuraSubsystem >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_aura_subsystem_snapshot_like_cpp (& self ,) -> Option < wow_entities :: AuraSubsystem >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -33457,11 +33519,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_has_visible_aura_spell_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_has_visible_aura_spell_like_cpp (& self , spell_id : i32) -> Option < bool >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_has_visible_aura_spell_like_cpp (& self , spell_id : i32 ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34301,33 +34365,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_spell_history_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_spell_history_snapshot_like_cpp (& self) -> Option < wow_entities :: SpellHistory >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_spell_history_snapshot_like_cpp (& self ,) -> Option < wow_entities :: SpellHistory >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "player_spell_hit_source_identity_complete_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_spell_hit_source_identity_complete_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "player_spell_runtime_snapshot_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_spell_runtime_snapshot_like_cpp (& self ,) -> Option < RepresentedPlayerSpellRuntimeLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34375,22 +34445,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_target_spell_effect_is_hit_inert_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_target_spell_effect_is_hit_inert_like_cpp (effect : & wow_data :: spell :: SpellEffectInfo ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "player_target_spell_is_hit_inert_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_target_spell_is_hit_inert_like_cpp (& self , spell_id : u32 , difficulty_id : u8) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_target_spell_is_hit_inert_like_cpp (& self , spell_id : u32 , difficulty_id : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34539,11 +34613,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_visible_aura_is_spell_hit_inert_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_visible_aura_is_spell_hit_inert_like_cpp (& self , aura : & AuraApplication) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn player_visible_aura_is_spell_hit_inert_like_cpp (& self , aura : & AuraApplication ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -34971,11 +35047,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "publish_spell_pull_attack_start_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn publish_spell_pull_attack_start_like_cpp (& mut self , attacker_guid : ObjectGuid , victim_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -35406,11 +35484,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "record_cast_character_spell_cooldown_like_cpp",
-          "visibility": "private",
-          "signature": "fn record_cast_character_spell_cooldown_like_cpp (& mut self , spell_id : i32 , cooldown_ms : u32)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn record_cast_character_spell_cooldown_like_cpp (& mut self , spell_id : i32 , cooldown_ms : u32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36813,11 +36893,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_indoor_outdoor_auras_for_current_position_represented_like_cpp",
-          "visibility": "private",
-          "signature": "fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp (& mut self) -> usize",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp (& mut self ,) -> usize",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -36939,11 +37021,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_player_visible_aura_like_cpp",
-          "visibility": "private",
-          "signature": "fn remove_player_visible_aura_like_cpp (& mut self , slot : u8) -> Option < AuraApplication >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn remove_player_visible_aura_like_cpp (& mut self , slot : u8 ,) -> Option < AuraApplication >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37000,11 +37084,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_represented_cancelable_auras_by_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn remove_represented_cancelable_auras_by_effect_like_cpp (& mut self , represented_effect : RepresentedAuraEffectLikeCpp ,) -> usize",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37076,22 +37162,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_represented_mount_capability_speed_auras_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn remove_represented_mount_capability_speed_auras_like_cpp (& mut self , mount_capability_id : i32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "remove_represented_mounted_auras_by_type_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn remove_represented_mounted_auras_by_type_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -37150,11 +37240,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_represented_stealth_or_invisibility_auras_by_type_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp (& mut self ,) -> Option < usize >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38922,11 +39014,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_direct_learn_spell_triggers_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_direct_learn_spell_triggers_like_cpp (& self , spell_id : i32) -> Vec < i32 >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_direct_learn_spell_triggers_like_cpp (& self , spell_id : i32 ,) -> Vec < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -39689,11 +39783,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_has_aura_state_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_has_aura_state_like_cpp (& self , _aura_state : u32) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40152,11 +40248,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_login_passive_spell_cast_gate_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_login_passive_spell_cast_gate_like_cpp (& self , spell_id : i32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_login_passive_spell_cast_gate_like_cpp (& self , spell_id : i32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -40228,11 +40326,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_mount_capability_mod_spell_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_mount_capability_mod_spell_like_cpp (& self , mount_capability_id : i32 ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41635,11 +41735,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_spell_area_autocast_source_is_empty_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_spell_area_autocast_source_is_empty_like_cpp (& self) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_spell_area_autocast_source_is_empty_like_cpp (& self ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41694,11 +41796,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_spell_is_positive_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_spell_is_positive_like_cpp (spell_info : & wow_data :: SpellInfo) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_spell_is_positive_like_cpp (spell_info : & wow_data :: SpellInfo ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41729,33 +41833,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_spell_valid_for_learning_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_spell_valid_for_learning_like_cpp (& self , spell_id : i32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_spell_valid_for_learning_like_cpp (& self , spell_id : i32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_spell_valid_for_talent_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_spell_valid_for_talent_like_cpp (& self , spell_id : i32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_spell_valid_for_talent_like_cpp (& self , spell_id : i32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "represented_spell_valid_with_seen_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_spell_valid_with_seen_like_cpp (spell_store : & wow_data :: SpellStore , spell_id : i32 , seen : & mut HashSet < i32 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -41926,11 +42036,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_talent_override_spell_pair_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_talent_override_spell_pair_like_cpp (& self , talent_id : u32 ,) -> Option < (i32 , i32) >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42030,11 +42142,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_talent_spell_id_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_talent_spell_id_like_cpp (& self , talent_id : u32 , rank : u8) -> Option < i32 >",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_talent_spell_id_like_cpp (& self , talent_id : u32 , rank : u8 ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42399,11 +42513,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_update_area_pvp_rule_aura_source_is_empty_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_update_area_pvp_rule_aura_source_is_empty_like_cpp (& self) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_update_area_pvp_rule_aura_source_is_empty_like_cpp (& self ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42425,11 +42541,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_update_zone_script_aura_source_is_hit_inert_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_update_zone_script_aura_source_is_hit_inert_like_cpp (& self) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_update_zone_script_aura_source_is_hit_inert_like_cpp (& self ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42535,11 +42653,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_vehicle_seat_spell_click_plan_available_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn represented_vehicle_seat_spell_click_plan_available_like_cpp (& self , vehicle_guid : ObjectGuid , seat_id : i8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -42706,11 +42826,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_war_mode_update_zone_aura_source_is_empty_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_war_mode_update_zone_aura_source_is_empty_like_cpp (& self) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn represented_war_mode_update_zone_aura_source_is_empty_like_cpp (& self ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -43219,11 +43341,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "reset_spells_notification_text_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn reset_spells_notification_text_like_cpp (& self) -> String",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -43463,22 +43587,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_has_represented_aura_effect_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_has_represented_aura_effect_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "resolved_has_represented_aura_effect_with_misc_value_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_has_represented_aura_effect_with_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44190,33 +44318,39 @@
           "trait_path": null,
           "kind": "method",
           "name": "resolved_total_represented_aura_modifier_by_misc_value_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "resolved_total_represented_aura_modifier_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_total_represented_aura_modifier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "resolved_total_represented_aura_multiplier_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_total_represented_aura_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44327,11 +44461,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "restore_represented_character_spell_charge_like_cpp",
-          "visibility": "private",
-          "signature": "fn restore_represented_character_spell_charge_like_cpp (& mut self , category_id : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn restore_represented_character_spell_charge_like_cpp (& mut self , category_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44934,11 +45070,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_aura_update_applied",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_aura_update_applied (& self , spell_id : i32 , slot : u8 , caster : ObjectGuid , duration : u32 , flags : u32 , effect_mask : u32 ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -45286,11 +45424,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_on_cancel_expected_vehicle_ride_aura_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn send_on_cancel_expected_vehicle_ride_aura_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -52667,11 +52807,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "spell_has_no_unrepresented_runtime_hooks_like_cpp",
-          "visibility": "private",
-          "signature": "fn spell_has_no_unrepresented_runtime_hooks_like_cpp (& self , spell_id : u32) -> bool",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn spell_has_no_unrepresented_runtime_hooks_like_cpp (& self , spell_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -52923,11 +53065,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "spell_school_mask_for_difficulty_like_cpp",
-          "visibility": "private",
-          "signature": "fn spell_school_mask_for_difficulty_like_cpp (& self , spell_id : u32 , difficulty : u8) -> u32",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn spell_school_mask_for_difficulty_like_cpp (& self , spell_id : u32 , difficulty : u8 ,) -> u32",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -53144,13 +53288,15 @@
           "trait_path": null,
           "kind": "method",
           "name": "store_player_spell_runtime_fixture_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn store_player_spell_runtime_fixture_like_cpp (& mut self , runtime : RepresentedPlayerSpellRuntimeLikeCpp ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -53915,59 +54061,69 @@
           "trait_path": null,
           "kind": "method",
           "name": "total_represented_aura_amount_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn total_represented_aura_amount_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "total_represented_aura_amount_multiplier_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn total_represented_aura_amount_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "total_represented_aura_modifier_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn total_represented_aura_modifier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> i32",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "total_represented_aura_multiplier_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn total_represented_aura_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> f32",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "total_stat_percentage_aura_preserves_health_pct_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn total_stat_percentage_aura_preserves_health_pct_like_cpp (& self , aura : & AuraApplication ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -54537,11 +54693,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_represented_flight_flags_for_flight_aura_like_cpp",
-          "visibility": "private",
-          "signature": "fn update_represented_flight_flags_for_flight_aura_like_cpp (& mut self , apply : bool)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn update_represented_flight_flags_for_flight_aura_like_cpp (& mut self , apply : bool ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -55567,11 +55725,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "with_player_spell_runtime_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn with_player_spell_runtime_like_cpp < R > (& self , query : impl FnOnce (& wow_entities :: PlayerSpellRuntimeState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -65852,45 +66012,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_to_movement_set_in_range_and_connection_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_to_movement_set_in_range_and_connection_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "guid",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::broadcast_to_movement_set_in_range_and_connection_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::create_map_instance_owner_guid_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -66639,32 +66760,6 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "self . player_registry . as_ref ()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::publish_spell_pull_attack_start_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::publish_spell_pull_attack_start_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
           "count": 1
         },
         {
@@ -67835,6 +67930,71 @@
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_state::cast",
+          "source": "crates/wow-world/src/session/spell_state/cast.rs",
+          "enclosing": "impl WorldSession::broadcast_to_movement_set_in_range_and_connection_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_state::cast",
+          "source": "crates/wow-world/src/session/spell_state/cast.rs",
+          "enclosing": "impl WorldSession::broadcast_to_movement_set_in_range_and_connection_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "guid",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_state::cast",
+          "source": "crates/wow-world/src/session/spell_state/cast.rs",
+          "enclosing": "impl WorldSession::broadcast_to_movement_set_in_range_and_connection_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_state::spell_publication",
+          "source": "crates/wow-world/src/session/spell_state/spell_publication.rs",
+          "enclosing": "impl WorldSession::publish_spell_pull_attack_start_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::spell_state::spell_publication",
+          "source": "crates/wow-world/src/session/spell_state/spell_publication.rs",
+          "enclosing": "impl WorldSession::publish_spell_pull_attack_start_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
           "count": 1
         },
         {
