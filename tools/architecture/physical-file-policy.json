@@ -280,15 +280,15 @@
     {
       "path": "crates/wow-loot/src/authority.rs",
       "observed_lines": 3515,
-      "ceiling_lines": 3515,
-      "split": "Separate loot claim planning, durable outcome/recovery and claim-interleaving tests.",
+      "ceiling_lines": 37,
+      "split": "Separate the owned-loot authority state, the claim/lease operations and their regressions. #642 decomposes the 3,515-line module into one state module, two authority/ops modules dividing the inherent `impl OwnedLootAuthority`, and two regression modules, dropping it to 37 lines and tightening the ceiling to that figure. Every trait impl - Drop, Debug, PartialEq, Default - stays whole. Item-for-item with the crate's 69 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-loot/src/lib.rs",
       "observed_lines": 3835,
-      "ceiling_lines": 3835,
-      "split": "Separate loot domain facade, roll/distribution rules and their tests; retain one award authority.",
+      "ceiling_lines": 32,
+      "split": "Separate the loot store definitions, the reference and condition-link reports, the template/group model and their regressions. #642 moves them into a private `store` module with four state modules (135-937 lines) and two regression modules, dropping the crate root to 32 lines and tightening the ceiling to that figure; the root keeps the crate documentation, its imports and the public re-exports, so every downstream path is unchanged. Item-for-item with the crate's 69 tests unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
