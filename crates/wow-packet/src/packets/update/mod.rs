@@ -67,5 +67,5 @@ fn debug_create_header_len_like_cpp(
 }
 
 #[cfg(test)]
-#[path = "../update_tests.rs"]
+#[path = "../update_tests/mod.rs"]
 mod tests;
