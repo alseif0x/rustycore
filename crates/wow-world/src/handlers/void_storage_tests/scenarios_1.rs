@@ -243,32 +243,64 @@ async fn unlock_submits_one_semantic_write_before_runtime_publication_like_cpp()
 
 #[test]
 fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
-    let source = include_str!("../void_storage.rs");
-    for (start, end) in [
+    // #707 divided the handler impl into submodules, so this audits every file of
+    // the module instead of slicing three handler bodies out of a single source.
+    let audited = [
+        ("void_storage.rs", include_str!("../void_storage.rs")),
         (
-            "pub async fn handle_void_storage_unlock",
-            "pub async fn handle_void_storage_query",
+            "void_storage/items.rs",
+            include_str!("../void_storage/items.rs"),
         ),
         (
-            "pub async fn handle_void_storage_transfer",
-            "pub async fn handle_void_storage_swap_item",
+            "void_storage/publication.rs",
+            include_str!("../void_storage/publication.rs"),
         ),
         (
-            "pub async fn handle_void_storage_swap_item",
-            "#[path = \"void_storage_tests/mod.rs\"]",
+            "void_storage/unlock_and_query.rs",
+            include_str!("../void_storage/unlock_and_query.rs"),
         ),
-    ] {
-        let body = source
-            .split_once(start)
-            .and_then(|(_, tail)| tail.split_once(end).map(|(body, _)| body))
-            .expect("audited void-storage handler body");
+        (
+            "void_storage/transfer.rs",
+            include_str!("../void_storage/transfer.rs"),
+        ),
+        (
+            "void_storage/swap.rs",
+            include_str!("../void_storage/swap.rs"),
+        ),
+    ];
+    for (path, source) in audited {
         for forbidden in ["CharStatements", "SqlTransaction", ".prepare(", "char_db"] {
             assert!(
-                !body.contains(forbidden),
-                "{start} regained concrete persistence syntax: {forbidden}"
+                !source.contains(forbidden),
+                "{path} regained concrete persistence syntax: {forbidden}"
             );
         }
     }
+
+    // A submodule added later cannot escape the audit by not being listed here.
+    let directory =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/handlers/void_storage");
+    let mut present: Vec<String> = std::fs::read_dir(&directory)
+        .expect("void-storage module directory")
+        .map(|entry| {
+            entry
+                .expect("void-storage directory entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .filter(|name| name.ends_with(".rs"))
+        .collect();
+    present.sort();
+    let mut covered: Vec<String> = audited
+        .iter()
+        .filter_map(|(path, _)| path.strip_prefix("void_storage/").map(str::to_owned))
+        .collect();
+    covered.sort();
+    assert_eq!(
+        present, covered,
+        "every void-storage submodule must be audited for concrete persistence syntax"
+    );
 }
 
 #[test]
