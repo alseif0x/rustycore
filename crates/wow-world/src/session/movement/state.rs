@@ -67,35 +67,15 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
         true
     }
-    /// C++ `Player::RemoveCurrency` underflow guard for vendor costs.
-    pub(crate) fn plan_remove_currency_like_cpp(
-        currencies: &mut HashMap<u32, PlayerCurrency>,
-        currency_id: u32,
-        amount: u32,
-    ) -> bool {
-        if amount == 0 {
-            return true;
-        }
-
-        let Some(currency) = currencies.get_mut(&currency_id) else {
-            return false;
-        };
-        if currency.quantity == 0 {
-            return false;
-        }
-
-        let removed = amount.min(currency.quantity);
-        currency.quantity -= removed;
-        if currency.state != PlayerCurrencyState::New {
-            currency.state = PlayerCurrencyState::Changed;
-        }
-        true
-    }
     pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
         let Some(mut currencies) = self.player_currencies_like_cpp() else {
             return false;
         };
-        if !Self::plan_remove_currency_like_cpp(&mut currencies, currency_id, amount) {
+        if !crate::session_rules::plan_remove_currency_like_cpp(
+            &mut currencies,
+            currency_id,
+            amount,
+        ) {
             return false;
         }
         self.set_player_currencies_like_cpp(currencies)
@@ -103,24 +83,6 @@ impl WorldSession {
     pub(crate) fn remove_account_toy_like_cpp(&mut self, item_id: u32) -> bool {
         self.mutate_player_collection_state_like_cpp(|state| state.toys.remove(&item_id).is_some())
             .unwrap_or(false)
-    }
-    pub(in crate::session) fn position_is_within_area_trigger_box_like_cpp(
-        pos: &Position,
-        center: &Position,
-        half_length: f32,
-        half_width: f32,
-        half_height: f32,
-    ) -> bool {
-        let dx = pos.x - center.x;
-        let dy = pos.y - center.y;
-        let cos_yaw = center.orientation.cos();
-        let sin_yaw = center.orientation.sin();
-        let rel_x = dx * cos_yaw + dy * sin_yaw;
-        let rel_y = -dx * sin_yaw + dy * cos_yaw;
-
-        rel_x.abs() <= half_length
-            && rel_y.abs() <= half_width
-            && (pos.z - center.z).abs() <= half_height
     }
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
         self.mutate_player_rest_state_like_cpp(|state| state.remove_flag_like_cpp(rest_flag))
@@ -215,7 +177,7 @@ impl WorldSession {
                 clock_delta = self.time_sync_clock_delta,
                 "The computed movement time using clockDelta is erroneous. Using fallback instead"
             );
-            Self::game_time_ms_like_cpp()
+            crate::session_rules::game_time_ms_like_cpp()
         } else {
             movement_time as u32
         }
@@ -940,7 +902,7 @@ impl WorldSession {
             .and_then(|managed| {
                 managed.map().with_world_object_by_kinds_like_cpp(
                     seer_guid,
-                    Self::represented_seer_kinds_like_cpp(),
+                    crate::session_rules::represented_seer_kinds_like_cpp(),
                     |object| object.position(),
                 )
             })

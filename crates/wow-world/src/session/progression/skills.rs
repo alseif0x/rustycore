@@ -191,7 +191,7 @@ impl WorldSession {
         tombstones.retain(|skill_id| {
             skill_records
                 .get(skill_id)
-                .is_some_and(Self::is_non_durable_skill_tombstone_like_cpp)
+                .is_some_and(crate::session_rules::is_non_durable_skill_tombstone_like_cpp)
         });
         tombstones.extend(
             skill_records

@@ -403,11 +403,13 @@ fn visibility_distance_adds_both_combat_reaches_with_cpp_strict_boundary() {
     let inside = Position::new(103.49, 0.0, 500.0, 0.0);
     let boundary = Position::new(103.5, 0.0, 0.0, 0.0);
 
-    assert!(WorldSession::visibility_distance_allows_like_cpp(
+    assert!(crate::session_rules::visibility_distance_allows_like_cpp(
         &source, 1.5, &inside, 2.0, 100.0,
     ));
     assert!(
-        !WorldSession::visibility_distance_allows_like_cpp(&source, 1.5, &boundary, 2.0, 100.0,),
+        !crate::session_rules::visibility_distance_allows_like_cpp(
+            &source, 1.5, &boundary, 2.0, 100.0,
+        ),
         "C++ Position::IsInDist2d uses a strict less-than comparison"
     );
 }

@@ -585,7 +585,7 @@ impl WorldSession {
             };
             for &(currency_id, amount) in &extended_cost_currency_costs {
                 if i32::try_from(amount).is_err()
-                    || !Self::plan_remove_currency_like_cpp(
+                    || !crate::session_rules::plan_remove_currency_like_cpp(
                         &mut planned_currencies,
                         currency_id,
                         amount,
@@ -1017,7 +1017,7 @@ impl WorldSession {
         };
         for &(currency_id, amount) in &extended_cost_currency_costs {
             if i32::try_from(amount).is_err()
-                || !Self::plan_remove_currency_like_cpp(
+                || !crate::session_rules::plan_remove_currency_like_cpp(
                     &mut planned_currencies,
                     currency_id,
                     amount,
@@ -1348,7 +1348,7 @@ impl WorldSession {
             self.send_buy_error(BuyResult::CantFindItem, Some(buyback.vendor_guid), 0);
             return;
         };
-        if !WorldSession::is_buyback_slot(buyback_slot) {
+        if !crate::session_rules::is_buyback_slot(buyback_slot) {
             self.send_buy_error(BuyResult::CantFindItem, Some(buyback.vendor_guid), 0);
             return;
         }

@@ -601,7 +601,7 @@ impl WorldSession {
         let mut represented_bag_slots_by_guid = HashMap::new();
         let mut bag_templates = Vec::new();
         for (&slot, item) in &inventory_items {
-            if Self::is_buyback_slot(slot) {
+            if crate::session_rules::is_buyback_slot(slot) {
                 continue;
             }
             if vacated_positions.contains(&(INVENTORY_SLOT_BAG_0, slot)) {
@@ -644,7 +644,7 @@ impl WorldSession {
         let mut slot_items = Vec::new();
         let mut stored_items = Vec::new();
         for (&slot, inventory_item) in &inventory_items {
-            if Self::is_buyback_slot(slot) {
+            if crate::session_rules::is_buyback_slot(slot) {
                 continue;
             }
             if overlays
@@ -749,51 +749,8 @@ impl WorldSession {
     ) {
         self.loot_item_store_test_commit_gate_like_cpp = Some(gate);
     }
-    pub(in crate::session) fn item_push_result_from_send_new_item_plan(
-        plan: &SendNewItemPlan,
-    ) -> ItemPushResult {
-        ItemPushResult {
-            player_guid: plan.player_guid,
-            slot: plan.slot,
-            slot_in_bag: i32::from(plan.slot_in_bag),
-            item: ItemInstance {
-                item_id: plan.item_instance.item_id as i32,
-                random_properties_seed: plan.item_instance.random_properties_seed,
-                random_properties_id: plan.item_instance.random_properties_id,
-                item_bonus: None,
-                modifications: ItemModList {
-                    values: plan
-                        .item_instance
-                        .modifications
-                        .iter()
-                        .map(|modifier| ItemMod::new(modifier.value, modifier.modifier_type))
-                        .collect(),
-                },
-            },
-            quest_log_item_id: plan.quest_log_item_id as i32,
-            quantity: plan.quantity as i32,
-            quantity_in_inventory: plan.quantity_in_inventory as i32,
-            dungeon_encounter_id: plan.dungeon_encounter_id as i32,
-            battle_pet_species_id: plan.battle_pet_species_id as i32,
-            battle_pet_breed_id: plan.battle_pet_breed_id as i32,
-            battle_pet_breed_quality: u32::from(plan.battle_pet_breed_quality),
-            battle_pet_level: plan.battle_pet_level as i32,
-            item_guid: plan.item_guid,
-            pushed: plan.pushed,
-            display_text: match plan.display_text {
-                SendNewItemDisplayText::Normal => ItemPushResultDisplayType::Normal,
-                SendNewItemDisplayText::EncounterLoot => ItemPushResultDisplayType::EncounterLoot,
-                SendNewItemDisplayText::QuestUpdateAddItem => {
-                    ItemPushResultDisplayType::QuestUpdateAddItem
-                }
-            },
-            created: plan.created,
-            is_bonus_roll: false,
-            is_encounter_loot: plan.is_encounter_loot,
-        }
-    }
     pub fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
-        let packet = Self::item_push_result_from_send_new_item_plan(plan);
+        let packet = crate::session_rules::item_push_result_from_send_new_item_plan(plan);
         if plan.delivery == SendNewItemDelivery::GroupBroadcast {
             use wow_packet::ServerPacket;
 

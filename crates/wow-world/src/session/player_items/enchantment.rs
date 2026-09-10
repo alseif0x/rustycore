@@ -462,21 +462,6 @@ impl WorldSession {
             _ => false,
         }
     }
-    pub(in crate::session) fn loaded_enchantment_effect_action_is_unrepresented_like_cpp(
-        action: ApplyEnchantmentEffectAction,
-    ) -> bool {
-        matches!(
-            action,
-            ApplyEnchantmentEffectAction::DeferredCombatSpell
-                | ApplyEnchantmentEffectAction::DeferredUseSpell
-                | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
-                | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
-                | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
-                | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
-                | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
-                | ApplyEnchantmentEffectAction::Unknown { .. }
-        )
-    }
     pub fn send_item_enchant_time_update_plan(
         &self,
         owner_guid: ObjectGuid,
@@ -734,7 +719,8 @@ impl WorldSession {
             if matches!(action, ApplyEnchantmentEffectAction::Noop) {
                 continue;
             }
-            changed_stats |= Self::represented_item_bonus_action_updates_stats_like_cpp(action);
+            changed_stats |=
+                crate::session_rules::represented_item_bonus_action_updates_stats_like_cpp(action);
             let represented_action = RepresentedItemBonusActionLikeCpp {
                 item_guid,
                 slot: slot as u8,
@@ -745,7 +731,9 @@ impl WorldSession {
                 .push(represented_action.clone());
             let spell_action_applied = self.apply_loaded_enchantment_spell_action_like_cpp(action);
             if !spell_action_applied
-                && Self::loaded_enchantment_effect_action_is_unrepresented_like_cpp(action)
+                && crate::session_rules::loaded_enchantment_effect_action_is_unrepresented_like_cpp(
+                    action,
+                )
             {
                 unrepresented_actions.push(represented_action.clone());
             }

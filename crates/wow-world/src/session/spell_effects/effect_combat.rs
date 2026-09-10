@@ -384,7 +384,7 @@ impl WorldSession {
             let packet = wow_packet::packets::misc::AuraUpdate {
                 unit_guid: target_guid,
                 update_all: false,
-                auras: vec![Self::player_aura_info_like_cpp(
+                auras: vec![crate::session_rules::player_aura_info_like_cpp(
                     &aura,
                     self.player_level_like_cpp(),
                     self.player_map_id_like_cpp(),

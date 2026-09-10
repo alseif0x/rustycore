@@ -6,24 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn movement_speed_ack_move_type_like_cpp(
-        opcode: ClientOpcodes,
-    ) -> Option<UnitMoveTypeLikeCpp> {
-        match opcode {
-            ClientOpcodes::MoveForceWalkSpeedChangeAck => Some(UnitMoveTypeLikeCpp::Walk),
-            ClientOpcodes::MoveForceRunSpeedChangeAck => Some(UnitMoveTypeLikeCpp::Run),
-            ClientOpcodes::MoveForceRunBackSpeedChangeAck => Some(UnitMoveTypeLikeCpp::RunBack),
-            ClientOpcodes::MoveForceSwimSpeedChangeAck => Some(UnitMoveTypeLikeCpp::Swim),
-            ClientOpcodes::MoveForceSwimBackSpeedChangeAck => Some(UnitMoveTypeLikeCpp::SwimBack),
-            ClientOpcodes::MoveForceTurnRateChangeAck => Some(UnitMoveTypeLikeCpp::TurnRate),
-            ClientOpcodes::MoveForceFlightSpeedChangeAck => Some(UnitMoveTypeLikeCpp::Flight),
-            ClientOpcodes::MoveForceFlightBackSpeedChangeAck => {
-                Some(UnitMoveTypeLikeCpp::FlightBack)
-            }
-            ClientOpcodes::MoveForcePitchRateChangeAck => Some(UnitMoveTypeLikeCpp::PitchRate),
-            _ => None,
-        }
-    }
     pub(in crate::session) fn resolved_player_movement_speed_rate_like_cpp(
         &self,
         move_type: UnitMoveTypeLikeCpp,
@@ -238,37 +220,6 @@ impl WorldSession {
         self.recompute_represented_swim_speed_rate_like_cpp();
         self.recompute_represented_flight_speed_rate_like_cpp();
     }
-    fn player_movement_speed_opcodes_like_cpp(
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> Option<(ServerOpcodes, ServerOpcodes)> {
-        match move_type {
-            UnitMoveTypeLikeCpp::Run => Some((
-                ServerOpcodes::MoveSetRunSpeed,
-                ServerOpcodes::MoveUpdateRunSpeed,
-            )),
-            UnitMoveTypeLikeCpp::Flight => Some((
-                ServerOpcodes::MoveSetFlightSpeed,
-                ServerOpcodes::MoveUpdateFlightSpeed,
-            )),
-            UnitMoveTypeLikeCpp::Swim => Some((
-                ServerOpcodes::MoveSetSwimSpeed,
-                ServerOpcodes::MoveUpdateSwimSpeed,
-            )),
-            UnitMoveTypeLikeCpp::RunBack => Some((
-                ServerOpcodes::MoveSetRunBackSpeed,
-                ServerOpcodes::MoveUpdateRunBackSpeed,
-            )),
-            UnitMoveTypeLikeCpp::SwimBack => Some((
-                ServerOpcodes::MoveSetSwimBackSpeed,
-                ServerOpcodes::MoveUpdateSwimBackSpeed,
-            )),
-            UnitMoveTypeLikeCpp::FlightBack => Some((
-                ServerOpcodes::MoveSetFlightBackSpeed,
-                ServerOpcodes::MoveUpdateFlightBackSpeed,
-            )),
-            _ => None,
-        }
-    }
     pub(in crate::session) fn set_player_movement_speed_rate_and_notify_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
@@ -291,7 +242,7 @@ impl WorldSession {
             return;
         };
         let Some((set_opcode, update_opcode)) =
-            Self::player_movement_speed_opcodes_like_cpp(move_type)
+            crate::session_rules::player_movement_speed_opcodes_like_cpp(move_type)
         else {
             return;
         };
@@ -340,7 +291,8 @@ impl WorldSession {
         ack: &mut wow_packet::packets::movement::MovementAck,
         speed: f32,
     ) -> bool {
-        let Some(move_type) = Self::movement_speed_ack_move_type_like_cpp(opcode) else {
+        let Some(move_type) = crate::session_rules::movement_speed_ack_move_type_like_cpp(opcode)
+        else {
             self.trace_anticheat_violation_like_cpp(
                 "HandleForceSpeedChangeAck.UnknownMoveType",
                 Some(opcode),

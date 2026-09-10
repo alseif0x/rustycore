@@ -247,20 +247,6 @@ impl WorldSession {
         )
         .await;
     }
-    #[cfg(test)]
-    pub(in crate::session) fn is_non_durable_skill_tombstone_like_cpp(
-        skill: &RepresentedPlayerSkillLikeCpp,
-    ) -> bool {
-        skill.step == 0
-            && skill.value == 0
-            && skill.max == 0
-            && skill.profession_slot == -1
-            && matches!(
-                skill.state,
-                RepresentedPlayerSkillStateLikeCpp::Unchanged
-                    | RepresentedPlayerSkillStateLikeCpp::Deleted
-            )
-    }
     pub(crate) fn resolved_player_skill_non_durable_tombstones_like_cpp(
         &self,
     ) -> Option<BTreeSet<u16>> {

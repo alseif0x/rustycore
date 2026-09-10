@@ -1804,7 +1804,7 @@ fn expected_gameobject_dynamic_flags_update_like_cpp(
     map_id: u16,
     dynamic_flags: u32,
 ) -> Vec<u8> {
-    WorldSession::represented_gameobject_dynamic_flags_update_like_cpp(guid, map_id, dynamic_flags)
+    represented_gameobject_dynamic_flags_update_like_cpp(guid, map_id, dynamic_flags)
         .expect("dynamic flags update")
         .to_bytes()
 }

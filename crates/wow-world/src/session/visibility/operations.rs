@@ -9,18 +9,6 @@ impl WorldSession {
     fn player_session_never_visible_for_seer_like_cpp(&self, guid: ObjectGuid) -> bool {
         self.player_logout_like_cpp || self.player_loading == Some(guid)
     }
-    fn apply_player_session_visibility_detection_like_cpp(
-        player: &mut Player,
-        never_visible_for_seer: bool,
-        seer_can_never_see_target: bool,
-    ) {
-        player
-            .unit_mut()
-            .set_never_visible_for_seer_like_cpp(never_visible_for_seer);
-        player
-            .unit_mut()
-            .set_seer_can_never_see_target_like_cpp(seer_can_never_see_target);
-    }
     pub(crate) fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
             return;
@@ -28,7 +16,7 @@ impl WorldSession {
         let never_visible_for_seer = self.player_session_never_visible_for_seer_like_cpp(guid);
         let seer_can_never_see_target = self.player_can_never_see_target_like_cpp();
         let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-            Self::apply_player_session_visibility_detection_like_cpp(
+            crate::session_rules::apply_player_session_visibility_detection_like_cpp(
                 player,
                 never_visible_for_seer,
                 seer_can_never_see_target,
@@ -306,25 +294,6 @@ impl WorldSession {
         );
         self.last_visibility_pos = None;
         true
-    }
-    pub(in crate::session) fn represented_seer_kinds_like_cpp() -> &'static [AccessorObjectKind] {
-        &[
-            AccessorObjectKind::Player,
-            AccessorObjectKind::Creature,
-            AccessorObjectKind::Pet,
-            AccessorObjectKind::DynamicObject,
-        ]
-    }
-    pub(in crate::session) fn visibility_distance_allows_like_cpp(
-        source_position: &Position,
-        source_combat_reach: f32,
-        target_position: &Position,
-        target_combat_reach: f32,
-        sight_range: f32,
-    ) -> bool {
-        let max_distance =
-            sight_range + source_combat_reach.max(0.0) + target_combat_reach.max(0.0);
-        source_position.distance_2d_sq(target_position) < max_distance * max_distance
     }
     pub(crate) async fn force_update_visibility_with_catalogs_like_cpp(
         &mut self,

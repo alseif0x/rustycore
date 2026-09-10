@@ -621,7 +621,7 @@ impl WorldSession {
             .unwrap_or(false);
 
         if changed {
-            if !Self::account_transmog_update_opcode_resolved_like_cpp() {
+            if !crate::session_rules::account_transmog_update_opcode_resolved_like_cpp() {
                 warn!(
                     "Skipping AccountTransmogUpdate favorite delta: legacy C++ opcode is unresolved 0xBADD for 54261"
                 );
@@ -638,16 +638,9 @@ impl WorldSession {
 
         changed
     }
-    fn account_transmog_update_opcode_resolved_like_cpp() -> bool {
-        // The inspected 3.4.3 legacy C++ tree still declares
-        // SMSG_ACCOUNT_TRANSMOG_UPDATE as NULL_OPCODE/0xBADD. Sending it during
-        // login can make the client close the connection after the initial burst.
-        <wow_packet::packets::collection::AccountTransmogUpdate as wow_packet::ServerPacket>::OPCODE
-            != ServerOpcodes::UpdateCapturePoint
-    }
     /// C++ `CollectionMgr::SendFavoriteAppearances`.
     pub fn send_favorite_appearances_like_cpp(&self) {
-        if !Self::account_transmog_update_opcode_resolved_like_cpp() {
+        if !crate::session_rules::account_transmog_update_opcode_resolved_like_cpp() {
             warn!(
                 "Skipping AccountTransmogUpdate full update: legacy C++ opcode is unresolved 0xBADD for 54261"
             );
@@ -793,38 +786,6 @@ impl WorldSession {
             })
             .unwrap_or_default()
     }
-    /// C++ `ItemTransmogrificationSlots`.
-    fn item_transmogrification_slot_like_cpp(inventory_type: u8) -> Option<usize> {
-        let slot = match inventory_type {
-            x if x == InventoryType::Head as u8 => EQUIPMENT_SLOT_HEAD,
-            x if x == InventoryType::Shoulders as u8 => EQUIPMENT_SLOT_SHOULDERS,
-            x if x == InventoryType::Body as u8 => EQUIPMENT_SLOT_BODY,
-            x if x == InventoryType::Chest as u8 => EQUIPMENT_SLOT_CHEST,
-            x if x == InventoryType::Waist as u8 => EQUIPMENT_SLOT_WAIST,
-            x if x == InventoryType::Legs as u8 => EQUIPMENT_SLOT_LEGS,
-            x if x == InventoryType::Feet as u8 => EQUIPMENT_SLOT_FEET,
-            x if x == InventoryType::Wrists as u8 => EQUIPMENT_SLOT_WRISTS,
-            x if x == InventoryType::Hands as u8 => EQUIPMENT_SLOT_HANDS,
-            x if x == InventoryType::Weapon as u8
-                || x == InventoryType::Ranged as u8
-                || x == InventoryType::Weapon2Hand as u8
-                || x == InventoryType::WeaponMainhand as u8
-                || x == InventoryType::WeaponOffhand as u8
-                || x == InventoryType::RangedRight as u8 =>
-            {
-                EQUIPMENT_SLOT_MAINHAND
-            }
-            x if x == InventoryType::Shield as u8 || x == InventoryType::Holdable as u8 => {
-                EQUIPMENT_SLOT_OFFHAND
-            }
-            x if x == InventoryType::Cloak as u8 => EQUIPMENT_SLOT_BACK,
-            x if x == InventoryType::Tabard as u8 => EQUIPMENT_SLOT_TABARD,
-            x if x == InventoryType::Robe as u8 => EQUIPMENT_SLOT_CHEST,
-            _ => return None,
-        };
-
-        Some(slot as usize)
-    }
     /// C++ `CollectionMgr::AddItemAppearance` criteria side effects.
     fn update_represented_transmog_criteria_like_cpp(&mut self, item_modified_appearance_id: u32) {
         let item_id = self
@@ -841,7 +802,7 @@ impl WorldSession {
                     .as_ref()
                     .and_then(|store| store.inventory_type(item_id))
             })
-            .and_then(Self::item_transmogrification_slot_like_cpp)
+            .and_then(crate::session_rules::item_transmogrification_slot_like_cpp)
         {
             #[cfg(test)]
             self.represented_transmog_criteria_events.push(
@@ -899,7 +860,8 @@ impl WorldSession {
             else {
                 continue;
             };
-            let Some(transmog_slot) = Self::item_transmogrification_slot_like_cpp(inventory_type)
+            let Some(transmog_slot) =
+                crate::session_rules::item_transmogrification_slot_like_cpp(inventory_type)
             else {
                 continue;
             };

@@ -469,7 +469,7 @@ impl WorldSession {
                 .and_then(|managed| {
                     managed.map().with_world_object_by_kinds_like_cpp(
                         seer_guid,
-                        Self::represented_seer_kinds_like_cpp(),
+                        crate::session_rules::represented_seer_kinds_like_cpp(),
                         |object| object.combat_reach(),
                     )
                 })

@@ -139,7 +139,8 @@ impl WorldSession {
             return 1.0;
         }
 
-        Self::xp_in_group_rate_like_cpp(count, false) * f32::from(player_level) / sum_level as f32
+        crate::session_rules::xp_in_group_rate_like_cpp(count, false) * f32::from(player_level)
+            / sum_level as f32
     }
     fn reward_creature_kill_reputation_branch_like_cpp(
         &mut self,

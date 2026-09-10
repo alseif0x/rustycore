@@ -4,6 +4,7 @@
 //! canonical Player remains the single owner of this state.
 
 use super::*;
+use crate::session_rules::CR_ARMOR_PENETRATION_LIKE_CPP;
 
 impl WorldSession {
     pub(crate) fn move_represented_direct_inventory_item_like_cpp(
@@ -362,7 +363,7 @@ impl WorldSession {
             .iter()
             .find(|(_, item)| item.guid == item_guid)
         {
-            if (slot as usize) < PLAYER_SLOT_END && !Self::is_buyback_slot(slot) {
+            if (slot as usize) < PLAYER_SLOT_END && !crate::session_rules::is_buyback_slot(slot) {
                 return Some((INVENTORY_SLOT_BAG_0, slot, item.clone()));
             }
         }
@@ -404,7 +405,8 @@ impl WorldSession {
 
             let item_objects = self.resolved_inventory_item_objects_like_cpp()?;
             for (&slot, item) in &self.resolved_inventory_items_like_cpp()? {
-                if (slot as usize) < PLAYER_SLOT_END && !Self::is_buyback_slot(slot) {
+                if (slot as usize) < PLAYER_SLOT_END && !crate::session_rules::is_buyback_slot(slot)
+                {
                     let _ = player.store_top_level_item(slot, item.guid);
                     if is_represented_bag_slot(slot)
                         && item_objects.contains_key(&item.guid)

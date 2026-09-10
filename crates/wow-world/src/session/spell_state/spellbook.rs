@@ -59,7 +59,11 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return false;
         };
-        Self::represented_spell_valid_with_seen_like_cpp(spell_store, spell_id, &mut HashSet::new())
+        crate::session_rules::represented_spell_valid_with_seen_like_cpp(
+            spell_store,
+            spell_id,
+            &mut HashSet::new(),
+        )
     }
     pub(in crate::session) fn represented_direct_learn_spell_triggers_like_cpp(
         &self,

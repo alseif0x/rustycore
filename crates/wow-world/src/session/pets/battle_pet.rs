@@ -450,11 +450,6 @@ impl WorldSession {
         #[cfg(not(test))]
         None
     }
-    #[cfg(test)]
-    fn next_represented_battle_pet_guid_like_cpp() -> ObjectGuid {
-        let counter = NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed);
-        ObjectGuid::create_global(HighGuid::BattlePet, 0, counter)
-    }
     /// C++ `BattlePetMgr::AddPet`, represented without DB persistence and with
     /// a local GUID counter until `sObjectMgr->GetGenerator<HighGuid::BattlePet>()`
     /// is ported.
@@ -479,7 +474,7 @@ impl WorldSession {
 
         let calculated_stats =
             self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
-        let pet_guid = Self::next_represented_battle_pet_guid_like_cpp();
+        let pet_guid = crate::session_rules::next_represented_battle_pet_guid_like_cpp();
         let owner_info = if species_entry
             .has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP)
         {
@@ -513,7 +508,10 @@ impl WorldSession {
             declined_names: None,
             save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
         };
-        Self::apply_battle_pet_calculated_stats_like_cpp(&mut pet, calculated_stats);
+        crate::session_rules::apply_battle_pet_calculated_stats_like_cpp(
+            &mut pet,
+            calculated_stats,
+        );
 
         self.represented_battle_pets_like_cpp.insert(pet_guid, pet);
         self.send_battle_pet_updates_like_cpp(&[pet_guid], true);
@@ -646,17 +644,6 @@ impl WorldSession {
 
         self.send_battle_pet_updates_like_cpp(&updated, false)
     }
-    pub(in crate::session) fn apply_battle_pet_calculated_stats_like_cpp(
-        pet: &mut RepresentedBattlePetDataLikeCpp,
-        calculated_stats: Option<RepresentedBattlePetCalculatedStatsLikeCpp>,
-    ) {
-        if let Some(calculated_stats) = calculated_stats {
-            pet.max_health = calculated_stats.max_health;
-            pet.power = calculated_stats.power;
-            pet.speed = calculated_stats.speed;
-        }
-        pet.health = pet.max_health;
-    }
     /// C++ `BattlePetMgr::GrantBattlePetExperience`, represented after
     /// external aura multiplier resolution.
     #[cfg(test)]
@@ -739,7 +726,7 @@ impl WorldSession {
         } else {
             0
         };
-        Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated_stats);
+        crate::session_rules::apply_battle_pet_calculated_stats_like_cpp(pet, calculated_stats);
 
         if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
             pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
@@ -822,7 +809,7 @@ impl WorldSession {
             .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
                 pet.level = level;
                 pet.exp = persisted_exp;
-                Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
+                crate::session_rules::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
             })
             .await
         {

@@ -890,7 +890,7 @@ impl WorldSession {
         let applied_rest_bonus = self.apply_offline_xp_rest_bonus_with_policy_like_cpp(
             player_rest_rates,
             saved_logout_time_secs,
-            Self::current_game_time_secs_like_cpp(),
+            crate::session_rules::current_game_time_secs_like_cpp(),
             saved_logout_was_resting,
         );
         if std::env::var_os("RUSTYCORE_REST_TRACE").is_some() {
@@ -1059,7 +1059,7 @@ impl WorldSession {
                                 db_guid: item_db_guid,
                                 inventory_type,
                             };
-                            if WorldSession::is_buyback_slot(slot) {
+                            if crate::session_rules::is_buyback_slot(slot) {
                                 self.insert_buyback_item_like_cpp(slot, inventory_item);
                             } else {
                                 self.insert_inventory_item_like_cpp(slot, inventory_item);

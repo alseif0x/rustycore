@@ -162,7 +162,7 @@ impl WorldSession {
             .is_some_and(|effects| {
                 effects
                     .iter()
-                    .all(Self::player_target_spell_effect_is_hit_inert_like_cpp)
+                    .all(crate::session_rules::player_target_spell_effect_is_hit_inert_like_cpp)
             })
     }
     pub(crate) fn next_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
@@ -294,82 +294,6 @@ impl WorldSession {
             })
             .map_or(1, |entry| u32::from(entry.school_mask))
     }
-    /// Represented C++ `SpellInfo::IsPositive` (`NegativeEffects.none()`).
-    /// The current spell model does not yet persist C++'s calculated
-    /// `NegativeEffects` bitset. This mirrors the represented C++ target-check,
-    /// intrinsically harmful effect/aura, and sign-sensitive stat families;
-    /// unknown non-enemy auras remain positive, as in C++'s default branch.
-    pub(in crate::session) fn represented_spell_is_positive_like_cpp(
-        spell_info: &wow_data::SpellInfo,
-    ) -> bool {
-        let effects: Vec<(u32, i32, i32, u32, u32)> = if spell_info.effects().is_empty() {
-            vec![(
-                spell_info.effect_type,
-                spell_info.aura_type.unwrap_or(0),
-                spell_info.effect_base_points,
-                0,
-                0,
-            )]
-        } else {
-            spell_info
-                .effects()
-                .iter()
-                .map(|effect| {
-                    (
-                        effect.effect,
-                        effect.effect_aura,
-                        effect.effect_base_points,
-                        effect.implicit_target_1,
-                        effect.implicit_target_2,
-                    )
-                })
-                .collect()
-        };
-
-        const fn target_checks_enemy_like_cpp(target: u32) -> bool {
-            matches!(
-                target,
-                2 | 6 | 15 | 16 | 24 | 28 | 53 | 54 | 93 | 104 | 108 | 115 | 116 | 129 | 134 | 151
-            )
-        }
-
-        !effects.into_iter().any(|(effect, aura, amount, target_a, target_b)| {
-            let targets_enemy =
-                target_checks_enemy_like_cpp(target_a) || target_checks_enemy_like_cpp(target_b);
-            effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME
-                || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT
-                || (effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
-                    && (targets_enemy
-                        || matches!(
-                            aura,
-                            wow_data::spell::aura_types::SPELL_AURA_PERIODIC_DAMAGE
-                                | wow_data::spell::aura_types::SPELL_AURA_PERIODIC_DAMAGE_PERCENT
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_FEAR
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_ROOT
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_SILENCE
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED
-                                | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_HEAL_ABSORB
-                        )
-                        || (matches!(
-                            aura,
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_STAT
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_HEALTH
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT
-                                | wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE
-                        ) && amount < 0)))
-        })
-    }
     pub(in crate::session) fn represented_spell_valid_for_talent_like_cpp(
         &self,
         spell_id: i32,
@@ -377,34 +301,11 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return true;
         };
-        Self::represented_spell_valid_with_seen_like_cpp(spell_store, spell_id, &mut HashSet::new())
-    }
-    pub(in crate::session) fn represented_spell_valid_with_seen_like_cpp(
-        spell_store: &wow_data::SpellStore,
-        spell_id: i32,
-        seen: &mut HashSet<i32>,
-    ) -> bool {
-        if !seen.insert(spell_id) {
-            return true;
-        }
-
-        let Some(spell_info) = spell_store.get(spell_id) else {
-            return false;
-        };
-
-        spell_info.effects().iter().all(|effect| {
-            if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL {
-                return true;
-            }
-            if effect.effect_trigger_spell <= 0 {
-                return false;
-            }
-            Self::represented_spell_valid_with_seen_like_cpp(
-                spell_store,
-                effect.effect_trigger_spell,
-                seen,
-            )
-        })
+        crate::session_rules::represented_spell_valid_with_seen_like_cpp(
+            spell_store,
+            spell_id,
+            &mut HashSet::new(),
+        )
     }
     pub(in crate::session) fn represented_talent_spell_id_like_cpp(
         &self,
@@ -494,9 +395,6 @@ impl WorldSession {
                 usize::from(self.add_account_mount_with_faction_counterpart_like_cpp(spell_id, 0));
         }
         added
-    }
-    pub(crate) const fn account_mount_spells_are_session_dependent_like_cpp() -> bool {
-        true
     }
     #[cfg(test)]
     pub(crate) fn set_represented_spell_trait_definition_id_like_cpp(

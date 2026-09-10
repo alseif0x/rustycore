@@ -449,7 +449,7 @@ fn movement_under_map_applies_cpp_void_damage_and_flag() {
 #[test]
 fn move_init_active_mover_complete_sets_cpp_transport_state() {
     let mut session = make_session();
-    let before = WorldSession::game_time_ms_like_cpp();
+    let before = crate::session_rules::game_time_ms_like_cpp();
 
     session.apply_move_init_active_mover_complete_like_cpp(25);
 
@@ -461,7 +461,7 @@ fn move_init_active_mover_complete_sets_cpp_transport_state() {
     assert!(session.active_player_transport_server_time_like_cpp() >= 0);
     assert!(
         session.active_player_transport_server_time_like_cpp()
-            <= WorldSession::game_time_ms_like_cpp() as i32
+            <= crate::session_rules::game_time_ms_like_cpp() as i32
     );
     assert!(
         session.active_player_transport_server_time_like_cpp() >= before.saturating_sub(25) as i32

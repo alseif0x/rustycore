@@ -86,7 +86,7 @@ impl WorldSession {
         if trigger.radius > 0.0 {
             pos.is_within_dist(&center, trigger.radius)
         } else {
-            Self::position_is_within_area_trigger_box_like_cpp(
+            crate::session_rules::position_is_within_area_trigger_box_like_cpp(
                 &pos,
                 &center,
                 trigger.box_length / 2.0,

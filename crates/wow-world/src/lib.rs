@@ -56,6 +56,7 @@ mod player_lifecycle_contract;
 #[cfg(test)]
 mod player_quest_persistence_test_fixture;
 mod quest_catalogs;
+mod session_rules;
 mod spell_catalogs;
 #[cfg(test)]
 mod teleport_test_fixtures;

@@ -225,7 +225,7 @@ async fn spell_modify_cooldown_effect_adjusts_trigger_spell_history_like_cpp() {
     let trigger_spell = 791_u32;
     let player_guid = ObjectGuid::create_player(1, 790);
     configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
-    let now_ms = u64::from(WorldSession::game_time_ms_like_cpp());
+    let now_ms = u64::from(crate::session_rules::game_time_ms_like_cpp());
     session
         .mutate_canonical_player_like_cpp(|player| {
             player
@@ -279,7 +279,7 @@ async fn spell_modify_charges_effect_restores_consumed_charges_like_cpp() {
     let charge_category = 44_u32;
     let player_guid = ObjectGuid::create_player(1, 792);
     configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
-    let now_ms = u64::from(WorldSession::game_time_ms_like_cpp());
+    let now_ms = u64::from(crate::session_rules::game_time_ms_like_cpp());
     session
         .mutate_canonical_player_like_cpp(|player| {
             let history = &mut player.unit_mut().subsystems_mut().spells.history;

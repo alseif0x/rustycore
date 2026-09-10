@@ -2055,9 +2055,11 @@ pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
 /// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`). `SendSpellStart` and
 /// `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
+pub(crate) use crate::session_rules::represented_gameobject_dynamic_flags_update_like_cpp;
+
 pub(crate) const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
 #[cfg(test)]
-static NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
+pub(crate) static NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 
 // C++ `ObjectGuid::Create<HighGuid::Cast>` passes realm id 0 to
@@ -2960,54 +2962,6 @@ struct RepresentedScalingStatContextLikeCpp {
     armor_mod: i32,
     dps_mod: i32,
     is_two_hand: bool,
-}
-
-const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
-
-fn apply_represented_i32_delta_like_cpp(target: &mut i32, amount: u32, apply: bool) {
-    let amount = i32::try_from(amount).unwrap_or(i32::MAX);
-    if apply {
-        *target = target.saturating_add(amount);
-    } else {
-        *target = target.saturating_sub(amount);
-    }
-}
-
-fn represented_unit_mod_stat_index_like_cpp(
-    unit_mod: wow_entities::ApplyEnchantmentUnitMod,
-) -> Option<usize> {
-    match unit_mod {
-        wow_entities::ApplyEnchantmentUnitMod::StatStrength => Some(Stats::Strength as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatAgility => Some(Stats::Agility as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatStamina => Some(Stats::Stamina as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatIntellect => Some(Stats::Intellect as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatSpirit => Some(Stats::Spirit as usize),
-        _ => None,
-    }
-}
-
-fn represented_combat_rating_index_like_cpp(
-    rating: wow_entities::ApplyEnchantmentCombatRating,
-) -> Option<usize> {
-    match rating {
-        wow_entities::ApplyEnchantmentCombatRating::DefenseSkill => Some(1),
-        wow_entities::ApplyEnchantmentCombatRating::Dodge => Some(2),
-        wow_entities::ApplyEnchantmentCombatRating::Parry => Some(3),
-        wow_entities::ApplyEnchantmentCombatRating::Block => Some(4),
-        wow_entities::ApplyEnchantmentCombatRating::HitMelee => Some(5),
-        wow_entities::ApplyEnchantmentCombatRating::HitRanged => Some(6),
-        wow_entities::ApplyEnchantmentCombatRating::HitSpell => Some(7),
-        wow_entities::ApplyEnchantmentCombatRating::CritMelee => Some(8),
-        wow_entities::ApplyEnchantmentCombatRating::CritRanged => Some(9),
-        wow_entities::ApplyEnchantmentCombatRating::CritSpell => Some(10),
-        wow_entities::ApplyEnchantmentCombatRating::HasteMelee => Some(17),
-        wow_entities::ApplyEnchantmentCombatRating::HasteRanged => Some(18),
-        wow_entities::ApplyEnchantmentCombatRating::HasteSpell => Some(19),
-        wow_entities::ApplyEnchantmentCombatRating::Expertise => Some(23),
-        wow_entities::ApplyEnchantmentCombatRating::ArmorPenetration => {
-            Some(CR_ARMOR_PENETRATION_LIKE_CPP as usize)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -9905,7 +9859,9 @@ impl WorldSession {
                         .is_some_and(|source| source.chest_quest_id != 0)
                     || state.chest_loot_source.is_some_and(|source| {
                         self.represented_gameobject_loot_ids_have_quest_loot_like_cpp(
-                            Self::represented_gameobject_chest_loot_ids_like_cpp(source),
+                            crate::session_rules::represented_gameobject_chest_loot_ids_like_cpp(
+                                source,
+                            ),
                         )
                     })
             }
@@ -9959,7 +9915,9 @@ impl WorldSession {
                                 })
                     }) || state.chest_loot_source.is_some_and(|source| {
                         self.represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
-                            Self::represented_gameobject_chest_loot_ids_like_cpp(source),
+                            crate::session_rules::represented_gameobject_chest_loot_ids_like_cpp(
+                                source,
+                            ),
                         )
                     }))
             }
@@ -10294,28 +10252,6 @@ impl WorldSession {
             .fishing_hole_radius = Some(radius as f32);
     }
 
-    fn dynamic_object_create_data_from_canonical_like_cpp(
-        guid: ObjectGuid,
-        dynamic_object: &wow_entities::DynamicObject,
-    ) -> wow_packet::packets::update::DynamicObjectCreateData {
-        let object = dynamic_object.world();
-        let object_data = object.object().object_data_values();
-        let data = dynamic_object.data();
-        wow_packet::packets::update::DynamicObjectCreateData {
-            guid,
-            entry_id: u32::try_from(object_data.entry_id).unwrap_or(0),
-            dynamic_flags: object_data.dynamic_flags,
-            scale: object_data.scale,
-            position: object.position(),
-            caster: data.caster,
-            dynamic_object_type: data.dynamic_object_type,
-            spell_visual_id: data.spell_visual_id,
-            spell_id: data.spell_id,
-            radius: data.radius,
-            cast_time_ms: data.cast_time_ms,
-        }
-    }
-
     pub fn set_realm_id(&mut self, realm_id: u16) {
         self.realm_id = realm_id;
     }
@@ -10608,68 +10544,6 @@ impl WorldSession {
     /// Get the player stats store reference.
     pub fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
         self.player_stats.as_ref()
-    }
-
-    fn apply_represented_unit_modifier_like_cpp(
-        state: &mut RepresentedItemBonusStateLikeCpp,
-        unit_mod: wow_entities::ApplyEnchantmentUnitMod,
-        modifier: wow_entities::ApplyEnchantmentUnitModifier,
-        amount: u32,
-        apply: bool,
-    ) {
-        match (unit_mod, modifier) {
-            (
-                wow_entities::ApplyEnchantmentUnitMod::Mana,
-                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-            ) => apply_represented_i32_delta_like_cpp(&mut state.mana_base, amount, apply),
-            (
-                wow_entities::ApplyEnchantmentUnitMod::Health,
-                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-            ) => apply_represented_i32_delta_like_cpp(&mut state.health_base, amount, apply),
-            (
-                wow_entities::ApplyEnchantmentUnitMod::Armor,
-                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-            ) => apply_represented_i32_delta_like_cpp(&mut state.armor_base, amount, apply),
-            (
-                wow_entities::ApplyEnchantmentUnitMod::Armor,
-                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-            ) => apply_represented_i32_delta_like_cpp(&mut state.armor_total, amount, apply),
-            (
-                wow_entities::ApplyEnchantmentUnitMod::AttackPower,
-                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-            ) => apply_represented_i32_delta_like_cpp(&mut state.attack_power_total, amount, apply),
-            (
-                wow_entities::ApplyEnchantmentUnitMod::AttackPowerRanged,
-                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-            ) => apply_represented_i32_delta_like_cpp(
-                &mut state.ranged_attack_power_total,
-                amount,
-                apply,
-            ),
-            (wow_entities::ApplyEnchantmentUnitMod::Resistance(school), _) => {
-                let school = school as usize;
-                if school < state.resistances_base.len() {
-                    apply_represented_i32_delta_like_cpp(
-                        &mut state.resistances_base[school],
-                        amount,
-                        apply,
-                    );
-                }
-            }
-            (
-                unit_mod,
-                wow_entities::ApplyEnchantmentUnitModifier::BaseValue
-                | wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-            ) => {
-                if let Some(index) = represented_unit_mod_stat_index_like_cpp(unit_mod) {
-                    apply_represented_i32_delta_like_cpp(
-                        &mut state.stats_base[index],
-                        amount,
-                        apply,
-                    );
-                }
-            }
-        }
     }
 
     fn represented_scaling_stat_context_like_cpp(
@@ -11104,10 +10978,6 @@ impl WorldSession {
 
     pub(crate) fn clear_buyback_slot_metadata_like_cpp(&mut self, slot: u8) {
         self.set_buyback_slot_metadata_like_cpp(slot, 0, 0);
-    }
-
-    pub(crate) fn is_buyback_slot(slot: u8) -> bool {
-        (BUYBACK_SLOT_START..BUYBACK_SLOT_END).contains(&slot)
     }
 
     pub(crate) fn select_buyback_slot_cpp(&self) -> Option<u8> {
@@ -11590,30 +11460,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn current_game_time_secs_like_cpp() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    }
-
-    fn sanitize_rest_bonus_like_cpp(rest_bonus: f32) -> f32 {
-        if rest_bonus.is_finite() {
-            rest_bonus
-        } else {
-            0.0
-        }
-    }
-
-    fn valid_player_rest_state_like_cpp(rest_state: u8) -> bool {
-        matches!(
-            rest_state,
-            REST_STATE_RESTED_LIKE_CPP
-                | REST_STATE_NORMAL_LIKE_CPP
-                | REST_STATE_RAF_LINKED_LIKE_CPP
-        )
-    }
-
     /// C++ `Player::IsMaxLevel` reads `ActivePlayerData::MaxLevel`, which
     /// `InitStatsForLevel` derives from both the account's active expansion
     /// and CONFIG_MAX_PLAYER_LEVEL. RestMgr deliberately uses the config-only
@@ -11790,12 +11636,6 @@ impl WorldSession {
         self.revalidate_represented_tavern_resting_with_catalog_like_cpp(db2.as_ref());
     }
 
-    #[cfg(test)]
-    fn apply_represented_pct_modifier_to_u32_like_cpp(value: u32, pct: i32) -> u32 {
-        let adjusted = i64::from(value) + (i64::from(value) * i64::from(pct)) / 100;
-        adjusted.clamp(0, i64::from(u32::MAX)) as u32
-    }
-
     pub(crate) fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
         let canonical = self
             .player_guid()
@@ -11903,7 +11743,11 @@ impl WorldSession {
         trigger_id: u32,
     ) -> bool {
         self.mutate_player_rest_state_like_cpp(|state| {
-            state.set_flag_like_cpp(rest_flag, trigger_id, Self::current_game_time_secs_like_cpp)
+            state.set_flag_like_cpp(
+                rest_flag,
+                trigger_id,
+                crate::session_rules::current_game_time_secs_like_cpp,
+            )
         })
         .unwrap_or(false)
     }
@@ -12736,13 +12580,6 @@ impl WorldSession {
         }
     }
 
-    /// Monotonic millisecond counter matching TrinityCore's `getMSTime()` scale.
-    pub(crate) fn game_time_ms_like_cpp() -> u32 {
-        static SERVER_START: OnceLock<Instant> = OnceLock::new();
-        let start = SERVER_START.get_or_init(Instant::now);
-        start.elapsed().as_millis() as u32
-    }
-
     pub(crate) fn reset_time_sync_like_cpp(&mut self) {
         self.time_sync_next_counter = 0;
         self.time_sync_pending_requests.clear();
@@ -12758,7 +12595,7 @@ impl WorldSession {
             return;
         };
 
-        let received_time = Self::game_time_ms_like_cpp();
+        let received_time = crate::session_rules::game_time_ms_like_cpp();
         let round_trip_duration = received_time.wrapping_sub(server_time_at_sent);
         let lag_delay = round_trip_duration / 2;
         let clock_delta =
@@ -15174,12 +15011,6 @@ impl WorldSession {
         &self.represented_live_applications_like_cpp
     }
 
-    fn chair_stand_state_like_cpp(chair_height: u32) -> UnitStandStateType {
-        let stand_state = 4_u32.saturating_add(chair_height);
-        <UnitStandStateType as num_traits::FromPrimitive>::from_u32(stand_state)
-            .unwrap_or(UnitStandStateType::Stand)
-    }
-
     fn resolved_player_stand_state_like_cpp(&self) -> Option<UnitStandStateType> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
@@ -15757,16 +15588,6 @@ impl WorldSession {
         None
     }
 
-    const fn ui_link_player_interaction_type_like_cpp(ui_link_type: u32) -> i32 {
-        match ui_link_type {
-            0 => 54, // PlayerInteractionType::AdventureJournal
-            1 => 39, // PlayerInteractionType::ObliterumForge
-            2 => 40, // PlayerInteractionType::ScrappingMachine
-            3 => 44, // PlayerInteractionType::ItemInteraction
-            _ => 0,  // PlayerInteractionType::None
-        }
-    }
-
     fn record_represented_capture_point_update_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -15832,7 +15653,8 @@ impl WorldSession {
         if new_state == RepresentedNewFlagStateRequest::Taken
             && old_state == RepresentedNewFlagStateRequest::InBase
         {
-            state.new_flag_taken_from_base_game_time_ms = Some(Self::game_time_ms_like_cpp());
+            state.new_flag_taken_from_base_game_time_ms =
+                Some(crate::session_rules::game_time_ms_like_cpp());
         } else if matches!(
             new_state,
             RepresentedNewFlagStateRequest::InBase | RepresentedNewFlagStateRequest::Respawning
@@ -16900,22 +16722,6 @@ enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
     HomeRangeRejected,
 }
 
-fn position_is_in_dist_strict_3d_like_cpp(
-    position: &Position,
-    other: &Position,
-    dist: f32,
-) -> bool {
-    position.distance_sq(other) < dist * dist
-}
-
-fn position_is_in_dist_strict_2d_like_cpp(
-    position: &Position,
-    other: &Position,
-    dist: f32,
-) -> bool {
-    position.distance_2d_sq(other) < dist * dist
-}
-
 struct CreatureMeleeVictimSyncIdentityLikeCpp {
     authority: OwnedLootAuthority,
     health_state_revision_authority: wow_entities::HealthStateRevisionAuthorityLikeCpp,
@@ -17017,7 +16823,7 @@ fn creature_ai_spell_target_like_cpp(
         return CreatureAiSpellTargetLikeCpp::SelfTarget;
     }
 
-    let positive = WorldSession::represented_spell_is_positive_like_cpp(spell);
+    let positive = crate::session_rules::represented_spell_is_positive_like_cpp(spell);
     spell.effects().iter().fold(
         CreatureAiSpellTargetLikeCpp::SelfTarget,
         |selected, effect| {
@@ -17823,7 +17629,7 @@ fn append_committed_creature_spell_packets_like_cpp(
         visual,
         cast_flags: command.spell_go_cast_flags,
         cast_flags_ex: 0,
-        cast_time_ms: WorldSession::game_time_ms_like_cpp(),
+        cast_time_ms: crate::session_rules::game_time_ms_like_cpp(),
         target,
         hit_targets,
         miss_targets,

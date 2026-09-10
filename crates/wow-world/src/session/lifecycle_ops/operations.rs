@@ -69,16 +69,9 @@ impl WorldSession {
             })
             .unwrap_or_default()
     }
-    fn account_heirloom_update_opcode_resolved_like_cpp() -> bool {
-        // The inspected 3.4.3 legacy C++ tree still declares
-        // SMSG_ACCOUNT_HEIRLOOM_UPDATE as NULL_OPCODE/0xBADD. Keep the data
-        // model ported, but do not send a placeholder opcode to the real client.
-        <AccountHeirloomUpdate as wow_packet::ServerPacket>::OPCODE
-            != ServerOpcodes::UpdateCapturePoint
-    }
     /// C++ `WorldPackets::Misc::AccountHeirloomUpdate` full login update.
     pub fn send_account_heirlooms_like_cpp(&self) {
-        if !Self::account_heirloom_update_opcode_resolved_like_cpp() {
+        if !crate::session_rules::account_heirloom_update_opcode_resolved_like_cpp() {
             warn!(
                 "Skipping AccountHeirloomUpdate: legacy C++ opcode is unresolved 0xBADD for 54261"
             );

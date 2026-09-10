@@ -11,16 +11,6 @@ impl WorldSession {
     pub fn set_item_price_base_store(&mut self, store: Arc<ItemPriceBaseStore>) {
         self.item_price_base_store = Some(store);
     }
-    /// C++ `sItemPriceBaseStore.LookupEntry(itemLevel)`.
-    pub(in crate::session) fn item_price_base_with_catalogs_like_cpp(
-        catalogs: &ItemValuationCatalogsLikeCpp,
-        item_level: u32,
-    ) -> Option<(f32, f32)> {
-        catalogs
-            .price_base
-            .get(item_level)
-            .map(|entry| (entry.armor, entry.weapon))
-    }
     /// Set the item class store for this session.
     #[cfg(test)]
     pub fn set_item_class_store(&mut self, store: Arc<ItemClassStore>) {

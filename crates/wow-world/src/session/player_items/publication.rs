@@ -56,7 +56,7 @@ impl WorldSession {
         let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
             return;
         };
-        let update = Self::item_storage_fields_values_update_like_cpp(
+        let update = crate::session_rules::item_storage_fields_values_update_like_cpp(
             &item,
             contained_in_changed,
             dynamic_flags2_changed,
@@ -66,37 +66,6 @@ impl WorldSession {
             item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
         {
             self.send_packet(&packet);
-        }
-    }
-    pub(crate) fn item_storage_fields_values_update_like_cpp(
-        item: &Item,
-        contained_in_changed: bool,
-        dynamic_flags2_changed: bool,
-        changed_enchantments: &[EnchantmentSlot],
-    ) -> ItemValuesUpdate {
-        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
-        if contained_in_changed || dynamic_flags2_changed {
-            item_data_mask.set(ITEM_DATA_PARENT_BIT);
-        }
-        if contained_in_changed {
-            item_data_mask.set(ITEM_DATA_CONTAINED_IN_BIT);
-        }
-        if dynamic_flags2_changed {
-            item_data_mask.set(ITEM_DATA_DYNAMIC_FLAGS2_BIT);
-        }
-        if !changed_enchantments.is_empty() {
-            item_data_mask.set(ITEM_DATA_ENCHANTMENT_PARENT_BIT);
-            for slot in changed_enchantments {
-                item_data_mask.set(ITEM_DATA_ENCHANTMENT_FIRST_BIT + *slot as usize);
-            }
-        }
-        ItemValuesUpdate {
-            changed_object_type_mask: 1 << TYPEID_ITEM,
-            object_data: None,
-            item_data: Some(ItemDataUpdate {
-                mask: item_data_mask,
-                values: item.data().clone(),
-            }),
         }
     }
     pub(crate) fn send_item_dynamic_flags_values_update_like_cpp(&self, item_guid: ObjectGuid) {

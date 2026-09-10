@@ -295,14 +295,11 @@ impl WorldSession {
         })
         .unwrap_or(false)
     }
-    fn ignored_equipment_set_item_guid_like_cpp() -> ObjectGuid {
-        ObjectGuid::new(0x0C00_0400_0000_0000_i64, -1_i64)
-    }
     pub(crate) fn use_represented_equipment_set_like_cpp(
         &mut self,
         request: &wow_packet::packets::misc::UseEquipmentSet,
     ) -> bool {
-        let ignored_guid = Self::ignored_equipment_set_item_guid_like_cpp();
+        let ignored_guid = crate::session_rules::ignored_equipment_set_item_guid_like_cpp();
         let mut changed_equipment = false;
         let mut represented_item_mods_changed = false;
 

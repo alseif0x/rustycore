@@ -205,7 +205,9 @@ impl WorldSession {
         state.chair_slots[slot] = Some(player_guid);
         let stand_state = 4_u32.saturating_add(source.chair_height);
         self.set_player_position_like_cpp(nearest_position);
-        self.set_player_stand_state_like_cpp(Self::chair_stand_state_like_cpp(source.chair_height));
+        self.set_player_stand_state_like_cpp(crate::session_rules::chair_stand_state_like_cpp(
+            source.chair_height,
+        ));
         self.represented_gameobject_use_effects
             .push(RepresentedGameObjectUseEffect::ChairUsed {
                 gameobject_guid,
@@ -247,7 +249,9 @@ impl WorldSession {
             },
         );
         self.set_player_position_like_cpp(gameobject_position);
-        self.set_player_stand_state_like_cpp(Self::chair_stand_state_like_cpp(source.chair_height));
+        self.set_player_stand_state_like_cpp(crate::session_rules::chair_stand_state_like_cpp(
+            source.chair_height,
+        ));
 
         true
     }
@@ -257,7 +261,8 @@ impl WorldSession {
         player_guid: ObjectGuid,
         source: wow_entities::UiLinkUseSource,
     ) -> bool {
-        let interaction_type = Self::ui_link_player_interaction_type_like_cpp(source.ui_link_type);
+        let interaction_type =
+            crate::session_rules::ui_link_player_interaction_type_like_cpp(source.ui_link_type);
         self.send_packet(&wow_packet::packets::misc::GameObjectInteraction {
             object_guid: gameobject_guid,
             interaction_type,

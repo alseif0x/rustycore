@@ -187,7 +187,7 @@ impl WorldSession {
         let mut represented_bag_slots_by_guid = HashMap::new();
         let mut bag_templates = Vec::new();
         for (&slot, item) in &inventory_items {
-            if Self::is_buyback_slot(slot) {
+            if crate::session_rules::is_buyback_slot(slot) {
                 continue;
             }
             if is_represented_bag_slot(slot) && item_objects.contains_key(&item.guid) {
@@ -203,7 +203,7 @@ impl WorldSession {
         let mut slot_items = Vec::new();
         let mut stored_items = Vec::new();
         for (&slot, stored) in &inventory_items {
-            if Self::is_buyback_slot(slot) {
+            if crate::session_rules::is_buyback_slot(slot) {
                 continue;
             }
             let Some(item) = item_objects.get(&stored.guid) else {

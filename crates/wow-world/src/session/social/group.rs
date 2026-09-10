@@ -397,18 +397,6 @@ impl WorldSession {
     pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
         self.phase_group_store = Some(store);
     }
-    pub(in crate::session) fn xp_in_group_rate_like_cpp(count: u32, is_raid: bool) -> f32 {
-        if is_raid {
-            0.99
-        } else {
-            match count {
-                0..=2 => 1.0,
-                3 => 1.166,
-                4 => 1.3,
-                _ => 1.4,
-            }
-        }
-    }
     pub(in crate::session) fn represented_player_group_reward_state_like_cpp(
         &self,
         player_guid: ObjectGuid,

@@ -32,7 +32,8 @@ impl WorldSession {
             None => return Some((0, standard_price)),
         };
         let (base_armor, base_weapon) =
-            match Self::item_price_base_with_catalogs_like_cpp(catalogs, item_level) {
+            match crate::session_rules::item_price_base_with_catalogs_like_cpp(catalogs, item_level)
+            {
                 Some(base) => base,
                 None => return Some((0, standard_price)),
             };
@@ -386,7 +387,7 @@ impl WorldSession {
         let inventory_type = storage_template.inventory_type;
 
         if let Some(slot) = direct_slot.filter(|slot| *slot < EQUIPMENT_SLOT_END) {
-            Self::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+            crate::session_rules::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
                 best_item_levels,
                 sum,
                 slot,
@@ -432,13 +433,13 @@ impl WorldSession {
         }
 
         for (candidate_slot, check_duplicate_guid) in
-            Self::represented_total_avg_equipment_slot_candidates_like_cpp(
+            crate::session_rules::represented_total_avg_equipment_slot_candidates_like_cpp(
                 inventory_type,
                 can_dual_wield,
                 can_titan_grip,
             )
         {
-            Self::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+            crate::session_rules::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
                 best_item_levels,
                 sum,
                 candidate_slot,
@@ -587,28 +588,5 @@ impl WorldSession {
             .as_ref()
             .map(|store| store.item_level_bonus_like_cpp(entry_id))
             .unwrap_or(0)
-    }
-    fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
-        best_item_levels: &mut [(InventoryType, u32, ObjectGuid)],
-        sum: &mut u32,
-        slot: u8,
-        inventory_type: InventoryType,
-        item_level: u32,
-        item_guid: ObjectGuid,
-        check_duplicate_guid: bool,
-    ) {
-        if check_duplicate_guid
-            && best_item_levels
-                .iter()
-                .any(|(_, _, existing_guid)| *existing_guid == item_guid)
-        {
-            return;
-        }
-
-        let slot_data = &mut best_item_levels[slot as usize];
-        if item_level > slot_data.1 {
-            *sum = sum.saturating_add(item_level.saturating_sub(slot_data.1));
-            *slot_data = (inventory_type, item_level, item_guid);
-        }
     }
 }

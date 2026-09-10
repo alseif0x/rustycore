@@ -384,8 +384,10 @@ impl WorldSession {
             "Sent TimeSyncRequest(seq={}) for account {}",
             sequence_index, self.account_id
         );
-        self.time_sync_pending_requests
-            .insert(sequence_index, Self::game_time_ms_like_cpp());
+        self.time_sync_pending_requests.insert(
+            sequence_index,
+            crate::session_rules::game_time_ms_like_cpp(),
+        );
         // C++ uses 5s for the first request, then 10s.
         self.time_sync_timer_ms = if self.time_sync_next_counter == 0 {
             5000
@@ -557,16 +559,5 @@ impl WorldSession {
             self.player_map_id_like_cpp(),
             data,
         ));
-    }
-    pub(in crate::session) fn represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
-        guid: ObjectGuid,
-        bytes: &[u8],
-    ) -> u64 {
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        guid.hash(&mut hasher);
-        bytes.hash(&mut hasher);
-        hasher.finish()
     }
 }

@@ -11,9 +11,9 @@ async fn time_sync_response_alias_opcodes_dispatch_to_same_handler_like_cpp() {
     ] {
         let (mut session, _pkt_tx, _send_rx) = make_session();
         session.set_state(SessionState::LoggedIn);
-        let _ = WorldSession::game_time_ms_like_cpp();
+        let _ = crate::session_rules::game_time_ms_like_cpp();
         std::thread::sleep(std::time::Duration::from_millis(2));
-        let sent_time = WorldSession::game_time_ms_like_cpp();
+        let sent_time = crate::session_rules::game_time_ms_like_cpp();
         session.time_sync_pending_requests.insert(11, sent_time);
 
         let mut bytes = Vec::new();
