@@ -6,6 +6,7 @@
 //! Grid and cell storage, terrain loading and object lookup.
 
 use super::*;
+use crate::map_rules::ensure_map_guid_sequence_source_like_cpp;
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -141,7 +142,7 @@ where
         &mut self,
         high: HighGuid,
     ) -> Result<i64, MapGuidSequenceErrorLikeCpp> {
-        Self::ensure_map_guid_sequence_source_like_cpp(high)?;
+        ensure_map_guid_sequence_source_like_cpp(high)?;
         Ok(self
             .guid_sequence_generator_like_cpp(high)
             .generator
@@ -152,7 +153,7 @@ where
         &mut self,
         high: HighGuid,
     ) -> Result<i64, MapGuidSequenceErrorLikeCpp> {
-        Self::ensure_map_guid_sequence_source_like_cpp(high)?;
+        ensure_map_guid_sequence_source_like_cpp(high)?;
         Ok(self
             .guid_sequence_generator_like_cpp(high)
             .generator
@@ -164,7 +165,7 @@ where
         high: HighGuid,
         next: i64,
     ) -> Result<(), MapGuidSequenceErrorLikeCpp> {
-        Self::ensure_map_guid_sequence_source_like_cpp(high)?;
+        ensure_map_guid_sequence_source_like_cpp(high)?;
         self.guid_sequence_generator_like_cpp(high)
             .generator
             .set(next);
@@ -178,36 +179,6 @@ where
         self.guid_generators
             .entry(high)
             .or_insert_with(|| MapGuidSequenceGeneratorLikeCpp::new(high))
-    }
-
-    fn ensure_map_guid_sequence_source_like_cpp(
-        high: HighGuid,
-    ) -> Result<(), MapGuidSequenceErrorLikeCpp> {
-        match high {
-            HighGuid::WorldTransaction
-            | HighGuid::StaticDoor
-            | HighGuid::Transport
-            | HighGuid::Conversation
-            | HighGuid::Creature
-            | HighGuid::Vehicle
-            | HighGuid::Pet
-            | HighGuid::GameObject
-            | HighGuid::DynamicObject
-            | HighGuid::AreaTrigger
-            | HighGuid::Corpse
-            | HighGuid::LootObject
-            | HighGuid::SceneObject
-            | HighGuid::Scenario
-            | HighGuid::AIGroup
-            | HighGuid::DynamicDoor
-            | HighGuid::Vignette
-            | HighGuid::CallForHelp
-            | HighGuid::AIResource
-            | HighGuid::AILock
-            | HighGuid::AILockTicket
-            | HighGuid::Cast => Ok(()),
-            _ => Err(MapGuidSequenceErrorLikeCpp::UnsupportedSequenceSource { high }),
-        }
     }
 
     pub const fn grid_expiry_ms(&self) -> i64 {

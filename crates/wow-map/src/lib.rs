@@ -5,6 +5,7 @@ pub mod grid_map;
 pub mod grid_unload;
 pub mod manager;
 pub mod map;
+pub(crate) mod map_rules;
 pub mod object_grid_loader;
 pub mod personal_phase;
 pub mod pool;

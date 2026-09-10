@@ -21,6 +21,10 @@ mod storage;
 mod update;
 mod visibility;
 
+use crate::map_rules::{
+    decrement_pool_counter_like_cpp, map_record_unit_mut_like_cpp,
+    player_set_viewpoint_outcome_like_cpp, remove_spawn_id_index_entry_like_cpp,
+};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -618,12 +622,12 @@ impl SpawnedPoolDataLikeCpp {
         match object_type {
             SpawnObjectType::Creature => {
                 self.spawned_creatures.remove(&spawn_id);
-                Self::decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
+                decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
                 Ok(())
             }
             SpawnObjectType::GameObject => {
                 self.spawned_gameobjects.remove(&spawn_id);
-                Self::decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
+                decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
                 Ok(())
             }
             SpawnObjectType::AreaTrigger => Err(
@@ -639,7 +643,7 @@ impl SpawnedPoolDataLikeCpp {
 
     pub fn remove_pool_spawn_like_cpp(&mut self, sub_pool_id: u32, pool_id: u32) {
         self.spawned_pools.remove(&sub_pool_id);
-        Self::decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
+        decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
     }
 
     pub fn spawned_objects_like_cpp(&self) -> Vec<(SpawnObjectType, SpawnId)> {
@@ -657,13 +661,6 @@ impl SpawnedPoolDataLikeCpp {
             .collect::<Vec<_>>();
         spawned.sort_unstable();
         spawned
-    }
-
-    fn decrement_pool_counter_like_cpp(spawned_pools: &mut HashMap<u32, u32>, pool_id: u32) {
-        let counter = spawned_pools.entry(pool_id).or_insert(0);
-        if *counter > 0 {
-            *counter -= 1;
-        }
     }
 }
 
@@ -2576,44 +2573,6 @@ where
         self.set_world_object_like_cpp(request.unit_guid, request.on)
     }
 
-    fn player_set_viewpoint_outcome_like_cpp(
-        player_guid: ObjectGuid,
-        target_guid: ObjectGuid,
-        apply: bool,
-        status: PlayerSetViewpointStatusLikeCpp,
-        set_world_object: Option<SetWorldObjectOutcomeLikeCpp>,
-        update_visibility_requested: bool,
-        set_seer_requested: bool,
-    ) -> PlayerSetViewpointOutcomeLikeCpp {
-        PlayerSetViewpointOutcomeLikeCpp {
-            player_guid,
-            target_guid,
-            apply,
-            status,
-            set_world_object,
-            update_visibility_requested,
-            set_seer_requested,
-        }
-    }
-
-    fn map_record_unit_mut_like_cpp(record: &mut MapObjectRecord) -> Option<&mut Unit> {
-        match record.kind() {
-            AccessorObjectKind::Player => record.player_mut().map(Player::unit_mut),
-            AccessorObjectKind::Creature => record.creature_mut().map(Creature::unit_mut),
-            AccessorObjectKind::Pet => record.pet_mut().map(|pet| pet.creature_mut().unit_mut()),
-            _ => None,
-        }
-    }
-
-    fn map_record_unit_like_cpp(record: &MapObjectRecord) -> Option<&Unit> {
-        match record.kind() {
-            AccessorObjectKind::Player => record.player().map(Player::unit),
-            AccessorObjectKind::Creature => record.creature().map(Creature::unit),
-            AccessorObjectKind::Pet => record.pet().map(|pet| pet.creature().unit()),
-            _ => None,
-        }
-    }
-
     /// Bounded map-owned seam for the Unit-target shared-vision branch of C++
     /// `Player::SetViewpoint(WorldObject* target, bool apply)`.
     ///
@@ -2640,7 +2599,7 @@ where
         vehicle_base_guid: Option<ObjectGuid>,
     ) -> PlayerSetViewpointOutcomeLikeCpp {
         let Some(player) = self.get_typed_player(player_guid) else {
-            return Self::player_set_viewpoint_outcome_like_cpp(
+            return player_set_viewpoint_outcome_like_cpp(
                 player_guid,
                 target_guid,
                 apply,
@@ -2654,7 +2613,7 @@ where
         let current_farsight = player.active_data().farsight_object;
         if apply {
             if !current_farsight.is_empty() {
-                return Self::player_set_viewpoint_outcome_like_cpp(
+                return player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
                     apply,
@@ -2665,7 +2624,7 @@ where
                 );
             }
         } else if current_farsight != target_guid {
-            return Self::player_set_viewpoint_outcome_like_cpp(
+            return player_set_viewpoint_outcome_like_cpp(
                 player_guid,
                 target_guid,
                 apply,
@@ -2677,7 +2636,7 @@ where
         }
 
         let Some(target_record) = self.map_object_record(target_guid) else {
-            return Self::player_set_viewpoint_outcome_like_cpp(
+            return player_set_viewpoint_outcome_like_cpp(
                 player_guid,
                 target_guid,
                 apply,
@@ -2691,7 +2650,7 @@ where
             target_record.kind(),
             AccessorObjectKind::Creature | AccessorObjectKind::Pet
         ) {
-            return Self::player_set_viewpoint_outcome_like_cpp(
+            return player_set_viewpoint_outcome_like_cpp(
                 player_guid,
                 target_guid,
                 apply,
@@ -2705,7 +2664,7 @@ where
         let vehicle_base_skip = vehicle_base_guid == Some(target_guid);
         if !vehicle_base_skip {
             let Some(target_record) = self.entity_world.get_mut(&target_guid) else {
-                return Self::player_set_viewpoint_outcome_like_cpp(
+                return player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
                     apply,
@@ -2715,8 +2674,8 @@ where
                     false,
                 );
             };
-            if Self::map_record_unit_mut_like_cpp(target_record).is_none() {
-                return Self::player_set_viewpoint_outcome_like_cpp(
+            if map_record_unit_mut_like_cpp(target_record).is_none() {
+                return player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
                     apply,
@@ -2729,7 +2688,7 @@ where
         }
 
         let Some(player) = self.get_typed_player_mut(player_guid) else {
-            return Self::player_set_viewpoint_outcome_like_cpp(
+            return player_set_viewpoint_outcome_like_cpp(
                 player_guid,
                 target_guid,
                 apply,
@@ -2746,7 +2705,7 @@ where
         });
 
         if vehicle_base_skip {
-            return Self::player_set_viewpoint_outcome_like_cpp(
+            return player_set_viewpoint_outcome_like_cpp(
                 player_guid,
                 target_guid,
                 apply,
@@ -2763,7 +2722,7 @@ where
 
         let request = {
             let Some(target_record) = self.entity_world.get_mut(&target_guid) else {
-                return Self::player_set_viewpoint_outcome_like_cpp(
+                return player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
                     apply,
@@ -2773,8 +2732,8 @@ where
                     false,
                 );
             };
-            let Some(target_unit) = Self::map_record_unit_mut_like_cpp(target_record) else {
-                return Self::player_set_viewpoint_outcome_like_cpp(
+            let Some(target_unit) = map_record_unit_mut_like_cpp(target_record) else {
+                return player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
                     apply,
@@ -2795,7 +2754,7 @@ where
             self.apply_unit_shared_vision_set_world_object_request_like_cpp(request)
         });
 
-        Self::player_set_viewpoint_outcome_like_cpp(
+        player_set_viewpoint_outcome_like_cpp(
             player_guid,
             target_guid,
             apply,
@@ -3022,7 +2981,7 @@ where
                 }
             };
         let player_outcome = |player_guid, status| {
-            Self::player_set_viewpoint_outcome_like_cpp(
+            player_set_viewpoint_outcome_like_cpp(
                 player_guid,
                 dynamic_object_guid,
                 apply,
@@ -3074,7 +3033,7 @@ where
             if current_farsight.is_empty() {
                 if let Some(player) = self.get_typed_player_mut(player_guid) {
                     player.set_farsight_object_like_cpp(dynamic_object_guid);
-                    Self::player_set_viewpoint_outcome_like_cpp(
+                    player_set_viewpoint_outcome_like_cpp(
                         player_guid,
                         dynamic_object_guid,
                         apply,
@@ -3095,7 +3054,7 @@ where
         } else if current_farsight == dynamic_object_guid {
             if let Some(player) = self.get_typed_player_mut(player_guid) {
                 player.set_farsight_object_like_cpp(ObjectGuid::EMPTY);
-                Self::player_set_viewpoint_outcome_like_cpp(
+                player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     dynamic_object_guid,
                     apply,
@@ -3309,7 +3268,7 @@ where
 
     fn unindex_map_object_record_by_spawn_id_like_cpp(&mut self, record: &MapObjectRecord) {
         if let Some(creature) = record.creature() {
-            Self::remove_spawn_id_index_entry_like_cpp(
+            remove_spawn_id_index_entry_like_cpp(
                 &mut self.creatures_by_spawn_id,
                 creature.spawn_id(),
                 creature.guid(),
@@ -3318,7 +3277,7 @@ where
         }
 
         if let Some(gameobject) = record.game_object() {
-            Self::remove_spawn_id_index_entry_like_cpp(
+            remove_spawn_id_index_entry_like_cpp(
                 &mut self.gameobjects_by_spawn_id,
                 gameobject.spawn_id(),
                 gameobject.world().guid(),
@@ -3327,7 +3286,7 @@ where
         }
 
         if let Some(area_trigger) = record.area_trigger() {
-            Self::remove_spawn_id_index_entry_like_cpp(
+            remove_spawn_id_index_entry_like_cpp(
                 &mut self.area_triggers_by_spawn_id,
                 area_trigger.spawn_id(),
                 area_trigger.world().guid(),

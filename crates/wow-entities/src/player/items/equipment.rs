@@ -6,6 +6,7 @@
 //! Equipment slots, transmogrification and durability.
 
 use super::super::*;
+use crate::player_rules::set_dynamic_update_mask_index;
 
 impl Player {
     pub fn find_equip_slot(&self, args: FindEquipSlotArgs<'_>) -> u8 {
@@ -481,7 +482,7 @@ impl Player {
     pub fn add_transmog_block_like_cpp(&mut self, block_value: u32) -> usize {
         let index = self.active_data.transmog.len();
         self.active_data.transmog.push(block_value);
-        Self::set_dynamic_update_mask_index(&mut self.active_data.transmog_update_mask, index);
+        set_dynamic_update_mask_index(&mut self.active_data.transmog_update_mask, index);
         self.mark_active_player_data(ACTIVE_PLAYER_DATA_TRANSMOG_BIT);
         index
     }
@@ -497,7 +498,7 @@ impl Player {
         }
 
         *block = new_block;
-        Self::set_dynamic_update_mask_index(&mut self.active_data.transmog_update_mask, slot);
+        set_dynamic_update_mask_index(&mut self.active_data.transmog_update_mask, slot);
         self.mark_active_player_data(ACTIVE_PLAYER_DATA_TRANSMOG_BIT);
         true
     }
@@ -512,7 +513,7 @@ impl Player {
         self.active_data
             .conditional_transmog
             .push(item_modified_appearance_id as i32);
-        Self::set_dynamic_update_mask_index(
+        set_dynamic_update_mask_index(
             &mut self.active_data.conditional_transmog_update_mask,
             index,
         );
@@ -535,7 +536,7 @@ impl Player {
         };
 
         self.active_data.conditional_transmog.remove(index);
-        Self::set_dynamic_update_mask_index(
+        set_dynamic_update_mask_index(
             &mut self.active_data.conditional_transmog_update_mask,
             index,
         );
@@ -545,13 +546,5 @@ impl Player {
 
     pub fn conditional_transmog_like_cpp(&self) -> &[i32] {
         &self.active_data.conditional_transmog
-    }
-
-    pub const fn is_use_equipped_weapon(
-        mainhand: bool,
-        is_in_feral_form: bool,
-        is_disarmed: bool,
-    ) -> bool {
-        !is_in_feral_form && (!mainhand || !is_disarmed)
     }
 }
