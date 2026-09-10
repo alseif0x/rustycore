@@ -93,7 +93,7 @@ fn vendor_trade_statements_like_cpp(
         VendorTradePersistenceRequestLikeCpp::CurrencyPurchase(request) => {
             append_item_turnins_like_cpp(&mut statements, &request.item_turnins);
             statements.extend(
-                crate::player_lifecycle_adapter::player_currency_save_statements_like_cpp(
+                crate::player::lifecycle_adapter::player_currency_save_statements_like_cpp(
                     &request.currency_save,
                 ),
             );
@@ -146,7 +146,7 @@ fn vendor_trade_statements_like_cpp(
             }
             append_item_turnins_like_cpp(&mut statements, &request.item_turnins);
             statements.extend(
-                crate::player_lifecycle_adapter::player_currency_save_statements_like_cpp(
+                crate::player::lifecycle_adapter::player_currency_save_statements_like_cpp(
                     &request.currency_save,
                 ),
             );
@@ -275,7 +275,7 @@ fn vendor_trade_statements_like_cpp(
                 ));
             }
             statements.extend(
-                crate::player_lifecycle_adapter::player_currency_save_statements_like_cpp(
+                crate::player::lifecycle_adapter::player_currency_save_statements_like_cpp(
                     &request.currency_save,
                 ),
             );
@@ -316,7 +316,7 @@ impl VendorTradePersistencePortLikeCpp for MariaDbVendorTradePersistenceAdapterL
             for statement in vendor_trade_statements_like_cpp(&request) {
                 transaction.append(statement);
             }
-            crate::player_money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
+            crate::player::money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
                 self.character_db.as_ref(),
                 transaction,
                 Some(player_guid),

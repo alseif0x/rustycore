@@ -8,7 +8,7 @@
 //! conceal those dependencies.
 
 use super::*;
-use wow_database::player_spell_acquisition_adapter::spell_acquisition_port;
+use wow_database::player::spell_acquisition_adapter::spell_acquisition_port;
 
 /// Run the world server with explicit process arguments.
 ///
@@ -2288,7 +2288,7 @@ async fn run_inner(
     let _creature_quest_item_store = Arc::new(creature_quest_item_store);
 
     let world_query_catalog_persistence =
-        wow_database::world_query_catalog_adapter::MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new(
+        wow_database::world::query_catalog_adapter::MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::new(
             Arc::clone(&world_db),
         );
     let (creature_query_catalog, gameobject_query_catalog, page_text_catalog) =
@@ -4445,7 +4445,7 @@ async fn run_inner(
     // accepted, so a build that cannot persist lifecycle state fails at
     // startup rather than silently dropping offline marks at logout (#200).
     let player_lifecycle_port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp> = Arc::new(
-        wow_database::player_lifecycle_adapter::MariaDbPlayerLifecycleAdapterLikeCpp::new(
+        wow_database::player::lifecycle_adapter::MariaDbPlayerLifecycleAdapterLikeCpp::new(
             Arc::clone(&char_db),
             Arc::clone(&login_db),
             Arc::clone(&world_db),
@@ -4532,7 +4532,7 @@ async fn run_inner(
         );
     let quest_poi_persistence_port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp> =
         Arc::new(
-            wow_database::quest_poi_adapter::MariaDbQuestPoiPersistenceAdapterLikeCpp::new(
+            wow_database::quest::poi_adapter::MariaDbQuestPoiPersistenceAdapterLikeCpp::new(
                 Arc::clone(&world_db),
             ),
         );

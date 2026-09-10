@@ -237,7 +237,7 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 transaction.append(statement);
             }
 
-            crate::player_money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
+            crate::player::money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
                 self.character_db.as_ref(),
                 transaction,
                 Some(request.player_guid),
@@ -256,7 +256,7 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 player_bank_slot_purchase_statement_like_cpp(&request),
                 1,
             );
-            crate::player_money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
+            crate::player::money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
                 self.character_db.as_ref(),
                 transaction,
                 Some(request.player_guid),
