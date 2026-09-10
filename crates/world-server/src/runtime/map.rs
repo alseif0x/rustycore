@@ -1066,7 +1066,7 @@ pub(crate) fn build_loaded_grid_area_trigger_record_like_cpp(
         .template_id
         .and_then(|template_id| area_trigger_template_store.get_template_like_cpp(template_id));
 
-    match area_trigger_loaded_grid::build_loaded_grid_area_trigger_record_from_spawn_data_like_cpp(
+    match area::trigger_loaded_grid::build_loaded_grid_area_trigger_record_from_spawn_data_like_cpp(
         map,
         spawn,
         runtime_row,

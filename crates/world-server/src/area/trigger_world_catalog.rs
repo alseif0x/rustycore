@@ -7,13 +7,13 @@ use wow_persistence::{
     AreaTriggerWorldCatalogPersistencePortLikeCpp, AreaTriggerWorldLoadOutcomeLikeCpp,
 };
 
-pub(super) struct AreaTriggerWorldCatalogsLikeCpp {
+pub(crate) struct AreaTriggerWorldCatalogsLikeCpp {
     pub area_trigger_store: Arc<wow_data::AreaTriggerStore>,
     pub script_outcome: wow_data::AreaTriggerScriptLoadOutcomeLikeCpp,
     pub tavern_outcome: wow_data::TavernAreaTriggerLoadOutcomeLikeCpp,
 }
 
-pub(super) async fn load_area_trigger_world_catalogs_like_cpp(
+pub(crate) async fn load_area_trigger_world_catalogs_like_cpp(
     persistence: &dyn AreaTriggerWorldCatalogPersistencePortLikeCpp,
     area_trigger_db2_store: &wow_data::AreaTriggerDb2Store,
     script_names: &mut wow_data::ScriptNameInternerLikeCpp,

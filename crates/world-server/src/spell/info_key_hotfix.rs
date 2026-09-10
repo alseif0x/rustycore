@@ -102,7 +102,7 @@ fn overlays_like_cpp(
     })
 }
 
-pub(super) async fn load_spell_store_seed_like_cpp(
+pub(crate) async fn load_spell_store_seed_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellInfoKeyHotfixPersistencePortLikeCpp,

@@ -10,7 +10,7 @@ fn loaded<T>(outcome: WorldObjectRowsLoadOutcomeLikeCpp<T>) -> Result<T> {
     }
 }
 
-pub(super) async fn load_creature_classifications_like_cpp(
+pub(crate) async fn load_creature_classifications_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::CreatureTemplateClassificationStoreLikeCpp> {
     Ok(
@@ -20,7 +20,7 @@ pub(super) async fn load_creature_classifications_like_cpp(
     )
 }
 
-pub(super) async fn load_creature_templates_like_cpp(
+pub(crate) async fn load_creature_templates_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::CreatureTemplateLifecycleStoreLikeCpp> {
     let rows = loaded(port.load_creature_template_rows_like_cpp().await)?;
@@ -80,7 +80,7 @@ pub(super) async fn load_creature_templates_like_cpp(
     )
 }
 
-pub(super) async fn load_creature_sparring_like_cpp(
+pub(crate) async fn load_creature_sparring_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
     templates: &wow_data::CreatureTemplateLifecycleStoreLikeCpp,
 ) -> Result<wow_data::CreatureTemplateSparringStoreLikeCpp> {
@@ -92,7 +92,7 @@ pub(super) async fn load_creature_sparring_like_cpp(
     )
 }
 
-pub(super) async fn load_gameobject_templates_like_cpp(
+pub(crate) async fn load_gameobject_templates_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::GameObjectTemplateLifecycleStoreLikeCpp> {
     let rows = loaded(port.load_gameobject_template_rows_like_cpp().await)?;
@@ -126,7 +126,7 @@ pub(super) async fn load_gameobject_templates_like_cpp(
     )
 }
 
-pub(super) async fn load_gameobject_overrides_like_cpp(
+pub(crate) async fn load_gameobject_overrides_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::GameObjectOverrideLifecycleStoreLikeCpp> {
     Ok(
@@ -142,7 +142,7 @@ pub(super) async fn load_gameobject_overrides_like_cpp(
     )
 }
 
-pub(super) async fn load_creature_difficulties_like_cpp(
+pub(crate) async fn load_creature_difficulties_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
     difficulty_store: &wow_data::DifficultyStore,
     modifier: impl Fn(u32) -> f32,
@@ -177,7 +177,7 @@ pub(super) async fn load_creature_difficulties_like_cpp(
     )
 }
 
-pub(super) async fn load_creature_base_stats_like_cpp(
+pub(crate) async fn load_creature_base_stats_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::CreatureBaseStatsStoreLikeCpp> {
     let rows = loaded(port.load_creature_base_stats_rows_like_cpp().await)?;
@@ -199,7 +199,7 @@ pub(super) async fn load_creature_base_stats_like_cpp(
     ))
 }
 
-pub(super) async fn load_creature_mounts_like_cpp(
+pub(crate) async fn load_creature_mounts_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::CreatureTemplateMountStoreLikeCpp> {
     Ok(
@@ -219,7 +219,7 @@ pub(super) async fn load_creature_mounts_like_cpp(
     )
 }
 
-pub(super) async fn load_creature_model_info_like_cpp(
+pub(crate) async fn load_creature_model_info_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
     displays: &wow_data::CreatureDisplayInfoStore,
     models: &wow_data::CreatureModelDataStore,
@@ -239,7 +239,7 @@ pub(super) async fn load_creature_model_info_like_cpp(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn load_creature_addons_like_cpp(
+pub(crate) async fn load_creature_addons_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
     templates: &wow_data::CreatureTemplateLifecycleStoreLikeCpp,
     spawns: &wow_data::WorldSpawnIdStore,
@@ -283,7 +283,7 @@ pub(super) async fn load_creature_addons_like_cpp(
     )
 }
 
-pub(super) async fn load_creature_equipment_like_cpp(
+pub(crate) async fn load_creature_equipment_like_cpp(
     port: &dyn WorldObjectCatalogPersistencePortLikeCpp,
     creature_template_exists: impl FnMut(u32) -> bool,
     item_inventory_type: impl FnMut(u32) -> Option<u8>,

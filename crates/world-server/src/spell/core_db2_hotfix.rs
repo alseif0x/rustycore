@@ -304,7 +304,7 @@ fn spell_x_spell_visual_entry_like_cpp(
     }
 }
 
-pub(super) async fn load_spell_name_store_like_cpp(
+pub(crate) async fn load_spell_name_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -319,7 +319,7 @@ pub(super) async fn load_spell_name_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_store_like_cpp(
+pub(crate) async fn load_spell_store_like_cpp(
     data_dir: &str,
     locale: &str,
     seed: SpellStore,
@@ -426,7 +426,7 @@ pub(super) async fn load_spell_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_casting_requirements_store_like_cpp(
+pub(crate) async fn load_spell_casting_requirements_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -446,7 +446,7 @@ pub(super) async fn load_spell_casting_requirements_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_misc_store_like_cpp(
+pub(crate) async fn load_spell_misc_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -461,7 +461,7 @@ pub(super) async fn load_spell_misc_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_cooldowns_store_like_cpp(
+pub(crate) async fn load_spell_cooldowns_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -476,7 +476,7 @@ pub(super) async fn load_spell_cooldowns_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_aura_restrictions_store_like_cpp(
+pub(crate) async fn load_spell_aura_restrictions_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -495,7 +495,7 @@ pub(super) async fn load_spell_aura_restrictions_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_category_store_like_cpp(
+pub(crate) async fn load_spell_category_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -510,7 +510,7 @@ pub(super) async fn load_spell_category_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_duration_store_like_cpp(
+pub(crate) async fn load_spell_duration_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -525,7 +525,7 @@ pub(super) async fn load_spell_duration_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_radius_store_like_cpp(
+pub(crate) async fn load_spell_radius_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -540,7 +540,7 @@ pub(super) async fn load_spell_radius_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_range_store_like_cpp(
+pub(crate) async fn load_spell_range_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -555,7 +555,7 @@ pub(super) async fn load_spell_range_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_equipped_items_store_like_cpp(
+pub(crate) async fn load_spell_equipped_items_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -570,7 +570,7 @@ pub(super) async fn load_spell_equipped_items_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_target_restrictions_store_like_cpp(
+pub(crate) async fn load_spell_target_restrictions_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
@@ -590,7 +590,7 @@ pub(super) async fn load_spell_target_restrictions_store_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_x_spell_visual_store_like_cpp(
+pub(crate) async fn load_spell_x_spell_visual_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
