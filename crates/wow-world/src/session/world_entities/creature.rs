@@ -122,7 +122,7 @@ impl WorldSession {
             return false;
         };
 
-        Self::creature_message_to_set_target_allows_like_cpp(
+        crate::session_rules::creature_message_to_set_target_allows_like_cpp(
             creature,
             // The HaveAtClient membership was proven above.
             true,
@@ -132,32 +132,6 @@ impl WorldSession {
             &player_phase_shift,
             required_3d,
         )
-    }
-    pub(in crate::session) fn creature_message_to_set_target_allows_like_cpp(
-        creature: &crate::map_manager::WorldCreature,
-        source_is_visible_like_cpp: bool,
-        player_map_id: u32,
-        player_instance_id: u32,
-        player_position: &Position,
-        player_phase_shift: &PhaseShift,
-        required_3d: bool,
-    ) -> bool {
-        if !source_is_visible_like_cpp {
-            return false;
-        }
-        if creature.map_id() != player_map_id || creature.instance_id() != player_instance_id {
-            return false;
-        }
-        if !player_phase_shift.can_see(creature.phase_shift()) {
-            return false;
-        }
-
-        let range = creature.visibility_range_like_cpp();
-        if required_3d {
-            position_is_in_dist_strict_3d_like_cpp(&creature.position(), player_position, range)
-        } else {
-            position_is_in_dist_strict_2d_like_cpp(&creature.position(), player_position, range)
-        }
     }
     pub(crate) fn represented_can_receive_creature_message_to_set_by_guid_like_cpp(
         &self,
@@ -513,20 +487,5 @@ impl WorldSession {
         self.last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;
         self.sync_player_registry_state_like_cpp();
         Some(canonical_health)
-    }
-    pub(in crate::session) fn creature_movement_spline_speed_opcode_like_cpp(
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> Option<ServerOpcodes> {
-        match move_type {
-            UnitMoveTypeLikeCpp::Walk => Some(ServerOpcodes::MoveSplineSetWalkSpeed),
-            UnitMoveTypeLikeCpp::Run => Some(ServerOpcodes::MoveSplineSetRunSpeed),
-            UnitMoveTypeLikeCpp::RunBack => Some(ServerOpcodes::MoveSplineSetRunBackSpeed),
-            UnitMoveTypeLikeCpp::Swim => Some(ServerOpcodes::MoveSplineSetSwimSpeed),
-            UnitMoveTypeLikeCpp::SwimBack => Some(ServerOpcodes::MoveSplineSetSwimBackSpeed),
-            UnitMoveTypeLikeCpp::TurnRate => Some(ServerOpcodes::MoveSplineSetTurnRate),
-            UnitMoveTypeLikeCpp::Flight => Some(ServerOpcodes::MoveSplineSetFlightSpeed),
-            UnitMoveTypeLikeCpp::FlightBack => Some(ServerOpcodes::MoveSplineSetFlightBackSpeed),
-            UnitMoveTypeLikeCpp::PitchRate => Some(ServerOpcodes::MoveSplineSetPitchRate),
-        }
     }
 }

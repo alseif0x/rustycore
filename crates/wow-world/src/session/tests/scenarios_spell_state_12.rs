@@ -14,33 +14,23 @@ fn represented_spell_positivity_covers_common_cpp_buffs_and_debuffs() {
     );
     periodic_heal.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_PERIODIC_HEAL;
     periodic_heal.effects[0].implicit_target_1 = 21; // TARGET_UNIT_TARGET_ALLY
-    assert!(WorldSession::represented_spell_is_positive_like_cpp(
-        &periodic_heal
-    ));
+    assert!(crate::session_rules::represented_spell_is_positive_like_cpp(&periodic_heal));
 
     let mut absorb = periodic_heal.clone();
     absorb.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_SCHOOL_ABSORB;
-    assert!(WorldSession::represented_spell_is_positive_like_cpp(
-        &absorb
-    ));
+    assert!(crate::session_rules::represented_spell_is_positive_like_cpp(&absorb));
 
     let mut stat_buff = periodic_heal.clone();
     stat_buff.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_MOD_STAT;
-    assert!(WorldSession::represented_spell_is_positive_like_cpp(
-        &stat_buff
-    ));
+    assert!(crate::session_rules::represented_spell_is_positive_like_cpp(&stat_buff));
     stat_buff.effects[0].effect_base_points = -10;
-    assert!(!WorldSession::represented_spell_is_positive_like_cpp(
-        &stat_buff
-    ));
+    assert!(!crate::session_rules::represented_spell_is_positive_like_cpp(&stat_buff));
 
     let mut enemy_periodic_damage = periodic_heal;
     enemy_periodic_damage.effects[0].effect_aura =
         wow_data::spell::aura_types::SPELL_AURA_PERIODIC_DAMAGE;
     enemy_periodic_damage.effects[0].implicit_target_1 = 6; // TARGET_UNIT_TARGET_ENEMY
-    assert!(!WorldSession::represented_spell_is_positive_like_cpp(
-        &enemy_periodic_damage
-    ));
+    assert!(!crate::session_rules::represented_spell_is_positive_like_cpp(&enemy_periodic_damage));
 }
 #[tokio::test]
 async fn spell_energize_effect_restores_current_player_power_like_cpp() {

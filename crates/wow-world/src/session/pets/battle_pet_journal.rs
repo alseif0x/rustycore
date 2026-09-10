@@ -200,7 +200,7 @@ impl WorldSession {
             .get_mut(&pet_guid)
             .expect("pet was checked before stats calculation");
         pet.quality = quality;
-        Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated_stats);
+        crate::session_rules::apply_battle_pet_calculated_stats_like_cpp(pet, calculated_stats);
 
         if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
             pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
@@ -246,7 +246,7 @@ impl WorldSession {
         match owner
             .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
                 pet.quality = quality;
-                Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
+                crate::session_rules::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
             })
             .await
         {
@@ -326,7 +326,7 @@ impl WorldSession {
         if level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
             pet.exp = 0;
         }
-        Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated_stats);
+        crate::session_rules::apply_battle_pet_calculated_stats_like_cpp(pet, calculated_stats);
 
         if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
             pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
@@ -386,7 +386,7 @@ impl WorldSession {
                 if level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
                     pet.exp = 0;
                 }
-                Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
+                crate::session_rules::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
             })
             .await
         {

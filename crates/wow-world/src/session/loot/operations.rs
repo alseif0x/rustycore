@@ -171,11 +171,6 @@ impl WorldSession {
             })
         })
     }
-    pub(in crate::session) fn represented_gameobject_chest_loot_ids_like_cpp(
-        source: wow_entities::GameObjectLootSource,
-    ) -> [u32; 3] {
-        [source.loot_id, source.personal_loot_id, source.push_loot_id]
-    }
     pub(crate) fn read_legacy_creature_loot_authority_like_cpp(
         &self,
         guid: ObjectGuid,

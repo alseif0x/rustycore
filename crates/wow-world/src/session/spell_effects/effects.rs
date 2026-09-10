@@ -267,18 +267,6 @@ impl WorldSession {
                 )
         }))
     }
-    pub(in crate::session) fn bind_area_id_like_cpp(
-        effect_misc_value: i32,
-        current_area_id: u32,
-    ) -> u32 {
-        if effect_misc_value != 0 {
-            // C++ assigns the signed SpellEffectInfo::MiscValue directly to
-            // uint32 areaId, preserving the underlying 32-bit value.
-            effect_misc_value as u32
-        } else {
-            current_area_id
-        }
-    }
     pub(in crate::session) fn set_homebind_like_cpp(
         &mut self,
         binder_id: ObjectGuid,
@@ -480,7 +468,7 @@ impl WorldSession {
             return false;
         }
 
-        let create_data = Self::dynamic_object_create_data_from_canonical_like_cpp(
+        let create_data = crate::session_rules::dynamic_object_create_data_from_canonical_like_cpp(
             dynamic_object_guid,
             dynamic_object,
         );
@@ -758,7 +746,7 @@ impl WorldSession {
             return false;
         }
 
-        let now_ms = u64::from(Self::game_time_ms_like_cpp());
+        let now_ms = u64::from(crate::session_rules::game_time_ms_like_cpp());
         self.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()

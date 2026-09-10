@@ -73,31 +73,6 @@ impl WorldSession {
         Some((caster_create_mana, power_costs, before_power))
     }
 
-    fn represented_spell_power_has_power_like_cpp(
-        power_costs: &[wow_data::SpellPowerCostLikeCpp],
-        before_power: &[(i8, i32, i32)],
-    ) -> bool {
-        power_costs.iter().all(|cost| {
-            if cost.amount <= 0 {
-                return true;
-            }
-            let Some(power_type) = PowerType::from_i8(cost.power_type) else {
-                return true;
-            };
-            if matches!(
-                power_type,
-                PowerType::Health | PowerType::None | PowerType::Max
-            ) {
-                return true;
-            }
-            before_power
-                .iter()
-                .find(|(snapshot_power_type, _, _)| *snapshot_power_type == cost.power_type)
-                .map(|(_, current, _)| *current >= cost.amount)
-                .unwrap_or(false)
-        })
-    }
-
     fn send_spell_power_no_power_like_cpp(
         &mut self,
         cast_id: ObjectGuid,
@@ -142,7 +117,10 @@ impl WorldSession {
             return true;
         }
 
-        if !Self::represented_spell_power_has_power_like_cpp(&power_costs, &before_power) {
+        if !crate::session_rules::represented_spell_power_has_power_like_cpp(
+            &power_costs,
+            &before_power,
+        ) {
             if trace_spell_power {
                 info!(
                     "RUST_SPELL_POWER_COST phase=check spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
@@ -184,7 +162,10 @@ impl WorldSession {
             return true;
         }
 
-        if !Self::represented_spell_power_has_power_like_cpp(&power_costs, &before_power) {
+        if !crate::session_rules::represented_spell_power_has_power_like_cpp(
+            &power_costs,
+            &before_power,
+        ) {
             if trace_spell_power {
                 info!(
                     "RUST_SPELL_POWER_COST phase=take spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
@@ -213,7 +194,10 @@ impl WorldSession {
                         ))
                     })
                     .collect();
-                if !Self::represented_spell_power_has_power_like_cpp(&power_costs, &current_power) {
+                if !crate::session_rules::represented_spell_power_has_power_like_cpp(
+                    &power_costs,
+                    &current_power,
+                ) {
                     return None;
                 }
                 for cost in &power_costs {

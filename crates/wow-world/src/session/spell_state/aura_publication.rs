@@ -22,7 +22,7 @@ impl WorldSession {
         let auras = visible
             .into_iter()
             .map(|aura| {
-                Self::player_aura_info_like_cpp(
+                crate::session_rules::player_aura_info_like_cpp(
                     aura,
                     self.player_level_like_cpp(),
                     self.player_map_id_like_cpp(),
@@ -71,7 +71,7 @@ impl WorldSession {
                 continue;
             }
             if effect.effect != spell_effect_types::SPELL_EFFECT_APPLY_AURA
-                || !Self::player_target_spell_effect_is_hit_inert_like_cpp(effect)
+                || !crate::session_rules::player_target_spell_effect_is_hit_inert_like_cpp(effect)
             {
                 return false;
             }
@@ -251,7 +251,7 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::misc::AuraUpdate {
             unit_guid: target_guid,
             update_all: false,
-            auras: vec![Self::player_aura_info_like_cpp(
+            auras: vec![crate::session_rules::player_aura_info_like_cpp(
                 &aura,
                 self.player_level_like_cpp(),
                 self.player_map_id_like_cpp(),

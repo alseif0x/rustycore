@@ -468,7 +468,9 @@ impl WorldSession {
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
-        let Some(opcode) = Self::creature_movement_spline_speed_opcode_like_cpp(move_type) else {
+        let Some(opcode) =
+            crate::session_rules::creature_movement_spline_speed_opcode_like_cpp(move_type)
+        else {
             return;
         };
         let packet_bytes = wow_packet::packets::movement::MoveSplineSetSpeed {

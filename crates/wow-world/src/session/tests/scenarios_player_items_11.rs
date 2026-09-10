@@ -858,7 +858,7 @@ fn loaded_equipped_item_enchantments_apply_effect_actions_like_cpp() {
 #[test]
 fn send_new_item_plan_maps_entity_fields_to_item_push_result_like_cpp() {
     let plan = send_new_item_plan(SendNewItemDelivery::Direct);
-    let packet = WorldSession::item_push_result_from_send_new_item_plan(&plan);
+    let packet = crate::session_rules::item_push_result_from_send_new_item_plan(&plan);
 
     assert_eq!(packet.player_guid, plan.player_guid);
     assert_eq!(packet.item_guid, plan.item_guid);

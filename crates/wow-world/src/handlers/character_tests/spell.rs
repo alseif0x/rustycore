@@ -497,7 +497,7 @@ fn spell_charge_entry_skips_expired_recharges_like_cpp() {
 #[test]
 fn account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp() {
     assert!(
-        WorldSession::account_mount_spells_are_session_dependent_like_cpp(),
+        crate::session_rules::account_mount_spells_are_session_dependent_like_cpp(),
         "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
     );
 }

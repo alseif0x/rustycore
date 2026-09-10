@@ -309,7 +309,7 @@ impl WorldSession {
         // C++-created rows only contain the declared PlayerRestState values.
         // Normalize legacy Rust rows that persisted the old invalid value 0,
         // while preserving every valid DB state verbatim like LoadRestBonus.
-        let rest_state = if Self::valid_player_rest_state_like_cpp(rest_state) {
+        let rest_state = if crate::session_rules::valid_player_rest_state_like_cpp(rest_state) {
             rest_state
         } else {
             REST_STATE_NORMAL_LIKE_CPP

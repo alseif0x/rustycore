@@ -199,7 +199,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
         .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
         .expect("represented vendor currency should be plannable")
         .expect("the uncapped gain should be nonzero");
-    assert!(WorldSession::plan_remove_currency_like_cpp(
+    assert!(crate::session_rules::plan_remove_currency_like_cpp(
         &mut planned,
         396,
         4
@@ -249,7 +249,7 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
     session
         .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
         .unwrap();
-    assert!(WorldSession::plan_remove_currency_like_cpp(
+    assert!(crate::session_rules::plan_remove_currency_like_cpp(
         &mut planned,
         396,
         4

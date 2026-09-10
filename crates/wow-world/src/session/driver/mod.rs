@@ -173,7 +173,7 @@ impl WorldSession {
             );
             self.tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
                 catalogs.player_rest_rates.as_ref(),
-                Self::current_game_time_secs_like_cpp(),
+                crate::session_rules::current_game_time_secs_like_cpp(),
             );
             let _ = self.set_represented_can_delay_teleport_like_cpp(false);
             self.process_represented_delayed_teleport_after_update_like_cpp()

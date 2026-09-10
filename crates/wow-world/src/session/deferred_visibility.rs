@@ -12,7 +12,8 @@ use wow_map::PlayerVisibilityRefreshIntentLikeCpp;
 
 impl WorldSession {
     pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
-        let transport_server_time = Self::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
+        let transport_server_time =
+            crate::session_rules::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
         if self
             .mutate_active_player_update_state_like_cpp(|state| {
                 state.active_local_flags |=

@@ -653,11 +653,12 @@ fn new_void_withdrawal_create_carries_committed_item_state_like_cpp() {
         0
     );
 
-    let post_store_update = WorldSession::void_withdrawal_post_store_item_values_update_like_cpp(
-        &item,
-        create_dynamic_flags,
-    )
-    .expect("post-store item update");
+    let post_store_update =
+        crate::session_rules::void_withdrawal_post_store_item_values_update_like_cpp(
+            &item,
+            create_dynamic_flags,
+        )
+        .expect("post-store item update");
     let item_data = post_store_update
         .item_data
         .as_ref()

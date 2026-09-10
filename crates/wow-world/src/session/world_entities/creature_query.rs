@@ -107,7 +107,7 @@ impl WorldSession {
                 legacy_candidates
                     .into_iter()
                     .filter(|creature| {
-                        Self::visibility_distance_allows_like_cpp(
+                        crate::session_rules::visibility_distance_allows_like_cpp(
                             position,
                             source_combat_reach,
                             &creature.position(),
@@ -180,7 +180,7 @@ impl WorldSession {
                 // IsWithinDist(obj, GetSightRange, is3D=false) (Object.cpp:1587-1609).
                 // #NEXT.R8.ENTITIES.1223 — use 2D so vertically-separated objects (e.g. ICC
                 // layered floors) within horizontal range are not dropped.
-                || !Self::visibility_distance_allows_like_cpp(
+                || !crate::session_rules::visibility_distance_allows_like_cpp(
                     position,
                     source_combat_reach,
                     &world.position(),

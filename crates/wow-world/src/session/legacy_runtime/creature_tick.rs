@@ -4,6 +4,8 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
+use crate::session_rules::position_is_in_dist_strict_2d_like_cpp;
+use crate::session_rules::position_is_in_dist_strict_3d_like_cpp;
 
 pub(in crate::session) fn legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
     creature: &crate::map_manager::WorldCreature,

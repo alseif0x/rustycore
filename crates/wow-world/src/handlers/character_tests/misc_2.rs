@@ -161,14 +161,14 @@ async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp()
     session.set_player_zone_area_like_cpp(12, 34);
     install_bind_spell_fixture(&mut session);
     session.set_player_trainer_interaction_like_cpp(innkeeper, 77);
-    let _ = WorldSession::game_time_ms_like_cpp();
+    let _ = crate::session_rules::game_time_ms_like_cpp();
     std::thread::sleep(std::time::Duration::from_millis(2));
-    let cast_time_lower_bound = WorldSession::game_time_ms_like_cpp();
+    let cast_time_lower_bound = crate::session_rules::game_time_ms_like_cpp();
 
     session
         .handle_binder_activate(Hello { unit: innkeeper })
         .await;
-    let cast_time_upper_bound = WorldSession::game_time_ms_like_cpp();
+    let cast_time_upper_bound = crate::session_rules::game_time_ms_like_cpp();
 
     assert_eq!(
         session.represented_homebind_like_cpp(),

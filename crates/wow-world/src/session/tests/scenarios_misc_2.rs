@@ -611,10 +611,10 @@ async fn nearby_entry_destination_without_target_fails_bad_implicit_targets_like
 }
 #[test]
 fn bind_misc_area_preserves_cpp_uint32_conversion() {
-    assert_eq!(WorldSession::bind_area_id_like_cpp(777, 34), 777);
-    assert_eq!(WorldSession::bind_area_id_like_cpp(0, 34), 34);
+    assert_eq!(crate::session_rules::bind_area_id_like_cpp(777, 34), 777);
+    assert_eq!(crate::session_rules::bind_area_id_like_cpp(0, 34), 34);
     assert_eq!(
-        WorldSession::bind_area_id_like_cpp(-1, 34),
+        crate::session_rules::bind_area_id_like_cpp(-1, 34),
         u32::MAX,
         "C++ assignment from int32 MiscValue to uint32 areaId preserves all 32 bits"
     );
@@ -782,9 +782,9 @@ fn represented_mount_liquid_state_uses_cpp_liquid_bits_and_swimming_flag() {
 #[test]
 fn time_sync_response_sets_initial_clock_delta_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
-    let _ = WorldSession::game_time_ms_like_cpp();
+    let _ = crate::session_rules::game_time_ms_like_cpp();
     std::thread::sleep(std::time::Duration::from_millis(2));
-    let sent_time = WorldSession::game_time_ms_like_cpp();
+    let sent_time = crate::session_rules::game_time_ms_like_cpp();
     session.time_sync_pending_requests.insert(7, sent_time);
 
     session.record_time_sync_response_like_cpp(7, sent_time.saturating_sub(1));
