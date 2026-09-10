@@ -521,7 +521,7 @@ impl WorldSession {
     }
     fn represented_player_level_curve_item_level_like_cpp(
         &self,
-        template: &wow_data::item_stats::ItemSparseTemplateEntry,
+        template: &wow_data::item::stats::ItemSparseTemplateEntry,
         runtime_item: Option<&Item>,
     ) -> Option<i64> {
         let curve_id = template.player_level_to_item_level_curve_id_like_cpp();

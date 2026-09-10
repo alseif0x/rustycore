@@ -722,5 +722,5 @@ impl_from_entries!(TransmogSetGroupStore, TransmogSetGroupEntry);
 impl_from_entries!(TransmogSetItemStore, TransmogSetItemEntry);
 
 #[cfg(test)]
-#[path = "item_collections/tests/mod.rs"]
+#[path = "collections/tests/mod.rs"]
 mod tests;

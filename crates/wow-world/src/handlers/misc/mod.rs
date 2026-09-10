@@ -94,7 +94,7 @@ fn join_channel_custom_precheck_like_cpp(request: &JoinChannel) -> JoinChannelPr
 // ── Handler implementations ───────────────────────────────────────────────────
 
 pub(crate) fn item_purchase_contents_from_extended_cost(
-    extended_cost: &wow_data::item_extended_cost::ItemExtendedCostEntry,
+    extended_cost: &wow_data::item::extended_cost::ItemExtendedCostEntry,
     money: u64,
 ) -> ItemPurchaseContents {
     let mut contents = ItemPurchaseContents {

@@ -153,7 +153,7 @@ pub fn build_template_script_name_interner_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::creature_template::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP;
+    use crate::creature::template::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP;
 
     #[test]
     fn script_name_interner_reserves_empty_id_zero_like_cpp() {

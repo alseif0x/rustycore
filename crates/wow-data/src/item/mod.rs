@@ -246,3 +246,32 @@ mod tests {
         assert_eq!(store.scaling_stat_value(4), 0);
     }
 }
+pub mod appearance;
+pub mod bonus;
+pub mod class;
+pub mod collections;
+pub mod currency_cost;
+pub mod disenchant_loot;
+pub mod equipment;
+pub mod extended_cost;
+pub mod modified_appearance;
+pub mod price_base;
+pub mod random_enchantment;
+pub mod random_properties;
+pub mod random_suffix;
+pub mod stats;
+
+pub use appearance::*;
+pub use bonus::*;
+pub use class::*;
+pub use collections::*;
+pub use currency_cost::*;
+pub use disenchant_loot::*;
+pub use equipment::*;
+pub use extended_cost::*;
+pub use modified_appearance::*;
+pub use price_base::*;
+pub use random_enchantment::*;
+pub use random_properties::*;
+pub use random_suffix::*;
+pub use stats::*;
