@@ -62,7 +62,7 @@ impl WorldSession {
             visual: SpellCastVisual::default(),
             cast_flags: 0,
             cast_flags_ex: 0,
-            cast_time_ms: Self::game_time_ms_like_cpp(),
+            cast_time_ms: crate::session_rules::game_time_ms_like_cpp(),
             target: SpellTargetData {
                 flags: 0x2,
                 unit: target_guid,

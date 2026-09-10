@@ -500,8 +500,10 @@ fn player_homebind_update_request_preserves_wide_semantic_values_for_adapter() {
         position: Position::new(11.0, 22.0, 33.0, 1.5),
     };
 
-    let request =
-        WorldSession::player_homebind_update_request_like_cpp(homebind, guid.counter() as u64);
+    let request = crate::session_rules::player_homebind_update_request_like_cpp(
+        homebind,
+        guid.counter() as u64,
+    );
 
     assert_eq!(
         request,
@@ -516,7 +518,7 @@ fn player_homebind_update_request_preserves_wide_semantic_values_for_adapter() {
         }
     );
 
-    let wide = WorldSession::player_homebind_update_request_like_cpp(
+    let wide = crate::session_rules::player_homebind_update_request_like_cpp(
         RepresentedHomebindLikeCpp {
             map_id: u32::MAX - 2,
             area_id: u32::MAX - 1,

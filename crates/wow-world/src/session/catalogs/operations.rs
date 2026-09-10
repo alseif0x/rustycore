@@ -94,49 +94,6 @@ impl WorldSession {
 
         data.time = current.saturating_add(i64::from(delay_secs));
     }
-    pub(crate) fn void_withdrawal_post_store_item_values_update_like_cpp(
-        item: &Item,
-        create_dynamic_flags: u32,
-    ) -> Option<ItemValuesUpdate> {
-        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
-        let mut has_parent_field = false;
-        if !item.data().creator.is_empty() {
-            item_data_mask.set(ITEM_DATA_CREATOR_BIT);
-            has_parent_field = true;
-        }
-        if item.data().dynamic_flags != create_dynamic_flags {
-            item_data_mask.set(ITEM_DATA_DYNAMIC_FLAGS_BIT);
-            has_parent_field = true;
-        }
-        if item.data().property_seed != 0 {
-            item_data_mask.set(ITEM_DATA_PROPERTY_SEED_BIT);
-            has_parent_field = true;
-        }
-        if item.data().random_properties_id != 0 {
-            item_data_mask.set(ITEM_DATA_RANDOM_PROPERTIES_ID_BIT);
-            has_parent_field = true;
-        }
-        if has_parent_field {
-            item_data_mask.set(ITEM_DATA_PARENT_BIT);
-        }
-        for (index, enchantment) in item.data().enchantments.iter().enumerate() {
-            if *enchantment != wow_entities::ItemEnchantment::default() {
-                item_data_mask.set(ITEM_DATA_ENCHANTMENT_PARENT_BIT);
-                item_data_mask.set(ITEM_DATA_ENCHANTMENT_FIRST_BIT + index);
-            }
-        }
-        if !item_data_mask.is_any_set() {
-            return None;
-        }
-        Some(ItemValuesUpdate {
-            changed_object_type_mask: 1 << TYPEID_ITEM,
-            object_data: None,
-            item_data: Some(ItemDataUpdate {
-                mask: item_data_mask,
-                values: item.data().clone(),
-            }),
-        })
-    }
     pub(crate) fn send_void_withdrawal_post_store_item_values_update_like_cpp(
         &self,
         item_guid: ObjectGuid,
@@ -145,10 +102,12 @@ impl WorldSession {
         let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
             return;
         };
-        let Some(update) = Self::void_withdrawal_post_store_item_values_update_like_cpp(
-            &item,
-            create_dynamic_flags,
-        ) else {
+        let Some(update) =
+            crate::session_rules::void_withdrawal_post_store_item_values_update_like_cpp(
+                &item,
+                create_dynamic_flags,
+            )
+        else {
             return;
         };
         if let Some(packet) =

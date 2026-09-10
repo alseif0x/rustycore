@@ -555,132 +555,17 @@ impl WorldSession {
         self.send_packet(&update);
         true
     }
-    pub(in crate::session) fn represented_item_bonus_action_updates_stats_like_cpp(
-        action: ApplyEnchantmentEffectAction,
-    ) -> bool {
-        matches!(
-            action,
-            ApplyEnchantmentEffectAction::UnitModifier { .. }
-                | ApplyEnchantmentEffectAction::UpdateStatBuffMod(_)
-                | ApplyEnchantmentEffectAction::RatingModifier { .. }
-                | ApplyEnchantmentEffectAction::ManaRegenBonus { .. }
-                | ApplyEnchantmentEffectAction::SpellPowerBonus { .. }
-                | ApplyEnchantmentEffectAction::HealthRegenBonus { .. }
-                | ApplyEnchantmentEffectAction::SpellPenetrationBonus { .. }
-                | ApplyEnchantmentEffectAction::BaseModFlatValue { .. }
-                | ApplyEnchantmentEffectAction::SetShieldBlockValue { .. }
-                | ApplyEnchantmentEffectAction::SetBaseWeaponDamage { .. }
-                | ApplyEnchantmentEffectAction::SetBaseAttackTime { .. }
-                | ApplyEnchantmentEffectAction::UpdateDamagePhysical { .. }
-        )
-    }
     pub(in crate::session) fn apply_represented_item_bonus_action_state_like_cpp(
         &mut self,
         action: ApplyEnchantmentEffectAction,
     ) -> bool {
         self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-            Self::apply_represented_item_bonus_action_to_state_like_cpp(
+            crate::session_rules::apply_represented_item_bonus_action_to_state_like_cpp(
                 &mut runtime.bonuses,
                 action,
             );
         })
         .is_some()
-    }
-    fn apply_represented_item_bonus_action_to_state_like_cpp(
-        state: &mut RepresentedItemBonusStateLikeCpp,
-        action: ApplyEnchantmentEffectAction,
-    ) {
-        match action {
-            ApplyEnchantmentEffectAction::UnitModifier {
-                unit_mod,
-                modifier,
-                amount,
-                apply,
-            } => Self::apply_represented_unit_modifier_like_cpp(
-                state, unit_mod, modifier, amount, apply,
-            ),
-            ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat) => {
-                state.stat_buff_updates.push(stat)
-            }
-            ApplyEnchantmentEffectAction::RatingModifier {
-                rating,
-                amount,
-                apply,
-            } => {
-                if let Some(index) = represented_combat_rating_index_like_cpp(rating) {
-                    apply_represented_i32_delta_like_cpp(
-                        &mut state.combat_ratings[index],
-                        amount,
-                        apply,
-                    );
-                }
-            }
-            ApplyEnchantmentEffectAction::ManaRegenBonus { amount, apply } => {
-                apply_represented_i32_delta_like_cpp(&mut state.mana_regen_bonus, amount, apply);
-            }
-            ApplyEnchantmentEffectAction::SpellPowerBonus { amount, apply } => {
-                apply_represented_i32_delta_like_cpp(&mut state.spell_power_bonus, amount, apply);
-            }
-            ApplyEnchantmentEffectAction::HealthRegenBonus { amount, apply } => {
-                apply_represented_i32_delta_like_cpp(&mut state.health_regen_bonus, amount, apply);
-            }
-            ApplyEnchantmentEffectAction::SpellPenetrationBonus { amount, apply } => {
-                apply_represented_i32_delta_like_cpp(
-                    &mut state.spell_penetration_bonus,
-                    amount,
-                    apply,
-                );
-            }
-            ApplyEnchantmentEffectAction::BaseModFlatValue {
-                base_mod: wow_entities::ApplyEnchantmentBaseMod::ShieldBlockValue,
-                amount,
-                apply,
-            } => {
-                apply_represented_i32_delta_like_cpp(
-                    &mut state.shield_block_base_mod,
-                    amount,
-                    apply,
-                );
-            }
-            ApplyEnchantmentEffectAction::SetShieldBlockValue { amount } => {
-                state.shield_block_value = amount;
-            }
-            ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
-                attack_type,
-                bound,
-                amount_bits,
-            } => {
-                let attack = attack_type as usize;
-                if attack < state.weapon_damage.len() {
-                    let bound = match bound {
-                        wow_entities::WeaponDamageBoundLikeCpp::Min => 0,
-                        wow_entities::WeaponDamageBoundLikeCpp::Max => 1,
-                    };
-                    state.weapon_damage[attack][bound] = f32::from_bits(amount_bits);
-                }
-            }
-            ApplyEnchantmentEffectAction::SetBaseAttackTime {
-                attack_type,
-                time_ms,
-            } => {
-                let attack = attack_type as usize;
-                if attack < state.base_attack_time.len() {
-                    state.base_attack_time[attack] = time_ms;
-                }
-            }
-            ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type } => {
-                state.damage_physical_updates.push(attack_type)
-            }
-            ApplyEnchantmentEffectAction::Noop
-            | ApplyEnchantmentEffectAction::DeferredCombatSpell
-            | ApplyEnchantmentEffectAction::DeferredUseSpell
-            | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
-            | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
-            | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
-            | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
-            | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
-            | ApplyEnchantmentEffectAction::Unknown { .. } => {}
-        }
     }
     pub(in crate::session) fn reset_represented_item_bonus_runtime_like_cpp(&mut self) {
         // C++ WorldSession::HandlePlayerLogin constructs a fresh Player, so

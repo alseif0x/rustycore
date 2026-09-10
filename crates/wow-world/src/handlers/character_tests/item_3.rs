@@ -586,8 +586,9 @@ fn mainhand_bank_remove_clears_and_persists_weapon_only_enchant_like_cpp() {
         item.data().enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
         0
     );
-    let update =
-        WorldSession::item_storage_fields_values_update_like_cpp(&item, true, true, &cleared);
+    let update = crate::session_rules::item_storage_fields_values_update_like_cpp(
+        &item, true, true, &cleared,
+    );
     let packet_update = crate::entity_update_bridge::item_values_update_to_packet(&update)
         .expect("item values update");
     let expected_mask = (1_u64 << wow_entities::ITEM_DATA_PARENT_BIT)

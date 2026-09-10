@@ -157,7 +157,7 @@ impl WorldSession {
             &nodes,
             transport_create.move_speed,
             transport_create.accel_rate,
-            Self::game_time_ms_like_cpp(),
+            crate::session_rules::game_time_ms_like_cpp(),
         )?;
         let guid = ObjectGuid::create_transport(HighGuid::Transport, guid_low as i64);
         validate_persisted_transport_login_like_cpp(
@@ -210,7 +210,7 @@ impl WorldSession {
     ) -> Box<InitTransportsPlanLikeCpp> {
         self.client_visible_transports_like_cpp.clear();
         let mut plan = Box::new(InitTransportsPlanLikeCpp::default());
-        let now_ms = Self::game_time_ms_like_cpp();
+        let now_ms = crate::session_rules::game_time_ms_like_cpp();
         if let Some(snapshot) = persisted_transport {
             if snapshot.map_id == map_id {
                 plan.own_transport = Some((

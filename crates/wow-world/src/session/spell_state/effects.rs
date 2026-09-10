@@ -6,49 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    /// Whether one effective spell effect is inert for the deliberately
-    /// narrow Creature -> Player physical melee hit profile while the Creature
-    /// is behind the Player.
-    ///
-    /// This is not a general aura safety list. In particular total stats may
-    /// alter avoidance, but C++ disables Player dodge/parry/block from behind
-    /// unless aura type 288 is present; that type is intentionally absent
-    /// here. The remaining accepted aura types affect visibility, outgoing
-    /// damage, reputation, or the victim's outgoing expertise.
-    pub(in crate::session) fn player_target_spell_effect_is_hit_inert_like_cpp(
-        effect: &wow_data::spell::SpellEffectInfo,
-    ) -> bool {
-        use wow_data::spell::{aura_types, spell_effect_types};
-
-        if effect.effect == spell_effect_types::SPELL_EFFECT_NONE
-            || spell_effect_types::is_cpp_null_or_unused_noop(effect.effect)
-        {
-            return true;
-        }
-        if effect.effect_trigger_spell != 0 {
-            return false;
-        }
-
-        match effect.effect {
-            spell_effect_types::SPELL_EFFECT_APPLY_AURA => matches!(
-                effect.effect_aura,
-                aura_types::SPELL_AURA_MOD_STEALTH_DETECT
-                    | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
-                    | aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                    | aura_types::SPELL_AURA_MOD_REPUTATION_GAIN
-                    | aura_types::SPELL_AURA_MOD_XP_PCT
-                    | aura_types::SPELL_AURA_MOD_EXPERTISE
-            ),
-            // These login-time capability effects either change only the
-            // Player's outgoing attacks/equipment use or the defensive
-            // parry/block gates that C++ disables for a rear attacker.
-            spell_effect_types::SPELL_EFFECT_PARRY
-            | spell_effect_types::SPELL_EFFECT_BLOCK
-            | spell_effect_types::SPELL_EFFECT_DUAL_WIELD
-            | spell_effect_types::SPELL_EFFECT_PROFICIENCY => true,
-            _ => false,
-        }
-    }
     pub(crate) fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
         const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
 

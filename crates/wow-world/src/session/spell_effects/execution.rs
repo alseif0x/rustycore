@@ -203,7 +203,7 @@ impl WorldSession {
             visual: spell_visual,
             cast_flags,
             cast_flags_ex: metadata.cast_flags_ex,
-            cast_time_ms: Self::game_time_ms_like_cpp(),
+            cast_time_ms: crate::session_rules::game_time_ms_like_cpp(),
             target: spell_go_target_data,
             hit_targets: vec![target_guid],
             miss_targets: Vec::new(),
@@ -1051,7 +1051,7 @@ impl WorldSession {
             spell_id,
             caster_guid,
             target_guid,
-            Self::represented_spell_is_positive_like_cpp(&threat_spell_info),
+            crate::session_rules::represented_spell_is_positive_like_cpp(&threat_spell_info),
         );
 
         if caster_guid == player_guid {

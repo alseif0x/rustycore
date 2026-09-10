@@ -54,11 +54,13 @@ impl WorldSession {
 
             let dynamic_flags =
                 self.represented_gameobject_dynamic_flags_for_player_like_cpp(access.entry, &state);
-            let Some(update) = Self::represented_gameobject_dynamic_flags_update_like_cpp(
-                guid,
-                self.player_map_id_like_cpp(),
-                dynamic_flags,
-            ) else {
+            let Some(update) =
+                crate::session_rules::represented_gameobject_dynamic_flags_update_like_cpp(
+                    guid,
+                    self.player_map_id_like_cpp(),
+                    dynamic_flags,
+                )
+            else {
                 continue;
             };
             self.send_packet(&update);
@@ -117,7 +119,7 @@ impl WorldSession {
             let object = gameobject.world();
             if !object.object().is_in_world()
                 || object.map_id() != u32::from(map_id)
-                || !Self::visibility_distance_allows_like_cpp(
+                || !crate::session_rules::visibility_distance_allows_like_cpp(
                     position,
                     source_combat_reach,
                     &object.position(),

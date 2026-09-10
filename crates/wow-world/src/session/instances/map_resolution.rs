@@ -107,7 +107,7 @@ impl WorldSession {
             let object = dynamic_object.world();
             if !object.object().is_in_world()
                 || object.map_id() != u32::from(map_id)
-                || !Self::visibility_distance_allows_like_cpp(
+                || !crate::session_rules::visibility_distance_allows_like_cpp(
                     position,
                     source_combat_reach,
                     &object.position(),
@@ -117,10 +117,12 @@ impl WorldSession {
             {
                 continue;
             }
-            dynamic_objects.push(Self::dynamic_object_create_data_from_canonical_like_cpp(
-                guid,
-                dynamic_object,
-            ));
+            dynamic_objects.push(
+                crate::session_rules::dynamic_object_create_data_from_canonical_like_cpp(
+                    guid,
+                    dynamic_object,
+                ),
+            );
         }
 
         Some(dynamic_objects)
@@ -160,7 +162,7 @@ impl WorldSession {
                     let object = area_trigger.world();
                     if !object.object().is_in_world()
                         || object.map_id() != u32::from(map_id)
-                        || !Self::visibility_distance_allows_like_cpp(
+                        || !crate::session_rules::visibility_distance_allows_like_cpp(
                             position,
                             source_combat_reach,
                             &object.position(),
@@ -227,7 +229,7 @@ impl WorldSession {
                 && viewer_phase_shift
                     .as_ref()
                     .is_some_and(|viewer| viewer.can_see(world.phase_shift()))
-                && Self::visibility_distance_allows_like_cpp(
+                && crate::session_rules::visibility_distance_allows_like_cpp(
                     position,
                     source_combat_reach,
                     &world.position(),
@@ -386,7 +388,7 @@ impl WorldSession {
             .and_then(|managed| {
                 managed.map().with_world_object_by_kinds_like_cpp(
                     target,
-                    Self::represented_seer_kinds_like_cpp(),
+                    crate::session_rules::represented_seer_kinds_like_cpp(),
                     |_| (),
                 )
             })

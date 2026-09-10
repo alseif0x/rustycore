@@ -27,7 +27,7 @@ impl WorldSession {
             Some(wow_persistence::PlayerXpRestStateSaveLikeCpp {
                 rest_state: self.resolved_xp_rest_state_like_cpp()?,
                 player_flags: self.resolved_player_flags_for_rest_state_save_like_cpp()?,
-                rest_bonus: Self::sanitize_rest_bonus_like_cpp(
+                rest_bonus: crate::session_rules::sanitize_rest_bonus_like_cpp(
                     self.resolved_xp_rest_bonus_like_cpp()?,
                 ),
             })
@@ -57,7 +57,7 @@ impl WorldSession {
             rest: rest_info_changed.then(|| wow_persistence::PlayerXpRestStateSaveLikeCpp {
                 rest_state: self.represented_xp_rest_state_like_cpp(),
                 player_flags: self.represented_player_flags_for_rest_state_save_like_cpp(),
-                rest_bonus: Self::sanitize_rest_bonus_like_cpp(
+                rest_bonus: crate::session_rules::sanitize_rest_bonus_like_cpp(
                     self.represented_xp_rest_bonus_like_cpp(),
                 ),
             }),

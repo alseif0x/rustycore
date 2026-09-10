@@ -181,7 +181,7 @@ impl WorldSession {
         let Some(old_state) = self.resolved_xp_rest_state_like_cpp() else {
             return 0;
         };
-        let mut rest_bonus = Self::sanitize_rest_bonus_like_cpp(rest_bonus);
+        let mut rest_bonus = crate::session_rules::sanitize_rest_bonus_like_cpp(rest_bonus);
         let Some(can_gain) = self.can_gain_represented_xp_rest_bonus_like_cpp() else {
             return 0;
         };
@@ -320,7 +320,7 @@ impl WorldSession {
         else {
             return (0, 0);
         };
-        let rested_loss = Self::apply_represented_pct_modifier_to_u32_like_cpp(
+        let rested_loss = crate::session_rules::apply_represented_pct_modifier_to_u32_like_cpp(
             rested_bonus,
             rested_consumption_modifier,
         );

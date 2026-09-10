@@ -4,6 +4,7 @@
 //! are unchanged and the shared fixtures stay in the parent module.
 
 use super::*;
+use crate::session_rules::CR_ARMOR_PENETRATION_LIKE_CPP;
 
 #[test]
 fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {

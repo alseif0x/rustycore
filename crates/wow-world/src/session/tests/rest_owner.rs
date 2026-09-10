@@ -250,7 +250,8 @@ fn rest_load_resets_transient_location_but_preserves_loaded_flags_and_unrelated_
                     })
                     .unwrap();
                 session.load_represented_xp_rest_bonus_like_cpp(state_id, 42.5);
-                let normalized = if WorldSession::valid_player_rest_state_like_cpp(state_id) {
+                let normalized = if crate::session_rules::valid_player_rest_state_like_cpp(state_id)
+                {
                     state_id
                 } else {
                     REST_STATE_NORMAL_LIKE_CPP

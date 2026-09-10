@@ -4,6 +4,7 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
+use crate::session_rules::position_is_in_dist_strict_2d_like_cpp;
 
 impl WorldSession {
     /// Called every ~200ms from the update loop.
@@ -191,7 +192,7 @@ impl WorldSession {
                     &player_position,
                     range,
                 );
-                if !Self::creature_message_to_set_target_allows_like_cpp(
+                if !crate::session_rules::creature_message_to_set_target_allows_like_cpp(
                     creature,
                     visible_guids.contains(&guid),
                     player_map_id,

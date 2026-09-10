@@ -6,50 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn player_aura_info_like_cpp(
-        aura: &AuraApplication,
-        player_level: u8,
-        map_id: u16,
-    ) -> wow_packet::packets::misc::AuraInfoLikeCpp {
-        let duration_ms = (aura.duration_total > 0).then_some(aura.duration_total);
-        let remaining_ms = (aura.duration_remaining > 0).then_some(aura.duration_remaining);
-        let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
-            aura.represented_effect_amounts
-                .iter()
-                .filter(|effect| {
-                    effect.effect_index < u32::BITS as u8
-                        && aura.effect_mask & (1u32 << effect.effect_index) != 0
-                })
-                .map(|effect| effect.amount as f32)
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        wow_packet::packets::misc::AuraInfoLikeCpp {
-            slot: aura.slot,
-            aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
-                cast_id: ObjectGuid::create_world_object(
-                    HighGuid::Cast,
-                    3,
-                    aura.caster_guid.realm_id().max(1),
-                    map_id,
-                    0,
-                    u32::try_from(aura.spell_id).unwrap_or(0),
-                    i64::from(aura.slot) + 1,
-                ),
-                spell_id: aura.spell_id,
-                flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
-                active_flags: aura.effect_mask,
-                caster_guid: aura.caster_guid,
-                cast_level: player_level.into(),
-                applications: aura.stack_count.saturating_sub(1),
-                duration_ms,
-                remaining_ms,
-                points,
-            }),
-        }
-    }
     pub(in crate::session) fn player_aura_subsystem_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::AuraSubsystem> {

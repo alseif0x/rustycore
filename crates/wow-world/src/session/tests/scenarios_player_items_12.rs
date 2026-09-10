@@ -11,7 +11,7 @@ fn send_new_item_plan_direct_routes_item_push_result_to_realm_like_cpp() {
     let (realm_tx, realm_rx) = flume::bounded(1);
     session.install_realm_send_channel_for_test(realm_tx);
     let plan = send_new_item_plan(SendNewItemDelivery::Direct);
-    let expected = WorldSession::item_push_result_from_send_new_item_plan(&plan).to_bytes();
+    let expected = crate::session_rules::item_push_result_from_send_new_item_plan(&plan).to_bytes();
 
     session.send_new_item_plan(&plan);
 

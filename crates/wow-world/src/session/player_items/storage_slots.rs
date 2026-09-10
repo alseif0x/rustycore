@@ -87,7 +87,7 @@ impl WorldSession {
     /// - `bag` in carried/bank/reagent range → search nested runtime items inside the bag.
     pub(crate) fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
         if bag == INVENTORY_SLOT_BAG_0 {
-            if (slot as usize) >= PLAYER_SLOT_END || Self::is_buyback_slot(slot) {
+            if (slot as usize) >= PLAYER_SLOT_END || crate::session_rules::is_buyback_slot(slot) {
                 return None;
             }
             self.resolved_inventory_item_like_cpp(slot)

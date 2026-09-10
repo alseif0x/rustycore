@@ -311,7 +311,7 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let plan = send_new_item_plan(SendNewItemDelivery::GroupBroadcast);
-    let expected = WorldSession::item_push_result_from_send_new_item_plan(&plan).to_bytes();
+    let expected = crate::session_rules::item_push_result_from_send_new_item_plan(&plan).to_bytes();
 
     session.send_new_item_plan(&plan);
 
