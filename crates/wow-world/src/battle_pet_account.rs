@@ -1771,5 +1771,5 @@ impl BattlePetAccountRegistryLikeCpp {
 }
 
 #[cfg(test)]
-#[path = "battle_pet_account_tests.rs"]
+#[path = "battle_pet_account_tests/mod.rs"]
 mod tests;

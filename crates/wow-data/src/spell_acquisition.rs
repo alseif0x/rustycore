@@ -32,5 +32,5 @@ pub use state_3::*;
 mod state_2_ops_1;
 mod state_2_ops_2;
 #[cfg(test)]
-#[path = "spell_acquisition_tests.rs"]
+#[path = "spell_acquisition_tests/mod.rs"]
 mod tests;

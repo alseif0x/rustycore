@@ -38,5 +38,5 @@ pub use state_3::*;
 pub use state_4::*;
 
 #[cfg(test)]
-#[path = "lineage_tests.rs"]
+#[path = "lineage_tests/mod.rs"]
 mod tests;
