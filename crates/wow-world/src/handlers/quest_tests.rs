@@ -10,8 +10,8 @@
 #![cfg(test)]
 
 use super::*;
-use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
-use crate::player_quest_persistence_test_fixture::{
+use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
+use crate::player::quest_persistence_test_fixture::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
 };
 use crate::session::InventoryItem;
