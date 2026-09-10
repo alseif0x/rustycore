@@ -96,10 +96,10 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/world-server/src/spell_acquisition_loader.rs",
+      "path": "crates/world-server/src/spell/acquisition_loader.rs",
       "observed_lines": 2267,
       "ceiling_lines": 2267,
-      "split": "Separate spell/talent/trait acquisition catalog assembly and load-validation cases.",
+      "split": "Separate spell/talent/trait acquisition catalog assembly and load-validation cases. #699 groups the spell_* siblings into crates/world-server/src/spell/, so the row moves to the successor path; the ceiling is unchanged.",
       "review_checkpoint": "584:C4"
     },
     {

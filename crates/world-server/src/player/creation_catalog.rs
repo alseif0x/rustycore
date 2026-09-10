@@ -86,7 +86,7 @@ async fn load_required_player_create_info_rows_like_cpp(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn load_player_create_info_store_like_cpp(
+pub(crate) async fn load_player_create_info_store_like_cpp(
     persistence: &dyn PlayerCreationCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     chr_races_store: &wow_data::character_progression::ChrRacesStore,
@@ -130,7 +130,7 @@ pub(super) async fn load_player_create_info_store_like_cpp(
     ))
 }
 
-pub(super) async fn load_player_create_cast_spell_store_like_cpp(
+pub(crate) async fn load_player_create_cast_spell_store_like_cpp(
     persistence: &dyn PlayerCreationCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::PlayerCreateInfoCastSpellStoreLikeCpp> {
     Ok(
@@ -146,7 +146,7 @@ pub(super) async fn load_player_create_cast_spell_store_like_cpp(
     )
 }
 
-pub(super) async fn load_player_create_custom_spell_store_like_cpp(
+pub(crate) async fn load_player_create_custom_spell_store_like_cpp(
     persistence: &dyn PlayerCreationCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp> {
     Ok(
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_and_keeps_the_three_existing_publication_points() {
-        let source = include_str!("app.rs");
+        let source = include_str!("../app.rs");
         assert_eq!(
             source
                 .matches("MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::new")

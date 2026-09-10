@@ -79,9 +79,7 @@ use wow_world::{
     entity_update_bridge::unit_values_update_to_packet,
 };
 
-mod area_trigger_loaded_grid;
-mod area_trigger_template_catalog;
-mod area_trigger_world_catalog;
+mod area;
 mod battle_pet_selection_catalog;
 mod condition_disable_catalog;
 mod creature_display_hotfix;
@@ -100,18 +98,14 @@ mod lfg_world_catalog;
 mod mount_catalog;
 mod phase_hotfix_catalog;
 mod phase_world_catalog;
-mod player_choice_catalog;
-mod player_creation_catalog;
+mod player;
 mod quest_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
 mod reserved_name_catalog;
 mod session_resources;
 mod spawn_store_loader;
-mod spell_acquisition_loader;
-mod spell_core_db2_hotfix;
-mod spell_info_key_hotfix;
-mod spell_world_catalog;
+mod spell;
 mod trainer_catalog;
 mod vehicle_catalog;
 
@@ -1540,14 +1534,10 @@ use shutdown::*;
 
 mod bootstrap;
 mod chr_specialization_hotfix;
-mod player_base_stats;
 mod skill_catalog_hotfix;
 mod skill_world_rules;
 mod static_data_overlay;
-mod world_auxiliary_catalog;
-mod world_object_catalog;
-mod world_query_catalog;
-mod world_reference_catalog;
+mod world;
 use bootstrap::*;
 
 async fn load_loot_stores_like_cpp(

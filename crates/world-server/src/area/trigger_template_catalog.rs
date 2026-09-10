@@ -97,7 +97,7 @@ fn orbit_row_like_cpp(
     }
 }
 
-pub(super) async fn load_area_trigger_template_store_like_cpp(
+pub(crate) async fn load_area_trigger_template_store_like_cpp(
     persistence: &dyn AreaTriggerTemplateCatalogPersistencePortLikeCpp,
     world_safe_locs: &wow_data::WorldSafeLocStore,
     curve_exists: impl FnMut(u32) -> bool,

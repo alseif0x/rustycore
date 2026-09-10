@@ -25,7 +25,7 @@ const fn object_name(kind: WorldObjectIdCatalogKindLikeCpp) -> &'static str {
     }
 }
 
-pub(super) async fn load_world_id_store_like_cpp(
+pub(crate) async fn load_world_id_store_like_cpp(
     persistence: &dyn WorldReferenceCatalogPersistencePortLikeCpp,
     kind: WorldObjectIdCatalogKindLikeCpp,
 ) -> Result<wow_data::WorldIdStore> {
@@ -33,7 +33,7 @@ pub(super) async fn load_world_id_store_like_cpp(
     Ok(wow_data::WorldIdStore::from_ids(object_name(kind), ids))
 }
 
-pub(super) async fn load_filtering_world_id_store_like_cpp(
+pub(crate) async fn load_filtering_world_id_store_like_cpp(
     persistence: &dyn WorldReferenceCatalogPersistencePortLikeCpp,
     kind: WorldObjectIdCatalogKindLikeCpp,
     mut keep_id: impl FnMut(u32) -> bool,
@@ -45,7 +45,7 @@ pub(super) async fn load_filtering_world_id_store_like_cpp(
     ))
 }
 
-pub(super) async fn load_world_spawn_id_store_like_cpp(
+pub(crate) async fn load_world_spawn_id_store_like_cpp(
     persistence: &dyn WorldReferenceCatalogPersistencePortLikeCpp,
     kind: WorldSpawnCatalogKindLikeCpp,
 ) -> Result<wow_data::WorldSpawnIdStore> {
@@ -57,7 +57,7 @@ pub(super) async fn load_world_spawn_id_store_like_cpp(
     Ok(wow_data::WorldSpawnIdStore::from_entries(name, rows))
 }
 
-pub(super) async fn load_world_safe_locs_like_cpp(
+pub(crate) async fn load_world_safe_locs_like_cpp(
     persistence: &dyn WorldReferenceCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
 ) -> Result<(

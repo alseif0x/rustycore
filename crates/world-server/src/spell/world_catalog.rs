@@ -128,7 +128,7 @@ fn proc_row_like_cpp(row: SpellProcPersistenceRowLikeCpp) -> wow_data::SpellProc
     }
 }
 
-pub(super) async fn load_spell_area_like_cpp<SpellExists, AreaExists, QuestExists>(
+pub(crate) async fn load_spell_area_like_cpp<SpellExists, AreaExists, QuestExists>(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spell_exists: SpellExists,
     area_exists: AreaExists,
@@ -148,7 +148,7 @@ where
     ))
 }
 
-pub(super) async fn load_spell_target_position_like_cpp<MapExists>(
+pub(crate) async fn load_spell_target_position_like_cpp<MapExists>(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
     map_exists: MapExists,
@@ -166,7 +166,7 @@ where
     )
 }
 
-pub(super) async fn load_spell_proc_like_cpp(
+pub(crate) async fn load_spell_proc_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
     spell_chains: &wow_data::SpellChainStoreLikeCpp,
@@ -189,7 +189,7 @@ pub(super) async fn load_spell_proc_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_group_like_cpp(
+pub(crate) async fn load_spell_group_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
     spell_chains: &wow_data::SpellChainStoreLikeCpp,
@@ -202,7 +202,7 @@ pub(super) async fn load_spell_group_like_cpp(
     ))
 }
 
-pub(super) async fn load_spell_group_stack_rule_like_cpp(
+pub(crate) async fn load_spell_group_stack_rule_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spell_groups: &wow_data::SpellGroupStoreLikeCpp,
     spells: &wow_data::SpellStore,
@@ -226,7 +226,7 @@ pub(super) async fn load_spell_group_stack_rule_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_required_like_cpp(
+pub(crate) async fn load_spell_required_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
     spell_chains: &wow_data::SpellChainStoreLikeCpp,
@@ -241,7 +241,7 @@ pub(super) async fn load_spell_required_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_threat_like_cpp(
+pub(crate) async fn load_spell_threat_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
 ) -> Result<wow_data::SpellThreatLoadOutcomeLikeCpp> {
@@ -254,7 +254,7 @@ pub(super) async fn load_spell_threat_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_linked_like_cpp(
+pub(crate) async fn load_spell_linked_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
 ) -> Result<wow_data::SpellLinkedLoadOutcomeLikeCpp> {
@@ -267,7 +267,7 @@ pub(super) async fn load_spell_linked_like_cpp(
     )
 }
 
-pub(super) async fn load_spell_totem_model_like_cpp<SpellExists, RaceExists, DisplayExists>(
+pub(crate) async fn load_spell_totem_model_like_cpp<SpellExists, RaceExists, DisplayExists>(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spell_exists: SpellExists,
     race_exists: RaceExists,
@@ -289,7 +289,7 @@ where
     )
 }
 
-pub(super) async fn load_spell_pet_aura_like_cpp(
+pub(crate) async fn load_spell_pet_aura_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
 ) -> Result<wow_data::SpellPetAuraLoadOutcomeLikeCpp> {
