@@ -116,9 +116,9 @@ fn titan_grip_and_equipped_weapon_helpers_match_cpp_representable_rules() {
         ..ItemStorageTemplate::regular_item(2004, 1)
     };
 
-    assert!(Player::is_use_equipped_weapon(false, false, true));
-    assert!(!Player::is_use_equipped_weapon(true, false, true));
-    assert!(!Player::is_use_equipped_weapon(false, true, false));
+    assert!(is_use_equipped_weapon(false, false, true));
+    assert!(!is_use_equipped_weapon(true, false, true));
+    assert!(!is_use_equipped_weapon(false, true, false));
 
     assert!(!player.can_titan_grip());
     assert_eq!(player.titan_grip_penalty_spell_id(), 0);
@@ -134,19 +134,19 @@ fn titan_grip_and_equipped_weapon_helpers_match_cpp_representable_rules() {
     assert_eq!(player.titan_grip_penalty_spell_id(), 49152);
     assert!(!player.is_two_hand_used_template(Some(&two_hand)));
 
-    assert!(Player::is_using_two_handed_weapon_in_one_hand_template(
+    assert!(is_using_two_handed_weapon_in_one_hand_template(
         Some(&one_hand),
         Some(&two_hand),
     ));
-    assert!(Player::is_using_two_handed_weapon_in_one_hand_template(
+    assert!(is_using_two_handed_weapon_in_one_hand_template(
         Some(&two_hand),
         Some(&one_hand),
     ));
-    assert!(!Player::is_using_two_handed_weapon_in_one_hand_template(
+    assert!(!is_using_two_handed_weapon_in_one_hand_template(
         Some(&two_hand),
         None,
     ));
-    assert!(!Player::is_using_two_handed_weapon_in_one_hand_template(
+    assert!(!is_using_two_handed_weapon_in_one_hand_template(
         Some(&one_hand),
         Some(&one_hand),
     ));

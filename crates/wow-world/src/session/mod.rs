@@ -210,6 +210,7 @@ use wow_data::{
 };
 #[cfg(test)]
 use wow_entities::TitanGripPenaltyAction;
+use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
@@ -13356,10 +13357,7 @@ impl WorldSession {
                 .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND)
                 .and_then(|item| self.item_storage_template(item.entry_id));
             let using_two_handed_weapon_in_one_hand =
-                Player::is_using_two_handed_weapon_in_one_hand_template(
-                    main_template.as_ref(),
-                    off_template.as_ref(),
-                );
+                two_handed_in_one_hand_like_cpp(main_template.as_ref(), off_template.as_ref());
 
             let Some(action) = self.canonical_player_snapshot_like_cpp(|player| {
                 let penalty_spell_id = player.titan_grip_penalty_spell_id();

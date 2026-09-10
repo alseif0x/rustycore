@@ -4272,20 +4272,6 @@ impl Player {
                 && template.subclass_id != ItemSubClassWeapon::Wand as u32)
     }
 
-    pub fn is_using_two_handed_weapon_in_one_hand_template(
-        main_template: Option<&ItemStorageTemplate>,
-        off_template: Option<&ItemStorageTemplate>,
-    ) -> bool {
-        if off_template
-            .is_some_and(|template| template.inventory_type == InventoryType::Weapon2Hand)
-        {
-            return true;
-        }
-
-        main_template.is_some_and(|template| template.inventory_type == InventoryType::Weapon2Hand)
-            && off_template.is_some()
-    }
-
     pub fn check_titan_grip_penalty_action(
         &self,
         using_two_handed_weapon_in_one_hand: bool,
@@ -4449,16 +4435,6 @@ impl Player {
         self.active_player_data_changes.set(parent_bit);
         self.active_player_data_changes
             .set(first_element_bit + index);
-    }
-
-    fn set_dynamic_update_mask_index(mask: &mut Option<Vec<u32>>, index: usize) {
-        let block = index / 32;
-        let bit = index % 32;
-        let blocks = mask.get_or_insert_with(Vec::new);
-        if blocks.len() <= block {
-            blocks.resize(block + 1, 0);
-        }
-        blocks[block] |= 1 << bit;
     }
 }
 
@@ -4902,3 +4878,4 @@ fn can_take_more_similar_ok() -> CanTakeMoreSimilarItemsOutcome {
 #[cfg(test)]
 #[path = "../player_tests.rs"]
 mod tests;
+pub(crate) use crate::player_rules::*;

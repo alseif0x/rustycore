@@ -18,6 +18,7 @@ mod object_accessor;
 mod pet;
 mod player;
 mod player_gameplay_state;
+pub mod player_rules;
 mod scene_object;
 mod spell_cast;
 mod totem;

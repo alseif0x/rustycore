@@ -6,6 +6,7 @@
 //! Account collections: mounts, toys, heirlooms and appearances.
 
 use super::*;
+use crate::player_rules::set_dynamic_update_mask_index;
 
 impl Player {
     pub fn summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
@@ -45,11 +46,8 @@ impl Player {
         let index = self.active_data.heirlooms.len();
         self.active_data.heirlooms.push(item_id);
         self.active_data.heirloom_flags.push(flags);
-        Self::set_dynamic_update_mask_index(&mut self.active_data.heirlooms_update_mask, index);
-        Self::set_dynamic_update_mask_index(
-            &mut self.active_data.heirloom_flags_update_mask,
-            index,
-        );
+        set_dynamic_update_mask_index(&mut self.active_data.heirlooms_update_mask, index);
+        set_dynamic_update_mask_index(&mut self.active_data.heirloom_flags_update_mask, index);
         self.mark_active_player_data(ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT);
         self.mark_active_player_data(ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT);
         index
@@ -62,7 +60,7 @@ impl Player {
         };
 
         *slot = item_id;
-        Self::set_dynamic_update_mask_index(&mut self.active_data.heirlooms_update_mask, index);
+        set_dynamic_update_mask_index(&mut self.active_data.heirlooms_update_mask, index);
         self.mark_active_player_data(ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT);
         true
     }
@@ -74,10 +72,7 @@ impl Player {
         };
 
         *slot = flags;
-        Self::set_dynamic_update_mask_index(
-            &mut self.active_data.heirloom_flags_update_mask,
-            index,
-        );
+        set_dynamic_update_mask_index(&mut self.active_data.heirloom_flags_update_mask, index);
         self.mark_active_player_data(ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT);
         true
     }
@@ -94,7 +89,7 @@ impl Player {
     pub fn add_toy_like_cpp(&mut self, item_id: i32) -> usize {
         let index = self.active_data.toys.len();
         self.active_data.toys.push(item_id);
-        Self::set_dynamic_update_mask_index(&mut self.active_data.toys_update_mask, index);
+        set_dynamic_update_mask_index(&mut self.active_data.toys_update_mask, index);
         self.mark_active_player_data(ACTIVE_PLAYER_DATA_TOYS_BIT);
         index
     }

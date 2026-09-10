@@ -6,6 +6,10 @@
 //! Object relocation and grid/cell transitions.
 
 use super::*;
+use crate::map_rules::{
+    map_record_is_unit_like_gameobject_owner_like_cpp, map_record_unit_like_cpp,
+    map_record_unit_mut_like_cpp, player_set_viewpoint_outcome_like_cpp,
+};
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -372,23 +376,6 @@ where
         self.objects_to_remove.insert(guid);
     }
 
-    pub(super) fn remove_spawn_id_index_entry_like_cpp(
-        index: &mut HashMap<SpawnId, HashSet<ObjectGuid>>,
-        spawn_id: SpawnId,
-        guid: ObjectGuid,
-    ) {
-        if spawn_id == 0 {
-            return;
-        }
-
-        if let Some(guids) = index.get_mut(&spawn_id) {
-            guids.remove(&guid);
-            if guids.is_empty() {
-                index.remove(&spawn_id);
-            }
-        }
-    }
-
     fn remove_creature_from_formation_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -515,10 +502,10 @@ where
     ) -> UnitRemoveGameObjectsBySpellOutcomeLikeCpp {
         let owner_found_as_unit_like = self
             .map_object_record(owner_guid)
-            .is_some_and(Self::map_record_is_unit_like_gameobject_owner_like_cpp);
+            .is_some_and(map_record_is_unit_like_gameobject_owner_like_cpp);
         let owned_guids_before = self
             .map_object_record(owner_guid)
-            .and_then(Self::map_record_unit_like_cpp)
+            .and_then(map_record_unit_like_cpp)
             .map(|owner| owner.subsystems().control.owned_gameobjects.clone())
             .unwrap_or_default();
 
@@ -556,7 +543,7 @@ where
         if let Some(owner) = self
             .entity_world
             .get_mut(&owner_guid)
-            .and_then(Self::map_record_unit_mut_like_cpp)
+            .and_then(map_record_unit_mut_like_cpp)
         {
             let before = owner.subsystems().control.owned_gameobjects.len();
             owner
@@ -621,7 +608,7 @@ where
         let owner_found_as_unit_like = !owner_guid_before.is_empty()
             && self
                 .map_object_record(owner_guid_before)
-                .is_some_and(Self::map_record_is_unit_like_gameobject_owner_like_cpp);
+                .is_some_and(map_record_is_unit_like_gameobject_owner_like_cpp);
         let cleared_owner = !owner_guid_before.is_empty();
 
         if cleared_owner {
@@ -666,7 +653,7 @@ where
                             .unwrap_or(false),
                         _ => false,
                     };
-                    let Some(owner) = Self::map_record_unit_mut_like_cpp(record) else {
+                    let Some(owner) = map_record_unit_mut_like_cpp(record) else {
                         return (false, false, 0, creature_ai_callback_represented);
                     };
                     let subsystems = owner.subsystems_mut();
@@ -877,7 +864,7 @@ where
                 let player_set_viewpoint = match self.get_typed_player_mut(player_guid) {
                     Some(player) if player.active_data().farsight_object == viewpoint_guid => {
                         player.set_farsight_object_like_cpp(ObjectGuid::EMPTY);
-                        Self::player_set_viewpoint_outcome_like_cpp(
+                        player_set_viewpoint_outcome_like_cpp(
                             player_guid,
                             viewpoint_guid,
                             false,
@@ -887,7 +874,7 @@ where
                             true,
                         )
                     }
-                    Some(_) => Self::player_set_viewpoint_outcome_like_cpp(
+                    Some(_) => player_set_viewpoint_outcome_like_cpp(
                         player_guid,
                         viewpoint_guid,
                         false,
@@ -896,7 +883,7 @@ where
                         false,
                         false,
                     ),
-                    None => Self::player_set_viewpoint_outcome_like_cpp(
+                    None => player_set_viewpoint_outcome_like_cpp(
                         player_guid,
                         viewpoint_guid,
                         false,
@@ -918,7 +905,7 @@ where
                 let player_set_viewpoint = match self.get_typed_player_mut(player_guid) {
                     Some(player) if player.active_data().farsight_object == viewpoint_guid => {
                         player.set_farsight_object_like_cpp(ObjectGuid::EMPTY);
-                        Self::player_set_viewpoint_outcome_like_cpp(
+                        player_set_viewpoint_outcome_like_cpp(
                             player_guid,
                             viewpoint_guid,
                             false,
@@ -928,7 +915,7 @@ where
                             true,
                         )
                     }
-                    _ => Self::player_set_viewpoint_outcome_like_cpp(
+                    _ => player_set_viewpoint_outcome_like_cpp(
                         player_guid,
                         viewpoint_guid,
                         false,
