@@ -5,6 +5,7 @@
 
 //! Complete quest operations and their results.
 
+pub(crate) mod reward_commit;
 pub(crate) mod reward_plan;
 
 pub(crate) use reward_plan::QuestRewardDurablePlanLikeCpp;
