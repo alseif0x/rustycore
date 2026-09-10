@@ -11,7 +11,7 @@ use wow_entities::{
     VisibilityDistanceTypeLikeCpp,
 };
 
-use crate::creature_model_info::CreatureModelInfoStoreLikeCpp;
+use crate::creature::model_info::CreatureModelInfoStoreLikeCpp;
 use crate::{
     AnimKitStore, CreatureDisplayInfoStore, EmotesStore, SpellDurationStore, SpellMiscStore,
     SpellStore, spell::aura_types, spell_duration_ms_like_cpp,
@@ -25,5 +25,5 @@ pub use state_1::*;
 pub use state_2::*;
 
 #[cfg(test)]
-#[path = "creature_template/tests/mod.rs"]
+#[path = "template/tests/mod.rs"]
 pub(crate) mod tests;

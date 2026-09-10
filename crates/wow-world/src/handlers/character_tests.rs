@@ -36,7 +36,7 @@ mod post_add_scaling;
 // ratchet (see #277).
 
 use super::*;
-use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
+use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::{
     AuraApplication, InventoryItem, RepresentedAuraEffectLikeCpp, RepresentedHomebindLikeCpp,
     RepresentedTaxiFlightNodeLikeCpp,
@@ -47,7 +47,7 @@ use wow_data::character_progression::{
     ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
 };
 use wow_data::item::ItemRecord;
-use wow_data::item_stats::{ItemModType, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore};
+use wow_data::item::stats::{ItemModType, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore};
 use wow_data::quest::{
     QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
     QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestObjective, QuestStore,

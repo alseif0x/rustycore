@@ -16,10 +16,7 @@ pub mod character_progression;
 pub mod chr_specialization;
 pub mod condition_attachments;
 pub mod conditions;
-pub mod creature_display;
-pub mod creature_equipment;
-pub mod creature_model_info;
-pub mod creature_template;
+pub mod creature;
 pub mod currency;
 pub mod db2_hotfix;
 pub mod db2_id_store;
@@ -36,20 +33,6 @@ pub mod graveyard;
 pub mod hotfix_cache;
 pub mod import_price;
 pub mod item;
-pub mod item_appearance;
-pub mod item_bonus;
-pub mod item_class;
-pub mod item_collections;
-pub mod item_currency_cost;
-pub mod item_disenchant_loot;
-pub mod item_equipment;
-pub mod item_extended_cost;
-pub mod item_modified_appearance;
-pub mod item_price_base;
-pub mod item_random_enchantment;
-pub mod item_random_properties;
-pub mod item_random_suffix;
-pub mod item_stats;
 pub mod jump_charge;
 pub mod lfg;
 pub mod lock;
@@ -60,11 +43,7 @@ pub mod misc_generated;
 pub mod mount;
 pub mod phase;
 pub mod phasing;
-pub mod player_choice;
-pub mod player_condition;
-pub mod player_create;
-pub mod player_power;
-pub mod player_stats;
+pub mod player;
 pub mod poi;
 pub mod progression_rewards;
 pub mod quest;
@@ -92,11 +71,7 @@ pub mod ui_map;
 pub mod vehicle;
 pub mod vendor;
 pub mod wdc4;
-pub mod world_id_store;
-pub mod world_query_catalog;
-pub mod world_safe_locs;
-pub mod world_spawn_id_store;
-pub mod world_state_expression;
+pub mod world;
 pub mod xp;
 
 pub use access_requirement::{
@@ -148,18 +123,7 @@ pub use conditions::{
     Condition, ConditionContainer, ConditionEntriesByTypeStore, ConditionId, ConditionLoadReport,
     ConditionsByEntryMap, ConditionsReference,
 };
-pub use creature_display::{
-    CreatureDisplayInfoEntry, CreatureDisplayInfoStore, CreatureModelDataEntry,
-    CreatureModelDataStore, DEFAULT_COLLISION_HEIGHT_LIKE_CPP, unit_collision_height_like_cpp,
-};
-pub use creature_equipment::{
-    CreatureEquipmentInfoLikeCpp, CreatureEquipmentItemLikeCpp, CreatureEquipmentRowLikeCpp,
-    CreatureEquipmentStoreLikeCpp,
-};
-pub use creature_model_info::{
-    CreatureModelInfoLikeCpp, CreatureModelInfoRowLikeCpp, CreatureModelInfoStoreLikeCpp,
-};
-pub use creature_template::{
+pub use creature::{
     CREATURE_CURRENT_EXPANSION_LIKE_CPP, CREATURE_EXPANSION_LEVEL_CURRENT_LIKE_CPP,
     CreatureAddonRowLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStatsRecordLikeCpp,
     CreatureBaseStatsStoreLikeCpp, CreatureClassificationDamageRatesLikeCpp,
@@ -170,6 +134,17 @@ pub use creature_template::{
     CreatureTemplateMountEntryLikeCpp, CreatureTemplateMountModelLikeCpp,
     CreatureTemplateMountStoreLikeCpp, CreatureTemplateSparringStoreLikeCpp,
     MAX_CREATURE_SPELLS_LIKE_CPP,
+};
+pub use creature::{
+    CreatureDisplayInfoEntry, CreatureDisplayInfoStore, CreatureModelDataEntry,
+    CreatureModelDataStore, DEFAULT_COLLISION_HEIGHT_LIKE_CPP, unit_collision_height_like_cpp,
+};
+pub use creature::{
+    CreatureEquipmentInfoLikeCpp, CreatureEquipmentItemLikeCpp, CreatureEquipmentRowLikeCpp,
+    CreatureEquipmentStoreLikeCpp,
+};
+pub use creature::{
+    CreatureModelInfoLikeCpp, CreatureModelInfoRowLikeCpp, CreatureModelInfoStoreLikeCpp,
 };
 pub use currency::{CurrencyTypesEntry, CurrencyTypesStore};
 pub use db2_hotfix::Db2HotfixRemovalStoreLikeCpp;
@@ -232,23 +207,15 @@ pub use import_price::{
     ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores, ImportPriceWeaponEntry,
     ImportPriceWeaponStore,
 };
-pub use item::{ItemRecord, ItemStore};
-pub use item_appearance::{ItemAppearanceEntry, ItemAppearanceStore};
-pub use item_bonus::{
-    ItemBonusDb2Entry, ItemBonusDb2Store, ItemBonusListLevelDeltaEntry,
-    ItemBonusListLevelDeltaStore, ItemBonusTreeNodeEntry, ItemBonusTreeNodeStore,
-    ItemContextPickerEntry, ItemContextPickerStore, ItemLevelSelectorEntry,
-    ItemLevelSelectorQualityEntry, ItemLevelSelectorQualitySetEntry,
-    ItemLevelSelectorQualitySetStore, ItemLevelSelectorQualityStore, ItemLevelSelectorStore,
-    ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore, ItemLimitCategoryEntry,
-    ItemLimitCategoryStore, ItemModifiedAppearanceExtraEntry, ItemModifiedAppearanceExtraStore,
-    ItemNameDescriptionEntry, ItemNameDescriptionStore, ItemSearchNameEntry, ItemSearchNameStore,
-    ItemSetEntry, ItemSetSpellEntry, ItemSetSpellStore, ItemSetStore, ItemSpecEntry,
-    ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemSpecStore, ItemXBonusTreeEntry,
-    ItemXBonusTreeStore,
+pub use item::{
+    ArmorLocationEntry, ArmorLocationStore, DurabilityCostsEntry, DurabilityCostsStore,
+    DurabilityQualityEntry, DurabilityQualityStore, ItemArmorQualityEntry, ItemArmorQualityStore,
+    ItemArmorShieldEntry, ItemArmorShieldStore, ItemArmorTotalEntry, ItemArmorTotalStore,
+    ItemBagFamilyEntry, ItemBagFamilyStore, ItemChildEquipmentEntry, ItemChildEquipmentStore,
+    ItemDamageAmmoStore, ItemDamageEntry, ItemDamageOneHandCasterStore, ItemDamageOneHandStore,
+    ItemDamageTwoHandCasterStore, ItemDamageTwoHandStore, ItemEffectEntry, ItemEffectStore,
 };
-pub use item_class::{ItemClassEntry, ItemClassStore};
-pub use item_collections::{
+pub use item::{
     BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
     BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP,
     BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP,
@@ -261,32 +228,38 @@ pub use item_collections::{
     TransmogSetItemEntry, TransmogSetItemStore, TransmogSetStore,
     calculate_battle_pet_stats_like_cpp,
 };
-pub use item_collections::{BankBagSlotPricesEntry, BankBagSlotPricesStore};
-pub use item_currency_cost::{ItemCurrencyCostEntry, ItemCurrencyCostStore};
-pub use item_disenchant_loot::{ItemDisenchantLootEntry, ItemDisenchantLootStore};
-pub use item_equipment::{
-    ArmorLocationEntry, ArmorLocationStore, DurabilityCostsEntry, DurabilityCostsStore,
-    DurabilityQualityEntry, DurabilityQualityStore, ItemArmorQualityEntry, ItemArmorQualityStore,
-    ItemArmorShieldEntry, ItemArmorShieldStore, ItemArmorTotalEntry, ItemArmorTotalStore,
-    ItemBagFamilyEntry, ItemBagFamilyStore, ItemChildEquipmentEntry, ItemChildEquipmentStore,
-    ItemDamageAmmoStore, ItemDamageEntry, ItemDamageOneHandCasterStore, ItemDamageOneHandStore,
-    ItemDamageTwoHandCasterStore, ItemDamageTwoHandStore, ItemEffectEntry, ItemEffectStore,
+pub use item::{BankBagSlotPricesEntry, BankBagSlotPricesStore};
+pub use item::{ItemAppearanceEntry, ItemAppearanceStore};
+pub use item::{
+    ItemBonusDb2Entry, ItemBonusDb2Store, ItemBonusListLevelDeltaEntry,
+    ItemBonusListLevelDeltaStore, ItemBonusTreeNodeEntry, ItemBonusTreeNodeStore,
+    ItemContextPickerEntry, ItemContextPickerStore, ItemLevelSelectorEntry,
+    ItemLevelSelectorQualityEntry, ItemLevelSelectorQualitySetEntry,
+    ItemLevelSelectorQualitySetStore, ItemLevelSelectorQualityStore, ItemLevelSelectorStore,
+    ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore, ItemLimitCategoryEntry,
+    ItemLimitCategoryStore, ItemModifiedAppearanceExtraEntry, ItemModifiedAppearanceExtraStore,
+    ItemNameDescriptionEntry, ItemNameDescriptionStore, ItemSearchNameEntry, ItemSearchNameStore,
+    ItemSetEntry, ItemSetSpellEntry, ItemSetSpellStore, ItemSetStore, ItemSpecEntry,
+    ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemSpecStore, ItemXBonusTreeEntry,
+    ItemXBonusTreeStore,
 };
-pub use item_extended_cost::{
+pub use item::{ItemClassEntry, ItemClassStore};
+pub use item::{ItemCurrencyCostEntry, ItemCurrencyCostStore};
+pub use item::{ItemDisenchantLootEntry, ItemDisenchantLootStore};
+pub use item::{
     ItemExtendedCostEntry, ItemExtendedCostStore, MAX_ITEM_EXT_COST_CURRENCIES,
     MAX_ITEM_EXT_COST_ITEMS,
 };
-pub use item_modified_appearance::{ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore};
-pub use item_price_base::{ItemPriceBaseEntry, ItemPriceBaseStore};
-pub use item_random_enchantment::{
-    ItemRandomEnchantmentTemplateEntry, ItemRandomEnchantmentTemplateStore,
-};
-pub use item_random_properties::{ItemRandomPropertiesEntry, ItemRandomPropertiesStore};
-pub use item_random_suffix::{ItemRandomSuffixEntry, ItemRandomSuffixStore};
-pub use item_stats::{
+pub use item::{ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore};
+pub use item::{ItemPriceBaseEntry, ItemPriceBaseStore};
+pub use item::{ItemRandomEnchantmentTemplateEntry, ItemRandomEnchantmentTemplateStore};
+pub use item::{ItemRandomPropertiesEntry, ItemRandomPropertiesStore};
+pub use item::{
     ItemRandomPropertyTemplateEntry, ItemSocketTemplateEntry, ItemSparseTemplateEntry,
     ItemStatEntry, ItemStatsStore, ItemWeaponTemplateEntry,
 };
+pub use item::{ItemRandomSuffixEntry, ItemRandomSuffixStore};
+pub use item::{ItemRecord, ItemStore};
 pub use jump_charge::{
     JumpChargeParamsLoadOutcomeLikeCpp, JumpChargeParamsLoadReportLikeCpp,
     JumpChargeParamsRowLikeCpp, JumpChargeParamsStoreLikeCpp, MOVEMENT_GRAVITY_LIKE_CPP,
@@ -366,7 +339,17 @@ pub use phasing::{
     PhaseAreaInfo, PhaseConditionAttachmentReport, PhaseConditionContainer, PhaseInfoStore,
     PhaseInfoStruct, PhaseNameStoreLikeCpp,
 };
-pub use player_choice::{
+pub use player::{ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore};
+pub use player::{
+    PLAYER_CREATE_MODE_MAX_LIKE_CPP, PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+    PLAYER_CREATE_MODE_NPE_LIKE_CPP, PlayerCreateInfoCastSpellLoadReportLikeCpp,
+    PlayerCreateInfoCastSpellRowLikeCpp, PlayerCreateInfoCastSpellStoreLikeCpp,
+    PlayerCreateInfoCustomSpellLoadReportLikeCpp, PlayerCreateInfoCustomSpellRowLikeCpp,
+    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoLikeCpp,
+    PlayerCreateInfoLoadReportLikeCpp, PlayerCreateInfoRowLikeCpp, PlayerCreateInfoStoreLikeCpp,
+    PlayerCreatePositionLikeCpp, player_create_npe_transport_template_valid_like_cpp,
+};
+pub use player::{
     PlayerChoiceLikeCpp, PlayerChoiceLoadOutcomeLikeCpp, PlayerChoiceLoadReportLikeCpp,
     PlayerChoiceLocaleLikeCpp, PlayerChoiceLocaleLoadReportLikeCpp, PlayerChoiceLocaleRowLikeCpp,
     PlayerChoiceResponseLikeCpp, PlayerChoiceResponseLocaleLikeCpp,
@@ -377,29 +360,17 @@ pub use player_choice::{
     PlayerChoiceResponseRewardLikeCpp, PlayerChoiceResponseRewardRowLikeCpp,
     PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp, PlayerChoiceStoreLikeCpp,
 };
-pub use player_condition::{
+pub use player::{
+    PlayerClassLevelStatsRowLikeCpp, PlayerClassLevelStatsRowsLikeCpp, PlayerLevelStats,
+    PlayerRaceStatsRowLikeCpp, PlayerRaceStatsRowsLikeCpp, PlayerStatSystemInputLikeCpp,
+    PlayerStatSystemProjectionLikeCpp, PlayerStatsStore, calculate_player_stat_system_like_cpp,
+};
+pub use player::{
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
     PlayerConditionEntry, PlayerConditionPartyStatusLikeCpp, PlayerConditionQuestKillLikeCpp,
     PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
     is_player_meeting_condition_like_cpp, player_condition_compare_like_cpp,
     player_condition_logic_like_cpp,
-};
-pub use player_create::{
-    PLAYER_CREATE_MODE_MAX_LIKE_CPP, PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
-    PLAYER_CREATE_MODE_NPE_LIKE_CPP, PlayerCreateInfoCastSpellLoadReportLikeCpp,
-    PlayerCreateInfoCastSpellRowLikeCpp, PlayerCreateInfoCastSpellStoreLikeCpp,
-    PlayerCreateInfoCustomSpellLoadReportLikeCpp, PlayerCreateInfoCustomSpellRowLikeCpp,
-    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoLikeCpp,
-    PlayerCreateInfoLoadReportLikeCpp, PlayerCreateInfoRowLikeCpp, PlayerCreateInfoStoreLikeCpp,
-    PlayerCreatePositionLikeCpp, player_create_npe_transport_template_valid_like_cpp,
-};
-pub use player_power::{
-    ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,
-};
-pub use player_stats::{
-    PlayerClassLevelStatsRowLikeCpp, PlayerClassLevelStatsRowsLikeCpp, PlayerLevelStats,
-    PlayerRaceStatsRowLikeCpp, PlayerRaceStatsRowsLikeCpp, PlayerStatSystemInputLikeCpp,
-    PlayerStatSystemProjectionLikeCpp, PlayerStatsStore, calculate_player_stat_system_like_cpp,
 };
 pub use poi::{
     PointOfInterestLikeCpp, PointOfInterestLoadOutcomeLikeCpp, PointOfInterestLoadReportLikeCpp,
@@ -596,13 +567,11 @@ pub use vendor::{
     NpcVendorLoadOutcomeLikeCpp, NpcVendorLoadReportLikeCpp, NpcVendorRowLikeCpp,
     NpcVendorStoreLikeCpp, VendorItemDataLikeCpp, VendorItemLikeCpp,
 };
-pub use world_id_store::WorldIdStore;
-pub use world_query_catalog::*;
-pub use world_safe_locs::{
-    WorldSafeLoc, WorldSafeLocLoadReport, WorldSafeLocRow, WorldSafeLocStore,
-};
-pub use world_spawn_id_store::WorldSpawnIdStore;
-pub use world_state_expression::{
+pub use world::WorldIdStore;
+pub use world::WorldSpawnIdStore;
+pub use world::*;
+pub use world::{WorldSafeLoc, WorldSafeLocLoadReport, WorldSafeLocRow, WorldSafeLocStore};
+pub use world::{
     WorldStateExpressionContextLikeCpp, WorldStateExpressionEntry, WorldStateExpressionStore,
     WorldStateExpressionTimeLikeCpp, WorldStateExpressionWorldState,
     is_meeting_world_state_expression_like_cpp,

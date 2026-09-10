@@ -9,7 +9,7 @@ use wow_core::GameTime;
 
 #[test]
 fn item_purchase_contents_skip_season_earned_currency_like_cpp() {
-    let extended_cost = wow_data::item_extended_cost::ItemExtendedCostEntry {
+    let extended_cost = wow_data::item::extended_cost::ItemExtendedCostEntry {
         id: 1,
         required_arena_rating: 0,
         arena_bracket: 0,

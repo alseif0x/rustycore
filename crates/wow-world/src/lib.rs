@@ -21,11 +21,10 @@ pub mod handlers;
 pub mod loot_persistence;
 pub mod map_manager;
 pub mod phasing;
+mod player;
 mod player_cast;
 #[path = "session/directory.rs"]
 pub mod player_directory;
-mod player_directory_canonical_queries;
-mod player_quest_persistence_projection;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod profession;
 pub mod reputation;
@@ -47,14 +46,6 @@ mod gameobject_catalogs;
 mod handler_contract_tests;
 mod item_catalogs;
 mod map_catalogs;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod player_directory_test_fixtures;
-#[cfg(test)]
-mod player_inventory_persistence_test_fixture;
-#[cfg(test)]
-mod player_lifecycle_contract;
-#[cfg(test)]
-mod player_quest_persistence_test_fixture;
 mod quest_catalogs;
 mod session_rules;
 mod spell_catalogs;

@@ -99,7 +99,7 @@ pub(super) async fn load_reward_rate_store_like_cpp(
 
 pub(super) async fn load_creature_onkill_store_like_cpp(
     persistence: &dyn ReputationCatalogPersistencePortLikeCpp,
-    creature_template_store: &wow_data::creature_template::CreatureTemplateLifecycleStoreLikeCpp,
+    creature_template_store: &wow_data::creature::template::CreatureTemplateLifecycleStoreLikeCpp,
     faction_store: &wow_data::progression_rewards::FactionStore,
 ) -> Result<(
     wow_data::reputation::CreatureOnKillReputationStoreLikeCpp,

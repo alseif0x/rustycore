@@ -27,10 +27,10 @@ use std::collections::HashMap;
 use rand::Rng;
 use tracing::warn;
 
-use crate::creature_template::{
+use crate::creature::template::{
     CreatureModelSelectionRandomLikeCpp, CreatureTemplateLifecycleRecordLikeCpp,
 };
-use crate::item_collections::{
+use crate::item::collections::{
     BATTLE_PET_SPECIES_FLAG_RANDOM_DISPLAY_LIKE_CPP, BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP,
     BattlePetSpeciesEntry,
 };
@@ -343,12 +343,12 @@ mod tests {
 
     #[test]
     fn display_rolls_the_weighted_valid_model_like_cpp() {
-        use crate::creature_template::CreatureTemplateLifecycleModelLikeCpp;
+        use crate::creature::template::CreatureTemplateLifecycleModelLikeCpp;
 
         // C++ `CreatureTemplate::GetRandomValidModel` walks the weighted
         // model list subtracting probabilities; scripted rolls pin the picks.
         let mut record =
-            crate::creature_template::tests::creature_template_lifecycle_record_for_test(99);
+            crate::creature::template::tests::creature_template_lifecycle_record_for_test(99);
         record.models = vec![
             CreatureTemplateLifecycleModelLikeCpp {
                 creature_display_id: 111,

@@ -40,7 +40,7 @@ use super::{
     start_loot_roll_packet_like_cpp, stored_item_money_zero_without_source_outcome_like_cpp,
 };
 use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
-use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
+use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
     PlayerSessionRegistrationLikeCpp,

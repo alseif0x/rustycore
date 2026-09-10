@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::creature_template::CreatureTemplateLifecycleStoreLikeCpp;
+use crate::creature::template::CreatureTemplateLifecycleStoreLikeCpp;
 use crate::progression_rewards::FactionStore;
 
 pub const REPUTATION_CAP_LIKE_CPP: i32 = 42_000;
@@ -452,7 +452,7 @@ fn validate_non_negative_rates_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::creature_template::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP;
+    use crate::creature::template::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP;
     use crate::progression_rewards::{FactionEntry, FactionStore};
 
     fn rates(value: f32) -> ReputationRewardRateEntryLikeCpp {
@@ -478,7 +478,7 @@ mod tests {
         ids: impl IntoIterator<Item = u32>,
     ) -> CreatureTemplateLifecycleStoreLikeCpp {
         CreatureTemplateLifecycleStoreLikeCpp::from_templates(ids.into_iter().map(|entry| {
-            crate::creature_template::CreatureTemplateLifecycleRecordLikeCpp {
+            crate::creature::template::CreatureTemplateLifecycleRecordLikeCpp {
                 entry,
                 name: format!("Creature {entry}"),
                 ai_name: String::new(),
@@ -510,7 +510,7 @@ mod tests {
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,
-                spells: [0; crate::creature_template::MAX_CREATURE_SPELLS_LIKE_CPP],
+                spells: [0; crate::creature::template::MAX_CREATURE_SPELLS_LIKE_CPP],
                 models: Vec::new(),
             }
         }))

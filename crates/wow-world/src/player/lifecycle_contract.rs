@@ -30,7 +30,7 @@ enum CommitOutcome {
     Unknown,
 }
 
-const GOLDEN: &str = include_str!("../tests/fixtures/player-lifecycle-contract.json");
+const GOLDEN: &str = include_str!("../../tests/fixtures/player-lifecycle-contract.json");
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]

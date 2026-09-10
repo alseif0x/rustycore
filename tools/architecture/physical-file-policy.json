@@ -117,10 +117,10 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-data/src/creature_template.rs",
+      "path": "crates/wow-data/src/creature/template.rs",
       "observed_lines": 2458,
       "ceiling_lines": 29,
-      "split": "Separate the creature template model from its loader and regressions. #664 decomposes the 2,458-line file into two state modules and two regression modules, dropping it to 29 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
+      "split": "Separate the creature template model from its loader and regressions. #664 decomposes the 2,458-line file into two state modules and two regression modules, dropping it to 29 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged. #697 groups the creature_* siblings into crates/wow-data/src/creature/, so the row moves to the successor path; the ceiling is unchanged.",
       "review_checkpoint": "584:C4"
     },
     {

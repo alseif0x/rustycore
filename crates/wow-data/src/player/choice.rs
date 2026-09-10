@@ -951,5 +951,5 @@ fn locale_from_name_like_cpp(name: &str) -> Option<Locale> {
 }
 
 #[cfg(test)]
-#[path = "player_choice/tests/mod.rs"]
+#[path = "choice/tests/mod.rs"]
 mod tests;
