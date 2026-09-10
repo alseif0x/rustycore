@@ -12,6 +12,7 @@ pub mod lifecycle;
 pub mod login;
 pub mod name_query;
 pub mod quest;
+pub mod quest_reward;
 pub mod save;
 
 pub use base_stats::*;
@@ -23,4 +24,5 @@ pub use lifecycle::*;
 pub use login::*;
 pub use name_query::*;
 pub use quest::*;
+pub use quest_reward::*;
 pub use save::*;

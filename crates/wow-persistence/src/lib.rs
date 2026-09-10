@@ -233,6 +233,11 @@ pub use player::{
     PlayerQuestSeasonalPersistenceRowLikeCpp, PlayerQuestStatusPersistenceRequestLikeCpp,
     QuestObjectiveCountPersistenceLikeCpp, QuestStatusPersistenceLikeCpp,
 };
+pub use player::{
+    PlayerQuestRewardCommitOutcomeLikeCpp, PlayerQuestRewardCommitWitnessLikeCpp,
+    PlayerQuestRewardDurableRequestLikeCpp, PlayerQuestRewardMoneyLikeCpp,
+    PlayerQuestRewardPersistencePortLikeCpp,
+};
 pub use quest::*;
 pub use quest::{
     CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,

@@ -13,7 +13,7 @@ use wow_persistence::{
     PlayerUncageItemStateRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
-pub(super) fn player_money_write_statement_like_cpp(
+pub(crate) fn player_money_write_statement_like_cpp(
     request: &PlayerMoneyWriteRequestLikeCpp,
 ) -> PreparedStatement {
     let mut statement = PreparedStatement::for_statement(CharStatements::UPD_CHAR_MONEY);

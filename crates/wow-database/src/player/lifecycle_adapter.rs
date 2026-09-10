@@ -55,7 +55,7 @@ use wow_persistence::{
     PlayerXpPersistenceRequestLikeCpp,
 };
 
-mod economy;
+pub(crate) mod economy;
 use economy::{
     PlayerTalentResetCommitReconciliationLikeCpp, append_player_currency_save_request_like_cpp,
     player_bank_slot_purchase_statement_like_cpp, player_buyback_clear_statements_like_cpp,
