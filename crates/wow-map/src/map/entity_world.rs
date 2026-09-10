@@ -12,6 +12,7 @@
 //! new dependency on `HashMap` while borrowed-record APIs are retired ahead of
 //! the selected `hecs` backend.
 
+use crate::map_rules::snapshot_from_creature;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Values};
 
@@ -26,24 +27,6 @@ pub(super) struct EntityWorld {
 }
 
 impl EntityWorld {
-    fn snapshot_from_creature(
-        guid: ObjectGuid,
-        creature: &Creature,
-    ) -> CreatureTransformVitalsSnapshotLikeCpp {
-        let world = creature.unit().world();
-        CreatureTransformVitalsSnapshotLikeCpp {
-            guid,
-            map_id: world.map_id(),
-            instance_id: world.instance_id(),
-            position: world.position(),
-            combat_reach: world.combat_reach(),
-            health: creature.current_health(),
-            max_health: creature.max_health(),
-            is_alive: creature.is_alive(),
-            is_in_world: world.object().is_in_world(),
-        }
-    }
-
     pub(super) fn get(&self, guid: &ObjectGuid) -> Option<&MapObjectRecord> {
         self.records_by_guid.get(guid)
     }
@@ -84,9 +67,7 @@ impl EntityWorld {
         &self,
         guid: ObjectGuid,
     ) -> Option<CreatureTransformVitalsSnapshotLikeCpp> {
-        self.with_creature(guid, |creature| {
-            Self::snapshot_from_creature(guid, creature)
-        })
+        self.with_creature(guid, |creature| snapshot_from_creature(guid, creature))
     }
 
     pub(super) fn creature_transform_vitals_lookups(
