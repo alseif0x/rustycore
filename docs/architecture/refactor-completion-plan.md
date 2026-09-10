@@ -404,14 +404,47 @@ estructura actual ni crear aprobaciones rutinarias para imports, helpers o tests
 
 ## 9. Estado exacto de la entrega al pasar a Claude
 
-La revisión y el plan están escritos; #716 está implementándose y validándose en el
-worktree indicado. Primera ejecución de librería: 349 passed, 4 failed. Esos fallos
-motivaron correcciones adicionales y no constituyen aceptación de la versión actual.
-La evidencia final y el commit local se añadirán aquí al terminar la ejecución en curso.
+**P0 tiene aceptación local.** La implementación está en
+`6ae62d73a9f910ebd664d82e331520b836a73c77`, en la rama y worktree de la sección 2.
+El commit posterior de documentación completa este relevo. Los cambios de código
+afectan exclusivamente al tooling de arquitectura; no se modificó gameplay, SQL,
+protocolo, scheduling ni procesos del servidor.
 
-Hasta entonces no afirmar P0 terminado, no cerrar #716 y no iniciar una implementación
-de recompensa de misión sobre un analizador que todavía esté sin aceptar. P1–P6
-siguen pendientes; las tablas anteriores son tareas y criterios, no resultados ejecutados.
+Evidencia ejecutada en aarch64, Rust 1.98.0 y un job de Cargo:
+
+| Comprobación | Resultado |
+| --- | --- |
+| `cargo test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --lib -- --quiet` | 363 passed, 0 failed; incluye contrato real de handlers, grafo completo, referencias preservadas y consistencia snapshot/policy. |
+| `cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check --syntax-only` | PASS; 221 campos de producción, 427 de fixtures, 594 accesos directos de registro y baseline exacta de 72 bridges. |
+| `python3 tools/architecture/check_architecture.py check` | PASS; 38 paquetes, 101 aristas internas; migración física y ocho propietarios lógicos dentro de sus techos. |
+| `python3 tools/architecture/check_architecture.py self-test` | PASS; fixtures adversariales de política y 20 tests de archivos físicos. |
+| `./tools/validation-v2 quick --base origin/3.4.3` | PASS; seis comandos, incluidos formato de la herramienta, cargo check, JSON, higiene y tests físicos; manifiesto verificado con `validation-v2 verify`. |
+| `git diff --check` | PASS. |
+| `python3 tools/architecture/check_architecture.py physical-files --terminal` | FAIL esperado y pendiente: los mismos 31 archivos de la sección 10. No es aceptación terminal del refactor. |
+
+Las ejecuciones usaron `CARGO_BUILD_JOBS=1 CARGO_NET_OFFLINE=true` cuando
+correspondía; V2 usó `VALIDATION_V2_CARGO_JOBS=1` y el PROTOC de la sección 2.
+Se ejecutaron sobre la versión de trabajo cuyo padre era `aff42a51`, antes del
+commit. El manifiesto `/tmp/rustycore-716-quick-manifest.json` registra ese SHA y
+`dirty: true`; no se presenta como una ejecución posterior sobre `6ae62d73`.
+El código y las políticas probadas se incorporaron sin cambios a ese commit.
+Los ajustes posteriores de entrega son documentales.
+
+El inventario conserva exactamente los 65 bridges anteriores tras el cambio de
+ubicación revisado y añade siete accesos existentes contrastados en código; no
+elimina ninguna obligación. Las dos ubicaciones de fixtures también se reconciliaron.
+No se regeneró el inventario exhaustivo de persistencia. No se ejecutaron build del
+servidor, capturas, QA live, reinicio, escrituras de DB, push, merge ni despliegue.
+El perfil de publicación `final` sigue siendo obligatorio antes de un push autorizado.
+
+**Siguiente acción para Claude:** leer P1 y contrastar el contrato completo de
+recompensa de misión antes de elegir su implementación. No repetir P0 salvo que
+cambie su código o aparezca una regresión. P1–P6 siguen pendientes; #716 aún requiere
+su publicación/integración para cerrar la issue, y #584 continúa abierto.
+
+Si el worktree temporal ya no existe, localizar la rama local anterior con
+`git worktree list` y `git branch --list '*716*'`; el commit conserva el plan y la
+implementación. Recuperar un worktree desde esa rama sin alterar el checkout sucio.
 
 ## 10. Inventario físico pendiente para P4
 

@@ -10,9 +10,19 @@ whose parent import is lost by the analyzer. Physical terminal acceptance also f
 reopen the integrated, closed #587/#588/#589 scoped gameplay deliveries.
 Implementation and acceptance of #716 are tracked in the
 [current architecture plan](../architecture/modularity-and-ecs-plan.md#current-core-delivery--2026-09-10).
-No new acceptance, publication or runtime result is claimed yet. Required #584 core
-still precedes #583, #153 and #133 closure; quest reward is the next operation candidate
-whose complete durability/consumer contract is being investigated.
+**#716 is locally accepted**, with implementation commit
+`6ae62d73a9f910ebd664d82e331520b836a73c77`: 363 analyzer library tests, syntax-only
+ownership, architecture check/self-test and validation-v2 quick pass. The 65 earlier
+bridge records are preserved after the reviewed relocation; seven existing dual
+references are now inventoried, giving 72 exact records. Test commands ran on the
+working candidate at `aff42a51` and its verified V2 manifest records `dirty: true`;
+the tested code/policies were committed unchanged. The
+[complete plan for Claude](../architecture/refactor-completion-plan.md#9-estado-exacto-de-la-entrega-al-pasar-a-claude)
+records commands, source identity and the remaining boundaries. No push, merge,
+server build, deployment, live QA or exhaustive persistence rescan was performed
+for this tooling delivery. Physical terminal acceptance still fails at the same
+31 files. Required #584 core still precedes #583, #153 and #133 closure; quest reward
+is the next operation candidate requiring its complete durability/consumer contract.
 
 **Second physical pass closed — 2026-09-10, integration `a4a9073e`:** fourteen
 deliveries between #685 and #711 finished the physical track outside the curated

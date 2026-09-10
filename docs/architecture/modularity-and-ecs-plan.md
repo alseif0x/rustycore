@@ -53,8 +53,8 @@ graph proves no path to `inventory`, including renamed and target-specific depen
 Actual macro calls, exports, includes and registration aliases retain their checks;
 packages with registration capability keep the original strict namespace guard.
 Real-source bridge regressions share one complete syntax graph so missing fixture
-parents cannot masquerade as retired authority. The first run's 349 passed/4 failed
-result is diagnostic evidence only, not acceptance of the corrections that followed.
+parents cannot masquerade as retired authority. Nested cfg and block-local imports
+retain their lexical scopes, including non-authority shadows.
 
 The repaired syntax inventory preserves all 65 earlier bridge records exactly after
 the reviewed `pending_respawn` relocation and adds seven source-reviewed records,
@@ -77,10 +77,17 @@ retain `unresolved_dual_side`: syntactic dual references are not proof of two
 writers or of a particular transfer direction. No earlier obligation, fingerprint
 or evidence multiplicity was removed, and no persistence snapshot was regenerated.
 
-Acceptance after the complete implementation includes the analyzer library tests,
-syntax-only ownership, architecture check/self-test, preserved persistence-reference
-and snapshot-policy consistency, format/diff checks and affected validation-v2.
-Implementation is in progress; no new acceptance SHA is claimed here yet.
+**Local acceptance:** implementation is committed as
+`6ae62d73a9f910ebd664d82e331520b836a73c77`. The complete candidate passed 363
+analyzer library tests, syntax-only ownership, architecture check/self-test,
+preserved persistence-reference and snapshot-policy consistency, format/diff checks
+and validation-v2 quick (six commands, verified green manifest). Runs used the
+working candidate at parent `aff42a51`; the manifest truthfully records `dirty: true`.
+The tested code/policies were committed unchanged in `6ae62d73`; subsequent handoff
+edits only record documentation. Exact commands and evidence limits are in the
+[Claude handoff](refactor-completion-plan.md#9-estado-exacto-de-la-entrega-al-pasar-a-claude).
+This is local acceptance of #716, not publication, gameplay/runtime acceptance,
+terminal physical acceptance or closure of #584.
 
 The same review measures 31 files above 2,000 physical lines and 63 above 1,000.
 `physical-files --terminal` fails at this base. The completed mechanical passes are
