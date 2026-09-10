@@ -601,9 +601,9 @@
     },
     {
       "path": "crates/wow-world/src/map_manager/movement.rs",
-      "observed_lines": 2334,
-      "ceiling_lines": 2334,
-      "split": "Movement generators over the legacy map manager. #662 deferred this file with map_manager/mod.rs for the same reason: splitting the module breaks the bridge inventory's pairing of canonical and legacy evidence within one enclosing module, narrowing the audit. Its exit is the semantic separation owned by 584:C4.",
+      "observed_lines": 130,
+      "ceiling_lines": 130,
+      "split": "Movement generators over the legacy map manager. #662 deferred this file with map_manager/mod.rs for the same reason: splitting the module breaks the bridge inventory's pairing of canonical and legacy evidence within one enclosing module, narrowing the audit. Its exit is the semantic separation owned by 584:C4. #705 divides the 2,069-line inherent WorldCreature impl into seven bounded map_manager/movement submodules - motion_master, spline, home_and_chase, random_and_waypoint, point_and_effects, terrain and corpse_loot - method-for-method with an identical 94-method surface; the root keeps its own file and drops from 2,335 to 130 lines, so the ceiling is tightened to that figure.",
       "review_checkpoint": "584:C4"
     },
     {
