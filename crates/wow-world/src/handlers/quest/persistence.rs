@@ -113,7 +113,7 @@ impl WorldSession {
                 for (objective_index, objective) in quest.objectives.iter().enumerate() {
                     if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL
                         || objective.object_id != entry_object_id
-                        || !Self::represented_quest_objective_completable_like_cpp(
+                        || !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
                             &status,
                             quest,
                             objective_index,
@@ -165,7 +165,7 @@ impl WorldSession {
                 if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL
                     || objective.object_id != entry_object_id
                     || current >= objective.amount
-                    || !Self::represented_quest_objective_completable_like_cpp(
+                    || !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
                         status,
                         quest,
                         objective_index,
@@ -204,7 +204,7 @@ impl WorldSession {
             for (objective_index, objective) in quest.objectives.iter().enumerate() {
                 if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL
                     || !objective_ids.contains(&objective.object_id)
-                    || !Self::represented_quest_objective_completable_like_cpp(
+                    || !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
                         &status,
                         quest,
                         objective_index,
@@ -238,7 +238,7 @@ impl WorldSession {
             }
             let quest_already_rewarded = state.rewarded_quest_ids.contains(&status.quest_id);
             if completed_objective_ids.iter().any(|objective_id| {
-                Self::represented_can_complete_quest_after_objective_like_cpp(
+                crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                     &status,
                     quest,
                     *objective_id,
@@ -282,13 +282,14 @@ impl WorldSession {
             let Some(&new_non_bank_item_count) = post_removal_counts.get(&entry_id) else {
                 continue;
             };
-            plan.changed_quest_ids
-                .extend(Self::apply_quest_item_removed_to_statuses_like_cpp(
+            plan.changed_quest_ids.extend(
+                crate::handlers::quest_rules::apply_quest_item_removed_to_statuses_like_cpp(
                     quest_store.as_ref(),
                     &mut plan.statuses,
                     entry_id,
                     new_non_bank_item_count,
-                ));
+                ),
+            );
         }
         plan
     }
@@ -307,26 +308,29 @@ impl WorldSession {
             return false;
         };
         let rewarded: HashSet<u32> = state.rewarded_quest_ids.into_iter().collect();
-        if let Some((quest_id, _)) = Self::apply_quest_item_added_bound_to_statuses_like_cpp(
-            quest_store.as_ref(),
-            &rewarded,
-            &mut plan.statuses,
-            entry_id,
-            quest_log_item_id,
-            count,
-        ) {
-            plan.changed_quest_ids.push(quest_id);
-            return true;
-        }
-        plan.changed_quest_ids
-            .extend(Self::apply_quest_item_added_non_bound_to_statuses_like_cpp(
+        if let Some((quest_id, _)) =
+            crate::handlers::quest_rules::apply_quest_item_added_bound_to_statuses_like_cpp(
                 quest_store.as_ref(),
                 &rewarded,
                 &mut plan.statuses,
                 entry_id,
                 quest_log_item_id,
                 count,
-            ));
+            )
+        {
+            plan.changed_quest_ids.push(quest_id);
+            return true;
+        }
+        plan.changed_quest_ids.extend(
+            crate::handlers::quest_rules::apply_quest_item_added_non_bound_to_statuses_like_cpp(
+                quest_store.as_ref(),
+                &rewarded,
+                &mut plan.statuses,
+                entry_id,
+                quest_log_item_id,
+                count,
+            ),
+        );
         false
     }
 
@@ -445,7 +449,7 @@ impl WorldSession {
                             & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL)
                             == 0
                         || objective.object_id != object_id
-                        || !Self::represented_quest_objective_completable_like_cpp(
+                        || !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
                             current_status,
                             quest,
                             objective_index,
@@ -474,7 +478,7 @@ impl WorldSession {
                     planned_status.objective_counts[storage_index] = new_count;
                     let quest_already_rewarded = state.rewarded_quest_ids.contains(&quest.id);
                     if new_count >= objective.amount
-                        && Self::represented_can_complete_quest_after_objective_like_cpp(
+                        && crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             &planned_status,
                             quest,
                             objective.id,

@@ -858,14 +858,6 @@ impl WorldSession {
             .unwrap_or(MasterLootGiveResult::TargetMismatch)
     }
 
-    pub(super) fn represented_loot_roll_vote_command_targets_identity_like_cpp(
-        command: &LootRollVoteCommand,
-        current_identity: &LootRollCommandIdentityLikeCpp,
-    ) -> bool {
-        current_identity.matches_key_like_cpp(command.loot_obj, command.loot_list_id)
-            && current_identity.is_exact_roll_like_cpp(&command.roll_identity)
-    }
-
     pub(super) fn represented_start_group_loot_rolls_on_first_open_like_cpp(
         &mut self,
         item_valuation: &ItemValuationCatalogsLikeCpp,
@@ -998,11 +990,12 @@ impl WorldSession {
                     .get(&entry.item_id)
                     .copied()
                     .unwrap_or((None, None));
-                let valid_rolls = Self::represented_loot_roll_valid_rolls_like_cpp(
-                    item_flags2,
-                    disenchant_skill_required,
-                    max_enchanting_skill,
-                );
+                let valid_rolls =
+                    crate::handlers::loot_rules::represented_loot_roll_valid_rolls_like_cpp(
+                        item_flags2,
+                        disenchant_skill_required,
+                        max_enchanting_skill,
+                    );
 
                 for (looter, vote) in &state.voters {
                     if vote.vote != ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP {
@@ -1181,24 +1174,6 @@ impl WorldSession {
             )
             .await;
         }
-    }
-
-    fn represented_loot_roll_valid_rolls_like_cpp(
-        item_flags2: Option<u32>,
-        disenchant_skill_required: Option<u16>,
-        max_enchanting_skill: u16,
-    ) -> u8 {
-        let mut valid_rolls = ROLL_ALL_TYPE_MASK_LIKE_CPP;
-        if item_flags2.is_some_and(|flags| (flags & ItemFlags2::CanOnlyRollGreed as u32) != 0) {
-            valid_rolls &= !ROLL_FLAG_TYPE_NEED_LIKE_CPP;
-        }
-        if disenchant_skill_required
-            .is_none_or(|skill_required| skill_required > max_enchanting_skill)
-        {
-            valid_rolls &= !ROLL_FLAG_TYPE_DISENCHANT_LIKE_CPP;
-        }
-
-        valid_rolls
     }
 
     fn represented_loot_roll_disenchant_skill_required_like_cpp(

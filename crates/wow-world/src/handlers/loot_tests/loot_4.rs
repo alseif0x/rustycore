@@ -667,7 +667,7 @@ fn loot_roll_vote_command_accepts_exact_enqueued_roll_identity_like_cpp() {
     };
 
     assert!(
-        WorldSession::represented_loot_roll_vote_command_targets_identity_like_cpp(
+        crate::handlers::loot_rules::represented_loot_roll_vote_command_targets_identity_like_cpp(
             &command,
             &roll_identity,
         )
@@ -691,7 +691,7 @@ fn queued_loot_roll_vote_rejects_replacement_with_same_key_and_generation_like_c
     };
 
     assert!(
-        !WorldSession::represented_loot_roll_vote_command_targets_identity_like_cpp(
+        !crate::handlers::loot_rules::represented_loot_roll_vote_command_targets_identity_like_cpp(
             &stale_command,
             &replacement_identity,
         ),

@@ -422,7 +422,11 @@ fn represented_quest_objective_completable_accepts_cpp_storing_value_previous_ty
         slot: 0,
     };
 
-    assert!(WorldSession::represented_quest_objective_completable_like_cpp(&status, &quest, 1));
+    assert!(
+        crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
+            &status, &quest, 1
+        )
+    );
 }
 #[test]
 fn quest_giver_choose_reward_choice_parser_rejects_truncated_cpp_wire() {
