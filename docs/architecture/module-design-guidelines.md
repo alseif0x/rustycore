@@ -99,6 +99,39 @@ Retain the **logical-owner** inventory as a separate metric: it catches gameplay
 coupled to Session across many files. Logical totals are not subject to a per-file cap,
 and physical splitting alone must not remove logical ownership debt.
 
+### What a physical division cannot reach
+
+Three limits are measured, not opinions. Reaching them means the remaining work is
+semantic, and the honest move is to record the file with its reason instead of
+inventing a split.
+
+**A single item is the floor.** A file whose bulk is one `enum`, one `match` or one
+trait impl cannot become modules without changing the type or the trait's shape. Rust
+allows any number of *inherent* impl blocks per type - which is how #705 and #707
+divided a 2,069-line `impl WorldCreature` and a 1,408-line `impl WorldSession` - but
+exactly one impl per (trait, type). So `statements/character/identities.rs` (1,789
+lines, one `CharStatements` enum), `statement_def.rs` (1,627, one `match` over it) and
+`player/lifecycle_adapter.rs` (1,609, one `impl PlayerLifecyclePortLikeCpp`) stay until
+their responsibility is cut semantically.
+
+**Inside a curated hotspot, relocation is measured, not free.** The hotspot ratchet
+counts the module aggregate, so moving a file into an owner - or adding the wiring a
+division needs *inside* one - grows the number being measured. #713 measured the floor:
+dividing the loot and quest fixture roots worked and still cost those aggregates +63 and
++43 test lines at the cheapest wiring available, about seven lines per new module for a
+doc line, `use super::*;`, the `#[path]` mount pair and one glob. #697 left
+`wow-world/player_cast` flat for the same reason at a smaller scale: two characters of
+extra path made rustfmt re-wrap three call sites, +6 lines on the session aggregate.
+A delivery whose subject *is* an owner's shape can still proceed with an explicit
+reviewed delta - #699 recorded +12 production lines in `world-server` and #703 gave one
+back - but that is a decision to record, never a side effect to absorb.
+
+**A single operation stays whole.** An 865-line
+`handle_void_storage_transfer_with_generators_like_cpp` (#707) or a 1,086-line
+`session/spell_effects/execution.rs` entry point (#621) is one C++-mirroring operation.
+Cutting it into pieces is a behaviour question, so it stays whole and its group stays
+within the budget instead.
+
 ## 4. Tests and a complete operation
 
 Keep small private unit tests beside the rule, and split larger suites by responsibility
