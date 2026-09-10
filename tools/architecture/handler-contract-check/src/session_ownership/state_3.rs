@@ -24,7 +24,7 @@ pub(super) fn collect_units(
     let bridge_sources: Vec<_> = units
         .iter()
         .filter(|unit| {
-            unit.availability.production
+            unit.availability.source_class().is_some()
                 && matches!(unit.role, PackageRole::World | PackageRole::Server)
         })
         .map(|unit| BridgeSource {

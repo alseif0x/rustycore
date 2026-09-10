@@ -9,7 +9,8 @@ checkbox or an old percentage is not proof that the current server implements th
 | --- | --- |
 | What is implemented, integrated or still unproven? | [STATE.md](migration/STATE.md), its dated evidence boundaries and the active issue/checkpoint |
 | What do we execute next? | [PORT_PLAN.md](migration/PORT_PLAN.md) and [GitHub #49](https://github.com/alseif0x/rustycore/issues/49) |
-| What remains in the current architecture macro? | [#578 checkpoint](architecture/session-578-checkpoint.md) |
+| What remains in the current architecture delivery? | [Current core delivery](architecture/modularity-and-ecs-plan.md#current-core-delivery--2026-09-10) |
+| How should Claude continue the complete refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
 | What architecture and extension direction is approved? | [Modularity/ECS plan](architecture/modularity-and-ecs-plan.md) |
 | How should responsibilities and files be organized? | [Module design](architecture/module-design-guidelines.md) and [dependency/ownership boundaries](architecture/ownership-and-boundaries.md) |
 | What reported defects need current verification? | [EXISTING-CODE-DEFECTS.md](migration/EXISTING-CODE-DEFECTS.md) |

@@ -16,6 +16,11 @@ use syn::{Attribute, Expr, Item, ItemMacro, Lit, Meta, UseTree};
 use crate::module_policy::CapabilityOwner;
 use crate::ownership::WorkspaceSourceMount;
 
+mod local_inventory;
+pub(crate) use local_inventory::{
+    data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
+};
+
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
     "register_chat_channel_command_handler",
     "register_chat_channel_player_command_handler",
@@ -423,66 +428,6 @@ fn use_tree_can_alias_expected_registration_macro(tree: &UseTree) -> bool {
             .any(use_tree_can_alias_expected_registration_macro),
         UseTree::Glob(_) => false,
     }
-}
-
-#[derive(Default)]
-struct InventoryAliasCollector {
-    violations: Vec<String>,
-}
-
-impl<'ast> Visit<'ast> for InventoryAliasCollector {
-    fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
-        if use_tree_can_alias_inventory_submit(&item.tree) {
-            self.violations.push(format!(
-                "import {} can alias an inventory registration macro; use only canonical \
-                 inventory::collect!/inventory::submit! paths",
-                item.to_token_stream()
-            ));
-        }
-        if use_tree_can_alias_expected_registration_macro(&item.tree) {
-            self.violations.push(format!(
-                "import {} aliases or reexports an audited handler registration macro; \
-                 registration macros must remain private to the declared handler-registration owner and use their \
-                 unqualified audited names",
-                item.to_token_stream()
-            ));
-        }
-        syn::visit::visit_item_use(self, item);
-    }
-
-    fn visit_item_extern_crate(&mut self, item: &'ast syn::ItemExternCrate) {
-        if ident_is(&item.ident, "inventory")
-            || item
-                .rename
-                .as_ref()
-                .is_some_and(|(_, rename)| ident_is(rename, "inventory"))
-        {
-            self.violations.push(format!(
-                "{} is not allowed because #[macro_use] or a crate alias can hide inventory \
-                 registration macros; use only canonical qualified paths",
-                item.to_token_stream()
-            ));
-        }
-        syn::visit::visit_item_extern_crate(self, item);
-    }
-
-    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
-        if ident_is(&item.ident, "inventory") {
-            self.violations.push(format!(
-                "module {} shadows the canonical inventory crate namespace",
-                item.ident
-            ));
-        }
-        syn::visit::visit_item_mod(self, item);
-    }
-}
-
-pub(crate) fn registration_alias_violations(source: &str) -> Result<Vec<String>, String> {
-    let syntax =
-        syn::parse_file(source).map_err(|error| format!("cannot parse Rust source: {error}"))?;
-    let mut collector = InventoryAliasCollector::default();
-    collector.visit_file(&syntax);
-    Ok(collector.violations)
 }
 
 fn is_exact_packet_handler_collector(path: &[String], body: &TokenStream) -> bool {

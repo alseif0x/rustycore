@@ -49,6 +49,20 @@ pub use state_2::*;
 #[allow(unused_imports)]
 pub use state_3::*;
 
+/// Real-source regression assertions share one complete syntax graph. Partial
+/// file fixtures cannot prove lexical imports after a physical module move.
+#[cfg(test)]
+pub(crate) fn repository_syntax_for_tests() -> Result<&'static SessionSyntaxBaseline, String> {
+    static BASELINE: std::sync::OnceLock<Result<SessionSyntaxBaseline, String>> =
+        std::sync::OnceLock::new();
+    BASELINE
+        .get_or_init(|| {
+            collect_repository_baseline_with_persistence(&crate::repository_root()?, false)
+        })
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
 #[cfg(test)]
 #[path = "session_ownership/tests/mod.rs"]
 mod tests;
