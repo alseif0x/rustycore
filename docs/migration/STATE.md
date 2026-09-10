@@ -1,5 +1,18 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Quest reward owns one durable transaction — 2026-09-10, #718 in progress:**
+P1 of the architecture completion plan makes quest reward the first operation
+with an explicit durable contract. C++ `Player::RewardQuest` (Player.cpp:14625)
+applies every grant in memory and reaches the database once, in its closing
+`SaveToDB(false)` (Player.cpp:14867). The represented Rust path instead wrote
+each grant as it happened, so a partial reward was reachable. The operation now
+accumulates its durable participants and commits them as one character
+transaction, with the money column or the rewarded quest's status row as the
+commit witness for an ambiguous COMMIT. The complete contract, its recorded
+departures and the participants that remain unimplemented are in the
+[quest reward operation contract](../architecture/quest-reward-operation-contract.md).
+This entry records work in progress, not acceptance.
+
 **Current architecture delivery — 2026-09-10, reviewed integration `aff42a51`:**
 the user approved starting the architecture repair program. #716 restores exact
 ownership-provenance acceptance after the mechanical module passes. At that base,
