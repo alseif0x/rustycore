@@ -920,28 +920,6 @@ impl WorldSession {
         true
     }
 
-    fn quest_reward_currency_gain_source_like_cpp(
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> CurrencyGainSourceLikeCpp {
-        if (quest.flags_ex & QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP) != 0 {
-            if (quest.flags_ex & QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP) != 0 {
-                return CurrencyGainSourceLikeCpp::WorldQuestRewardIgnoreCaps;
-            }
-
-            return CurrencyGainSourceLikeCpp::QuestRewardIgnoreCaps;
-        }
-
-        if quest.is_daily_like_cpp() {
-            CurrencyGainSourceLikeCpp::DailyQuestReward
-        } else if quest.is_weekly_like_cpp() {
-            CurrencyGainSourceLikeCpp::WeeklyQuestReward
-        } else if (quest.flags_ex & QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP) != 0 {
-            CurrencyGainSourceLikeCpp::WorldQuestReward
-        } else {
-            CurrencyGainSourceLikeCpp::QuestReward
-        }
-    }
-
     async fn grant_quest_reward_currency_like_cpp(
         &mut self,
         currency_id: u32,
@@ -1020,7 +998,8 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
-        let gain_source = Self::quest_reward_currency_gain_source_like_cpp(quest);
+        let gain_source =
+            crate::handlers::quest_rules::quest_reward_currency_gain_source_like_cpp(quest);
 
         if choice.loot_item_type == QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP
             && choice.item_id != 0
@@ -1736,58 +1715,6 @@ impl WorldSession {
                 "ChooseReward: represented reward lockout commit outcome is unknown"
             ),
         }
-    }
-
-    pub(super) fn read_quest_choice_item_like_cpp(
-        pkt: &mut wow_packet::WorldPacket,
-    ) -> Result<QuestChoiceItemLikeCpp, wow_packet::PacketError> {
-        // C++ `QuestChoiceItem` starts with `ResetBitPos(); ReadBits(2)`, then
-        // an `Item::ItemInstance`, then signed `Quantity`.
-        pkt.reset_bits();
-        let loot_item_type = pkt.read_bits(2)? as u8;
-
-        let item_id = pkt.read_int32()? as u32;
-        let _random_properties_seed = pkt.read_int32()?;
-        let _random_properties_id = pkt.read_int32()?;
-
-        let has_item_bonus = pkt.read_bit()?;
-        pkt.reset_bits();
-
-        let item_mod_count = pkt.read_bits(6)?;
-        pkt.reset_bits();
-        for _ in 0..item_mod_count {
-            let _value = pkt.read_int32()?;
-            let _modifier_type = pkt.read_uint8()?;
-        }
-
-        if has_item_bonus {
-            let _context = pkt.read_uint8()?;
-            let bonus_count = pkt.read_uint32()?;
-            for _ in 0..bonus_count {
-                let _bonus_id = pkt.read_uint32()?;
-            }
-        }
-
-        let quantity = pkt.read_int32()?;
-
-        Ok(QuestChoiceItemLikeCpp {
-            loot_item_type,
-            item_id,
-            quantity,
-        })
-    }
-
-    pub(super) fn represented_reward_choice_matches_loaded_type_like_cpp(
-        quest: &wow_data::quest::QuestTemplate,
-        choice: QuestChoiceItemLikeCpp,
-    ) -> bool {
-        quest
-            .reward_choice_items
-            .iter()
-            .zip(quest.reward_choice_item_types.iter())
-            .any(|((item_id, _quantity), item_type)| {
-                *item_id != 0 && *item_id == choice.item_id && *item_type == choice.loot_item_type
-            })
     }
 
     pub(super) fn represented_reward_choice_template_exists_like_cpp(

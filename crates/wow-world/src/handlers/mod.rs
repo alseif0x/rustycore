@@ -7,14 +7,17 @@
 
 pub mod battlenet;
 pub mod character;
+pub(crate) mod character_rules;
 pub mod chat;
 pub mod combat;
 pub mod group;
 pub mod inspect;
 pub mod loot;
+pub(crate) mod loot_rules;
 pub mod misc;
 pub mod movement;
 pub mod quest;
+pub(crate) mod quest_rules;
 pub mod social;
 pub mod spell;
 pub mod talent;

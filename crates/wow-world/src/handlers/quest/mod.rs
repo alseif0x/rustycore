@@ -10,7 +10,7 @@
 //! dispatcher arm are unchanged; this module keeps the shared constants,
 //! helper types and free functions the features build on.
 
-mod dialog_status;
+pub(crate) mod dialog_status;
 mod eligibility;
 mod handlers;
 mod objectives;
@@ -102,34 +102,19 @@ pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 #[cfg(test)]
 pub(crate) const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 = 0x0020_0000;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
-const QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP: u32 = 0x0000_0002;
-const QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP: u32 = 0x0000_0004;
+pub(crate) const QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP: u32 = 0x0000_0002;
+pub(crate) const QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP: u32 = 0x0000_0004;
 const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 = 0x0000_0400;
-const QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP: u32 = 0x0080_0000;
-const QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP: u32 = 0x0100_0000;
+pub(crate) const QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP: u32 = 0x0080_0000;
+pub(crate) const QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP: u32 = 0x0100_0000;
 const QUEST_STATE_COMPLETE_LIKE_CPP: u32 = 0x0001;
 const QUEST_STATE_FAIL_LIKE_CPP: u32 = 0x0002;
 const QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP: u32 = 256;
 pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
 pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
-const QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL: u8 = 0;
-const QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL: u8 = 1;
-const QUEST_OBJECTIVE_GAMEOBJECT_LIKE_CPP_LOCAL: u8 = 2;
-const QUEST_OBJECTIVE_TALKTO_LIKE_CPP_LOCAL: u8 = 3;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
 #[cfg(test)]
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 = 8;
-const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP_LOCAL: u8 = 9;
-const QUEST_OBJECTIVE_WINPVPPETBATTLES_LIKE_CPP_LOCAL: u8 = 13;
-const QUEST_OBJECTIVE_CRITERIA_TREE_LIKE_CPP_LOCAL: u8 = 14;
-const QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL: u8 = 15;
-const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 16;
-const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP_LOCAL: u8 = 17;
-const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP_LOCAL: u8 = 18;
-const QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL: u32 = 0x2;
-const QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL: u32 = 0x4;
-const QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL: u32 = 0x40;
-const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL: u32 = 0x1;
 const QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP: u8 = 0;
 const QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP: u8 = 1;
 const QUEST_FLAGS_REMOVE_SURPLUS_ITEMS_LIKE_CPP: u32 = 0x0200_0000;
@@ -155,7 +140,7 @@ fn read_quest_giver_accept_quest_like_cpp(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct QuestChoiceItemLikeCpp {
+pub(crate) struct QuestChoiceItemLikeCpp {
     loot_item_type: u8,
     item_id: u32,
     quantity: i32,
@@ -477,10 +462,93 @@ pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
 #[path = "../quest_tests.rs"]
 mod tests;
 
+pub(crate) const QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL: u8 = 0;
+pub(crate) const QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL: u8 = 1;
+pub(crate) const QUEST_OBJECTIVE_GAMEOBJECT_LIKE_CPP_LOCAL: u8 = 2;
+pub(crate) const QUEST_OBJECTIVE_TALKTO_LIKE_CPP_LOCAL: u8 = 3;
+pub(crate) const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP_LOCAL: u8 = 9;
+pub(crate) const QUEST_OBJECTIVE_WINPVPPETBATTLES_LIKE_CPP_LOCAL: u8 = 13;
+pub(crate) const QUEST_OBJECTIVE_CRITERIA_TREE_LIKE_CPP_LOCAL: u8 = 14;
+pub(crate) const QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL: u8 = 15;
+pub(crate) const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 16;
+pub(crate) const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP_LOCAL: u8 = 17;
+pub(crate) const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP_LOCAL: u8 = 18;
+pub(crate) const QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL: u32 = 0x2;
+pub(crate) const QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL: u32 = 0x4;
+pub(crate) const QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL: u32 = 0x40;
+pub(crate) const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL: u32 = 0x1;
+
 // ── PlayerQuestStatus ────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub(crate) struct ItemTransferQuestPersistencePlanLikeCpp {
     statuses: HashMap<u32, PlayerQuestStatus>,
     changed_quest_ids: Vec<u32>,
+}
+
+impl WorldSession {
+    pub(in crate::handlers::quest) fn represented_quest_dialog_classification_like_cpp(
+        quest: &wow_data::quest::QuestTemplate,
+        quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
+    ) -> crate::handlers::quest::dialog_status::QuestDialogClassificationLikeCpp {
+        crate::handlers::quest::dialog_status::QuestDialogClassificationLikeCpp::new(
+            quest.flags,
+            quest.flags_ex,
+            quest_info.and_then(|store| store.get(quest.quest_info_id as u32)),
+        )
+    }
+
+    pub(in crate::handlers::quest) fn represented_reward_choice_matches_loaded_type_like_cpp(
+        quest: &wow_data::quest::QuestTemplate,
+        choice: QuestChoiceItemLikeCpp,
+    ) -> bool {
+        quest
+            .reward_choice_items
+            .iter()
+            .zip(quest.reward_choice_item_types.iter())
+            .any(|((item_id, _quantity), item_type)| {
+                *item_id != 0 && *item_id == choice.item_id && *item_type == choice.loot_item_type
+            })
+    }
+}
+
+impl WorldSession {
+    pub(in crate::handlers::quest) fn read_quest_choice_item_like_cpp(
+        pkt: &mut wow_packet::WorldPacket,
+    ) -> Result<QuestChoiceItemLikeCpp, wow_packet::PacketError> {
+        // C++ `QuestChoiceItem` starts with `ResetBitPos(); ReadBits(2)`, then
+        // an `Item::ItemInstance`, then signed `Quantity`.
+        pkt.reset_bits();
+        let loot_item_type = pkt.read_bits(2)? as u8;
+
+        let item_id = pkt.read_int32()? as u32;
+        let _random_properties_seed = pkt.read_int32()?;
+        let _random_properties_id = pkt.read_int32()?;
+
+        let has_item_bonus = pkt.read_bit()?;
+        pkt.reset_bits();
+
+        let item_mod_count = pkt.read_bits(6)?;
+        pkt.reset_bits();
+        for _ in 0..item_mod_count {
+            let _value = pkt.read_int32()?;
+            let _modifier_type = pkt.read_uint8()?;
+        }
+
+        if has_item_bonus {
+            let _context = pkt.read_uint8()?;
+            let bonus_count = pkt.read_uint32()?;
+            for _ in 0..bonus_count {
+                let _bonus_id = pkt.read_uint32()?;
+            }
+        }
+
+        let quantity = pkt.read_int32()?;
+
+        Ok(QuestChoiceItemLikeCpp {
+            loot_item_type,
+            item_id,
+            quantity,
+        })
+    }
 }

@@ -12,6 +12,33 @@
 use super::*;
 
 impl WorldSession {
+    pub(in crate::handlers::character) fn creature_addon_create_fields_like_cpp(
+        addon: Option<&CreatureAddonLifecycleRecordLikeCpp>,
+    ) -> CreatureAddonCreateFieldsLikeCpp {
+        let Some(addon) = addon else {
+            // C++ Creature::UpdateEntry calls SetSheath(SHEATH_STATE_MELEE)
+            // when no addon row exists; addon rows then own the exact value.
+            return CreatureAddonCreateFieldsLikeCpp {
+                stand_state: UnitStandStateType::Stand as u8,
+                sheathe_state: SheathState::Melee as u8,
+                ..CreatureAddonCreateFieldsLikeCpp::default()
+            };
+        };
+
+        CreatureAddonCreateFieldsLikeCpp {
+            has_addon: true,
+            mount_display_id: addon.mount_display_id as i32,
+            stand_state: addon.stand_state as u8,
+            vis_flags: addon.vis_flags,
+            anim_tier: addon.anim_tier,
+            sheathe_state: addon.sheath_state as u8,
+            pvp_flags: addon.pvp_flags.bits(),
+            emote_state: addon.emote as i32,
+            ai_anim_kit_id: addon.ai_anim_kit_id,
+            movement_anim_kit_id: addon.movement_anim_kit_id,
+            melee_anim_kit_id: addon.melee_anim_kit_id,
+        }
+    }
     pub(super) fn skill_rewarded_quest_fallback_allowed_like_cpp(&self, spell_id: i32) -> bool {
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return false;
@@ -67,34 +94,6 @@ impl WorldSession {
             },
             |spell_id| self.skill_rewarded_quest_fallback_allowed_like_cpp(spell_id),
         )
-    }
-
-    fn creature_addon_create_fields_like_cpp(
-        addon: Option<&CreatureAddonLifecycleRecordLikeCpp>,
-    ) -> CreatureAddonCreateFieldsLikeCpp {
-        let Some(addon) = addon else {
-            // C++ Creature::UpdateEntry calls SetSheath(SHEATH_STATE_MELEE)
-            // when no addon row exists; addon rows then own the exact value.
-            return CreatureAddonCreateFieldsLikeCpp {
-                stand_state: UnitStandStateType::Stand as u8,
-                sheathe_state: SheathState::Melee as u8,
-                ..CreatureAddonCreateFieldsLikeCpp::default()
-            };
-        };
-
-        CreatureAddonCreateFieldsLikeCpp {
-            has_addon: true,
-            mount_display_id: addon.mount_display_id as i32,
-            stand_state: addon.stand_state as u8,
-            vis_flags: addon.vis_flags,
-            anim_tier: addon.anim_tier,
-            sheathe_state: addon.sheath_state as u8,
-            pvp_flags: addon.pvp_flags.bits(),
-            emote_state: addon.emote as i32,
-            ai_anim_kit_id: addon.ai_anim_kit_id,
-            movement_anim_kit_id: addon.movement_anim_kit_id,
-            melee_anim_kit_id: addon.melee_anim_kit_id,
-        }
     }
 
     /// Fallback: skip ConnectTo and trigger direct login on the realm socket.
@@ -498,7 +497,7 @@ impl WorldSession {
             cur_mana,
         );
         let addon = catalogs.addons.get_for_creature_like_cpp(spawn_guid, entry);
-        let addon_fields = Self::creature_addon_create_fields_like_cpp(addon.as_ref());
+        let addon_fields = WorldSession::creature_addon_create_fields_like_cpp(addon.as_ref());
         let equipment_fields = self.creature_virtual_items_from_row_with_catalogs_like_cpp(
             catalogs,
             entry,

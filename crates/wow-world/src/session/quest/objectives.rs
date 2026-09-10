@@ -173,7 +173,7 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
                     if quests.statuses.get(&quest_id).is_some_and(|status| {
-                        Self::represented_can_complete_quest_after_objective_like_cpp(
+                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
                             objective_id,
@@ -287,7 +287,7 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
                     if quests.statuses.get(&quest_id).is_some_and(|status| {
-                        Self::represented_can_complete_quest_after_objective_like_cpp(
+                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
                             objective_id,
@@ -400,7 +400,7 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
                     if quests.statuses.get(&quest_id).is_some_and(|status| {
-                        Self::represented_can_complete_quest_after_objective_like_cpp(
+                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
                             objective_id,
@@ -536,7 +536,7 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
                     if quests.statuses.get(&quest_id).is_some_and(|status| {
-                        Self::represented_can_complete_quest_after_objective_like_cpp(
+                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
                             objective_id,
@@ -689,7 +689,7 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
                     if quests.statuses.get(&quest_id).is_some_and(|status| {
-                        Self::represented_can_complete_quest_after_objective_like_cpp(
+                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
                             objective_id,
