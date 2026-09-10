@@ -2,8 +2,6 @@
 //!
 //! Separated from player_choice.rs under #683.
 
-use super::super::*;
-
 use super::*;
 
 fn choice(choice_id: i32, question: &str) -> PlayerChoiceRowLikeCpp {
