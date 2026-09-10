@@ -1,5 +1,32 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Second physical pass closed — 2026-09-10, integration `a4a9073e`:** fourteen
+deliveries between #685 and #711 finished the physical track outside the curated
+hotspots. #685 and #687 moved the last inline `mod tests` blocks out of oversized
+production files; #689, #691, #693, #701, #705, #707, #709 and #711 divided 27 files by
+item family, by method group or by protocol family; #695, #697, #699 and #703 grouped
+flat sibling module families into directories, by shared prefix and then by module kind,
+taking the `wow-persistence` root from 53 entries to 26, `wow-database` from 64 to 40 and
+`world-server` from 46 to 25. The physical ratchet's cohesion reviews fell from 111 to
+63. Every delivery proved its item or method multiset identical before and after, kept
+each crate's test count unchanged, and passed
+`./tools/validation-v2 final --base origin/3.4.3` at the committed SHA.
+
+Four files outside the hotspots remain above the 1,000-line review budget, and none is a
+relocation problem: `session_tests.rs` (5,756) keeps its 197 shared helpers in the root
+deliberately by #626, while `statements/character/identities.rs` (1,789),
+`statement_def.rs` (1,627) and `player/lifecycle_adapter.rs` (1,609) are one `enum`, one
+`match` and one trait impl - a single item, which cannot become modules without changing
+the type. Forty-four more sit inside the eight curated hotspot aggregates. This corrects
+the earlier claim that relocation was exhausted for "the `map_manager` pair": #705 divided
+its 2,069-line `impl WorldCreature` into seven submodules and #711 divided the 2,191-line
+root into five, so both now sit at 130 and 255 lines. The measured limits behind the rest
+are recorded in
+[the module-design guide](../architecture/module-design-guidelines.md#what-a-physical-division-cannot-reach),
+including #713's measurement that dividing the loot and quest fixture roots costs their
+hotspot aggregates +63 and +43 test lines at the cheapest wiring available. What remains
+is the semantic extraction owned by #584 C0-C4. This closes neither #133 nor #584.
+
 **Physical decomposition track closed — 2026-09-09, integration `df94f231`:**
 #589 and its sub-issues #590-#595 are merged. Sixteen deliveries between #634 and
 #664, following the Session-root separations of #603-#632, then completed the

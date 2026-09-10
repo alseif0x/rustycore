@@ -121,7 +121,7 @@ WotLK 3.4.3 applicability: **~50 of 75** TC domains apply. The 25 marked `n/a 3.
 | `aura.rs` | 123 | 3 | `AuraData`, `AuraUpdate` (likely thin) |
 | `battlenet.rs` | 223 | 4 | `BattlenetRequest`, BNet response wrapping |
 | `character.rs` | 550 | 20 | Enum / create / delete / customize / rename / login |
-| `character_packets.rs` | 10 | 1 | **Stub file** — almost empty, likely accidental dup |
+| ~~`character_packets.rs`~~ | — | — | Deleted under #714: no module declared it, and its `PlayedTime` duplicated the real one in `misc/session/logout.rs` |
 | `chat.rs` | 351 | 16 | Say / yell / whisper / channel / addon |
 | `combat.rs` | 192 | 14 | AttackStart, AttackStop; **also** holds combat-log (SpellNonMeleeDamageLog) — fuses TC `CombatPackets` + `CombatLogPackets` |
 | `gossip.rs` | 326 | 14 | Gossip Hello / select / POI / NPCText (fuses parts of TC `NPCPackets` + `MiscPackets`) |
@@ -137,7 +137,7 @@ WotLK 3.4.3 applicability: **~50 of 75** TC domains apply. The 25 marked `n/a 3.
 | `spell.rs` | 466 | 15 | Cast / fail / aura / cooldown |
 | `trainer.rs` | 233 | 12 | Trainer list / buy-spell (TC routes this through `NPCPackets`) |
 | `update.rs` | 3072 | 9 | UpdateObject super-packet (`CreatureCreateData`, `PlayerCreateData`); the 3K LOC is encoder logic, not new packet types |
-| **Total** | **11 794** | **392 structs** | 20 files (one almost-empty: `character_packets.rs`) |
+| **Total** | **11 794** | **392 structs** | 19 files after #714 deleted the unreferenced `character_packets.rs` |
 
 ---
 
@@ -151,7 +151,7 @@ Coverage rubric: ✅ ≥80% of TC domain structs implemented • ⚠️ 30–80%
 |---|---|---|---|
 | Authentication | `AuthenticationPackets.cpp` (366) | `auth.rs` (804, 31) | ✅ Rust line-count exceeds TC because it includes BNet handshake glue + EnableEncryption + ResumeComms |
 | Battle.net | `BattlenetPackets.cpp` (90) | `battlenet.rs` (223, 4) | ⚠️ Rust thicker on framing, but only 4 structs vs ~5–6 TC opcodes |
-| Character | `CharacterPackets.cpp` (727) | `character.rs` (550) + `character_packets.rs` (10) | ⚠️ ~75% — 20 structs vs estimated 25–30; rename/customize/factionchange may be partial. `character_packets.rs` is a 10-line orphan |
+| Character | `CharacterPackets.cpp` (727) | `character.rs` (550) | ⚠️ ~75% — 20 structs vs estimated 25–30; rename/customize/factionchange may be partial. The 10-line `character_packets.rs` orphan is gone (#714) |
 | Chat | `ChatPackets.cpp` (358) | `chat.rs` (351, 16) | ✅ Sizes match closely; addon-message + 3.4.3 channels covered |
 | Channel (chat-channels) | `ChannelPackets.cpp` (196) | folded into `chat.rs` | ⚠️ likely partial — TC splits join/leave/list/mute/silence into a separate file; no dedicated Rust module |
 | Combat | `CombatPackets.cpp` (166) + `CombatLogPackets.cpp` (488) + `CombatLogPacketsCommon.cpp` (195) | `combat.rs` (192, 14) | ⚠️ 192 vs 849 combined — combat-log is largely missing; only attack-start/stop and basic damage events present |
@@ -281,7 +281,7 @@ Convention in Rust:
 12. Pet (PetSpells, PetMode), Petition, Trade, Vehicle, Bank, Reputation, Taxi, Totem, Duel, EquipmentSet, GameObject, Instance, Channel-standalone, Who, Ticket, ArenaTeam, Warden, Addon — none have a dedicated Rust module.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
-- `character_packets.rs` (10 LOC, 1 struct) — looks like an accidental dup or scaffolding remnant of `character.rs`. Either delete or merge.
+- `character_packets.rs` — resolved by #714: a reachability walk over every crate root and `#[path]` mount showed no module declared it, and its `PlayedTime` struct (with a `prost::Message` derive, which no world packet uses) duplicated the real server packet in `misc/session/logout.rs`. Deleted rather than merged.
 - `misc.rs` at 2613 LOC / 145 structs is a maintainability concern — multiple TC domains fused. Plan: split into `system.rs`, `world_state.rs`, `area_trigger.rs`, `time_sync.rs` once handler migration stabilizes.
 - `combat.rs` at 192 LOC is suspiciously small given TC has 849 LOC across `CombatPackets` + `CombatLogPackets*` — confirms combat-log is largely absent (matches `wow-combat` crate's known partial state).
 - `inspect.rs` 3 structs vs TC ~10–15 — confirms `InspectHandler.cpp` (152 LOC) in C++ writes packet variants that have no Rust struct.
@@ -329,7 +329,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 ### Tier 4 — hygiene / refactor
 
-- [ ] **#PKD.24** Decide fate of `character_packets.rs` (10 LOC, 1 struct): merge into `character.rs` or delete. (L)
+- [x] **#PKD.24** Fate of `character_packets.rs` decided: deleted under #714, unreferenced and duplicating `misc/session/logout.rs`'s `PlayedTime`. (L)
 - [ ] **#PKD.25** Split `misc.rs` (2613 LOC, 145 structs) into `system.rs`, `world_state.rs`, `area_trigger.rs`, `time_sync.rs`, `account_data.rs`, `event.rs`. Pure refactor — gated behind handler-migration completion to avoid churn. (XL)
 - [ ] **#PKD.26** Audit struct-by-struct parity per domain (compare each `pub struct` in a Rust file against the TC `class XYZ : public ServerPacket` list in the corresponding header). Fill the per-domain coverage % with hard numbers. (XL — one M task per domain)
 
@@ -356,7 +356,7 @@ For every domain pair where a Rust struct exists, validate byte-for-byte parity 
 - **`Position` fields are `.x .y .z .orientation`** — never `.o`. Recurring mistake when writing position into a packet.
 - **3.4.3.54261 is a backport client.** Many opcodes look like Cata/MoP IDs but with WotLK semantics. Resolve uncertainty against the exact C++ packet class/registry or an identified client capture; no other implementation is a layout authority.
 - **`*_stubs.rs` from AGENTS.md** does NOT live under `crates/wow-packet/src/packets/`. It lives in `crates/wow-world/_attic/stubs.rs.txt` (a `.txt` rename so cargo skips it) and only stubs handlers — NOT packet structs. The packet crate has zero stub files of its own; partial coverage shows up as missing-file rather than as `*_stubs.rs`.
-- **`character_packets.rs` (10 LOC) is the only smell** of stub-ness inside `wow-packet`. Treat it as #PKD.24.
+- **`character_packets.rs` was the only smell** of stub-ness inside `wow-packet`, and #714 deleted it under #PKD.24.
 - **Bit-packing convention:** TC writes bit fields LSB-first within a byte then flushes; the Rust impl in `world_packet.rs` mirrors that. Any new packet body using bits must call `flush_bits()` before any byte-aligned write that follows, or the buffer will desync.
 - **Update.rs is special.** Don't be fooled by the 3072 LOC — it is one packet (`SMSG_UPDATE_OBJECT`) with a giant field-mask encoder. New domains should NOT live inside it.
 
@@ -394,7 +394,7 @@ For every domain pair where a Rust struct exists, validate byte-for-byte parity 
 
 | Metric | TC | RustyCore | Δ |
 |---|---|---|---|
-| Domain `.cpp/.rs` files | 75 (incl. 6 `*Common` + utilities) | 20 (incl. mod.rs orphan `character_packets.rs`) | **−55 files** |
+| Domain `.cpp/.rs` files | 75 (incl. 6 `*Common` + utilities) | 19 after #714 removed the unreferenced `character_packets.rs` | **−56 files** |
 | 3.4.3-applicable domains | ~50 | 20 (with 8 fused into `misc.rs`) | **~30 domains effectively missing or partial** |
 | Total LOC | 18 177 | 11 794 | −6 383 (but Rust includes 3072 LOC of `update.rs` encoder absent in TC's per-domain split) |
 | Avg LOC per Rust domain (excl. `update.rs`+`misc.rs`) | n/a | ≈ 340 | reasonable size |
@@ -416,7 +416,7 @@ For every domain pair where a Rust struct exists, validate byte-for-byte parity 
 | Item | 363+267 | 395 | ~37% missing (Common content thin) |
 | Character | 727 | 550+10 | ~25% missing |
 
-**Verdict:** Status badge is correct as ⚠️ partial. The 26 missing 3.4.3-applicable TC domains (≈ 6 376 LOC) are all listed in §4.2 with assigned migration sub-tasks (#PKD.1–#PKD.19, plus extensions #PKD.20–#PKD.23 for partial domains). Hygiene tasks #PKD.24–#PKD.26 cover the orphan `character_packets.rs`, the oversized `misc.rs`, and the per-struct parity audit.
+**Verdict:** Status badge is correct as ⚠️ partial. The 26 missing 3.4.3-applicable TC domains (≈ 6 376 LOC) are all listed in §4.2 with assigned migration sub-tasks (#PKD.1–#PKD.19, plus extensions #PKD.20–#PKD.23 for partial domains). Hygiene tasks #PKD.24–#PKD.26 covered the orphan `character_packets.rs` (deleted under #714), the oversized `misc.rs` (divided by protocol family under #689) and the per-struct parity audit, which remains open.
 
 **Open questions for next pass:**
 - Confirm whether `ChannelPackets` content lives inside `chat.rs` (fused) or is genuinely missing (current evidence: 16 structs in `chat.rs` is plausibly inclusive of channel ops — needs grep audit on `Channel*` symbol names).
