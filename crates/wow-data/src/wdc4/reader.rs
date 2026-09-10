@@ -1,134 +1,38 @@
-// Copyright (c) 2026 alseif0x
-// RustyCore — WoW WotLK 3.4.3 server in Rust
-// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
-// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
-
-//! Generic WDC4 (DB2) file parser.
+//! Reader packets.
 //!
-//! Supports the six compression types used in WoW 3.4.3 client data files:
-//! None, Immediate (Bitpacked), SignedImmediate, Pallet, PalletArray, Common.
+//! Separated from wdc4.rs under #691.
 
-use std::collections::HashMap;
-use std::path::Path;
-
-use anyhow::{Context, Result, bail, ensure};
-use tracing::{debug, trace};
-
-// ── Constants ────────────────────────────────────────────────────────
-
-const WDC4_MAGIC: u32 = 0x3443_4457; // "WDC4" in little-endian
-const HEADER_SIZE: usize = 72;
-const SECTION_HEADER_SIZE: usize = 40;
-const FIELD_META_SIZE: usize = 4;
-const FIELD_STORAGE_INFO_SIZE: usize = 24;
-
-// ── Compression types ────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
-enum CompressionType {
-    None = 0,
-    Bitpacked = 1,
-    Common = 2,
-    Pallet = 3,
-    PalletArray = 4,
-    BitpackedSigned = 5,
-}
-
-impl CompressionType {
-    fn from_u32(v: u32) -> Result<Self> {
-        match v {
-            0 => Ok(Self::None),
-            1 => Ok(Self::Bitpacked),
-            2 => Ok(Self::Common),
-            3 => Ok(Self::Pallet),
-            4 => Ok(Self::PalletArray),
-            5 => Ok(Self::BitpackedSigned),
-            _ => bail!("unknown compression type {v}"),
-        }
-    }
-}
-
-// ── Header structures ────────────────────────────────────────────────
-
-#[derive(Debug)]
-struct Wdc4Header {
-    record_count: u32,
-    field_count: u32,
-    record_size: u32,
-    string_table_size: u32,
-    table_hash: u32,
-    _layout_hash: u32,
-    min_id: u32,
-    max_id: u32,
-    _locale: u32,
-    flags: u16,
-    id_index: u16,
-    total_field_count: u32,
-    _packed_data_offset: u32,
-    _lookup_column_count: u32,
-    field_storage_info_size: u32,
-    common_data_size: u32,
-    pallet_data_size: u32,
-    section_count: u32,
-}
-
-#[derive(Debug)]
-struct SectionHeader {
-    _tact_key_hash: u64,
-    file_offset: u32,
-    record_count: u32,
-    string_table_size: u32,
-    _offset_records_end: u32,
-    id_list_size: u32,
-    _relationship_data_size: u32,
-    _offset_map_id_count: u32,
-    copy_table_count: u32,
-}
-
-#[derive(Debug, Clone)]
-struct FieldStorageInfo {
-    field_offset_bits: u16,
-    field_size_bits: u16,
-    additional_data_size: u32,
-    compression: CompressionType,
-    /// Pallet/PalletArray: pallet start offset (cumulative).
-    /// Common: default_value.
-    /// Bitpacked/None: bitpacking_offset_bits.
-    val1: u32,
-    val2: u32,
-    val3: u32,
-}
+use super::*;
 
 // ── Reader ───────────────────────────────────────────────────────────
 
 /// Parsed WDC4 file ready for field access.
 pub struct Wdc4Reader {
-    header: Wdc4Header,
-    field_info: Vec<FieldStorageInfo>,
+    pub(super) header: Wdc4Header,
+    pub(super) field_info: Vec<FieldStorageInfo>,
     /// Per-field pallet data: field_index → Vec<u32>
-    pallet_data: Vec<Vec<u32>>,
+    pub(super) pallet_data: Vec<Vec<u32>>,
     /// Per-field common data: field_index → HashMap<record_id, u32>
-    common_data: Vec<HashMap<u32, u32>>,
+    pub(super) common_data: Vec<HashMap<u32, u32>>,
     /// Concatenated record data bytes (all sections).
-    record_data: Vec<u8>,
+    pub(super) record_data: Vec<u8>,
     /// Record ID for each record index (from id_list or inline).
-    record_ids: Vec<u32>,
+    pub(super) record_ids: Vec<u32>,
     /// Copy table: (new_id, source_id) pairs.
-    copy_table: Vec<(u32, u32)>,
+    pub(super) copy_table: Vec<(u32, u32)>,
     /// Map from record_id → record_index for fast lookup.
-    id_to_index: HashMap<u32, usize>,
+    pub(super) id_to_index: HashMap<u32, usize>,
     /// Parent/relationship id by record index, when present in WDC4 relationship data.
-    relationship_ids: Vec<Option<u32>>,
+    pub(super) relationship_ids: Vec<Option<u32>>,
     /// For offset-map files: byte offset of each record within record_data.
     /// Empty for non-offset-map files (fixed-size records use record_idx * record_size).
-    record_offsets: Vec<usize>,
+    pub(super) record_offsets: Vec<usize>,
     /// Byte size of each record (variable for offset-map, uniform for fixed-size).
-    record_sizes: Vec<usize>,
+    pub(super) record_sizes: Vec<usize>,
     /// Per-section string tables, used by non-localized string fields.
-    string_tables: Vec<Vec<u8>>,
+    pub(super) string_tables: Vec<Vec<u8>>,
     /// String table index for each direct record.
-    record_string_table_indices: Vec<Option<usize>>,
+    pub(super) record_string_table_indices: Vec<Option<usize>>,
 }
 
 impl Wdc4Reader {
@@ -831,284 +735,6 @@ impl Wdc4Reader {
         }
     }
 }
-
-// ── Parsing helpers ──────────────────────────────────────────────────
-
-fn read_u16_le(data: &[u8], off: usize) -> u16 {
-    u16::from_le_bytes([data[off], data[off + 1]])
-}
-
-fn read_u32_le(data: &[u8], off: usize) -> u32 {
-    u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
-}
-
-fn read_u64_le(data: &[u8], off: usize) -> u64 {
-    u64::from_le_bytes([
-        data[off],
-        data[off + 1],
-        data[off + 2],
-        data[off + 3],
-        data[off + 4],
-        data[off + 5],
-        data[off + 6],
-        data[off + 7],
-    ])
-}
-
-fn read_inline_record_id(
-    record_data: &[u8],
-    record_offsets: &[usize],
-    record_size: usize,
-    field_info: &[FieldStorageInfo],
-    pallet_data: &[Vec<u32>],
-    record_idx: usize,
-    field: usize,
-) -> Result<u32> {
-    let info = &field_info[field];
-    let record_start = record_offsets
-        .get(record_idx)
-        .copied()
-        .unwrap_or(record_idx * record_size);
-
-    match info.compression {
-        CompressionType::None | CompressionType::Bitpacked | CompressionType::BitpackedSigned => {
-            Ok(read_bits(
-                record_data,
-                record_start,
-                info.field_offset_bits as usize,
-                info.field_size_bits as usize,
-            ))
-        }
-        CompressionType::Pallet => {
-            let index = read_bits(
-                record_data,
-                record_start,
-                info.field_offset_bits as usize,
-                info.field_size_bits as usize,
-            ) as usize;
-            pallet_data
-                .get(field)
-                .and_then(|pallet| pallet.get(index))
-                .copied()
-                .with_context(|| {
-                    format!(
-                        "inline id field {field} pallet index {index} is outside its value table"
-                    )
-                })
-        }
-        CompressionType::PalletArray => {
-            let index = read_bits(
-                record_data,
-                record_start,
-                info.field_offset_bits as usize,
-                info.field_size_bits as usize,
-            ) as usize;
-            let cardinality = info.val3.max(1) as usize;
-            pallet_data
-                .get(field)
-                .and_then(|pallet| pallet.get(index * cardinality))
-                .copied()
-                .with_context(|| {
-                    format!(
-                        "inline id field {field} pallet-array index {index} is outside its value table"
-                    )
-                })
-        }
-        CompressionType::Common => {
-            bail!("inline WDC4 id field {field} cannot use Common compression")
-        }
-    }
-}
-
-fn parse_header(data: &[u8]) -> Result<Wdc4Header> {
-    let magic = read_u32_le(data, 0);
-    ensure!(magic == WDC4_MAGIC, "not a WDC4 file (magic=0x{magic:08X})");
-
-    Ok(Wdc4Header {
-        record_count: read_u32_le(data, 4),
-        field_count: read_u32_le(data, 8),
-        record_size: read_u32_le(data, 12),
-        string_table_size: read_u32_le(data, 16),
-        table_hash: read_u32_le(data, 20),
-        _layout_hash: read_u32_le(data, 24),
-        min_id: read_u32_le(data, 28),
-        max_id: read_u32_le(data, 32),
-        _locale: read_u32_le(data, 36),
-        flags: read_u16_le(data, 40),
-        id_index: read_u16_le(data, 42),
-        total_field_count: read_u32_le(data, 44),
-        _packed_data_offset: read_u32_le(data, 48),
-        _lookup_column_count: read_u32_le(data, 52),
-        field_storage_info_size: read_u32_le(data, 56),
-        common_data_size: read_u32_le(data, 60),
-        pallet_data_size: read_u32_le(data, 64),
-        section_count: read_u32_le(data, 68),
-    })
-}
-
-fn parse_section_header(data: &[u8]) -> SectionHeader {
-    SectionHeader {
-        _tact_key_hash: read_u64_le(data, 0),
-        file_offset: read_u32_le(data, 8),
-        record_count: read_u32_le(data, 12),
-        string_table_size: read_u32_le(data, 16),
-        _offset_records_end: read_u32_le(data, 20),
-        id_list_size: read_u32_le(data, 24),
-        _relationship_data_size: read_u32_le(data, 28),
-        _offset_map_id_count: read_u32_le(data, 32),
-        copy_table_count: read_u32_le(data, 36),
-    }
-}
-
-fn parse_field_storage_info(data: &[u8]) -> Result<FieldStorageInfo> {
-    Ok(FieldStorageInfo {
-        field_offset_bits: read_u16_le(data, 0),
-        field_size_bits: read_u16_le(data, 2),
-        additional_data_size: read_u32_le(data, 4),
-        compression: CompressionType::from_u32(read_u32_le(data, 8))?,
-        val1: read_u32_le(data, 12),
-        val2: read_u32_le(data, 16),
-        val3: read_u32_le(data, 20),
-    })
-}
-
-/// Split the concatenated pallet data blob into per-field Vec<u32>.
-fn split_pallet_data(raw: &[u8], fields: &[FieldStorageInfo]) -> Vec<Vec<u32>> {
-    let mut result = Vec::with_capacity(fields.len());
-    let mut offset = 0usize;
-
-    for info in fields {
-        if matches!(
-            info.compression,
-            CompressionType::Pallet | CompressionType::PalletArray
-        ) {
-            let size = info.additional_data_size as usize;
-            let count = size / 4;
-            let mut values = Vec::with_capacity(count);
-            for i in 0..count {
-                let o = offset + i * 4;
-                if o + 4 <= raw.len() {
-                    values.push(read_u32_le(raw, o));
-                }
-            }
-            result.push(values);
-            offset += size;
-        } else {
-            result.push(Vec::new());
-        }
-    }
-    result
-}
-
-/// Split the concatenated common data blob into per-field HashMap<record_id, u32>.
-fn split_common_data(raw: &[u8], fields: &[FieldStorageInfo]) -> Vec<HashMap<u32, u32>> {
-    let mut result = Vec::with_capacity(fields.len());
-    let mut offset = 0usize;
-
-    for info in fields {
-        if info.compression == CompressionType::Common {
-            let size = info.additional_data_size as usize;
-            // Common data format: repeated (record_id: u32, value: u32)
-            let count = size / 8;
-            let mut map = HashMap::with_capacity(count);
-            for i in 0..count {
-                let o = offset + i * 8;
-                if o + 8 <= raw.len() {
-                    let record_id = read_u32_le(raw, o);
-                    let value = read_u32_le(raw, o + 4);
-                    map.insert(record_id, value);
-                }
-            }
-            result.push(map);
-            offset += size;
-        } else {
-            result.push(HashMap::new());
-        }
-    }
-    result
-}
-
-fn merge_relationship_data(
-    raw: &[u8],
-    base_record_index: usize,
-    relationship_ids: &mut Vec<Option<u32>>,
-) -> Result<()> {
-    if raw.is_empty() {
-        return Ok(());
-    }
-
-    ensure!(raw.len() >= 12, "relationship_data too small");
-    let count = read_u32_le(raw, 0) as usize;
-    let entries_start = 12usize;
-    ensure!(
-        raw.len() >= entries_start + count * 8,
-        "relationship_data truncated"
-    );
-
-    for i in 0..count {
-        let entry_offset = entries_start + i * 8;
-        let relationship_id = read_u32_le(raw, entry_offset);
-        let record_index = base_record_index + read_u32_le(raw, entry_offset + 4) as usize;
-        if relationship_ids.len() <= record_index {
-            relationship_ids.resize(record_index + 1, None);
-        }
-        relationship_ids[record_index] = Some(relationship_id);
-    }
-
-    Ok(())
-}
-
-/// Read `bit_count` bits from `record_data` starting at byte offset `record_start`
-/// plus `bit_offset` bits within the record.
-fn read_bits(record_data: &[u8], record_start: usize, bit_offset: usize, bit_count: usize) -> u32 {
-    if bit_count == 0 || bit_count > 32 {
-        return 0;
-    }
-
-    let abs_bit = record_start * 8 + bit_offset;
-    let byte_start = abs_bit / 8;
-    let bit_start = abs_bit % 8;
-
-    // Read enough bytes to cover all bits we need
-    let bytes_needed = (bit_start + bit_count + 7) / 8;
-    let mut val: u64 = 0;
-    for i in 0..bytes_needed.min(8) {
-        let idx = byte_start + i;
-        if idx < record_data.len() {
-            val |= u64::from(record_data[idx]) << (i * 8);
-        }
-    }
-
-    // Shift right to skip the starting bits, then mask
-    let shifted = val >> bit_start;
-    let mask = if bit_count >= 32 {
-        u32::MAX
-    } else {
-        (1u32 << bit_count) - 1
-    };
-    (shifted as u32) & mask
-}
-
-/// Sign-extend a value from `bits` width to i32.
-fn sign_extend(value: u32, bits: u32) -> i32 {
-    if bits == 0 || bits >= 32 {
-        return value as i32;
-    }
-    let sign_bit = 1u32 << (bits - 1);
-    if (value & sign_bit) != 0 {
-        // Set all high bits
-        let mask = !((1u32 << bits) - 1);
-        (value | mask) as i32
-    } else {
-        value as i32
-    }
-}
-
-// ── Tests ────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-#[path = "wdc4/tests/mod.rs"]
-mod tests;
 
 #[test]
 fn test_find_record_58268() {
