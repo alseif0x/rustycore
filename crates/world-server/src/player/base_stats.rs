@@ -53,7 +53,7 @@ fn compose_class_level_rows_like_cpp(
     }
 }
 
-pub(super) async fn load_player_base_stats_like_cpp(
+pub(crate) async fn load_player_base_stats_like_cpp(
     persistence: &dyn PlayerBaseStatsPersistencePortLikeCpp,
     data_dir: impl AsRef<Path>,
     max_player_level: u8,
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_at_the_existing_player_stats_stage() {
-        let source = include_str!("app.rs");
+        let source = include_str!("../app.rs");
         assert_eq!(
             source
                 .matches("MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new")

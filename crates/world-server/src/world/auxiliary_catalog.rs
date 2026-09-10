@@ -16,7 +16,7 @@ fn loaded<T>(outcome: WorldAuxiliaryRowsLoadOutcomeLikeCpp<T>) -> Result<T> {
     }
 }
 
-pub(super) async fn load_access_requirements_like_cpp(
+pub(crate) async fn load_access_requirements_like_cpp(
     persistence: &dyn WorldAuxiliaryCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
@@ -75,7 +75,7 @@ fn log_access_requirement_report_like_cpp(report: &wow_data::AccessRequirementLo
     }
 }
 
-pub(super) async fn load_graveyard_zones_like_cpp(
+pub(crate) async fn load_graveyard_zones_like_cpp(
     persistence: &dyn WorldAuxiliaryCatalogPersistencePortLikeCpp,
     store: &mut wow_data::GraveyardStore,
     world_safe_loc_exists: impl FnMut(u32) -> bool,
@@ -95,7 +95,7 @@ pub(super) async fn load_graveyard_zones_like_cpp(
     ))
 }
 
-pub(super) async fn load_scene_templates_like_cpp(
+pub(crate) async fn load_scene_templates_like_cpp(
     persistence: &dyn WorldAuxiliaryCatalogPersistencePortLikeCpp,
     script_names: &mut wow_data::ScriptNameInternerLikeCpp,
 ) -> Result<wow_data::SceneTemplateLoadOutcomeLikeCpp> {
@@ -115,7 +115,7 @@ pub(super) async fn load_scene_templates_like_cpp(
     ))
 }
 
-pub(super) async fn load_spawn_group_templates_like_cpp(
+pub(crate) async fn load_spawn_group_templates_like_cpp(
     persistence: &dyn WorldAuxiliaryCatalogPersistencePortLikeCpp,
 ) -> Result<(
     wow_data::SpawnGroupTemplateStore,
@@ -134,7 +134,7 @@ pub(super) async fn load_spawn_group_templates_like_cpp(
     ))
 }
 
-pub(super) async fn load_trinity_strings_like_cpp(
+pub(crate) async fn load_trinity_strings_like_cpp(
     persistence: &dyn WorldAuxiliaryCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::TrinityStringStoreLikeCpp> {
     let rows = loaded(persistence.load_trinity_string_rows_like_cpp().await)?;
