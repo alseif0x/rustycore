@@ -52,7 +52,7 @@ fn creature_trainer_row_like_cpp(
     }
 }
 
-pub(super) async fn load_trainer_catalog_like_cpp<
+pub(crate) async fn load_trainer_catalog_like_cpp<
     SpellExists,
     SkillLineExists,
     CreatureTemplateExists,

@@ -36,7 +36,7 @@ fn menu_item_like_cpp(row: GossipMenuOptionCatalogRowLikeCpp) -> wow_data::Gossi
     }
 }
 
-pub(super) async fn load_gossip_startup_catalog_like_cpp(
+pub(crate) async fn load_gossip_startup_catalog_like_cpp(
     persistence: &dyn GossipStartupCatalogPersistencePortLikeCpp,
 ) -> Result<(wow_data::GossipStore, wow_data::GossipLoadReport)> {
     // Preserve Rust's existing production sequence. C++ loads the locale rows
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn app_composes_one_gossip_adapter_for_startup_and_runtime() {
-        let source = include_str!("app.rs");
+        let source = include_str!("../app.rs");
         assert_eq!(
             source
                 .matches("MariaDbGossipCatalogPersistenceAdapterLikeCpp::new")

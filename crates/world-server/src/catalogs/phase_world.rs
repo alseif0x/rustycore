@@ -31,7 +31,7 @@ fn terrain_swap_default_like_cpp(row: TerrainSwapDefaultPersistenceRowLikeCpp) -
     (row.map_id, row.terrain_swap_map)
 }
 
-pub(super) async fn load_phase_world_catalogs_like_cpp(
+pub(crate) async fn load_phase_world_catalogs_like_cpp(
     persistence: &dyn PhaseWorldCatalogPersistencePortLikeCpp,
     area_store: &wow_data::AreaTableStore,
     phase_store: &wow_data::PhaseStore,

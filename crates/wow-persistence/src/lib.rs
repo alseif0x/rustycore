@@ -18,47 +18,21 @@
 //! frozen Player-lifecycle order is documented in
 //! `docs/migration/player-lifecycle-persistence-contract.md` (#187).
 
-mod area_trigger_template_catalog;
-mod area_trigger_world_catalog;
-mod battle_pet_selection_catalog;
-mod canonical_spawn_catalog;
+mod catalogs;
 mod character_administration;
-mod chr_specialization_hotfix;
-mod condition_disable_catalog;
-mod creature_display_hotfix;
-mod difficulty_hotfix;
-mod exploration_base_xp_catalog;
-mod game_event_world_catalog;
-mod game_tele_catalog;
-mod gameplay_rule_catalog;
-mod gossip_startup_catalog;
+mod hotfix;
 mod hotfix_delivery_metadata;
 mod instance_lock;
-mod item_random_enchantment_catalog;
-mod jump_charge_catalog;
-mod lfg_dungeons_hotfix;
-mod lfg_world_catalog;
-mod loot_template_catalog;
-mod mount_catalog;
-mod phase_hotfix_catalog;
-mod phase_world_catalog;
 mod player;
 mod quest;
-mod reputation_catalog;
-mod reserved_name_catalog;
-mod skill_catalog_hotfix;
 mod skill_world_rules;
 mod spell;
 mod static_data_overlay;
 mod stored_item;
-mod trainer_catalog;
-mod vehicle_catalog;
-mod vendor_catalog;
 mod vendor_trade;
-mod visibility_spawn_catalog;
 mod world;
 
-pub use area_trigger_template_catalog::{
+pub use catalogs::{
     AREA_TRIGGER_SHAPE_DATA_COUNT_LIKE_CPP, AreaTriggerCreatePropertiesOrbitPersistenceRowLikeCpp,
     AreaTriggerCreatePropertiesPersistenceRowLikeCpp,
     AreaTriggerPolygonVertexPersistenceRowLikeCpp, AreaTriggerSplinePointPersistenceRowLikeCpp,
@@ -66,17 +40,13 @@ pub use area_trigger_template_catalog::{
     AreaTriggerTemplateCatalogPersistencePortLikeCpp, AreaTriggerTemplateCatalogRowsLikeCpp,
     AreaTriggerTemplatePersistenceRowLikeCpp,
 };
-pub use area_trigger_world_catalog::{
+pub use catalogs::{
     AreaTriggerDestinationPersistenceRowLikeCpp, AreaTriggerScriptPersistenceRowLikeCpp,
     AreaTriggerTeleportPersistenceRowLikeCpp, AreaTriggerWorldCatalogPersistencePortLikeCpp,
     AreaTriggerWorldLoadOutcomeLikeCpp, QuestAreaTriggerPersistenceRowLikeCpp,
     TavernAreaTriggerPersistenceRowLikeCpp,
 };
-pub use battle_pet_selection_catalog::{
-    BattlePetBreedPersistenceRowLikeCpp, BattlePetQualityPersistenceRowLikeCpp,
-    BattlePetSelectionCatalogLoadOutcomeLikeCpp, BattlePetSelectionCatalogPersistencePortLikeCpp,
-};
-pub use canonical_spawn_catalog::{
+pub use catalogs::{
     AreaTriggerSpawnPersistenceRowLikeCpp, CanonicalSpawnCatalogLoadOutcomeLikeCpp,
     CanonicalSpawnCatalogPersistencePortLikeCpp, CreatureFormationPersistenceRowLikeCpp,
     CreatureSpawnPersistenceRowLikeCpp, GameObjectSpawnPersistenceRowLikeCpp,
@@ -88,33 +58,15 @@ pub use canonical_spawn_catalog::{
     WorldStateStartupCatalogLikeCpp, WorldStateStartupLoadOutcomeLikeCpp,
     WorldStateStartupPersistencePortLikeCpp, WorldStateTemplatePersistenceRowLikeCpp,
 };
-pub use character_administration::{
-    CharacterAdministrationLoadOutcomeLikeCpp, CharacterAdministrationMutationOutcomeLikeCpp,
-    CharacterAdministrationPersistencePortLikeCpp, CharacterCreatePersistenceRequestLikeCpp,
-    CharacterCustomizationPersistenceLikeCpp, CharacterCustomizeCandidateLikeCpp,
-    CharacterRenameCandidateLikeCpp,
+pub use catalogs::{
+    BattlePetBreedPersistenceRowLikeCpp, BattlePetQualityPersistenceRowLikeCpp,
+    BattlePetSelectionCatalogLoadOutcomeLikeCpp, BattlePetSelectionCatalogPersistencePortLikeCpp,
 };
-pub use chr_specialization_hotfix::{
-    ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,
-    ChrSpecializationHotfixRowLikeCpp, ChrSpecializationHotfixRowsLikeCpp,
-};
-pub use condition_disable_catalog::{
+pub use catalogs::{
     ConditionDisableCatalogPersistencePortLikeCpp, ConditionDisableRowsLoadOutcomeLikeCpp,
     ConditionPersistenceRowLikeCpp, DisablePersistenceRowLikeCpp,
 };
-pub use creature_display_hotfix::{
-    CreatureDisplayHotfixLoadOutcomeLikeCpp, CreatureDisplayHotfixPersistencePortLikeCpp,
-    CreatureDisplayInfoHotfixRowLikeCpp, CreatureModelDataHotfixRowLikeCpp,
-};
-pub use difficulty_hotfix::{
-    DifficultyHotfixLoadOutcomeLikeCpp, DifficultyHotfixPersistencePortLikeCpp,
-    DifficultyHotfixRowLikeCpp, DifficultyHotfixRowsLikeCpp,
-};
-pub use exploration_base_xp_catalog::{
-    ExplorationBaseXpCatalogLoadOutcomeLikeCpp, ExplorationBaseXpCatalogPersistencePortLikeCpp,
-    ExplorationBaseXpPersistenceRowLikeCpp,
-};
-pub use game_event_world_catalog::{
+pub use catalogs::{
     CreatureEquipmentIdPersistenceRowLikeCpp, GameEventConditionPersistenceRowLikeCpp,
     GameEventDataPersistenceRowLikeCpp, GameEventModelEquipPersistenceRowLikeCpp,
     GameEventNpcFlagPersistenceRowLikeCpp, GameEventNpcVendorPersistenceRowLikeCpp,
@@ -124,19 +76,111 @@ pub use game_event_world_catalog::{
     GameEventWorldCatalogPersistencePortLikeCpp, GameEventWorldCatalogPrefixLikeCpp,
     GameEventWorldCatalogSuffixLikeCpp,
 };
-pub use game_tele_catalog::{
-    GameTeleCatalogLoadOutcomeLikeCpp, GameTeleCatalogPersistencePortLikeCpp,
-    GameTelePersistenceRowLikeCpp,
+pub use catalogs::{
+    CreatureOnKillReputationPersistenceRowLikeCpp, REPUTATION_SPILLOVER_SLOT_COUNT_LIKE_CPP,
+    ReputationCatalogLoadOutcomeLikeCpp, ReputationCatalogPersistencePortLikeCpp,
+    ReputationRewardRatePersistenceRowLikeCpp, ReputationSpilloverTemplatePersistenceRowLikeCpp,
 };
-pub use gameplay_rule_catalog::{
+pub use catalogs::{
+    CreatureTrainerPersistenceRowLikeCpp, TrainerCatalogLoadOutcomeLikeCpp,
+    TrainerCatalogPersistencePortLikeCpp, TrainerCatalogPersistenceRowsLikeCpp,
+    TrainerLocalePersistenceRowLikeCpp, TrainerPersistenceRowLikeCpp,
+    TrainerSpellPersistenceRowLikeCpp,
+};
+pub use catalogs::{
+    CreatureVisibilityPersistenceRowLikeCpp, GameObjectVisibilityPersistenceRowLikeCpp,
+    VisibilitySpawnCatalogOutcomeLikeCpp, VisibilitySpawnCatalogPersistencePortLikeCpp,
+    VisibilitySpawnCatalogRequestLikeCpp,
+};
+pub use catalogs::{
+    ExplorationBaseXpCatalogLoadOutcomeLikeCpp, ExplorationBaseXpCatalogPersistencePortLikeCpp,
+    ExplorationBaseXpPersistenceRowLikeCpp,
+};
+pub use catalogs::{
     FactionChangePairPersistenceRowLikeCpp, FactionChangePersistenceRowsLikeCpp,
     GameplayRuleCatalogPersistencePortLikeCpp, GameplayRuleRowsLoadOutcomeLikeCpp,
     NpcSpellClickPersistenceRowLikeCpp, NpcVendorPersistenceRowLikeCpp,
 };
-pub use gossip_startup_catalog::{
+pub use catalogs::{
+    GameTeleCatalogLoadOutcomeLikeCpp, GameTeleCatalogPersistencePortLikeCpp,
+    GameTelePersistenceRowLikeCpp,
+};
+pub use catalogs::{
     GossipMenuAddonPersistenceRowLikeCpp, GossipMenuOptionLocalePersistenceRowLikeCpp,
     GossipMenuPersistenceRowLikeCpp, GossipStartupCatalogLoadOutcomeLikeCpp,
     GossipStartupCatalogPersistencePortLikeCpp,
+};
+pub use catalogs::{
+    ItemRandomEnchantmentCatalogLoadOutcomeLikeCpp,
+    ItemRandomEnchantmentCatalogPersistencePortLikeCpp, ItemRandomEnchantmentPersistenceRowLikeCpp,
+};
+pub use catalogs::{
+    JumpChargeCatalogLoadOutcomeLikeCpp, JumpChargeCatalogPersistencePortLikeCpp,
+    JumpChargeParamsPersistenceRowLikeCpp,
+};
+pub use catalogs::{
+    LfgDungeonRewardPersistenceRowLikeCpp, LfgDungeonTemplatePersistenceRowLikeCpp,
+    LfgWorldCatalogLoadOutcomeLikeCpp, LfgWorldCatalogPersistencePortLikeCpp,
+};
+pub use catalogs::{
+    LootConditionPersistenceRowLikeCpp, LootTemplateCatalogOutcomeLikeCpp,
+    LootTemplateCatalogPersistencePortLikeCpp, LootTemplatePersistenceRowLikeCpp,
+    LootTemplateTablePersistenceLikeCpp,
+};
+pub use catalogs::{
+    MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,
+    MountCatalogPersistencePortLikeCpp, MountDefinitionRowLikeCpp, MountHotfixRowLikeCpp,
+    MountTypeXCapabilityHotfixRowLikeCpp, MountXDisplayHotfixRowLikeCpp,
+};
+pub use catalogs::{
+    PhaseAreaPersistenceRowLikeCpp, PhaseNamePersistenceRowLikeCpp,
+    PhaseWorldCatalogLoadOutcomeLikeCpp, PhaseWorldCatalogPersistencePortLikeCpp,
+    TerrainSwapDefaultPersistenceRowLikeCpp, TerrainWorldMapPersistenceRowLikeCpp,
+};
+pub use catalogs::{
+    PhaseGroupHotfixRowLikeCpp, PhaseHotfixLoadOutcomeLikeCpp, PhaseHotfixPersistencePortLikeCpp,
+    PhaseHotfixRowLikeCpp,
+};
+pub use catalogs::{
+    ReservedNameCatalogLoadOutcomeLikeCpp, ReservedNameCatalogPersistencePortLikeCpp,
+    ReservedNamePersistenceRowLikeCpp,
+};
+pub use catalogs::{
+    VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,
+    VehicleHotfixPersistencePortLikeCpp, VehicleHotfixPersistenceRowLikeCpp,
+    VehicleSeatHotfixPersistenceRowLikeCpp, VehicleSpawnAccessoryPersistenceRowLikeCpp,
+    VehicleTemplateAccessoryPersistenceRowLikeCpp, VehicleTemplatePersistenceRowLikeCpp,
+    VehicleWorldCatalogLoadOutcomeLikeCpp, VehicleWorldCatalogPersistencePortLikeCpp,
+};
+pub use catalogs::{
+    VendorCatalogOutcomeLikeCpp, VendorCatalogPersistencePortLikeCpp, VendorCatalogRowLikeCpp,
+};
+pub use character_administration::{
+    CharacterAdministrationLoadOutcomeLikeCpp, CharacterAdministrationMutationOutcomeLikeCpp,
+    CharacterAdministrationPersistencePortLikeCpp, CharacterCreatePersistenceRequestLikeCpp,
+    CharacterCustomizationPersistenceLikeCpp, CharacterCustomizeCandidateLikeCpp,
+    CharacterRenameCandidateLikeCpp,
+};
+pub use hotfix::{
+    ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,
+    ChrSpecializationHotfixRowLikeCpp, ChrSpecializationHotfixRowsLikeCpp,
+};
+pub use hotfix::{
+    CreatureDisplayHotfixLoadOutcomeLikeCpp, CreatureDisplayHotfixPersistencePortLikeCpp,
+    CreatureDisplayInfoHotfixRowLikeCpp, CreatureModelDataHotfixRowLikeCpp,
+};
+pub use hotfix::{
+    DifficultyHotfixLoadOutcomeLikeCpp, DifficultyHotfixPersistencePortLikeCpp,
+    DifficultyHotfixRowLikeCpp, DifficultyHotfixRowsLikeCpp,
+};
+pub use hotfix::{
+    LfgDungeonsHotfixLoadOutcomeLikeCpp, LfgDungeonsHotfixPersistencePortLikeCpp,
+    LfgDungeonsHotfixRowLikeCpp,
+};
+pub use hotfix::{
+    SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
+    SkillLineAbilityHotfixRowLikeCpp, SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp,
+    SkillRaceClassInfoHotfixRowLikeCpp, SkillRelationHotfixRowsLikeCpp,
 };
 pub use hotfix_delivery_metadata::{
     HotfixBlobPersistenceRowLikeCpp, HotfixDataPersistenceRowLikeCpp,
@@ -148,41 +192,6 @@ pub use instance_lock::{
     InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
     InstanceLockPersistencePlanLikeCpp, InstanceLockPersistencePortLikeCpp,
     SharedInstanceLockPersistenceRowLikeCpp,
-};
-pub use item_random_enchantment_catalog::{
-    ItemRandomEnchantmentCatalogLoadOutcomeLikeCpp,
-    ItemRandomEnchantmentCatalogPersistencePortLikeCpp, ItemRandomEnchantmentPersistenceRowLikeCpp,
-};
-pub use jump_charge_catalog::{
-    JumpChargeCatalogLoadOutcomeLikeCpp, JumpChargeCatalogPersistencePortLikeCpp,
-    JumpChargeParamsPersistenceRowLikeCpp,
-};
-pub use lfg_dungeons_hotfix::{
-    LfgDungeonsHotfixLoadOutcomeLikeCpp, LfgDungeonsHotfixPersistencePortLikeCpp,
-    LfgDungeonsHotfixRowLikeCpp,
-};
-pub use lfg_world_catalog::{
-    LfgDungeonRewardPersistenceRowLikeCpp, LfgDungeonTemplatePersistenceRowLikeCpp,
-    LfgWorldCatalogLoadOutcomeLikeCpp, LfgWorldCatalogPersistencePortLikeCpp,
-};
-pub use loot_template_catalog::{
-    LootConditionPersistenceRowLikeCpp, LootTemplateCatalogOutcomeLikeCpp,
-    LootTemplateCatalogPersistencePortLikeCpp, LootTemplatePersistenceRowLikeCpp,
-    LootTemplateTablePersistenceLikeCpp,
-};
-pub use mount_catalog::{
-    MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,
-    MountCatalogPersistencePortLikeCpp, MountDefinitionRowLikeCpp, MountHotfixRowLikeCpp,
-    MountTypeXCapabilityHotfixRowLikeCpp, MountXDisplayHotfixRowLikeCpp,
-};
-pub use phase_hotfix_catalog::{
-    PhaseGroupHotfixRowLikeCpp, PhaseHotfixLoadOutcomeLikeCpp, PhaseHotfixPersistencePortLikeCpp,
-    PhaseHotfixRowLikeCpp,
-};
-pub use phase_world_catalog::{
-    PhaseAreaPersistenceRowLikeCpp, PhaseNamePersistenceRowLikeCpp,
-    PhaseWorldCatalogLoadOutcomeLikeCpp, PhaseWorldCatalogPersistencePortLikeCpp,
-    TerrainSwapDefaultPersistenceRowLikeCpp, TerrainWorldMapPersistenceRowLikeCpp,
 };
 pub use player::{
     InventoryDestroyNodePersistenceLikeCpp, InventoryEquipPersistenceLikeCpp,
@@ -228,20 +237,6 @@ pub use quest::*;
 pub use quest::{
     CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,
     QuestItemCatalogLoadOutcomeLikeCpp, QuestItemCatalogPersistencePortLikeCpp,
-};
-pub use reputation_catalog::{
-    CreatureOnKillReputationPersistenceRowLikeCpp, REPUTATION_SPILLOVER_SLOT_COUNT_LIKE_CPP,
-    ReputationCatalogLoadOutcomeLikeCpp, ReputationCatalogPersistencePortLikeCpp,
-    ReputationRewardRatePersistenceRowLikeCpp, ReputationSpilloverTemplatePersistenceRowLikeCpp,
-};
-pub use reserved_name_catalog::{
-    ReservedNameCatalogLoadOutcomeLikeCpp, ReservedNameCatalogPersistencePortLikeCpp,
-    ReservedNamePersistenceRowLikeCpp,
-};
-pub use skill_catalog_hotfix::{
-    SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
-    SkillLineAbilityHotfixRowLikeCpp, SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp,
-    SkillRaceClassInfoHotfixRowLikeCpp, SkillRelationHotfixRowsLikeCpp,
 };
 pub use skill_world_rules::{
     FishingBaseSkillPersistenceRowLikeCpp, SKILL_TIER_VALUE_COUNT_LIKE_CPP,
@@ -295,28 +290,7 @@ pub use stored_item::{
     StoredItemLootSaveRequestLikeCpp, StoredItemPersistencePortLikeCpp,
     WrappedGiftOpenPersistenceRequestLikeCpp, WrappedGiftPersistenceRowLikeCpp,
 };
-pub use trainer_catalog::{
-    CreatureTrainerPersistenceRowLikeCpp, TrainerCatalogLoadOutcomeLikeCpp,
-    TrainerCatalogPersistencePortLikeCpp, TrainerCatalogPersistenceRowsLikeCpp,
-    TrainerLocalePersistenceRowLikeCpp, TrainerPersistenceRowLikeCpp,
-    TrainerSpellPersistenceRowLikeCpp,
-};
-pub use vehicle_catalog::{
-    VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,
-    VehicleHotfixPersistencePortLikeCpp, VehicleHotfixPersistenceRowLikeCpp,
-    VehicleSeatHotfixPersistenceRowLikeCpp, VehicleSpawnAccessoryPersistenceRowLikeCpp,
-    VehicleTemplateAccessoryPersistenceRowLikeCpp, VehicleTemplatePersistenceRowLikeCpp,
-    VehicleWorldCatalogLoadOutcomeLikeCpp, VehicleWorldCatalogPersistencePortLikeCpp,
-};
-pub use vendor_catalog::{
-    VendorCatalogOutcomeLikeCpp, VendorCatalogPersistencePortLikeCpp, VendorCatalogRowLikeCpp,
-};
 pub use vendor_trade::*;
-pub use visibility_spawn_catalog::{
-    CreatureVisibilityPersistenceRowLikeCpp, GameObjectVisibilityPersistenceRowLikeCpp,
-    VisibilitySpawnCatalogOutcomeLikeCpp, VisibilitySpawnCatalogPersistencePortLikeCpp,
-    VisibilitySpawnCatalogRequestLikeCpp,
-};
 pub use world::*;
 pub use world::{
     AccessRequirementPersistenceRowLikeCpp, GraveyardZonePersistenceRowLikeCpp,
@@ -369,8 +343,7 @@ pub use session_administration::{
     SupportBugReportPersistencePortLikeCpp, SupportBugReportWriteRequestLikeCpp,
 };
 
-mod item_template_addon_catalog;
-pub use item_template_addon_catalog::{
+pub use catalogs::{
     ItemTemplateAddonCatalogPersistencePortLikeCpp, ItemTemplateAddonCatalogRequestLikeCpp,
     ItemTemplateAddonLootMetadataOutcomeLikeCpp, ItemTemplateAddonLootMetadataRowLikeCpp,
     ItemTemplateAddonMoneyOutcomeLikeCpp, ItemTemplateAddonMoneyRowLikeCpp,

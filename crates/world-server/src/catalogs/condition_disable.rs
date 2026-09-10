@@ -14,7 +14,7 @@ fn loaded<T>(outcome: ConditionDisableRowsLoadOutcomeLikeCpp<T>) -> Result<T> {
     }
 }
 
-pub(super) async fn load_conditions_like_cpp(
+pub(crate) async fn load_conditions_like_cpp(
     persistence: &dyn ConditionDisableCatalogPersistencePortLikeCpp,
     script_id_for_name: impl FnMut(&str) -> u32,
 ) -> Result<wow_data::ConditionLoadReport> {
@@ -50,7 +50,7 @@ pub(super) async fn load_conditions_like_cpp(
     Ok(report)
 }
 
-pub(super) async fn load_disable_mgr_like_cpp(
+pub(crate) async fn load_disable_mgr_like_cpp(
     persistence: &dyn ConditionDisableCatalogPersistencePortLikeCpp,
     refs: wow_data::DisableMgrRefsLikeCpp<'_>,
 ) -> Result<wow_data::DisableMgrLikeCpp> {

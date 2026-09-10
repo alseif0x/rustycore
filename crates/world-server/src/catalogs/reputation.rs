@@ -64,7 +64,7 @@ fn spillover_template_row_like_cpp(
     }
 }
 
-pub(super) async fn load_reward_rate_store_like_cpp(
+pub(crate) async fn load_reward_rate_store_like_cpp(
     persistence: &dyn ReputationCatalogPersistencePortLikeCpp,
     faction_store: &wow_data::progression_rewards::FactionStore,
 ) -> Result<(
@@ -97,7 +97,7 @@ pub(super) async fn load_reward_rate_store_like_cpp(
     Ok((store, report))
 }
 
-pub(super) async fn load_creature_onkill_store_like_cpp(
+pub(crate) async fn load_creature_onkill_store_like_cpp(
     persistence: &dyn ReputationCatalogPersistencePortLikeCpp,
     creature_template_store: &wow_data::creature::template::CreatureTemplateLifecycleStoreLikeCpp,
     faction_store: &wow_data::progression_rewards::FactionStore,
@@ -134,7 +134,7 @@ pub(super) async fn load_creature_onkill_store_like_cpp(
     Ok((store, report))
 }
 
-pub(super) async fn load_spillover_template_store_like_cpp(
+pub(crate) async fn load_spillover_template_store_like_cpp(
     persistence: &dyn ReputationCatalogPersistencePortLikeCpp,
     faction_store: &wow_data::progression_rewards::FactionStore,
 ) -> Result<(

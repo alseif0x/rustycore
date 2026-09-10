@@ -29,7 +29,7 @@ async fn overlay_mount_store_like_cpp(
     Ok((store, count))
 }
 
-pub(super) async fn load_mount_store_like_cpp(
+pub(crate) async fn load_mount_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn MountCatalogPersistencePortLikeCpp,
@@ -37,7 +37,7 @@ pub(super) async fn load_mount_store_like_cpp(
     overlay_mount_store_like_cpp(wow_data::MountStore::load(data_dir, locale)?, persistence).await
 }
 
-pub(super) async fn load_mount_definition_store_like_cpp(
+pub(crate) async fn load_mount_definition_store_like_cpp(
     mount_store: &wow_data::MountStore,
     persistence: &dyn MountCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::MountDefinitionStoreLikeCpp> {
@@ -49,7 +49,7 @@ pub(super) async fn load_mount_definition_store_like_cpp(
     ))
 }
 
-pub(super) async fn load_mount_capability_store_like_cpp(
+pub(crate) async fn load_mount_capability_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn MountCatalogPersistencePortLikeCpp,
@@ -75,7 +75,7 @@ pub(super) async fn load_mount_capability_store_like_cpp(
     Ok((store, count))
 }
 
-pub(super) async fn load_mount_type_x_capability_store_like_cpp(
+pub(crate) async fn load_mount_type_x_capability_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn MountCatalogPersistencePortLikeCpp,
@@ -97,7 +97,7 @@ pub(super) async fn load_mount_type_x_capability_store_like_cpp(
     Ok((store, count))
 }
 
-pub(super) async fn load_mount_x_display_store_like_cpp(
+pub(crate) async fn load_mount_x_display_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn MountCatalogPersistencePortLikeCpp,

@@ -37,7 +37,7 @@ async fn load_rows_like_cpp(
     (breeds, qualities)
 }
 
-pub(super) async fn load_battle_pet_selection_store_like_cpp<SpeciesFlags>(
+pub(crate) async fn load_battle_pet_selection_store_like_cpp<SpeciesFlags>(
     persistence: &dyn BattlePetSelectionCatalogPersistencePortLikeCpp,
     species_flags: SpeciesFlags,
 ) -> wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp

@@ -63,7 +63,7 @@ where
     Ok((phase_store, phase_group_store))
 }
 
-pub(super) async fn load_phase_stores_like_cpp(
+pub(crate) async fn load_phase_stores_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn PhaseHotfixPersistencePortLikeCpp,
