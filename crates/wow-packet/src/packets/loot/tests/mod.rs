@@ -2,8 +2,6 @@
 //!
 //! Separated from loot.rs under #685.
 
-use super::super::*;
-
 use crate::{ClientPacket, ServerPacket};
 
 use super::{
