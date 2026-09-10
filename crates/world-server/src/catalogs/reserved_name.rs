@@ -21,7 +21,7 @@ async fn load_domain_names_like_cpp(
     }
 }
 
-pub(super) async fn load_reserved_name_catalog_like_cpp(
+pub(crate) async fn load_reserved_name_catalog_like_cpp(
     persistence: &dyn ReservedNameCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::ReservedNameStoreLikeCpp> {
     let names = load_domain_names_like_cpp(persistence).await?;

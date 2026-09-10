@@ -20,7 +20,7 @@ fn domain_row_like_cpp(
     }
 }
 
-pub(super) async fn load_jump_charge_catalog_like_cpp(
+pub(crate) async fn load_jump_charge_catalog_like_cpp(
     persistence: &dyn JumpChargeCatalogPersistencePortLikeCpp,
     spell_visual_exists: impl Fn(u32) -> bool,
     curve_exists: impl Fn(u32) -> bool,

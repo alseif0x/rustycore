@@ -273,7 +273,7 @@ pub(crate) async fn load_disable_mgr_like_cpp(
     criteria_store: &wow_data::Db2IdStore,
     battlemaster_list_store: &wow_data::Db2IdStore,
 ) -> Result<wow_data::DisableMgrLikeCpp> {
-    let disable_mgr = crate::condition_disable_catalog::load_disable_mgr_like_cpp(
+    let disable_mgr = crate::catalogs::condition_disable::load_disable_mgr_like_cpp(
         persistence,
         wow_data::DisableMgrRefsLikeCpp {
             map_store: Some(map_store),

@@ -505,7 +505,7 @@ async fn run_inner(
             &hotfix_db,
         ));
     let chr_specialization_store = Arc::new(
-        crate::chr_specialization_hotfix::load_chr_specialization_store_like_cpp(
+        hotfix::chr_specialization::load_chr_specialization_store_like_cpp(
             &data_dir,
             &locale,
             &chr_specialization_hotfix_persistence,
@@ -587,7 +587,7 @@ async fn run_inner(
     );
     let phase_hotfix_adapter =
         wow_database::MariaDbPhaseHotfixPersistenceAdapterLikeCpp::new(Arc::clone(&hotfix_db));
-    let (phase_store, phase_group_store) = crate::phase_hotfix_catalog::load_phase_stores_like_cpp(
+    let (phase_store, phase_group_store) = catalogs::phase_hotfix::load_phase_stores_like_cpp(
         &data_dir,
         &locale,
         &phase_hotfix_adapter,
@@ -604,7 +604,7 @@ async fn run_inner(
     let phase_world_adapter =
         wow_database::MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let (mut phase_info_store, phase_name_store, terrain_swap_store) =
-        crate::phase_world_catalog::load_phase_world_catalogs_like_cpp(
+        catalogs::phase_world::load_phase_world_catalogs_like_cpp(
             &phase_world_adapter,
             &area_table_store,
             &phase_store,
@@ -634,7 +634,7 @@ async fn run_inner(
         wow_database::MariaDbGossipCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db)),
     );
     let (mut gossip_store, gossip_load_report) =
-        crate::gossip_startup_catalog::load_gossip_startup_catalog_like_cpp(
+        catalogs::gossip_startup::load_gossip_startup_catalog_like_cpp(
             gossip_catalog_adapter.as_ref(),
         )
         .await
@@ -766,7 +766,7 @@ async fn run_inner(
     let difficulty_hotfix_persistence =
         wow_database::MariaDbDifficultyHotfixPersistenceAdapterLikeCpp::new(Arc::clone(&hotfix_db));
     let difficulty_store = Arc::new(
-        crate::difficulty_hotfix::load_difficulty_store_like_cpp(
+        hotfix::difficulty::load_difficulty_store_like_cpp(
             &data_dir,
             &locale,
             &difficulty_hotfix_persistence,
@@ -830,7 +830,7 @@ async fn run_inner(
             &hotfix_db,
         ));
     let creature_display_info_store = Arc::new(
-        crate::creature_display_hotfix::load_creature_display_info_store_like_cpp(
+        hotfix::creature_display::load_creature_display_info_store_like_cpp(
             &data_dir,
             &locale,
             &creature_display_hotfix_persistence,
@@ -843,7 +843,7 @@ async fn run_inner(
         creature_display_info_store.len()
     );
     let creature_model_data_store = Arc::new(
-        crate::creature_display_hotfix::load_creature_model_data_store_like_cpp(
+        hotfix::creature_display::load_creature_model_data_store_like_cpp(
             &data_dir,
             &locale,
             &creature_display_hotfix_persistence,
@@ -910,7 +910,7 @@ async fn run_inner(
     let vehicle_hotfix_persistence =
         wow_database::MariaDbVehicleHotfixPersistenceAdapterLikeCpp::new(Arc::clone(&hotfix_db));
     let vehicle_store = Arc::new(
-        crate::vehicle_catalog::load_vehicle_store_like_cpp(
+        catalogs::vehicle::load_vehicle_store_like_cpp(
             &data_dir,
             &locale,
             &vehicle_hotfix_persistence,
@@ -920,7 +920,7 @@ async fn run_inner(
     );
     info!("Loaded {} vehicle rows", vehicle_store.len());
     let vehicle_seat_store = Arc::new(
-        crate::vehicle_catalog::load_vehicle_seat_store_like_cpp(
+        catalogs::vehicle::load_vehicle_seat_store_like_cpp(
             &data_dir,
             &locale,
             &vehicle_hotfix_persistence,
@@ -934,12 +934,12 @@ async fn run_inner(
             &world_db,
         ));
     let _vehicle_template_store = Arc::new(
-        crate::vehicle_catalog::load_vehicle_template_store_like_cpp(&vehicle_world_persistence)
+        catalogs::vehicle::load_vehicle_template_store_like_cpp(&vehicle_world_persistence)
             .await
             .context("Failed to load C++ vehicle_template rows")?,
     );
     let vehicle_accessory_store = Arc::new(
-        crate::vehicle_catalog::load_vehicle_accessory_store_like_cpp(&vehicle_world_persistence)
+        catalogs::vehicle::load_vehicle_accessory_store_like_cpp(&vehicle_world_persistence)
             .await
             .context("Failed to load C++ vehicle accessory rows")?,
     );
@@ -972,7 +972,7 @@ async fn run_inner(
             &hotfix_db,
         ));
     let skill_line_store = Arc::new(
-        crate::skill_catalog_hotfix::load_skill_line_store_like_cpp(
+        hotfix::skill_catalog::load_skill_line_store_like_cpp(
             &data_dir,
             &locale,
             &skill_catalog_hotfix_persistence,
@@ -986,7 +986,7 @@ async fn run_inner(
         skill_line_store.len(),
         skill_line_store.effective_record_count_like_cpp()
     );
-    let skill_store_outcome = crate::skill_catalog_hotfix::load_skill_store_like_cpp(
+    let skill_store_outcome = hotfix::skill_catalog::load_skill_store_like_cpp(
         &data_dir,
         &locale,
         &skill_catalog_hotfix_persistence,
@@ -1667,7 +1667,7 @@ async fn run_inner(
             &hotfix_db,
         ));
     let lfg_dungeons_store = Arc::new(
-        lfg_dungeons_hotfix::load_lfg_dungeons_like_cpp(
+        hotfix::lfg_dungeons::load_lfg_dungeons_like_cpp(
             &data_dir,
             &locale,
             &lfg_dungeons_hotfix_persistence,
@@ -1923,20 +1923,17 @@ async fn run_inner(
         Arc::clone(&hotfix_db),
         Arc::clone(&world_db),
     );
-    let (mount_store, mount_hotfix_rows) = crate::mount_catalog::load_mount_store_like_cpp(
-        &data_dir,
-        &locale,
-        &mount_catalog_persistence,
-    )
-    .await
-    .context("Failed to load Mount.db2 / hotfix rows")?;
+    let (mount_store, mount_hotfix_rows) =
+        catalogs::mount::load_mount_store_like_cpp(&data_dir, &locale, &mount_catalog_persistence)
+            .await
+            .context("Failed to load Mount.db2 / hotfix rows")?;
     if mount_hotfix_rows != 0 {
         info!("Loaded {mount_hotfix_rows} Mount hotfix rows");
     }
     let mount_store = Arc::new(mount_store);
     info!("Loaded {} mounts from Mount.db2", mount_store.len());
     let mount_definition_store = Arc::new(
-        crate::mount_catalog::load_mount_definition_store_like_cpp(
+        catalogs::mount::load_mount_definition_store_like_cpp(
             &mount_store,
             &mount_catalog_persistence,
         )
@@ -1948,7 +1945,7 @@ async fn run_inner(
         mount_definition_store.len()
     );
     let (mount_capability_store, mount_capability_hotfix_rows) =
-        crate::mount_catalog::load_mount_capability_store_like_cpp(
+        catalogs::mount::load_mount_capability_store_like_cpp(
             &data_dir,
             &locale,
             &mount_catalog_persistence,
@@ -1964,7 +1961,7 @@ async fn run_inner(
         mount_capability_store.len()
     );
     let (mount_type_x_capability_store, mount_type_x_capability_hotfix_rows) =
-        crate::mount_catalog::load_mount_type_x_capability_store_like_cpp(
+        catalogs::mount::load_mount_type_x_capability_store_like_cpp(
             &data_dir,
             &locale,
             &mount_catalog_persistence,
@@ -1980,7 +1977,7 @@ async fn run_inner(
         mount_type_x_capability_store.len()
     );
     let (mount_x_display_store, mount_x_display_hotfix_rows) =
-        crate::mount_catalog::load_mount_x_display_store_like_cpp(
+        catalogs::mount::load_mount_x_display_store_like_cpp(
             &data_dir,
             &locale,
             &mount_catalog_persistence,
@@ -2277,7 +2274,7 @@ async fn run_inner(
     let quest_item_catalog_persistence =
         wow_database::MariaDbQuestItemCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let (gameobject_quest_item_store, creature_quest_item_store) =
-        crate::quest_item_catalog::load_quest_item_catalogs_like_cpp(
+        catalogs::quest_item::load_quest_item_catalogs_like_cpp(
             &quest_item_catalog_persistence,
             |entry| gameobject_template_lifecycle_store.get(entry).is_some(),
             |entry| creature_template_lifecycle_store.get(entry).is_some(),
@@ -2401,7 +2398,7 @@ async fn run_inner(
             Arc::clone(&world_db),
         );
     let item_random_enchantment_template_store = Arc::new(
-        crate::item_random_enchantment_catalog::load_item_random_enchantment_store_like_cpp(
+        catalogs::item_random_enchantment::load_item_random_enchantment_store_like_cpp(
             &item_random_enchantment_persistence,
             &item_random_properties_store,
             &item_random_suffix_store,
@@ -2589,13 +2586,13 @@ async fn run_inner(
 
     // Load quest store (templates + objectives + NPC relations)
     let quest_store = Arc::new(
-        crate::quest_catalog::load_quests_like_cpp(&quest_catalog_persistence)
+        catalogs::quest::load_quests_like_cpp(&quest_catalog_persistence)
             .await
             .context("Failed to load quest store")?,
     );
     let lfg_world_catalog_persistence =
         wow_database::MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
-    let lfg_load_outcome = lfg_world_catalog::load_lfg_dungeon_store_like_cpp(
+    let lfg_load_outcome = catalogs::lfg_world::load_lfg_dungeon_store_like_cpp(
         &lfg_world_catalog_persistence,
         lfg_dungeons_store.as_ref(),
         map_difficulty_store.as_ref(),
@@ -2771,11 +2768,9 @@ async fn run_inner(
             &char_db,
         ));
     let reserved_name_store = Arc::new(
-        crate::reserved_name_catalog::load_reserved_name_catalog_like_cpp(
-            &reserved_name_persistence,
-        )
-        .await
-        .context("Failed to load C++ reserved player names")?,
+        catalogs::reserved_name::load_reserved_name_catalog_like_cpp(&reserved_name_persistence)
+            .await
+            .context("Failed to load C++ reserved player names")?,
     );
     info!(
         "Loaded {} C++ reserved player names ({} unique)",
@@ -2785,7 +2780,7 @@ async fn run_inner(
     let game_tele_persistence =
         wow_database::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let game_tele_outcome =
-        crate::game_tele_catalog::load_game_tele_catalog_like_cpp(&game_tele_persistence)
+        catalogs::game_tele::load_game_tele_catalog_like_cpp(&game_tele_persistence)
             .await
             .context("Failed to load C++ game teleport locations")?;
     for (id, name) in &game_tele_outcome.report.skipped_invalid_coordinates {
@@ -2801,11 +2796,10 @@ async fn run_inner(
         game_tele_outcome.report.loaded_rows,
         game_tele_store.len()
     );
-    let npc_vendor_outcome = crate::gameplay_rule_catalog::load_npc_vendor_store_like_cpp(
-        &gameplay_rule_catalog_persistence,
-    )
-    .await
-    .context("Failed to load C++ NPC vendor item cache")?;
+    let npc_vendor_outcome =
+        catalogs::gameplay_rule::load_npc_vendor_store_like_cpp(&gameplay_rule_catalog_persistence)
+            .await
+            .context("Failed to load C++ NPC vendor item cache")?;
     for (entry, item) in &npc_vendor_outcome
         .report
         .skipped_item_maxcount_without_incrtime
@@ -2858,7 +2852,7 @@ async fn run_inner(
     );
     let trainer_catalog_persistence =
         wow_database::MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
-    let trainer_data_outcome = crate::trainer_catalog::load_trainer_catalog_like_cpp(
+    let trainer_data_outcome = catalogs::trainer::load_trainer_catalog_like_cpp(
         &trainer_catalog_persistence,
         |spell_id| {
             spell_store.contains_spell_info_difficulty_none_like_cpp(
@@ -2975,7 +2969,7 @@ async fn run_inner(
             &world_db,
         ));
     let battle_pet_selection_store = Arc::new(
-        crate::battle_pet_selection_catalog::load_battle_pet_selection_store_like_cpp(
+        catalogs::battle_pet_selection::load_battle_pet_selection_store_like_cpp(
             &battle_pet_selection_persistence,
             |species| {
                 battle_pet_species_entry_store
@@ -2990,17 +2984,16 @@ async fn run_inner(
         battle_pet_selection_store.len_like_cpp()
     );
 
-    let mut faction_change_outcome =
-        crate::gameplay_rule_catalog::load_faction_change_store_like_cpp(
-            &gameplay_rule_catalog_persistence,
-            |id| achievement_store.contains(id),
-            |id| quest_store.get(id).is_some(),
-            |id| faction_store.contains(id),
-            |id| spell_store.get(i32::try_from(id).unwrap_or(-1)).is_some(),
-            |id| char_titles_store.contains(id),
-        )
-        .await
-        .context("Failed to load C++ faction-change mapping stores")?;
+    let mut faction_change_outcome = catalogs::gameplay_rule::load_faction_change_store_like_cpp(
+        &gameplay_rule_catalog_persistence,
+        |id| achievement_store.contains(id),
+        |id| quest_store.get(id).is_some(),
+        |id| faction_store.contains(id),
+        |id| spell_store.get(i32::try_from(id).unwrap_or(-1)).is_some(),
+        |id| char_titles_store.contains(id),
+    )
+    .await
+    .context("Failed to load C++ faction-change mapping stores")?;
     faction_change_outcome.store = faction_change_outcome.store.with_item_templates_like_cpp(
         item_stats_store
             .sparse_templates_like_cpp()
@@ -3062,7 +3055,7 @@ async fn run_inner(
             &world_db,
         ));
     let exploration_base_xp_store = Arc::new(
-        crate::exploration_base_xp_catalog::load_exploration_base_xp_catalog_like_cpp(
+        catalogs::exploration_base_xp::load_exploration_base_xp_catalog_like_cpp(
             &exploration_base_xp_persistence,
         )
         .await?,
@@ -3547,7 +3540,7 @@ async fn run_inner(
     );
     let jump_charge_persistence =
         wow_database::MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
-    let jump_charge_params_outcome = crate::jump_charge_catalog::load_jump_charge_catalog_like_cpp(
+    let jump_charge_params_outcome = catalogs::jump_charge::load_jump_charge_catalog_like_cpp(
         &jump_charge_persistence,
         |id| spell_visual_store.get(id).is_some(),
         |id| curve_store.get(id).is_some(),
@@ -3663,7 +3656,7 @@ async fn run_inner(
     let reputation_catalog_persistence =
         wow_database::MariaDbReputationCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let (reputation_reward_rate_store, reputation_reward_rate_report) =
-        crate::reputation_catalog::load_reward_rate_store_like_cpp(
+        catalogs::reputation::load_reward_rate_store_like_cpp(
             &reputation_catalog_persistence,
             &progression_faction_store,
         )
@@ -3676,7 +3669,7 @@ async fn run_inner(
         "Loaded reputation_reward_rate like C++"
     );
     let (creature_onkill_reputation_store, creature_onkill_reputation_report) =
-        crate::reputation_catalog::load_creature_onkill_store_like_cpp(
+        catalogs::reputation::load_creature_onkill_store_like_cpp(
             &reputation_catalog_persistence,
             &creature_template_lifecycle_store,
             &progression_faction_store,
@@ -3690,7 +3683,7 @@ async fn run_inner(
         "Loaded creature_onkill_reputation like C++"
     );
     let (reputation_spillover_template_store, reputation_spillover_template_report) =
-        crate::reputation_catalog::load_spillover_template_store_like_cpp(
+        catalogs::reputation::load_spillover_template_store_like_cpp(
             &reputation_catalog_persistence,
             &progression_faction_store,
         )
@@ -3755,7 +3748,7 @@ async fn run_inner(
 
     let player_registry = Arc::new(PlayerRegistry::new());
     let active_session_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
-    let mut condition_load_report = crate::condition_disable_catalog::load_conditions_like_cpp(
+    let mut condition_load_report = catalogs::condition_disable::load_conditions_like_cpp(
         &condition_disable_catalog_persistence,
         |_| 0,
     )
@@ -3884,7 +3877,7 @@ async fn run_inner(
     wow_world::conditions::set_condition_mgr_store_like_cpp(Arc::clone(&condition_store));
     let graveyard_store = Arc::new(graveyard_store);
     let npc_spell_click_store = Arc::new(
-        crate::gameplay_rule_catalog::load_npc_spell_click_store_like_cpp(
+        catalogs::gameplay_rule::load_npc_spell_click_store_like_cpp(
             &gameplay_rule_catalog_persistence,
             creature_template_lifecycle_store.as_ref(),
             &spell_store,

@@ -27,7 +27,7 @@ async fn load_domain_rows_like_cpp(
     }
 }
 
-pub(super) async fn load_exploration_base_xp_catalog_like_cpp(
+pub(crate) async fn load_exploration_base_xp_catalog_like_cpp(
     persistence: &dyn ExplorationBaseXpCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::ExplorationBaseXpStoreLikeCpp> {
     let rows = load_domain_rows_like_cpp(persistence).await?;

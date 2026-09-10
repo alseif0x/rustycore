@@ -42,8 +42,8 @@
     {
       "path": "crates/world-server/src/app.rs",
       "observed_lines": 5652,
-      "ceiling_lines": 5652,
-      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order.",
+      "ceiling_lines": 5645,
+      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure.",
       "review_checkpoint": "584:C4"
     },
     {

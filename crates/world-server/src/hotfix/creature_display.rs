@@ -39,7 +39,7 @@ fn loaded_rows_like_cpp<T>(outcome: CreatureDisplayHotfixLoadOutcomeLikeCpp<T>) 
     }
 }
 
-pub(super) async fn load_creature_display_info_store_like_cpp(
+pub(crate) async fn load_creature_display_info_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn CreatureDisplayHotfixPersistencePortLikeCpp,
@@ -53,7 +53,7 @@ pub(super) async fn load_creature_display_info_store_like_cpp(
     Ok(store)
 }
 
-pub(super) async fn load_creature_model_data_store_like_cpp(
+pub(crate) async fn load_creature_model_data_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn CreatureDisplayHotfixPersistencePortLikeCpp,
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_and_keeps_display_before_model() {
-        let source = include_str!("app.rs");
+        let source = include_str!("../app.rs");
         assert_eq!(
             source
                 .matches("MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new")
@@ -146,7 +146,7 @@ mod tests {
             .unwrap();
         assert!(display < model);
 
-        let loader = include_str!("creature_display_hotfix.rs");
+        let loader = include_str!("creature_display.rs");
         let display_wdc4 = loader.find("CreatureDisplayInfoStore::load").unwrap();
         let display_rows = loader
             .find("load_creature_display_info_rows_like_cpp")

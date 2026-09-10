@@ -62,7 +62,7 @@ async fn overlay_lfg_dungeons_like_cpp(
     Ok(store)
 }
 
-pub(super) async fn load_lfg_dungeons_like_cpp(
+pub(crate) async fn load_lfg_dungeons_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn LfgDungeonsHotfixPersistencePortLikeCpp,

@@ -32,7 +32,7 @@ fn apply_loaded_hotfix_outcome_like_cpp(
     )
 }
 
-pub(super) async fn load_difficulty_store_like_cpp(
+pub(crate) async fn load_difficulty_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn DifficultyHotfixPersistencePortLikeCpp,
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_at_the_existing_difficulty_publication_point() {
-        let source = include_str!("app.rs");
+        let source = include_str!("../app.rs");
         assert_eq!(
             source
                 .matches("MariaDbDifficultyHotfixPersistenceAdapterLikeCpp::new")
@@ -96,7 +96,7 @@ mod tests {
         );
         assert_eq!(source.matches("load_difficulty_store_like_cpp").count(), 1);
 
-        let loader_source = include_str!("difficulty_hotfix.rs");
+        let loader_source = include_str!("difficulty.rs");
         let wdc4_load = loader_source
             .find("DifficultyStore::load(data_dir, locale)")
             .expect("composition must load the WDC4 authority");

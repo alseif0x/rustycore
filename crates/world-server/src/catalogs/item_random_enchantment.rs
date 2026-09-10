@@ -28,7 +28,7 @@ async fn load_entries_like_cpp(
     }
 }
 
-pub(super) async fn load_item_random_enchantment_store_like_cpp(
+pub(crate) async fn load_item_random_enchantment_store_like_cpp(
     persistence: &dyn ItemRandomEnchantmentCatalogPersistencePortLikeCpp,
     random_properties: &wow_data::ItemRandomPropertiesStore,
     random_suffixes: &wow_data::ItemRandomSuffixStore,

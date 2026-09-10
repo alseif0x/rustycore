@@ -51,7 +51,7 @@ async fn load_rows_like_cpp(
     Ok((templates, rewards))
 }
 
-pub(super) async fn load_lfg_dungeon_store_like_cpp(
+pub(crate) async fn load_lfg_dungeon_store_like_cpp(
     persistence: &dyn LfgWorldCatalogPersistencePortLikeCpp,
     db2_store: &wow_data::LfgDungeonsStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,

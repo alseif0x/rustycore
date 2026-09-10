@@ -29,7 +29,7 @@ async fn load_domain_rows_like_cpp(
     }
 }
 
-pub(super) async fn load_game_tele_catalog_like_cpp(
+pub(crate) async fn load_game_tele_catalog_like_cpp(
     persistence: &dyn GameTeleCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::GameTeleLoadOutcomeLikeCpp> {
     let rows = load_domain_rows_like_cpp(persistence).await?;
