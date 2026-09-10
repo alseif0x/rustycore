@@ -128,6 +128,7 @@ pub use player::MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp;
 pub use player::MariaDbPlayerInventoryPersistenceAdapterLikeCpp;
 pub use player::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
 pub use player::MariaDbPlayerQuestPersistenceAdapterLikeCpp;
+pub use player::MariaDbPlayerQuestRewardPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use quest::MariaDbQuestCatalogPersistenceAdapterLikeCpp;
 pub use quest::MariaDbQuestItemCatalogPersistenceAdapterLikeCpp;
