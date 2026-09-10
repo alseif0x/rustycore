@@ -323,7 +323,8 @@ fn vendor_item_current_count_updates_like_cpp() {
     );
 
     if let Some(count) = session.vendor_item_counts.get_mut(&(vendor_guid, 700)) {
-        count.last_increment_time = WorldSession::vendor_stock_now_secs().saturating_sub(120);
+        count.last_increment_time =
+            crate::handlers::character_rules::vendor_stock_now_secs().saturating_sub(120);
     }
 
     assert_eq!(

@@ -9816,10 +9816,10 @@ impl WorldSession {
                 .any(|(index, objective)| {
                     objective.obj_type == 2
                         && objective.object_id == object_id
-                        && Self::represented_quest_objective_completable_like_cpp(
+                        && crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
                             status, quest, index,
                         )
-                        && !Self::represented_quest_objective_complete_like_cpp(
+                        && !crate::handlers::quest_rules::represented_quest_objective_complete_like_cpp(
                             status, quest, objective,
                         )
                 })

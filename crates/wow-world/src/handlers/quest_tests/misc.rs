@@ -34,7 +34,9 @@ fn represented_objective_negative_storage_index_does_not_alias_slot_zero_like_cp
     };
 
     assert!(
-        !WorldSession::represented_quest_objective_complete_like_cpp(&status, &quest, &objective)
+        !crate::handlers::quest_rules::represented_quest_objective_complete_like_cpp(
+            &status, &quest, &objective
+        )
     );
 }
 #[test]
@@ -79,5 +81,9 @@ fn represented_progress_bar_part_objective_stops_when_progress_bar_complete_like
         slot: 0,
     };
 
-    assert!(!WorldSession::represented_quest_objective_completable_like_cpp(&status, &quest, 0));
+    assert!(
+        !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
+            &status, &quest, 0
+        )
+    );
 }

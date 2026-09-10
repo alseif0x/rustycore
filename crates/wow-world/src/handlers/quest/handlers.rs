@@ -544,7 +544,9 @@ impl WorldSession {
         let obj_count = quest.objectives.len();
 
         let (accept_time_secs, end_time_secs) =
-            Self::represented_accept_and_end_time_for_new_quest_like_cpp(&quest);
+            crate::handlers::quest_rules::represented_accept_and_end_time_for_new_quest_like_cpp(
+                &quest,
+            );
 
         // Add to local state
         self.invalidate_player_quest_status_authority_like_cpp();
@@ -2317,7 +2319,7 @@ impl WorldSession {
             .and_then(|state| {
                 let rewarded = state.rewarded_quest_ids.contains(&quest_id);
                 state.statuses.get(&quest_id).map(|status| {
-                    Self::represented_can_complete_quest_after_objective_like_cpp(
+                    crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                         status, &quest, 0, rewarded,
                     )
                 })
@@ -2555,7 +2557,7 @@ impl WorldSession {
             }
         };
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
-        let choice = match Self::read_quest_choice_item_like_cpp(&mut pkt) {
+        let choice = match WorldSession::read_quest_choice_item_like_cpp(&mut pkt) {
             Ok(choice) => choice,
             Err(error) => {
                 warn!(
@@ -2646,9 +2648,9 @@ impl WorldSession {
                 );
                 return;
             }
-            let valid =
-                Self::represented_reward_choice_matches_loaded_type_like_cpp(&quest, choice)
-                    || self.represented_quest_package_choice_matches_like_cpp(&quest, choice);
+            let valid = WorldSession::represented_reward_choice_matches_loaded_type_like_cpp(
+                &quest, choice,
+            ) || self.represented_quest_package_choice_matches_like_cpp(&quest, choice);
             if !valid {
                 warn!(
                     account = self.account_id,

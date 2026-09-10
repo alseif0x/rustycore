@@ -2165,7 +2165,7 @@ impl WorldSession {
         let Some(current_roll) = self.represented_loot_rolls.get(&roll_key) else {
             return;
         };
-        if !Self::represented_loot_roll_vote_command_targets_identity_like_cpp(
+        if !crate::handlers::loot_rules::represented_loot_roll_vote_command_targets_identity_like_cpp(
             &command,
             &current_roll.command_identity,
         ) {

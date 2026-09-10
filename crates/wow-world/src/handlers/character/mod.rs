@@ -1005,13 +1005,13 @@ const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
 // Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
 const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = crate::map_manager::VISIBILITY_RADIUS;
-const RESPONSE_SUCCESS_LIKE_CPP: u8 = 0;
+pub(crate) const RESPONSE_SUCCESS_LIKE_CPP: u8 = 0;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 const CHAR_CREATE_NAME_IN_USE_LIKE_CPP: u8 = 27;
-const CHAR_NAME_NO_NAME_LIKE_CPP: u8 = 92;
-const CHAR_NAME_TOO_SHORT_LIKE_CPP: u8 = 93;
-const CHAR_NAME_TOO_LONG_LIKE_CPP: u8 = 94;
-const CHAR_NAME_INVALID_CHARACTER_LIKE_CPP: u8 = 95;
+pub(crate) const CHAR_NAME_NO_NAME_LIKE_CPP: u8 = 92;
+pub(crate) const CHAR_NAME_TOO_SHORT_LIKE_CPP: u8 = 93;
+pub(crate) const CHAR_NAME_TOO_LONG_LIKE_CPP: u8 = 94;
+pub(crate) const CHAR_NAME_INVALID_CHARACTER_LIKE_CPP: u8 = 95;
 const CLASS_HUNTER_LIKE_CPP: u8 = 3;
 const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
 const CLASS_WARLOCK_LIKE_CPP: u8 = 9;
@@ -2037,7 +2037,7 @@ fn spell_history_entry_from_db_like_cpp(
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct CreatureAddonCreateFieldsLikeCpp {
+pub(crate) struct CreatureAddonCreateFieldsLikeCpp {
     has_addon: bool,
     mount_display_id: i32,
     stand_state: u8,

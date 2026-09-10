@@ -35,13 +35,6 @@ impl WorldSession {
             .await;
     }
 
-    pub(super) fn vendor_stock_now_secs() -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .unwrap_or(0)
-    }
-
     pub(super) fn vendor_item_current_count(
         &mut self,
         vendor_guid: ObjectGuid,
@@ -55,7 +48,7 @@ impl WorldSession {
         }
 
         let key = (vendor_guid, item_id);
-        let now = Self::vendor_stock_now_secs();
+        let now = crate::handlers::character_rules::vendor_stock_now_secs();
         let Some(count) = self.vendor_item_counts.get(&key).copied() else {
             return max_count;
         };
@@ -99,7 +92,7 @@ impl WorldSession {
             (vendor_guid, item_id),
             crate::session::VendorItemCount {
                 count: new_count,
-                last_increment_time: Self::vendor_stock_now_secs(),
+                last_increment_time: crate::handlers::character_rules::vendor_stock_now_secs(),
             },
         );
         new_count
@@ -195,48 +188,6 @@ impl WorldSession {
         }
 
         None
-    }
-
-    pub(super) fn vendor_item_conditions_meet_like_cpp(
-        condition_store: &ConditionEntriesByTypeStore,
-        creature_entry: u32,
-        item_id: u32,
-        player_object: Option<&WorldObject>,
-        vendor_object: Option<&WorldObject>,
-        player_unit_snapshot: crate::conditions::ConditionUnitSnapshot,
-        player_snapshot: crate::conditions::ConditionPlayerSnapshot,
-        vendor_unit_snapshot: Option<crate::conditions::ConditionUnitSnapshot>,
-        player_condition_store: Option<&PlayerConditionStore>,
-        player_condition_context: Option<PlayerConditionContextLikeCpp<'_>>,
-    ) -> bool {
-        crate::conditions::is_object_meeting_vendor_item_conditions_like_cpp(
-            condition_store,
-            creature_entry,
-            item_id,
-            player_object,
-            vendor_object,
-            |condition, source_info| {
-                source_info.set_unit_target_snapshot(0, player_unit_snapshot);
-                source_info.set_player_target_snapshot(0, player_snapshot);
-                if let Some(vendor_unit_snapshot) = vendor_unit_snapshot {
-                    source_info.set_unit_target_snapshot(1, vendor_unit_snapshot);
-                }
-                if let (Some(store), Some(context)) =
-                    (player_condition_store, player_condition_context)
-                {
-                    source_info.set_player_condition_store(store);
-                    source_info.set_player_condition_context(0, context);
-                }
-                match crate::conditions::condition_meets_basic_like_cpp(
-                    condition,
-                    source_info,
-                    |current_area, required_area| current_area == required_area,
-                ) {
-                    crate::conditions::ConditionMeetResult::Evaluated(value) => value,
-                    crate::conditions::ConditionMeetResult::Unsupported => false,
-                }
-            },
-        )
     }
 
     pub(crate) fn send_represented_creature_trainer_gossip_menu_like_cpp(
@@ -443,7 +394,7 @@ impl WorldSession {
                 .as_ref()
                 .map(|(object, snapshot)| (Some(object), Some(*snapshot)))
                 .unwrap_or((None, None));
-            if !Self::vendor_item_conditions_meet_like_cpp(
+            if !crate::handlers::character_rules::vendor_item_conditions_meet_like_cpp(
                 store.as_ref(),
                 vendor_entry,
                 buy.item_id as u32,

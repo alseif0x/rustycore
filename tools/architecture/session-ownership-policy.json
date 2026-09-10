@@ -5622,6 +5622,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::quest",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::quest::eligibility",
           "trait_path": null,
           "cfg": [],
@@ -7221,20 +7227,6 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_character_rename_name_result_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_character_rename_name_result_like_cpp (name : & str) -> u8",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_char_customize_failure_like_cpp",
           "visibility": "private",
           "signature": "fn send_char_customize_failure_like_cpp (& self , result : u8 , guid : ObjectGuid)",
@@ -7651,12 +7643,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "creature_addon_create_fields_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: handlers :: character)",
           "signature": "fn creature_addon_create_fields_like_cpp (addon : Option < & CreatureAddonLifecycleRecordLikeCpp > ,) -> CreatureAddonCreateFieldsLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -8472,37 +8465,9 @@
           "module": "crate::handlers::character::vendor",
           "trait_path": null,
           "kind": "method",
-          "name": "vendor_item_conditions_meet_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn vendor_item_conditions_meet_like_cpp (condition_store : & ConditionEntriesByTypeStore , creature_entry : u32 , item_id : u32 , player_object : Option < & WorldObject > , vendor_object : Option < & WorldObject > , player_unit_snapshot : crate :: conditions :: ConditionUnitSnapshot , player_snapshot : crate :: conditions :: ConditionPlayerSnapshot , vendor_unit_snapshot : Option < crate :: conditions :: ConditionUnitSnapshot > , player_condition_store : Option < & PlayerConditionStore > , player_condition_context : Option < PlayerConditionContextLikeCpp < '_ > > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::vendor",
-          "trait_path": null,
-          "kind": "method",
           "name": "vendor_item_current_count",
           "visibility": "pub (super)",
           "signature": "fn vendor_item_current_count (& mut self , vendor_guid : ObjectGuid , item_id : u32 , max_count : u32 , incr_time : u32 , buy_count : u32 ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::vendor",
-          "trait_path": null,
-          "kind": "method",
-          "name": "vendor_stock_now_secs",
-          "visibility": "pub (super)",
-          "signature": "fn vendor_stock_now_secs () -> u64",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12124,33 +12089,6 @@
           "source_class": "production",
           "guards": [
             "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_loot_roll_valid_rolls_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_loot_roll_valid_rolls_like_cpp (item_flags2 : Option < u32 > , disenchant_skill_required : Option < u16 > , max_enchanting_skill : u16 ,) -> u8",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_loot_roll_vote_command_targets_identity_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_loot_roll_vote_command_targets_identity_like_cpp (command : & LootRollVoteCommand , current_identity : & LootRollCommandIdentityLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
           ]
         },
         {
@@ -16769,6 +16707,48 @@
           ]
         },
         {
+          "module": "crate::handlers::quest",
+          "trait_path": null,
+          "kind": "method",
+          "name": "read_quest_choice_item_like_cpp",
+          "visibility": "pub (in crate :: handlers :: quest)",
+          "signature": "fn read_quest_choice_item_like_cpp (pkt : & mut wow_packet :: WorldPacket ,) -> Result < QuestChoiceItemLikeCpp , wow_packet :: PacketError >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_quest_dialog_classification_like_cpp",
+          "visibility": "pub (in crate :: handlers :: quest)",
+          "signature": "fn represented_quest_dialog_classification_like_cpp (quest : & wow_data :: quest :: QuestTemplate , quest_info : Option < & wow_data :: progression_rewards :: QuestInfoStore > ,) -> crate :: handlers :: quest :: dialog_status :: QuestDialogClassificationLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_reward_choice_matches_loaded_type_like_cpp",
+          "visibility": "pub (in crate :: handlers :: quest)",
+          "signature": "fn represented_reward_choice_matches_loaded_type_like_cpp (quest : & wow_data :: quest :: QuestTemplate , choice : QuestChoiceItemLikeCpp ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::quest::eligibility",
           "trait_path": null,
           "kind": "method",
@@ -16871,19 +16851,6 @@
           "name": "represented_quest_available_conditions_meet_like_cpp",
           "visibility": "private",
           "signature": "fn represented_quest_available_conditions_meet_like_cpp (& self , quest_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::eligibility",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_dialog_classification_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_dialog_classification_like_cpp (quest : & wow_data :: quest :: QuestTemplate , quest_info : Option < & wow_data :: progression_rewards :: QuestInfoStore > ,) -> super :: dialog_status :: QuestDialogClassificationLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17348,37 +17315,9 @@
           "module": "crate::handlers::quest::objectives",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_quest_item_added_bound_to_statuses_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn apply_quest_item_added_bound_to_statuses_like_cpp (quest_store : & QuestStore , rewarded_quests : & HashSet < u32 > , player_quests : & mut HashMap < u32 , PlayerQuestStatus > , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> Option < (u32 , i32) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_quest_item_added_non_bound_state_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_quest_item_added_non_bound_state_like_cpp (& mut self , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> Vec < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_quest_item_added_non_bound_to_statuses_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn apply_quest_item_added_non_bound_to_statuses_like_cpp (quest_store : & QuestStore , rewarded_quests : & HashSet < u32 > , player_quests : & mut HashMap < u32 , PlayerQuestStatus > , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> Vec < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17436,20 +17375,6 @@
           "name": "apply_quest_item_removed_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_quest_item_removed_like_cpp (& mut self , entry_id : u32) -> Option < Vec < u32 > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_quest_item_removed_to_statuses_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn apply_quest_item_removed_to_statuses_like_cpp (quest_store : & QuestStore , player_quests : & mut HashMap < u32 , PlayerQuestStatus > , entry_id : u32 , new_non_bank_item_count : u32 ,) -> Vec < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17587,61 +17512,6 @@
           "guards": [
             "external_impl",
             "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_can_complete_quest_after_objective_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_can_complete_quest_after_objective_like_cpp (status : & PlayerQuestStatus , quest : & wow_data :: quest :: QuestTemplate , ignored_objective_id : u32 , quest_already_rewarded : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_objective_completable_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_quest_objective_completable_like_cpp (status : & PlayerQuestStatus , quest : & wow_data :: quest :: QuestTemplate , objective_index : usize ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_objective_complete_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_quest_objective_complete_like_cpp (status : & PlayerQuestStatus , quest : & wow_data :: quest :: QuestTemplate , objective : & wow_data :: quest :: QuestObjective ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_objective_progress_bar_complete_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_objective_progress_bar_complete_like_cpp (status : & PlayerQuestStatus , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
           ]
         },
         {
@@ -17953,33 +17823,6 @@
           "module": "crate::handlers::quest::rewards",
           "trait_path": null,
           "kind": "method",
-          "name": "quest_reward_currency_gain_source_like_cpp",
-          "visibility": "private",
-          "signature": "fn quest_reward_currency_gain_source_like_cpp (quest : & wow_data :: quest :: QuestTemplate ,) -> CurrencyGainSourceLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::rewards",
-          "trait_path": null,
-          "kind": "method",
-          "name": "read_quest_choice_item_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn read_quest_choice_item_like_cpp (pkt : & mut wow_packet :: WorldPacket ,) -> Result < QuestChoiceItemLikeCpp , wow_packet :: PacketError >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::rewards",
-          "trait_path": null,
-          "kind": "method",
           "name": "record_represented_quest_reward_mail_like_cpp",
           "visibility": "private",
           "signature": "fn record_represented_quest_reward_mail_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate , quest_giver_guid : ObjectGuid ,)",
@@ -18095,20 +17938,6 @@
           "source_class": "production",
           "guards": [
             "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::rewards",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_reward_choice_matches_loaded_type_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_reward_choice_matches_loaded_type_like_cpp (quest : & wow_data :: quest :: QuestTemplate , choice : QuestChoiceItemLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
           ]
         },
         {
@@ -18509,20 +18338,6 @@
           "name": "remove_represented_timed_quest_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn remove_represented_timed_quest_like_cpp (& mut self , quest_id : u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_accept_and_end_time_for_new_quest_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_accept_and_end_time_for_new_quest_like_cpp (quest : & wow_data :: quest :: QuestTemplate ,) -> (i64 , i64)",
           "cfg": [],
           "source_class": "production",
           "guards": [

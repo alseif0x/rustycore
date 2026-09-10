@@ -218,23 +218,6 @@ impl WorldSession {
         }
     }
 
-    pub(super) fn represented_character_rename_name_result_like_cpp(name: &str) -> u8 {
-        if name.is_empty() {
-            return CHAR_NAME_NO_NAME_LIKE_CPP;
-        }
-        if name.len() < 2 {
-            return CHAR_NAME_TOO_SHORT_LIKE_CPP;
-        }
-        if name.len() > 12 {
-            return CHAR_NAME_TOO_LONG_LIKE_CPP;
-        }
-        if !name.chars().all(|c| c.is_ascii_alphabetic()) {
-            return CHAR_NAME_INVALID_CHARACTER_LIKE_CPP;
-        }
-
-        RESPONSE_SUCCESS_LIKE_CPP
-    }
-
     fn send_character_rename_like_cpp(
         &self,
         result: u8,
@@ -262,7 +245,10 @@ impl WorldSession {
             return;
         }
 
-        let name_result = Self::represented_character_rename_name_result_like_cpp(&pkt.new_name);
+        let name_result =
+            crate::handlers::character_rules::represented_character_rename_name_result_like_cpp(
+                &pkt.new_name,
+            );
         if name_result != RESPONSE_SUCCESS_LIKE_CPP {
             self.send_character_rename_like_cpp(name_result, pkt.guid, pkt.new_name);
             return;
@@ -383,7 +369,10 @@ impl WorldSession {
             return;
         }
 
-        let name_result = Self::represented_character_rename_name_result_like_cpp(&request.name);
+        let name_result =
+            crate::handlers::character_rules::represented_character_rename_name_result_like_cpp(
+                &request.name,
+            );
         if name_result != RESPONSE_SUCCESS_LIKE_CPP {
             self.send_char_customize_failure_like_cpp(name_result, request.guid);
             return;

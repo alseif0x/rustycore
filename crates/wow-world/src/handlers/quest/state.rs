@@ -8,18 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(super) fn represented_accept_and_end_time_for_new_quest_like_cpp(
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> (i64, i64) {
-        let accept_time = GameTime::now().as_secs() as i64;
-        let end_time = if quest.limit_time_secs > 0 {
-            accept_time.saturating_add(quest.limit_time_secs)
-        } else {
-            0
-        };
-        (accept_time, end_time)
-    }
-
     fn complete_represented_quest_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
@@ -112,7 +100,7 @@ impl WorldSession {
             return false;
         };
         let quest_already_rewarded = state.rewarded_quest_ids.contains(&quest.id);
-        if !Self::represented_can_complete_quest_after_objective_like_cpp(
+        if !crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
             status,
             quest,
             ignored_objective_id,
@@ -253,7 +241,9 @@ impl WorldSession {
         };
 
         let (accept_time_secs, end_time_secs) =
-            Self::represented_accept_and_end_time_for_new_quest_like_cpp(quest);
+            crate::handlers::quest_rules::represented_accept_and_end_time_for_new_quest_like_cpp(
+                quest,
+            );
 
         self.invalidate_player_quest_status_authority_like_cpp();
         let status = PlayerQuestStatus {

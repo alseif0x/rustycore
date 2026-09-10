@@ -1051,7 +1051,7 @@ impl WorldSession {
                             .as_ref()
                             .map(|(object, snapshot)| (Some(object), Some(*snapshot)))
                             .unwrap_or((None, None));
-                        if !Self::vendor_item_conditions_meet_like_cpp(
+                        if !crate::handlers::character_rules::vendor_item_conditions_meet_like_cpp(
                             store.as_ref(),
                             entry,
                             item_id as u32,

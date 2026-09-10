@@ -494,23 +494,27 @@ fn default_character_power1_seeds_energy_classes_like_cpp() {
 #[test]
 fn character_rename_name_validation_matches_represented_cpp_gates() {
     assert_eq!(
-        WorldSession::represented_character_rename_name_result_like_cpp(""),
+        crate::handlers::character_rules::represented_character_rename_name_result_like_cpp(""),
         CHAR_NAME_NO_NAME_LIKE_CPP
     );
     assert_eq!(
-        WorldSession::represented_character_rename_name_result_like_cpp("A"),
+        crate::handlers::character_rules::represented_character_rename_name_result_like_cpp("A"),
         CHAR_NAME_TOO_SHORT_LIKE_CPP
     );
     assert_eq!(
-        WorldSession::represented_character_rename_name_result_like_cpp("VeryLongNameX"),
+        crate::handlers::character_rules::represented_character_rename_name_result_like_cpp(
+            "VeryLongNameX"
+        ),
         CHAR_NAME_TOO_LONG_LIKE_CPP
     );
     assert_eq!(
-        WorldSession::represented_character_rename_name_result_like_cpp("Bad1"),
+        crate::handlers::character_rules::represented_character_rename_name_result_like_cpp("Bad1"),
         CHAR_NAME_INVALID_CHARACTER_LIKE_CPP
     );
     assert_eq!(
-        WorldSession::represented_character_rename_name_result_like_cpp("Newname"),
+        crate::handlers::character_rules::represented_character_rename_name_result_like_cpp(
+            "Newname"
+        ),
         RESPONSE_SUCCESS_LIKE_CPP
     );
 }
