@@ -594,9 +594,9 @@
     },
     {
       "path": "crates/wow-world/src/map_manager/mod.rs",
-      "observed_lines": 2190,
-      "ceiling_lines": 2190,
-      "split": "Separate the map manager's canonical/legacy bridge from its runtime state. #662 measured this module and deferred it: the bridge inventory pairs canonical-side and legacy-side evidence inside one enclosing module, so relocating a bridge function's context into a sibling module drops a row from the audit - `world_creature_from_pending_respawn_like_cpp` disappeared from the 65-row bridge inventory when it moved. That is a coverage narrowing, not a physical improvement, so this module needs the semantic separation owned by 584:C4.",
+      "observed_lines": 255,
+      "ceiling_lines": 255,
+      "split": "Separate the map manager's canonical/legacy bridge from its runtime state. #662 measured this module and deferred it: the bridge inventory pairs canonical-side and legacy-side evidence inside one enclosing module, so relocating a bridge function's context into a sibling module drops a row from the audit - `world_creature_from_pending_respawn_like_cpp` disappeared from the 65-row bridge inventory when it moved. That is a coverage narrowing, not a physical improvement, so this module needs the semantic separation owned by 584:C4. #711 separates the grid, terrain, pathfinder, pending-respawn and runtime-state item families into map_manager submodules, item-for-item with an identical 89-item surface; the root drops from 2,191 to 255 lines and the ceiling is tightened to that figure.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -643,9 +643,9 @@
     },
     {
       "path": "crates/wow-world/src/spell_acquisition/application.rs",
-      "observed_lines": 3588,
-      "ceiling_lines": 1458,
-      "split": "#587 separates generic runtime application, Session row/packet adaptation and scenario tests while retaining the pure plan validator and SQLx-free request/outcome conversion in this 1458-line file. Its cohesive validation responsibility was reviewed above 1000 lines; no oversized replacement file or second mutation owner.",
+      "observed_lines": 147,
+      "ceiling_lines": 147,
+      "split": "#587 separates generic runtime application, Session row/packet adaptation and scenario tests while retaining the pure plan validator and SQLx-free request/outcome conversion in this 1458-line file. Its cohesive validation responsibility was reviewed above 1000 lines; no oversized replacement file or second mutation owner. #711 separates plan validation, post-commit validation, plan translation and preparation into application submodules, item-for-item; the root keeps the request/outcome types and drops from 1,459 to 147 lines, so the ceiling is tightened to that figure.",
       "review_checkpoint": "584:C4"
     },
     {
