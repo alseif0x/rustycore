@@ -2,8 +2,6 @@
 //!
 //! Separated from phasing.rs under #683.
 
-use super::super::*;
-
 use super::*;
 use wow_constants::{PhaseFlags, PhaseShiftFlags, TypeId, TypeMask};
 use wow_core::{ObjectGuid, guid::HighGuid};

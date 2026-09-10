@@ -2,8 +2,6 @@
 //!
 //! Separated from area_trigger_template.rs under #683.
 
-use super::super::*;
-
 use super::*;
 use crate::{WorldSafeLoc, WorldSafeLocStore};
 use wow_core::Position;

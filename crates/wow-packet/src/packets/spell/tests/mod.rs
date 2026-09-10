@@ -2,8 +2,6 @@
 //!
 //! Separated from spell.rs under #683.
 
-use super::super::*;
-
 use super::*;
 
 fn spell_go_bytes(hit_targets: Vec<ObjectGuid>, miss_targets: Vec<SpellMissTarget>) -> Vec<u8> {
