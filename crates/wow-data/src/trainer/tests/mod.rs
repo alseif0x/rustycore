@@ -2,8 +2,6 @@
 //!
 //! Separated from trainer.rs under #683.
 
-use super::super::*;
-
 use std::cell::RefCell;
 
 use super::*;

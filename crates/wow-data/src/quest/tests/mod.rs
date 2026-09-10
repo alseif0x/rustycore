@@ -2,8 +2,6 @@
 //!
 //! Separated from quest.rs under #683.
 
-use super::super::*;
-
 use super::*;
 
 fn quest_with_sort_and_flags(quest_sort_id: i32, flags: u32, special_flags: u32) -> QuestTemplate {

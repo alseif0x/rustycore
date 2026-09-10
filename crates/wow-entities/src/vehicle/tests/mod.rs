@@ -2,8 +2,6 @@
 //!
 //! Separated from vehicle.rs under #683.
 
-use super::super::*;
-
 use super::*;
 use wow_core::guid::HighGuid;
 
