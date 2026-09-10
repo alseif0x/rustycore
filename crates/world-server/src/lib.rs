@@ -80,34 +80,15 @@ use wow_world::{
 };
 
 mod area;
-mod battle_pet_selection_catalog;
-mod condition_disable_catalog;
-mod creature_display_hotfix;
+mod catalogs;
 mod creature_loaded_grid;
-mod difficulty_hotfix;
-mod exploration_base_xp_catalog;
-mod game_tele_catalog;
 mod gameobject_loaded_grid;
-mod gameplay_rule_catalog;
-mod gossip_startup_catalog;
+mod hotfix;
 mod hotfix_delivery_metadata;
-mod item_random_enchantment_catalog;
-mod jump_charge_catalog;
-mod lfg_dungeons_hotfix;
-mod lfg_world_catalog;
-mod mount_catalog;
-mod phase_hotfix_catalog;
-mod phase_world_catalog;
 mod player;
-mod quest_catalog;
-mod quest_item_catalog;
-mod reputation_catalog;
-mod reserved_name_catalog;
 mod session_resources;
 mod spawn_store_loader;
 mod spell;
-mod trainer_catalog;
-mod vehicle_catalog;
 
 use session_resources::{
     SessionCoreCapabilitiesLikeCpp, SessionInventoryCapabilitiesLikeCpp,
@@ -1533,8 +1514,6 @@ mod shutdown;
 use shutdown::*;
 
 mod bootstrap;
-mod chr_specialization_hotfix;
-mod skill_catalog_hotfix;
 mod skill_world_rules;
 mod static_data_overlay;
 mod world;

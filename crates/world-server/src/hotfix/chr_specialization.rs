@@ -37,7 +37,7 @@ fn apply_loaded_hotfix_outcome_like_cpp(
     )
 }
 
-pub(super) async fn load_chr_specialization_store_like_cpp(
+pub(crate) async fn load_chr_specialization_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn ChrSpecializationHotfixPersistencePortLikeCpp,

@@ -10,7 +10,7 @@ fn loaded_rows_like_cpp<T>(outcome: QuestCatalogLoadOutcomeLikeCpp<T>) -> Result
     }
 }
 
-pub(super) async fn load_quests_like_cpp(
+pub(crate) async fn load_quests_like_cpp(
     port: &dyn QuestCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::quest::QuestStore> {
     let template_rows = loaded_rows_like_cpp(port.load_quest_template_rows_like_cpp().await)?;

@@ -26,7 +26,7 @@ fn creature_quest_item_like_cpp(
     (row.creature_entry, row.difficulty_id, row.item_id, row.idx)
 }
 
-pub(super) async fn load_quest_item_catalogs_like_cpp(
+pub(crate) async fn load_quest_item_catalogs_like_cpp(
     persistence: &dyn QuestItemCatalogPersistencePortLikeCpp,
     gameobject_exists: impl Fn(u32) -> bool,
     creature_exists: impl Fn(u32) -> bool,

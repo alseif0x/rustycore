@@ -23,7 +23,7 @@ fn faction_pair(
     }
 }
 
-pub(super) async fn load_faction_change_store_like_cpp<
+pub(crate) async fn load_faction_change_store_like_cpp<
     AchievementExists,
     QuestExists,
     ReputationExists,
@@ -61,7 +61,7 @@ where
     )
 }
 
-pub(super) async fn load_npc_vendor_store_like_cpp(
+pub(crate) async fn load_npc_vendor_store_like_cpp(
     persistence: &dyn GameplayRuleCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::NpcVendorLoadOutcomeLikeCpp> {
     let rows = loaded(persistence.load_npc_vendor_rows_like_cpp().await)?;
@@ -82,7 +82,7 @@ pub(super) async fn load_npc_vendor_store_like_cpp(
     ))
 }
 
-pub(super) async fn load_npc_spell_click_store_like_cpp(
+pub(crate) async fn load_npc_spell_click_store_like_cpp(
     persistence: &dyn GameplayRuleCatalogPersistencePortLikeCpp,
     creature_templates: &wow_data::CreatureTemplateLifecycleStoreLikeCpp,
     spells: &wow_data::SpellStore,

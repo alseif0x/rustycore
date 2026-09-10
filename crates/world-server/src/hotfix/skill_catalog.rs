@@ -73,7 +73,7 @@ fn apply_skill_line_hotfix_outcome_like_cpp(
     )
 }
 
-pub(super) async fn load_skill_line_store_like_cpp(
+pub(crate) async fn load_skill_line_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
@@ -87,7 +87,7 @@ pub(super) async fn load_skill_line_store_like_cpp(
     )
 }
 
-pub(super) async fn load_skill_store_like_cpp(
+pub(crate) async fn load_skill_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn app_preserves_skill_line_then_relations_then_world_tiers_order() {
-        let source = include_str!("app.rs");
+        let source = include_str!("../app.rs");
         let skill_line = source
             .find("load_skill_line_store_like_cpp")
             .expect("SkillLine catalog stage must remain composed");

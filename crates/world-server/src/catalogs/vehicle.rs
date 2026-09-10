@@ -37,7 +37,7 @@ async fn overlay_vehicle_store_like_cpp(
     Ok((store, count))
 }
 
-pub(super) async fn load_vehicle_store_like_cpp(
+pub(crate) async fn load_vehicle_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn VehicleHotfixPersistencePortLikeCpp,
@@ -72,7 +72,7 @@ async fn overlay_vehicle_seat_store_like_cpp(
     Ok((store, count))
 }
 
-pub(super) async fn load_vehicle_seat_store_like_cpp(
+pub(crate) async fn load_vehicle_seat_store_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn VehicleHotfixPersistencePortLikeCpp,
@@ -88,7 +88,7 @@ pub(super) async fn load_vehicle_seat_store_like_cpp(
     Ok(store)
 }
 
-pub(super) async fn load_vehicle_template_store_like_cpp(
+pub(crate) async fn load_vehicle_template_store_like_cpp(
     persistence: &dyn VehicleWorldCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::VehicleTemplateStoreLikeCpp> {
     let rows = world_rows_like_cpp(persistence.load_vehicle_template_rows_like_cpp().await)?;
@@ -104,7 +104,7 @@ pub(super) async fn load_vehicle_template_store_like_cpp(
     Ok(store)
 }
 
-pub(super) async fn load_vehicle_accessory_store_like_cpp(
+pub(crate) async fn load_vehicle_accessory_store_like_cpp(
     persistence: &dyn VehicleWorldCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::VehicleAccessoryStoreLikeCpp> {
     let template_rows = world_rows_like_cpp(

@@ -5428,7 +5428,7 @@ pub struct WorldSession {
     item_currency_cost_store: Option<Arc<ItemCurrencyCostStore>>,
 
     /// Item template and item-data catalogs a session reads. Owned by one type (#670).
-    pub(crate) items: crate::item_catalogs::ItemCatalogsLikeCpp,
+    pub(crate) items: crate::catalogs::item::ItemCatalogsLikeCpp,
 
     // Trinity strings loaded from world DB `trinity_string`.
     trinity_string_store: Option<Arc<TrinityStringStoreLikeCpp>>,
@@ -5475,7 +5475,7 @@ pub struct WorldSession {
 
     pvp_item_store: Option<Arc<PvpItemStore>>,
     /// Every spell and aura catalog slot, owned by one type (#668).
-    pub(crate) spell_catalogs: crate::spell_catalogs::SpellCatalogsLikeCpp,
+    pub(crate) spell_catalogs: crate::catalogs::spell::SpellCatalogsLikeCpp,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
     item_template_addon_quest_log_item_ids_like_cpp: HashMap<u32, u32>,
@@ -5564,10 +5564,10 @@ pub struct WorldSession {
     graveyard_store: Option<Arc<GraveyardStore>>,
 
     /// Character race/class catalogs a session reads. Owned by one type (#670).
-    pub(crate) chr: crate::chr_catalogs::ChrCatalogsLikeCpp,
+    pub(crate) chr: crate::catalogs::chr::ChrCatalogsLikeCpp,
 
     /// Map and map-difficulty catalogs a session reads. Owned by one type (#670).
-    pub(crate) maps: crate::map_catalogs::MapCatalogsLikeCpp,
+    pub(crate) maps: crate::catalogs::map::MapCatalogsLikeCpp,
     world_safe_loc_store_like_cpp: Option<Arc<WorldSafeLocStore>>,
     access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
@@ -5584,19 +5584,19 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_player_recent_instances_like_cpp: HashMap<u32, u32>,
     /// Faction and reputation catalogs a session reads. Owned by one type (#670).
-    pub(crate) factions: crate::faction_catalogs::FactionCatalogsLikeCpp,
+    pub(crate) factions: crate::catalogs::faction::FactionCatalogsLikeCpp,
     friendship_rep_reaction_store: Option<Arc<FriendshipRepReactionStore>>,
     paragon_reputation_store: Option<Arc<ParagonReputationStore>>,
     reputation_reward_rate_store: Option<Arc<ReputationRewardRateStoreLikeCpp>>,
     /// Creature template and creature-data catalogs a session reads. Owned by one type (#670).
-    pub(crate) creatures: crate::creature_catalogs::CreatureCatalogsLikeCpp,
+    pub(crate) creatures: crate::catalogs::creature::CreatureCatalogsLikeCpp,
     reputation_spillover_template_store: Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
     #[cfg(test)]
     championing_faction_like_cpp: u32,
     #[cfg(test)]
     creature_equipment_store_like_cpp: Option<Arc<CreatureEquipmentStoreLikeCpp>>,
     /// GameObject template catalogs a session reads. Owned by one type (#670).
-    pub(crate) gameobjects: crate::gameobject_catalogs::GameObjectCatalogsLikeCpp,
+    pub(crate) gameobjects: crate::catalogs::gameobject::GameObjectCatalogsLikeCpp,
     #[cfg(test)]
     creature_addon_store_like_cpp: Option<Arc<CreatureAddonStoreLikeCpp>>,
     #[cfg(test)]
@@ -6689,7 +6689,7 @@ pub struct WorldSession {
     represented_glyphs_loaded_like_cpp: bool,
 
     /// Quest template and quest-rule catalogs, owned by one type (#674).
-    pub(crate) quests: crate::quest_catalogs::QuestCatalogsLikeCpp,
+    pub(crate) quests: crate::catalogs::quest::QuestCatalogsLikeCpp,
     /// C++ `ObjectMgr::_questPOIStore`, loaded from `quest_poi` / `quest_poi_points`.
     pub(crate) quest_poi_store_like_cpp:
         Option<Arc<HashMap<i32, wow_packet::packets::query::QuestPoiData>>>,
@@ -7726,14 +7726,14 @@ impl WorldSession {
         connection.set_instance_endpoint([127, 0, 0, 1], 8086);
 
         Self {
-            quests: crate::quest_catalogs::QuestCatalogsLikeCpp::default(),
-            chr: crate::chr_catalogs::ChrCatalogsLikeCpp::default(),
-            creatures: crate::creature_catalogs::CreatureCatalogsLikeCpp::default(),
-            factions: crate::faction_catalogs::FactionCatalogsLikeCpp::default(),
-            gameobjects: crate::gameobject_catalogs::GameObjectCatalogsLikeCpp::default(),
-            items: crate::item_catalogs::ItemCatalogsLikeCpp::default(),
-            maps: crate::map_catalogs::MapCatalogsLikeCpp::default(),
-            spell_catalogs: crate::spell_catalogs::SpellCatalogsLikeCpp::default(),
+            quests: crate::catalogs::quest::QuestCatalogsLikeCpp::default(),
+            chr: crate::catalogs::chr::ChrCatalogsLikeCpp::default(),
+            creatures: crate::catalogs::creature::CreatureCatalogsLikeCpp::default(),
+            factions: crate::catalogs::faction::FactionCatalogsLikeCpp::default(),
+            gameobjects: crate::catalogs::gameobject::GameObjectCatalogsLikeCpp::default(),
+            items: crate::catalogs::item::ItemCatalogsLikeCpp::default(),
+            maps: crate::catalogs::map::MapCatalogsLikeCpp::default(),
+            spell_catalogs: crate::catalogs::spell::SpellCatalogsLikeCpp::default(),
             account_id,
             battlenet_account_id: account_id,
             realm_list_secret_like_cpp: [0; 32],
