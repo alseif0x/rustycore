@@ -1223,5 +1223,5 @@ fn is_duplicate_key_like_cpp(error: &DatabaseError) -> bool {
 }
 
 #[cfg(test)]
-#[path = "battle_pet_account_adapter/tests/mod.rs"]
+#[path = "account_adapter/tests/mod.rs"]
 mod tests;

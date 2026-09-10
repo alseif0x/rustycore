@@ -42,21 +42,13 @@ mod loot_template_catalog;
 mod mount_catalog;
 mod phase_hotfix_catalog;
 mod phase_world_catalog;
-mod player_base_stats;
-mod player_choice;
-mod player_creation_catalog;
-mod player_inventory;
-mod player_quest;
-mod quest_catalog;
-mod quest_item_catalog;
+mod player;
+mod quest;
 mod reputation_catalog;
 mod reserved_name_catalog;
 mod skill_catalog_hotfix;
 mod skill_world_rules;
-mod spell_acquisition_startup;
-mod spell_core_db2_hotfix;
-mod spell_info_key_hotfix;
-mod spell_world_catalog;
+mod spell;
 mod static_data_overlay;
 mod stored_item;
 mod trainer_catalog;
@@ -64,10 +56,7 @@ mod vehicle_catalog;
 mod vendor_catalog;
 mod vendor_trade;
 mod visibility_spawn_catalog;
-mod world_auxiliary_catalog;
-mod world_object_catalog;
-mod world_query_catalog;
-mod world_reference_catalog;
+mod world;
 
 pub use area_trigger_template_catalog::{
     AREA_TRIGGER_SHAPE_DATA_COUNT_LIKE_CPP, AreaTriggerCreatePropertiesOrbitPersistenceRowLikeCpp,
@@ -195,25 +184,7 @@ pub use phase_world_catalog::{
     PhaseWorldCatalogLoadOutcomeLikeCpp, PhaseWorldCatalogPersistencePortLikeCpp,
     TerrainSwapDefaultPersistenceRowLikeCpp, TerrainWorldMapPersistenceRowLikeCpp,
 };
-pub use player_base_stats::{
-    PLAYER_PRIMARY_STAT_COUNT_LIKE_CPP, PlayerBaseStatsLoadOutcomeLikeCpp,
-    PlayerBaseStatsPersistencePortLikeCpp, PlayerClassLevelStatsPersistenceRowLikeCpp,
-    PlayerRaceStatsPersistenceRowLikeCpp,
-};
-pub use player_choice::{
-    PlayerChoiceCatalogCoreRowsLikeCpp, PlayerChoiceCatalogLoadOutcomeLikeCpp,
-    PlayerChoiceCatalogLocaleRowsLikeCpp, PlayerChoiceCatalogPersistencePortLikeCpp,
-    PlayerChoiceLocaleRowLikeCpp, PlayerChoiceResponseLocaleRowLikeCpp,
-    PlayerChoiceResponseMawPowerRowLikeCpp, PlayerChoiceResponseRewardCurrencyRowLikeCpp,
-    PlayerChoiceResponseRewardFactionRowLikeCpp, PlayerChoiceResponseRewardItemRowLikeCpp,
-    PlayerChoiceResponseRewardRowLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
-};
-pub use player_creation_catalog::{
-    PlayerCreateCastSpellPersistenceRowLikeCpp, PlayerCreateCustomSpellPersistenceRowLikeCpp,
-    PlayerCreateInfoPersistenceRowLikeCpp, PlayerCreationCatalogLoadOutcomeLikeCpp,
-    PlayerCreationCatalogPersistencePortLikeCpp,
-};
-pub use player_inventory::{
+pub use player::{
     InventoryDestroyNodePersistenceLikeCpp, InventoryEquipPersistenceLikeCpp,
     InventoryGraphDestroyPersistenceLikeCpp, InventoryItemMutablePersistenceLikeCpp,
     InventoryLinkPersistenceLikeCpp, InventoryPartialDestroyPersistenceLikeCpp,
@@ -227,7 +198,25 @@ pub use player_inventory::{
     QuestTurnInItemPersistenceLikeCpp, QuestTurnInPersistenceLikeCpp,
     StoredItemLootSourcePersistenceLikeCpp,
 };
-pub use player_quest::{
+pub use player::{
+    PLAYER_PRIMARY_STAT_COUNT_LIKE_CPP, PlayerBaseStatsLoadOutcomeLikeCpp,
+    PlayerBaseStatsPersistencePortLikeCpp, PlayerClassLevelStatsPersistenceRowLikeCpp,
+    PlayerRaceStatsPersistenceRowLikeCpp,
+};
+pub use player::{
+    PlayerChoiceCatalogCoreRowsLikeCpp, PlayerChoiceCatalogLoadOutcomeLikeCpp,
+    PlayerChoiceCatalogLocaleRowsLikeCpp, PlayerChoiceCatalogPersistencePortLikeCpp,
+    PlayerChoiceLocaleRowLikeCpp, PlayerChoiceResponseLocaleRowLikeCpp,
+    PlayerChoiceResponseMawPowerRowLikeCpp, PlayerChoiceResponseRewardCurrencyRowLikeCpp,
+    PlayerChoiceResponseRewardFactionRowLikeCpp, PlayerChoiceResponseRewardItemRowLikeCpp,
+    PlayerChoiceResponseRewardRowLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
+};
+pub use player::{
+    PlayerCreateCastSpellPersistenceRowLikeCpp, PlayerCreateCustomSpellPersistenceRowLikeCpp,
+    PlayerCreateInfoPersistenceRowLikeCpp, PlayerCreationCatalogLoadOutcomeLikeCpp,
+    PlayerCreationCatalogPersistencePortLikeCpp,
+};
+pub use player::{
     PlayerQuestActivePersistenceRowLikeCpp, PlayerQuestDailyPersistenceRowLikeCpp,
     PlayerQuestIdPersistenceRowLikeCpp, PlayerQuestLoadOutcomeLikeCpp,
     PlayerQuestLockoutPersistenceRequestLikeCpp, PlayerQuestObjectivePersistenceRowLikeCpp,
@@ -235,8 +224,8 @@ pub use player_quest::{
     PlayerQuestSeasonalPersistenceRowLikeCpp, PlayerQuestStatusPersistenceRequestLikeCpp,
     QuestObjectiveCountPersistenceLikeCpp, QuestStatusPersistenceLikeCpp,
 };
-pub use quest_catalog::*;
-pub use quest_item_catalog::{
+pub use quest::*;
+pub use quest::{
     CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,
     QuestItemCatalogLoadOutcomeLikeCpp, QuestItemCatalogPersistencePortLikeCpp,
 };
@@ -259,7 +248,7 @@ pub use skill_world_rules::{
     SkillTierPersistenceRowLikeCpp, SkillWorldRulesLoadOutcomeLikeCpp,
     SkillWorldRulesPersistencePortLikeCpp,
 };
-pub use spell_acquisition_startup::{
+pub use spell::{
     BattlePetSpeciesHotfixPersistenceRowLikeCpp, ServersideSpellEffectPersistenceRowLikeCpp,
     ServersideSpellPersistenceRowLikeCpp, SpellAcquisitionHotfixPersistenceRowLikeCpp,
     SpellAcquisitionHotfixTablePersistenceLikeCpp, SpellAcquisitionStartupLoadOutcomeLikeCpp,
@@ -270,7 +259,21 @@ pub use spell_acquisition_startup::{
     SummonPropertiesHotfixPersistenceRowLikeCpp, TalentHotfixPersistenceRowLikeCpp,
     TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
-pub use spell_core_db2_hotfix::{
+pub use spell::{
+    SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP, SpellInfoKeyContributorHotfixBatchLikeCpp,
+    SpellInfoKeyContributorHotfixRowLikeCpp, SpellInfoKeyContributorLikeCpp,
+    SpellInfoKeyHotfixLoadOutcomeLikeCpp, SpellInfoKeyHotfixPersistencePortLikeCpp,
+    SpellInfoKeyHotfixRowsLikeCpp, SpellInfoPowerDifficultyHotfixRowLikeCpp,
+};
+pub use spell::{
+    SpellAreaPersistenceRowLikeCpp, SpellGroupPersistenceRowLikeCpp,
+    SpellGroupStackRulePersistenceRowLikeCpp, SpellLinkedPersistenceRowLikeCpp,
+    SpellPetAuraPersistenceRowLikeCpp, SpellProcPersistenceRowLikeCpp,
+    SpellRequiredPersistenceRowLikeCpp, SpellTargetPositionPersistenceRowLikeCpp,
+    SpellThreatPersistenceRowLikeCpp, SpellTotemModelPersistenceRowLikeCpp,
+    SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
+};
+pub use spell::{
     SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,
     SpellCastingRequirementsHotfixRowLikeCpp, SpellCategoriesHotfixRowLikeCpp,
     SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
@@ -280,20 +283,6 @@ pub use spell_core_db2_hotfix::{
     SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp,
     SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
     SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
-};
-pub use spell_info_key_hotfix::{
-    SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP, SpellInfoKeyContributorHotfixBatchLikeCpp,
-    SpellInfoKeyContributorHotfixRowLikeCpp, SpellInfoKeyContributorLikeCpp,
-    SpellInfoKeyHotfixLoadOutcomeLikeCpp, SpellInfoKeyHotfixPersistencePortLikeCpp,
-    SpellInfoKeyHotfixRowsLikeCpp, SpellInfoPowerDifficultyHotfixRowLikeCpp,
-};
-pub use spell_world_catalog::{
-    SpellAreaPersistenceRowLikeCpp, SpellGroupPersistenceRowLikeCpp,
-    SpellGroupStackRulePersistenceRowLikeCpp, SpellLinkedPersistenceRowLikeCpp,
-    SpellPetAuraPersistenceRowLikeCpp, SpellProcPersistenceRowLikeCpp,
-    SpellRequiredPersistenceRowLikeCpp, SpellTargetPositionPersistenceRowLikeCpp,
-    SpellThreatPersistenceRowLikeCpp, SpellTotemModelPersistenceRowLikeCpp,
-    SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
 };
 pub use static_data_overlay::{
     AreaTableHotfixRowLikeCpp, PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
@@ -328,15 +317,14 @@ pub use visibility_spawn_catalog::{
     VisibilitySpawnCatalogOutcomeLikeCpp, VisibilitySpawnCatalogPersistencePortLikeCpp,
     VisibilitySpawnCatalogRequestLikeCpp,
 };
-pub use world_auxiliary_catalog::{
+pub use world::*;
+pub use world::{
     AccessRequirementPersistenceRowLikeCpp, GraveyardZonePersistenceRowLikeCpp,
     SceneTemplatePersistenceRowLikeCpp, SpawnGroupTemplatePersistenceRowLikeCpp,
     TrinityStringPersistenceRowLikeCpp, WorldAuxiliaryCatalogPersistencePortLikeCpp,
     WorldAuxiliaryRowsLoadOutcomeLikeCpp,
 };
-pub use world_object_catalog::*;
-pub use world_query_catalog::*;
-pub use world_reference_catalog::{
+pub use world::{
     WorldObjectIdCatalogKindLikeCpp, WorldReferenceCatalogPersistencePortLikeCpp,
     WorldReferenceRowsLoadOutcomeLikeCpp, WorldSafeLocPersistenceRowLikeCpp,
     WorldSpawnCatalogKindLikeCpp,
@@ -345,8 +333,7 @@ pub use world_reference_catalog::{
 mod outcome;
 pub use outcome::{LogicalDatabaseLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp};
 
-mod world_runtime;
-pub use world_runtime::{
+pub use world::{
     GameEventConditionSaveLoadOutcomeLikeCpp, GameEventConditionSavePersistenceRowLikeCpp,
     GameEventPersistenceMutationLikeCpp, GameEventPersistenceMutationOutcomeLikeCpp,
     GameEventPersistencePortLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,
@@ -371,8 +358,7 @@ pub use battle_pet::{
     reconcile_battle_pet_purchase_charge_like_cpp, reconcile_battle_pet_purchase_mark_like_cpp,
 };
 
-mod player_lifecycle;
-pub use player_lifecycle::{
+pub use player::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
@@ -398,14 +384,12 @@ pub use gossip_query::{
     GossipNpcTextCatalogRequestLikeCpp,
 };
 
-mod player_name_query;
-pub use player_name_query::{
+pub use player::{
     PlayerNameQueryOutcomeLikeCpp, PlayerNameQueryPersistencePortLikeCpp,
     PlayerNameQueryRequestLikeCpp, PlayerNameQueryRowLikeCpp,
 };
 
-mod player_economy;
-pub use player_economy::{
+pub use player::{
     PlayerBankSlotPurchaseRequestLikeCpp, PlayerCurrencySaveKindLikeCpp,
     PlayerCurrencySaveRequestLikeCpp, PlayerCurrencySaveRowLikeCpp,
     PlayerDurabilityRepairSaveLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
@@ -440,8 +424,7 @@ pub use session_account::{
     SessionTutorialsLoadOutcomeLikeCpp,
 };
 
-mod player_login;
-pub use player_login::{
+pub use player::{
     PlayerActionButtonLoadRowLikeCpp, PlayerBagInventoryLoadRowLikeCpp,
     PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
     PlayerCharacterAuraEffectLoadRowLikeCpp, PlayerCharacterAuraLoadRowLikeCpp,
@@ -479,8 +462,7 @@ pub use account_collections::{
     AccountToyRowLikeCpp,
 };
 
-mod player_save;
-pub use player_save::{
+pub use player::{
     PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
     PlayerCharacterCommittedGroupsLikeCpp, PlayerCharacterSaveRequestLikeCpp,
     PlayerCharacterSaveResultLikeCpp, PlayerCharacterSnapshotSaveLikeCpp,
@@ -501,8 +483,7 @@ pub use character_enumeration::{
     CharacterEnumerationRequestLikeCpp, CharacterEnumerationRowLikeCpp,
 };
 
-mod quest_poi;
-pub use quest_poi::{
+pub use quest::{
     QuestPoiBlobLoadRowLikeCpp, QuestPoiLoadOutcomeLikeCpp, QuestPoiLoadStageLikeCpp,
     QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
 };
@@ -516,8 +497,7 @@ pub use stored_item_money::{
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
 
-mod spell_acquisition;
-pub use spell_acquisition::{
+pub use spell::{
     PlayerSpellAcquisitionAuthorityLikeCpp, PlayerSpellAcquisitionDurableOperationLikeCpp,
     PlayerSpellAcquisitionMoneyReconciliationLikeCpp,
     PlayerSpellAcquisitionPersistenceAttemptLikeCpp, PlayerSpellAcquisitionPersistencePortLikeCpp,

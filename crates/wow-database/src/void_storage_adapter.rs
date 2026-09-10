@@ -284,7 +284,7 @@ impl MariaDbVoidStoragePersistenceAdapterLikeCpp {
         for statement in statements {
             transaction.append(statement);
         }
-        crate::player_money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
+        crate::player::money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
             self.character_db.as_ref(),
             transaction,
             Some(player_guid),

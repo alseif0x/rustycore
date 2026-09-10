@@ -190,7 +190,7 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
         }
     }
     let golden: Vec<(String, usize)> = serde_json::from_str(include_str!(
-        "../../../../wow-world/tests/fixtures/player-save-plan-order.json"
+        "../../../../../wow-world/tests/fixtures/player-save-plan-order.json"
     ))
     .expect("frozen order fixture parses");
     assert_eq!(
