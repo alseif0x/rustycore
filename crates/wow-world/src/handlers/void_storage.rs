@@ -1676,5 +1676,5 @@ impl WorldSession {
 }
 
 #[cfg(test)]
-#[path = "void_storage_tests.rs"]
+#[path = "void_storage_tests/mod.rs"]
 mod tests;
