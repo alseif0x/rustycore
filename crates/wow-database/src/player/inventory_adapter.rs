@@ -176,7 +176,7 @@ fn append_quest_status_projection_like_cpp(
     status: &wow_persistence::QuestStatusPersistenceLikeCpp,
 ) {
     for statement in
-        crate::player_quest_adapter::player_quest_status_statements_like_cpp(owner_guid, status)
+        crate::player::quest_adapter::player_quest_status_statements_like_cpp(owner_guid, status)
     {
         transaction.append(statement);
     }
@@ -408,7 +408,7 @@ fn inventory_transaction_like_cpp(
                 }
             }
             for statement in
-                crate::player_lifecycle_adapter::player_currency_save_statements_like_cpp(
+                crate::player::lifecycle_adapter::player_currency_save_statements_like_cpp(
                     &request.currency_save,
                 )
             {
