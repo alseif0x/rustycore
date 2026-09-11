@@ -49,7 +49,11 @@ impl WorldSession {
         &self,
         map_id: u32,
     ) -> Option<ObjectGuid> {
-        self.resolved_group_guid_like_cpp()
+        // #743: C++ reads `Player::GetGroup()`, which `Group::RemoveMember`
+        // and `Group::Disband` clear in the same operation. Resolve instance
+        // ownership through the authority so a member removed while a
+        // notification is still queued cannot keep the group's instance.
+        self.authoritative_group_membership_like_cpp()
             .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
             .map(|group| group.recent_instance_owner_like_cpp(map_id))
             .or(self.player_guid)

@@ -136,6 +136,57 @@ disconnect, reemplazo de sesión, eliminación obsoleta después de un nuevo joi
 transiciones seleccionadas. La prueba de `Full` aislada no basta; tampoco basta una
 prueba de fixture que no ejecute la composición de producción.
 
+#### Entrega local aceptada — 9e6767bb
+
+El contrato entregado conserva `GroupRegistry` como autoridad única y define la
+convergencia del proyección `Player::m_group`: toda transición se aplica al miembro
+o queda registrada para reconciliación. No hay segundo owner mutable, campo de
+Session, lock, task, reloj ni variante de `SessionCommand` nuevos.
+
+- Autoridad: `crates/wow-social/src/group/membership.rs` publica
+  `member_group_state_like_cpp` (la membresía que el miembro debe converger) y
+  `group_category_like_cpp` (si el grupo sobrevive), que distingue `Group::Disband`
+  de `Group::RemoveMember` para un miembro cuyo aviso se perdió.
+- Frontera de entrega: `crates/wow-world/src/session/directory/group_state.rs`.
+  `deliver_group_state_command_like_cpp` encola y, ante `Full`, `Disconnected` o
+  `StaleRegistration`, registra la obligación. La marca se indexa por GUID —no por
+  encarnación— para que un aviso perdido por un reemplazo alcance al sucesor, y se
+  olvida al desregistrar la sesión. No contiene membresía, líder, rol ni subgrupo y
+  no responde a ninguna lectura de gameplay.
+- Ejecución: `WorldSession::reconcile_group_state_like_cpp`
+  (`session/social/group.rs`) converge en la fase `ReconcileGroupState` del driver,
+  después del drenaje del buzón. Cubre membresía, subgrupo y las tres preferencias
+  de dificultad del grupo, y deriva el paquete de teardown de si el grupo sobrevivió.
+  Un comando que llegue después encuentra la proyección ya convergida y su propia
+  guarda de grupo no publica dos veces.
+- Comandos con estado enrutados por esa frontera: instalación de membresía
+  (`ops_1.rs`), kick y disband (`ops_1.rs`), cambio y permuta de subgrupo
+  (`ops_2.rs`) y dificultad (`session/instances/difficulty.rs`). Un comando
+  descartado por su fase de admisión o por su guarda de orden difiere en vez de
+  desaparecer; una eliminación que compite con un re-join al mismo grupo ya no
+  revoca una membresía que la autoridad mantiene.
+- Lectores corregidos: tap de criatura (`session/social/group.rs`) y propiedad de
+  instancia (`session/instances/instance.rs`) resuelven por la autoridad, como C++
+  al desreferenciar `Player::m_group`. Los lectores que ya revalidaban pertenencia
+  quedan sin cambios.
+- Movimiento estructural separado: la aplicación de comandos de grupo salió de
+  `handlers/loot/handlers.rs` —que no es su responsabilidad y excedía su presupuesto
+  físico— a `handlers/group/commands.rs`, método a método. El techo de ese fichero
+  se ajusta a su tamaño reducido (2.463 → 2.365).
+
+Aceptación local ejecutada en este árbol (host aarch64 de desarrollo):
+`cargo test -p wow-world --lib` 3.841 tests, `cargo test -p wow-social --lib` 80
+tests, y los tres objetivos de integración ligados a producción de `wow-world`
+(`production_handler_registry_contract`, `production_login_player_owner`,
+`production_character_rename`) en verde. `session-ownership-check check
+--syntax-only`, `check_architecture.py check` y `self-test`, `cargo fmt --all --
+--check` y `git diff --check` pasan; los deltas de inventario revisados son
+exactamente la superficie nueva y la reubicación.
+
+Límite conservado: no hay evidencia de runtime vivo, captura ni DB/reinicio/relogin
+para esta entrega. La saturación se ejerce sobre el canal acotado real en la
+composición de sesión, no sobre un servidor en ejecución.
+
 ### 4.2 #735 — encapsulación de reputación bajo Player
 
 La corrección exacta de #735 sustituye el requisito anterior de mover todo

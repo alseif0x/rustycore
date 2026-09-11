@@ -5520,6 +5520,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::group::commands",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "cfg": [],
@@ -9469,6 +9475,76 @@
           ]
         },
         {
+          "module": "crate::handlers::group::commands",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_apply_group_difficulty_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_group_difficulty_command_like_cpp (& mut self , command : ApplyGroupDifficultyLikeCppCommand ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::commands",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_apply_group_join_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_group_join_command_like_cpp (& mut self , command : ApplyGroupJoinLikeCppCommand ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::commands",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_apply_group_removal_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_group_removal_command_like_cpp (& mut self , command : ApplyGroupRemovalLikeCppCommand ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::commands",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_apply_group_subgroup_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_group_subgroup_command_like_cpp (& mut self , command : ApplyGroupSubgroupLikeCppCommand ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::commands",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_send_party_update_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_send_party_update_command_like_cpp (& mut self , mut command : SendPartyUpdateLikeCppCommand ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "kind": "method",
@@ -10451,62 +10527,6 @@
           "module": "crate::handlers::loot::handlers",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_apply_group_difficulty_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_difficulty_command_like_cpp (& mut self , command : crate :: session :: mailbox :: ApplyGroupDifficultyLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_group_join_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_join_command_like_cpp (& mut self , command : ApplyGroupJoinLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_group_removal_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_removal_command_like_cpp (& mut self , command : ApplyGroupRemovalLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_group_subgroup_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_subgroup_command_like_cpp (& mut self , command : crate :: session :: mailbox :: ApplyGroupSubgroupLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_apply_loot_money_like_cpp_command",
           "visibility": "pub (crate)",
           "signature": "async fn handle_apply_loot_money_like_cpp_command (& mut self , command : ApplyLootMoneyLikeCppCommand ,)",
@@ -10872,20 +10892,6 @@
           "name": "handle_send_if_visible_like_cpp_command_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_send_if_visible_like_cpp_command_like_cpp (& mut self , command : SendIfVisibleLikeCppCommand , realm_connection : bool , allow_legacy_creature_source : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_send_party_update_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_send_party_update_command_like_cpp (& mut self , mut command : SendPartyUpdateLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -20890,6 +20896,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "apply_authoritative_group_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_authoritative_group_state_like_cpp (& mut self , player_guid : ObjectGuid , group_registry : & GroupRegistry ,) -> GroupReconciliationOutcomeLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "apply_block_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_block_effect_like_cpp (& mut self) -> Result < () , & 'static str >",
@@ -22873,6 +22890,19 @@
           "name": "aura_has_total_stat_percentage_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn aura_has_total_stat_percentage_effect_like_cpp (& self , aura : & AuraApplication ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "authoritative_group_membership_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn authoritative_group_membership_like_cpp (& self) -> Option < u64 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26240,6 +26270,19 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "defer_group_state_reconciliation_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn defer_group_state_reconciliation_like_cpp (& self)",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -34922,6 +34965,32 @@
           "name": "reconcile_durable_loot_money_before_save_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "async fn reconcile_durable_loot_money_before_save_like_cpp (& mut self ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "reconcile_group_difficulty_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn reconcile_group_difficulty_like_cpp (& mut self , dungeon : u32 , raid : u32 , legacy_raid : u32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "reconcile_group_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn reconcile_group_state_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -56277,6 +56346,16 @@
           "count": 1
         },
         {
+          "module": "crate::handlers::group::tests::reconciliation",
+          "callee": "WorldSession::new",
+          "argument_count": 10,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
           "module": "crate::handlers::loot::tests",
           "callee": "WorldSession::new",
           "argument_count": 10,
@@ -56398,6 +56477,16 @@
         },
         {
           "module": "crate::session::lifecycle::transfer_completion::tests",
+          "callee": "WorldSession::new",
+          "argument_count": 10,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
+          "module": "crate::session::social::group_tests",
           "callee": "WorldSession::new",
           "argument_count": 10,
           "cfg": [
@@ -64901,6 +64990,19 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::player_directory::group_state",
+          "source": "crates/wow-world/src/lib.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "super::{PlayerDirectorySendError,PlayerRegistration,PlayerRegistry}",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "enum LootMoneyDeliveryAddressLikeCpp::Directory",
@@ -66479,6 +66581,32 @@
           "package": "wow-world",
           "module": "crate::session::social::group",
           "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::apply_authoritative_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::apply_authoritative_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "get(& authority . group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
           "enclosing": "impl WorldSession::apply_represented_group_leader_flag_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -66493,6 +66621,71 @@
           "module": "crate::session::social::group",
           "source": "crates/wow-world/src/session/social/group.rs",
           "enclosing": "impl WorldSession::apply_represented_group_leader_flag_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::authoritative_group_membership_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::authoritative_group_membership_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_guid",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::authoritative_group_membership_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::authoritative_group_membership_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::authoritative_group_membership_like_cpp",
           "registry": "GroupRegistry",
           "operation": "get",
           "symbol": "get",
@@ -66720,6 +66913,45 @@
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::defer_group_state_reconciliation_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::defer_group_state_reconciliation_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::defer_group_state_reconciliation_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
           "count": 1
         },
         {
@@ -66798,6 +67030,84 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social::group",
+          "source": "crates/wow-world/src/session/social/group.rs",
+          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "apply_authoritative_group_state_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& group_registry",
           "count": 1
         },
         {

@@ -158,6 +158,7 @@ async fn empty_pass_records_the_frozen_session_phase_order_like_cpp() {
             Phase::ConnectionTimeout,
             Phase::FlushPacketSpoofBan,
             Phase::SessionCommands,
+            Phase::ReconcileGroupState,
             Phase::CreatureKills,
             Phase::PollInstanceLink,
             Phase::PendingCreatureSpawn,

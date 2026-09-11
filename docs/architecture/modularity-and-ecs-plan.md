@@ -13,10 +13,10 @@ product remains mandatory even though operator activation is optional.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
-integration, or close the remaining #584 boundaries. The current recommended sequence
-is #743, then #735 as an ordering preference without a hard dependency, then the
-remaining P2 operations and P3 runtime/lifetime/private-hecs and P4 semantic/physical
-work. No new micro-issues are implied; each macro includes its consumers and validation.
+integration, or close the remaining #584 boundaries. #743 is delivered and locally
+accepted at `9e6767bb`; the current recommended sequence is #735 as an ordering
+preference without a hard dependency, then the remaining P2 operations and P3
+runtime/lifetime/private-hecs and P4 semantic/physical work. No new micro-issues are implied; each macro includes its consumers and validation.
 
 ## Architecture program state — 2026-09-11
 

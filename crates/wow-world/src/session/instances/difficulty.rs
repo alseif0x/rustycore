@@ -246,6 +246,51 @@ impl WorldSession {
             }
         }
     }
+    /// #743: converge this member's difficulty preferences on its group.
+    ///
+    /// C++ `Group::SetDungeonDifficultyID`/`SetRaidDifficultyID`/
+    /// `SetLegacyRaidDifficultyID` write every connected member's
+    /// `Player::m_dungeonDifficulty` family and send the matching `*DifficultySet`
+    /// inside the same operation, so no member keeps its own value while in the
+    /// group. This reapplies exactly those three values and publishes only the
+    /// kinds that actually changed, for a member whose notification was lost.
+    pub(in crate::session) fn reconcile_group_difficulty_like_cpp(
+        &mut self,
+        dungeon: u32,
+        raid: u32,
+        legacy_raid: u32,
+    ) -> bool {
+        let Some((current_dungeon, current_raid, current_legacy_raid)) =
+            self.player_difficulty_preferences_snapshot_like_cpp()
+        else {
+            return false;
+        };
+        if (current_dungeon, current_raid, current_legacy_raid) == (dungeon, raid, legacy_raid) {
+            return false;
+        }
+        if !self.replace_player_difficulty_preferences_like_cpp(dungeon, raid, legacy_raid) {
+            return false;
+        }
+        if current_dungeon != dungeon {
+            self.send_packet(&DungeonDifficultySet {
+                difficulty_id: i32::try_from(dungeon).unwrap_or(i32::MAX),
+            });
+        }
+        if current_raid != raid {
+            self.send_packet(&RaidDifficultySet {
+                difficulty_id: i32::try_from(raid).unwrap_or(i32::MAX),
+                legacy: false,
+            });
+        }
+        if current_legacy_raid != legacy_raid {
+            self.send_packet(&RaidDifficultySet {
+                difficulty_id: i32::try_from(legacy_raid).unwrap_or(i32::MAX),
+                legacy: true,
+            });
+        }
+        true
+    }
+
     pub(crate) fn represented_set_difficulty_id_like_cpp(
         &mut self,
         difficulty_id: u32,
@@ -364,7 +409,7 @@ impl WorldSession {
                 continue;
             };
             if let Some(member) = player_registry.group_presence(member_guid) {
-                let _ = player_registry.try_send_current_command(
+                let _ = player_registry.deliver_group_state_command_like_cpp(
                     member.registration,
                     SessionCommand::ApplyGroupDifficultyLikeCpp(
                         crate::session::mailbox::ApplyGroupDifficultyLikeCppCommand {
@@ -374,6 +419,10 @@ impl WorldSession {
                         },
                     ),
                 );
+            } else {
+                // C++ `Group::SetDungeonDifficultyID` writes each connected
+                // member's preference in the same operation (#743).
+                player_registry.mark_group_state_reconciliation_like_cpp(member_guid);
             }
         }
 

@@ -503,23 +503,23 @@
     },
     {
       "path": "crates/wow-world/src/handlers/group.rs",
-      "observed_lines": 2995,
-      "ceiling_lines": 349,
-      "split": "Separate the group handler operations from their regressions. #662 decomposes the 2,995-line file into one state module, two ops modules dividing the `impl WorldSession` block by handler responsibility, and three regression modules, dropping it to 349 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "observed_lines": 350,
+      "ceiling_lines": 350,
+      "split": "Separate the group handler operations from their regressions. #662 decomposes the 2,995-line file into one state module, two ops modules dividing the `impl WorldSession` block by handler responsibility, and three regression modules, dropping it to 349 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source. Item-for-item with the crate's 3,822 lib tests unchanged. #743 adds one inseparable line: the `commands` module declaration. A module declaration must live in its parent root, which is also the single opcode registration source.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/group_tests.rs",
-      "observed_lines": 782,
-      "ceiling_lines": 782,
-      "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5964 to 782 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "observed_lines": 784,
+      "ceiling_lines": 784,
+      "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5964 to 782 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #743 adds two inseparable lines: the `#[path]` registration of the bounded `reconciliation` scenario module. This root's own split keeps shared helpers and scenario registrations here, so a new scenario module cannot be registered anywhere else.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot/handlers.rs",
-      "observed_lines": 2463,
-      "ceiling_lines": 2463,
-      "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 2365,
+      "ceiling_lines": 2365,
+      "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #743 removes the 116-line group command application block, which was not a loot responsibility; it now lives in `handlers/group/commands.rs` beside the group operations that produce those commands. The ceiling is tightened to the reduced size.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -622,9 +622,9 @@
     },
     {
       "path": "crates/wow-world/src/session/directory.rs",
-      "observed_lines": 2351,
-      "ceiling_lines": 2351,
-      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility.",
+      "observed_lines": 2360,
+      "ceiling_lines": 2360,
+      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility. #743 adds nine inseparable lines: the `group_state` module declaration, the delivery-obligation field with its Default entry, and the two lifecycle calls that forget an obligation when its incarnation is unregistered. The contract, its API and its documentation live in `directory/group_state.rs`; the field itself cannot leave the struct it belongs to.",
       "review_checkpoint": "584:C4"
     },
     {

@@ -22,9 +22,25 @@ though operator activation is optional. No new micro-issues are planned:
 each macro includes its consumers and validation, with file-specific exceptions allowed by
 the module policy.
 
-The next recommended core macro is **#743**, covering group commands that carry state and
-their saturation, disconnect, replacement, stale-command and reconciliation behavior.
-**#735** follows as a recommended ordering preference, not a hard dependency: keep
+**Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
+`GroupRegistry` stays the single authority and every state-bearing group command now
+either reaches its member or records a delivery obligation that the member converges
+on in a dedicated driver phase. C++ never needs this fence because
+`Group::RemoveMember` (`Group.cpp:550`) and `Group::Disband` (`Group.cpp:713`) call
+`Player::SetGroup(nullptr)` (`Player.cpp:23440`) inside the operation itself. The
+delivered contract, its exact code targets and its retained boundary are in
+[the refactor completion plan](../architecture/refactor-completion-plan.md#entrega-local-aceptada--9e6767bb).
+Evidence on this aarch64 development host with one Cargo job: `cargo test -p wow-world
+--lib` 3,841 passed, `cargo test -p wow-social --lib` 80 passed, the three
+production-linked `wow-world` integration targets passed, and `session-ownership-check
+check --syntax-only`, `check_architecture.py check`/`self-test`, `cargo fmt --all --
+--check` and `git diff --check` passed. The reviewed inventory deltas are exactly the
+new surface and the `handlers/loot/handlers.rs` → `handlers/group/commands.rs`
+relocation. **No live runtime, capture or DB/restart/relogin evidence exists for this
+delivery**; queue saturation is exercised on the real bounded channel in the session
+composition, not on a running server.
+
+**#735** is the next recommended core macro — an ordering preference, not a hard dependency: keep
 canonical reputation state and invariants with Player, resolve catalogs outside the entity
 boundary, keep packet adaptation outside it, preserve send flags/save acknowledgement, and
 migrate load/login/reward/spell/kill/save consumers. The remaining P2 operations then lead

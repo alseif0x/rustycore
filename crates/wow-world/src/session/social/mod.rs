@@ -9,3 +9,7 @@ mod duel;
 mod group;
 mod guild;
 mod trade;
+
+#[cfg(test)]
+#[path = "group_tests.rs"]
+mod group_tests;

@@ -11,10 +11,10 @@ intermediate acceptance point, not a smaller replacement target.
 
 ## 1. Direction from here
 
-**Next primary implementation: #743, reliable application/reconciliation of group
-state. Next preferred core delivery: #735, reputation encapsulation.** This is a
-priority choice based on demonstrated residuals, not a dependency between those
-issues. Neither requires rebuilding the integrated group or Player owners.
+**#743, reliable application/reconciliation of group state, is delivered and locally
+accepted at `9e6767bb`. Next primary implementation: #735, reputation encapsulation.**
+This is a priority choice based on demonstrated residuals, not a dependency between
+those issues. Neither required rebuilding the integrated group or Player owners.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. In parallel with safe independent work, prepare
@@ -80,7 +80,7 @@ force unrelated work to wait, or permit a partially completed macro to be closed
 
 | Lane | Preferred work | Entry / exit contract |
 | --- | --- | --- |
-| **A — Core architecture** | #743, #735, then measured P2/P3/P4 residuals under #584 | One canonical authority and execution owner, complete consumers, explicit lifetime/persistence/publication and terminal physical/dependency dispositions. See §6. |
+| **A — Core architecture** | #735, then measured P2/P3/P4 residuals under #584; #743 delivered | One canonical authority and execution owner, complete consumers, explicit lifetime/persistence/publication and terminal physical/dependency dispositions. See §6. |
 | **F1 — Character foundations** | #61, #63; relevant #12, #486 and #524 corrections | Equipment reaches effective stats; movement and entry consume the integrated owners. Weather or all vehicles do not block unrelated combat. |
 | **F2 — Combat and recovery** | #29, residual #30, #31; consolidated #43 and #54 | A real fight can reach death, release/recovery and safe logout. Accept numeric combat only with effective stats and the necessary aura/absorb participants. |
 | **F3 — Progression and interaction** | consolidated #41; #55, #56, #13, #36 and #51 | Accept → progress → complete/reward, real loot and GO/item interactions. Shared consumers must compose; queues or recorded requests alone do not pass. |
