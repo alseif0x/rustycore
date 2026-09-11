@@ -13,10 +13,9 @@ fn talent_reset_price_reads_active_and_detached_owner_without_mutation() {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
         }
         session
-            .mutate_player_talent_runtime_like_cpp(|runtime| {
-                runtime.reset_talents_cost = 500_000;
-                runtime.reset_talents_time_secs = month;
-                runtime.talent_groups[0].insert(42, 2);
+            .mutate_player_talent_runtime_for_test_like_cpp(|runtime| {
+                runtime.set_reset_talents_state_like_cpp(500_000, month);
+                runtime.add_talent_like_cpp(0, 42, 2);
             })
             .unwrap();
         let before = session.player_talent_runtime_snapshot_like_cpp().unwrap();
@@ -55,7 +54,10 @@ fn talent_reset_price_rejects_stale_generation_instead_of_pricing_replacement() 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
-    replacement.gameplay_state_mut().talents.reset_talents_cost = 500_000;
+    replacement
+        .gameplay_state_mut()
+        .talents
+        .set_reset_talents_state_like_cpp(500_000, 0);
     let handle = manager
         .lock()
         .unwrap()
@@ -109,12 +111,12 @@ fn talent_points_refresh_reads_active_group_and_rewards_from_active_and_detached
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
         }
         session
-            .mutate_player_talent_runtime_like_cpp(|runtime| {
-                runtime.active_group = 1;
-                runtime.talent_groups[0].insert(101, 2);
-                runtime.talent_groups[1].insert(101, 2);
-                runtime.talent_groups[1].insert(102, 1); // Missing SpellInfo: not counted.
-                runtime.talent_groups[1].insert(999, 8); // Missing talent: not counted.
+            .mutate_player_talent_runtime_for_test_like_cpp(|runtime| {
+                runtime.set_active_group_like_cpp(1);
+                runtime.add_talent_like_cpp(0, 101, 2);
+                runtime.add_talent_like_cpp(1, 101, 2);
+                runtime.add_talent_like_cpp(1, 102, 1); // Missing SpellInfo: not counted.
+                runtime.add_talent_like_cpp(1, 999, 8); // Missing talent: not counted.
             })
             .unwrap();
         session
@@ -143,8 +145,8 @@ fn talent_points_refresh_without_level_catalog_saturates_and_clamps_canonical_re
         test_talent_entry_like_cpp(101, 2, 50_101),
     ])));
     session
-        .mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.talent_groups[0].insert(101, 2);
+        .mutate_player_talent_runtime_for_test_like_cpp(|runtime| {
+            runtime.add_talent_like_cpp(0, 101, 2);
         })
         .unwrap();
     for (rewarded, expected) in [(2, 0), (5, 2), (u32::MAX, i32::MAX)] {
@@ -198,16 +200,16 @@ fn talent_mutation_runs_on_active_and_detached_player_without_writeback() {
         }
         let calls = std::cell::Cell::new(0);
         assert_eq!(
-            session.mutate_player_talent_runtime_like_cpp(|runtime| {
+            session.mutate_player_talent_runtime_for_test_like_cpp(|runtime| {
                 calls.set(calls.get() + 1);
                 assert!(matches!(
                     manager.try_lock(),
                     Err(std::sync::TryLockError::WouldBlock)
                 ));
-                runtime.talent_groups[0].insert(42, 1);
-                runtime.glyph_groups[0][2] = 700;
-                runtime.reset_talents_cost = 100_000;
-                runtime.talents_loaded = true;
+                runtime.add_talent_like_cpp(0, 42, 1);
+                runtime.set_glyph_like_cpp(0, 2, 700);
+                runtime.set_reset_talents_state_like_cpp(100_000, 0);
+                runtime.mark_talents_loaded_like_cpp();
                 detached
             }),
             Some(detached)
@@ -220,14 +222,14 @@ fn talent_mutation_runs_on_active_and_detached_player_without_writeback() {
         // The normal loaded-state setter must preserve every unrelated value.
         session.mark_represented_glyphs_loaded_like_cpp();
         let state = session.player_talent_runtime_snapshot_like_cpp().unwrap();
-        assert_eq!(state.talent_groups[0].get(&42), Some(&1));
-        assert_eq!(state.glyph_groups[0][2], 700);
-        assert_eq!(state.reset_talents_cost, 100_000);
-        assert!(state.talents_loaded && state.glyphs_loaded);
+        assert_eq!(state.talent_group_like_cpp(0).unwrap().get(&42), Some(&1));
+        assert_eq!(state.glyph_like_cpp(0, 2).unwrap(), 700);
+        assert_eq!(state.reset_talents_cost_like_cpp(), 100_000);
+        assert!(state.talents_loaded_like_cpp() && state.glyphs_loaded_like_cpp());
     }
     session.canonical_map_manager = None;
     assert_eq!(
-        session.mutate_player_talent_runtime_like_cpp(|_| panic!("missing owner")),
+        session.mutate_player_talent_runtime_for_test_like_cpp(|_| panic!("missing owner")),
         None::<()>
     );
 }
