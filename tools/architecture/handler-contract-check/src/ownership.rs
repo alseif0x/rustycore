@@ -25,9 +25,10 @@ use syn::{Attribute, Item, ItemMod, Meta, Token};
 
 use crate::module_policy::CapabilityOwner;
 use crate::registrations::{
-    analyze_registration_syntax_outside_handlers, exported_macro_names,
-    handler_capable_macro_definitions, handler_capable_macro_invocations, include_macro_bodies,
-    inventory_registration_macro_fingerprints, registration_alias_violations,
+    analyze_registration_syntax_outside_handlers, data_module_alias_violations,
+    exported_macro_names, handler_capable_macro_definitions, handler_capable_macro_invocations,
+    include_macro_bodies, inventory_dependency_packages, inventory_registration_macro_fingerprints,
+    registration_alias_violations,
 };
 
 const HANDLER_PACKAGE_NAME: &str = "wow-handler";
@@ -1812,6 +1813,7 @@ pub(crate) fn audit_registration_ownership(
 ) -> Result<RegistrationOwnershipReport, String> {
     let metadata = workspace_metadata(repository_root)?;
     let registry_capable = registry_capable_package_ids(&metadata)?;
+    let inventory_capable = inventory_dependency_packages(&metadata)?;
     let workspace_members: BTreeSet<_> = required_array(&metadata, "workspace_members", "root")?
         .iter()
         .map(|member| {
@@ -1898,7 +1900,11 @@ pub(crate) fn audit_registration_ownership(
                     inventory_calls.join(", ")
                 ));
             }
-            let alias_violations = registration_alias_violations(&source)?;
+            let alias_violations = if inventory_capable.contains(&scope.id) {
+                registration_alias_violations(&source)?
+            } else {
+                data_module_alias_violations(&source)?
+            };
             if !alias_violations.is_empty() {
                 errors.push(format!(
                     "package {} source {} exposes registration alias capability: {}",

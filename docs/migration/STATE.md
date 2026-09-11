@@ -1,5 +1,29 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Current architecture delivery — 2026-09-10, reviewed integration `aff42a51`:**
+the user approved starting the architecture repair program. #716 restores exact
+ownership-provenance acceptance after the mechanical module passes. At that base,
+the general architecture check and self-tests pass; the syntax-only Session check
+fails on two relocated fixture scopes and one still-live canonical/legacy bridge
+whose parent import is lost by the analyzer. Physical terminal acceptance also fails:
+31 files exceed 2,000 lines, while migration ceilings still pass. These results do not
+reopen the integrated, closed #587/#588/#589 scoped gameplay deliveries.
+Implementation and acceptance of #716 are tracked in the
+[current architecture plan](../architecture/modularity-and-ecs-plan.md#current-core-delivery--2026-09-10).
+**#716 is locally accepted**, with implementation commit
+`6ae62d73a9f910ebd664d82e331520b836a73c77`: 363 analyzer library tests, syntax-only
+ownership, architecture check/self-test and validation-v2 quick pass. The 65 earlier
+bridge records are preserved after the reviewed relocation; seven existing dual
+references are now inventoried, giving 72 exact records. Test commands ran on the
+working candidate at `aff42a51` and its verified V2 manifest records `dirty: true`;
+the tested code/policies were committed unchanged. The
+[complete plan for Claude](../architecture/refactor-completion-plan.md#9-estado-exacto-de-la-entrega-al-pasar-a-claude)
+records commands, source identity and the remaining boundaries. No push, merge,
+server build, deployment, live QA or exhaustive persistence rescan was performed
+for this tooling delivery. Physical terminal acceptance still fails at the same
+31 files. Required #584 core still precedes #583, #153 and #133 closure; quest reward
+is the next operation candidate requiring its complete durability/consumer contract.
+
 **Second physical pass closed — 2026-09-10, integration `a4a9073e`:** fourteen
 deliveries between #685 and #711 finished the physical track outside the curated
 hotspots. #685 and #687 moved the last inline `mod tests` blocks out of oversized
@@ -12,12 +36,13 @@ taking the `wow-persistence` root from 53 entries to 26, `wow-database` from 64 
 each crate's test count unchanged, and passed
 `./tools/validation-v2 final --base origin/3.4.3` at the committed SHA.
 
-Four files outside the hotspots remain above the 1,000-line review budget, and none is a
-relocation problem: `session_tests.rs` (5,756) keeps its 197 shared helpers in the root
-deliberately by #626, while `statements/character/identities.rs` (1,789),
-`statement_def.rs` (1,627) and `player/lifecycle_adapter.rs` (1,609) are one `enum`, one
-`match` and one trait impl - a single item, which cannot become modules without changing
-the type. Forty-four more sit inside the eight curated hotspot aggregates. This corrects
+That pass retained four files outside the hotspots above the 1,000-line review
+budget: `session_tests.rs` (5,756) and its 197 shared helpers, plus
+`statements/character/identities.rs` (1,789), `statement_def.rs` (1,627) and
+`player/lifecycle_adapter.rs` (1,609). Forty-four more sat inside the eight curated
+hotspot aggregates. #716 corrects the earlier claim that a trait impl or match must
+change its type to delegate to private modules; those shapes and fixture sharing do
+not establish terminal exceptions. This corrects
 the earlier claim that relocation was exhausted for "the `map_manager` pair": #705 divided
 its 2,069-line `impl WorldCreature` into seven submodules and #711 divided the 2,191-line
 root into five, so both now sit at 130 and 255 lines. The measured limits behind the rest
@@ -25,7 +50,8 @@ are recorded in
 [the module-design guide](../architecture/module-design-guidelines.md#what-a-physical-division-cannot-reach),
 including #713's measurement that dividing the loot and quest fixture roots costs their
 hotspot aggregates +63 and +43 test lines at the cheapest wiring available. What remains
-is the semantic extraction owned by #584 C0-C4. This closes neither #133 nor #584.
+includes both semantic extraction and justified private decomposition under #584
+C0-C4. This closes neither #133 nor #584.
 
 **Physical decomposition track closed — 2026-09-09, integration `df94f231`:**
 #589 and its sub-issues #590-#595 are merged. Sixteen deliveries between #634 and
@@ -38,15 +64,18 @@ surface identical before and after, kept its crate's test count unchanged, and
 passed `./tools/validation-v2 final --base origin/3.4.3` at the committed SHA;
 sixty-seven of the hundred reviewed ceilings are now at or below 2,000 lines.
 
-116,693 lines remain above 2,000 lines in 33 files, and relocation is exhausted
-for all of them: 29 sit inside the eight curated runtime-ownership hotspots or
-the `map_manager` pair, one is a vendored C++ translation unit and three are
-capture fixture shell scripts with their own runtime-authorization gates. The
+At that revision, 116,693 lines remained above 2,000 lines in 33 files: 29 sat
+inside the eight curated runtime-ownership hotspots or the `map_manager` pair,
+one was a vendored C++ translation unit and three were capture fixture shell
+scripts with their own runtime-authorization gates. The earlier conclusion that
+all relocation was exhausted is superseded by the 2026-09-10 review above. The
 hotspot ratchet measures the module aggregate, so splitting a file inside an
 owner at its baseline makes the aggregate grow; and splitting a bridge
 function's context removed a row from the 65-row bridge inventory while the
-build and all 3,822 `wow-world` tests stayed green (#662, reverted). What
-remains is the semantic extraction owned by #584 C0-C4, with the per-owner entry
+build and all 3,822 `wow-world` tests stayed green (#662, reverted). That count
+loss did not prove retirement or make file separation invalid; #716 repairs the
+parent-import provenance gap. What remains includes semantic extraction and
+justified physical decomposition under #584 C0-C4, with the per-owner entry
 conditions recorded in
 [the modularity plan](../architecture/modularity-and-ecs-plan.md#physical-decomposition-track-closed--2026-09-09).
 This closes neither #133 nor #584.

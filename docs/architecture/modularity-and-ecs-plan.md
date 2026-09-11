@@ -10,7 +10,128 @@ The finite pre-migration conformance has passed as recorded in the V2 evidence;
 production storage integration and SDK acceptance remain distinct and unfinished.
 Storage/module choices and the full #133 outcome are unchanged.
 
+## Current core delivery — 2026-09-10
+
+The user-requested [complete continuation plan for Claude](refactor-completion-plan.md)
+collects the diagnosis, target organization, P0–P6 delivery order and handoff evidence.
+This document retains the canonical semantic/SDK contracts; the continuation plan
+does not turn its pending tasks into accepted results.
+
+The user approved starting the architecture repair program reviewed on integrated
+`3.4.3` at `aff42a5166530de948cc3b1b94dc4e813c538bff`. #587/#588/#589 are integrated
+and closed. Their checkpoints retain their scoped runtime/capture evidence; they
+are not reopened by the remaining core work or by naming preferences.
+
+**#716 — restore ownership provenance and acceptance after module decomposition**
+is the first implementation delivery under #584. Its scope is the analyzer, the
+exact reviewed inventories and the current design/status guidance. No gameplay,
+SQL, packet, scheduling or runtime operation changes belong to this delivery.
+
+At the reviewed HEAD, the general architecture check and its self-tests pass, but
+the syntax-only Session ownership check fails. Two ten-argument `WorldSession::new`
+fixture sites moved to `battle_pet_purchase::executor_tests::fixtures::session` and
+`handlers::misc::tests::world` without their baseline scopes. The third failure is
+not a retired bridge: #711 moved `world_creature_from_pending_respawn_like_cpp` into
+`map_manager/pending_respawn.rs` unchanged, where `use super::*` hides the parent's
+explicit `wow_entities::Creature` import from the file-local bridge symbol resolver.
+The function still constructs canonical `Creature` and converts it to `WorldCreature`.
+
+The repair resolves supported lexical imports against the supplied logical module
+graph, preserving exact authority provenance, local shadowing, cfg and multiplicity.
+An unresolved relevant import must not silently become absence of authority. Keep
+external authority globs rejected and do not classify every identifier named
+`Creature` as canonical. Tests cover root/inline/external moves, aliases, local
+non-authority names, missing/ambiguous context and conditionally present imports.
+Review each restored/new bridge record; a smaller generated baseline is not a repair.
+
+The first library acceptance run also exposed a separate false positive from the
+physical pass: `wow-persistence/src/player/mod.rs` declares and reexports its local
+`inventory` data module. The registration guard treated that spelling as the external
+registration crate. #716 now distinguishes that narrow local declaration/glob only
+outside the handler registry closure and when Cargo's resolved normal dependency
+graph proves no path to `inventory`, including renamed and target-specific dependencies.
+Actual macro calls, exports, includes and registration aliases retain their checks;
+packages with registration capability keep the original strict namespace guard.
+Real-source bridge regressions share one complete syntax graph so missing fixture
+parents cannot masquerade as retired authority. Nested cfg and block-local imports
+retain their lexical scopes, including non-authority shadows.
+
+The repaired syntax inventory preserves all 65 earlier bridge records exactly after
+the reviewed `pending_respawn` relocation and adds seven source-reviewed records,
+each with multiplicity one. Six production methods receive canonical `Creature`
+through parent imports while their `Self` is legacy `WorldCreature`:
+
+| Source at reviewed base | Recovered method |
+| --- | --- |
+| `map_manager/movement/motion_master.rs:9` | `new_runtime_motion_master_like_cpp` |
+| `map_manager/runtime/creature.rs:8` | `runtime_default_generator_like_cpp` |
+| `map_manager/runtime/creature.rs:47` | `new` |
+| `map_manager/runtime/creature.rs:126` | `from_canonical` |
+| `map_manager/runtime/creature.rs:180` | `create_data_from_canonical_like_cpp` |
+| `map_manager/runtime/creature.rs:274` | `from_loaded_grid_canonical_like_cpp` |
+
+The seventh is `session/deferred_visibility/tests.rs:33`, `Fixture::new`, whose
+canonical and legacy map managers are constructed at lines 51 and 53; it retains
+`cfg(test)`. Paths in this table are relative to `crates/wow-world/src`. All seven
+retain `unresolved_dual_side`: syntactic dual references are not proof of two
+writers or of a particular transfer direction. No earlier obligation, fingerprint
+or evidence multiplicity was removed, and no persistence snapshot was regenerated.
+
+**Local acceptance:** implementation is committed as
+`6ae62d73a9f910ebd664d82e331520b836a73c77`. The complete candidate passed 363
+analyzer library tests, syntax-only ownership, architecture check/self-test,
+preserved persistence-reference and snapshot-policy consistency, format/diff checks
+and validation-v2 quick (six commands, verified green manifest). Runs used the
+working candidate at parent `aff42a51`; the manifest truthfully records `dirty: true`.
+The tested code/policies were committed unchanged in `6ae62d73`; subsequent handoff
+edits only record documentation. Exact commands and evidence limits are in the
+[Claude handoff](refactor-completion-plan.md#9-estado-exacto-de-la-entrega-al-pasar-a-claude).
+This is local acceptance of #716, not publication, gameplay/runtime acceptance,
+terminal physical acceptance or closure of #584.
+
+The same review measures 31 files above 2,000 physical lines and 63 above 1,000.
+`physical-files --terminal` fails at this base. The completed mechanical passes are
+useful evidence, not completion of physical navigability. Keep both logical-owner
+and physical-file measures; a reviewed wiring delta does not retire semantic debt.
+The [module-design correction](module-design-guidelines.md#what-a-physical-division-cannot-reach)
+replaces the blanket single-item/operation prohibition with responsibility-preserving
+delegation, explicit imports and scenario names at each completed family.
+
+The next represented-operation candidate is **quest reward**, because its Session
+coordinator grants/persists participants separately and discards status-save outcomes.
+Before implementation, freeze the complete operation and compare a coherent character
+transaction with durable staged recovery where participants require it. Current source
+anchors are `handlers/quest/rewards.rs::reward_represented_quest_with_generator_like_cpp`
+and `handlers/quest/persistence.rs::save_quest_to_db`; Classic reference
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` has `QuestHandler.cpp:398`,
+`Player.cpp::RewardQuest:14625`, its `SaveToDB(false):14867`, and the character
+transaction in `SaveToDB:19312`. Reward mail has a separate transaction at `14794`;
+do not infer one global C++ transaction or hide an intentional durability repair in a move.
+Its acceptance must cover partial grants, unknown COMMIT, cancellation, recovery,
+restart/relogin, retry and ordered publication with all affected consumers.
+
+The initial source contrast also bounds that next design:
+
+| Participant | Current represented boundary | Consequence for the complete operation |
+| --- | --- | --- |
+| Client reward and tracking-event auto reward | `handlers/quest/handlers.rs` and `handlers/quest/state.rs` reach the same reward coordinator | Both admissions, and the objective-progress drain that follows success, belong to the migration. |
+| Required items/currencies and fixed/chosen/package grants | The coordinator awaits the participants in sequence; individual item grants can already commit before a later failure | Define the whole participant set and failure/retry contract before moving orchestration; returning `false` is not rollback. |
+| Quest status and repeatable deletion | `handlers/quest/persistence.rs` logs `Failed`/`Unknown` and returns `()`; `wow-database/src/player/quest_adapter.rs` commits each request separately | Preserve this as an identified pre-existing behavior gap until an explicit repair contract replaces it. |
+| Full character save | `PlayerCharacterSaveRequestLikeCpp` in `wow-persistence/src/player/save.rs` covers character/spell/skill and other groups, but has no quest, inventory or currency group | Calling the existing full-save helper cannot by itself make quest rewards coherent; all affected persistence consumers must participate. |
+| Mail and observable publication | Rust's `record_represented_quest_reward_mail_like_cpp` only records test evidence and is a production no-op. Classic commits reward mail separately, sends the reward and executes further effects before `SaveToDB(false)` | Keep the unimplemented mail participant explicit and record separate durability boundaries and actual message/effect order; universal commit-before-publication would be an intentional behavior change. |
+
+This is source-based design preparation, not a selected transaction protocol or new
+runtime acceptance. It does not authorize a silent durability repair inside #716.
+
+Then complete the remaining analyzed #584 operation/lifetime and map-phase/storage
+deliveries. Physical organization, scoped fixture migration and dependency disposition
+accompany each responsibility; the later #583 SDK does not inherit those core debts.
+Preserve required #584 core → #583 → #153 → #133 and the post-M6.2 whole-port review.
+The approved program grants no new push, merge, deployment or live-database authority.
+
 ## Next core candidate — 2026-09-08
+
+This dated section preserves the delivered #589 design; current selection is above.
 
 The user approved **#589 — represented Player cast-request lifecycle** on
 2026-09-08 after localized source review at `cc8a8e97`. It is now **implemented
@@ -190,21 +311,23 @@ evade a ceiling.
 
 ### What relocation cannot do — three findings that bound the track
 
-**A curated hotspot cannot be reduced by relocation.** The runtime-ownership
-ratchet measures the module aggregate, and all eight owners sit at their
-baseline. Splitting a file inside one adds module headers and re-export wiring,
-so the aggregate grows and the ratchet correctly rejects the change. #636
-recorded this for `wow-entities/src/player`, #644 for `wow-map/src/map` and #654
-for `handlers/{character,loot,quest}`; each file keeps its ceiling with the
-reason in its policy row.
+These are dated observations of the mechanical pass. The #716 correction above
+and the module-design guide govern further decomposition and terminal acceptance.
 
-**Splitting a bridge function's context narrows the audit.** The bridge
-inventory pairs canonical-side and legacy-side evidence *within one enclosing
-module*. Moving `world_creature_from_pending_respawn_like_cpp` out of
+**Relocation does not retire a logical owner.** The runtime-ownership ratchet
+measures its aggregate, so a private split adds wiring while retaining that debt.
+#636 recorded this for Player, #644 for Map and #654 for character/loot/quest
+handlers. Review the wiring delta and the benefit of the proposed physical boundary;
+do not infer from the aggregate that private decomposition must stop.
+
+**A source move must preserve bridge detection.** The bridge inventory pairs
+canonical-side and legacy-side evidence within one enclosing item, using resolved
+symbols from its lexical context. Moving `world_creature_from_pending_respawn_like_cpp` out of
 `crate::map_manager` dropped it from the 65-row inventory while the build and
 all 3,822 `wow-world` tests stayed green (#662). Only the ownership baseline
-diff caught it, so the split was reverted. A green build is not evidence that a
-scanner still sees what it saw.
+diff caught it, so that split was reverted. #711 later exposed the same import
+resolution limit in the integrated tree; #716 repairs that coverage. A green build
+does not establish that a scanner still sees the same actual bridge.
 
 **Visibility must be derived from the item's original reach, not from a rule.**
 `pub(super)` denotes a different scope at each depth; a glob re-export silently
@@ -218,7 +341,8 @@ underscore-prefixed names.
 
 ### Semantic track entry conditions
 
-116,693 lines remain above 2,000 lines in 33 files, all in four categories:
+The dated first-pass inventory reported 116,693 lines above 2,000 in 33 files;
+use the current measured inventory above for present sizes and terminal status:
 
 | Owner | Lines | What it needs |
 | --- | --- | --- |
@@ -235,9 +359,11 @@ underscore-prefixed names.
 | capture fixture shell scripts | 7,992 | Runtime swap, dump provenance and recovery orchestration, with the existing capture safeguards and runtime authorization preserved |
 | vendored `DetourNavMeshQuery.cpp` | 3,663 | Out of scope: third-party C++ carried verbatim |
 
-Each of the first ten needs a responsibility to *leave* its owner, which is
-#584's C0-C4 work and requires the ownership ledger and the hotspot baseline to
-move together. The physical track deliberately did not attempt it.
+These files retain #584 C0-C4 responsibility and physical acceptance. Some need
+semantic extraction; others can improve through private delegation within the same
+legitimate owner. Decide from their contracts and consumers, and reconcile the exact
+inventory/ceilings together. Vendor code still needs its file-specific disposition
+for terminal acceptance; its presence is not permission to modify upstream blindly.
 
 ## 1. Outcome and current evidence
 

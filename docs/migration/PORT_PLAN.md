@@ -15,16 +15,14 @@ before implementation. Architecture/tooling work uses its explicit, proportional
 
 ## Current execution agreement — #133 / #578
 
-**Active delivery, 2026-09-08:** #586 merged as `8c47af95`; #585 and #578 are closed.
-#587's acquisition boundary is implemented locally. Its live trainer acceptance
-exposed the missing deferred player visibility bridge; the user approved #588 as
-the concrete prerequisite, followed by resumption of #587. The
-[visibility checkpoint](../architecture/deferred-visibility-588-checkpoint.md)
-owns that finite contract and evidence. #133/#584 remain umbrellas. Complete the
-required core deliveries before #583, then #153 and #133 closure. No later family
-or fixed crate sequence is selected. Complete each implementation and its consumers
-before tests/QA; do not run CI for internal microchanges. This allocation supersedes
-older open-#578/#585 and iteration-cadence text below.
+**Active delivery, 2026-09-10:** #578/#585/#587/#588/#589 are integrated and closed
+within their named scopes. The user approved the architecture repair program at
+`aff42a51`; #716 first restores the ownership analyzer and exact acceptance after
+physical module moves. The [current architecture plan](../architecture/modularity-and-ecs-plan.md#current-core-delivery--2026-09-10)
+owns that contract and the next quest-reward candidate. #133/#584 remain umbrellas.
+Complete required #584 core before #583, then #153 and #133 closure. No fixed crate
+sequence or helper-issue tree is selected. Complete each implementation and its
+consumers before tests/QA; do not run CI for internal microchanges.
 
 **Superseding delivery agreement, 2026-09-06:** the user replaced the single
 all-core implementation PR with crate-focused macrodeliverables, each preceded by
@@ -40,32 +38,32 @@ completion means its agreed architecture outcome, not every future port feature.
 `session-578-checkpoint.md` owns the exact #578 remaining gates. Older one-PR/C0–C4
 allocation paragraphs in this section are the superseded plan, not active scope.
 
-The current ownership delivery remains one **macro-issue #578 / draft PR #579**. The subsequent
-functional modularity proof is **#583 under #99**, then #153 independently audits both before
-#133 closes. Keep coherent internal commits and checkpoints; do not turn
-field families into micro-issues/PRs or require permission to continue between routine steps.
-The contract-led plan and exact remaining boundaries are maintained in
-[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md), not inferred from the
-number of closed historical children, fields moved, or passing tests.
+The closed **#578 / PR #579** delivered the canonical-owner foundation. The remaining
+program is **#584**, followed by **#583 under #99**, then #153's independent audit.
+Keep coherent internal commits and checkpoints; do not turn field families into
+micro-issues/PRs or require permission to continue between routine steps. The
+[architecture plan](../architecture/modularity-and-ecs-plan.md) owns current delivery;
+[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md) retains the
+predecessor's exact evidence, not the current selection or an undated completion claim.
 
 Each internal block must name its complete operation, input/admission contract, canonical owner,
 mutation/commit/publication order, narrow dependencies, retired access/bridge and acceptance
 evidence. Move every related reader/writer before claiming that boundary complete. A shared
 resource bag with fewer outer fields, or gameplay spread over more Session impls, does not meet
-the terminal contract. Already-known cuts stay in #578; #153 verifies them rather than absorbing
+the terminal contract. Already-known core cuts stay in #584; #153 verifies them rather than absorbing
 their implementation. Preserve the full #133 outcome.
 
 The [module design guidelines](../architecture/module-design-guidelines.md) add independent
 physical source/test acceptance to each semantic family: manageable files, bounded file-specific
-exceptions and legacy retirement inside #578 C2/C4. They include a Rust submodule skeleton and
+exceptions and legacy retirement inside #584 C2/C4. They include a Rust submodule skeleton and
 cover SDK/modules in #583. Safe mechanical splits need not wait for the hecs conformance gate,
 which remains mandatory before production storage migration. The existing checker now enforces
 physical migration ceilings and a separate terminal mode. Remaining legacy-file retirement and
-semantic acceptance belong to #578 C2/C4, not #153 or a new micro-issue; a migration PASS is not
+semantic acceptance belong to #584 C2/C4, not #153 or a new micro-issue; a migration PASS is not
 terminal acceptance. The owning checkpoint records the exact remaining ceilings and evidence.
 
-During development, run affected-crate checks, focused positive/negative tests, formatting and
-the inexpensive ownership/architecture checks. At an affected owner boundary, exercise bounded
+At completed-delivery acceptance, run affected-crate checks, focused positive/negative tests,
+formatting and the applicable ownership/architecture checks. At an affected owner boundary, exercise bounded
 production-path integration and failure cases, including stale generation, detached transfer,
 save/logout and publication/backpressure as applicable. The complete exhaustive/final stack
 belongs at macro acceptance, not every internal commit. Required capture/runtime evidence remains
@@ -73,8 +71,8 @@ an explicit gate, and this cadence grants no new deployment, push or merge autho
 
 The [reanalysis checkpoints](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
 make the order explicit: conformance before production storage migration; review the first real
-C1/C2 vertical with C0 admission/phase evidence before replicating it; reconcile all C0–C4 at #578
-closeout before #583 production integration; audit both merged macros in #153. Review the next
+C1/C2 vertical with C0 admission/phase evidence before replicating it; reconcile required C0–C4
+core under #584 before #583 production integration; audit accepted deliveries in #153. Review the next
 gameplay macro just in time, then the entire port at #47/M6.2 before Part 2 planning. These are
 evidence reviews inside the approved macros, not new issues or routine confirmation gates.
 
@@ -100,15 +98,16 @@ and a bounded Wasm executor with Rust/C bindings, alongside policies, scoped/ree
 behavior, independent state composition, durable progress/reward and install/update/disable/recovery.
 **This explicitly expands #133's closure:** Wasm is optional for the operator to enable, not
 optional for #583/#153 acceptance. The bounded delivery no longer waits for M6; broader language
-ecosystem expansion retains the fresh #99 planning gate. #583 depends on #231/#578; #578 does not
-depend on #583 or a production SDK/Wasm executor. #153 audits both completed macros, not the entire
+ecosystem expansion retains the fresh #99 planning gate. #583 depends on #231/#578 and required
+#584 core; core work does not depend on #583 or a production SDK/Wasm executor. #153 audits the completed program, not the entire
 #99 epic. Native-only and Wasm-enabled builds must preserve the same supported hook contracts;
 the plan does not promise every language, a stable native ABI or hot reload.
 
 The [V1 laboratory is complete](../architecture/modularity-lab-results.md) at `ee9a0128`: its
 corrected campaign passes the recorded functional/resource gates, but does not prove the new
 independent-module/multilanguage gate or production integration. Native remains the default;
-the next checkpoint is the specified conformance proof, not repeated V1 timings. This is one
+the finite V2 conformance proof has also passed with its recorded limits. Real-owner production
+integration remains required. This is one
 expanded complete capability, not a PR per hook. Part 1, Part 2 and the D-track retain their goals
 and hard dependencies; the architecture update is not a fresh audit of every historical gameplay
 issue and does not change their completion states or publication/deployment approvals.

@@ -133,11 +133,12 @@ they are not separate frozen architecture snapshots.
   crates/wow-world/src/session/registry.rs and actual registrations for the current thunk
   signature; do not copy an outdated snippet or reintroduce a dispatcher opcode match.
   Keep exact-set metadata/registration tests for changes to that boundary.
-- #579/#586 are merged and #578/#585 closed. #588's approved deferred visibility
-  bridge is the current prerequisite for #587's remaining live acquisition acceptance.
-  Then complete required core macrodeliverables under #584, #583 and #153 before #133 closes.
+- #578/#585 and the integrated #587/#588/#589 deliveries are closed. The current
+  architecture plan and STATE.md own the selected delivery and its evidence; do not
+  infer current status from the older dated checkpoints. Complete required core
+  macrodeliverables under #584, then #583 and #153 before #133 closes.
   #133/#584 are umbrellas, not prerequisite implementations. #584 retains unfinished C0–C4;
-  closing #585 does not open #583 immediately. No family after #587 is selected.
+  closing a bounded predecessor does not open #583 immediately.
   Analyze each responsibility before defining its implementation macro,
   include cross-crate consumers and preserve scoped regression/live acceptance. These
   evidence reviews do not add routine approvals or authorize merge/runtime operations.
