@@ -183,6 +183,25 @@ impl PlayerInventoryRuntime {
         self.current_buyback_slot = slot;
     }
 
+    /// Take ownership of an item object by guid. In C++ the object itself is
+    /// created by `Item::CreateItem` and owned through the pointer the Player
+    /// stores (`Player::StoreNewItem`, Player.cpp:11166, and
+    /// `Player::MoveItemToInventory`, :11655); RustyCore keeps the objects in
+    /// this guid-keyed store beside the slot map, so ownership is this insert.
+    /// Returns any object already held under the same guid.
+    pub fn store_item_object_like_cpp(&mut self, item: Item) -> Option<Item> {
+        let item_guid = item.object().guid();
+        self.item_objects.insert(item_guid, item)
+    }
+
+    /// Release an item object the Player no longer holds, as C++ does when the
+    /// item leaves the Player in `Player::DestroyItem` (Player.cpp:11683) or
+    /// `Player::RemoveItem` (:11553). Returns the released object so the caller
+    /// can finish whatever C++ does with the pointer it took out.
+    pub fn remove_item_object_like_cpp(&mut self, item_guid: ObjectGuid) -> Option<Item> {
+        self.item_objects.remove(&item_guid)
+    }
+
     pub fn item_objects(&self) -> &HashMap<ObjectGuid, Item> {
         &self.item_objects
     }
