@@ -158,19 +158,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             rows_complete: true,
             ..Default::default()
         },
-        talents: PlayerTalentRuntimeState {
-            talent_groups: [
-                std::collections::BTreeMap::from([(42, 1)]),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ],
-            talents_loaded: true,
-            glyph_groups: [[0; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP];
-                PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
-            glyphs_loaded: true,
-            ..Default::default()
-        },
+        talents: talents::hydrated_talent_runtime_like_cpp(),
         action_buttons: vec![PlayerActionButtonRecord {
             button: 1,
             action_id: 635,
@@ -494,5 +482,7 @@ mod reputation;
 mod skill;
 #[path = "player_tests/spell.rs"]
 mod spell;
+#[path = "player_tests/talents.rs"]
+mod talents;
 #[path = "player_tests/visibility.rs"]
 mod visibility;

@@ -203,20 +203,17 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
     let old_handle = session.player_handle_like_cpp.expect("canonical handle");
-    let mut owned = wow_entities::PlayerTalentRuntimeState {
-        talents_loaded: true,
-        glyphs_loaded: true,
-        active_group: 1,
-        bonus_groups: 1,
-        reset_talents_cost: 100_000,
-        reset_talents_time_secs: 12_345,
-        ..Default::default()
-    };
-    owned.talent_groups[1].insert(42, 1);
-    owned.glyph_groups[1][2] = 700;
+    let mut owned = wow_entities::PlayerTalentRuntimeState::default();
+    owned.mark_talents_loaded_like_cpp();
+    owned.mark_glyphs_loaded_like_cpp();
+    owned.set_active_group_like_cpp(1);
+    owned.set_bonus_groups_like_cpp(1);
+    owned.set_reset_talents_state_like_cpp(100_000, 12_345);
+    owned.add_talent_like_cpp(1, 42, 1);
+    owned.set_glyph_like_cpp(1, 2, 700);
 
     assert_eq!(
-        session.mutate_player_talent_runtime_like_cpp(|runtime| *runtime = owned.clone()),
+        session.mutate_player_talent_runtime_for_test_like_cpp(|runtime| *runtime = owned.clone()),
         Some(())
     );
     assert_eq!(
@@ -236,17 +233,12 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
         Some(owned.clone())
     );
 
-    let mut replacement_state = wow_entities::PlayerTalentRuntimeState {
-        talents_loaded: true,
-        glyphs_loaded: true,
-        active_group: 0,
-        bonus_groups: 0,
-        reset_talents_cost: 500_000,
-        reset_talents_time_secs: 98_765,
-        ..Default::default()
-    };
-    replacement_state.talent_groups[0].insert(99, 2);
-    replacement_state.glyph_groups[0][3] = 900;
+    let mut replacement_state = wow_entities::PlayerTalentRuntimeState::default();
+    replacement_state.mark_talents_loaded_like_cpp();
+    replacement_state.mark_glyphs_loaded_like_cpp();
+    replacement_state.set_reset_talents_state_like_cpp(500_000, 98_765);
+    replacement_state.add_talent_like_cpp(0, 99, 2);
+    replacement_state.set_glyph_like_cpp(0, 3, 900);
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
         .unit_mut()
@@ -262,8 +254,9 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
 
     assert_eq!(session.player_talent_runtime_snapshot_like_cpp(), None);
     assert_eq!(
-        session
-            .mutate_player_talent_runtime_like_cpp(|_| panic!("stale owner must not run mutation")),
+        session.mutate_player_talent_runtime_for_test_like_cpp(|_| panic!(
+            "stale owner must not run mutation"
+        )),
         None::<()>
     );
     assert!(!session.set_represented_active_talent_group_like_cpp(1));

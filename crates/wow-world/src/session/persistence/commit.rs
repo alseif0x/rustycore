@@ -199,12 +199,7 @@ impl WorldSession {
         for (talent_id, rank) in &state_plan.active_talents {
             self.remove_represented_active_talent_side_effects_like_cpp(*talent_id, *rank);
         }
-        if self
-            .mutate_player_talent_runtime_like_cpp(|runtime| {
-                runtime.talent_groups = state_plan.post_talents.clone();
-            })
-            .is_none()
-        {
+        if !self.install_reset_talent_groups_like_cpp(state_plan.post_talents.clone()) {
             self.kick("canonical Player talent owner became unavailable after talent-reset COMMIT");
             return;
         }
@@ -214,13 +209,7 @@ impl WorldSession {
             self.kick("canonical Player money owner became unavailable after talent-reset COMMIT");
             return;
         }
-        if self
-            .mutate_player_talent_runtime_like_cpp(|runtime| {
-                runtime.reset_talents_cost = cost;
-                runtime.reset_talents_time_secs = reset_time_secs;
-            })
-            .is_none()
-        {
+        if !self.set_represented_talent_reset_state_like_cpp(cost, reset_time_secs) {
             self.kick("canonical Player specialization owner became unavailable after talent-reset COMMIT");
             return;
         }

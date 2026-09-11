@@ -24,11 +24,13 @@ mod pet_lifecycle;
 mod progression;
 mod pvp;
 mod reputation;
+mod talent_runtime;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 pub use reputation::{
     PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
     ReputationRankCountersLikeCpp,
 };
+pub use talent_runtime::PlayerTalentRuntimeState;
 mod collections_hydration;
 mod composite_state;
 mod group_membership;
@@ -543,25 +545,6 @@ pub struct PlayerSpellRuntimeState {
 
 pub const PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 pub const PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP: usize = 6;
-
-/// Exact mutable owner for C++ `Player::_specializationInfo.Talents` and
-/// `Player::_specializationInfo.Glyphs` (`Player.h:1039-1040`).
-///
-/// The load flags preserve the distinction between an authoritative empty DB
-/// result and state that has not been hydrated, so persistence never fabricates
-/// an empty replacement when the canonical owner is unavailable.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PlayerTalentRuntimeState {
-    pub talent_groups: [BTreeMap<u32, u8>; PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
-    pub talents_loaded: bool,
-    pub glyph_groups: [[u16; PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP]; PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
-    pub glyphs_loaded: bool,
-    /// C++ `Player::_specializationInfo.{ActiveGroup,BonusGroups,ResetTalentsCost,ResetTalentsTime}`.
-    pub active_group: u8,
-    pub bonus_groups: u8,
-    pub reset_talents_cost: u32,
-    pub reset_talents_time_secs: u64,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerActionButtonRecord {

@@ -218,7 +218,7 @@ fn full_save_preparation_is_owned_and_matches_previous_projection_for_loaded_gro
             );
             game.cuf_profiles_loaded = true;
             game.action_buttons_loaded = true;
-            game.talents.talents_loaded = true;
+            game.talents.mark_talents_loaded_like_cpp();
         })
         .unwrap();
     for detached in [false, true] {

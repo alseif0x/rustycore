@@ -83,12 +83,11 @@ impl WorldSession {
     }
     fn represented_active_glyph_aura_source_is_empty_like_cpp(&self) -> bool {
         self.player_talent_runtime_snapshot_like_cpp()
-            .filter(|runtime| runtime.glyphs_loaded)
-            .and_then(|runtime| {
-                runtime
-                    .glyph_groups
-                    .get(usize::from(runtime.active_group))
-                    .map(|glyphs| glyphs.iter().all(|glyph_id| *glyph_id == 0))
+            .filter(|runtime| runtime.glyphs_loaded_like_cpp())
+            .map(|runtime| {
+                let active_group = runtime.active_group_like_cpp();
+                (0..wow_entities::PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP as u8)
+                    .all(|slot| runtime.glyph_like_cpp(active_group, slot) == Some(0))
             })
             .unwrap_or(false)
     }

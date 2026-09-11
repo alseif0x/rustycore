@@ -50,8 +50,8 @@ pub(super) fn request(
         is_logout_resting: visible_resting,
         health: snapshot.health,
         powers,
-        talent_reset_cost: game.talents.reset_talents_cost,
-        talent_reset_time: game.talents.reset_talents_time_secs,
+        talent_reset_cost: game.talents.reset_talents_cost_like_cpp(),
+        talent_reset_time: game.talents.reset_talents_time_secs_like_cpp(),
         explored_zones: crate::session::explored_zones_db_string_from_blocks_like_cpp(
             player.explored_zones_blocks_like_cpp(),
         ),
@@ -154,14 +154,13 @@ pub(super) fn request(
     let talent_runtime = Some(&game.talents);
     let glyphs = if talent_runtime
         .as_ref()
-        .is_some_and(|runtime| runtime.glyphs_loaded)
+        .is_some_and(|runtime| runtime.glyphs_loaded_like_cpp())
     {
         Some(
             talent_runtime
                 .as_ref()
                 .expect("checked canonical glyph authority")
-                .glyph_groups
-                .iter()
+                .glyph_groups_like_cpp()
                 .enumerate()
                 .flat_map(|(talent_group, glyphs)| {
                     glyphs
@@ -182,14 +181,13 @@ pub(super) fn request(
 
     let talents = if talent_runtime
         .as_ref()
-        .is_some_and(|runtime| runtime.talents_loaded)
+        .is_some_and(|runtime| runtime.talents_loaded_like_cpp())
     {
         let mut rows = Vec::new();
         for (talent_group, talents) in talent_runtime
             .as_ref()
             .expect("checked canonical talent authority")
-            .talent_groups
-            .iter()
+            .talent_groups_like_cpp()
             .enumerate()
         {
             for (talent_id, rank) in talents {
@@ -269,7 +267,7 @@ pub(super) fn request(
         .action_buttons_loaded_like_cpp()
         .then(|| player.action_buttons_snapshot_like_cpp())
     {
-        let (spec, trait_config_id) = (game.talents.active_group, 0);
+        let (spec, trait_config_id) = (game.talents.active_group_like_cpp(), 0);
         Some(PlayerActionButtonsSaveLikeCpp {
             spec,
             trait_config_id,

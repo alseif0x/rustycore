@@ -358,9 +358,7 @@ impl WorldSession {
         }
     }
     pub(crate) fn mark_represented_glyphs_loaded_like_cpp(&mut self) {
-        let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.glyphs_loaded = true;
-        });
+        let _ = self.mark_glyphs_loaded_like_cpp();
     }
     pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
         let blocks = parse_explored_zones_db_string_like_cpp(input);
@@ -390,14 +388,12 @@ impl WorldSession {
         }
     }
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
-        let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.talents_loaded = true;
-        });
+        let _ = self.mark_talents_loaded_like_cpp();
         self.refresh_represented_talent_points_like_cpp();
     }
     pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
         self.player_talent_runtime_snapshot_like_cpp()
-            .is_some_and(|runtime| runtime.talents_loaded)
+            .is_some_and(|runtime| runtime.talents_loaded_like_cpp())
     }
     pub(crate) fn load_represented_talent_row_like_cpp(
         &mut self,
@@ -447,10 +443,7 @@ impl WorldSession {
             return false;
         }
 
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.talent_groups[talent_group_index].insert(talent_id, rank);
-        })
-        .is_some()
+        self.install_loaded_talent_row_like_cpp(talent_group, talent_id, rank)
     }
     /// Borrow the required process catalog; tests supply explicit fixture data.
     pub(crate) fn load_represented_glyph_row_like_cpp(
@@ -476,14 +469,11 @@ impl WorldSession {
 
         let previous = self
             .player_talent_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.glyph_groups[talent_group_index][glyph_slot_index]);
+            .and_then(|runtime| runtime.glyph_like_cpp(talent_group, glyph_slot));
         if previous != Some(glyph_id) {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.glyph_groups[talent_group_index][glyph_slot_index] = glyph_id;
-        })
-        .is_some()
+        self.install_loaded_glyph_like_cpp(talent_group, glyph_slot, glyph_id)
     }
     /// C++ `Player::InitStatsForLevel` repairs an invalid persisted XP value
     /// after deriving `ActivePlayerData::NextLevelXP` for the loaded level.

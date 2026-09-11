@@ -343,14 +343,14 @@ impl WorldSession {
         &self,
     ) -> Option<RepresentedTalentResetStatePlanLikeCpp> {
         let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-        if !runtime.talents_loaded {
+        if !runtime.talents_loaded_like_cpp() {
             return None;
         }
 
-        let active_group = runtime.active_group;
+        let active_group = runtime.active_group_like_cpp();
         let active_group_index = usize::from(active_group);
-        let active_talents = runtime.talent_groups.get(active_group_index)?.clone();
-        let mut post_talents = runtime.talent_groups;
+        let active_talents = runtime.talent_group_like_cpp(active_group)?.clone();
+        let mut post_talents = runtime.talent_groups_snapshot_like_cpp();
         post_talents[active_group_index].clear();
 
         Some(RepresentedTalentResetStatePlanLikeCpp {

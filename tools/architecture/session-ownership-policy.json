@@ -28684,6 +28684,32 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "install_loaded_glyph_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn install_loaded_glyph_like_cpp (& mut self , talent_group : u8 , glyph_slot : u8 , glyph_id : u16 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "install_loaded_talent_row_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn install_loaded_talent_row_like_cpp (& mut self , talent_group : u8 , talent_id : u32 , rank : u8 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "install_realm_packet_channel",
           "visibility": "pub (crate)",
           "signature": "fn install_realm_packet_channel (& mut self , rx : flume :: Receiver < wow_packet :: WorldPacket > ,)",
@@ -28721,6 +28747,19 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "install_reset_talent_groups_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn install_reset_talent_groups_like_cpp (& mut self , groups : [std :: collections :: BTreeMap < u32 , u8 > ; wow_entities :: PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP] ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -30911,6 +30950,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mark_glyphs_loaded_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn mark_glyphs_loaded_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mark_login_account_offline_on_disconnect_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn mark_login_account_offline_on_disconnect_like_cpp (& mut self ,) -> FinalizationOutcome",
@@ -31059,6 +31111,19 @@
           "name": "mark_represented_void_storage_loaded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mark_represented_void_storage_loaded_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mark_talents_loaded_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn mark_talents_loaded_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -31705,14 +31770,27 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mutate_player_talent_runtime_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn mutate_player_talent_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerTalentRuntimeState) -> R ,) -> Option < R >",
-          "cfg": [],
-          "source_class": "production",
+          "name": "mutate_player_talent_runtime_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mutate_player_talent_runtime_for_test_like_cpp < R > (& mut self , apply : impl FnOnce (& mut wow_entities :: PlayerTalentRuntimeState) -> R ,) -> Option < R >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mutate_player_talent_runtime_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_talent_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerTalentRuntimeState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
