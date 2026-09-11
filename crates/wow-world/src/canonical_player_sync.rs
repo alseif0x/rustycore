@@ -17,7 +17,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
             })
             .collect();
     }
-    player.gameplay_state_mut().gray_level = session.gray_level(session.player_level_like_cpp());
+    player.set_gray_level_like_cpp(session.gray_level(session.player_level_like_cpp()));
     // C++ constructs Player before LoadFromDB / _LoadInventory
     // (CharacterHandler.cpp:1065-1070; Player.cpp:17748). Production inventory
     // already belongs to Player: querying it here would require the very
@@ -38,14 +38,13 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
 
 pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status: u32) {
     let _ = session.mutate_canonical_player_like_cpp(|player| {
-        player.gameplay_state_mut().liquid_status = status;
+        player.set_liquid_status_like_cpp(status);
     });
 }
 
 pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray_level: u8) {
     let _ = session.mutate_canonical_player_like_cpp(|player| {
-        player.unit_mut().set_level(level);
-        player.gameplay_state_mut().gray_level = gray_level;
+        player.set_level_and_gray_level_like_cpp(level, gray_level);
     });
 }
 
