@@ -41,9 +41,9 @@
     },
     {
       "path": "crates/world-server/src/app.rs",
-      "observed_lines": 5652,
-      "ceiling_lines": 5645,
-      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure.",
+      "observed_lines": 5651,
+      "ceiling_lines": 5651,
+      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure. #718 adds 6 lines that construct and install the quest-reward durability port, from 5645 to 5651: one required capability, no gameplay authority entering the composition root.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -559,16 +559,16 @@
     },
     {
       "path": "crates/wow-world/src/handlers/quest/rewards.rs",
-      "observed_lines": 2232,
-      "ceiling_lines": 2232,
-      "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 2140,
+      "ceiling_lines": 2140,
+      "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #718 makes the reward one character transaction and moves its durable close - commit, ambiguous-COMMIT reconciliation and the memory half that may only follow a known COMMIT - into the quest application module, a validated reduction from 2232 to 2140 lines; the ceiling is tightened to that figure. The remaining file plans the grants and still owes the split above.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/quest_tests.rs",
-      "observed_lines": 1404,
-      "ceiling_lines": 1404,
-      "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 10679 to 1404 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "observed_lines": 1406,
+      "ceiling_lines": 1406,
+      "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 10679 to 1404 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #718 adds the 2-line declaration of the reward-transaction scenario module, from 1404 to 1406; its scenarios live in that bounded file.",
       "review_checkpoint": "584:C4"
     },
     {

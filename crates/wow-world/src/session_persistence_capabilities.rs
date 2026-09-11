@@ -40,6 +40,7 @@ impl PlayerPersistenceCapabilitiesLikeCpp {
         stored_item: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>,
         player_inventory: Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>,
         player_quest: Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>,
+        player_quest_reward: Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>,
         vendor_trade: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>,
         player_spell_acquisition: Arc<
             dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp,
@@ -55,6 +56,7 @@ impl PlayerPersistenceCapabilitiesLikeCpp {
             stored_item: Some(stored_item),
             player_inventory: Some(player_inventory),
             player_quest: Some(player_quest),
+            player_quest_reward: Some(player_quest_reward),
             vendor_trade: Some(vendor_trade),
             player_spell_acquisition: Some(player_spell_acquisition),
             instance_lock: Some(instance_lock),
@@ -167,6 +169,22 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.player.player_quest.clone()
+    }
+
+    pub fn set_player_quest_reward_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.player_quest_reward = Some(port);
+    }
+
+    pub(crate) fn player_quest_reward_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .player
+            .player_quest_reward
+            .clone()
     }
 
     pub fn set_stored_item_persistence_port_like_cpp(

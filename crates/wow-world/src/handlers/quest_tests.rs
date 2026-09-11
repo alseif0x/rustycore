@@ -1400,5 +1400,7 @@ mod quest_5;
 mod quest_6;
 #[path = "quest_tests/quest_7.rs"]
 mod quest_7;
+#[path = "quest_tests/reward_transaction.rs"]
+mod reward_transaction;
 #[path = "quest_tests/spell.rs"]
 mod spell;

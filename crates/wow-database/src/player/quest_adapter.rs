@@ -65,7 +65,7 @@ pub(crate) fn player_quest_status_statements_like_cpp(
     statements
 }
 
-fn delete_quest_status_statements_like_cpp(
+pub(crate) fn delete_quest_status_statements_like_cpp(
     owner_guid: u64,
     quest_id: u32,
 ) -> Vec<PreparedStatement> {
@@ -80,7 +80,7 @@ fn delete_quest_status_statements_like_cpp(
     vec![status, objectives]
 }
 
-fn quest_lockout_statements_like_cpp(
+pub(crate) fn quest_lockout_statements_like_cpp(
     request: &PlayerQuestLockoutPersistenceRequestLikeCpp,
 ) -> Vec<PreparedStatement> {
     let mut statements = Vec::new();

@@ -5272,6 +5272,11 @@ pub struct PlayerPersistenceCapabilitiesLikeCpp {
     pub(crate) player_inventory:
         Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
     pub(crate) player_quest: Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>>,
+    /// Commits one complete quest-reward operation as a single character
+    /// transaction, the way C++ closes `Player::RewardQuest` with
+    /// `SaveToDB(false)` (Player.cpp:14867).
+    pub(crate) player_quest_reward:
+        Option<Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>>,
     pub(crate) vendor_trade: Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
     pub(crate) player_spell_acquisition:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
@@ -6945,7 +6950,7 @@ pub struct WorldSession {
     /// Explicit test seam for persistence-sensitive loot-money paths. Production
     /// never bypasses the character database.
     #[cfg(test)]
-    loot_money_persistence_test_result_like_cpp: Option<bool>,
+    pub(crate) loot_money_persistence_test_result_like_cpp: Option<bool>,
     #[cfg(test)]
     pub(crate) loot_item_store_test_grants_like_cpp: Option<Arc<AtomicUsize>>,
     #[cfg(test)]

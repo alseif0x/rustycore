@@ -7,6 +7,8 @@
 
 use super::*;
 
+use crate::quest::application::QuestRewardDurablePlanLikeCpp;
+
 impl WorldSession {
     #[cfg(test)]
     pub(super) async fn store_quest_source_item_like_cpp(
@@ -408,6 +410,7 @@ impl WorldSession {
 
     async fn store_quest_reward_item_like_cpp(
         &mut self,
+        plan: &mut QuestRewardDurablePlanLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry_id: u32,
         quantity: u32,
@@ -585,33 +588,18 @@ impl WorldSession {
             }
         }
 
-        if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
-            let outcome = port
-                .persist_inventory_mutation_like_cpp(
-                    wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
-                        wow_persistence::QuestItemGrantPersistenceLikeCpp {
-                            existing_stacks: persistence_existing_stacks,
-                            new_stacks: persistence_new_stacks,
-                        },
-                    ),
-                )
-                .await;
-            match outcome {
-                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
-                    warn!(account = self.account_id, entry_id, error = %reason,
-                        "RewardQuest: reward item StoreNewItem transaction failed");
-                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                    return false;
-                }
-                wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                    warn!(account = self.account_id, entry_id, error = %reason,
-                        "RewardQuest: reward item StoreNewItem commit outcome is unknown");
-                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                    return false;
-                }
-            }
-        }
+        // C++ `StoreNewItem` only mutates memory here; the rows reach the
+        // database in the operation's closing `SaveToDB(false)`
+        // (Player.cpp:14867). Record them instead of committing a grant that
+        // the rest of the reward could still fail behind.
+        plan.push_inventory_mutation(
+            wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
+                wow_persistence::QuestItemGrantPersistenceLikeCpp {
+                    existing_stacks: persistence_existing_stacks,
+                    new_stacks: persistence_new_stacks,
+                },
+            ),
+        );
 
         for update in &existing_updates {
             self.update_inventory_item_object_like_cpp(update.item_guid, |item| {
@@ -748,6 +736,7 @@ impl WorldSession {
 
     async fn store_fixed_quest_reward_items_like_cpp(
         &mut self,
+        plan: &mut QuestRewardDurablePlanLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
@@ -764,7 +753,13 @@ impl WorldSession {
                 return false;
             }
             if !self
-                .store_quest_reward_item_like_cpp(item_guid_generator, *item_id, *count, &dest)
+                .store_quest_reward_item_like_cpp(
+                    plan,
+                    item_guid_generator,
+                    *item_id,
+                    *count,
+                    &dest,
+                )
                 .await
             {
                 return false;
@@ -776,6 +771,7 @@ impl WorldSession {
 
     async fn store_chosen_quest_reward_item_like_cpp(
         &mut self,
+        plan: &mut QuestRewardDurablePlanLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
@@ -812,7 +808,13 @@ impl WorldSession {
                 return false;
             }
             if !self
-                .store_quest_reward_item_like_cpp(item_guid_generator, *item_id, *count, &dest)
+                .store_quest_reward_item_like_cpp(
+                    plan,
+                    item_guid_generator,
+                    *item_id,
+                    *count,
+                    &dest,
+                )
                 .await
             {
                 return false;
@@ -824,6 +826,7 @@ impl WorldSession {
 
     async fn store_quest_package_reward_entry_like_cpp(
         &mut self,
+        plan: &mut QuestRewardDurablePlanLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         entry: &QuestPackageItemEntry,
     ) -> bool {
@@ -844,6 +847,7 @@ impl WorldSession {
         }
 
         self.store_quest_reward_item_like_cpp(
+            plan,
             item_guid_generator,
             item_id,
             entry.item_quantity,
@@ -854,6 +858,7 @@ impl WorldSession {
 
     async fn store_quest_package_reward_items_like_cpp(
         &mut self,
+        plan: &mut QuestRewardDurablePlanLikeCpp,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
@@ -899,7 +904,7 @@ impl WorldSession {
 
             has_filtered_quest_package_reward = true;
             if !self
-                .store_quest_package_reward_entry_like_cpp(item_guid_generator, &entry)
+                .store_quest_package_reward_entry_like_cpp(plan, item_guid_generator, &entry)
                 .await
             {
                 return false;
@@ -909,7 +914,7 @@ impl WorldSession {
         if !has_filtered_quest_package_reward {
             for entry in fallback_entries {
                 if !self
-                    .store_quest_package_reward_entry_like_cpp(item_guid_generator, &entry)
+                    .store_quest_package_reward_entry_like_cpp(plan, item_guid_generator, &entry)
                     .await
                 {
                     return false;
@@ -938,23 +943,11 @@ impl WorldSession {
             }
         };
 
-        if let Some(player_guid) = self.player_guid() {
-            if let Err(outcome) = self
-                .persist_standalone_player_currency_save_like_cpp(
-                    player_guid.counter() as u64,
-                    currency_snapshot,
-                )
-                .await
-            {
-                warn!(
-                    account = self.account_id,
-                    currency_id,
-                    ?outcome,
-                    "ChooseReward: quest reward currency save failed"
-                );
-                return false;
-            }
-        }
+        // C++ `AddCurrency` mutates memory only. `_SaveCurrency` writes the
+        // player's complete currency state once inside the closing save
+        // (Player.cpp:19654), so the operation records it at its end rather
+        // than committing each grant on its own.
+        let _ = currency_snapshot;
 
         if let Some(delta) = delta {
             let (Some(quantity), Some(amount)) = (
@@ -1082,6 +1075,7 @@ impl WorldSession {
 
     async fn remove_quest_required_items_and_currencies_like_cpp(
         &mut self,
+        plan: &mut QuestRewardDurablePlanLikeCpp,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         let Some(player_guid) = self.player_guid() else {
@@ -1156,16 +1150,7 @@ impl WorldSession {
             }
         }
 
-        if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
-            let Some(mut currencies) = self.player_currencies_like_cpp() else {
-                self.set_player_currencies_like_cpp(currency_snapshot);
-                return false;
-            };
-            let currency_save = self
-                .plan_player_currency_save_like_cpp(player_guid.counter() as u64, &mut currencies);
-            if !self.set_player_currencies_like_cpp(currencies) {
-                return false;
-            }
+        {
             let items = item_changes
                 .iter()
                 .map(|change| match *change {
@@ -1182,40 +1167,21 @@ impl WorldSession {
                     }
                 })
                 .collect();
-            let outcome = port
-                .persist_inventory_mutation_like_cpp(
-                    wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestTurnIn(
-                        wow_persistence::QuestTurnInPersistenceLikeCpp {
-                            owner_guid: player_guid.counter() as u64,
-                            items,
-                            currency_save,
+            // The removals join the operation's single character transaction.
+            // Their currency half is empty here because `_SaveCurrency` writes
+            // the complete state once when the operation closes.
+            plan.push_inventory_mutation(
+                wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestTurnIn(
+                    wow_persistence::QuestTurnInPersistenceLikeCpp {
+                        owner_guid: player_guid.counter() as u64,
+                        items,
+                        currency_save: wow_persistence::PlayerCurrencySaveRequestLikeCpp {
+                            player_guid: player_guid.counter() as u64,
+                            rows: Vec::new(),
                         },
-                    ),
-                )
-                .await;
-            match outcome {
-                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
-                    self.set_player_currencies_like_cpp(currency_snapshot);
-                    warn!(
-                        account = self.account_id,
-                        quest_id = quest.id,
-                        error = %reason,
-                        "ChooseReward: quest objective item/currency removal save failed"
-                    );
-                    return false;
-                }
-                wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                    self.set_player_currencies_like_cpp(currency_snapshot);
-                    warn!(
-                    account = self.account_id,
-                    quest_id = quest.id,
-                        error = %reason,
-                        "ChooseReward: quest objective item/currency removal commit outcome is unknown"
-                    );
-                    return false;
-                }
-            }
+                    },
+                ),
+            );
         }
 
         self.apply_item_turnin_changes(player_guid, map_id, &item_changes);
@@ -1595,8 +1561,9 @@ impl WorldSession {
         }
     }
 
-    async fn apply_quest_reward_lockout_status_like_cpp(
+    fn apply_quest_reward_lockout_status_like_cpp(
         &mut self,
+        plan: &mut QuestRewardDurablePlanLikeCpp,
         quest: &wow_data::quest::QuestTemplate,
     ) {
         let now = GameTime::now().as_secs() as i64;
@@ -1645,10 +1612,6 @@ impl WorldSession {
         {
             return;
         }
-
-        let Some(port) = self.player_quest_persistence_port_like_cpp() else {
-            return;
-        };
 
         let owner_guid = player_guid.counter() as u64;
         let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -1700,21 +1663,9 @@ impl WorldSession {
             return;
         };
 
-        match port.persist_lockout_like_cpp(request).await {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
-                quest_id = quest.id,
-                error = %reason,
-                "ChooseReward: represented reward lockout status save failed"
-            ),
-            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
-                quest_id = quest.id,
-                error = %reason,
-                "ChooseReward: represented reward lockout commit outcome is unknown"
-            ),
-        }
+        // `_SaveDailyQuestStatus` and its siblings belong to the same closing
+        // transaction as the rest of the reward (Player.cpp:19634..19638).
+        plan.push_lockout(request);
     }
 
     pub(super) fn represented_reward_choice_template_exists_like_cpp(
@@ -1969,6 +1920,15 @@ impl WorldSession {
     ) -> bool {
         let quest_id = quest.id;
         let choice_item_id = choice.item_id;
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let owner_guid = player_guid.counter() as u64;
+        // C++ `Player::RewardQuest` mutates memory throughout and reaches the
+        // database only in its closing `SaveToDB(false)` (Player.cpp:14867).
+        // Every removal and grant below records what it needs durable; nothing
+        // is written until the operation has finished deciding.
+        let mut plan = QuestRewardDurablePlanLikeCpp::new(owner_guid, quest_id);
         self.set_represented_can_delay_teleport_like_cpp(true);
 
         macro_rules! reward_abort {
@@ -1979,7 +1939,7 @@ impl WorldSession {
         }
 
         if !self
-            .remove_quest_required_items_and_currencies_like_cpp(quest)
+            .remove_quest_required_items_and_currencies_like_cpp(&mut plan, quest)
             .await
         {
             debug!(
@@ -1993,7 +1953,7 @@ impl WorldSession {
         self.remove_represented_timed_quest_like_cpp(quest_id);
 
         if !self
-            .store_fixed_quest_reward_items_like_cpp(item_guid_generator, quest)
+            .store_fixed_quest_reward_items_like_cpp(&mut plan, item_guid_generator, quest)
             .await
         {
             debug!(
@@ -2005,7 +1965,7 @@ impl WorldSession {
         }
 
         if !self
-            .store_chosen_quest_reward_item_like_cpp(item_guid_generator, quest, choice)
+            .store_chosen_quest_reward_item_like_cpp(&mut plan, item_guid_generator, quest, choice)
             .await
         {
             debug!(
@@ -2018,7 +1978,12 @@ impl WorldSession {
         }
 
         if !self
-            .store_quest_package_reward_items_like_cpp(item_guid_generator, quest, choice)
+            .store_quest_package_reward_items_like_cpp(
+                &mut plan,
+                item_guid_generator,
+                quest,
+                choice,
+            )
             .await
         {
             debug!(
@@ -2045,50 +2010,62 @@ impl WorldSession {
 
         self.apply_represented_quest_reward_skill_like_cpp(quest);
 
+        // C++ `ModifyMoney` is another in-memory mutation whose row is part of
+        // the closing character save. Record the operation's money instead of
+        // committing it on its own: the transaction below makes the whole
+        // reward durable at once, so a money failure can no longer leave the
+        // earlier grants written and the quest retryable.
         let money = quest.reward_money_difficulty;
         if money > 0 {
-            match self
-                .mutate_and_persist_player_gold_exclusive_like_cpp(|old_money| {
-                    crate::session::loot_money_durable_outcome_like_cpp(old_money, money as u64).0
-                })
-                .await
-            {
-                Some((old_money, new_money)) => {
-                    if old_money != new_money {
-                        self.enqueue_represented_quest_objective_progress_like_cpp(
-                            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                                old_money,
-                                new_money,
-                            },
-                        );
-                    }
-                }
-                None => {
-                    // Boundary: the represented reward path persists item and
-                    // currency grants before reaching money and does not yet
-                    // own C++ `Player::RewardQuest` as one durable transaction.
-                    // Aborting here would leave the quest retryable after those
-                    // grants and permit duplicates. Preserve the existing
-                    // completion behavior; an ambiguous money COMMIT has
-                    // already quarantined/kicked the session in the shared
-                    // helper. Atomic quest reward persistence is separate debt.
-                    warn!(
-                        account = self.account_id,
-                        quest_id,
-                        money,
-                        "Quest reward money was not durably established; preserving non-atomic represented reward completion to avoid duplicate retry"
-                    );
-                }
+            let Some(old_money) = self.resolved_player_money_like_cpp() else {
+                reward_abort!();
+            };
+            let new_money =
+                crate::session::loot_money_durable_outcome_like_cpp(old_money, money as u64).0;
+            if old_money != new_money {
+                plan.set_money(old_money, new_money);
             }
         }
 
         self.apply_represented_quest_title_and_talent_rewards_like_cpp(quest);
         self.record_represented_quest_reward_mail_like_cpp(quest, quest_giver_guid);
-        self.apply_quest_reward_lockout_status_like_cpp(quest).await;
+        self.apply_quest_reward_lockout_status_like_cpp(&mut plan, quest);
 
         let xp = self.quest_xp_reward_like_cpp(quest);
         let rewarded_slot = self.find_quest_slot_like_cpp(quest_id);
 
+        // `_SaveQuestStatus` for this quest joins the same transaction: a
+        // rewarded row for a non-repeatable quest, a delete for a repeatable
+        // one, exactly as the standalone writes did. The rewarded row is
+        // projected before the quest leaves the log because that projection
+        // carries only the quest id for a rewarded status, so the statements
+        // are identical either way.
+        if !quest.is_repeatable() {
+            let Some(request) =
+                self.plan_quest_status_save_like_cpp(quest_id, QUEST_STATUS_REWARDED_LIKE_CPP)
+            else {
+                reward_abort!();
+            };
+            plan.set_quest_status(request);
+        } else {
+            plan.set_quest_status(
+                wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Delete {
+                    owner_guid,
+                    quest_id,
+                },
+            );
+        }
+
+        // Everything the operation decided is now durable or nothing is.
+        let Some(committed_money) = self.commit_quest_reward_plan_like_cpp(plan, quest_id).await
+        else {
+            reward_abort!();
+        };
+
+        // The quest leaves the log only once the transaction is known to have
+        // committed. C++ mutates before its save and leaves memory ahead of a
+        // failed one until relog; this server keeps the two in step, which is
+        // stricter and never weaker.
         self.invalidate_player_quest_status_authority_like_cpp();
         if self
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -2099,14 +2076,18 @@ impl WorldSession {
             })
             .is_none()
         {
+            self.kick("canonical Player quest owner became unavailable after durable COMMIT");
             return false;
         }
-        if !quest.is_repeatable() {
-            self.save_quest_to_db(quest_id, QUEST_STATUS_REWARDED_LIKE_CPP)
-                .await;
-        } else {
-            self.delete_quest_from_db(quest_id).await;
+        if let Some(committed_money) = committed_money {
+            self.enqueue_represented_quest_objective_progress_like_cpp(
+                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                    old_money: committed_money.money_before,
+                    new_money: committed_money.money_after,
+                },
+            );
         }
+
         self.sync_player_registry_state_like_cpp();
         if let Some(slot) = rewarded_slot {
             self.send_represented_quest_log_slot_update_like_cpp(slot);

@@ -15,14 +15,14 @@ use crate::{
     CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction, SqlTransactionCommitError,
 };
 
-struct InventoryTransactionBuilderLikeCpp {
+pub(crate) struct InventoryTransactionBuilderLikeCpp {
     transaction: SqlTransaction,
     #[cfg(test)]
     statement_sqls: Vec<(String, Option<u64>)>,
 }
 
 impl InventoryTransactionBuilderLikeCpp {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             transaction: SqlTransaction::new(),
             #[cfg(test)]
@@ -30,13 +30,17 @@ impl InventoryTransactionBuilderLikeCpp {
         }
     }
 
-    fn append(&mut self, statement: PreparedStatement) {
+    pub(crate) fn append(&mut self, statement: PreparedStatement) {
         #[cfg(test)]
         self.statement_sqls.push((statement.sql().to_owned(), None));
         self.transaction.append(statement);
     }
 
-    fn append_expect_rows_affected(&mut self, statement: PreparedStatement, expected: u64) {
+    pub(crate) fn append_expect_rows_affected(
+        &mut self,
+        statement: PreparedStatement,
+        expected: u64,
+    ) {
         #[cfg(test)]
         self.statement_sqls
             .push((statement.sql().to_owned(), Some(expected)));
@@ -44,7 +48,7 @@ impl InventoryTransactionBuilderLikeCpp {
             .append_expect_rows_affected(statement, expected);
     }
 
-    fn finish(self) -> SqlTransaction {
+    pub(crate) fn finish(self) -> SqlTransaction {
         self.transaction
     }
 }
@@ -230,6 +234,20 @@ fn inventory_transaction_like_cpp(
     request: &PlayerInventoryPersistenceRequestLikeCpp,
 ) -> InventoryTransactionBuilderLikeCpp {
     let mut transaction = InventoryTransactionBuilderLikeCpp::new();
+    append_inventory_request_like_cpp(&mut transaction, request);
+    transaction
+}
+
+/// Append one inventory request's statements to an open batch.
+///
+/// Split out of [`inventory_transaction_like_cpp`] so an operation that owns a
+/// wider character transaction — quest reward closes with `SaveToDB(false)`
+/// (Player.cpp:14867) — can carry its inventory half in the same batch instead
+/// of committing it separately. Statement identity and order are unchanged.
+pub(crate) fn append_inventory_request_like_cpp(
+    mut transaction: &mut InventoryTransactionBuilderLikeCpp,
+    request: &PlayerInventoryPersistenceRequestLikeCpp,
+) {
     match request {
         PlayerInventoryPersistenceRequestLikeCpp::StorageMove(request) => {
             for item in &request.mutable_items {
@@ -416,7 +434,6 @@ fn inventory_transaction_like_cpp(
             }
         }
     }
-    transaction
 }
 
 pub struct MariaDbPlayerInventoryPersistenceAdapterLikeCpp {

@@ -5,7 +5,9 @@ use wow_persistence::{
     PlayerQuestDailyPersistenceRowLikeCpp, PlayerQuestIdPersistenceRowLikeCpp,
     PlayerQuestLoadOutcomeLikeCpp, PlayerQuestLockoutPersistenceRequestLikeCpp,
     PlayerQuestObjectivePersistenceRowLikeCpp, PlayerQuestPersistencePortLikeCpp,
-    PlayerQuestSeasonalPersistenceRowLikeCpp, PlayerQuestStatusPersistenceRequestLikeCpp,
+    PlayerQuestRewardCommitOutcomeLikeCpp, PlayerQuestRewardDurableRequestLikeCpp,
+    PlayerQuestRewardPersistencePortLikeCpp, PlayerQuestSeasonalPersistenceRowLikeCpp,
+    PlayerQuestStatusPersistenceRequestLikeCpp,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +159,45 @@ impl PlayerQuestPersistencePortLikeCpp for PlayerQuestPersistencePortFixtureLike
     ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
         self.lockout_requests.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+}
+
+/// Records the single durable request one quest-reward operation produces.
+///
+/// The operation reaches the database exactly once, so a fixture that
+/// collected a list would hide the contract it is meant to prove: the vector
+/// below must never hold more than one entry for one reward.
+pub(crate) struct PlayerQuestRewardPersistencePortFixtureLikeCpp {
+    pub(crate) requests: Arc<Mutex<Vec<PlayerQuestRewardDurableRequestLikeCpp>>>,
+    pub(crate) outcome: Mutex<PlayerQuestRewardCommitOutcomeLikeCpp>,
+}
+
+impl Default for PlayerQuestRewardPersistencePortFixtureLikeCpp {
+    fn default() -> Self {
+        Self {
+            requests: Arc::new(Mutex::new(Vec::new())),
+            outcome: Mutex::new(PlayerQuestRewardCommitOutcomeLikeCpp::Committed),
+        }
+    }
+}
+
+impl PlayerQuestRewardPersistencePortFixtureLikeCpp {
+    pub(crate) fn with_outcome(outcome: PlayerQuestRewardCommitOutcomeLikeCpp) -> Self {
+        Self {
+            requests: Arc::new(Mutex::new(Vec::new())),
+            outcome: Mutex::new(outcome),
+        }
+    }
+}
+
+impl PlayerQuestRewardPersistencePortLikeCpp for PlayerQuestRewardPersistencePortFixtureLikeCpp {
+    fn persist_quest_reward_like_cpp(
+        &self,
+        request: PlayerQuestRewardDurableRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, PlayerQuestRewardCommitOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self.outcome.lock().unwrap().clone();
         Box::pin(async move { outcome })
     }
 }
