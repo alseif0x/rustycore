@@ -14,6 +14,8 @@ mod collections;
 mod damage_control;
 mod deferred_save;
 mod identity;
+mod inventory_runtime;
+pub use inventory_runtime::PlayerInventoryRuntime;
 mod items;
 mod location;
 mod menu;
@@ -3411,96 +3413,6 @@ pub struct PlayerInventoryItem {
     pub entry_id: u32,
     pub db_guid: u64,
     pub inventory_type: Option<u8>,
-}
-
-/// Concrete item/object runtime owned by the canonical Player.
-///
-/// This is deliberately a private Player substate rather than a shared lock:
-/// MapManager's generation-checked Player handle remains the only route to a
-/// mutable owner, including while the Player is detached for a far teleport.
-#[derive(Debug, Clone, PartialEq)]
-pub struct PlayerInventoryRuntime {
-    /// True only after the persisted equipment query completed coherently for
-    /// this Player lifetime. An empty runtime inventory is not source proof.
-    equipment_inventory_authority_complete_like_cpp: bool,
-    inventory_items: HashMap<u8, PlayerInventoryItem>,
-    buyback_items: HashMap<u8, PlayerInventoryItem>,
-    buyback_price: [u32; BUYBACK_SLOT_COUNT],
-    buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
-    current_buyback_slot: u8,
-    item_objects: HashMap<ObjectGuid, Item>,
-}
-
-impl PlayerInventoryRuntime {
-    pub const fn equipment_inventory_authority_complete_like_cpp(&self) -> bool {
-        self.equipment_inventory_authority_complete_like_cpp
-    }
-
-    pub fn set_equipment_inventory_authority_complete_like_cpp(&mut self, complete: bool) {
-        self.equipment_inventory_authority_complete_like_cpp = complete;
-    }
-
-    pub fn inventory_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
-        &self.inventory_items
-    }
-
-    pub fn inventory_items_mut(&mut self) -> &mut HashMap<u8, PlayerInventoryItem> {
-        &mut self.inventory_items
-    }
-
-    pub fn buyback_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
-        &self.buyback_items
-    }
-
-    pub fn buyback_items_mut(&mut self) -> &mut HashMap<u8, PlayerInventoryItem> {
-        &mut self.buyback_items
-    }
-
-    pub const fn buyback_price(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
-        &self.buyback_price
-    }
-
-    pub fn buyback_price_mut(&mut self) -> &mut [u32; BUYBACK_SLOT_COUNT] {
-        &mut self.buyback_price
-    }
-
-    pub const fn buyback_timestamp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
-        &self.buyback_timestamp
-    }
-
-    pub fn buyback_timestamp_mut(&mut self) -> &mut [i64; BUYBACK_SLOT_COUNT] {
-        &mut self.buyback_timestamp
-    }
-
-    pub const fn current_buyback_slot(&self) -> u8 {
-        self.current_buyback_slot
-    }
-
-    pub fn set_current_buyback_slot(&mut self, slot: u8) {
-        self.current_buyback_slot = slot;
-    }
-
-    pub fn item_objects(&self) -> &HashMap<ObjectGuid, Item> {
-        &self.item_objects
-    }
-
-    pub fn item_objects_mut(&mut self) -> &mut HashMap<ObjectGuid, Item> {
-        &mut self.item_objects
-    }
-}
-
-impl Default for PlayerInventoryRuntime {
-    fn default() -> Self {
-        Self {
-            equipment_inventory_authority_complete_like_cpp: false,
-            inventory_items: HashMap::new(),
-            buyback_items: HashMap::new(),
-            buyback_price: [0; BUYBACK_SLOT_COUNT],
-            buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
-            current_buyback_slot: BUYBACK_SLOT_START,
-            item_objects: HashMap::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
