@@ -124,7 +124,12 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
         player.unit_mut().set_faction(1);
         player.gameplay_state_mut().liquid_status =
             wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
-        player.gameplay_state_mut().forced_reputation_ranks = vec![(87, 1)];
+        player
+            .reputation_mut_like_cpp()
+            .set_forced_reaction_like_cpp(
+                87,
+                Some(wow_constants::reputation::ReputationRankLikeCpp::Hostile),
+            );
     }
     assert!(registry.bind_canonical_map_manager(canonical));
 
@@ -275,15 +280,15 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
         player.set_player_flag(
             wow_world::canonical_player_access::PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
         );
+        let mut hostile = wow_entities::PlayerFactionStateLikeCpp::new_like_cpp(
+            72,
+            0,
+            wow_constants::reputation::ReputationFlagsLikeCpp::AT_WAR,
+        );
+        hostile.standing = -6000;
         player
-            .gameplay_state_mut()
-            .reputations
-            .push(wow_entities::PlayerReputationRecord {
-                faction_id: 72,
-                standing: -6000,
-                flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
-                ..Default::default()
-            });
+            .reputation_mut_like_cpp()
+            .insert_faction_like_cpp(hostile);
         player.set_forced_reputation_rank_like_cpp(87, true);
     }
 

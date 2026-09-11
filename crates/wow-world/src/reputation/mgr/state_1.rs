@@ -58,47 +58,10 @@ pub struct CharacterReputationRowLikeCpp {
     pub flags: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FactionStateLikeCpp {
-    pub id: u32,
-    pub reputation_list_id: RepListIdLikeCpp,
-    pub standing: i32,
-    pub visual_standing_increase: i32,
-    pub flags: ReputationFlagsLikeCpp,
-    pub need_send: bool,
-    pub need_save: bool,
-}
-
-impl FactionStateLikeCpp {
-    pub fn new_like_cpp(
-        faction_id: u32,
-        reputation_list_id: RepListIdLikeCpp,
-        flags: ReputationFlagsLikeCpp,
-    ) -> Self {
-        Self {
-            id: faction_id,
-            reputation_list_id,
-            standing: 0,
-            visual_standing_increase: 0,
-            flags,
-            need_send: true,
-            need_save: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ReputationRankCountersLikeCpp {
-    pub visible: u8,
-    pub honored: u8,
-    pub revered: u8,
-    pub exalted: u8,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ReputationMgrLikeCpp {
-    pub(super) factions: BTreeMap<RepListIdLikeCpp, FactionStateLikeCpp>,
-    pub(super) forced_reactions: ForcedReactionsLikeCpp,
-    pub(super) rank_counters: ReputationRankCountersLikeCpp,
-    pub(super) send_faction_increased: bool,
-}
+// C++ `FactionState` and the cached rank counters are Player state
+// (`ReputationMgr.h:63`, `Player.h:3116`), so they live in `wow-entities` with
+// the canonical Player and are named here by their C++ names (#735).
+pub use wow_entities::{
+    PlayerFactionStateLikeCpp as FactionStateLikeCpp, ReputationRankCounterLikeCpp,
+    ReputationRankCountersLikeCpp,
+};

@@ -4788,15 +4788,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "reputation_mgr_like_cpp",
-          "type": "ReputationMgrLikeCpp",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
           "name": "reputation_rates",
           "type": "ReputationRatesLikeCpp",
           "visibility": "private",
@@ -4816,6 +4807,15 @@
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
+        },
+        {
+          "name": "reputation_state_like_cpp",
+          "type": "wow_entities :: PlayerReputationStateLikeCpp",
+          "visibility": "private",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "reset_schedule_like_cpp",
@@ -25315,6 +25315,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "cloned_reputation_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn cloned_reputation_state_like_cpp (& self ,) -> Option < wow_entities :: PlayerReputationStateLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "combat_rating_multiplier_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn combat_rating_multiplier_like_cpp (& self , level : u8 , rating : u32) -> f32",
@@ -31759,7 +31772,7 @@
           "kind": "method",
           "name": "mutate_reputation_mgr_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn mutate_reputation_mgr_like_cpp < R > (& mut self , operation : impl FnOnce (& mut ReputationMgrLikeCpp) -> R ,) -> Option < R >",
+          "signature": "fn mutate_reputation_mgr_like_cpp < R > (& mut self , operation : impl FnOnce (& mut ReputationMgrMutLikeCpp < '_ >) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42483,7 +42496,7 @@
           "kind": "method",
           "name": "reputation_mgr_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn reputation_mgr_like_cpp (& self) -> & ReputationMgrLikeCpp",
+          "signature": "fn reputation_mgr_like_cpp (& self) -> ReputationMgrRefLikeCpp < '_ >",
           "cfg": [
             "cfg (test)"
           ],
@@ -42498,7 +42511,7 @@
           "kind": "method",
           "name": "reputation_mgr_like_cpp_mut",
           "visibility": "pub (crate)",
-          "signature": "fn reputation_mgr_like_cpp_mut (& mut self) -> & mut ReputationMgrLikeCpp",
+          "signature": "fn reputation_mgr_like_cpp_mut (& mut self) -> ReputationMgrMutLikeCpp < '_ >",
           "cfg": [
             "cfg (test)"
           ],
@@ -55132,7 +55145,7 @@
           "kind": "method",
           "name": "with_reputation_mgr_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn with_reputation_mgr_like_cpp < R > (& self , operation : impl FnOnce (& ReputationMgrLikeCpp) -> R ,) -> Option < R >",
+          "signature": "fn with_reputation_mgr_like_cpp < R > (& self , operation : impl FnOnce (& ReputationMgrRefLikeCpp < '_ >) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75123,7 +75136,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:19b8b5874bc4081dc5f7511246ea2986:len=91987|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0b7be349775b5b50a2173fdbddc6eb23:len=92187|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

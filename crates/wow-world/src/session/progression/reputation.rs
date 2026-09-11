@@ -127,21 +127,25 @@ impl WorldSession {
         self.reputation_rates
     }
     #[cfg(test)]
-    pub(crate) fn reputation_mgr_like_cpp(&self) -> &ReputationMgrLikeCpp {
-        &self.reputation_mgr_like_cpp
+    pub(crate) fn reputation_mgr_like_cpp(&self) -> ReputationMgrRefLikeCpp<'_> {
+        ReputationMgrLikeCpp::borrowing_like_cpp(&self.reputation_state_like_cpp)
     }
     #[cfg(test)]
-    pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> &mut ReputationMgrLikeCpp {
-        &mut self.reputation_mgr_like_cpp
+    pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> ReputationMgrMutLikeCpp<'_> {
+        ReputationMgrLikeCpp::borrowing_mut_like_cpp(&mut self.reputation_state_like_cpp)
     }
+    /// Run one C++ `ReputationMgr` read against the Player's own state.
+    ///
+    /// C++ `Player::GetReputationMgr()` hands out a reference to the manager
+    /// the Player owns (`Player.h:3116`). This borrows the equivalent canonical
+    /// state instead of rebuilding a manager from it (#735).
     pub(crate) fn with_reputation_mgr_like_cpp<R>(
         &self,
-        operation: impl FnOnce(&ReputationMgrLikeCpp) -> R,
+        operation: impl FnOnce(&ReputationMgrRefLikeCpp<'_>) -> R,
     ) -> Option<R> {
         let mut operation = Some(operation);
         let canonical = self.with_owned_player_like_cpp(|player| {
-            let manager =
-                ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp(player.gameplay_state());
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(player.reputation_like_cpp());
             operation.take().expect("reputation operation runs once")(&manager)
         });
         if canonical.is_some() {
@@ -149,36 +153,45 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return Some(
-                operation.take().expect("reputation operation is available")(
-                    &self.reputation_mgr_like_cpp,
-                ),
-            );
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(&self.reputation_state_like_cpp);
+            return Some(operation.take().expect("reputation operation is available")(&manager));
         }
         None
     }
+    /// Run one C++ `ReputationMgr` transition against the Player's own state.
+    ///
+    /// The transition writes through the Player's named reputation owner; no
+    /// aggregate is reconstructed and nothing is written back through the
+    /// Player's whole gameplay state (#735).
     pub(crate) fn mutate_reputation_mgr_like_cpp<R>(
         &mut self,
-        operation: impl FnOnce(&mut ReputationMgrLikeCpp) -> R,
+        operation: impl FnOnce(&mut ReputationMgrMutLikeCpp<'_>) -> R,
     ) -> Option<R> {
         let mut operation = Some(operation);
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
             let mut manager =
-                ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp(player.gameplay_state());
-            let result = operation.take().expect("reputation mutation runs once")(&mut manager);
-            manager.write_to_player_gameplay_state_like_cpp(player.gameplay_state_mut());
-            result
+                ReputationMgrLikeCpp::borrowing_mut_like_cpp(player.reputation_mut_like_cpp());
+            operation.take().expect("reputation mutation runs once")(&mut manager)
         });
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
+            let mut manager =
+                ReputationMgrLikeCpp::borrowing_mut_like_cpp(&mut self.reputation_state_like_cpp);
             return Some(operation.take().expect("reputation mutation is available")(
-                &mut self.reputation_mgr_like_cpp,
+                &mut manager,
             ));
         }
         None
+    }
+    /// Clone the Player's reputation state for a read that outlives the
+    /// canonical borrow. This is a read snapshot, never a writable mirror.
+    pub(crate) fn cloned_reputation_state_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerReputationStateLikeCpp> {
+        self.with_reputation_mgr_like_cpp(|manager| manager.cloned_state_like_cpp())
     }
     #[allow(dead_code)]
     pub(crate) fn reputation_rank_like_cpp(
@@ -198,10 +211,9 @@ impl WorldSession {
     ) -> Option<i32> {
         self.canonical_player_snapshot_like_cpp(|player| {
             player
-                .gameplay_state()
-                .reputations
-                .iter()
-                .find_map(|record| (record.faction_id == faction_id).then_some(record.standing))
+                .reputation_like_cpp()
+                .factions_like_cpp()
+                .find_map(|state| (state.faction_id == faction_id).then_some(state.standing))
                 .unwrap_or(0)
         })
     }

@@ -97,29 +97,34 @@ fn save_ack_preserves_new_fallback_and_unsaved_reputation_values() {
         .spells
         .fallback_rows
         .insert(10, spell(10, PlayerSpellLoadState::New));
-    p.gameplay_state_mut().reputations = vec![
-        PlayerReputationRecord {
-            faction_id: 1,
-            reputation_list_id: 1,
-            need_save: true,
-            standing: 10,
-            ..Default::default()
-        },
-        PlayerReputationRecord {
-            faction_id: 2,
-            reputation_list_id: 2,
-            need_save: true,
-            standing: 20,
-            ..Default::default()
-        },
-    ];
+    let reputation = p.reputation_mut_like_cpp();
+    reputation.insert_faction_like_cpp(PlayerFactionStateLikeCpp {
+        faction_id: 1,
+        reputation_list_id: 1,
+        need_save: true,
+        standing: 10,
+        ..Default::default()
+    });
+    reputation.insert_faction_like_cpp(PlayerFactionStateLikeCpp {
+        faction_id: 2,
+        reputation_list_id: 2,
+        need_save: true,
+        standing: 20,
+        ..Default::default()
+    });
     let receipt = p.capture_save_acknowledgement_like_cpp();
     p.gameplay_state_mut()
         .spells
         .fallback_rows
         .insert(20, spell(20, PlayerSpellLoadState::New));
-    p.gameplay_state_mut().reputations[0].need_send = true;
-    p.gameplay_state_mut().reputations[1].standing = 30;
+    p.reputation_mut_like_cpp()
+        .faction_mut_like_cpp(1)
+        .unwrap()
+        .need_send = true;
+    p.reputation_mut_like_cpp()
+        .faction_mut_like_cpp(2)
+        .unwrap()
+        .standing = 30;
     p.acknowledge_saved_projection_like_cpp(receipt, all());
     assert_eq!(
         p.gameplay_state()
@@ -130,9 +135,10 @@ fn save_ack_preserves_new_fallback_and_unsaved_reputation_values() {
             .collect::<Vec<_>>(),
         [20]
     );
-    assert!(!p.gameplay_state().reputations[0].need_save);
-    assert!(p.gameplay_state().reputations[0].need_send);
-    assert!(p.gameplay_state().reputations[1].need_save);
+    let reputation = p.reputation_like_cpp();
+    assert!(!reputation.faction_like_cpp(1).unwrap().need_save);
+    assert!(reputation.faction_like_cpp(1).unwrap().need_send);
+    assert!(reputation.faction_like_cpp(2).unwrap().need_save);
 }
 
 #[test]

@@ -328,10 +328,8 @@ fn load_character_reputation_rows_like_cpp_merges_rows_after_identity_and_store(
         },
     ]));
 
-    let state = session
-        .reputation_mgr_like_cpp()
-        .get_state(4)
-        .expect("reputation state");
+    let reputation = session.reputation_mgr_like_cpp();
+    let state = reputation.get_state(4).expect("reputation state");
     assert_eq!(state.standing, 3500);
     assert!(state.flags.contains(ReputationFlagsLikeCpp::VISIBLE));
     assert!(state.flags.contains(ReputationFlagsLikeCpp::AT_WAR));

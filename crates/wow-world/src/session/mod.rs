@@ -89,7 +89,10 @@ use crate::map_manager::{
     WorldMMapPathfinderWorkerLikeCpp,
 };
 use crate::phasing::{init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp};
-use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
+use crate::reputation::{
+    ReputationMgrLikeCpp, ReputationMgrMutLikeCpp, ReputationMgrRefLikeCpp,
+    reputation_to_rank_like_cpp,
+};
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
@@ -6983,7 +6986,10 @@ pub struct WorldSession {
     /// Fixture-only fallback. Production C++ `ReputationMgr` state is owned by
     /// the generation-checked canonical `Player`.
     #[cfg(test)]
-    reputation_mgr_like_cpp: ReputationMgrLikeCpp,
+    /// Test-fallback reputation state for a session without a canonical
+    /// Player owner; production always uses the Player's own state (#735).
+    #[cfg(test)]
+    reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
     #[cfg(test)]
     watched_faction_index_like_cpp: i32,
@@ -8761,7 +8767,8 @@ impl WorldSession {
             #[cfg(test)]
             represented_is_outdoors_like_cpp: None,
             #[cfg(test)]
-            reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
+            #[cfg(test)]
+            reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp::default(),
             #[cfg(test)]
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
@@ -10664,9 +10671,10 @@ impl WorldSession {
         else {
             return ReputationRankLikeCpp::Neutral;
         };
-        let Some(reputation_mgr) = self.with_reputation_mgr_like_cpp(Clone::clone) else {
+        let Some(reputation_state) = self.cloned_reputation_state_like_cpp() else {
             return ReputationRankLikeCpp::Neutral;
         };
+        let reputation_mgr = ReputationMgrLikeCpp::borrowing_like_cpp(&reputation_state);
 
         if input.target_has_player_owner && input.target_player_owner_is_current_session {
             if source_faction_template.is_contested_guard_faction_like_cpp()
@@ -10731,9 +10739,10 @@ impl WorldSession {
         if input.same_charmer_or_owner_or_self {
             return ReputationRankLikeCpp::Friendly;
         }
-        let Some(reputation_mgr) = self.with_reputation_mgr_like_cpp(Clone::clone) else {
+        let Some(reputation_state) = self.cloned_reputation_state_like_cpp() else {
             return ReputationRankLikeCpp::Neutral;
         };
+        let reputation_mgr = ReputationMgrLikeCpp::borrowing_like_cpp(&reputation_state);
 
         if input.self_has_player_owner {
             if let Some(faction_template_store) = self.factions.template_store.as_ref()
