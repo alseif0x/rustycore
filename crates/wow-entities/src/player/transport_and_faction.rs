@@ -3,14 +3,14 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Two single-field Player transitions C++ also keeps on the object itself.
+//! Transport and championing-faction transitions C++ keeps on the object itself.
 //!
-//! Both are one-line assignments in Classic, and both were reached here by
-//! opening the Player's gameplay state from the session. Giving them names
-//! keeps the field private to its owner without pretending they are more than
-//! the assignments they are.
+//! All three were reached here by opening the Player's gameplay state from the
+//! session. Giving them names keeps the fields private to their owner without
+//! pretending they are more than the assignments they are.
 
 use crate::{Player, PlayerTransportState};
+use wow_core::Position;
 
 impl Player {
     /// C++ `Player::SetChampioningFaction` (Player.h:2609).
@@ -22,5 +22,20 @@ impl Player {
     /// represented Player carries.
     pub fn set_transport_like_cpp(&mut self, transport: Option<PlayerTransportState>) {
         self.gameplay_state_mut().transport = transport;
+    }
+
+    /// The transport offset inside the Player's own `m_movementInfo.transport`,
+    /// which C++ reassigns wholesale from the validated client status
+    /// (`MovementHandler.cpp:119` after a worldport ack, `:405` on ordinary
+    /// movement). Only the offset moves: guid, seat and timing stay as the
+    /// transport set them, and a Player on no transport is left unchanged.
+    pub fn set_transport_position_like_cpp(&mut self, position: Position) {
+        let Some(transport) = self.gameplay_state_mut().transport.as_mut() else {
+            return;
+        };
+        transport.x = position.x;
+        transport.y = position.y;
+        transport.z = position.z;
+        transport.orientation = position.orientation;
     }
 }
