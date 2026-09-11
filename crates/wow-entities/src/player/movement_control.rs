@@ -12,6 +12,21 @@ impl Player {
         state.last_fall_z = z;
     }
 
+    /// C++ `Unit::SetCanTransitionBetweenSwimAndFly` (Unit.cpp:12903), whose
+    /// player-only guard and unchanged-value short-circuit are preserved here:
+    /// the caller sends the enable/disable opcode only when this returns true.
+    pub fn set_can_transition_between_swim_and_fly_like_cpp(&mut self, enable: bool) -> bool {
+        let value = &mut self
+            .gameplay_state_mut()
+            .movement_control
+            .can_swim_to_fly_transition;
+        if *value == enable {
+            return false;
+        }
+        *value = enable;
+        true
+    }
+
     /// Whether the vehicle currently moving this Player carries
     /// `VEHICLE_FLAG_FIXED_POSITION` (`VehicleDefines.h:72`). C++ reads the
     /// flag straight off `m_unitMovedByMe`'s vehicle inside
