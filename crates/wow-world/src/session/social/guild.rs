@@ -30,7 +30,7 @@ impl WorldSession {
         let result = f(&mut state);
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().guild = state.clone()
+                player.install_guild_state_like_cpp(state.clone())
             })
             .is_some();
         #[cfg(test)]
