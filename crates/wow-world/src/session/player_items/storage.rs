@@ -233,9 +233,8 @@ impl WorldSession {
         item
     }
     pub(crate) fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {
-        let item_guid = item.object().guid();
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.item_objects_mut().insert(item_guid, item)
+            inventory.store_item_object_like_cpp(item)
         })
         .flatten()
     }
@@ -258,7 +257,7 @@ impl WorldSession {
     }
     pub(crate) fn remove_inventory_item_object(&mut self, item_guid: ObjectGuid) -> Option<Item> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.item_objects_mut().remove(&item_guid)
+            inventory.remove_item_object_like_cpp(item_guid)
         })
         .flatten()
     }
