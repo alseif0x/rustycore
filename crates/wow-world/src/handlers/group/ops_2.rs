@@ -62,7 +62,7 @@ impl WorldSession {
         if target_guid == sender_guid {
             self.apply_group_subgroup_like_cpp(group_guid, new_subgroup);
         } else if let Some(target) = registry.group_presence(target_guid) {
-            let _ = registry.try_send_current_command(
+            let _ = registry.deliver_group_state_command_like_cpp(
                 target.registration,
                 SessionCommand::ApplyGroupSubgroupLikeCpp(
                     crate::session::mailbox::ApplyGroupSubgroupLikeCppCommand {
@@ -71,6 +71,10 @@ impl WorldSession {
                     },
                 ),
             );
+        } else {
+            // C++ `Group::ChangeMembersGroup` sets the member's subgroup on the
+            // member itself; an unresolvable member reconciles later (#743).
+            registry.mark_group_state_reconciliation_like_cpp(target_guid);
         }
 
         send_party_update(&outcome.group, &registry, vra);
@@ -133,7 +137,7 @@ impl WorldSession {
             if member_guid == sender_guid {
                 self.apply_group_subgroup_like_cpp(group_guid, subgroup);
             } else if let Some(member) = registry.group_presence(member_guid) {
-                let _ = registry.try_send_current_command(
+                let _ = registry.deliver_group_state_command_like_cpp(
                     member.registration,
                     SessionCommand::ApplyGroupSubgroupLikeCpp(
                         crate::session::mailbox::ApplyGroupSubgroupLikeCppCommand {
@@ -142,6 +146,8 @@ impl WorldSession {
                         },
                     ),
                 );
+            } else {
+                registry.mark_group_state_reconciliation_like_cpp(member_guid);
             }
         }
 

@@ -477,6 +477,9 @@ struct PlayerRegistryEntry {
     durable_loot_money: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
 }
 
+#[path = "directory/group_state.rs"]
+mod group_state;
+
 /// Thread-safe directory of active player sessions, keyed by player GUID.
 ///
 /// Storage is private. The lifecycle API returns only owned registrations,
@@ -495,6 +498,9 @@ pub struct PlayerRegistry {
     entries: DashMap<ObjectGuid, PlayerRegistryEntry>,
     next_generation: AtomicU64,
     canonical_map_manager: OnceLock<SharedCanonicalMapManager>,
+    /// Group state changes that could not be handed to their target; see
+    /// [`group_state`] for the contract (#743).
+    pending_group_state_reconciliation_like_cpp: DashMap<ObjectGuid, ()>,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fixture_installs_canonical_players: bool,
 }
@@ -505,6 +511,7 @@ impl Default for PlayerRegistry {
             entries: DashMap::new(),
             next_generation: AtomicU64::new(1),
             canonical_map_manager: OnceLock::new(),
+            pending_group_state_reconciliation_like_cpp: DashMap::new(),
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_installs_canonical_players: false,
         }
@@ -622,6 +629,7 @@ impl PlayerRegistry {
             .remove_if(&registration.guid, |_, entry| {
                 entry.generation == registration.generation
             })
+            .inspect(|_| self.clear_group_state_reconciliation_like_cpp(registration.guid))
             .is_some()
     }
 
@@ -635,6 +643,7 @@ impl PlayerRegistry {
     ) -> bool {
         self.entries
             .remove_if(&guid, |_, entry| entry.command_tx.same_channel(command_tx))
+            .inspect(|_| self.clear_group_state_reconciliation_like_cpp(guid))
             .is_some()
     }
 

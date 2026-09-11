@@ -778,5 +778,7 @@ mod misc;
 mod movement;
 #[path = "group_tests/quest.rs"]
 mod quest;
+#[path = "group_tests/reconciliation.rs"]
+mod reconciliation;
 #[path = "group_tests/spell.rs"]
 mod spell;

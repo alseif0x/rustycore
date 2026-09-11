@@ -427,7 +427,62 @@ impl GroupInfo {
     }
 }
 
+/// The authoritative membership projection C++ keeps in `Player::m_group`.
+///
+/// C++ `Player::SetGroup` (`Player.cpp:23440`) links a `GroupReference` to the
+/// live `Group`, so a member never observes a group field the authority
+/// disagrees with. RustyCore's Player owns an equivalent snapshot instead of a
+/// pointer, so the registry publishes the value that snapshot must converge on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupMembershipStateLikeCpp {
+    pub group_guid: u64,
+    /// C++ `Group::GetGroupCategory()`.
+    pub group_category: u8,
+    pub leader_guid: ObjectGuid,
+    /// C++ `Group::MemberSlot::roles`.
+    pub role_mask: u8,
+    /// C++ `Group::MemberSlot::group`.
+    pub subgroup: u8,
+}
+
 impl GroupRegistry {
+    /// Resolve the group this member currently belongs to, by the authority.
+    ///
+    /// This is the read a lost or dropped membership notification is
+    /// reconciled against: C++ has no equivalent lookup because its members
+    /// hold a live reference, and the removal in `Group::RemoveMember`
+    /// (`Group.cpp:550`) and `Group::Disband` (`Group.cpp:713`) clears that
+    /// reference synchronously on every connected member.
+    #[must_use]
+    pub fn member_group_state_like_cpp(
+        &self,
+        member_guid: ObjectGuid,
+    ) -> Option<GroupMembershipStateLikeCpp> {
+        self.groups.iter().find_map(|group| {
+            let group = group.value();
+            let slot = group.member_slot_like_cpp(member_guid)?;
+            Some(GroupMembershipStateLikeCpp {
+                group_guid: group.group_guid,
+                group_category: group.group_category_like_cpp(),
+                leader_guid: group.leader_guid,
+                role_mask: slot.roles,
+                subgroup: slot.subgroup,
+            })
+        })
+    }
+
+    /// Whether the identified group still exists in the authority.
+    ///
+    /// A removed member distinguishes `Group::Disband` from `Group::RemoveMember`
+    /// by this, which selects `GroupDestroyed` or `GroupUninvite` when the
+    /// original notification never reached the member.
+    #[must_use]
+    pub fn group_category_like_cpp(&self, group_guid: u64) -> Option<u8> {
+        self.groups
+            .get(&group_guid)
+            .map(|group| group.group_category_like_cpp())
+    }
+
     pub fn remove_member_like_cpp(
         &self,
         group_guid: u64,
