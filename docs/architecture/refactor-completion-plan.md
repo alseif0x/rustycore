@@ -478,6 +478,32 @@ diferimiento silencioso. Otros 17 accesos en
 archivos que no son de test están dentro de `#[cfg(test)]` y no son superficie
 de producción.
 
+**P2: la fila de inventario/vendor/loot está cerrada.**
+[#737](https://github.com/alseif0x/rustycore/issues/737) hizo lo mismo con el
+runtime de items del Player, por familias y con `final` verificado en cada una:
+#738 (mapa de slots), #739 (slots de recompra), #740 (almacén de objetos) y
+#741 (precio y timestamp de recompra). El oro no necesitaba trabajo:
+`Player::SetMoney` y `ModifyMoney` ya lo poseen en
+`crates/wow-entities/src/player/progression.rs`, y los sitios de dinero del lado
+de la sesión son rutas de staging y persistencia, no una segunda autoridad. Eso
+queda registrado para no volver a investigarlo.
+
+La medición inicial de #737 contenía un falso positivo de grep: los 18 usos
+atribuidos a `inventory_mut()` eran en realidad llamadas a
+`persist_inventory_mutation_like_cpp`. Corregido en un comentario del issue, no
+reduciendo el alcance en silencio. El residuo es un solo cierre genérico en
+`session/player_items/storage.rs:248`, registrado en `known_gaps` como
+`item_runtime_residual_is_one_closure_and_test_fixtures`.
+
+La mitad de operación de esa fila -- ninguna concesión perdida o duplicada por
+fallo parcial -- se volvió a comprobar en lugar de asumirse: una sola función de
+producción mantiene más de una escritura durable de inventario, y sus dos
+escrituras son las ramas exclusivas verificadas en #720. Ninguna familia añadió
+un participante de persistencia.
+
+Quedan tres filas de P2: progresión/spells/effects, social y grupos, y cuenta,
+carga y guardado.
+
 P3–P6 siguen pendientes y #584 continúa abierto.
 
 Si el worktree temporal ya no existe, localizar la rama local anterior con
