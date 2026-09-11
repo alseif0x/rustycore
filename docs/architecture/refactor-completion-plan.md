@@ -453,6 +453,33 @@ por el usuario a favor de la transacción coherente de personaje. No repetir P0
 salvo que cambie su código o aparezca una regresión. P2–P6 siguen pendientes y
 #584 continúa abierto.
 
+**P0 y P1 integradas.** #717 cierra #716 y #719 cierra #718; ambos se
+integraron en `3.4.3` con perfil `final` verificado en verde.
+
+**P2 en curso: los límites concretos del Player están retirados.**
+[#722](https://github.com/alseif0x/rustycore/issues/722) recorrió el acceso
+mutable amplio a `gameplay_state_mut` por familias, cada una con su ancla C++
+exacta, su medición registrada en `runtime-ownership-ledger.json` y su propio
+`final` verificado: #723, #724, #725, #726, #727, #728, #729, #730, #731, #732,
+#733, #734 y la familia del asiento de vehículo que cierra la clase concreta.
+Ninguna añadió campo, espejo, cerradura ni superficie pública más allá de la
+transición nombrada.
+
+El residuo de producción son 15 accesos de una sola forma: un mutador de sesión
+que entrega una submatriz `&mut` al cierre de su llamador. Envolverlos movería
+el acceso amplio en lugar de retirarlo, lo que este plan prohíbe; cada uno se
+retira cuando se modele su propia operación. Quedan registrados en
+`known_gaps` como `broad_player_state_access_residual_is_generic_closures`, con
+sus rutas y líneas. `progression/reputation.rs:169` es un caso aparte: C++ tiene
+`Player::m_reputationMgr` en el Player, pero `ReputationMgrLikeCpp` vive en
+`wow-world`, así que retirarlo exige mover el manager a `wow-entities`; se
+sigue en [#735](https://github.com/alseif0x/rustycore/issues/735), no como
+diferimiento silencioso. Otros 17 accesos en
+archivos que no son de test están dentro de `#[cfg(test)]` y no son superficie
+de producción.
+
+P3–P6 siguen pendientes y #584 continúa abierto.
+
 Si el worktree temporal ya no existe, localizar la rama local anterior con
 `git worktree list` y `git branch --list '*716*'`; el commit conserva el plan y la
 implementación. Recuperar un worktree desde esa rama sin alterar el checkout sucio.

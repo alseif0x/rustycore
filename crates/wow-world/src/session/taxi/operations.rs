@@ -29,9 +29,7 @@ impl WorldSession {
     ) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                let state = player.gameplay_state_mut();
-                state.vehicle_seat_flags = flags;
-                state.vehicle_seat_id = seat_id;
+                player.set_vehicle_seat_like_cpp(flags, seat_id);
             })
             .is_some();
         #[cfg(test)]
