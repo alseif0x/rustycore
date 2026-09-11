@@ -97,10 +97,7 @@ impl WorldSession {
     ) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player
-                    .gameplay_state_mut()
-                    .recent_instances
-                    .insert(map_id, instance_id);
+                player.set_recent_instance_like_cpp(map_id, instance_id);
             })
             .is_some();
         #[cfg(test)]
@@ -116,11 +113,7 @@ impl WorldSession {
         map_id: u32,
     ) -> bool {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .gameplay_state_mut()
-                .recent_instances
-                .remove(&map_id)
-                .is_some()
+            player.forget_recent_instance_like_cpp(map_id)
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {

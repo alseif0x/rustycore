@@ -22,6 +22,7 @@ mod pet_lifecycle;
 mod progression;
 mod pvp;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
+mod recent_instances;
 mod resurrection;
 mod save_ack;
 pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
