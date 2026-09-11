@@ -264,8 +264,7 @@ impl WorldSession {
     }
     pub(crate) fn clear_inventory_items_and_objects_like_cpp(&mut self) {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.inventory_items_mut().clear();
-            inventory.item_objects_mut().clear();
+            inventory.clear_items_and_objects_like_cpp();
         });
     }
     pub(crate) fn clear_all_inventory_runtime_like_cpp(&mut self) {
@@ -280,7 +279,7 @@ impl WorldSession {
         item: InventoryItem,
     ) -> Option<InventoryItem> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.inventory_items_mut().insert(slot, item)
+            inventory.store_item_in_slot_like_cpp(slot, item)
         })
         .flatten()
     }
@@ -298,7 +297,7 @@ impl WorldSession {
     }
     pub(crate) fn remove_inventory_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.inventory_items_mut().remove(&slot)
+            inventory.remove_item_from_slot_like_cpp(slot)
         })
         .flatten()
     }
@@ -310,16 +309,7 @@ impl WorldSession {
         inventory_type: Option<u8>,
     ) -> bool {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            let Some(inventory_item) = inventory
-                .inventory_items_mut()
-                .get_mut(&slot)
-                .filter(|inventory_item| inventory_item.guid == item_guid)
-            else {
-                return false;
-            };
-            inventory_item.entry_id = entry_id;
-            inventory_item.inventory_type = inventory_type;
-            true
+            inventory.update_slot_item_metadata_like_cpp(slot, item_guid, entry_id, inventory_type)
         })
         .unwrap_or(false)
     }
