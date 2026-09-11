@@ -15,9 +15,10 @@
 //! recorded per method so the grouping stays traceable to them.
 
 use crate::{
-    Player, PlayerBattlegroundState, PlayerGuildState, PlayerPersistentCapabilityStateLikeCpp,
-    PlayerTradeStateLikeCpp,
+    Player, PlayerBattlegroundState, PlayerCollectionStateLikeCpp, PlayerCurrency,
+    PlayerGuildState, PlayerPersistentCapabilityStateLikeCpp, PlayerTradeStateLikeCpp,
 };
+use std::collections::HashMap;
 
 impl Player {
     /// Install the Player's guild membership state, the composite of C++
@@ -55,5 +56,26 @@ impl Player {
     /// it.
     pub fn install_battleground_state_like_cpp(&mut self, battleground: PlayerBattlegroundState) {
         self.gameplay_state_mut().battleground = battleground;
+    }
+
+    /// Install the Player's currency map, C++ `Player::_currencyStorage`
+    /// (Player.h:2938), as its two writers leave it: the character load
+    /// (`Player::_LoadCurrency`, Player.cpp:6771) and gameplay changes
+    /// (`Player::ModifyCurrency`, Player.cpp:6916). The caller decides which
+    /// of the two it is performing.
+    pub fn install_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) {
+        self.gameplay_state_mut().currencies = currencies;
+    }
+
+    /// Install the represented account-wide collection state.
+    ///
+    /// Departure kept explicit: C++ owns collections on the session
+    /// (`WorldSession::_collectionMgr`, WorldSession.h:1938), not on the
+    /// Player. RustyCore already keeps the represented state on the Player;
+    /// naming the install makes that departure visible at the boundary instead
+    /// of burying it in a raw field write, and moving the owner is a separate
+    /// question from this one.
+    pub fn install_collection_state_like_cpp(&mut self, collections: PlayerCollectionStateLikeCpp) {
+        self.gameplay_state_mut().collections = collections;
     }
 }
