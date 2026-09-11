@@ -408,13 +408,13 @@ impl WorldSession {
         item: InventoryItem,
     ) -> Option<InventoryItem> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.buyback_items_mut().insert(slot, item)
+            inventory.store_buyback_item_in_slot_like_cpp(slot, item)
         })
         .flatten()
     }
     pub(crate) fn remove_buyback_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.buyback_items_mut().remove(&slot)
+            inventory.remove_buyback_item_from_slot_like_cpp(slot)
         })
         .flatten()
     }
