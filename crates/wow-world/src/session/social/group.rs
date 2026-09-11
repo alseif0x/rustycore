@@ -237,7 +237,7 @@ impl WorldSession {
         };
 
         self.with_owned_player_mut_like_cpp(move |player| {
-            player.gameplay_state_mut().group = state;
+            player.set_group_like_cpp(state);
         })
         .is_some()
     }
@@ -286,14 +286,7 @@ impl WorldSession {
         }
 
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let sequence =
-                &mut player.gameplay_state_mut().group_update_sequences[usize::from(category)];
-            if sequence.group_guid == Some(group_guid) {
-                return false;
-            }
-            sequence.group_guid = Some(group_guid);
-            sequence.update_sequence_number = 1;
-            true
+            player.reset_group_update_sequence_if_needed_like_cpp(usize::from(category), group_guid)
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
@@ -319,11 +312,7 @@ impl WorldSession {
         }
 
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let sequence =
-                &mut player.gameplay_state_mut().group_update_sequences[usize::from(category)];
-            let current = sequence.update_sequence_number;
-            sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
-            current
+            player.next_group_update_sequence_number_like_cpp(usize::from(category))
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
