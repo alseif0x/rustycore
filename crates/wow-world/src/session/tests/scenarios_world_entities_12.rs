@@ -58,15 +58,13 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
     session
         .mutate_canonical_player_by_guid_like_cpp(player, |player| {
-            player
-                .gameplay_state_mut()
-                .reputations
-                .push(wow_entities::PlayerReputationRecord {
+            player.reputation_mut_like_cpp().insert_faction_like_cpp(
+                wow_entities::PlayerFactionStateLikeCpp {
                     faction_id: 72,
                     standing: 0,
-                    flags: 0,
                     ..Default::default()
-                });
+                },
+            );
         })
         .unwrap();
     register_test_creature(&mut session, manager, victim, 40);
@@ -141,15 +139,14 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
     session
         .mutate_canonical_player_by_guid_like_cpp(player, |player| {
-            player
-                .gameplay_state_mut()
-                .reputations
-                .push(wow_entities::PlayerReputationRecord {
+            player.reputation_mut_like_cpp().insert_faction_like_cpp(
+                wow_entities::PlayerFactionStateLikeCpp {
                     faction_id: 72,
                     standing: 0,
-                    flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                    flags: wow_constants::reputation::ReputationFlagsLikeCpp::AT_WAR,
                     ..Default::default()
-                });
+                },
+            );
         })
         .unwrap();
     register_test_creature(&mut session, manager, victim, 40);

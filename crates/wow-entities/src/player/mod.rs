@@ -23,7 +23,12 @@ mod movement_control;
 mod pet_lifecycle;
 mod progression;
 mod pvp;
+mod reputation;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
+pub use reputation::{
+    PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
+    ReputationRankCountersLikeCpp,
+};
 mod collections_hydration;
 mod composite_state;
 mod group_membership;
@@ -880,18 +885,6 @@ pub struct PlayerBattlegroundQueueRecord {
 pub struct PlayerRandomBattlegroundState {
     pub reward_claimed_today: bool,
     pub last_reward_time: Option<u64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PlayerReputationRecord {
-    pub faction_id: u32,
-    /// C++ `FactionState::ReputationListID`, the stable client-array key.
-    pub reputation_list_id: u32,
-    pub standing: i32,
-    pub flags: u32,
-    pub visual_standing_increase: i32,
-    pub need_send: bool,
-    pub need_save: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

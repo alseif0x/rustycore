@@ -1,7 +1,7 @@
-//! Per-player C++ `ReputationMgr` state foundation.
+//! The C++ `ReputationMgr` rules, operating on Player-owned state.
 //!
-//! This module owns only the direct `ReputationMgr.h` state shape. Initialization,
-//! DB load/save, spillover and packet fanout are ported in later slices.
+//! The state lives with the canonical Player; these rules stay here, where the
+//! catalogs and packet builders they need are allowed. See `borrowed` (#735).
 
 use std::collections::BTreeMap;
 
@@ -13,7 +13,7 @@ use wow_data::reputation::{
     MAX_SPILLOVER_FACTIONS_LIKE_CPP, RepSpilloverTemplateLikeCpp, ReputationFlagsLikeCpp,
     ReputationRankLikeCpp,
 };
-use wow_entities::{PlayerGameplayState, PlayerReputationRecord};
+use wow_entities::PlayerReputationStateLikeCpp;
 use wow_packet::packets::reputation::{
     FACTION_COUNT_LIKE_CPP, FactionStandingData as FactionStandingDataPacketLikeCpp,
     ForcedReaction as ForcedReactionPacketLikeCpp,
@@ -22,18 +22,15 @@ use wow_packet::packets::reputation::{
     SetForcedReactions as SetForcedReactionsPacketLikeCpp,
 };
 
+mod borrowed;
 mod state_1;
-mod state_3;
-#[allow(unused_imports)]
-pub use state_1::*;
-pub use state_2_ops_1::*;
-pub use state_2_ops_2::*;
-#[allow(unused_imports)]
-#[allow(unused_imports)]
-pub use state_3::*;
-
 mod state_2_ops_1;
 mod state_2_ops_2;
+mod state_3;
+
+#[allow(unused_imports)]
+pub use {borrowed::*, state_1::*, state_2_ops_1::*, state_2_ops_2::*, state_3::*};
+
 #[cfg(test)]
 #[path = "mgr/tests/mod.rs"]
 mod tests;

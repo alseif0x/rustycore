@@ -729,10 +729,8 @@ fn creature_kill_reputation_mutates_and_sends_state_like_cpp() {
 
     session.reward_reputation_from_creature_kill_like_cpp(9001, creature_guid, 80, 1.0);
 
-    let state = session
-        .reputation_mgr_like_cpp()
-        .get_state(5)
-        .expect("faction state");
+    let reputation = session.reputation_mgr_like_cpp();
+    let state = reputation.get_state(5).expect("faction state");
     assert_eq!(state.standing, 250);
     assert_eq!(
         session.represented_creature_kill_events_like_cpp(),

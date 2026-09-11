@@ -5,73 +5,16 @@ use std::collections::HashMap;
 use crate::creature::template::CreatureTemplateLifecycleStoreLikeCpp;
 use crate::progression_rewards::FactionStore;
 
-pub const REPUTATION_CAP_LIKE_CPP: i32 = 42_000;
-pub const REPUTATION_BOTTOM_LIKE_CPP: i32 = -42_000;
-pub const REPUTATION_RANK_THRESHOLDS_LIKE_CPP: [i32; 8] =
-    [-42_000, -6_000, -3_000, 0, 3_000, 9_000, 21_000, 42_000];
+/// C++ `ReputationMgr::_SendStates` spillover fan-out limit.
 pub const MAX_SPILLOVER_FACTIONS_LIKE_CPP: usize = 5;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum ReputationRankLikeCpp {
-    Hated = 0,
-    Hostile = 1,
-    Unfriendly = 2,
-    Neutral = 3,
-    Friendly = 4,
-    Honored = 5,
-    Revered = 6,
-    Exalted = 7,
-}
-
-impl ReputationRankLikeCpp {
-    pub const fn as_u8(self) -> u8 {
-        self as u8
-    }
-
-    pub const fn from_u8_like_cpp(value: u8) -> Option<Self> {
-        match value {
-            0 => Some(Self::Hated),
-            1 => Some(Self::Hostile),
-            2 => Some(Self::Unfriendly),
-            3 => Some(Self::Neutral),
-            4 => Some(Self::Friendly),
-            5 => Some(Self::Honored),
-            6 => Some(Self::Revered),
-            7 => Some(Self::Exalted),
-            _ => None,
-        }
-    }
-}
-
-pub fn reputation_rank_from_standing_like_cpp(standing: i32) -> ReputationRankLikeCpp {
-    let rank = REPUTATION_RANK_THRESHOLDS_LIKE_CPP
-        .iter()
-        .position(|threshold| standing < *threshold)
-        .map(|idx| idx.saturating_sub(1))
-        .unwrap_or(REPUTATION_RANK_THRESHOLDS_LIKE_CPP.len() - 1);
-
-    ReputationRankLikeCpp::from_u8_like_cpp(rank as u8)
-        .expect("rank index is bounded by C++ threshold table")
-}
-
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct ReputationFlagsLikeCpp: u16 {
-        const NONE = 0x0000;
-        const VISIBLE = 0x0001;
-        const AT_WAR = 0x0002;
-        const HIDDEN = 0x0004;
-        const HEADER = 0x0008;
-        const PEACEFUL = 0x0010;
-        const INACTIVE = 0x0020;
-        const SHOW_PROPAGATED = 0x0040;
-        const HEADER_SHOWS_BAR = 0x0080;
-        const CAPITAL_CITY_FOR_RACE_CHANGE = 0x0100;
-        const GUILD = 0x0200;
-        const GARRISON_INVASION = 0x0400;
-    }
-}
+// The reputation value types moved to `wow-constants` under #735 so the
+// canonical Player can own reputation state without depending on this catalog
+// crate. They are re-exported here for the catalog-side consumers.
+pub use wow_constants::reputation::{
+    REPUTATION_BOTTOM_LIKE_CPP, REPUTATION_CAP_LIKE_CPP, REPUTATION_RANK_THRESHOLDS_LIKE_CPP,
+    ReputationFlagsLikeCpp, ReputationRankLikeCpp, reputation_rank_from_standing_like_cpp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ReputationRewardRateEntryLikeCpp {

@@ -15,6 +15,7 @@ pub mod movement;
 pub mod object;
 pub mod opcodes;
 pub mod phasing;
+pub mod reputation;
 pub mod shared;
 pub mod spell;
 pub mod unit;

@@ -240,6 +240,42 @@ una mutación nueva y flags de envío independientes. Los 15 sitios registrados 
 #722 incluyen el camino amplio de Player; reputación es el caso distinto que requiere
 resolver esta frontera, no una segunda lista de 15 cierres.
 
+#### Entrega local aceptada — #735
+
+El residuo exacto de #735 queda retirado: `session/progression/reputation.rs` ya no
+reconstruye un `ReputationMgrLikeCpp` ni escribe el agregado a través de
+`gameplay_state_mut()`. No quedan llamadas a `from_player_gameplay_state_like_cpp`
+ni a `write_to_player_gameplay_state_like_cpp`; ambas desaparecen del árbol.
+
+- Estado y sus invariantes en el Player: `crates/wow-entities/src/player/reputation.rs`
+  define `PlayerReputationStateLikeCpp` —el `Player::m_reputationMgr` de C++
+  (`Player.h:3116`, construido en `Player.cpp:338`)— con el almacenamiento de
+  `FactionState` indexado por `ReputationListID` (`ReputationMgr.h:63`), el recorte de
+  standing a `Reputation_Cap`/`Reputation_Bottom`, contadores de rango que no
+  desbordan, reacciones forzadas y `_sendFactionIncreased`. `PlayerGameplayState`
+  sustituye sus cuatro campos sueltos por ese propietario único.
+- Reglas con catálogos fuera de la frontera de entidades: `ReputationMgrLikeCpp` pasa
+  a ser un préstamo de ese estado (`ReputationMgrRefLikeCpp` para lectura,
+  `ReputationMgrMutLikeCpp` para transición). Resolución de facciones, rangos,
+  spillover, paragón/renombre y construcción de paquetes siguen en `wow-world`.
+- Tipos de valor: `ReputationRankLikeCpp`, `ReputationFlagsLikeCpp`, los umbrales y
+  los topes se mueven a `wow-constants`, que `wow-entities` ya puede usar;
+  `wow_data::reputation` los reexporta, así que los consumidores de catálogo no
+  cambian. No se añadió ninguna dependencia prohibida ni un crate por helper.
+- Consumidores migrados: carga/hidratación, publicación de login, banderas de
+  reputación, recompensas de misión, efectos de hechizo, recompensas por muerte,
+  proyección de guardado y save ack. Las banderas `need_send` y `need_save` siguen
+  siendo independientes y el orden de publicación se conserva.
+- Mejora observable registrada: la proyección de guardado ya no puede quedar
+  ensombrecida por una fila duplicada del mismo `ReputationListID`, porque el Player
+  guarda la forma de `FactionStateList` de C++. La prueba que fijaba el comportamiento
+  del vector malformado se sustituye por la que fija esa invariante.
+
+Aceptación local ejecutada en este árbol: pruebas de `wow-entities` (735),
+`wow-world` (3.842) y el resto del workspace, más los controles de arquitectura y la
+validación final registrados en la issue y en `STATE.md`. No se ejecuta QA viva ni
+evidencia de DB/reinicio para esta entrega.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

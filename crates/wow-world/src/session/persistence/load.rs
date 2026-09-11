@@ -636,7 +636,9 @@ impl WorldSession {
         let initialize_reputation = self.player_race_like_cpp() != race
             || self.player_class_like_cpp() != class
             || self
-                .with_owned_player_like_cpp(|player| player.gameplay_state().reputations.is_empty())
+                .with_owned_player_like_cpp(|player| {
+                    player.reputation_like_cpp().faction_count_like_cpp() == 0
+                })
                 .unwrap_or(true);
         if self.player_map_id_like_cpp() != map_id
             || self.player_race_like_cpp() != race

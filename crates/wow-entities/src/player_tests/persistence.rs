@@ -122,7 +122,7 @@ fn player_gameplay_apply_load_record_stores_every_major_bucket() {
     assert_eq!(player.gameplay_state().guild, state.guild);
     assert_eq!(player.gameplay_state().battleground, state.battleground);
     assert_eq!(player.gameplay_state().menu, state.menu);
-    assert_eq!(player.gameplay_state().reputations, state.reputations);
+    assert_eq!(player.gameplay_state().reputation, state.reputation);
     assert_eq!(player.gameplay_state().achievements, state.achievements);
     assert_eq!(
         player.gameplay_state().achievement_criteria,

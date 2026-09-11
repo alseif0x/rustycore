@@ -17,7 +17,7 @@ pub struct PlayerSaveAcknowledgementLikeCpp {
     fallback: BTreeMap<i32, PlayerKnownSpellRecord>,
     skills: Vec<PlayerSkillRecord>,
     equipment: BTreeMap<u64, PlayerEquipmentSetLikeCpp>,
-    reputations: Vec<PlayerReputationRecord>,
+    reputations: Vec<PlayerFactionStateLikeCpp>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -40,16 +40,10 @@ impl Player {
             fallback: state.spells.fallback_rows.clone(),
             skills: state.skills.clone(),
             equipment: state.equipment_sets.clone(),
-            // The save projection uses C++ FactionStateList, keyed by RepListID
-            // (ReputationMgr.h:63). Only its last row for each key is visited.
-            // Never acknowledge a malformed vector row shadowed by that projection.
-            reputations: state
-                .reputations
-                .iter()
-                .map(|row| (row.reputation_list_id, row.clone()))
-                .collect::<BTreeMap<_, _>>()
-                .into_values()
-                .collect(),
+            // C++ FactionStateList is keyed by RepListID (ReputationMgr.h:63)
+            // and the Player now owns it in that shape, so a shadowed duplicate
+            // row can no longer exist to be acknowledged (#735).
+            reputations: state.reputation.factions_like_cpp().cloned().collect(),
         }
     }
 
@@ -89,7 +83,7 @@ impl Player {
             acknowledge_equipment(&mut state.equipment_sets, saved.equipment);
         }
         if groups.reputations {
-            for current in &mut state.reputations {
+            for current in state.reputation.factions_mut_like_cpp() {
                 if saved.reputations.iter().any(|row| {
                     row.need_save
                         && row.faction_id == current.faction_id

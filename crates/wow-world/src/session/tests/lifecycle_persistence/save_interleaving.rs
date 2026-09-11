@@ -58,43 +58,43 @@ async fn full_save_reads_native_map_and_level_despite_stale_session_staging() {
 }
 
 #[tokio::test]
-async fn full_save_ack_does_not_clean_a_reputation_row_shadowed_by_the_projection() {
+async fn full_save_ack_cleans_the_reputation_row_the_player_owns_per_list_id() {
     let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session
         .with_owned_player_mut_like_cpp(|p| {
-            p.gameplay_state_mut().reputations = vec![
-                wow_entities::PlayerReputationRecord {
-                    faction_id: 72,
-                    reputation_list_id: 1,
-                    standing: 10,
-                    need_save: true,
-                    ..Default::default()
-                },
-                wow_entities::PlayerReputationRecord {
-                    faction_id: 76,
-                    reputation_list_id: 1,
-                    standing: 20,
-                    need_save: true,
-                    ..Default::default()
-                },
-            ];
+            // #735: the Player owns C++ `FactionStateList` keyed by
+            // `ReputationListID` (`ReputationMgr.h:63`), so a second row for the
+            // same key replaces the first instead of shadowing it in a vector
+            // the save projection would silently drop.
+            let reputation = p.reputation_mut_like_cpp();
+            reputation.insert_faction_like_cpp(wow_entities::PlayerFactionStateLikeCpp {
+                faction_id: 72,
+                reputation_list_id: 1,
+                standing: 10,
+                need_save: true,
+                ..Default::default()
+            });
+            reputation.insert_faction_like_cpp(wow_entities::PlayerFactionStateLikeCpp {
+                faction_id: 76,
+                reputation_list_id: 1,
+                standing: 20,
+                need_save: true,
+                ..Default::default()
+            });
         })
         .unwrap();
     session.save_current_player_to_db_like_cpp().await;
-    // The current adapter constructs C++ FactionStateList keyed by ReputationListID.
-    // This intentionally malformed native vector projects only its last key owner.
     let requests = port.character_saves();
     assert_eq!(requests[0].reputations.len(), 1);
     assert_eq!(requests[0].reputations[0].faction_id, 76);
     assert_eq!(
         session.with_owned_player_like_cpp(|p| {
-            p.gameplay_state()
-                .reputations
-                .iter()
+            p.reputation_like_cpp()
+                .factions_like_cpp()
                 .map(|row| row.need_save)
                 .collect::<Vec<_>>()
         }),
-        Some(vec![true, false])
+        Some(vec![false])
     );
 }
 

@@ -363,10 +363,9 @@ pub fn canonical_player_is_contested_pvp_like_cpp(player: &Player) -> bool {
 #[must_use]
 pub fn canonical_player_reputation_state_flags_like_cpp(player: &Player) -> Vec<(u32, u32)> {
     player
-        .gameplay_state()
-        .reputations
-        .iter()
-        .map(|record| (record.faction_id, record.flags))
+        .reputation_like_cpp()
+        .factions_like_cpp()
+        .map(|state| (state.faction_id, u32::from(state.flags.bits())))
         .collect()
 }
 
@@ -387,9 +386,8 @@ pub fn canonical_player_forced_reputation_faction_ids_like_cpp(player: &Player) 
 #[must_use]
 pub fn canonical_player_reputation_standings_like_cpp(player: &Player) -> Vec<(u32, i32)> {
     player
-        .gameplay_state()
-        .reputations
-        .iter()
-        .map(|record| (record.faction_id, record.standing))
+        .reputation_like_cpp()
+        .factions_like_cpp()
+        .map(|state| (state.faction_id, state.standing))
         .collect()
 }

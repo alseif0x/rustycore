@@ -394,18 +394,17 @@ pub(super) fn request(
         level_time,
     };
 
-    let reputations =
-        crate::reputation::ReputationMgrLikeCpp::from_player_gameplay_state_like_cpp(game)
-            .pending_save_rows_like_cpp()
-            .into_iter()
-            .map(
-                |(faction_id, standing, flags)| PlayerReputationSaveLikeCpp {
-                    faction_id,
-                    standing,
-                    flags,
-                },
-            )
-            .collect();
+    let reputations = crate::reputation::ReputationMgrLikeCpp::borrowing_like_cpp(&game.reputation)
+        .pending_save_rows_like_cpp()
+        .into_iter()
+        .map(
+            |(faction_id, standing, flags)| PlayerReputationSaveLikeCpp {
+                faction_id,
+                standing,
+                flags,
+            },
+        )
+        .collect();
 
     let cuf_profiles = match Some((&game.cuf_profiles, game.cuf_profiles_loaded)) {
         Some((profiles, true)) => Some(
