@@ -45,7 +45,7 @@ impl WorldSession {
         let result = mutate(&mut state);
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().trade = state.clone()
+                player.install_trade_state_like_cpp(state.clone())
             })
             .is_some();
         #[cfg(test)]

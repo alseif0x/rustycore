@@ -488,7 +488,7 @@ impl WorldSession {
         let result = mutate(&mut state);
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().persistent_capabilities = state;
+                player.install_persistent_capabilities_like_cpp(state);
             })
             .is_some();
         #[cfg(test)]
