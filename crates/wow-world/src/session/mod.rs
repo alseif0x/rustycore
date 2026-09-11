@@ -10974,8 +10974,7 @@ impl WorldSession {
         }
         let index = (slot - BUYBACK_SLOT_START) as usize;
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.buyback_price_mut()[index] = price;
-            inventory.buyback_timestamp_mut()[index] = timestamp;
+            inventory.set_buyback_price_and_timestamp_like_cpp(index, price, timestamp);
         });
     }
 
