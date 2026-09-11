@@ -345,11 +345,139 @@ impl WorldSession {
             text.to_string()
         }
     }
+    /// The owner-dispatch hook the canonical-ownership regressions drive.
+    ///
+    /// Production has no such caller: every transition goes through a named
+    /// operation. This keeps the active/detached/replacement coverage able to
+    /// exercise the dispatch itself (#754).
+    #[cfg(test)]
+    pub(crate) fn mutate_player_spell_runtime_for_test_like_cpp<R>(
+        &mut self,
+        apply: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
+    ) -> Option<R> {
+        self.mutate_player_spell_runtime_like_cpp(apply)
+    }
+
+    /// Take one spell's trait definition id (C++ `Player::RemoveSpell`).
+    pub(in crate::session) fn take_represented_trait_definition_id_like_cpp(
+        &mut self,
+        spell_id: i32,
+    ) -> Option<i32> {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.take_trait_definition_id_like_cpp(spell_id)
+        })
+        .flatten()
+    }
+
+    /// Install one loaded spell row, keeping the authoritative set when it
+    /// exists and otherwise retaining it as a fallback grant.
+    pub(in crate::session) fn install_loaded_spell_row_like_cpp(
+        &mut self,
+        spell_id: i32,
+        row: wow_entities::PlayerKnownSpellRecord,
+        complete_rows: Option<
+            std::collections::BTreeMap<i32, wow_entities::PlayerKnownSpellRecord>,
+        >,
+    ) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            if let Some(mut rows) = complete_rows {
+                rows.insert(spell_id, row);
+                runtime.replace_rows_like_cpp(rows, true);
+            } else {
+                runtime.insert_fallback_row_like_cpp(spell_id, row);
+            }
+        })
+        .is_some()
+    }
+
+    /// Drop the trait definitions, config headers and entry flags before a
+    /// trait-config load replaces them.
+    pub(in crate::session) fn begin_represented_trait_authority_load_like_cpp(&mut self) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.begin_trait_authority_load_like_cpp();
+        })
+        .is_some()
+    }
+
+    /// Drop the trait definitions and config headers a login reset discards.
+    pub(in crate::session) fn begin_represented_trait_config_load_like_cpp(&mut self) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(
+            wow_entities::PlayerSpellRuntimeState::begin_trait_config_load_like_cpp,
+        )
+        .is_some()
+    }
+
+    /// Complete one represented trait-config load.
+    pub(in crate::session) fn complete_represented_trait_config_rows_like_cpp(
+        &mut self,
+        configs: Vec<(i32, i32, i32, i32)>,
+        entries_empty: bool,
+    ) -> Option<bool> {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.complete_trait_config_load_like_cpp(configs, entries_empty)
+        })
+    }
+
+    /// Install the authoritative trait-config headers and their entry flags.
+    pub(in crate::session) fn install_represented_trait_authority_rows_like_cpp(
+        &mut self,
+        rows: std::collections::BTreeMap<i32, wow_entities::PlayerTraitConfigState>,
+        entries_empty: bool,
+    ) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.complete_trait_authority_load_like_cpp(rows, entries_empty);
+        })
+        .is_some()
+    }
+
+    /// Drop every trait and override edge, as login does before rebuilding a
+    /// fresh C++ Player.
+    pub(in crate::session) fn clear_represented_trait_and_override_state_like_cpp(
+        &mut self,
+    ) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.clear_trait_and_override_state_like_cpp();
+        })
+        .is_some()
+    }
+
+    /// Drop the loaded trait-config headers and return them to unhydrated.
+    pub(in crate::session) fn clear_represented_trait_config_rows_like_cpp(&mut self) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.clear_trait_config_rows_like_cpp();
+        })
+        .is_some()
+    }
+
+    /// Forget the rows retained while no authoritative load exists.
+    pub(in crate::session) fn clear_represented_fallback_spell_rows_like_cpp(&mut self) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(|runtime| {
+            runtime.clear_fallback_rows_like_cpp();
+        })
+        .is_some()
+    }
+
+    /// Settle the saved rows, as `Player::_SaveSpells` completing does.
+    pub(in crate::session) fn mark_represented_spell_rows_saved_like_cpp(&mut self) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(
+            wow_entities::PlayerSpellRuntimeState::mark_spell_rows_saved_like_cpp,
+        )
+        .is_some()
+    }
+
+    /// Rebase every derived set on the rows a save left behind.
+    pub(in crate::session) fn rebase_represented_spells_onto_saved_rows_like_cpp(
+        &mut self,
+    ) -> bool {
+        self.mutate_player_spell_runtime_like_cpp(
+            wow_entities::PlayerSpellRuntimeState::rebase_onto_saved_rows_like_cpp,
+        )
+        .is_some()
+    }
+
     pub(in crate::session) fn invalidate_represented_player_spell_rows_like_cpp(&mut self) {
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.rows.clear();
-            runtime.rows_loaded = false;
-            runtime.rows_complete = false;
+            runtime.clear_rows_like_cpp();
         });
         self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
     }
@@ -412,9 +540,7 @@ impl WorldSession {
                 self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
             }
             let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime
-                    .trait_definition_ids
-                    .insert(spell_id, trait_definition_id);
+                runtime.set_trait_definition_id_like_cpp(spell_id, Some(trait_definition_id));
             });
         }
     }
@@ -497,7 +623,7 @@ impl WorldSession {
     pub(crate) fn represented_override_spells_like_cpp(&self) -> HashMap<i32, BTreeSet<i32>> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
             runtime
-                .override_spells
+                .override_spells_like_cpp()
                 .iter()
                 .map(|(&id, values)| (id, values.clone()))
                 .collect()
@@ -507,7 +633,7 @@ impl WorldSession {
     pub(crate) fn represented_spell_trait_definition_ids_like_cpp(&self) -> HashMap<i32, i32> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
             runtime
-                .trait_definition_ids
+                .trait_definition_ids_like_cpp()
                 .iter()
                 .map(|(&id, &value)| (id, value))
                 .collect()
@@ -518,9 +644,9 @@ impl WorldSession {
         &self,
     ) -> Option<HashMap<i32, BTreeSet<i32>>> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
-            runtime.override_spells_complete.then(|| {
+            runtime.override_spells_complete_like_cpp().then(|| {
                 runtime
-                    .override_spells
+                    .override_spells_like_cpp()
                     .iter()
                     .map(|(&id, values)| (id, values.clone()))
                     .collect()
@@ -532,9 +658,9 @@ impl WorldSession {
         &self,
     ) -> Option<HashMap<i32, i32>> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_definition_ids_complete.then(|| {
+            runtime.trait_definition_ids_complete_like_cpp().then(|| {
                 runtime
-                    .trait_definition_ids
+                    .trait_definition_ids_like_cpp()
                     .iter()
                     .map(|(&id, &value)| (id, value))
                     .collect()
@@ -568,16 +694,14 @@ impl WorldSession {
                 || exact_traits.insert(spell_id, trait_definition_id).is_some()
             {
                 let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                    runtime.trait_definition_ids.clear();
-                    runtime.trait_definition_ids_complete = false;
+                    runtime.clear_trait_definition_ids_like_cpp();
                 });
                 return false;
             }
         }
 
         self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_definition_ids = exact_traits.into_iter().collect();
-            runtime.trait_definition_ids_complete = true;
+            runtime.replace_trait_definition_ids_like_cpp(exact_traits.into_iter().collect(), true);
         })
         .is_some()
     }
@@ -590,8 +714,7 @@ impl WorldSession {
         for (overridden_spell_id, overriding_spell_id) in overrides {
             if overridden_spell_id <= 0 || overriding_spell_id <= 0 {
                 let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                    runtime.override_spells.clear();
-                    runtime.override_spells_complete = false;
+                    runtime.clear_override_spells_like_cpp();
                 });
                 return false;
             }
@@ -602,8 +725,7 @@ impl WorldSession {
         }
 
         self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.override_spells = exact_overrides.into_iter().collect();
-            runtime.override_spells_complete = true;
+            runtime.replace_override_spells_like_cpp(exact_overrides.into_iter().collect(), true);
         })
         .is_some()
     }
@@ -651,7 +773,12 @@ impl WorldSession {
         // C++ Player::GetSpellMap returns the owner's map, not a Session copy.
         self.with_owned_player_like_cpp(|player| query(player.spell_runtime_like_cpp()))
     }
-    pub(in crate::session) fn mutate_player_spell_runtime_like_cpp<R>(
+    /// Incarnation dispatch for one named spell-runtime transition.
+    ///
+    /// Scoped to this owner module: the transitions themselves are the named
+    /// operations on `PlayerSpellRuntimeState` and the session wrappers below,
+    /// so no other module writes the Player's spell state directly (#754).
+    pub(in crate::session::spell_state) fn mutate_player_spell_runtime_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
@@ -711,16 +838,16 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_player_spell_rows_loaded_like_cpp(&self) -> bool {
-        self.with_player_spell_runtime_like_cpp(|runtime| runtime.rows_loaded)
+        self.with_player_spell_runtime_like_cpp(|runtime| runtime.rows_loaded_like_cpp())
             .unwrap_or(false)
     }
     pub(crate) fn complete_represented_player_spell_rows_like_cpp(
         &self,
     ) -> Option<BTreeMap<i32, RepresentedPlayerSpellLikeCpp>> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
-            (runtime.rows_loaded && runtime.rows_complete).then(|| {
+            (runtime.rows_loaded_like_cpp() && runtime.rows_complete_like_cpp()).then(|| {
                 runtime
-                    .rows
+                    .rows_like_cpp()
                     .iter()
                     .map(|(&id, row)| (id, represented_player_spell_record_like_cpp(row)))
                     .collect()

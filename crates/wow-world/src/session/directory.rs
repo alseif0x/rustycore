@@ -1154,7 +1154,12 @@ impl PlayerRegistry {
                 class,
                 sex,
                 level: placement.level,
-                known_spells: state.spells.known_spells.iter().copied().collect(),
+                known_spells: state
+                    .spells
+                    .known_spells_like_cpp()
+                    .iter()
+                    .copied()
+                    .collect(),
                 active_quest_statuses: state
                     .quests
                     .statuses

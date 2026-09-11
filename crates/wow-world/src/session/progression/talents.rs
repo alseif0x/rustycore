@@ -187,14 +187,7 @@ impl WorldSession {
         // Login reconstructs a fresh C++ Player after this reset. Retaining the
         // previous character's runtime edges would affect GetCastSpellInfo, and
         // retaining per-spell traits could contaminate a coincident spell ID.
-        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.override_spells.clear();
-            runtime.trait_definition_ids.clear();
-            runtime.trait_config_rows.clear();
-            runtime.trait_config_rows_complete = false;
-            runtime.trait_entry_rows_complete = false;
-            runtime.trait_entry_rows_empty = false;
-        });
+        let _ = self.clear_represented_trait_and_override_state_like_cpp();
         self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
     }
     pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {

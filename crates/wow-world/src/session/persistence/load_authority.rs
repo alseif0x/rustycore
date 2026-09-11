@@ -65,21 +65,12 @@ impl WorldSession {
         let _ = self.replace_completed_achievement_ids_like_cpp(rows);
     }
     pub(crate) fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
-        let _ = self.mutate_player_spell_runtime_like_cpp(
-            wow_entities::PlayerSpellRuntimeState::begin_trait_config_load_like_cpp,
-        );
+        let _ = self.begin_represented_trait_config_load_like_cpp();
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_begin_trait_config_authority_load_like_cpp(&mut self) {
-        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_definition_ids.clear();
-            runtime.trait_definition_ids_complete = false;
-            runtime.trait_config_rows.clear();
-            runtime.trait_config_rows_complete = false;
-            runtime.trait_entry_rows_complete = false;
-            runtime.trait_entry_rows_empty = false;
-        });
+        let _ = self.begin_represented_trait_authority_load_like_cpp();
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
     pub(crate) fn complete_represented_trait_config_authority_load_like_cpp(
@@ -89,9 +80,7 @@ impl WorldSession {
     ) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let configs = configs.into_iter().collect();
-        let result = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.complete_trait_config_load_like_cpp(configs, entries_empty)
-        });
+        let result = self.complete_represented_trait_config_rows_like_cpp(configs, entries_empty);
         if result == Some(false) {
             // Invalid input has reset the source proof. Keep the previous
             // post-reset invalidation outside the exclusive Player access.
@@ -121,12 +110,6 @@ impl WorldSession {
             }
         }
 
-        self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_config_rows = exact_configs;
-            runtime.trait_config_rows_complete = true;
-            runtime.trait_entry_rows_complete = true;
-            runtime.trait_entry_rows_empty = entries_empty;
-        })
-        .is_some()
+        self.install_represented_trait_authority_rows_like_cpp(exact_configs, entries_empty)
     }
 }

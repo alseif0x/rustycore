@@ -482,6 +482,8 @@ mod reputation;
 mod skill;
 #[path = "player_tests/spell.rs"]
 mod spell;
+#[path = "player_tests/spell_runtime.rs"]
+mod spell_runtime;
 #[path = "player_tests/talents.rs"]
 mod talents;
 #[path = "player_tests/visibility.rs"]

@@ -4923,72 +4923,96 @@ fn represented_player_spell_record_like_cpp(
 fn canonical_player_spell_runtime_like_cpp(
     runtime: RepresentedPlayerSpellRuntimeLikeCpp,
 ) -> wow_entities::PlayerSpellRuntimeState {
-    wow_entities::PlayerSpellRuntimeState {
-        known_spells: runtime.known_spells,
-        rows: runtime
-            .rows
-            .into_iter()
-            .map(|(spell_id, row)| (spell_id, canonical_player_spell_record_like_cpp(row)))
-            .collect(),
-        rows_loaded: runtime.rows_loaded,
-        rows_complete: runtime.rows_complete,
-        fallback_rows: runtime
+    let mut state = wow_entities::PlayerSpellRuntimeState::default();
+    state.install_acquisition_snapshot_like_cpp(
+        wow_entities::PlayerSpellAcquisitionSnapshotLikeCpp {
+            known_spells: runtime.known_spells,
+            rows: runtime
+                .rows
+                .into_iter()
+                .map(|(spell_id, row)| (spell_id, canonical_player_spell_record_like_cpp(row)))
+                .collect(),
+            dependent_known_spells: runtime.dependent_known_spells.into_iter().collect(),
+            removed_known_spells: runtime.removed_known_spells.into_iter().collect(),
+            favorite_known_spells: runtime.favorite_known_spells.into_iter().collect(),
+            trait_definition_ids: runtime.trait_definition_ids.into_iter().collect(),
+            override_spells: runtime.override_spells.into_iter().collect(),
+        },
+    );
+    state.set_row_authority_like_cpp(runtime.rows_loaded, runtime.rows_complete);
+    state.set_acquisition_snapshot_completeness_like_cpp(
+        runtime.trait_definition_ids_complete,
+        runtime.override_spells_complete,
+    );
+    state.replace_fallback_rows_like_cpp(
+        runtime
             .fallback_rows
             .into_iter()
             .map(|(spell_id, row)| (spell_id, canonical_player_spell_record_like_cpp(row)))
             .collect(),
-        dependent_known_spells: runtime.dependent_known_spells.into_iter().collect(),
-        removed_known_spells: runtime.removed_known_spells.into_iter().collect(),
-        favorite_known_spells: runtime.favorite_known_spells.into_iter().collect(),
-        trait_definition_ids: runtime.trait_definition_ids.into_iter().collect(),
-        trait_definition_ids_complete: runtime.trait_definition_ids_complete,
-        trait_config_rows: runtime.trait_config_rows,
-        trait_config_rows_complete: runtime.trait_config_rows_complete,
-        trait_entry_rows_complete: runtime.trait_entry_rows_complete,
-        trait_entry_rows_empty: runtime.trait_entry_rows_empty,
-        override_spells: runtime.override_spells.into_iter().collect(),
-        override_spells_complete: runtime.override_spells_complete,
-    }
+    );
+    state.complete_trait_authority_load_like_cpp(
+        runtime.trait_config_rows,
+        runtime.trait_entry_rows_empty,
+    );
+    state.set_trait_config_authority_for_fixture_like_cpp(
+        runtime.trait_config_rows_complete,
+        runtime.trait_entry_rows_complete,
+        runtime.trait_entry_rows_empty,
+    );
+    state
 }
 
 fn represented_player_spell_runtime_like_cpp(
     runtime: &wow_entities::PlayerSpellRuntimeState,
 ) -> RepresentedPlayerSpellRuntimeLikeCpp {
     RepresentedPlayerSpellRuntimeLikeCpp {
-        known_spells: runtime.known_spells.clone(),
+        known_spells: runtime.known_spells_like_cpp().to_vec(),
         rows: runtime
-            .rows
+            .rows_like_cpp()
             .iter()
             .map(|(&spell_id, row)| (spell_id, represented_player_spell_record_like_cpp(row)))
             .collect(),
         #[cfg(test)]
-        rows_loaded: runtime.rows_loaded,
-        rows_complete: runtime.rows_complete,
+        rows_loaded: runtime.rows_loaded_like_cpp(),
+        rows_complete: runtime.rows_complete_like_cpp(),
         fallback_rows: runtime
-            .fallback_rows
+            .fallback_rows_like_cpp()
             .iter()
             .map(|(&spell_id, row)| (spell_id, represented_player_spell_record_like_cpp(row)))
             .collect(),
-        dependent_known_spells: runtime.dependent_known_spells.iter().copied().collect(),
-        removed_known_spells: runtime.removed_known_spells.iter().copied().collect(),
-        favorite_known_spells: runtime.favorite_known_spells.iter().copied().collect(),
+        dependent_known_spells: runtime
+            .dependent_known_spells_like_cpp()
+            .iter()
+            .copied()
+            .collect(),
+        removed_known_spells: runtime
+            .removed_known_spells_like_cpp()
+            .iter()
+            .copied()
+            .collect(),
+        favorite_known_spells: runtime
+            .favorite_known_spells_like_cpp()
+            .iter()
+            .copied()
+            .collect(),
         trait_definition_ids: runtime
-            .trait_definition_ids
+            .trait_definition_ids_like_cpp()
             .iter()
             .map(|(&spell_id, &trait_definition_id)| (spell_id, trait_definition_id))
             .collect(),
-        trait_definition_ids_complete: runtime.trait_definition_ids_complete,
-        trait_config_rows: runtime.trait_config_rows.clone(),
-        trait_config_rows_complete: runtime.trait_config_rows_complete,
-        trait_entry_rows_complete: runtime.trait_entry_rows_complete,
-        trait_entry_rows_empty: runtime.trait_entry_rows_empty,
+        trait_definition_ids_complete: runtime.trait_definition_ids_complete_like_cpp(),
+        trait_config_rows: runtime.trait_config_rows_like_cpp().clone(),
+        trait_config_rows_complete: runtime.trait_config_rows_complete_like_cpp(),
+        trait_entry_rows_complete: runtime.trait_entry_rows_complete_like_cpp(),
+        trait_entry_rows_empty: runtime.trait_entry_rows_empty_like_cpp(),
         #[cfg(test)]
         override_spells: runtime
-            .override_spells
+            .override_spells_like_cpp()
             .iter()
             .map(|(&spell_id, overrides)| (spell_id, overrides.clone()))
             .collect(),
-        override_spells_complete: runtime.override_spells_complete,
+        override_spells_complete: runtime.override_spells_complete_like_cpp(),
     }
 }
 
@@ -12733,12 +12757,7 @@ impl WorldSession {
                 self.represented_guild_id_like_cpp = 0;
                 self.represented_guild_id_authority_complete_like_cpp = false;
             }
-            let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime.trait_config_rows.clear();
-                runtime.trait_config_rows_complete = false;
-                runtime.trait_entry_rows_complete = false;
-                runtime.trait_entry_rows_empty = false;
-            });
+            let _ = self.clear_represented_trait_config_rows_like_cpp();
             let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
                 state.character_rows_empty_authority_complete = false;
             });
@@ -12751,9 +12770,7 @@ impl WorldSession {
             self.represented_spell_acquisition_post_commit_actions_like_cpp
                 .clear();
             if previous_player_guid.is_some() {
-                let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                    runtime.fallback_rows.clear();
-                });
+                let _ = self.clear_represented_fallback_spell_rows_like_cpp();
             }
             // `_SaveSkills` tombstones belong to the current C++ Player's
             // update-field slots, not to the authenticated WorldSession.

@@ -80,11 +80,7 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
         source: &wow_entities::PlayerSpellRuntimeState,
     ) {
         let spell = row.spell_id;
-        if let Some(trait_id) = self
-            .mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime.trait_definition_ids.remove(&spell)
-            })
-            .flatten()
+        if let Some(trait_id) = self.take_represented_trait_definition_id_like_cpp(spell)
             && let Some(overridden) = u32::try_from(trait_id)
                 .ok()
                 .and_then(|id| {
@@ -96,18 +92,11 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
         {
             self.remove_represented_override_spell_like_cpp(overridden, spell);
         }
-        let complete_rows = source.rows_complete.then(|| source.rows.clone());
+        let complete_rows = source
+            .rows_complete_like_cpp()
+            .then(|| source.rows_like_cpp().clone());
         self.learn_known_spell_like_cpp(spell);
-        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            if let Some(mut rows) = complete_rows {
-                rows.insert(spell, row);
-                runtime.rows = rows;
-                runtime.rows_loaded = true;
-                runtime.rows_complete = true;
-            } else {
-                runtime.fallback_rows.insert(spell, row);
-            }
-        });
+        let _ = self.install_loaded_spell_row_like_cpp(spell, row, complete_rows);
         self.sync_player_registry_state_like_cpp();
     }
 }

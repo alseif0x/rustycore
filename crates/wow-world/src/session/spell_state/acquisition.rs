@@ -112,8 +112,7 @@ impl WorldSession {
     ) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.trait_definition_ids_complete = false;
-            runtime.override_spells_complete = false;
+            runtime.set_acquisition_snapshot_completeness_like_cpp(false, false);
         });
     }
     #[cfg(test)]
@@ -175,12 +174,13 @@ impl WorldSession {
         }
 
         self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.rows = exact_rows
-                .into_iter()
-                .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
-                .collect();
-            runtime.rows_loaded = true;
-            runtime.rows_complete = complete;
+            runtime.replace_rows_like_cpp(
+                exact_rows
+                    .into_iter()
+                    .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
+                    .collect(),
+                complete,
+            );
         })
         .is_some()
     }
@@ -189,7 +189,7 @@ impl WorldSession {
     /// work for character login has completed.
     pub(crate) fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.override_spells_complete = true;
+            runtime.mark_override_spells_complete_like_cpp();
         });
     }
     /// Installs one validated spell-acquisition snapshot without an await or a
@@ -335,20 +335,20 @@ impl WorldSession {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         if self
             .mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime.known_spells = known_spells;
-                runtime.rows = exact_spells
-                    .into_iter()
-                    .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
-                    .collect();
-                runtime.rows_loaded = true;
-                runtime.rows_complete = true;
-                runtime.dependent_known_spells = dependent_spells;
-                runtime.removed_known_spells = removed_spells;
-                runtime.favorite_known_spells = favorite_spells;
-                runtime.trait_definition_ids = exact_traits.into_iter().collect();
-                runtime.trait_definition_ids_complete = true;
-                runtime.override_spells = exact_overrides.into_iter().collect();
-                runtime.override_spells_complete = true;
+                runtime.install_acquisition_snapshot_like_cpp(
+                    wow_entities::PlayerSpellAcquisitionSnapshotLikeCpp {
+                        known_spells,
+                        rows: exact_spells
+                            .into_iter()
+                            .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
+                            .collect(),
+                        dependent_known_spells: dependent_spells,
+                        removed_known_spells: removed_spells,
+                        favorite_known_spells: favorite_spells,
+                        trait_definition_ids: exact_traits.into_iter().collect(),
+                        override_spells: exact_overrides.into_iter().collect(),
+                    },
+                );
                 // Fallback grants and trait-config source evidence are not part
                 // of this prepared result; retain the current owner's values.
             })
