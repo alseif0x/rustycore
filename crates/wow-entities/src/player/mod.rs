@@ -22,6 +22,7 @@ mod pet_lifecycle;
 mod progression;
 mod pvp;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
+mod collections_hydration;
 mod group_membership;
 mod recent_instances;
 mod resurrection;
