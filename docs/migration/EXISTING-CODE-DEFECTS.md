@@ -17,6 +17,31 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Later verified open findings
 
+- **2026-09-11, #743 group removal — the member's own state clear can be dropped.**
+  Source-verified on `6aeca244`. When a member is kicked or the group disbands,
+  the acting session mutates the registry and then asks the affected member's
+  session to clear its own Player state:
+  `handlers/group/ops_1.rs:632` sends `SessionCommand::ApplyGroupRemovalLikeCpp`
+  through `PlayerDirectory::try_send_current_command`
+  (`session/directory.rs:1753`), a `try_send` on a bounded channel that returns
+  `PlayerDirectorySendError::Full` when the target queue is full. The production
+  queue is `flume::bounded(256)` (`session/mod.rs:7726`) and the result is
+  discarded with `let _ =`; 14 of the 23 production call sites discard it, while
+  `session/admission.rs:436` handles it, so the codebase is already inconsistent
+  about whether a dropped command matters. Nothing reconciles afterwards:
+  `sync_player_registry_state_like_cpp` (`session/mod.rs:12431`) pushes session
+  state *to* the registry and never re-derives the Player's group from it, and
+  although `set_owned_player_group_like_cpp` validates against the registry when
+  setting, the read paths use the Player snapshot directly. When the drop
+  happens the registry has revoked membership while the kicked player's Player
+  still claims it, with no path back to agreement until relog. C++ cannot reach
+  this state: `Group::RemoveMember` calls `SetGroup(nullptr)` on the Player
+  in-process, and an in-process call cannot be dropped for backpressure.
+  Severity is bounded by the trigger, which needs a saturated or stalled session
+  loop. This is a source-verified mechanism, not a live reproduction; no live
+  capture or runtime QA was run for it. Delivery-guarantee choice and fix are
+  scoped in #743.
+
 - **2026-09-05, #578 quest dialog — repeatable turn-in markers reversed.**
   Source-verified on `e478ac5d`: in `handlers/quest/eligibility.rs`,
   `get_represented_quest_giver_status_like_cpp` selects TRIVIAL_REPEATABLE_TURNIN
